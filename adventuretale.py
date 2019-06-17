@@ -641,8 +641,8 @@ class TextSprite(pygame.sprite.DirtySprite):
     
 class Game(GameEngine):
     # Set your game name/version here.
-    NAME = "Tutorial Adventures"
-    VERSION = "1.2"
+    NAME = "Adventure Tale"
+    VERSION = "0.0"
     
     def __init__(self, options):
         super().__init__(options=options)
