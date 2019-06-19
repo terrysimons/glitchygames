@@ -131,27 +131,134 @@ class SoundMixerEngine(BaseEngine):
 
         return parser
 
+class JoystickProxy(object):
+    """Some Joysticks are very slow reading certain attributes such as name, etc.  This fixes that.
+    """
+    def __init__(self, id):
+        super().__init__()
+        self._id = id
+        self.joystick = pygame.joystick.Joystick(self._id)
+        self.joystick.init()
+        self._name = self.joystick.get_name()
+        self._init = self.joystick.get_init()
+
+        self._numaxes = self.joystick.get_numaxes()
+        self._numballs = self.joystick.get_numballs()
+        self._numbuttons = self.joystick.get_numbuttons()
+        self._numhats = self.joystick.get_numhats()
+
+        # Initialize button state.
+        self._axes = [self.joystick.get_axis(i) for i in range(self.get_numaxes())]
+        self._balls = [self.joystick.get_ball(i) for i in range(self.get_numballs())]
+        self._buttons = [self.joystick.get_button(i) for i in range(self.get_numbuttons())]
+        self._hats = [self.joystick.get_hat(i) for i in range(self.get_numhats())]
+
+    # Define some high level APIs
+    def on_axis_motion_event(self, event, game):
+        # JOYAXISMOTION    joy, axis, value
+        try:
+            self._axes[event.axis] = event.value
+            game.on_axis_motion_event(event)
+        except AttributeError:
+            log.info(f'on_axis_motion_event(f{event})')
+            log.info(f'Axes: {self._axes}')            
+
+    def on_button_down_event(self, event, game):
+        # JOYBUTTONDOWN    joy, button                
+        try:
+            self._buttons[event.button] = 1
+            game.on_button_down_event(event)
+        except AttributeError:
+            log.info(f'on_button_down_event(f{event})')
+            log.info(f'Buttons: {self._buttons}')            
+
+    def on_button_up_event(self, event, game):
+        # JOYBUTTONUP      joy, button
+        try:
+            self._buttons[event.button] = 0
+            game.on_button_up_event(event)
+        except AttributeError:
+            log.info(f'on_button_up_event(f{event})')
+            log.info(f'Buttons: {self._buttons}')
+            
+    def on_hat_motion_event(self, event, game):
+        # JOYHATMOTION     joy, hat, value
+        try:
+            self._hats[event.hat] = event.value
+            game.on_hat_motion_event(event)
+        except AttributeError:
+            log.info(f'on_hat_motion_event(f{event})')
+            log.info(f'Hats: {self._hats}')
+
+    def on_ball_motion_event(self, event, game):
+        # JOYBALLMOTION    joy, ball, rel
+        try:
+            self._balls[event.ball] = rel
+            game.on_ball_motion_event(event)
+        except AttributeError:
+            log.info(f'on_ball_motion_event(f{event})')
+            log.info(f'Balls: {self._balls}')
+
+    # We can't make these properties, because then they
+    # wouldn't be callable as functions.
+    def get_name(self):
+        return self._name
+
+    def get_init(self):
+        return self._init
+
+    def get_numaxes(self):
+        return self._numaxes
+
+    def get_numballs(self):
+        return self._numballs
+
+    def get_numbuttons(self):
+        return self._numbuttons
+
+    def get_numhats(self):
+        return self._numhats
+
+    def __str__(self):
+        joystick_info = []
+        joystick_info.append('Joystick Name: self.get_name()')
+        joystick_info.append(f'\tJoystick Id: {self.get_id()}')
+        joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
+        joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
+        joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
+        joystick_info.append(f'\tJoystick Button Count: {self.get_numbuttons()}')
+        joystick_info.append(f'\tJoystick Hat Count: {self.get_numhats()}')        
+        return '\n'.join(joystick_info)
+
+    def __repr__(self):
+        return repr(self.joystick)
+
+    # This will allow calls to the joystick which aren't implemented here.
+    def __getattr__(self, attr):
+        return getattr(self.joystick, attr)
     
 class JoystickEngine(BaseEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.joysticks = []
 
-        # This must be called before other joystick methods, and is safe to call more than once.
+        # This must be called before other joystick methods,
+        # and is safe to call more than once.
+        pygame.joystick.init()
+        
         log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
 
         # Joystick Setup
         log.info(f'Joystick Count: {pygame.joystick.get_count()}')
-        self.joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
+        joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
-        for joystick in self.joysticks:
+        for i, joystick in enumerate(joysticks):
             joystick.init()
-            log.info(f'Joystick Name: {joystick.get_name()}')
-            log.info(f'\tJoystick Id: {joystick.get_id()}')
-            log.info(f'\tJoystick Inited: {joystick.get_init()}')
-            log.info(f'\tJoystick Axis Count: {joystick.get_numaxes()}')
-            log.info(f'\tJoystick Trackball Count: {joystick.get_numballs()}')
-            log.info(f'\tJoystick Button Count: {joystick.get_numbuttons()}')
-            log.info(f'\tJoystick Hat Count: {joystick.get_numhats()}')
+            joystick_proxy = JoystickProxy(id=joystick.get_id())
+            self.joysticks.append(joystick_proxy)
+
+            # The joystick proxy overrides the joystick object
+            log.info(joystick_proxy)
 
         self.ready = True
 
@@ -163,6 +270,33 @@ class JoystickEngine(BaseEngine):
 
     def start(self):
         pass
+
+
+    # Define some high level APIs
+    def axis_motion_event(self, event, game):
+        # JOYAXISMOTION    joy, axis, value        
+        log.debug(f'JOYAXISMOTION triggered: axis_motion_event({event})')
+        self.joysticks[event.joy].on_axis_motion_event(event, game)
+
+    def button_down_event(self, event, game):
+        # JOYBUTTONDOWN    joy, button
+        log.debug(f'JOYBUTTONDOWN triggered: button_down_event({event})')
+        self.joysticks[event.joy].on_button_down_event(event, game)
+        
+    def button_up_event(self, event, game):
+        # JOYBUTTONUP      joy, button
+        log.debug(f'JOYBUTTONUP triggered: button_up_event({event})')
+        self.joysticks[event.joy].on_button_up_event(event, game)        
+
+    def hat_motion_event(self, event, game):
+        # JOYHATMOTION     joy, hat, value
+        log.debug(f'JOYHATMOTION triggered: hat_motion_event({event})')
+        self.joysticks[event.joy].on_hat_motion_event(event, game)        
+
+    def ball_motion_event(self, event, game):
+        # JOYBALLMOTION    joy, ball, rel
+        log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
+        self.joysticks[event.joy].on_ball_motion_event(event, game)        
 
     
 class GameEngine(BaseEngine):
@@ -525,7 +659,7 @@ class TextSprite(pygame.sprite.DirtySprite):
 
         if not alpha:
             self.screen.set_colorkey(self.background_color)
-            self.screen.convert()
+            #self.screen.convert()
         else:
             # Enabling set_alpha() and also setting a color
             # key will let you hide the background
@@ -542,7 +676,7 @@ class TextSprite(pygame.sprite.DirtySprite):
             # whether the text is opaque or translucent, and
             # it would also allow a different translucency level
             # on the text than the window.
-            self.screen.convert_alpha()
+            #self.screen.convert_alpha()
             self.screen.set_alpha(self.alpha)
 
         self.image = self.screen
@@ -566,7 +700,7 @@ class TextSprite(pygame.sprite.DirtySprite):
 
             def print(self, screen, string):
                 (self.image, self.rect) = self.font.render(string, white)
-                self.image.convert()
+                self.image
                 screen.blit(self.image, (self.x, self.y))
                 self.rect.x = self.x
                 self.rect.y = self.y
@@ -583,7 +717,6 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.x -= 10
 
             def rect(self):
-                print(f'TextBox Rect: {self.rect}')
                 return self.rect
 
         self.text_box = TextBox(font_engine=self.font_engine, x=10, y=10)
@@ -592,7 +725,7 @@ class TextSprite(pygame.sprite.DirtySprite):
         
     def update(self):
         self.dirty = 2
-        self.screen.fill(self.background_color)        
+        self.screen.fill(self.background_color)
 
         self.text_box.reset()
         self.text_box.print(self.screen, f'{Game.NAME} version {Game.VERSION}')
@@ -603,44 +736,39 @@ class TextSprite(pygame.sprite.DirtySprite):
 
         self.text_box.print(self.screen, "Number of joysticks: {}".format(self.joystick_count) )        
         if self.joystick_count:
-
-            #for each joystick in self.game_engine.joysticks:
             for i, joystick in enumerate(self.joystick_engine.joysticks):
                 self.text_box.print(self.screen, f'Joystick {i}')
                 
-                 # Get the name from the OS for the controller/joystick
-                self.text_box.indent()                
+                # Get the name from the OS for the controller/joystick
+                self.text_box.indent()
                 self.text_box.print(self.screen, f'Joystick name: {joystick.get_name()}')
         
-                 # Usually axis run in pairs, up/down for one, and left/right for
-                 # the other.
+                # Usually axis run in pairs, up/down for one, and left/right for
+                # the other.
                 axes = joystick.get_numaxes()
                 self.text_box.print(self.screen, f'Number of axes: {axes}')
                 
                 self.text_box.indent()                
                 for i in range(axes):
-                    axis = joystick.get_axis(i)
-                    self.text_box.print(self.screen, 'Axis {} value: {:>6.3f}'.format(i, axis))
+                    self.text_box.print(self.screen, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
-                self.text_box.print(self.screen, f'Number of buttons: {buttons}')
+                self.text_box.print(self.screen, f'Number of buttons: {joystick.get_numbuttons()}')
                 
                 self.text_box.indent()
                 for i in range(buttons):
-                    button = joystick.get_button(i)
-                    self.text_box.print(self.screen, 'Button {:>2} value: {}'.format(i,button))
+                    self.text_box.print(self.screen, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
                 self.text_box.unindent()
             
                 # Hat switch. All or nothing for direction, not like joysticks.
                 # Value comes back in an array.
-                hats = joystick.get_numhats()
+                hats = 0
                 self.text_box.print(self.screen, f'Number of hats: {hats}')
                 
                 self.text_box.indent()
                 for i in range(hats):
-                    hat = joystick.get_hat(i)
-                    self.text_box.print(self.screen, f'Hat {hat} value: {str(hat)}')
+                    self.text_box.print(self.screen, f'Hat {hat} value: {str(joystick.get_hat(i))}')
                     self.text_box.unindent()
                 self.text_box.unindent()
 
@@ -720,6 +848,27 @@ class Game(GameEngine):
 
         return parser
 
+    # Hook up the input callbacks.
+    def on_axis_motion_event(self, event):
+        # JOYAXISMOTION    joy, axis, value
+        print('JOYAXISMOTION')
+        
+    def on_button_down_event(self, event):
+        # JOYBUTTONDOWN    joy, button
+        print('JOYBUTTONDOWN')
+
+    def on_button_up_event(self, event):
+        # JOYBUTTONUP      joy, button
+        print('JOYBUTTONUP')
+        
+    def on_hat_motion_event(self, event):
+        # JOYHATMOTION     joy, hat, value
+        print('JOYHATMOTION')
+
+    def on_ball_motion_event(self, event):
+        # JOYBALLMOTION    joy, ball, rel
+        print('JOYBALLMOTION')
+
     def start(self):
         # This is a simple class that will help us print to the screen
         # It has nothing to do with the joysticks, just outputting the
@@ -749,7 +898,7 @@ class Game(GameEngine):
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         shapes_sprite = ShapesSprite()
-        text_sprite = TextSprite(background_color=blacklucent, alpha=127)
+        text_sprite = TextSprite(background_color=blacklucent, alpha=0)
         
         all_sprites = pygame.sprite.LayeredDirty((shapes_sprite, text_sprite))
 
@@ -805,24 +954,19 @@ class Game(GameEngine):
                     pass
                 elif event.type == pygame.JOYAXISMOTION:
                     # JOYAXISMOTION    joy, axis, value
-                    log.debug(f'JOYAXISMOTION: {event}')
-                    pass
+                    self.joystick_engine.axis_motion_event(event, self)
                 elif event.type == pygame.JOYBALLMOTION:
                     # JOYBALLMOTION    joy, ball, rel
-                    log.debug(f'JOYBALLMOTION: {event}')
-                    pass
+                    self.joystick_engine.ball_motion_event(event, self)
                 elif event.type == pygame.JOYHATMOTION:
                     # JOYHATMOTION     joy, hat, value
-                    log.debug(f'JOYHATMOTION: {event}')
-                    pass
+                    self.joystick_engine.hat_motion_event(event, self)
                 elif event.type == pygame.JOYBUTTONUP:
                     # JOYBUTTONUP      joy, button
-                    log.debug(f'JOYBUTTONUP: {event}')
-                    pass
+                    self.joystick_engine.button_up_event(event, self)
                 elif event.type == pygame.JOYBUTTONDOWN:
                     # JOYBUTTONDOWN    joy, button
-                    log.debug(f'JOYBUTTONDOWN: {event}')
-                    pass
+                    self.joystick_engine.button_down_event(event, self)
                 elif event.type == pygame.VIDEORESIZE:
                     # VIDEORESIZE      size, w, h
                     log.debug(f'VIDEORESIZE: {event}')
@@ -864,15 +1008,9 @@ class Game(GameEngine):
 
         log.info(f'FPS: {GameEngine.FPS}')
 
-        time.sleep(5)
-
     def quit(self):
         log.info('Quit was called.')
-        log.info('Quitting in 1 second.')
         
-        # Wait 1 second before quitting.
-        pygame.time.wait(1000)
-
         # Call the GameEngine quit, so it will clean up.
         super().quit()
 
