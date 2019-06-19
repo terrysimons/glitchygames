@@ -42,16 +42,16 @@ class BaseEngine(object):
     def args(cls, parser):
         return parser
 
-    def start():
+    def start(self):
         pass
 
-    def stop():
+    def stop(self):
         pass
 
-    def ready():
+    def ready(self):
         return self.ready
 
-    def quit():
+    def quit(self):
         pass
 
 class FontEngine(BaseEngine):
@@ -136,11 +136,13 @@ class JoystickEngine(BaseEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # This must be called before other joystick methods, and is safe to call more than once.
+        log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
+
         # Joystick Setup
         log.info(f'Joystick Count: {pygame.joystick.get_count()}')
         self.joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
-        log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
         for joystick in self.joysticks:
             joystick.init()
             log.info(f'Joystick Name: {joystick.get_name()}')
@@ -158,6 +160,9 @@ class JoystickEngine(BaseEngine):
         group = parser.add_argument_group('Joystick Options')
 
         return parser
+
+    def start(self):
+        pass
 
     
 class GameEngine(BaseEngine):
@@ -198,14 +203,17 @@ class GameEngine(BaseEngine):
         self.joystick_count = len(self.joysticks)
 
         # Resolution initialization.
-        self.resolution = (0, 0)
         if self.windowed:
             self.mode_flags = 0
+            self.screen_width = 640
+            self.screen_height = 480
         else:
             self.mode_flags = pygame.FULLSCREEN
+            self.screen_width = 0
+            self.screen_height = 0
         self.color_depth = 0
-        self.screen_width = 0
-        self.screen_height = 0
+        self.resolution = (self.screen_width, self.screen_height)
+
 
         # Event Handling Shortcuts
         self.mouse_events = [pygame.MOUSEMOTION,
@@ -597,7 +605,7 @@ class TextSprite(pygame.sprite.DirtySprite):
         if self.joystick_count:
 
             #for each joystick in self.game_engine.joysticks:
-            for i, joystick in enumerate(self.game_engine.joysticks):
+            for i, joystick in enumerate(self.joystick_engine.joysticks):
                 self.text_box.print(self.screen, f'Joystick {i}')
                 
                  # Get the name from the OS for the controller/joystick
@@ -661,12 +669,17 @@ class Game(GameEngine):
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         #
         # (0, 0), 0, 0 is the recommended setting for auto-configure.
-        self.desired_resolution = (0, 0)
         if self.windowed:
             self.mode_flags = 0
+            self.screen_width = 640
+            self.screen_height = 480
         else:
             self.mode_flags = pygame.FULLSCREEN 
+            self.screen_width = 0
+            self.screen_height = 0
         self.color_depth = 0
+        self.resolution = (self.screen_width, self.screen_height)
+
 
         # Uncomment to easily block a class of events, if you
         # don't want them to be processed by the event queue.
