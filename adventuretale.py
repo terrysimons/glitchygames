@@ -54,7 +54,11 @@ class BaseEngine(object):
     def quit(self):
         pass
 
-class FontEngine(BaseEngine):
+class ResourceManager(object):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+class FontManager(ResourceManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -109,9 +113,18 @@ class FontEngine(BaseEngine):
                            default=72)
 
         return parser
-    
-    
-class SoundMixerEngine(BaseEngine):
+
+class MusicManager(ResourceManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Music Options')
+
+        return parser
+
+class SoundManager(ResourceManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -221,7 +234,7 @@ class JoystickProxy(object):
 
     def __str__(self):
         joystick_info = []
-        joystick_info.append('Joystick Name: self.get_name()')
+        joystick_info.append(f'Joystick Name: self.get_name()')
         joystick_info.append(f'\tJoystick Id: {self.get_id()}')
         joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
         joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
@@ -236,8 +249,16 @@ class JoystickProxy(object):
     # This will allow calls to the joystick which aren't implemented here.
     def __getattr__(self, attr):
         return getattr(self.joystick, attr)
+
+class KeyboardManager(ResourceManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class MouseManager(ResourceManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)        
     
-class JoystickEngine(BaseEngine):
+class JoystickManager(ResourceManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.joysticks = []
@@ -298,7 +319,20 @@ class JoystickEngine(BaseEngine):
         log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
         self.joysticks[event.joy].on_ball_motion_event(event, game)        
 
-    
+class InputManager(ResourceManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.joystick_manager = JoystickManager(**kwargs)
+        self.keyboard_manager = KeyboardManager(**kwargs)
+        self.mouse_manager = MouseManager(**kwargs)
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Sound Mixer Options')
+
+        return parser
+
+
 class GameEngine(BaseEngine):
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
@@ -328,13 +362,18 @@ class GameEngine(BaseEngine):
         # Enable fast events for multithreaded applications
         pygame.fastevent.init()
 
-        self.font_engine = FontEngine(**options)
-        self.mixer_engine = SoundMixerEngine(**options)
-        self.joystick_engine = JoystickEngine(**options)
-
+        self.font_manager = FontManager(**options)
+        self.sound_manager = SoundManager(**options)
+        self.music_manager = MusicManager(**options)
+        self.input_manager = InputManager(**options)
+        self.joystick_manager = self.input_manager.joystick_manager
+        self.keyboard_manager = self.input_manager.keyboard_manager
+        self.mouse_manager = self.input_manager.mouse_manager
+        
         # Get count of joysticks
-        self.joysticks = self.joystick_engine.joysticks
-        self.joystick_count = len(self.joysticks)
+        if self.joystick_manager:
+            self.joysticks = self.joystick_manager.joysticks
+            self.joystick_count = len(self.joysticks)
 
         # Resolution initialization.
         if self.windowed:
@@ -527,11 +566,14 @@ class GameEngine(BaseEngine):
                            default=None,
                            choices=linux_videodriver_choices)
 
-        # Init Font Engine Options
-        parser = FontEngine.args(parser=parser)
+        # Init Font Options
+        parser = FontManager.args(parser=parser)
 
-        # Init Sound Engine Options
-        parser = SoundMixerEngine.args(parser=parser)
+        # Init Sound Options
+        parser = SoundManager.args(parser=parser)
+
+        # Init Music Options
+        parser = MusicManager.args(parser=parser)
 
         return parser
 
@@ -681,12 +723,12 @@ class TextSprite(pygame.sprite.DirtySprite):
 
         self.image = self.screen
         self.rect = self.image.get_rect()
-        self.font_engine = FontEngine()
-        self.joystick_engine = JoystickEngine()
-        self.joystick_count = len(self.joystick_engine.joysticks)
+        self.font_manager = FontManager()
+        self.joystick_manager = JoystickManager()
+        self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
-            def __init__(self, font_engine, x, y, line_height=15):
+            def __init__(self, font_controller, x, y, line_height=15):
                 super().__init__()
                 self.image = None
                 self.rect = None
@@ -694,9 +736,9 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.start_y = y
                 self.line_height = line_height
                 
-                pygame.freetype.set_default_resolution(font_engine.font_dpi)
-                self.font = pygame.freetype.SysFont(name=font_engine.font,
-                                                    size=font_engine.font_size)
+                pygame.freetype.set_default_resolution(font_controller.font_dpi)
+                self.font = pygame.freetype.SysFont(name=font_controller.font,
+                                                    size=font_controller.font_size)
 
             def print(self, screen, string):
                 (self.image, self.rect) = self.font.render(string, white)
@@ -719,7 +761,7 @@ class TextSprite(pygame.sprite.DirtySprite):
             def rect(self):
                 return self.rect
 
-        self.text_box = TextBox(font_engine=self.font_engine, x=10, y=10)
+        self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
         self.update()
         
@@ -736,7 +778,7 @@ class TextSprite(pygame.sprite.DirtySprite):
 
         self.text_box.print(self.screen, "Number of joysticks: {}".format(self.joystick_count) )        
         if self.joystick_count:
-            for i, joystick in enumerate(self.joystick_engine.joysticks):
+            for i, joystick in enumerate(self.joystick_manager.joysticks):
                 self.text_box.print(self.screen, f'Joystick {i}')
                 
                 # Get the name from the OS for the controller/joystick
@@ -954,19 +996,19 @@ class Game(GameEngine):
                     pass
                 elif event.type == pygame.JOYAXISMOTION:
                     # JOYAXISMOTION    joy, axis, value
-                    self.joystick_engine.axis_motion_event(event, self)
+                    self.joystick_manager.axis_motion_event(event, self)
                 elif event.type == pygame.JOYBALLMOTION:
                     # JOYBALLMOTION    joy, ball, rel
-                    self.joystick_engine.ball_motion_event(event, self)
+                    self.joystick_.ball_motion_event(event, self)
                 elif event.type == pygame.JOYHATMOTION:
                     # JOYHATMOTION     joy, hat, value
-                    self.joystick_engine.hat_motion_event(event, self)
+                    self.joystick_manager.hat_motion_event(event, self)
                 elif event.type == pygame.JOYBUTTONUP:
                     # JOYBUTTONUP      joy, button
-                    self.joystick_engine.button_up_event(event, self)
+                    self.joystick_manager.button_up_event(event, self)
                 elif event.type == pygame.JOYBUTTONDOWN:
                     # JOYBUTTONDOWN    joy, button
-                    self.joystick_engine.button_down_event(event, self)
+                    self.joystick_manager.button_down_event(event, self)
                 elif event.type == pygame.VIDEORESIZE:
                     # VIDEORESIZE      size, w, h
                     log.debug(f'VIDEORESIZE: {event}')
