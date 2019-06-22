@@ -7,6 +7,7 @@ import logging
 import time
 import multiprocessing
 import os
+import platform
 import subprocess
 import re
 
@@ -33,6 +34,7 @@ white = pygame.Color(255, 255, 255, 255)
 black = pygame.Color(0, 0, 0, 0)
 blacklucent = pygame.Color(0, 0, 0, 127)
 bluelucent = pygame.Color(0, 96, 255, 127)
+red = pygame.Color(255, 0, 0)
 
 class BaseEngine(object):
     def __init__(self, *args, **kwargs):
@@ -44,12 +46,6 @@ class BaseEngine(object):
 
     def start(self):
         pass
-
-    def stop(self):
-        pass
-
-    def ready(self):
-        return self.ready
 
     def quit(self):
         pass
@@ -160,8 +156,7 @@ class KeyboardManager(ResourceManager):
 
             # This will allow calls to the keyboard which aren't implemented here.
             def __getattr__(self, attr):
-                # TODO: If the attribute doesn't exist, throw an error.        
-                return getattr(pygame.key, attr)        
+                    return getattr(pygame.key, attr)
 
         self.keyboard = KeyboardProxy()
 
@@ -172,7 +167,7 @@ class KeyboardManager(ResourceManager):
 
     def key_up_event(self, event, game):
         # KEYUP            key, mod
-        log.debug(f'KEYDOWN triggered: key_up_event(event, game)')        
+        log.debug(f'KEYUP triggered: key_up_event(event, game)')        
         self.keyboard.on_key_up_event(event, game)
 
 class MouseManager(ResourceManager):
@@ -184,34 +179,39 @@ class MouseManager(ResourceManager):
                 super().__init__()
 
             def on_mouse_motion_event(self, event, game):
-                game.on_mouse_motion_event(event)
+                try:
+                    game.on_mouse_motion_event(event)
+                except:
+                    log.debug(f'MOUSEMOTION triggered: mouse_motion_event({event})')                    
 
             def on_mouse_button_up_event(self, event, game):
-                game.on_mouse_button_up_event(event)
+                try:
+                    game.on_mouse_button_up_event(event)
+                except:
+                    log.debug(f'MOUSEBUTTONUP triggered: mouse_button_up_event({event})')
 
             def on_mouse_button_down_event(self, event, game):
-                game.on_mouse_button_down_event(event)
+                try:
+                    game.on_mouse_button_down_event(event)
+                except AttributeError:
+                    log.debug(f'MOUSEBUTTONDOWN triggered: mouse_button_down_event({event})')
 
             # This will allow calls to the mouse which aren't implemented here.
             def __getattr__(self, attr):
-                # TODO: If the attribute doesn't exist, throw an error.
                 return getattr(pygame.mouse, attr)    
         
         self.mouse = MouseProxy()
 
     def mouse_motion_event(self, event, game):
         # MOUSEMOTION      pos, rel, buttons
-        log.debug(f'MOUSEMOTION triggered: mouse_motion_event({event})')        
         self.mouse.on_mouse_motion_event(event, game)
         
     def mouse_button_up_event(self, event, game):
         # MOUSEBUTTONUP    pos, button
-        log.debug(f'MOUSEBUTTONUP triggered: mouse_button_up_event({event})')        
         self.mouse.on_mouse_button_up_event(event, game)
         
     def mouse_button_down_event(self, event, game):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'MOUSEBUTTONDOWN triggered: mouse_button_down_event({event})')
         self.mouse.on_mouse_button_down_event(event, game)
     
 class JoystickManager(ResourceManager):
@@ -249,7 +249,7 @@ class JoystickManager(ResourceManager):
                     game.on_axis_motion_event(event)
                 except AttributeError:
                     log.info(f'on_axis_motion_event(f{event})')
-                    log.info(f'Axes: {self._axes}')            
+                    log.info(f'Axes: {self._axes}')
 
             def on_button_down_event(self, event, game):
                 # JOYBUTTONDOWN    joy, button                
@@ -323,7 +323,6 @@ class JoystickManager(ResourceManager):
 
             # This will allow calls to the joystick which aren't implemented here.
             def __getattr__(self, attr):
-                # TODO: If the attribute doesn't exist, throw an error.                
                 return getattr(self.joystick, attr)
 
         # This must be called before other joystick methods,
@@ -411,7 +410,6 @@ class GameManager(ResourceManager):
                     log.debug(f'QUIT: {event}')
 
             def on_active_event(self, event, game):
-                # Note: Split these out into on_activated_event(), on_deactivated_event()
                 # ACTIVEEVENT      gain, state
                 try:
                     game.on_active_event(event)
@@ -524,6 +522,20 @@ class GameEngine(BaseEngine):
     def __init__(self, options=None):
         # General stuff.
         self.cpu_count = multiprocessing.cpu_count()
+        self.system = platform.system()
+        self.machine = platform.machine()
+        self.platform = platform.platform(aliased=0, terse=0)
+        self.platform_terse = platform.platform(aliased=0, terse=1)
+        self.processor = platform.processor()
+        self.release = platform.release()
+
+        log.info(f'CPU Count: {self.cpu_count}')
+        log.info(f'System: {self.system}')
+        log.info(f'Machine: {self.machine}')
+        log.info(f'Platform: {self.platform}')
+        log.info(f'Platform (Terse): {self.platform_terse}')
+        log.info(f'Processor: {self.processor}')
+        log.info(f'Release: {self.release}')
 
         # Pygame stuff.
         pygame.register_quit(self.quit)
@@ -533,6 +545,7 @@ class GameEngine(BaseEngine):
         self.video_driver = options.get('video_driver')
         self.windowed = options.get('windowed')
         self.desired_resolution = options.get('resolution')
+        self.fps_refresh_rate = options.get('fps_refresh_rate')
 
         log.info(f'Game Title: {type(self).NAME}')
         log.info(f'Game Version: {type(self).VERSION}')
@@ -544,6 +557,8 @@ class GameEngine(BaseEngine):
         # Enable fast events for multithreaded applications
         pygame.fastevent.init()
 
+        self.clock = pygame.time.Clock()
+
         self.font_manager = FontManager(**options)
         self.sound_manager = SoundManager(**options)
         self.music_manager = MusicManager(**options)
@@ -553,7 +568,7 @@ class GameEngine(BaseEngine):
         self.mouse_manager = self.input_manager.mouse_manager
         self.game_manager = GameManager(**options)
         self.registered_events = {}
-        
+
         # Get count of joysticks
         if self.joystick_manager:
             self.joysticks = self.joystick_manager.joysticks
@@ -566,8 +581,13 @@ class GameEngine(BaseEngine):
             self.mode_flags = 0
         else:
             self.mode_flags = pygame.FULLSCREEN
-            self.desired_width = 0
-            self.desired_height = 0
+
+            # For Ubuntu 19.04, we can't reset the original res
+            # so let's just let the system figure it out.
+            if self.system == 'Linux':
+                log.info('Ignoring full screen resolution change on Linux.')
+                self.desired_width = 0
+                self.desired_height = 0                
         self.color_depth = 0
         self.desired_resolution = (int(self.desired_width), int(self.desired_height))
 
@@ -719,6 +739,9 @@ class GameEngine(BaseEngine):
                            help='cap the framerate (default: infinite)',
                            type=float,
                            default=0.0)
+        group.add_argument('--fps-refresh-rate',
+                           help='how often to update the FPS counter in ms (default: 1000)',
+                           default=1000)
         group.add_argument('-w', '--windowed',
                            help='run the program in windowed mode',
                            action='store_true')
@@ -779,18 +802,12 @@ class GameEngine(BaseEngine):
         # To use events in a different thread, use the fastevent package from pygame.
         # You can create your own new events with the pygame.event.Event() function.
         for event in pygame.fastevent.get():
-            if event.type == pygame.QUIT:
-                # QUIT             none
-                self.game_manager.quit_event(event, self)
-            elif event.type == pygame.ACTIVEEVENT:
-                # ACTIVEEVENT      gain, state
-                self.game_manager.active_event(event, self)
-            elif event.type == pygame.KEYDOWN:
-                # KEYDOWN          unicode, key, mod
-                self.keyboard_manager.key_down_event(event, self)
-            elif event.type == pygame.KEYUP:
-                # KEYUP            key, mod
-                self.keyboard_manager.key_up_event(event, self)
+            if event.type == GameEngine.FPSEVENT:
+                # FPSEVENT is pygame.USEREVENT + 1
+                self.game_manager.fps_event(event, self)
+            elif event.type == GameEngine.GAMEEVENT:
+                # GAMEEVENT is pygame.USEREVENT + 2
+                self.game_manager.game_event(event, self)
             elif event.type == pygame.MOUSEMOTION:
                 # MOUSEMOTION      pos, rel, buttons
                 self.mouse_manager.mouse_motion_event(event, self)
@@ -799,7 +816,13 @@ class GameEngine(BaseEngine):
                 self.mouse_manager.mouse_button_up_event(event, self)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self.mouse_manager.mouse_button_down_event(event, self)
-                # MOUSEBUTTONDOWN  pos, button                    
+                # MOUSEBUTTONDOWN  pos, button                            
+            elif event.type == pygame.KEYDOWN:
+                # KEYDOWN          unicode, key, mod
+                self.keyboard_manager.key_down_event(event, self)
+            elif event.type == pygame.KEYUP:
+                # KEYUP            key, mod
+                self.keyboard_manager.key_up_event(event, self)
             elif event.type == pygame.JOYAXISMOTION:
                 # JOYAXISMOTION    joy, axis, value
                 self.joystick_manager.axis_motion_event(event, self)
@@ -815,6 +838,15 @@ class GameEngine(BaseEngine):
             elif event.type == pygame.JOYBUTTONDOWN:
                 # JOYBUTTONDOWN    joy, button
                 self.joystick_manager.button_down_event(event, self)
+            elif event.type == pygame.USEREVENT:
+                # USEREVENT        code
+                self.game_manager.user_event(event, self)                                   
+            elif event.type == pygame.QUIT:
+                # QUIT             none
+                self.game_manager.quit_event(event, self)
+            elif event.type == pygame.ACTIVEEVENT:
+                # ACTIVEEVENT      gain, state
+                self.game_manager.active_event(event, self)
             elif event.type == pygame.VIDEORESIZE:
                 # VIDEORESIZE      size, w, h
                 self.game_manager.video_resize_event(event, self)
@@ -824,27 +856,19 @@ class GameEngine(BaseEngine):
             elif event.type == pygame.SYSWMEVENT:
                 # SYSWMEVENT
                 self.game_manager.sys_wm_event(event, self)
-            elif event.type == pygame.USEREVENT:
-                # USEREVENT        code
-                self.game_manager.user_event(event, self)                   
-            elif event.type == GameEngine.FPSEVENT:
-                # FPSEVENT is pygame.USEREVENT + 1
-                self.game_manager.fps_event(event, self)
-            elif event.type == GameEngine.GAMEEVENT:
-                # GAMEEVENT is pygame.USEREVENT + 2
-                self.game_manager.game_event(event, self)
 
     def register_game_event(self, event_type, callback):
         # This registers a subtype of type GAMEEVENT to call a callback.
         log.info(f'Registering event type "{event_type}" for {callback}')
         self.registered_events[event_type] = callback
 
-    def post_game_event(self, event_type, event_data):
+    def post_game_event(self, event_subtype, event_data):
         event = event_data.copy()
-        event['type'] = event_type
+        event['subtype'] = event_subtype
         pygame.event.post(
             pygame.event.Event(GameEngine.GAMEEVENT, event)
-        )        
+        )
+        log.debug(f'Posted Event: {event}')
 
     # Hook up the input callbacks.
     def on_axis_motion_event(self, event):
@@ -873,11 +897,58 @@ class GameEngine(BaseEngine):
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-        log.info(f'MOUSEBUTTONUP: {event}')
+        log.debug(f'MOUSEBUTTONUP: {event}')
 
+        if event.button == 1:
+            self.on_left_mouse_button_up(event)
+        if event.button == 2:
+            self.on_middle_mouse_button_up(event)
+        if event.button == 3:
+            self.on_right_mouse_button_up(event)
+        if event.button == 4:
+            # It doesn't really make sense to hook this
+            pass
+        if event.button == 5:
+            # It doesn't really make sense to hook this            
+            pass
+
+    def on_left_mouse_button_up(self, event):
+        log.info('Left Mouse Button Up')
+
+    def on_middle_mouse_button_up(self, event):
+        log.info('Middle Mouse Button Up')
+
+    def on_right_mouse_button_up(self, event):
+        log.info('Right Mouse Button Up')
+            
     def on_mouse_button_down_event(self, event):
-        # MOUSEBUTTONDOWN    pos, button
-        log.info('MOUSEBUTTONDOWN: {event}')
+        # MOUSEBUTTONDOWN  pos, button
+        log.debug('MOUSEBUTTONDOWN: {event}')        
+        if event.button == 1:
+            self.on_left_mouse_button_down(event)
+        if event.button == 2:
+            self.on_middle_mouse_button_down(event)
+        if event.button == 3:
+            self.on_right_mouse_button_down(event)
+        if event.button == 4:
+            self.on_mouse_scroll_down(event)
+        if event.button == 5:
+            self.on_mouse_scroll_up(event)
+
+    def on_left_mouse_button_down(self, event):
+        log.info('Left Mouse Button Down')
+
+    def on_middle_mouse_button_down(self, event):
+        log.info('Middle Mouse Button Down')
+
+    def on_right_mouse_button_down(self, event):
+        log.info('Right Mouse Button Down')
+
+    def on_mouse_scroll_down(self, event):
+        log.info('Mouse Scroll Down')
+
+    def on_mouse_scroll_up(self, event):
+        log.info('Mouse Scroll Up')        
 
     def on_key_down_event(self, event):
         # KEYDOWN          unicode, key, mod
@@ -911,20 +982,23 @@ class GameEngine(BaseEngine):
         log.debug(f'USEREVENT: {event}')        
 
     def on_fps_event(self, event):
-        # FPSEVENT is pygame.USEREVENT + 1        
-        log.debug(f'FPSEVENT: {event}')        
-        log.info(f'FPS: {GameEngine.FPS}')
+        # FPSEVENT is pygame.USEREVENT + 1
+        GameEngine.FPS = self.clock.get_fps()        
+        #log.debug(f'FPSEVENT: {event}')     
+        #log.info(f'FPS: {GameEngine.FPS}')
 
     def on_game_event(self, event):
         # GAMEEVENT is pygame.USEREVENT + 2
-        log.info(f'GAMEEVENT: {event}')
-
         # Call the event callback if it's registered.
         try:
-            self.registered_events[event.type](event)
-        except AttributeError:
-            pass
+            self.registered_events[event.subtype](event)
+        except KeyError:
+            log.error(f'Unregistered Event: {event} (call self.register_game_event(<event subtype>, <event data>))')
 
+
+class SceneManager(object):
+    def __init__():
+        pass
     
 class ShapesSprite(pygame.sprite.DirtySprite):
     def __init__(self):
@@ -1026,17 +1100,20 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         
 
 class TextSprite(pygame.sprite.DirtySprite):
-    def __init__(self, background_color=blacklucent, alpha=0):
+    def __init__(self, background_color=blacklucent, alpha=0, x=0, y=0):
         super().__init__()
         self.background_color = background_color
         self.alpha = alpha
+        self.x = x
+        self.y = y
         
         # Quick and dirty, for now.
-        self.screen = pygame.Surface((400, 400))
+        self.image = pygame.Surface((400, 400))
+        self.screen = pygame.display.get_surface()
 
         if not alpha:
-            self.screen.set_colorkey(self.background_color)
-            #self.screen.convert()
+            self.image.set_colorkey(self.background_color)
+            self.image.convert()
         else:
             # Enabling set_alpha() and also setting a color
             # key will let you hide the background
@@ -1053,11 +1130,12 @@ class TextSprite(pygame.sprite.DirtySprite):
             # whether the text is opaque or translucent, and
             # it would also allow a different translucency level
             # on the text than the window.
-            #self.screen.convert_alpha()
-            self.screen.set_alpha(self.alpha)
-
-        self.image = self.screen
+            self.image.convert_alpha()
+            self.image.set_alpha(self.alpha)
+            
         self.rect = self.image.get_rect()
+        self.rect.x += x
+        self.rect.y += y
         self.font_manager = FontManager()
         self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
@@ -1075,10 +1153,10 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
 
-            def print(self, screen, string):
+            def print(self, surface, string):
                 (self.image, self.rect) = self.font.render(string, white)
                 self.image
-                screen.blit(self.image, (self.x, self.y))
+                surface.blit(self.image, (self.x, self.y))
                 self.rect.x = self.x
                 self.rect.y = self.y
                 self.y += self.line_height
@@ -1102,55 +1180,55 @@ class TextSprite(pygame.sprite.DirtySprite):
         
     def update(self):
         self.dirty = 2
-        self.screen.fill(self.background_color)
+        self.image.fill(self.background_color)
+
+        pygame.draw.rect(self.image, white, self.image.get_rect(), 7)        
 
         self.text_box.reset()
-        self.text_box.print(self.screen, f'{Game.NAME} version {Game.VERSION}')
+        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
 
-        self.text_box.print(self.screen, f'CPUs: {multiprocessing.cpu_count()}')
+        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
         
-        self.text_box.print(self.screen, f'FPS: {Game.FPS}')
+        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-        self.text_box.print(self.screen, "Number of joysticks: {}".format(self.joystick_count) )        
+        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count) )        
         if self.joystick_count:
             for i, joystick in enumerate(self.joystick_manager.joysticks):
-                self.text_box.print(self.screen, f'Joystick {i}')
+                self.text_box.print(self.image, f'Joystick {i}')
                 
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
-                self.text_box.print(self.screen, f'Joystick name: {joystick.get_name()}')
+                self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
         
                 # Usually axis run in pairs, up/down for one, and left/right for
                 # the other.
                 axes = joystick.get_numaxes()
-                self.text_box.print(self.screen, f'Number of axes: {axes}')
+                self.text_box.print(self.image, f'Number of axes: {axes}')
                 
                 self.text_box.indent()                
                 for i in range(axes):
-                    self.text_box.print(self.screen, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
+                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
-                self.text_box.print(self.screen, f'Number of buttons: {joystick.get_numbuttons()}')
+                self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
                 
                 self.text_box.indent()
                 for i in range(buttons):
-                    self.text_box.print(self.screen, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
+                    self.text_box.print(self.image, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
                 self.text_box.unindent()
             
                 # Hat switch. All or nothing for direction, not like joysticks.
                 # Value comes back in an array.
                 hats = 0
-                self.text_box.print(self.screen, f'Number of hats: {hats}')
+                self.text_box.print(self.image, f'Number of hats: {hats}')
                 
                 self.text_box.indent()
                 for i in range(hats):
-                    self.text_box.print(self.screen, f'Hat {hat} value: {str(joystick.get_hat(i))}')
+                    self.text_box.print(self.image, f'Hat {hat} value: {str(joystick.get_hat(i))}')
                     self.text_box.unindent()
                 self.text_box.unindent()
 
-        #self.text_box.print(self.screen, f'Remaining time: {remaining_time // 1000}')
-        
     
 class Game(GameEngine):
     # Set your game name/version here.
@@ -1176,21 +1254,24 @@ class Game(GameEngine):
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         #
         # (0, 0), 0, 0 is the recommended setting for auto-configure.
-        if self.windowed:
-            self.mode_flags = 0
-        else:
-            self.mode_flags = pygame.FULLSCREEN 
-            self.screen_width = 0
-            self.screen_height = 0
-        self.color_depth = 0
+       # if self.windowed:
+       #     self.mode_flags = 0
+       # else:
+       #     self.mode_flags = pygame.FULLSCREEN 
+       #     self.screen_width = 0
+       #     self.screen_height = 0
+       # self.color_depth = 0
 
 
         # Uncomment to easily block a class of events, if you
         # don't want them to be processed by the event queue.
         #
-        # pygame.event.set_blocked(self.mouse_events)
-        # pygame.event.set_blocked(self.joystick_events)
-        # pygame.event.set_blocked(self.keyboard_events)
+        #self.disabled_events = self.mouse_events
+        #self.disabled_events.extend(self.joystick_events)
+        #self.disabled_events.extend(self.keyboard_events)
+        #pygame.event.set_blocked(self.mouse_events)
+        #pygame.event.set_blocked(self.joystick_events)
+        #pygame.event.set_blocked(self.keyboard_events)
 
         # Let's hook up the 'pew pew' event.
         self.register_game_event('pew pew', self.on_pew_pew_event)
@@ -1220,6 +1301,7 @@ class Game(GameEngine):
         
         group.add_argument('--time',
                            type=int,
+                           help='time in seconds to wait before quitting',
                            default=10)
         group.add_argument('-v', '--version',
                            action='store_true',
@@ -1230,7 +1312,7 @@ class Game(GameEngine):
     def start(self):
         # This is a simple class that will help us print to the screen
         # It has nothing to do with the joysticks, just outputting the
-        # information.
+        # information.0
 
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
@@ -1241,12 +1323,21 @@ class Game(GameEngine):
         
         # On Some platforms, pygame.USEREVENT is used to convey codes
         # so, we'll use USEREVENT + 1 to avoid confusion.
-        pygame.time.set_timer(GameEngine.FPSEVENT, 1000)
+        pygame.time.set_timer(GameEngine.FPSEVENT, self.fps_refresh_rate)
+
+        # Set a timer to quit after 10 seconds.
+        #
+        # One advantage to this, is that it avoids an if
+        # statement in the main loop.
+        pygame.time.set_timer(pygame.QUIT, self.time * 1000)
         
         # run logic here
-        clock = pygame.time.Clock()
+        self.ticks = 0
         start_time = pygame.time.get_ticks()
         run_time = self.time * 1000
+
+        # Let's update the FPS right away, once we have enough frames.
+        initial_fps = True
 
         # Initial screen state.
         self.background = pygame.Surface(self.screen.get_size())
@@ -1255,9 +1346,14 @@ class Game(GameEngine):
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         self.shapes_sprite = ShapesSprite()
-        self.text_sprite = TextSprite(background_color=blacklucent, alpha=0)
+        self.text_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
         
-        self.all_sprites = pygame.sprite.LayeredDirty((self.shapes_sprite, self.text_sprite))
+        self.all_sprites = pygame.sprite.LayeredDirty(
+            (
+                self.shapes_sprite,
+                self.text_sprite
+            )
+        )
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -1272,24 +1368,22 @@ class Game(GameEngine):
             # at the expense of CPU.
             #
             # Only call once per frame.
-            clock.tick(self.fps)
-            GameEngine.FPS = clock.get_fps()
-
-            rects = self.all_sprites.draw(self.screen)
+            self.clock.tick(self.fps)
 
             self.process_events()
-
-            if remaining_time <= 0:
-                break
-
+            
             self.all_sprites.update()
 
             rects = self.all_sprites.draw(self.screen)
-            pygame.display.update(rects)
+            
+            if self.update_type == 'update':
+                pygame.display.update(rects)
+            elif self.update_type == 'flip':
+                pygame.display.flip()
 
-        # sound = pygame.mixer.Sound(file='demo.wav')
+        #sound = pygame.mixer.Sound(file='demo.wav')
 
-        # sound.play()
+        #sound.play()
 
         log.info(f'FPS: {GameEngine.FPS}')
 
@@ -1303,9 +1397,11 @@ class Game(GameEngine):
         # MOUSEMOTION      pos, rel, buttons
         self.shapes_sprite.move(event.pos)
 
-    def on_mouse_button_down_event(self, event):
-        # MOUSEBUTTONDOWN  pos, button
-        self.post_game_event('pew pew', {})
+    def on_left_mouse_button_down(self, event):
+        self.post_game_event('pew pew', {'bullet': 'big boomies'})
+
+    def on_right_mouse_button_down(self, event):
+        self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
@@ -1313,12 +1409,6 @@ class Game(GameEngine):
             log.info(f'User requested quit.')                        
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
-
-    def on_game_event(self, event):
-        # GAMEEVENT is pygame.USEREVENT + 2
-        log.info(f'GAMEEVENT: {event}')
-        if event.type == 'pew pew':
-            self.on_pew_pew_event(event)
 
     def on_pew_pew_event(self, event):
         log.info(f'PEW PEW Event: {event}')
