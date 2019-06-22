@@ -485,14 +485,14 @@ class GameManager(ResourceManager):
         # ACTIVEEVENT      gain, state
         self.game_proxy.on_active_event(event, game)
 
-    def video_resize(self, event):
+    def video_resize_event(self, event):
         # VIDEORESIZE      size, w, h
         try:
             game.on_video_expose_event()
         except Exception:
             log.debug(f'VIDEORESIZE: {event}')    
 
-    def video_expose(self, event, game):
+    def video_expose_event(self, event, game):
         # VIDEOEXPOSE      none
         try:
             game.on_video_expose_event()
