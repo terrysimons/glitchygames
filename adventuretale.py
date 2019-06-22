@@ -425,7 +425,7 @@ class GameManager(ResourceManager):
             def on_video_resize_event(self, event, game):
                 # VIDEORESIZE      size, w, h                
                 try:
-                    game.on_video_resize_event()
+                    game.on_video_resize_event(event)
                 except AttributeError:
                     log.debug(f'VIDEORESIZE: {event}')
 
@@ -485,27 +485,27 @@ class GameManager(ResourceManager):
         # ACTIVEEVENT      gain, state
         self.game_proxy.on_active_event(event, game)
 
-    def video_resize_event(self, event):
+    def video_resize_event(self, event, game):
         # VIDEORESIZE      size, w, h
         try:
-            game.on_video_expose_event()
+            game.on_video_resize_event(event, game)
         except Exception:
             log.debug(f'VIDEORESIZE: {event}')    
 
     def video_expose_event(self, event, game):
         # VIDEOEXPOSE      none
         try:
-            game.on_video_expose_event()
+            game.on_video_expose_event(event, game)
         except Exception:
             log.debug(f'VIDEOEXPOSE: {event}')                
 
     def sys_wm_event(self, event, game):
         # SYSWMEVENT
-        self.game_proxy.on_sys_wm_event(event)
+        self.game_proxy.on_sys_wm_event(event, game)
 
     def user_event(self, event, game):
         # USEREVENT        code
-        self.game_proxy.on_user_event()
+        self.game_proxy.on_user_event(event, game)
         
     def fps_event(self, event, game):
         # This is a special non-pygame event type.
