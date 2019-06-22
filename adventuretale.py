@@ -534,6 +534,7 @@ class GameEngine(BaseEngine):
         self.use_gfxdraw = options.get('use_gfxdraw')
         self.video_driver = options.get('video_driver')
         self.windowed = options.get('windowed')
+        self.desired_resolution = options.get('resolution')
 
         log.info(f'Game Title: {type(self).NAME}')
         log.info(f'Game Version: {type(self).VERSION}')
@@ -560,17 +561,16 @@ class GameEngine(BaseEngine):
             self.joystick_count = len(self.joysticks)
 
         # Resolution initialization.
+        # Convert our resolution to a tuple
+        (self.desired_width, self.desired_height) = self.desired_resolution.split('x')
         if self.windowed:
             self.mode_flags = 0
-            self.screen_width = 1920
-            self.screen_height = 1080
         else:
             self.mode_flags = pygame.FULLSCREEN
-            self.screen_width = 0
-            self.screen_height = 0
+            self.desired_width = 0
+            self.desired_height = 0
         self.color_depth = 0
-        self.resolution = (self.screen_width, self.screen_height)
-
+        self.desired_resolution = (int(self.desired_width), int(self.desired_height))
 
         # Event Handling Shortcuts
         self.mouse_events = [pygame.MOUSEMOTION,
@@ -723,6 +723,9 @@ class GameEngine(BaseEngine):
         group.add_argument('-w', '--windowed',
                            help='run the program in windowed mode',
                            action='store_true')
+        group.add_argument('-r', '--resolution',
+                           help='the resolution to use (default: 1024x768)',
+                           default='1024x768')
         group.add_argument('--use-gfxdraw',
                             action='store_true',
                             default=False)
@@ -765,7 +768,7 @@ class GameEngine(BaseEngine):
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
-        self.screen = pygame.display.set_mode(self.resolution, self.mode_flags, self.color_depth)
+        self.screen = pygame.display.set_mode(self.desired_resolution, self.mode_flags, self.color_depth)
 
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -1031,7 +1034,6 @@ class Game(GameEngine):
             self.screen_width = 0
             self.screen_height = 0
         self.color_depth = 0
-        self.resolution = (self.screen_width, self.screen_height)
 
 
         # Uncomment to easily block a class of events, if you
