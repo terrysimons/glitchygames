@@ -421,7 +421,7 @@ class GameManager(ResourceManager):
             def on_video_resize_event(self, event, game):
                 # VIDEORESIZE      size, w, h                
                 try:
-                    game.on_video_resize_event(event, game)
+                    game.on_video_resize_event(event)
                 except AttributeError:
                     log.debug(f'VIDEORESIZE: {event}')
 
