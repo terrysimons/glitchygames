@@ -486,12 +486,12 @@ class GameManager(ResourceManager):
     def video_resize_event(self, event, game):
         # VIDEORESIZE      size, w, h
         log.debug(f'VIDEORESIZE triggered: video_resize_event({event})')
-        game.on_video_resize_event(event, game)
+        self.game.on_video_resize_event(event, game)
 
     def video_expose_event(self, event, game):
         # VIDEOEXPOSE      none
         log.debug(f'VIDEOEXPOSE triggered: video_expose_event({event})')        
-        game.on_video_expose_event(event, game)
+        self.game.on_video_expose_event(event, game)
 
     def sys_wm_event(self, event, game):
         # SYSWMEVENT
