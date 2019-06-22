@@ -168,12 +168,12 @@ class KeyboardManager(ResourceManager):
     def key_down_event(self, event, game):
         # KEYDOWN          unicode, key, mod
         log.debug(f'KEYDOWN triggered: key_down_event(event, game)')
-        self.keyboard.on_key_down_event(event)
+        self.keyboard.on_key_down_event(event, game)
 
     def key_up_event(self, event, game):
         # KEYUP            key, mod
         log.debug(f'KEYDOWN triggered: key_up_event(event, game)')        
-        self.keyboard.on_key_up_event(event)
+        self.keyboard.on_key_up_event(event, game)
 
 class MouseManager(ResourceManager):
     def __init__(self, *args, **kwargs):
@@ -421,7 +421,7 @@ class GameManager(ResourceManager):
             def on_video_resize_event(self, event, game):
                 # VIDEORESIZE      size, w, h                
                 try:
-                    game.on_video_resize_event(event)
+                    game.on_video_resize_event(event, game)
                 except AttributeError:
                     log.debug(f'VIDEORESIZE: {event}')
 
