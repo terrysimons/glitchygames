@@ -21,7 +21,7 @@ import pygame.locals
 
 from engine import *
 
-log = logging.getLogger('game')
+log = logging.getLogger('game.bitmappy')
 log.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
@@ -29,7 +29,6 @@ ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
 
-    
 class ShapesSprite(pygame.sprite.DirtySprite):
     def __init__(self):
         super().__init__()
@@ -259,67 +258,65 @@ class TextSprite(pygame.sprite.DirtySprite):
                     self.text_box.unindent()
                 self.text_box.unindent()
 
-    
+class BitmapEditorScene(Scene):
+    def __init__(self):
+        super().__init__()
+        self.shapes_sprite = ShapesSprite()
+        self.text_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
+
+        self.all_sprites = pygame.sprite.LayeredDirty(
+            (
+                self.shapes_sprite,
+                self.text_sprite
+            )
+        )
+
+    def update(self):
+        super().update()
+
+    def render(self, screen):
+        super().render(screen)
+
+    def switch_to_scene(self, next_scene):
+        super().switch_to_scene(next_scene)
+
+    #def on_key_up_event(self, event):
+    #    print("BitmapEditorScene.on_key_up_event(event)")
+
+    #def on_key_down_event(self, event):
+    #    print("BitMapEditorScene.on_key_down_event(event)")
+
+    #def on_mouse_down_event(self, event):
+    #    print("OH MY GOD")
+
+    #def on_active_event(self, event):
+    #    pass
+        #print("HOLY SHIT")
+
+    #def on_active_event(self, event):
+    #    print("Active!")
+        
+
 class Game(GameEngine):
     # Set your game name/version here.
-    NAME = "Adventure Tale"
+    NAME = "Bitmappy"
     VERSION = "0.0"
     
     def __init__(self, options):
         super().__init__(options=options)
-        self.done = False
-        self.tiles = []
-        self.time = options.get('time')
-        # TODO:
-        # Write an FPS layer that uses time.ns_time()
-        
-        # Hook up pygame.display.get_active()
-        # ACTIVEEVENT on the eventqueue
+        self.starting_scene = BitmapEditorScene()
+        self.clock = pygame.time.Clock()
+        self.active_scene = self.starting_scene
+        self.load_resources()
 
-        # Hook up pygame.display.toggle_fullscreen()
-        # Only available on X11
-        # Setting a new displaymode will also allow this behavior on other OSes.
-        
-        # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
-        #
-        # (0, 0), 0, 0 is the recommended setting for auto-configure.
-       # if self.windowed:
-       #     self.mode_flags = 0
-       # else:
-       #     self.mode_flags = pygame.FULLSCREEN 
-       #     self.screen_width = 0
-       #     self.screen_height = 0
-       # self.color_depth = 0
-
-
-        # Uncomment to easily block a class of events, if you
-        # don't want them to be processed by the event queue.
-        #
         pygame.event.set_blocked(self.mouse_events)
-        #pygame.event.set_blocked(self.joystick_events)
+        pygame.event.set_blocked(self.joystick_events)
         pygame.event.set_blocked(self.keyboard_events)
-
-        #self.load_resources()        
-
-        # Let's hook up the 'pew pew' event.
-        self.register_game_event('pew pew', self.on_pew_pew_event)
-
-        # And the recharge event.
-        self.register_game_event('recharge', self.on_recharge_event)
-
-    def update_cursor(self):
-        # For giggles, we can draw two cursors.
-        # This can cause extra flicker on the cursor.
-        # 
-        # We need to re-configure the various cursor attributes once we do this.
-        self.cursor = [cursor_row for cursor_row in self.cursor]
-        self.cursor_width = len(self.cursor[0])
-        self.cursor_height = len(self.cursor)
         
-        log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
-        
-        # Now call the GameEngine update_cursor method to compile and set the cursor.
-        super().update_cursor()
+
+        # Hook up some events.
+        self.register_game_event('save', self.on_save_event)
+        self.register_game_event('load', self.on_load_event)
 
     @classmethod
     def args(cls, parser):
@@ -330,10 +327,6 @@ class Game(GameEngine):
 
         group = parser.add_argument_group('Game Options')
         
-        group.add_argument('--time',
-                           type=int,
-                           help='time in seconds to wait before quitting',
-                           default=10)
         group.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
@@ -343,123 +336,53 @@ class Game(GameEngine):
     def start(self):
         # This is a simple class that will help us print to the screen
         # It has nothing to do with the joysticks, just outputting the
-        # information.0
+        # information.
 
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
+        # and do a few other init related things.
         super().start()
-        
-        # Run framerate checks for 3 seconds.
-        log.info(f'Framerate check (configured FPS: {self.fps})')
-        
-        # On Some platforms, pygame.USEREVENT is used to convey codes
-        # so, we'll use USEREVENT + 1 to avoid confusion.
-        pygame.time.set_timer(GameEngine.FPSEVENT, self.fps_refresh_rate)
 
-        # Set a timer to quit after 10 seconds.
-        #
-        # One advantage to this, is that it avoids an if
-        # statement in the main loop.
-        pygame.time.set_timer(pygame.QUIT, self.time * 1000)
-        
-        # run logic here
-        self.ticks = 0
-        start_time = pygame.time.get_ticks()
-        run_time = self.time * 1000
-
-        # Let's update the FPS right away, once we have enough frames.
-        initial_fps = True
-
-        # Initial screen state.
-        self.background = pygame.Surface(self.screen.get_size())
-        self.background.convert()
-        self.background.fill(black)
-
-        # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
-        self.shapes_sprite = ShapesSprite()
-        self.text_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
-        
-        self.all_sprites = pygame.sprite.LayeredDirty(
-            (
-                self.shapes_sprite,
-                self.text_sprite
-            )
-        )
-
-        self.all_sprites.clear(self.screen, self.background)
-
-        # TODO:
-        # https://web.archive.org/web/20150206045655/http://gafferongames.com/game-physics/fix-your-timestep/        
-        while not self.done:
-            elapsed_time = pygame.time.get_ticks() - start_time
-            remaining_time = run_time - elapsed_time
-
-            # Use tick_busy_loop if you want an accurate timer, and don't mind chewing CPU.
-            # Better platform support, and better accuracy
-            # at the expense of CPU.
-            #
-            # Only call once per frame.
-            self.clock.tick(self.fps)
-
+        while self.active_scene != None:
             self.process_events()
+
+            self.active_scene.update()
+
+            self.active_scene.render(self.screen)
+
+            pygame.display.update(self.active_scene.rects)
+
+            self.clock.tick(self.fps)
             
-            self.all_sprites.update()
-
-            rects = self.all_sprites.draw(self.screen)
-
-
-            x = 0
-            y = 0
-            tiles_across = 640 / 32
-            tiles_down = 480 / 32
-            for i, graphic in enumerate(self.tiles):
-                rect = self.screen.blit(graphic, (x, y))
-                if i % tiles_across == 0:
-                    x = 0
-                    y += 32
-                else:
-                    x += 32
-            
-            if self.update_type == 'update':
-                pygame.display.update(rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-        #sound = pygame.mixer.Sound(file='demo.wav')
-
-        #sound.play()
+            self.active_scene = self.active_scene.next
 
         log.info(f'FPS: {GameEngine.FPS}')
 
-    def quit(self):
-        log.info('Quit was called.')
-        
-        # Call the GameEngine quit, so it will clean up.
-        super().quit()
+    # Pass any unknown calls to the current scene.
 
     def load_resources(self):
-        # Load tiles.
         for resource in glob.iglob('resources/*', recursive=True):
             try:
-                self.tiles.append(load_graphic(resource))
+                pass
             except IsADirectoryError:
                 pass
 
-    def on_active_event(self, event):
-        pass
-
-    def on_mouse_motion_event(self, event):
+    #def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
-        super().on_mouse_motion_event(event)
-        self.shapes_sprite.move(event.pos)
+    #    print('GAME MOUSEMOTION')
+    #    super().on_mouse_motion_event(event)
+        #self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_up(self, event):
-        super().on_left_mouse_button_up(event)
-        self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
+    #def on_left_mouse_button_up(self, event):
+    #    super().on_left_mouse_button_up(event)
+        #self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
         
-    def on_left_mouse_button_down(self, event):
-        super().on_left_mouse_button_down(event)
-        self.post_game_event('pew pew', {'bullet': 'big boomies'})
+    #def on_left_mouse_button_down(self, event):
+     #   super().on_left_mouse_button_down(event)
+        #self.post_game_event('pew pew', {'bullet': 'big boomies'})
+
+    #def on_key_down_event(self, event):
+    #    print('fdafdasfdsfdafddsa')
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
@@ -467,16 +390,38 @@ class Game(GameEngine):
             log.info(f'User requested quit.')                        
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
+        else:
+            # If you want some keys to be handled by
+            # the game and some to be handled by the
+            # scene, you need to call the scene when
+            # an event you don't need is caught by
+            # your event handler.
+            self.active_scene.on_key_up_event(event)
 
-    def on_key_chord_event(self, event):
-        print('DUN DUN DUN')
+    def on_save_event(self, event):
+        log.info('Save!')
 
-    def on_pew_pew_event(self, event):
-        log.info(f'PEW PEW Event: {event}')
+    def on_load_event(self, event):
+        log.info('Load!')
 
-    def on_recharge_event(self, event):
-        log.info(f'Recharge Event: {event}')
-        
+    def on_quit_event(self, event):
+        log.info('Quit was called.')
+
+        # Should we call the scene manager here to let it know?
+
+        # Call the GameEngine quit, so it will clean up.
+        super().on_quit_event(event)
+
+    # This will catch calls which our scene engine doesn't yet implement.
+    def __getattr__(self, attr):
+        try:
+            if self.active_scene:
+                return getattr(self.active_scene, attr)
+            else:
+                raise Exception(f'Scene not activated in call to {attr}()')                
+        except AttributeError:
+            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+
 def main():
     parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
     
