@@ -146,13 +146,64 @@ class KeyboardManager(ResourceManager):
 
         class KeyboardProxy(object):
             def __init__(self):
+                self.keys = {}
                 super().__init__()
 
             def on_key_down_event(self, event, game):
+                # The KEYUP and KEYDOWN events are
+                # different.  KEYDOWN contains an extra
+                # key in its dictionary (unicode), which
+                # KEYUP does not contain, so we'll make
+                # a copy of the dictionary, and then
+                # delete the key "unicode" so we can track
+                # both sets of events.
+                keyboard_key = event.dict.copy()
+                del(keyboard_key['unicode'])
+                
+                # This makes it possible to use
+                # a dictionary as a key, which is
+                # normally not possible.
+                self.keys[
+                    tuple(
+                        sorted(
+                            frozenset(keyboard_key.items())
+                        )
+                    )
+                ] = event
+
                 game.on_key_down_event(event)
 
             def on_key_up_event(self, event, game):
+                # This makes it possible to use
+                # a dictionary as a key, which is
+                # normally not possible.                
+                self.keys[
+                    tuple(
+                        sorted(
+                            frozenset(event.dict.items())
+                        )
+                    )
+                ] = event
+                
                 game.on_key_up_event(event)
+
+            def on_key_chord_down_event(self, event, game):
+                keys_down = [self.keys[key]
+                             for key in self.keys
+                             if self.keys[key].type == pygame.KEYDOWN]
+
+                print(f"Keys Down(down): {keys_down}")                
+
+                game.on_key_chord_down_event(event, keys_down)
+
+            def on_key_chord_up_event(self, event, game):
+                keys_down = [self.keys[key]
+                             for key in self.keys
+                             if self.keys[key].type == pygame.KEYDOWN]
+
+                print(f"Keys Down(up): {keys_down}")
+
+                game.on_key_chord_up_event(event, keys_down)
 
             # This will allow calls to the keyboard which aren't implemented here.
             def __getattr__(self, attr):
@@ -164,11 +215,23 @@ class KeyboardManager(ResourceManager):
         # KEYDOWN          unicode, key, mod
         log.debug(f'KEYDOWN triggered: key_down_event(event, game)')
         self.keyboard.on_key_down_event(event, game)
+        self.key_chord_down_event(event, game)        
 
     def key_up_event(self, event, game):
         # KEYUP            key, mod
         log.debug(f'KEYUP triggered: key_up_event(event, game)')        
         self.keyboard.on_key_up_event(event, game)
+        self.key_chord_up_event(event, game)        
+
+    def key_chord_down_event(self, event, game):
+        # Simulated key chord down event.
+        log.info(f'KEYCHORDDOWN triggered: key_chord_down_event(event, game)')
+        self.keyboard.on_key_chord_down_event(event, game)
+
+    def key_chord_up_event(self, event, game):
+        # Simulated key chord up event.
+        log.info(f'KEYCHORDUP triggered: key_chord_up_event(event, game)')
+        self.keyboard.on_key_chord_up_event(event, game)        
 
 class MouseManager(ResourceManager):
     def __init__(self, *args, **kwargs):
@@ -176,25 +239,29 @@ class MouseManager(ResourceManager):
 
         class MouseProxy(object):
             def __init__(self):
+                self.mouse_state = {}
                 super().__init__()
 
             def on_mouse_motion_event(self, event, game):
-                try:
-                    game.on_mouse_motion_event(event)
-                except:
-                    log.debug(f'MOUSEMOTION triggered: mouse_motion_event({event})')                    
+                self.mouse_state[event.type] = event
+                
+                game.on_mouse_motion_event(event)
 
             def on_mouse_button_up_event(self, event, game):
-                try:
-                    game.on_mouse_button_up_event(event)
-                except:
-                    log.debug(f'MOUSEBUTTONUP triggered: mouse_button_up_event({event})')
+                self.mouse_state[event.button] = event
+                
+                game.on_mouse_button_up_event(event)
 
             def on_mouse_button_down_event(self, event, game):
-                try:
-                    game.on_mouse_button_down_event(event)
-                except AttributeError:
-                    log.debug(f'MOUSEBUTTONDOWN triggered: mouse_button_down_event({event})')
+                self.mouse_state[event.button] = event
+
+                game.on_mouse_button_down_event(event)
+
+            def on_mouse_chord_down_event(self, event, game):
+                game.on_mouse_chord_down_event(event)
+
+            def on_mouse_chord_up_event(self, event, game):
+                game.on_mouse_chord_up_event(event)
 
             # This will allow calls to the mouse which aren't implemented here.
             def __getattr__(self, attr):
@@ -205,14 +272,29 @@ class MouseManager(ResourceManager):
     def mouse_motion_event(self, event, game):
         # MOUSEMOTION      pos, rel, buttons
         self.mouse.on_mouse_motion_event(event, game)
+        log.debug(f'MOUSEMOTION triggered: mouse_motion_event({event})')       
         
     def mouse_button_up_event(self, event, game):
         # MOUSEBUTTONUP    pos, button
         self.mouse.on_mouse_button_up_event(event, game)
+        self.mouse_chord_up_event(event, game)        
+        log.debug(f'MOUSEBUTTONUP triggered: mouse_button_up_event({event})')        
         
     def mouse_button_down_event(self, event, game):
         # MOUSEBUTTONDOWN  pos, button
         self.mouse.on_mouse_button_down_event(event, game)
+        self.mouse_chord_down_event(event, game)                
+        log.debug(f'MOUSEBUTTONDOWN triggered: mouse_button_down_event({event})')        
+
+    def mouse_chord_up_event(self, event, game):
+        # Simulated mouse chord up event.
+        log.info(f'MOUSECHORDUP triggered: mouse_chord_up_event(event, game)')
+        self.mouse.on_mouse_chord_up_event(event, game)
+        
+    def mouse_chord_down_event(self, event, game):
+        # Simulated mouse chord down event.
+        log.info(f'MOUSECHORDDOWN triggered: mouse_chord_down_event(event, game)')
+        self.mouse.on_mouse_chord_down_event(event, game)                
     
 class JoystickManager(ResourceManager):
     def __init__(self, *args, **kwargs):
@@ -248,7 +330,7 @@ class JoystickManager(ResourceManager):
                     self._axes[event.axis] = event.value
                     game.on_axis_motion_event(event)
                 except AttributeError:
-                    log.info(f'on_axis_motion_event(f{event})')
+                    log.info(f'on_axis_motion_event({event})')
                     log.info(f'Axes: {self._axes}')
 
             def on_button_down_event(self, event, game):
@@ -257,7 +339,7 @@ class JoystickManager(ResourceManager):
                     self._buttons[event.button] = 1
                     game.on_button_down_event(event)
                 except AttributeError:
-                    log.info(f'on_button_down_event(f{event})')
+                    log.info(f'on_button_down_event({event})')
                     log.info(f'Buttons: {self._buttons}')            
 
             def on_button_up_event(self, event, game):
@@ -266,7 +348,7 @@ class JoystickManager(ResourceManager):
                     self._buttons[event.button] = 0
                     game.on_button_up_event(event)
                 except AttributeError:
-                    log.info(f'on_button_up_event(f{event})')
+                    log.info(f'on_button_up_event({event})')
                     log.info(f'Buttons: {self._buttons}')
             
             def on_hat_motion_event(self, event, game):
@@ -275,7 +357,7 @@ class JoystickManager(ResourceManager):
                     self._hats[event.hat] = event.value
                     game.on_hat_motion_event(event)
                 except AttributeError:
-                    log.info(f'on_hat_motion_event(f{event})')
+                    log.info(f'on_hat_motion_event({event})')
                     log.info(f'Hats: {self._hats}')
 
             def on_ball_motion_event(self, event, game):
@@ -284,7 +366,7 @@ class JoystickManager(ResourceManager):
                     self._balls[event.ball] = rel
                     game.on_ball_motion_event(event)
                 except AttributeError:
-                    log.info(f'on_ball_motion_event(f{event})')
+                    log.info(f'on_ball_motion_event({event})')
                     log.info(f'Balls: {self._balls}')
 
             # We can't make these properties, because then they
@@ -900,11 +982,11 @@ class GameEngine(BaseEngine):
         log.debug(f'MOUSEBUTTONUP: {event}')
 
         if event.button == 1:
-            self.on_left_mouse_button_up(event)
+            self.on_left_mouse_button_up_event(event)
         if event.button == 2:
-            self.on_middle_mouse_button_up(event)
+            self.on_middle_mouse_button_up_event(event)
         if event.button == 3:
-            self.on_right_mouse_button_up(event)
+            self.on_right_mouse_button_up_event(event)
         if event.button == 4:
             # It doesn't really make sense to hook this
             pass
@@ -912,43 +994,49 @@ class GameEngine(BaseEngine):
             # It doesn't really make sense to hook this            
             pass
 
-    def on_left_mouse_button_up(self, event):
-        log.info('Left Mouse Button Up')
+    def on_left_mouse_button_up_event(self, event):
+        log.info('Left Mouse Button Up Event')
 
-    def on_middle_mouse_button_up(self, event):
-        log.info('Middle Mouse Button Up')
+    def on_middle_mouse_button_up_event(self, event):
+        log.info('Middle Mouse Button Up Event')
 
-    def on_right_mouse_button_up(self, event):
-        log.info('Right Mouse Button Up')
+    def on_right_mouse_button_up_event(self, event):
+        log.info('Right Mouse Button Up Event')
             
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
         log.debug('MOUSEBUTTONDOWN: {event}')        
         if event.button == 1:
-            self.on_left_mouse_button_down(event)
+            self.on_left_mouse_button_down_event(event)
         if event.button == 2:
-            self.on_middle_mouse_button_down(event)
+            self.on_middle_mouse_button_down_event(event)
         if event.button == 3:
-            self.on_right_mouse_button_down(event)
+            self.on_right_mouse_button_down_event(event)
         if event.button == 4:
-            self.on_mouse_scroll_down(event)
+            self.on_mouse_scroll_down_event(event)
         if event.button == 5:
-            self.on_mouse_scroll_up(event)
+            self.on_mouse_scroll_up_event(event)
 
-    def on_left_mouse_button_down(self, event):
-        log.info('Left Mouse Button Down')
+    def on_left_mouse_button_down_event(self, event):
+        log.info('Left Mouse Button Down Event')
 
-    def on_middle_mouse_button_down(self, event):
-        log.info('Middle Mouse Button Down')
+    def on_middle_mouse_button_down_event(self, event):
+        log.info('Middle Mouse Button Down Event')
 
-    def on_right_mouse_button_down(self, event):
-        log.info('Right Mouse Button Down')
+    def on_right_mouse_button_down_event(self, event):
+        log.info('Right Mouse Button Down Event')
 
-    def on_mouse_scroll_down(self, event):
-        log.info('Mouse Scroll Down')
+    def on_mouse_scroll_down_event(self, event):
+        log.info('Mouse Scroll Down Event')
 
-    def on_mouse_scroll_up(self, event):
-        log.info('Mouse Scroll Up')        
+    def on_mouse_scroll_up_event(self, event):
+        log.info('Mouse Scroll Up Event')
+
+    def on_mouse_chord_up_event(self, event):
+        log.info('Mouse Chord Up Event')
+
+    def on_mouse_chord_down_event(self, event):
+        log.info('Mouse Chord Down Event')
 
     def on_key_down_event(self, event):
         # KEYDOWN          unicode, key, mod
@@ -957,6 +1045,12 @@ class GameEngine(BaseEngine):
     def on_key_up_event(self, event):
         # KEYUP            key, mod
         log.info(f'KEYUP: {event}')
+
+    def on_key_chord_down_event(self, event, keys):
+        log.info(f'KEYCHORDDOWN: {event}, {keys}')
+
+    def on_key_chord_up_event(self, event, keys):
+        log.info(f'KEYCHORDUP: {event}, {keys}')        
 
     def on_quit_event(self, event):
         self.done = True        
@@ -995,6 +1089,9 @@ class GameEngine(BaseEngine):
         except KeyError:
             log.error(f'Unregistered Event: {event} (call self.register_game_event(<event subtype>, <event data>))')
 
+    # This will catch calls which our game engine doesn't yet implement.
+    def __getattr__(self, attr):
+        raise AttributeError(f'{attr} is not implemented in GameEngine.')
 
 class SceneManager(object):
     def __init__():
@@ -1266,22 +1363,22 @@ class Game(GameEngine):
         # Uncomment to easily block a class of events, if you
         # don't want them to be processed by the event queue.
         #
-        #self.disabled_events = self.mouse_events
-        #self.disabled_events.extend(self.joystick_events)
-        #self.disabled_events.extend(self.keyboard_events)
-        #pygame.event.set_blocked(self.mouse_events)
-        #pygame.event.set_blocked(self.joystick_events)
-        #pygame.event.set_blocked(self.keyboard_events)
+        # pygame.event.set_blocked(self.mouse_events)
+        # pygame.event.set_blocked(self.joystick_events)
+        # pygame.event.set_blocked(self.keyboard_events)
 
         # Let's hook up the 'pew pew' event.
         self.register_game_event('pew pew', self.on_pew_pew_event)
+
+        # And the recharge event.
+        self.register_game_event('recharge', self.on_recharge_event)
 
     def update_cursor(self):
         # For giggles, we can draw two cursors.
         # This can cause extra flicker on the cursor.
         # 
         # We need to re-configure the various cursor attributes once we do this.
-        self.cursor = [cursor_row * 2 for cursor_row in self.cursor]
+        self.cursor = [cursor_row for cursor_row in self.cursor]
         self.cursor_width = len(self.cursor[0])
         self.cursor_height = len(self.cursor)
         
@@ -1395,13 +1492,16 @@ class Game(GameEngine):
 
     def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
+        super().on_mouse_motion_event(event)
         self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_down(self, event):
-        self.post_game_event('pew pew', {'bullet': 'big boomies'})
-
-    def on_right_mouse_button_down(self, event):
+    def on_left_mouse_button_up(self, event):
+        super().on_left_mouse_button_up(event)
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
+        
+    def on_left_mouse_button_down(self, event):
+        super().on_left_mouse_button_down(event)
+        self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
@@ -1410,8 +1510,14 @@ class Game(GameEngine):
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
 
+    def on_key_chord_event(self, event):
+        print('DUN DUN DUN')
+
     def on_pew_pew_event(self, event):
         log.info(f'PEW PEW Event: {event}')
+
+    def on_recharge_event(self, event):
+        log.info(f'Recharge Event: {event}')
         
 def main():
     parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
