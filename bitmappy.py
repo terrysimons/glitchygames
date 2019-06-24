@@ -19,21 +19,29 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from engine import *
+from engine import RootScene, GameEngine, FontManager
+from engine import black, white, blacklucent
+from engine import JoystickManager
 
-log = logging.getLogger('game.bitmappy')
-log.setLevel(logging.INFO)
+log = logging.getLogger('game')
+log.setLevel(logging.DEBUG)
 
 ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.DEBUG)
 
 log.addHandler(ch)
 
-class ShapesSprite(pygame.sprite.DirtySprite):
+# TODO:
+# Add --log-level flag.
+# Package.
+# 
+
+
+class ScrollBarSprite(pygame.sprite.DirtySprite):
     def __init__(self):
         super().__init__()
         self.use_gfxdraw = True
-
+        
         self.screen = pygame.Surface(pygame.display.get_surface().get_size())
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -42,91 +50,28 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         self.image = self.screen
         self.rect = self.image.get_rect()
 
-        self.point = None
-        self.circle = None
-        self.triangle = None
+        self.update()
+
+    def update(self):
+        pass
+
+class CanvasSprite(pygame.sprite.DirtySprite):
+    def __init__(self):
+        super().__init__()
+        self.use_gfxdraw = True
+        
+        self.screen = pygame.Surface(pygame.display.get_surface().get_size())
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        self.screen.convert()
+        self.screen.fill(black)
+        self.image = self.screen
+        self.rect = self.image.get_rect()
 
         self.update()
 
-    def move(self, pos):
-        self.rect.center = pos
-        self.dirty = 1
-            
     def update(self):
-        self.dirty = 1
-
-        self._draw_point()
-        self._draw_triangle()        
-        self._draw_circle()
-        self._draw_rectangle()
-
-    def _draw_point(self):
-        # Draw a yellow point.
-        # There's no point API, so we'll fake
-        # it with the line API.
-        if self.use_gfxdraw:
-            pygame.gfxdraw.pixel(self.screen,
-                                 self.screen_width//2,
-                                 self.screen_height//2,
-                                 yellow)
-
-            self.point = (self.screen_width//2, self.screen_height//2)
-        else:
-            self.point = pygame.draw.line(self.screen,
-                                          yellow,
-                                          (self.screen_width//2, self.screen_height//2),
-                                          (self.screen_width//2, self.screen_height//2))    
-
-    def _draw_circle(self):
-        # Draw a blue circle.
-        if self.use_gfxdraw:
-            circle = pygame.gfxdraw.circle(self.screen, self.screen_width//2, self.screen_height//2, self.screen_height//2, blue)
-        else:
-            circle = pygame.draw.circle(self.screen, blue, (self.screen_width//2, self.screen_height//2), self.screen_height//2, 1)        
-
-    def _draw_triangle(self):
-        # Draw a green triangle.
-        # polygon(Surface, color, pointlist, width=0) -> Rect
-        x1 = self.screen_width//2
-        y1 = 0
-        x2 = self.rectangle.bottomleft[0]
-        y2 = self.rectangle.bottomleft[1] - 1
-        x3 = self.rectangle.bottomright[0]
-        y3 = self.rectangle.bottomright[1] - 1
-
-        top_point = (x1, y1)
-        left_point = (x2, y2)
-        right_point = (x3, y3)
-        pointlist = (top_point, left_point, right_point)
-
-        if self.use_gfxdraw:
-            pygame.gfxdraw.polygon(self.screen, pointlist, green)
-                
-            # You could also use:
-            # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, green)
-            
-            self.triangle = pointlist
-        else:
-            self.triangle = pygame.draw.polygon(self.screen, green, pointlist, 1)
-
-    @property
-    def rectangle(self):
-        rect = Rect(0, 0, self.screen_height, self.screen_height)
-        rect.center = (self.screen_width/2, self.screen_height/2)
-
-        return rect
-
-    def _draw_rectangle(self):
-        # Draw a purple rectangle.
-        # Note that the pygame documentation has a typo
-        # Do not use width=1, use 1 instead.
-        if self.use_gfxdraw:
-            pygame.gfxdraw.rectangle(self.screen, self.rectangle, purple)
-            #log.info(f'gfxdraw rectangle: {self.rectangle}')
-        else:
-            self.rectangle = pygame.draw.rect(self.screen, purple, self.rectangle, 1)
-            #log.info(f'pygame rectangle: {self.rectangle}')
-        
+        pass
 
 class TextSprite(pygame.sprite.DirtySprite):
     def __init__(self, background_color=blacklucent, alpha=0, x=0, y=0):
@@ -258,18 +203,22 @@ class TextSprite(pygame.sprite.DirtySprite):
                     self.text_box.unindent()
                 self.text_box.unindent()
 
-class BitmapEditorScene(Scene):
+class BitmapEditorScene(RootScene):
     def __init__(self):
         super().__init__()
-        self.shapes_sprite = ShapesSprite()
+        self.scroll_bar_sprite = ScrollBarSprite()
+        self.canvas_sprite = CanvasSprite()
         self.text_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
             (
-                self.shapes_sprite,
+                self.scroll_bar_sprite,
+                self.canvas_sprite,
                 self.text_sprite
             )
         )
+
+        self.all_sprites.clear(self.screen, self.background)        
 
     def update(self):
         super().update()
@@ -278,24 +227,7 @@ class BitmapEditorScene(Scene):
         super().render(screen)
 
     def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
-
-    #def on_key_up_event(self, event):
-    #    print("BitmapEditorScene.on_key_up_event(event)")
-
-    #def on_key_down_event(self, event):
-    #    print("BitMapEditorScene.on_key_down_event(event)")
-
-    #def on_mouse_down_event(self, event):
-    #    print("OH MY GOD")
-
-    #def on_active_event(self, event):
-    #    pass
-        #print("HOLY SHIT")
-
-    #def on_active_event(self, event):
-    #    print("Active!")
-        
+        super().switch_to_scene(next_scene)        
 
 class Game(GameEngine):
     # Set your game name/version here.
@@ -304,15 +236,11 @@ class Game(GameEngine):
     
     def __init__(self, options):
         super().__init__(options=options)
-        self.starting_scene = BitmapEditorScene()
-        self.clock = pygame.time.Clock()
-        self.active_scene = self.starting_scene
         self.load_resources()
 
-        pygame.event.set_blocked(self.mouse_events)
-        pygame.event.set_blocked(self.joystick_events)
-        pygame.event.set_blocked(self.keyboard_events)
-        
+        # pygame.event.set_blocked(self.mouse_events)
+        # pygame.event.set_blocked(self.joystick_events)
+        # pygame.event.set_blocked(self.keyboard_events)
 
         # Hook up some events.
         self.register_game_event('save', self.on_save_event)
@@ -343,74 +271,50 @@ class Game(GameEngine):
         # and do a few other init related things.
         super().start()
 
+        # Note: Due to the way things are wired, you must set self.active_scene after
+        # calling super().start() in this method.
+        self.clock = pygame.time.Clock()
+        self.active_scene = BitmapEditorScene()        
+
         while self.active_scene != None:
-            self.process_events()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            pygame.display.update(self.active_scene.rects)
-
-            self.clock.tick(self.fps)
+                self.process_events()                
             
-            self.active_scene = self.active_scene.next
+                self.active_scene.update()
 
-        log.info(f'FPS: {GameEngine.FPS}')
+                self.active_scene.render(self.screen)
 
-    # Pass any unknown calls to the current scene.
+                if self.update_type == 'update':
+                    pygame.display.update(self.active_scene.rects)
+                elif self.update_type == 'flip':
+                    pygame.display.flip()
 
-    def load_resources(self):
-        for resource in glob.iglob('resources/*', recursive=True):
-            try:
-                pass
-            except IsADirectoryError:
-                pass
+                self.clock.tick(self.fps)
+            
+                self.active_scene = self.active_scene.next
 
-    #def on_mouse_motion_event(self, event):
-        # MOUSEMOTION      pos, rel, buttons
-    #    print('GAME MOUSEMOTION')
-    #    super().on_mouse_motion_event(event)
-        #self.shapes_sprite.move(event.pos)
-
-    #def on_left_mouse_button_up(self, event):
-    #    super().on_left_mouse_button_up(event)
-        #self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
-        
-    #def on_left_mouse_button_down(self, event):
-     #   super().on_left_mouse_button_down(event)
-        #self.post_game_event('pew pew', {'bullet': 'big boomies'})
-
-    #def on_key_down_event(self, event):
-    #    print('fdafdasfdsfdafddsa')
+    #def load_resources(self):
+    #    for resource in glob.iglob('resources/*', recursive=True):
+    #        try:
+    #            pass
+    #        except IsADirectoryError:
+    #            pass
 
     def on_key_up_event(self, event):
+        self.active_scene.on_key_up_event(event)
+        
         # KEYUP            key, mod
         if event.key == pygame.K_q:
-            log.info(f'User requested quit.')                        
+            log.info(f'User requested quit.')
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
-        else:
-            # If you want some keys to be handled by
-            # the game and some to be handled by the
-            # scene, you need to call the scene when
-            # an event you don't need is caught by
-            # your event handler.
-            self.active_scene.on_key_up_event(event)
 
     def on_save_event(self, event):
         log.info('Save!')
+        self.active_scene.on_save_event(event)
 
     def on_load_event(self, event):
         log.info('Load!')
-
-    def on_quit_event(self, event):
-        log.info('Quit was called.')
-
-        # Should we call the scene manager here to let it know?
-
-        # Call the GameEngine quit, so it will clean up.
-        super().on_quit_event(event)
+        self.active_scene.on_load_event(event)
 
     # This will catch calls which our scene engine doesn't yet implement.
     def __getattr__(self, attr):

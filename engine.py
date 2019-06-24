@@ -4,6 +4,7 @@
 import argparse
 import copy
 import glob
+import inspect
 import logging
 import time
 import multiprocessing
@@ -19,13 +20,8 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-log = logging.getLogger('game')
-log.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-log.addHandler(ch)
+log = logging.getLogger('game.engine')
+log.addHandler(logging.NullHandler())
 
 # Note: I want to handle this a bit differently.
 yellow = pygame.Color(128, 128, 0, 255)
@@ -70,16 +66,16 @@ def load_graphic(path):
     return graphic
 
 
-class BaseEngine(object):
-    def __init__(self, *args, **kwargs):
-        self.ready = False
+#class BaseEngine(object):
+#    def __init__(self, *args, **kwargs):
+#        self.ready = False
 
-    @classmethod
-    def args(cls, parser):
-        return parser
+#    @classmethod
+#    def args(cls, parser):
+#        return parser
 
-    def start(self):
-        pass
+#    def start(self):
+#        pass
 
 class ResourceManager(object):
     def __init__(self, game, **kwargs):
@@ -227,8 +223,6 @@ class KeyboardManager(ResourceManager):
                              for key in self.keys
                              if self.keys[key].type == pygame.KEYDOWN]
 
-                print(f"Keys Down(down): {keys_down}")                
-
                 self.game.on_key_chord_down_event(event, keys_down)
 
             def on_key_chord_up_event(self, event):
@@ -236,46 +230,24 @@ class KeyboardManager(ResourceManager):
                              for key in self.keys
                              if self.keys[key].type == pygame.KEYDOWN]
 
-                print(f"Keys Down(up): {keys_down}")
-
                 self.game.on_key_chord_up_event(event, keys_down)
 
             # This will allow calls to the keyboard which aren't implemented here.
             def __getattr__(self, attr):
+                error = None
+                
                 try:
                     try:
                         return getattr(self.game, attr)
-                    except AttributeError:
+                    except AttributeError as e:
+                        error = e
                         return getattr(pygame.key, attr)
                 except AttributeError:
-                    raise AttributeError(f'Neither the game {type(self.game)} nor pygame has implemented "{attr}"')
+                    raise error
 
         self.keyboard = KeyboardProxy(game=self.game)
 
-    #def on_key_down_event(self, event):
-        # KEYDOWN          unicode, key, mod
-    #    log.debug(f'KEYDOWN triggered: key_down_event(event)')
-    #    self.keyboard.on_key_down_event(event)
-
-
-    #def on_key_up_event(self, event):
-        # KEYUP            key, mod
-        #log.debug(f'KEYUP triggered: key_up_event(event)')        
-        #self.keyboard_on_keyboard.on_key_up_event(event)
-        #
-
-    #def on_key_chord_down_event(self, event):
-        # Simulated key chord down event.
-    #    log.info(f'KEYCHORDDOWN triggered: key_chord_down_event(event)')
-    #    self.keyboard.on_key_chord_down_event(event)
-
-    #def on_key_chord_up_event(self, event):
-        # Simulated key chord up event.
-    #    log.info(f'KEYCHORDUP triggered: key_chord_up_event(event)')
-    #    self.keyboard.on_key_chord_up_event(event)
-
-    def __getattr__(self, attr):                
-        # TODO: If the attribute doesn't exist, throw an error.
+    def __getattr__(self, attr):
         try:
             return getattr(self.keyboard, attr)
         except AttributeError:
@@ -307,13 +279,8 @@ class MouseManager(ResourceManager):
 
                 self.game.on_mouse_button_down_event(event)
 
-            def on_mouse_chord_up_event(self, event):
-                pass
-
-            def on_mouse_chord_down_event(self, event):
-                pass
-
-            # This will allow calls to the mouse which aren't implemented here.
+            # For any unimplemented attributes, we'll first try to call out
+            # to the game.  If that fails, we'll try calling pygame.
             #
             # Specifically
             # on_mouse_chord_up_event
@@ -321,46 +288,20 @@ class MouseManager(ResourceManager):
             # on_mouse_scroll_up_event
             # on_mouse_scroll_down_event
             def __getattr__(self, attr):
+                error = None
+                
                 try:
                     try:
                         return getattr(self.game, attr)
-                    except AttributeError:
+                    except AttributeError as e:
+                        error = e
                         return getattr(pygame.mouse, attr)
                 except AttributeError:
-                    raise AttributeError(f'Neither the game {type(self.game)} nor pygame has implemented "{attr}"')
+                    raise error
         
         self.mouse = MouseProxy(game=self.game)
 
-    #def mouse_motion_event(self, event, game):
-        # MOUSEMOTION      pos, rel, buttons
-    #    self.mouse.on_mouse_motion_event(event, game)
-    #    log.debug(f'MOUSEMOTION triggered: mouse_motion_event({event})')       
-        
-    #def mouse_button_up_event(self, event, game):
-        # MOUSEBUTTONUP    pos, button
-    #    self.mouse.on_mouse_button_up_event(event, game)
-    #    self.mouse_chord_up_event(event, game)        
-    #    log.debug(f'MOUSEBUTTONUP triggered: mouse_button_up_event({event})')        
-        
-    #def mouse_button_down_event(self, event, game):
-        # MOUSEBUTTONDOWN  pos, button
-    #    self.mouse.on_mouse_button_down_event(event, game)
-    #    self.mouse_chord_down_event(event, game)                
-    #    log.debug(f'MOUSEBUTTONDOWN triggered: mouse_button_down_event({event})')        
-
-    #def mouse_chord_up_event(self, event, game):
-        # Simulated mouse chord up event.
-    #    log.info(f'MOUSECHORDUP triggered: mouse_chord_up_event(event, game)')
-    #    self.mouse.on_mouse_chord_up_event(event, game)
-        
-    #def mouse_chord_down_event(self, event, game):
-        # Simulated mouse chord down event.
-    #    log.info(f'MOUSECHORDDOWN triggered: mouse_chord_down_event(event, game)')
-    #    self.mouse.on_mouse_chord_down_event(event, game)
-    # For any unimplemented attributes, we'll first try to call out
-    # to the game.  If that fails, we'll try calling pygame.
     def __getattr__(self, attr):                
-        # TODO: If the attribute doesn't exist, throw an error.
         try:
             return getattr(self.mouse, attr)
         except AttributeError:
@@ -399,48 +340,28 @@ class JoystickManager(ResourceManager):
             # Define some high level APIs
             def on_axis_motion_event(self, event):
                 # JOYAXISMOTION    joy, axis, value
-                try:
-                    self._axes[event.axis] = event.value
-                    self.game.on_axis_motion_event(event)
-                except AttributeError:
-                    log.info(f'on_axis_motion_event({event})')
-                    log.info(f'Axes: {self._axes}')
+                self._axes[event.axis] = event.value
+                self.game.on_axis_motion_event(event)
 
             def on_button_down_event(self, event):
                 # JOYBUTTONDOWN    joy, button                
-                try:
-                    self._buttons[event.button] = 1
-                    self.game.on_button_down_event(event)
-                except AttributeError:
-                    log.info(f'on_button_down_event({event})')
-                    log.info(f'Buttons: {self._buttons}')            
+                self._buttons[event.button] = 1
+                self.game.on_button_down_event(event)
 
             def on_button_up_event(self, event):
                 # JOYBUTTONUP      joy, button
-                try:
-                    self._buttons[event.button] = 0
-                    self.game.on_button_up_event(event)
-                except AttributeError:
-                    log.info(f'on_button_up_event({event})')
-                    log.info(f'Buttons: {self._buttons}')
+                self._buttons[event.button] = 0
+                self.game.on_button_up_event(event)
             
             def on_hat_motion_event(self, event):
                 # JOYHATMOTION     joy, hat, value
-                try:
-                    self._hats[event.hat] = event.value
-                    self.game.on_hat_motion_event(event)
-                except AttributeError:
-                    log.info(f'on_hat_motion_event({event})')
-                    log.info(f'Hats: {self._hats}')
+                self._hats[event.hat] = event.value
+                self.game.on_hat_motion_event(event)
 
             def on_ball_motion_event(self, event):
                 # JOYBALLMOTION    joy, ball, rel
-                try:
-                    self._balls[event.ball] = rel
-                    self.game.on_ball_motion_event(event)
-                except AttributeError:
-                    log.info(f'on_ball_motion_event({event})')
-                    log.info(f'Balls: {self._balls}')
+                self._balls[event.ball] = rel
+                self.game.on_ball_motion_event(event)
 
             # We can't make these properties, because then they
             # wouldn't be callable as functions.
@@ -476,9 +397,19 @@ class JoystickManager(ResourceManager):
             def __repr__(self):
                 return repr(self.joystick)
 
-            # This will allow calls to the joystick which aren't implemented here.
+            # For any unimplemented attributes, we'll first try to call out
+            # to the game.  If that fails, we'll try calling pygame.            
             def __getattr__(self, attr):
-                return getattr(self.joystick, attr)
+                error = None
+                
+                try:
+                    try:
+                        return getattr(self.game, attr)
+                    except AttributeError as e:
+                        error = e
+                        return getattr(self.joystick, attr)
+                except AttributeError:
+                    raise error
 
         # This must be called before other joystick methods,
         # and is safe to call more than once.
@@ -539,7 +470,7 @@ class JoystickManager(ResourceManager):
         log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
         self.joysticks[event.joy].on_ball_motion_event(event)
 
-
+# NB: Do we even need this, really?
 class InputManager(ResourceManager):
     def __init__(self, game, **kwargs):
         super().__init__(game, **kwargs)
@@ -550,7 +481,7 @@ class InputManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Sound Mixer Options')
+        group = parser.add_argument_group('Input Options')
 
         return parser
 
@@ -565,67 +496,12 @@ class GameManager(ResourceManager):
                 super().__init__()
                 self.game = game
 
-            #def on_quit_event(self, event, game):
-                # QUIT             none
-            #    try:
-            #        game.on_quit_event(event)
-            #    except AttributeError:
-            #        log.debug(f'QUIT: {event}')
-
-            #def on_active_event(self, event, game):
-                # ACTIVEEVENT      gain, state
-            #    try:
-            #        game.on_active_event(event)
-            #    except AttributeError:
-            #        log.debug(f'ACTIVEEVENT: {event}')
-
-            #def on_video_resize_event(self, event, game):
-                # VIDEORESIZE      size, w, h                
-            #    try:
-            #        game.on_video_resize_event(event)
-            #    except AttributeError:
-            #        log.debug(f'VIDEORESIZE: {event}')
-
-            #def on_video_expose_event(self, event, game):
-                # VIDEOEXPOSE      none
-            #    try:
-            #        game.on_video_expose_event(event)
-            #    except AttributeError:
-            #        log.debug(f'VIDEOEXPOSE: {event}')
-
-            #def on_sys_wm_event(self, event, game):
-                # SYSWMEVENT
-            #    try:
-            #        game.on_sys_wm_event(event)
-            #    except AttributeError:
-            #        log.debug(f'SYSWMEVENT: {event}')                
-
-            #def on_user_event(self, event, game):
-                # USEREVENT        code
-            #    try:
-            #        game.on_user_event(event)
-            #    except AttributeError:
-            #        log.debug(f'USEREVENT: {event}')                
-
-            #def on_game_event(self, event, game):
-                # This is a special non-pygame event type.        
-            #    try:
-            #        game.on_game_event(event)
-            #    except AttributeError:
-            #        log.debug(f'Game Event: {event}')
-
-            #def on_fps_event(self, event, game):
-                # This is a special non-pygame event type.        
-            #    try:
-            #        game.on_fps_event(event)
-            #    except AttributeError:
-            #        log.debug(f'FPS Event: {event}')
-
             # For any unimplemented attributes, we'll first try to call out
-            # to the game.  If that fails, we'll try calling pygame.
+            # to the game.  If that fails, we'll try calling pygame.  If
+            # that fails, then we'll surface the error from the game access error.
             def __getattr__(self, attr):
                 error = None
-                # TODO: If the attribute doesn't exist, throw an error.
+                
                 try:
                     try:
                         return getattr(self.game, attr)
@@ -634,8 +510,7 @@ class GameManager(ResourceManager):
                         return getattr(pygame, attr)
                 except AttributeError:
                     raise error
-                #AttributeError(f'Neither the game {type(self.game)} nor pygame has implemented "{attr}"')
-        
+
         self.game = GameProxy(game=self.game)
 
     @classmethod
@@ -644,55 +519,13 @@ class GameManager(ResourceManager):
 
         return parser
 
-    #def quit_event(self, event, game):
-        # QUIT             none
-    #    log.debug(f'QUIT triggered: quit_event({event})')
-    #    self.game.on_quit_event(event, game)
-
-    #def active_event(self, event, game):
-        # ACTIVEEVENT      gain, state
-    #    log.debug(f'ACTIVEEVENT triggered: active_event({event})')
-    #    self.game.on_active_event(event)
-
-    #def video_resize_event(self, event, game):
-        # VIDEORESIZE      size, w, h
-    #    log.debug(f'VIDEORESIZE triggered: video_resize_event({event})')
-    #    self.game.on_video_resize_event(event, game)
-
-    #def video_expose_event(self, event, game):
-        # VIDEOEXPOSE      none
-    #    log.debug(f'VIDEOEXPOSE triggered: video_expose_event({event})')        
-    #    self.game.on_video_expose_event(event, game)
-
-    #def sys_wm_event(self, event, game):
-        # SYSWMEVENT
-    #    log.debug(f'SYSWMEVENT triggered: sys_wm_event({event})')
-    #    self.game.on_sys_wm_event(event, game)
-
-    #def user_event(self, event, game):
-        # USEREVENT        code
-    #    log.debug(f'USEREVENT triggered: user_event({event})')
-    #    self.game.on_user_event(event, game)
-        
-    #def fps_event(self, event, game):
-        # This is a special non-pygame event type.
-    #    log.debug(f'FPSEVENT triggered: fps_event({event})')
-    #    self.game.on_fps_event(event)
-
-    #def game_event(self, event, game):
-        # This is a special non-pygame event type.
-    #    log.debug(f'GAMEEVENT triggered: game_event({event})')
-    #    self.game.on_game_event(event, game)
-
-    # This will allow calls to pygame which aren't implemented here.
-    def __getattr__(self, attr):                
-        # TODO: If the attribute doesn't exist, throw an error.
+    def __getattr__(self, attr):
         try:
             return getattr(self.game, attr)
         except AttributeError:
-            raise #AttributeError(f'The game {type(self.game.game)} has not implemented "{attr}"')
+            raise  AttributeError(f'The game {type(self.game.game)} has not implemented "{attr}"')
 
-class GameEngine(BaseEngine):
+class GameEngine(object):
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
     FPSEVENT = pygame.USEREVENT + 1
@@ -805,9 +638,8 @@ class GameEngine(BaseEngine):
         pygame.display.set_icon(icon)
 
         # Set the display caption.
-        pygame.display.set_caption(f'{type(self).NAME} (title)',
-                                   f'{type(self).NAME} (icontitle)')
-
+        pygame.display.set_caption(f'{type(self).NAME}        ',
+                                   f'{type(self).NAME}')
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
@@ -898,7 +730,6 @@ class GameEngine(BaseEngine):
         if self.video_driver:
             log.info(f'SDL_VIDEODRIVER == {os.environ["SDL_VIDEODRIVER"]}')
 
-
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
@@ -906,14 +737,6 @@ class GameEngine(BaseEngine):
 
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-
-        log.info(f'Framerate check (configured FPS: {self.fps})')
-
-        # On Some platforms, pygame.USEREVENT is used to convey codes
-        # so, we'll use USEREVENT + 1 to avoid confusion.
-        pygame.time.set_timer(GameEngine.FPSEVENT, self.fps_refresh_rate)
-
-        self.active_scene = Scene()
 
     def update_cursor(self):
         # Compile our cursor so we can draw it to the screen.
@@ -983,6 +806,15 @@ class GameEngine(BaseEngine):
         parser = MusicManager.args(parser=parser)
 
         return parser
+
+    def start(self):
+        log.info(f'Framerate check (configured FPS: {self.fps})')
+
+        # On Some platforms, pygame.USEREVENT is used to convey codes
+        # so, we'll use USEREVENT + 1 to avoid confusion.
+        pygame.time.set_timer(GameEngine.FPSEVENT, self.fps_refresh_rate)
+
+        self.active_scene = None
 
     def quit(self):
         # put a quit event in the event queue.
@@ -1079,7 +911,7 @@ class GameEngine(BaseEngine):
             # It doesn't really make sense to hook this
             pass
         if event.button == 5:
-            # It doesn't really make sense to hook this            
+            # It doesn't really make sense to hook this
             pass
 
         self.active_scene.on_mouse_button_up_event(event)
@@ -1100,17 +932,9 @@ class GameEngine(BaseEngine):
 
         self.active_scene.on_mouse_button_down_event(event)
 
-    def on_quit_event(self, event):
-        # QUIT             none
-        log.info(f'QUIT: {event}')
-        self.active_scene.on_quit_event(event)
-        pygame.quit()
-
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
-        GameEngine.FPS = self.clock.get_fps()        
-        #log.debug(f'FPSEVENT: {event}')     
-        #log.info(f'FPS: {GameEngine.FPS}')
+        GameEngine.FPS = self.clock.get_fps()
         self.active_scene.on_fps_event(event)
 
     def on_game_event(self, event):
@@ -1121,13 +945,23 @@ class GameEngine(BaseEngine):
         except KeyError:
             log.error(f'Unregistered Event: {event} (call self.register_game_event(<event subtype>, <event data>))')
 
-    # This will catch calls which our game engine doesn't yet implement.
+    # If the game hasn't hooked a call, we should check if the scene manager has.
+    #
+    # This will allow scenes to get pygame events directly, but we can still
+    # hook those events in this engine, or in the subclassed game object, too.
+    #
+    # This allows maximum flexibility of event processing, with low overhead
+    # at the expense of a slight layer violation.
     def __getattr__(self, attr):
-        # Attempt to proxy the call to the active scene.
-        # This will only happen if the game doesn't intercept the callback.        
-        raise AttributeError(f'{attr} is not implemented in GameEngine.')
 
-class Scene(object):
+        # Attempt to proxy the call to the active scene.
+        try:
+            return getattr(self.active_scene)
+        except AttributeError:
+            # This will only happen if the game doesn't intercept the callback.
+            raise AttributeError(f'{attr} is not implemented in {type(self)} or in {type(self.active_scene)}.')
+
+class RootScene(object):
     def __init__(self):
         super().__init__()
         # This will resolve to the class name of any subclass.
@@ -1135,7 +969,9 @@ class Scene(object):
         self.background_color = black
         self.next = self
         self.rects = None
-        self.active_scene = self
+
+        # This returns <class 'engine.RootScene'>
+        self.root_scene = type(self).__mro__[-2]
         
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         self.all_sprites = pygame.sprite.LayeredDirty()
@@ -1162,115 +998,119 @@ class Scene(object):
 
     def on_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
-        log.debug(f'JOYAXISMOTION: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
-        log.debug(f'JOYBUTTONDOWN: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
-        log.debug(f'JOYBUTTONUP: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
-        log.debug(f'JOYHATMOTION: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
-        log.debug(f'JOYBALLMOTION: {event}')
+        log.debug(f'{type(self)}: {event}')
 
     def on_mouse_motion_event(self, event):
-        # MOUSEMOTION      pos, rel, buttons        b
-        log.debug(f'MOUSEMOTION: {event}')
+        # MOUSEMOTION      pos, rel, buttons
+        log.debug(f'{self.root_scene}: {event}')        
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-        log.info(f'MOUSEBUTTONUP: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_left_mouse_button_up_event(self, event):
-        log.info('Left Mouse Button Up Event')
-        self.active_scene.on_mouse_button_up_event(event)
+        # MOUSEBUTTONUP    pos, button        
+        log.debug(f'{self.root_scene}: Left Mouse Button Up Event: {event}')
+        self.on_mouse_button_up_event(event)
 
     def on_middle_mouse_button_up_event(self, event):
-        log.info('Middle Mouse Button Up Event')
+        # MOUSEBUTTONUP    pos, button        
+        log.debug(f'{self.root_scene}: Middle Mouse Button Up Event: {event}')
 
     def on_right_mouse_button_up_event(self, event):
-        log.info('Right Mouse Button Up Event')
+        # MOUSEBUTTONUP    pos, button        
+        log.debug(f'{self.root_scene}: Right Mouse Button Up Event: {event}')
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'MOUSEBUTTONDOWN: {event}')                
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_left_mouse_button_down_event(self, event):
-        log.debug('Left Mouse Button Down Event')
+        # MOUSEBUTTONDOWN  pos, button        
+        log.debug(f'{self.root_scene}: Left Mouse Button Down Event: {event}')
 
     def on_middle_mouse_button_down_event(self, event):
-        log.debug('Middle Mouse Button Down Event')
+        # MOUSEBUTTONDOWN  pos, button        
+        log.debug(f'{self.root_scene}: Middle Mouse Button Down Event: {event}')
 
     def on_right_mouse_button_down_event(self, event):
-        log.debug('Right Mouse Button Down Event')
+        # MOUSEBUTTONDOWN  pos, button        
+        log.debug(f'{self.root_scene}: Right Mouse Button Down Event: {event}')
 
     def on_mouse_scroll_down_event(self, event):
-        log.debug('Mouse Scroll Down Event')
+        # MOUSEBUTTONDOWN  pos, button        
+        log.debug(f'{self.root_scene}: Mouse Scroll Down Event: {event}')
 
     def on_mouse_scroll_up_event(self, event):
-        log.debug('Mouse Scroll Up Event')
+        # MOUSEBUTTONDOWN  pos, button        
+        log.debug(f'{self.root_scene}: Mouse Scroll Up Event: {event}')
 
-    def on_mouse_chord_up_event(self, event):
-        log.debug('Mouse Chord Up Event')
+    def on_mouse_chord_up_event(self, event): 
+        log.debug(f'{self.root_scene}: Mouse Chord Up Event: {event}')
 
     def on_mouse_chord_down_event(self, event):
-        log.info('Mouse Chord Down Event')
+        log.debug(f'{self.root_scene}: Mouse Chord Down Event: {event}')
 
     def on_key_down_event(self, event):
         # KEYDOWN          unicode, key, mod
-        log.info(f'KEYDOWN: {event}')        
+        log.debug(f'{self.root_scene}: {event}')        
     
     def on_key_up_event(self, event):
         # KEYUP            key, mod
-        log.info(f'KEYUP: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_key_chord_down_event(self, event, keys):
-        log.info(f'KEYCHORDDOWN: {event}, {keys}')
+        log.debug(f'{self.root_scene}: {event}, {keys}')
 
     def on_key_chord_up_event(self, event, keys):
-        log.info(f'KEYCHORDUP: {event}, {keys}')            
+        log.debug(f'{self.root_scene} KEYCHORDUP: {event}, {keys}')            
 
     def on_quit_event(self, event):
         # QUIT             none
-        log.info(f'Scene QUIT: {event}')        
+        log.debug(f'{self.root_scene}: {event}')
+        self.terminate()
 
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state        
-        log.debug(f'ACTIVEEVENT: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_video_resize_event(self, event):
         # VIDEORESIZE      size, w, h        
-        log.info(f'VIDEORESIZE: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_video_expose_event(self, event):
         # VIDEOEXPOSE      none        
-        log.info(f'VIDEOEXPOSE: {event}')        
+        log.debug(f'{self.root_scene}: {event}')        
         
     def on_sys_wm_event(self, event):
         # SYSWMEVENT        
-        log.info(f'SYSWMEVENT: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_user_event(self, event):
         # USEREVENT        code
-        log.info(f'USEREVENT: {event}')
+        log.debug(f'{self.root_scene}: {event}')
 
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
-        #log.info(f'FPSEVENT: {event}')     
-        log.info(f'FPS: {GameEngine.FPS}')
+        log.debug(f'{self.root_scene}: {GameEngine.FPS}')
 
-    def __getattr__(self, attr):
-        # We want the child class to be printed.
-        #try:
-        #    return getattr(self.active_scene
-        #except AttributeError:
-        raise AttributeError(f'{attr} is not implemented in {type(self)}.')
-
+    #def __getattr__(self, event):
+    #    print(event)
+        
     
