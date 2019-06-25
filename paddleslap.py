@@ -73,11 +73,11 @@ class PaddleSprite(pygame.sprite.DirtySprite):
             self.rect.y = 0
 
     def move_down(self):        
-        self.speed = 2
+        self.speed = 10 * 60/(GameEngine.FPS or 30)
         
     def move_up(self):
-        self.speed = -2
-
+        self.speed = -10 * 60/(GameEngine.FPS or 30)
+        
     def stop(self):
         self.speed = 0
 
