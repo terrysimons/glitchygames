@@ -11,6 +11,7 @@ import os
 import platform
 import struct
 import subprocess
+import random
 import re
 
 from pygame import Color, Rect
@@ -24,17 +25,21 @@ from engine import black, white, blacklucent, red
 from engine import JoystickManager
 
 log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
 
 # TODO:
 # Add --log-level flag.
 # Package.
-# 
+#
+class Speed(object):
+    def __init__(self, x=0, y=0):
+        self.x = x
+        self.y = y
 
 
 class PaddleSprite(pygame.sprite.DirtySprite):
@@ -44,6 +49,7 @@ class PaddleSprite(pygame.sprite.DirtySprite):
 
         self.name = name
         self.screen = pygame.display.get_surface()
+        self.screen_rect = self.screen.get_rect()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()        
         self.width = 20
@@ -53,33 +59,36 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         self.rect = self.image.get_rect()
 
         pygame.draw.rect(self.image, white, (0, 0, self.width, self.height), 0)        
-
         self.rect.x = 0
         self.rect.y = 320
         self.moving = False
-        self.speed = 0
+        self.speed = Speed()
 
         self.update()
 
     def update(self):
         self.dirty = 1
 
-        self.rect.y += self.speed
-
-        if self.rect.bottom > self.screen_height:
-            self.rect.bottom = self.screen_height
-
-        if self.rect.y < 0:
+        # This prevents us from having the paddle bounce
+        # at the edges.
+        if self.rect.bottom + self.speed.y > self.screen_rect.bottom:
+            self.rect.y = self.screen_rect.bottom - self.height
+            self.stop()
+        elif self.rect.top + self.speed.y < self.screen_rect.top:
             self.rect.y = 0
-
+            self.stop()
+        else:
+            self.rect.y += self.speed.y
+            
     def move_down(self):        
-        self.speed = 10 * 60/(GameEngine.FPS or 30)
+        self.speed.y = 10 
         
     def move_up(self):
-        self.speed = -10 * 60/(GameEngine.FPS or 30)
+        self.speed.y = -10 
         
     def stop(self):
-        self.speed = 0
+        self.speed.x = 0
+        self.speed.y = 0
 
 class BallSprite(pygame.sprite.DirtySprite):
     def __init__(self):
@@ -89,21 +98,38 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-        self.width = 10
-        self.height = 10        
+        self.width = 20
+        self.height = 20        
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
+        self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
+        self.speed = Speed(4, 2)
+
+        # The ball always needs refreshing.
+        # This saves us a set on dirty every update.
+        self.dirty = 2        
 
         pygame.draw.circle(self.image, white, (self.width//2, self.height//2), 5, 0)
 
-        self.rect.x = self.screen_width // 2
-        self.rect.y = self.screen_height // 2
-
+        self.reset()
         self.update()
 
+    def reset(self):
+        self.rect.x = self.screen_width // 2
+        self.rect.y = self.screen_height // 2        
+
     def update(self):
-        pass
+        if GameEngine.FPS:
+            self.rect.y += self.speed.y 
+            self.rect.x += self.speed.x 
+
+        if self.rect.y >= self.screen_height or self.rect.y <= 0:
+            self.rect.y *= -random.random()
+
+        if self.rect.x > self.screen_width or self.rect.x < 0:
+            self.reset()
+
 
 class TextSprite(pygame.sprite.DirtySprite):
     def __init__(self, background_color=blacklucent, alpha=0, x=0, y=0):
@@ -147,29 +173,26 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
-            def __init__(self, font_controller, x, y, line_height=15):
+            def __init__(self, font_controller, pos, line_height=15):
                 super().__init__()
                 self.image = None
-                self.rect = None
-                self.start_x = x
-                self.start_y = y
+                self.start_pos = pos
+                self.rect = pygame.Rect(pos, (640, 480))
                 self.line_height = line_height
                 
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
 
-            def print(self, surface, string):
+            def print(self, surface, string):                
                 (self.image, self.rect) = self.font.render(string, white)
                 self.image
-                surface.blit(self.image, (self.x, self.y))
-                self.rect.x = self.x
-                self.rect.y = self.y
-                self.y += self.line_height
+                surface.blit(self.image, self.rect.center)
+                self.rect.center = surface.get_rect().center
+                self.rect.y += self.line_height
         
             def reset(self):
-                self.x = self.start_x
-                self.y = self.start_y
+                self.rect.center = self.start_pos
                 
             def indent(self):
                 self.x += 10
@@ -180,7 +203,7 @@ class TextSprite(pygame.sprite.DirtySprite):
             def rect(self):
                 return self.rect
 
-        self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
+        self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
 
         self.update()
         
@@ -188,60 +211,21 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.dirty = 2
         self.image.fill(self.background_color)
 
-        pygame.draw.rect(self.image, white, self.image.get_rect(), 7)        
-
         self.text_box.reset()
         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
-
-        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
-        
         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
-
-        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count) )        
-        if self.joystick_count:
-            for i, joystick in enumerate(self.joystick_manager.joysticks):
-                self.text_box.print(self.image, f'Joystick {i}')
-                
-                # Get the name from the OS for the controller/joystick
-                self.text_box.indent()
-                self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
-        
-                # Usually axis run in pairs, up/down for one, and left/right for
-                # the other.
-                axes = joystick.get_numaxes()
-                self.text_box.print(self.image, f'Number of axes: {axes}')
-                
-                self.text_box.indent()                
-                for i in range(axes):
-                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
-                self.text_box.unindent()
-
-                buttons = joystick.get_numbuttons()
-                self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
-                
-                self.text_box.indent()
-                for i in range(buttons):
-                    self.text_box.print(self.image, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
-                self.text_box.unindent()
-            
-                # Hat switch. All or nothing for direction, not like joysticks.
-                # Value comes back in an array.
-                hats = 0
-                self.text_box.print(self.image, f'Number of hats: {hats}')
-                
-                self.text_box.indent()
-                for i in range(hats):
-                    self.text_box.print(self.image, f'Hat {hat} value: {str(joystick.get_hat(i))}')
-                    self.text_box.unindent()
-                self.text_box.unindent()
 
 class TableScene(RootScene):
     def __init__(self):
         super().__init__()
+        self.screen = pygame.display.get_surface()        
         self.player1_sprite = PaddleSprite(name="Player 1")
         self.player2_sprite = PaddleSprite(name="Player 2")
         self.ball_sprite = BallSprite()
+        self.info_sprite = TextSprite(background_color=black, alpha=0, x=0, y=0)
         #self.scoreboard_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
+
+        self.info_sprite.rect.center = self.screen.get_rect().center
         
         # Set player 2's position on the right side of the screen.
         self.player2_sprite.rect.x = self.player2_sprite.screen.get_width() - self.player2_sprite.width
@@ -251,6 +235,7 @@ class TableScene(RootScene):
                 self.player1_sprite,
                 self.player2_sprite,
                 self.ball_sprite,
+                #self.info_sprite
                 #self.scoreboard_sprite
             )
         )
@@ -259,6 +244,14 @@ class TableScene(RootScene):
 
     def update(self):
         super().update()
+
+        if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite):
+            self.ball_sprite.speed.x *= -1
+            self.ball_sprite.speed.y *= -1
+
+        if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite):
+            self.ball_sprite.speed.x *= -1
+            self.ball_sprite.speed.y *= -1
 
     def render(self, screen):
         super().render(screen)
@@ -338,7 +331,13 @@ class Game(GameEngine):
 
         while self.active_scene != None:
                 self.process_events()                
-            
+
+                # Don't do anything until we know our framerate.
+                while GameEngine.FPS == 0:
+                    # Display the startup screen here?
+                    self.clock.tick(self.fps)
+                    GameEngine.FPS = self.clock.get_fps()
+                
                 self.active_scene.update()
 
                 self.active_scene.render(self.screen)
