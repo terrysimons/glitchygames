@@ -35,7 +35,7 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         super().__init__()
         self.use_gfxdraw = True
 
-        self.screen = pygame.Surface(pygame.display.get_surface().get_size())
+        self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
         self.screen.convert()
