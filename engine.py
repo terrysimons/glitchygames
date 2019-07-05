@@ -34,7 +34,7 @@ blacklucent = pygame.Color(0, 0, 0, 127)
 bluelucent = pygame.Color(0, 96, 255, 127)
 red = pygame.Color(255, 0, 0)
 
-def load_graphic(path):
+def load_graphic_as_pixels(path):
     data = None
 
     print(f'Loading: {path}')
@@ -51,19 +51,42 @@ def load_graphic(path):
         pixel = (subpixels.pop(0), subpixels.pop(0), subpixels.pop(0))
         pixels.append(pixel)
 
+    return pixels
+
+
+def load_graphic(path):
+    #data = None
+
+    #print(f'Loading: {path}')
+    
+    #with open(path, 'rb') as fh:
+    #    data = fh.read()
+
+    #fmt = "<%dc" % (len(data))
+    #image = list(struct.unpack(fmt, data))
+
+    #pixels = []
+    #subpixels = [int(subpixel) for subpixel in data]    
+    #while subpixels:
+    #    pixel = (subpixels.pop(0), subpixels.pop(0), subpixels.pop(0))
+    #    pixels.append(pixel)
+
+    pixels = load_graphic_as_pixels(path)
+
     graphic = pygame.Surface((32, 32))
     y = 0
     x = 0
-    for i, pixel in enumerate(pixels):
+    for pixel in pixels:
         graphic.fill(pixel, ((x, y), (1, 1)))
 
-        if i % 32 == 0:
+        if (x + 1) % 32 == 0:
             x = 0
             y += 1
         else:
             x += 1
 
     return graphic
+
 
 
 #class BaseEngine(object):
@@ -918,7 +941,7 @@ class GameEngine(object):
             
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug('MOUSEBUTTONDOWN: {event}')        
+        log.debug(f'MOUSEBUTTONDOWN: {event}')        
         if event.button == 1:
             self.on_left_mouse_button_down_event(event)
         if event.button == 2:
