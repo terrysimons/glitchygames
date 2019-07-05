@@ -435,17 +435,17 @@ class CanvasSprite(RootSprite):
 
     def update(self):
 
-        if not self.mini_view:
+        #if not self.mini_view:
             #self.draw_border()
-            self.draw_pixels()
-        else:
-            self.draw_border()
-            self.draw_grid()
-            self.draw_pixels()
+        #    self.draw_pixels()
+        #else:
+        self.draw_border()
+        self.draw_grid()
+        self.draw_pixels()
 
-        if self.mini_view:
-            self.mini_view.pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-            self.mini_view.update()
+        #if self.mini_view:
+        #    self.mini_view.pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
+        #    self.mini_view.update()
             #print(pygame.image.tostring(self.mini_view.image, 'RGB'))
             #print(pygame.image.tostring(self.image, 'RGB'))
             #self.image.blit(self.mini_view.image, (0, 0))
@@ -609,6 +609,8 @@ class TextSprite(RootSprite):
         self.rect.x += self.x
         self.rect.y += self.y
 
+        
+
         self.update()
 
     def update(self):
@@ -671,6 +673,7 @@ class SliderSprite(RootSprite):
 
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((self.width, self.height))
+        self.background = pygame.Surface((self.width, self.height))
         self.image.fill((255,255,255))
         self.rect = self.image.get_rect()
 
@@ -679,15 +682,9 @@ class SliderSprite(RootSprite):
         self.rect.y = self.y
         self.text.start_x = 0
         self.text.start_y = 0
-        self.update()
 
-    @property
-    def value(self):
-        return self.slider_knob.value
-
-    def update(self):
-        self.image.fill((255,255,255))
-
+        #self.all_sprites = pygame.sprite.LayeredDirty((self.slider_knob))
+        
         for i in range(255):
             if self.name == 'R':
                 pygame.draw.line(self.image, (i, 0, 0), (self.text.width + i, self.height//2 - 1), (self.text.width + i, self.height//2), 1)
@@ -704,10 +701,18 @@ class SliderSprite(RootSprite):
                 pygame.draw.line(self.image, (0, 0, i), (self.text.width + i, self.height//2 + 1), (self.text.width + +i, self.height//2), 1)
             else:
                 pygame.draw.line(self.image, (255, 255, 255), (self.text.width, self.height//2), (self.text.width + 255, self.height//2), 1)
-        pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
+
+
+    @property
+    def value(self):
+        return self.slider_knob.value
+
+    def update(self):
+        #pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
 
         # Draw the knob
         self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height//4))
+        super().update()
 
 
     def on_left_mouse_button_down_event(self, event):
@@ -786,6 +791,12 @@ class BitmapEditorScene(RootScene):
 
         #self.text_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
 
+        self.red = self.red_slider_sprite.value
+        self.green = self.green_slider_sprite.value
+        self.blue = self.blue_slider_sprite.value
+
+        self.canvas_sprite.active_color = (self.red, self.green, self.blue)
+
         self.all_sprites = pygame.sprite.LayeredDirty(
             (
                 #self.scroll_bar_sprite,
@@ -805,14 +816,6 @@ class BitmapEditorScene(RootScene):
         self.all_sprites.clear(self.screen, self.background)
 
     def update(self):
-        self.red = self.red_slider_sprite.value
-        self.green = self.green_slider_sprite.value
-        self.blue = self.blue_slider_sprite.value
-
-        self.canvas_sprite.active_color = (self.red, self.green, self.blue)
-
-        #print(f'R: {self.red} G: {self.green}, B: {self.blue}')
-
         super().update()
 
     def render(self, screen):
@@ -842,6 +845,8 @@ class BitmapEditorScene(RootScene):
             self.blue = trigger.value
         else:
             log.debug(f'Slider: event: {event}, trigger: {trigger} value: {trigger.value}')
+
+        self.canvas_sprite.active_color = (self.red, self.green, self.blue)
 
 
     def on_key_up_event(self, event):
