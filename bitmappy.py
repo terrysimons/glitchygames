@@ -311,6 +311,7 @@ class CanvasSprite(RootSprite):
         class MiniView(CanvasSprite):
             def __init__(self, *args, border_thickness=0, pixels=None, **kwargs):
                 self.pixels = pixels
+                self.dirty_pixels = [True] * len(self.pixels)
 
                 super().__init__(*args, has_mini_view=False, **kwargs)
 
@@ -326,6 +327,8 @@ class CanvasSprite(RootSprite):
 
                 self.image = pygame.Surface((self.width, self.height))
                 self.rect = self.image.get_rect()
+                self.image.fill((0, 255, 0))
+                #self.image.set_colorkey((255, 0, 255))
                 self.rect.x = self.screen_width - self.width
                 self.rect.y = 0
                 self.rect.width = self.width
@@ -335,6 +338,7 @@ class CanvasSprite(RootSprite):
                 #for pixel_box in self.pixel_boxes:
                 #    pixel_box.border_thickness = 0
                 #    print(f'Pixel Width: {pixel_box.width}')
+                self.dirty_pixels = [True] * len(self.pixels)
 
                 self.update()
 
@@ -349,8 +353,10 @@ class CanvasSprite(RootSprite):
                 #self.rect.x = 240
                 #self.rect.y = 240
 
-                for pixel in self.pixels:
-                    pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
+                for i, pixel in enumerate(self.pixels):
+                    if self.dirty_pixels[i]:
+                        pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
+                        self.dirty_pixels[i] = False
 
                     if (x + self.pixel_width) % (self.pixels_across * self.pixel_width) == 0:
                         x = 0
@@ -361,7 +367,11 @@ class CanvasSprite(RootSprite):
                 #super().update()
                 self.screen.blit(self.image, (self.rect.x, self.rect.y))
                 #pygame.draw.line(self.screen, (255, 0, 0), (0, 0), (240, 240))
-                
+
+            def on_pixel_update_event(self, event, trigger):
+                self.pixels[trigger.pixel_number] = trigger.pixel_color
+                self.dirty_pizels[trigger.pixel_number] = True
+                self.update()
 
             def __str__(self):
                 return f'pixels across: {self.pixels_across}, pixels tall: {self.pixels_tall}, width: {self.width}, height: {self.height}, pixel width: {self.pixel_width}, pixel_height: {self.pixel_height}, pixels: {len(self.pixels)}, rect: {self.rect}'
@@ -372,6 +382,7 @@ class CanvasSprite(RootSprite):
 
             def __init__(self, *args, border_thickness=1, **kwargs):
                 self.name = kwargs.get('name')
+                self.pixel_number = kwargs.get('pixel_number')
                 self.pixel_width = kwargs.get('width', 0)
                 self.pixel_height = kwargs.get('height', 0)
                 self.border_thickness = border_thickness
@@ -387,8 +398,17 @@ class CanvasSprite(RootSprite):
             def update(self):
                 pygame.draw.rect(self.image, self.pixel_color, (1, 1, self.width - self.border_thickness * 2, self.height - self.border_thickness * 2))
 
+            def on_pixel_update_event(self, event):
+                if self.callbacks:
+                    callback = self.callbacks.get('on_pixel_update_event', None)
+                if callback:
+                    callback(event=event, trigger=self)
+                else:
+                    log.debug(f'{type(self)}: Pixel Update Event: {event} @ {self} (Pixel Number: {self.pixel_number}')
+
             def on_left_mouse_button_down_event(self, event):
                 self.dirty = 1
+                self.on_pixel_update_event(event)
                 self.update()
 
             def on_mouse_drag_down_event(self, event, trigger):
@@ -411,6 +431,7 @@ class CanvasSprite(RootSprite):
         self.all_sprites = pygame.sprite.LayeredDirty()
 
         self.pixel_boxes = [BitmapPixelSprite(name=f'pixel {i}',
+                                              pixel_number=i,
                                               x=0,
                                               y=0,
                                               height=self.pixel_width,
@@ -420,6 +441,7 @@ class CanvasSprite(RootSprite):
         for i in range(self.pixels_across * self.pixels_tall):
             self.pixel_boxes[i].pixel_color = self.pixels[i]
             self.pixel_boxes[i].add(self.all_sprites)
+            self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
             self.pixel_boxes[i].update()
 
         if self.has_mini_view:
@@ -433,19 +455,26 @@ class CanvasSprite(RootSprite):
         # For some reason we have a double grid border, so let's wipe out the canvas.
         self.image.fill((0, 0, 0), rect=self.rect)
 
+    def on_pixel_update_event(self, event, trigger):
+        print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}')
+        if self.mini_view:
+            self.mini_view.pixels[trigger.pixel_number] = trigger.pixel_color
+            self.mini_view.dirty_pixels[trigger.pixel_number] = True
+            self.mini_view.update()
+
     def update(self):
 
-        #if not self.mini_view:
+        if not self.mini_view:
             #self.draw_border()
-        #    self.draw_pixels()
-        #else:
-        self.draw_border()
-        self.draw_grid()
-        self.draw_pixels()
+            self.draw_pixels()
+        else:
+            self.draw_border()
+            self.draw_grid()
+            self.draw_pixels()
 
         #if self.mini_view:
-        #    self.mini_view.pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-        #    self.mini_view.update()
+            #self.mini_view.pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
+        #   self.mini_view.update()
             #print(pygame.image.tostring(self.mini_view.image, 'RGB'))
             #print(pygame.image.tostring(self.image, 'RGB'))
             #self.image.blit(self.mini_view.image, (0, 0))
@@ -684,6 +713,15 @@ class SliderSprite(RootSprite):
         self.text.start_y = 0
 
         #self.all_sprites = pygame.sprite.LayeredDirty((self.slider_knob))
+
+    @property
+    def value(self):
+        return self.slider_knob.value
+
+    def update(self):
+        #pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
+
+        self.image.fill((0, 0, 0))
         
         for i in range(255):
             if self.name == 'R':
@@ -702,13 +740,6 @@ class SliderSprite(RootSprite):
             else:
                 pygame.draw.line(self.image, (255, 255, 255), (self.text.width, self.height//2), (self.text.width + 255, self.height//2), 1)
 
-
-    @property
-    def value(self):
-        return self.slider_knob.value
-
-    def update(self):
-        #pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
 
         # Draw the knob
         self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height//4))
