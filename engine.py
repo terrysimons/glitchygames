@@ -286,16 +286,32 @@ class MouseManager(ResourceManager):
                 super().__init__()                
                 self.game = game
                 self.mouse_state = {}
+                self.mouse_dragging = False
 
             def on_mouse_motion_event(self, event):
                 self.mouse_state[event.type] = event
                 
                 self.game.on_mouse_motion_event(event)
 
+                print('Mouse State: %s' % self.mouse_state)
+
+                # Caller can check the buttons.
+                # Note: This probably doesn't work right because
+                # we aren't keeping track of button states.
+                # We should be looking at all mouse states and emitting appropriately.
+                for trigger_event in self.mouse_state.values():
+                    if trigger_event.type == pygame.MOUSEBUTTONDOWN:
+                        self.game.on_mouse_drag_down_event(event, trigger_event)
+                        self.mouse_dragging = True
+
             def on_mouse_button_up_event(self, event):
                 self.mouse_state[event.button] = event
                 
                 self.game.on_mouse_button_up_event(event)
+
+                if self.mouse_dragging:
+                    self.game.on_mouse_drag_up_event(event)
+                    self.mouse_dragging = False
 
             def on_mouse_button_down_event(self, event):
                 self.mouse_state[event.button] = event
@@ -1041,7 +1057,13 @@ class RootScene(object):
 
     def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
-        log.debug(f'{self.root_scene}: {event}')        
+        log.debug(f'{self.root_scene}: {event}')
+
+    def on_mouse_drag_down_event(self, event, trigger):
+        log.debug(f'{self.root_scene}: Mouse Drag Down: {event} {trigger}')
+
+    def on_mouse_drag_up_event(self, event):
+        log.debug(f'{self.root_scene}: Mouse Drag Up: {event}')
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -1133,7 +1155,5 @@ class RootScene(object):
         # FPSEVENT is pygame.USEREVENT + 1
         log.debug(f'{self.root_scene}: {GameEngine.FPS}')
 
-    #def __getattr__(self, event):
-    #    print(event)
         
     
