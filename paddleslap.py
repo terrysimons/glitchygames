@@ -36,6 +36,8 @@ log.addHandler(ch)
 # Add --log-level flag.
 # Package.
 #
+
+
 class Speed(object):
     def __init__(self, x=0, y=0):
         self.x = x
@@ -224,6 +226,7 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
+
 class TableScene(RootScene):
     def __init__(self):
         super().__init__()
@@ -254,11 +257,11 @@ class TableScene(RootScene):
     def update(self):
         super().update()
 
-        if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite):
+        if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite) and self.ball_sprite.speed.x <= 0:
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
-        if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite):
+        if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite) and self.ball_sprite.speed.x > 0:
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
@@ -269,7 +272,7 @@ class TableScene(RootScene):
         super().switch_to_scene(next_scene)
 
     def on_key_up_event(self, event):
-        # KEYDOWN            key, mod
+        # KEYUP            key, mod
         if event.key == pygame.K_UP:
             self.player1_sprite.stop()
         if event.key == pygame.K_DOWN:
@@ -294,7 +297,7 @@ class TableScene(RootScene):
 class Game(GameEngine):
     # Set your game name/version here.
     NAME = "Paddle Slap"
-    VERSION = "1.0"
+    VERSION = "1.1"
     
     def __init__(self, options):
         super().__init__(options=options)
