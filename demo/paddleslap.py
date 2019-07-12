@@ -48,7 +48,8 @@ class PaddleSprite(pygame.sprite.DirtySprite):
     def __init__(self, name):
         super().__init__()
         self.use_gfxdraw = True
-
+        # Adding some slap to the paddle
+        self.slap_snd = pygame.mixer.Sound('resources/snd/slap8.wav')
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
@@ -261,12 +262,12 @@ class TableScene(RootScene):
         super().update()
 
         if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite) and self.ball_sprite.speed.x <= 0:
-            self.ball_sprite.collision_snd.play()
+            self.player1_sprite.slap_snd.play()
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
         if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite) and self.ball_sprite.speed.x > 0:
-            self.ball_sprite.collision_snd.play()
+            self.player2_sprite.slap_snd.play()
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
