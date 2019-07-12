@@ -90,10 +90,17 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         self.speed.x = 0
         self.speed.y = 0
 
+
 class BallSprite(pygame.sprite.DirtySprite):
     def __init__(self):
         super().__init__()
         self.use_gfxdraw = True
+
+        # Bouncy edges
+        self.left_edge = False
+        self.right_edge = False
+        self.top_edge = True
+        self.bottom_edge = True
 
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -115,17 +122,31 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.reset()
         self.update()
 
+    def _do_bounce(self):
+        if self.top_edge and ( self.rect.y <= 0 ):
+            self.rect.y = 0
+            self.speed.y *= -1
+        if self.bottom_edge and ( self.rect.y + self.height >= self.screen_height):
+            self.rect.y = self.screen_height - self.height
+            self.speed.y *= -1
+        if self.left_edge and ( self.rect.x <= 0):
+            self.rect.x = 0
+            self.speed.x *= -1
+        if self.right_edge and ( self.rect.x >= self.screen_width):
+            self.rect.x = self.screen_width
+            self.speed.x *= -1
+
     def reset(self):
         self.rect.x = self.screen_width // 2
         self.rect.y = self.screen_height // 2        
 
     def update(self):
+
         if GameEngine.FPS:
             self.rect.y += self.speed.y 
             self.rect.x += self.speed.x 
 
-        if self.rect.y >= self.screen_height or self.rect.y <= 0:
-            self.rect.y *= -random.random()
+        self._do_bounce()
 
         if self.rect.x > self.screen_width or self.rect.x < 0:
             self.reset()
@@ -247,11 +268,11 @@ class TableScene(RootScene):
 
         if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite):
             self.ball_sprite.speed.x *= -1
-            self.ball_sprite.speed.y *= -1
+            self.ball_sprite.speed.y *= 1
 
         if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite):
             self.ball_sprite.speed.x *= -1
-            self.ball_sprite.speed.y *= -1
+            self.ball_sprite.speed.y *= 1
 
     def render(self, screen):
         super().render(screen)
