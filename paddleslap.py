@@ -96,12 +96,6 @@ class BallSprite(pygame.sprite.DirtySprite):
         super().__init__()
         self.use_gfxdraw = True
 
-        # Bouncy edges
-        self.left_edge = False
-        self.right_edge = False
-        self.top_edge = True
-        self.bottom_edge = True
-
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -123,18 +117,12 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.update()
 
     def _do_bounce(self):
-        if self.top_edge and ( self.rect.y <= 0 ):
+        if self.rect.y <= 0:
             self.rect.y = 0
             self.speed.y *= -1
-        if self.bottom_edge and ( self.rect.y + self.height >= self.screen_height):
+        if self.rect.y + self.height >= self.screen_height:
             self.rect.y = self.screen_height - self.height
             self.speed.y *= -1
-        if self.left_edge and ( self.rect.x <= 0):
-            self.rect.x = 0
-            self.speed.x *= -1
-        if self.right_edge and ( self.rect.x >= self.screen_width):
-            self.rect.x = self.screen_width
-            self.speed.x *= -1
 
     def reset(self):
         self.rect.x = self.screen_width // 2
@@ -207,7 +195,7 @@ class TextSprite(pygame.sprite.DirtySprite):
 
             def print(self, surface, string):                
                 (self.image, self.rect) = self.font.render(string, white)
-                self.image
+                # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
                 self.rect.y += self.line_height
