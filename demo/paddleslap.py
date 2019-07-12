@@ -108,7 +108,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
         self.speed = Speed(4, 2)
-        self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_sounds_impact8.wav')
+        self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_menu_move1.wav')
 
         # The ball always needs refreshing.
         # This saves us a set on dirty every update.
