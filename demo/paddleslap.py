@@ -108,6 +108,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
         self.speed = Speed(4, 2)
+        self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_sounds_impact8.wav')
 
         # The ball always needs refreshing.
         # This saves us a set on dirty every update.
@@ -120,9 +121,11 @@ class BallSprite(pygame.sprite.DirtySprite):
 
     def _do_bounce(self):
         if self.rect.y <= 0:
+            self.collision_snd.play()
             self.rect.y = 0
             self.speed.y *= -1
         if self.rect.y + self.height >= self.screen_height:
+            self.collision_snd.play()
             self.rect.y = self.screen_height - self.height
             self.speed.y *= -1
 
@@ -258,10 +261,12 @@ class TableScene(RootScene):
         super().update()
 
         if pygame.sprite.collide_rect(self.player1_sprite, self.ball_sprite) and self.ball_sprite.speed.x <= 0:
+            self.ball_sprite.collision_snd.play()
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
         if pygame.sprite.collide_rect(self.player2_sprite, self.ball_sprite) and self.ball_sprite.speed.x > 0:
+            self.ball_sprite.collision_snd.play()
             self.ball_sprite.speed.x *= -1
             self.ball_sprite.speed.y *= 1
 
@@ -381,6 +386,7 @@ class Game(GameEngine):
                 raise Exception(f'Scene not activated in call to {attr}()')                
         except AttributeError:
             raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+
 
 def main():
     parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")

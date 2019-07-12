@@ -1000,6 +1000,7 @@ class GameEngine(object):
             # This will only happen if the game doesn't intercept the callback.
             raise AttributeError(f'{attr} is not implemented in {type(self)} or in {type(self.active_scene)}.')
 
+
 class RootScene(object):
     def __init__(self):
         super().__init__()
