@@ -20,19 +20,11 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
+from ghetto.color import PURPLE, BLACK
+
 log = logging.getLogger('game.engine')
 log.addHandler(logging.NullHandler())
 
-# Note: I want to handle this a bit differently.
-yellow = pygame.Color(128, 128, 0, 255)
-purple = pygame.Color(121, 7, 242, 255)
-blue = pygame.Color(0, 0, 255, 255)
-green = pygame.Color(0, 255, 255)
-white = pygame.Color(255, 255, 255, 255)
-black = pygame.Color(0, 0, 0, 0)
-blacklucent = pygame.Color(0, 0, 0, 127)
-bluelucent = pygame.Color(0, 96, 255, 127)
-red = pygame.Color(255, 0, 0)
 
 def load_graphic_as_pixels(path):
     data = None
@@ -673,7 +665,7 @@ class GameEngine(object):
         #
         # Always call this before you call set_mode()
         icon = pygame.Surface((32, 32))
-        icon.fill(purple)
+        icon.fill(PURPLE)
         pygame.display.set_icon(icon)
 
         # Set the display caption.
@@ -1006,7 +998,7 @@ class RootScene(object):
         super().__init__()
         # This will resolve to the class name of any subclass.
         self.name = type(self)
-        self.background_color = black
+        self.background_color = BLACK
         self.next = self
         self.rects = None
 

@@ -2,28 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import copy
-import glob
 import logging
-import time
-import multiprocessing
-import os
-import platform
-import struct
-import subprocess
-import sys
-import re
 
-from pygame import Color, Rect
+from pygame import Rect
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from engine import RootScene, GameEngine, FontManager
-from engine import black, white, blacklucent
-from engine import JoystickManager
-from engine import load_graphic_as_pixels
+from ghetto.engine import RootScene, GameEngine, FontManager
+from ghetto.color import WHITE, BLACKLUCENT
+from ghetto.engine import JoystickManager
+from ghetto.engine import load_graphic_as_pixels
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
@@ -558,7 +548,7 @@ class CanvasSprite(RootSprite):
 
 
 class TextSprite(RootSprite):
-    def __init__(self, *args, background_color=blacklucent, alpha=0, text='Text', **kwargs):
+    def __init__(self, *args, background_color=BLACKLUCENT, alpha=0, text='Text', **kwargs):
         self.background_color = (0, 0, 0)
         self.alpha = 0
         self.text = text
@@ -582,7 +572,7 @@ class TextSprite(RootSprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, white)
+                (self.image, self.rect) = self.font.render(string, WHITE)
                 
                 #pygame.draw.rect(self.image, (255, 255, 0), self.rect, 0)
 

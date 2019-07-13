@@ -5,12 +5,11 @@ from collections import OrderedDict
 import configparser
 import logging
 
-from pygame import Color, Rect
 import pygame
 
-from engine import GameEngine
-from engine import RootScene
-from engine import RootSprite
+from ghetto.engine import GameEngine
+from ghetto.engine import RootScene
+from ghetto.engine import RootSprite
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)

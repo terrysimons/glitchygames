@@ -2,34 +2,19 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import copy
-import glob
 import logging
-import time
-import multiprocessing
-import os
-import platform
-import struct
-import subprocess
-import random
-import re
-
-from pygame import Color, Rect
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
-from engine import RootScene, GameEngine, FontManager
-from engine import black, white, blacklucent, red
-from engine import JoystickManager
+from ghetto.engine import RootScene, GameEngine, FontManager
+from ghetto.color import BLACK, WHITE, BLACKLUCENT
+from ghetto.engine import JoystickManager
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
-
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
-
 log.addHandler(ch)
 
 # TODO:
@@ -61,7 +46,7 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         self.image.convert()
         self.rect = self.image.get_rect()
 
-        pygame.draw.rect(self.image, white, (0, 0, self.width, self.height), 0)        
+        pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 0)
         self.rect.x = 0
         self.rect.y = 320
         self.moving = False
@@ -115,7 +100,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         # This saves us a set on dirty every update.
         self.dirty = 2        
 
-        pygame.draw.circle(self.image, white, (self.width//2, self.height//2), 5, 0)
+        pygame.draw.circle(self.image, WHITE, (self.width//2, self.height//2), 5, 0)
 
         self.reset()
         self.update()
@@ -147,7 +132,7 @@ class BallSprite(pygame.sprite.DirtySprite):
 
 
 class TextSprite(pygame.sprite.DirtySprite):
-    def __init__(self, background_color=blacklucent, alpha=0, x=0, y=0):
+    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
         super().__init__()
         self.background_color = background_color
         self.alpha = alpha
@@ -200,7 +185,7 @@ class TextSprite(pygame.sprite.DirtySprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):                
-                (self.image, self.rect) = self.font.render(string, white)
+                (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
@@ -238,7 +223,7 @@ class TableScene(RootScene):
         self.player1_sprite = PaddleSprite(name="Player 1")
         self.player2_sprite = PaddleSprite(name="Player 2")
         self.ball_sprite = BallSprite()
-        self.info_sprite = TextSprite(background_color=black, alpha=0, x=0, y=0)
+        self.info_sprite = TextSprite(background_color=BLACK, alpha=0, x=0, y=0)
         #self.scoreboard_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
 
         self.info_sprite.rect.center = self.screen.get_rect().center

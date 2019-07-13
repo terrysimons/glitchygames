@@ -1,25 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import argparse
-import copy
-import glob
-import logging
-import time
-import multiprocessing
-import os
-import platform
-import struct
-import subprocess
-import re
-
-from pygame import Color, Rect
-import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from engine import *
+from ghetto.engine import *
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
