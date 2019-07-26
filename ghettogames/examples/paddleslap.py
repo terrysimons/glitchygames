@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import os
 import random
 
 import pygame
@@ -37,7 +38,11 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         super().__init__()
         self.use_gfxdraw = True
         # Adding some slap to the paddle
-        self.slap_snd = pygame.mixer.Sound('resources/snd/slap8.wav')
+        self.slap_snd = pygame.mixer.Sound(
+            os.path.join(
+                os.path.dirname(__file__)
+            ),
+            'resources/snd/slap8.wav')
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
