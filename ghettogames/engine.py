@@ -25,6 +25,362 @@ from ghettogames.color import PURPLE, BLACK
 log = logging.getLogger('game.engine')
 log.addHandler(logging.NullHandler())
 
+vga_palette = [(0, 0, 0),
+               (0, 0, 170),
+               (0, 170, 0),
+               (0, 170, 170),
+               (170, 0, 0),
+               (170, 0, 170),
+               (170, 85, 0),
+               (170, 170, 170),
+               (85, 85, 85),
+               (85, 85, 255),
+               (85, 255, 85),
+               (85, 255, 255),
+               (255, 85, 85),
+               (255, 85, 255),
+               (255, 255, 85),
+               (255, 255, 255),
+               (0, 0, 0),
+               (20, 20, 20),
+               (32, 32, 32),
+               (44, 44, 44),
+               (56, 56, 56),
+               (69, 69, 69),
+               (81, 81, 81),
+               (97, 97, 97),
+               (113, 113, 113),
+               (130, 130, 130),
+               (146, 146, 146),
+               (162, 162, 162),
+               (182, 182, 182),
+               (203, 203, 203),
+               (227, 227, 227),
+               (255, 255, 255),
+               (0, 0, 255),
+               (65, 0, 255),
+               (125, 0, 255),
+               (190, 0, 255),
+               (255, 0, 255),
+               (255, 0, 190),
+               (255, 0, 125),
+               (255, 0, 65),
+               (255, 0, 0),
+               (255, 65, 0),
+               (255, 125, 0),
+               (255, 190, 0),
+               (255, 255, 0),
+               (190, 255, 0),
+               (125, 255, 0),
+               (65, 255, 0),
+               (0, 255, 0),
+               (0, 255, 65),
+               (0, 255, 125),
+               (0, 255, 190),
+               (0, 255, 255),
+               (0, 190, 255),
+               (0, 125, 255),
+               (0, 65, 255),
+               (125, 125, 255),
+               (158, 125, 255),
+               (190, 125, 255),
+               (223, 125, 255),
+               (255, 125, 255),
+               (255, 125, 223),
+               (255, 125, 190),
+               (255, 125, 158),
+               (255, 125, 125),
+               (255, 158, 125),
+               (255, 190, 125),
+               (255, 223, 125),
+               (255, 255, 125),
+               (223, 255, 125),
+               (190, 255, 125),
+               (158, 255, 125),
+               (125, 255, 125),
+               (125, 255, 158),
+               (125, 255, 190),
+               (125, 255, 223),
+               (125, 255, 255),
+               (125, 223, 255),
+               (125, 190, 255),
+               (125, 158, 255),
+               (182, 182, 255),
+               (199, 182, 255),
+               (219, 182, 255),
+               (235, 182, 255),
+               (255, 182, 255),
+               (255, 182, 235),
+               (255, 182, 219),
+               (255, 182, 199),
+               (255, 182, 182),
+               (255, 199, 182),
+               (255, 219, 182),
+               (255, 235, 182),
+               (255, 255, 182),
+               (235, 255, 182),
+               (219, 255, 182),
+               (199, 255, 182),
+               (182, 255, 182),
+               (182, 255, 199),
+               (182, 255, 219),
+               (182, 255, 235),
+               (182, 255, 255),
+               (182, 235, 255),
+               (182, 219, 255),
+               (182, 199, 255),
+               (0, 0, 113),
+               (28, 0, 113),
+               (56, 0, 113),
+               (85, 0, 113),
+               (113, 0, 113),
+               (113, 0, 85),
+               (113, 0, 56),
+               (113, 0, 28),
+               (113, 0, 0),
+               (113, 28, 0),
+               (113, 56, 0),
+               (113, 85, 0),
+               (113, 113, 0),
+               (85, 113, 0),
+               (56, 113, 0),
+               (28, 113, 0),
+               (0, 113, 0),
+               (0, 113, 28),
+               (0, 113, 56),
+               (0, 113, 85),
+               (0, 113, 113),
+               (0, 85, 113),
+               (0, 56, 113),
+               (0, 28, 113),
+               (56, 56, 113),
+               (69, 56, 113),
+               (85, 56, 113),
+               (97, 56, 113),
+               (113, 56, 113),
+               (113, 56, 97),
+               (113, 56, 85),
+               (113, 56, 69),
+               (113, 56, 56),
+               (113, 69, 56),
+               (113, 85, 56),
+               (113, 97, 56),
+               (113, 113, 56),
+               (97, 113, 56),
+               (85, 113, 56),
+               (69, 113, 56),
+               (56, 113, 56),
+               (56, 113, 69),
+               (56, 113, 85),
+               (56, 113, 97),
+               (56, 113, 113),
+               (56, 97, 113),
+               (56, 85, 113),
+               (56, 69, 113),
+               (81, 81, 113),
+               (89, 81, 113),
+               (97, 81, 113),
+               (105, 81, 113),
+               (113, 81, 113),
+               (113, 81, 105),
+               (113, 81, 97),
+               (113, 81, 89),
+               (113, 81, 81),
+               (113, 89, 81),
+               (113, 97, 81),
+               (113, 105, 81),
+               (113, 113, 81),
+               (105, 113, 81),
+               (97, 113, 81),
+               (89, 113, 81),
+               (81, 113, 81),
+               (81, 113, 89),
+               (81, 113, 97),
+               (81, 113, 105),
+               (81, 113, 113),
+               (81, 105, 113),
+               (81, 97, 113),
+               (81, 89, 113),
+               (0, 0, 65),
+               (16, 0, 65),
+               (32, 0, 65),
+               (48, 0, 65),
+               (65, 0, 65),
+               (65, 0, 48),
+               (65, 0, 32),
+               (65, 0, 16),
+               (65, 0, 0),
+               (65, 16, 0),
+               (65, 32, 0),
+               (65, 48, 0),
+               (65, 65, 0),
+               (48, 65, 0),
+               (32, 65, 0),
+               (16, 65, 0),
+               (0, 65, 0),
+               (0, 65, 16),
+               (0, 65, 32),
+               (0, 65, 48),
+               (0, 65, 65),
+               (0, 48, 65),
+               (0, 32, 65),
+               (0, 16, 65),
+               (32, 32, 65),
+               (40, 32, 65),
+               (48, 32, 65),
+               (56, 32, 65),
+               (65, 32, 65),
+               (65, 32, 56),
+               (65, 32, 48),
+               (65, 32, 40),
+               (65, 32, 32),
+               (65, 40, 32),
+               (65, 48, 32),
+               (65, 56, 32),
+               (65, 65, 32),
+               (56, 65, 32),
+               (48, 65, 32),
+               (40, 65, 32),
+               (32, 65, 32),
+               (32, 65, 40),
+               (32, 65, 48),
+               (32, 65, 56),
+               (32, 65, 65),
+               (32, 56, 65),
+               (32, 48, 65),
+               (32, 40, 65),
+               (44, 44, 65),
+               (48, 44, 65),
+               (52, 44, 65),
+               (60, 44, 65),
+               (65, 44, 65),
+               (65, 44, 60),
+               (65, 44, 52),
+               (65, 44, 48),
+               (65, 44, 44),
+               (65, 48, 44),
+               (65, 52, 44),
+               (65, 60, 44),
+               (65, 65, 44),
+               (60, 65, 44),
+               (52, 65, 44),
+               (48, 65, 44),
+               (44, 65, 44),
+               (44, 65, 48),
+               (44, 65, 52),
+               (44, 65, 60),
+               (44, 65, 65),
+               (44, 60, 65),
+               (44, 52, 65),
+               (44, 48, 65),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0),
+               (0, 0, 0)]
+
+def indexed_rgb_triplet_generator(pixel_data):
+    try:
+        for datum in pixel_data:
+            yield datum[0]
+    except StopIteration:
+        pass
+
+def rgb_555_triplet_generator(self, pixel_data):
+    try:
+        # Construct RGB triplets.
+        for packed_rgb_triplet in pixel_data:
+            # struct unpacks as a 1 element tuple.
+            rgb_data = bin(packed_rgb_triplet[0])
+
+            # binary conversions start with 0b, so chop that off.            
+            rgb_data = rgb_data[2:]
+
+            # Pad the data out.
+            pad_bits = 16 - len(rgb_data)
+            pad_data = '0' * pad_bits
+
+            rgb_data = pad_data + rgb_data
+
+            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
+
+            # red is 5 bits
+            red = int(rgb_data[0:5] + '000', 2)
+
+            if red:
+                red += 7
+
+            # green is 6 bits
+            green = int(rgb_data[5:10] + '000', 2)
+
+            if green:
+                green += 7
+
+            # blue is 5 bits
+            blue = int(rgb_data[10:15] + '000', 2)
+
+            # last bit is ignored or used for alpha.
+
+            if blue:
+                blue += 7
+
+            log.info(f'Packed RGB: {rgb_data}')
+            log.info(f'Red: {red}')
+            log.info(f'Green: {green}')
+            log.info(f'Blue: {blue}')
+
+            yield tuple([red, green, blue])
+    except StopIteration:
+        pass
+
+
+def rgb_565_triplet_generator(pixel_data):
+    try:
+        # Construct RGB triplets.
+        for packed_rgb_triplet in pixel_data:
+            # struct unpacks as a 1 element tuple.
+            rgb_data = bin(packed_rgb_triplet[0])
+
+            # binary conversions start with 0b, so chop that off.            
+            rgb_data = rgb_data[2:]
+
+            # Pad the data out.
+            pad_bits = 16 - len(rgb_data)
+            pad_data = '0' * pad_bits
+
+            rgb_data = pad_data + rgb_data
+
+            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
+
+            # red is 5 bits
+            red = int(rgb_data[0:5] + '000', 2)
+
+            if red:
+                red += 7
+
+            # green is 6 bits
+            green = int(rgb_data[5:11] + '00', 2)
+
+            if green:
+                green += 3
+
+            # blue is 5 bits
+            blue = int(rgb_data[11:] + '000', 2)
+
+            if blue:
+                blue += 7
+
+            log.info(f'Packed RGB: {rgb_data}')
+            log.info(f'Red: {red}')
+            log.info(f'Green: {green}')
+            log.info(f'Blue: {blue}')
+
+            yield tuple([red, green, blue])
+    except StopIteration:
+        pass
 
 def rgb_triplet_generator(pixel_data):
     iterator = iter(pixel_data)
@@ -976,6 +1332,17 @@ class GameEngine(object):
         except KeyError:
             log.error(f'Unregistered Event: {event} (call self.register_game_event(<event subtype>, <event data>))')
 
+    def on_key_up_event(self, event):
+        # KEYUP            key, mod
+        
+        # Wire up quit by default for escape and q.
+        #
+        # If a game implements on_key_up_event themselves
+        # they'll have to map their quit keys or call super().on_key_up_event()
+        if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+            log.info('User requested quit.')
+            self.quit()
+
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
     # This will allow scenes to get pygame events directly, but we can still
@@ -1285,7 +1652,7 @@ class RootSprite(pygame.sprite.DirtySprite):
     
     def on_key_up_event(self, event):
         # KEYUP            key, mod
-        log.debug(f'{type(self)}: {event}')
+        log.debug(f'{type(self)}: {event}')        
 
     def on_key_chord_down_event(self, event, keys):
         log.debug(f'{type(self)}: {event}, {keys}')

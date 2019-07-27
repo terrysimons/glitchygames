@@ -1251,17 +1251,12 @@ class BitmapEditorScene(RootScene):
 class Game(GameEngine):
     # Set your game name/version here.
     NAME = "Bitmappy"
-    VERSION = "0.0"
+    VERSION = "1.0"
 
     def __init__(self, options):
         super().__init__(options=options)
         self.load_resources()
 
-        # pygame.event.set_blocked(self.mouse_events)
-        # pygame.event.set_blocked(self.joystick_events)
-        # pygame.event.set_blocked(self.keyboard_events)
-
-        # Hook up some events.
         #self.register_game_event('save', self.on_save_event)
         #self.register_game_event('load', self.on_load_event)
 
@@ -1281,10 +1276,6 @@ class Game(GameEngine):
         return parser
 
     def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.
-
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
         # and do a few other init related things.
@@ -1311,22 +1302,17 @@ class Game(GameEngine):
 
             self.active_scene = self.active_scene.next
 
-
-    #def load_resources(self):
-    #    for resource in glob.iglob('resources/*', recursive=True):
-    #        try:
-    #            pass
-    #        except IsADirectoryError:
-    #            pass
-
     def on_key_up_event(self, event):
         self.active_scene.on_key_up_event(event)
 
+        # Process normal key events like q/ESCAPE for quit via engine.
+        super().on_key_up_event(event)
+
         # KEYUP            key, mod
-        if event.key == pygame.K_q:
-            log.info(f'User requested quit.')
-            event = pygame.event.Event(pygame.QUIT, {})
-            pygame.event.post(event)
+        #if event.key == pygame.K_q:
+        #    log.info(f'User requested quit.')
+        #    event = pygame.event.Event(pygame.QUIT, {})
+        #    pygame.event.post(event)
 
     # This will catch calls which our scene engine doesn't yet implement.
     def __getattr__(self, attr):
@@ -1352,11 +1338,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-        log.info('Done')
     except Exception as e:
         raise e
     finally:
-        log.info('Shutting down pygame.')
         pygame.quit()
 
 

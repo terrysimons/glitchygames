@@ -9,9 +9,8 @@ import struct
 from pygame import Color, Rect
 import pygame
 
-from engine import GameEngine
-from engine import RootScene
-from engine import RootSprite
+from engine import GameEngine, RootSprite, RootScene
+from engine import rgb_triplet_generator, rgb_565_triplet_generator
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -48,9 +47,7 @@ class BitmappyLegacySprite(RootSprite):
         # Read 2 bytes, unsigned.
         packed_rgb_data = struct.iter_unpack('<H', data)
 
-        self.color_format_565 = True
-
-        pixels = self.rgb_565_triplet_generator(data=packed_rgb_data)
+        pixels = rgb_565_triplet_generator(data=packed_rgb_data)
 
         pixels = [pixel for pixel in pixels]
 
@@ -62,112 +59,6 @@ class BitmappyLegacySprite(RootSprite):
                                      pixels=pixels)
 
         return (image, rect, filename)
-
-    def rgb_555_triplet_generator(self, data):
-        try:
-            # Construct RGB triplets.
-            for packed_rgb_triplet in data:
-                # struct unpacks as a 1 element tuple.
-                rgb_data = bin(packed_rgb_triplet[0])
-
-                print(f'Data: {rgb_data}')
-
-                # binary conversions start with 0b, so chop that off.            
-                rgb_data = rgb_data[2:]
-
-                # Pad the data out.
-                pad_bits = 16 - len(rgb_data)
-                pad_data = '0' * pad_bits
-
-                rgb_data = pad_data + rgb_data
-
-                log.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-                # red is 5 bits
-                red = int(rgb_data[0:5] + '000', 2)
-
-                if red:
-                    red += 7
-
-                # green is 6 bits
-                green = int(rgb_data[5:10] + '000', 2)
-
-                if green:
-                    green += 7
-
-                # blue is 5 bits
-                blue = int(rgb_data[10:15] + '000', 2)
-
-                # last bit is ignored or used for alpha.
-
-                if blue:
-                    blue += 7
-
-                log.info(f'Packed RGB: {rgb_data}')
-                log.info(f'Red: {red}')
-                log.info(f'Green: {green}')
-                log.info(f'Blue: {blue}')
-
-                yield tuple([red, green, blue])
-        except StopIteration:
-            pass
-
-    def rgb_565_triplet_generator(self, data):
-        try:
-            # Construct RGB triplets.
-            for packed_rgb_triplet in data:
-                # struct unpacks as a 1 element tuple.
-                rgb_data = bin(packed_rgb_triplet[0])
-
-                print(f'Data: {rgb_data}')
-
-                # binary conversions start with 0b, so chop that off.            
-                rgb_data = rgb_data[2:]
-
-                # Pad the data out.
-                pad_bits = 16 - len(rgb_data)
-                pad_data = '0' * pad_bits
-
-                rgb_data = pad_data + rgb_data
-
-                log.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-                # red is 5 bits
-                red = int(rgb_data[0:5] + '000', 2)
-
-                if red:
-                    red += 7
-
-                # green is 6 bits
-                green = int(rgb_data[5:11] + '00', 2)
-
-                if green:
-                    green += 3
-
-                # blue is 5 bits
-                blue = int(rgb_data[11:] + '000', 2)
-
-                if blue:
-                    blue += 7
-
-                log.info(f'Packed RGB: {rgb_data}')
-                log.info(f'Red: {red}')
-                log.info(f'Green: {green}')
-                log.info(f'Blue: {blue}')
-
-                yield tuple([red, green, blue])
-        except StopIteration:
-            pass
-
-    def rgb_triplet_generator(self, data):
-        iterator = iter(data)
-
-        try:
-            while True:
-                # range(3) gives us 3 at a time, so r, g, b.
-                yield tuple([next(iterator) for i in range(3)])
-        except StopIteration:
-            pass
 
     def inflate(self, width, height, pixels):
         """
@@ -205,7 +96,7 @@ class BitmappyLegacySprite(RootSprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = self.rgb_triplet_generator(
+        raw_pixels = rgb_triplet_generator(
             pygame.image.tostring(self.image, 'RGB')
         )
 
@@ -297,7 +188,7 @@ class GameScene(RootScene):
 
 class Game(GameEngine):
     # Set your game name/version here.
-    NAME = "Sprite Loader"
+    NAME = "Raw Sprite Loader"
     VERSION = "1.0"
 
     def __init__(self, options):
@@ -324,10 +215,6 @@ class Game(GameEngine):
         return parser
 
     def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.
-
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
         # and do a few other init related things.

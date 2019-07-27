@@ -9,9 +9,9 @@ import struct
 from pygame import Color, Rect
 import pygame
 
-from engine import GameEngine
-from engine import RootScene
-from engine import RootSprite
+from ghettogames.engine import GameEngine, RootSprite, RootScene
+from ghettogames.engine import vga_palette
+from ghettogames.engine import rgb_triplet_generator, indexed_rgb_triplet_generator
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -21,275 +21,6 @@ ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
 
-vga_palette = [(0, 0, 0),
-               (0, 0, 170),
-               (0, 170, 0),
-               (0, 170, 170),
-               (170, 0, 0),
-               (170, 0, 170),
-               (170, 85, 0),
-               (170, 170, 170),
-               (85, 85, 85),
-               (85, 85, 255),
-               (85, 255, 85),
-               (85, 255, 255),
-               (255, 85, 85),
-               (255, 85, 255),
-               (255, 255, 85),
-               (255, 255, 255),
-               (0, 0, 0),
-               (20, 20, 20),
-               (32, 32, 32),
-               (44, 44, 44),
-               (56, 56, 56),
-               (69, 69, 69),
-               (81, 81, 81),
-               (97, 97, 97),
-               (113, 113, 113),
-               (130, 130, 130),
-               (146, 146, 146),
-               (162, 162, 162),
-               (182, 182, 182),
-               (203, 203, 203),
-               (227, 227, 227),
-               (255, 255, 255),
-               (0, 0, 255),
-               (65, 0, 255),
-               (125, 0, 255),
-               (190, 0, 255),
-               (255, 0, 255),
-               (255, 0, 190),
-               (255, 0, 125),
-               (255, 0, 65),
-               (255, 0, 0),
-               (255, 65, 0),
-               (255, 125, 0),
-               (255, 190, 0),
-               (255, 255, 0),
-               (190, 255, 0),
-               (125, 255, 0),
-               (65, 255, 0),
-               (0, 255, 0),
-               (0, 255, 65),
-               (0, 255, 125),
-               (0, 255, 190),
-               (0, 255, 255),
-               (0, 190, 255),
-               (0, 125, 255),
-               (0, 65, 255),
-               (125, 125, 255),
-               (158, 125, 255),
-               (190, 125, 255),
-               (223, 125, 255),
-               (255, 125, 255),
-               (255, 125, 223),
-               (255, 125, 190),
-               (255, 125, 158),
-               (255, 125, 125),
-               (255, 158, 125),
-               (255, 190, 125),
-               (255, 223, 125),
-               (255, 255, 125),
-               (223, 255, 125),
-               (190, 255, 125),
-               (158, 255, 125),
-               (125, 255, 125),
-               (125, 255, 158),
-               (125, 255, 190),
-               (125, 255, 223),
-               (125, 255, 255),
-               (125, 223, 255),
-               (125, 190, 255),
-               (125, 158, 255),
-               (182, 182, 255),
-               (199, 182, 255),
-               (219, 182, 255),
-               (235, 182, 255),
-               (255, 182, 255),
-               (255, 182, 235),
-               (255, 182, 219),
-               (255, 182, 199),
-               (255, 182, 182),
-               (255, 199, 182),
-               (255, 219, 182),
-               (255, 235, 182),
-               (255, 255, 182),
-               (235, 255, 182),
-               (219, 255, 182),
-               (199, 255, 182),
-               (182, 255, 182),
-               (182, 255, 199),
-               (182, 255, 219),
-               (182, 255, 235),
-               (182, 255, 255),
-               (182, 235, 255),
-               (182, 219, 255),
-               (182, 199, 255),
-               (0, 0, 113),
-               (28, 0, 113),
-               (56, 0, 113),
-               (85, 0, 113),
-               (113, 0, 113),
-               (113, 0, 85),
-               (113, 0, 56),
-               (113, 0, 28),
-               (113, 0, 0),
-               (113, 28, 0),
-               (113, 56, 0),
-               (113, 85, 0),
-               (113, 113, 0),
-               (85, 113, 0),
-               (56, 113, 0),
-               (28, 113, 0),
-               (0, 113, 0),
-               (0, 113, 28),
-               (0, 113, 56),
-               (0, 113, 85),
-               (0, 113, 113),
-               (0, 85, 113),
-               (0, 56, 113),
-               (0, 28, 113),
-               (56, 56, 113),
-               (69, 56, 113),
-               (85, 56, 113),
-               (97, 56, 113),
-               (113, 56, 113),
-               (113, 56, 97),
-               (113, 56, 85),
-               (113, 56, 69),
-               (113, 56, 56),
-               (113, 69, 56),
-               (113, 85, 56),
-               (113, 97, 56),
-               (113, 113, 56),
-               (97, 113, 56),
-               (85, 113, 56),
-               (69, 113, 56),
-               (56, 113, 56),
-               (56, 113, 69),
-               (56, 113, 85),
-               (56, 113, 97),
-               (56, 113, 113),
-               (56, 97, 113),
-               (56, 85, 113),
-               (56, 69, 113),
-               (81, 81, 113),
-               (89, 81, 113),
-               (97, 81, 113),
-               (105, 81, 113),
-               (113, 81, 113),
-               (113, 81, 105),
-               (113, 81, 97),
-               (113, 81, 89),
-               (113, 81, 81),
-               (113, 89, 81),
-               (113, 97, 81),
-               (113, 105, 81),
-               (113, 113, 81),
-               (105, 113, 81),
-               (97, 113, 81),
-               (89, 113, 81),
-               (81, 113, 81),
-               (81, 113, 89),
-               (81, 113, 97),
-               (81, 113, 105),
-               (81, 113, 113),
-               (81, 105, 113),
-               (81, 97, 113),
-               (81, 89, 113),
-               (0, 0, 65),
-               (16, 0, 65),
-               (32, 0, 65),
-               (48, 0, 65),
-               (65, 0, 65),
-               (65, 0, 48),
-               (65, 0, 32),
-               (65, 0, 16),
-               (65, 0, 0),
-               (65, 16, 0),
-               (65, 32, 0),
-               (65, 48, 0),
-               (65, 65, 0),
-               (48, 65, 0),
-               (32, 65, 0),
-               (16, 65, 0),
-               (0, 65, 0),
-               (0, 65, 16),
-               (0, 65, 32),
-               (0, 65, 48),
-               (0, 65, 65),
-               (0, 48, 65),
-               (0, 32, 65),
-               (0, 16, 65),
-               (32, 32, 65),
-               (40, 32, 65),
-               (48, 32, 65),
-               (56, 32, 65),
-               (65, 32, 65),
-               (65, 32, 56),
-               (65, 32, 48),
-               (65, 32, 40),
-               (65, 32, 32),
-               (65, 40, 32),
-               (65, 48, 32),
-               (65, 56, 32),
-               (65, 65, 32),
-               (56, 65, 32),
-               (48, 65, 32),
-               (40, 65, 32),
-               (32, 65, 32),
-               (32, 65, 40),
-               (32, 65, 48),
-               (32, 65, 56),
-               (32, 65, 65),
-               (32, 56, 65),
-               (32, 48, 65),
-               (32, 40, 65),
-               (44, 44, 65),
-               (48, 44, 65),
-               (52, 44, 65),
-               (60, 44, 65),
-               (65, 44, 65),
-               (65, 44, 60),
-               (65, 44, 52),
-               (65, 44, 48),
-               (65, 44, 44),
-               (65, 48, 44),
-               (65, 52, 44),
-               (65, 60, 44),
-               (65, 65, 44),
-               (60, 65, 44),
-               (52, 65, 44),
-               (48, 65, 44),
-               (44, 65, 44),
-               (44, 65, 48),
-               (44, 65, 52),
-               (44, 65, 60),
-               (44, 65, 65),
-               (44, 60, 65),
-               (44, 52, 65),
-               (44, 48, 65),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0),
-               (0, 0, 0)]
-
-
-def build_palette(step):
-    return vga_palette
-    
-    "build a palette. that is a list with 256 RGB triplets"
-    loop = range(256)
-    #first we create a 256-element array. it goes from 0, to 255, and back to 0
-    ramp = [abs((x+step*3)%511-255) for x in loop]
-    #using the previous ramp and some other crude math, we make some different
-    #values for each R, G, and B color planes
-    return [(ramp[x], ramp[(x+32)%256], (x+step)%256) for x in loop]
-
 class BitmappyLegacySprite(RootSprite):
     def __init__(self, filename, palette, *args, **kwargs):
         super().__init__(*args, width=0, height=0, **kwargs)
@@ -298,7 +29,10 @@ class BitmappyLegacySprite(RootSprite):
         self.name = None
         self.palette = palette
 
-        (self.image, self.rect, self.name) = self.load(filename=filename, palette=1, width=32, height=32)
+        (self.image, self.rect, self.name) = self.load(filename=filename,
+                                                       palette=self.palette,
+                                                       width=32,
+                                                       height=32)
 
         self.save(filename + '.cfg')
 
@@ -307,7 +41,7 @@ class BitmappyLegacySprite(RootSprite):
         """
         # We need to load an 8-bit palette for color conversion.
         #image = pygame.Surface((width, height), 0, 8)
-        palette = build_palette(palette)
+        palette = palette
         image = None
         rect = None
         name = None
@@ -322,7 +56,7 @@ class BitmappyLegacySprite(RootSprite):
         # Read 1 byte, unsigned.
         indexed_rgb_data = struct.iter_unpack('<B', data)
 
-        pixels = self.indexed_rgb_triplet_generator(data=indexed_rgb_data)
+        pixels = indexed_rgb_triplet_generator(data=indexed_rgb_data)
 
         pixels = [pixel for pixel in pixels]
 
@@ -335,69 +69,6 @@ class BitmappyLegacySprite(RootSprite):
 
         return (image, rect, filename)
 
-    def indexed_rgb_triplet_generator(self, data):
-        try:
-            for datum in data:
-                yield datum[0]
-        except StopIteration:
-            pass
-
-    def rgb_565_triplet_generator(self, data):
-        try:
-            # Construct RGB triplets.
-            for packed_rgb_triplet in data:
-                # struct unpacks as a 1 element tuple.
-                rgb_data = bin(packed_rgb_triplet[0])
-
-                print(f'Data: {rgb_data}')
-
-                # binary conversions start with 0b, so chop that off.            
-                rgb_data = rgb_data[2:]
-
-                # Pad the data out.
-                pad_bits = 16 - len(rgb_data)
-                pad_data = '0' * pad_bits
-
-                rgb_data = pad_data + rgb_data
-
-                log.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-                # red is 5 bits
-                red = int(rgb_data[0:5] + '000', 2)
-
-                if red:
-                    red += 7
-
-                # green is 6 bits
-                green = int(rgb_data[5:11] + '00', 2)
-
-                if green:
-                    green += 3
-
-                # blue is 5 bits
-                blue = int(rgb_data[11:] + '000', 2)
-
-                if blue:
-                    blue += 7
-
-                log.info(f'Packed RGB: {rgb_data}')
-                log.info(f'Red: {red}')
-                log.info(f'Green: {green}')
-                log.info(f'Blue: {blue}')
-
-                yield tuple([red, green, blue])
-        except StopIteration:
-            pass
-
-    def rgb_triplet_generator(self, data):
-        iterator = iter(data)
-
-        try:
-            while True:
-                # range(3) gives us 3 at a time, so r, g, b.
-                yield tuple([next(iterator) for i in range(3)])
-        except StopIteration:
-            pass
 
     def inflate(self, width, height, pixels):
         """
@@ -534,7 +205,7 @@ class Game(GameEngine):
     def __init__(self, options):
         super().__init__(options=options)
         self.filename = options.get('filename')
-        self.palette = options.get('palette')
+        self.palette = vga_palette
 
     @classmethod
     def args(cls, parser):
@@ -553,17 +224,9 @@ class Game(GameEngine):
                            help='the file to load',
                            required=True)
 
-        group.add_argument('--palette',
-                           type=int,
-                           default=0)
-
         return parser
 
     def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.
-
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
         # and do a few other init related things.
@@ -584,20 +247,27 @@ class Game(GameEngine):
             if self.update_type == 'update':
                 pygame.display.update(self.active_scene.rects)
             elif self.update_type == 'flip':
-                pygame.display.flip()                                
+                pygame.display.flip()
 
             self.clock.tick(self.fps)
 
             self.active_scene = self.active_scene.next
-    
 
 def main():
     parser = argparse.ArgumentParser(f'{Game.NAME} version {Game.VERSION}')
 
+    # args is a class method, which allows us to call it before initializing a game
+    # object, which allows us to query all of the game engine objects for their
+    # command line parameters.    
     parser = Game.args(parser)
     args = parser.parse_args()
     game = Game(options=vars(args))
     game.start()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        raise e
+    finally:
+        pygame.quit()
