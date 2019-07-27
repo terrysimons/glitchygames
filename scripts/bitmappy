@@ -425,14 +425,15 @@ class CanvasSprite(BitmappySprite):
 
                 super().__init__(*args, has_mini_view=False, **kwargs)
 
-                self.name = "Mini View"
+                self.name = "Mini View" 
+                
                 if self.pixels_across < 64:
-                    self.pixel_width = 64 // self.pixels_across
+                    self.pixel_width = 64 // self.pixels_tall
                 else:
                     self.pixel_width = 1
                     
                 if self.pixels_tall < 64:
-                    self.pixel_height = 64 // self.pixels_tall
+                    self.pixel_height = 64 // self.pixels_across
                 else:
                     self.pixel_height = 1
 
