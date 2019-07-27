@@ -13,7 +13,8 @@ import pygame.gfxdraw
 import pygame.locals
 
 from ghettogames.color import WHITE, BLACKLUCENT
-from ghettogames.engine import RootSprite, RootScene, GameEngine, FontManager
+from ghettogames.engine import RootSprite, MouseSprite, BitmappySprite
+from ghettogames.engine import RootScene, GameEngine, FontManager
 from ghettogames.engine import JoystickManager
 from ghettogames.engine import pixels_from_data, pixels_from_path
 from ghettogames.engine import image_from_pixels
@@ -27,168 +28,74 @@ ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
 
-class BitmappySprite(RootSprite):
-    def __init__(self, *args, filename=None, **kwargs):
+class InputDialog(BitmappySprite):
+    def __init__(self, *args, dialog_text='Would you like to do a thing?', confirm_text='Confirm', cancel_text='Cancel', **kwargs):
+        self.name = None
+        self.background_color = (0, 0, 0)
+        self.border_width = 1
+        self.width = kwargs.get('width')
+        self.dialog_text_sprite = TextBoxSprite(name=dialog_text, width=self.width//2, height=20, border_width=0)
+        self.dialog_text_sprite.text.text = dialog_text                
+        self.confirm_button = ButtonSprite(name=confirm_text, x=0, y=0, width=75, height=20)
+        self.cancel_button = ButtonSprite(name=cancel_text, x=0, y=0, width=75, height=20)
+        self._dirty = 1
         super().__init__(*args, **kwargs)
-        self.image = None
-        self.rect = None
+
         self.name = kwargs.get('name', 'Untitled')
-        self.filename = filename
-        self.width = kwargs.get('width', 0)
-        self.height = kwargs.get('height', 0)
+        self.callbacks = kwargs.get('callbacks', None)
+        self.rect = self.image.get_rect()
 
-        # Try to load a file if one was specified, otherwise
-        # if a width and height is specified, make a surface.
-        if filename:
-            (self.image, self.rect, self.name) = self.load(filename=filename)
-        elif self.width and self.height:
-            self.image = pygame.Surface((self.width, self.height))
-            self.image.convert()
-            self.rect = self.image.get_rect()
-        else:
-            raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
+        self.cancel_button.rect.bottomright = self.rect.bottomright
+        self.confirm_button.rect.right = self.cancel_button.rect.left
 
-    def load(self, filename):
-        """
-        """
-        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
-                                           empty_lines_in_values=True,
-                                           strict=True)
+    @property
+    def dirty(self):
+        return self._dirty
 
-        config.read(filename)
+    @dirty.setter
+    def dirty(self, value):
+        self._dirty = value
+        self.dialog_text_sprite.dirty = value
+        self.confirm_button.dirty = value
+        self.cancel_button.dirty = value
 
-        # [sprite]
-        # name = <name>
-        name = config.get(section='sprite', option='name')
-        
-        # pixels = <pixels>
-        pixels = config.get(section='sprite', option='pixels').split('\n')
+    def update(self):
+        self.dirty = 2
+        # Draw the bounding box.
+        pygame.draw.rect(self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width)
 
-        # Set our sprite's length and width.
-        width = 0
-        height = 0
-        index = -1
+        #self.dialog_text_sprite.text.rect.x = self.dialog_text_sprite.rect.x - 200
+        self.dialog_text_sprite.rect.center = self.rect.center
+        self.confirm_button.rect.bottomright = self.rect.bottomright
+        self.confirm_button.rect.x -= 20
+        self.confirm_button.rect.y -= 20
+        self.cancel_button.rect.bottomright = self.confirm_button.rect.bottomleft
+        self.cancel_button.rect.x -= 20
 
-        # This is a bit of a cleanup in case the config contains something like:
-        #
-        # pixels = \n
-        #  .........
-        #
-        while not width:
-            index += 1            
-            width = len(pixels[index])
-            height = len(pixels[index:])
+        self.cancel_button.dirty = 2
+        self.confirm_button.dirty = 2
 
-        # Trim any dead whitespace.
-        # We're off by one since we increment the 
-        pixels = pixels[index:]
-        
-        color_map = {}
-        for section in config.sections():
-            # This is checking the length of the section's name.
-            # Colors are length 1.  This works with unicode, too.
-            if len(section) == 1:
-                red = config.getint(section=section, option='red')
-                green = config.getint(section=section, option='green')
-                blue = config.getint(section=section, option='blue')
+        #self.screen.blit(self.dialog_text_sprite.image,)
+        #self.screen.blit(self.cancel_button.image, (self.cancel_button.rect.x, self.cancel_button.rect.y))
+        #self.screen.blit(self.confirm_button.image, (self.confirm_button.rect.x, self.confirm_button.rect.y))
 
-                color_map[section] = (red, green, blue)
+        # Draw the buttons
+        # Draw the text input field
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=pixels,
-                                     color_map=color_map)
+    def add(self, *groups):
+        super().add(*groups)
 
-        return (image, rect, name)
+        self.cancel_button.add(*groups)
+        self.confirm_button.add(*groups)
+        self.dialog_text_sprite.add(*groups)
 
-    def inflate(self, width, height, pixels, color_map):
-        """
-        """
-        image = pygame.Surface((width, height))
-        image.convert()
+    def remove(self, *groups):
+        super().remove(*groups)
 
-        raw_pixels = []
-        for y, row in enumerate(pixels):
-            for x, pixel in enumerate(row):
-                color = color_map[pixel]
-                raw_pixels.append(color)
-                pygame.draw.rect(image, color, (x, y, 1, 1))
-
-        return (image, image.get_rect())
+        self.cancel_button.remove(*groups)
+        self.confirm_button.remove(*groups)
+        self.dialog_text_sprite.remove(*groups)
     
-    def save(self, filename):
-        """
-        """
-        config = self.deflate()
-        
-        with open(filename, 'w') as deflated_sprite:
-            config.write(deflated_sprite)
-
-    def deflate(self):
-        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
-                                           empty_lines_in_values=True,
-                                           strict=True)
-        
-        # Get the set of distinct pixels.
-        color_map = {}
-        pixels = []
-
-        raw_pixels = rgb_triplet_generator(
-            pixel_data=pygame.image.tostring(self.image, 'RGB')
-        )
-
-        # We're utilizing the generator to give us RGB triplets.
-        # We need a list here becasue we'll use set() to pull out the
-        # unique values, but we also need to consume the list again
-        # down below, so we can't solely use a generator.
-        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]
-
-        # This gives us the unique rgb triplets in the image.
-        colors = set(raw_pixels)
-
-        config.add_section('sprite')
-        config.set('sprite', 'name', self.name)
-
-        # Generate the color key
-        color_key = chr(47)
-        for i, color in enumerate(colors):
-            # Characters above doublequote.
-            color_key = chr(ord(color_key) + 1)
-            config.add_section(color_key)
-
-            color_map[color] = color_key
-
-            log.debug(f'Key: {color} -> {color_key}')
-            
-            red = color[0]
-            config.set(color_key, 'red', str(red))
-            
-            green = color[1]
-            config.set(color_key, 'green', str(green))
-            
-            blue = color[2]
-            config.set(color_key, 'blue', str(blue))
-
-        x = 0
-        row = []
-        while raw_pixels:
-            row.append(color_map[raw_pixels.pop(0)])
-            x += 1
-
-            if x % self.rect.width == 0:
-                log.debug(f'Row: {row}')
-                pixels.append(''.join(row))
-                row = []
-                x = 0
-
-        log.debug(pixels)
-
-        config.set('sprite', 'pixels', '\n'.join(pixels))
-
-        log.debug(f'Deflated Sprite: {config}')
-
-        return config
-
 class TextBoxSprite(BitmappySprite):
     """
     """
@@ -995,15 +902,74 @@ class LabeledSliderSprite(SliderSprite):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class MouseSprite(BitmappySprite):
-    def __init__(self, *args, **kwargs):
-        self.x = kwargs.get('x')
-        self.y = kwargs.get('y')
+class LoadDialogScene(RootScene):
+    def __init__(self, previous_scene):
+        super().__init__()
+        self.screen = pygame.display.get_surface()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        self.previous_scene = previous_scene
 
-        super().__init__(*args, **kwargs)
+        self.all_sprites = pygame.sprite.LayeredDirty()
+        
+        self.load_dialog = InputDialog(name='Load Sprite', dialog_text='Would you like to load a sprite?', confirm_text='Load', x=0, y=0, width=self.screen_width//2, height=self.screen_height//2)
+        self.load_dialog.rect.center = self.screen.get_rect().center
 
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.load_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
+        self.load_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
+
+        self.load_dialog.add(self.all_sprites)
+
+    def dismiss(self):
+        self.load_dialog.remove(self.all_sprites)
+        self.next = self.previous_scene
+        self.previous_scene.next = self.previous_scene
+        self.previous_scene.dirty = 1
+        self.previous_scene.update()
+
+    def on_cancel_event(self, event, trigger):
+        log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.dismiss()
+
+        
+    def on_confirm_event(self, event, trigger):
+        log.info(f'Load File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas_sprite.on_load_file_event(event, trigger)
+        self.dismiss()
+
+class SaveDialogScene(RootScene):
+    def __init__(self, previous_scene):
+        super().__init__()
+        self.screen = pygame.display.get_surface()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        self.previous_scene = previous_scene
+
+        self.all_sprites = pygame.sprite.LayeredDirty()
+        
+        self.save_dialog = InputDialog(name='Save Sprite', dialog_text='Would you like to save your sprite?', confirm_text='Save', x=0, y=0, width=self.screen_width//2, height=self.screen_height//2)
+        self.save_dialog.rect.center = self.screen.get_rect().center
+
+        self.save_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
+        self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
+
+        self.save_dialog.add(self.all_sprites)
+
+    def dismiss(self):
+        self.save_dialog.remove(self.all_sprites)
+        self.next = self.previous_scene
+        self.previous_scene.next = self.previous_scene
+        self.previous_scene.dirty = 1
+        self.previous_scene.update()        
+
+    def on_cancel_event(self, event, trigger):
+        log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.dismiss()
+
+    def on_confirm_event(self, event, trigger):
+        log.info(f'Safe File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas_sprite.on_save_file_event(event, trigger)
+        self.dismiss()
 
 class BitmapEditorScene(RootScene):
     def __init__(self):
@@ -1027,11 +993,11 @@ class BitmapEditorScene(RootScene):
 
         self.save_button_sprite = ButtonSprite(name='Save', x=self.screen_width - self.button_width, y=249, width=self.button_width, height=20)
 
-        self.save_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_save_file_event}
+        self.save_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_save_dialog_event}
 
         self.load_button_sprite = ButtonSprite(name='Load', x=self.screen_width - self.button_width, y=279, width=self.button_width, height=20)
 
-        self.load_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_load_file_event}
+        self.load_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_load_dialog_event}
 
         self.quit_button_sprite = ButtonSprite(name='Quit', x=self.screen_width - self.button_width, y=309, width=self.button_width, height=20)
 
@@ -1062,6 +1028,7 @@ class BitmapEditorScene(RootScene):
         #self.all_sprites.add(self.canvas_sprite)
         #self.all_sprites.add(self.canvas_sprite.mini_view)
 
+
         # Change this?
         self.all_sprites.add(self.new_button_sprite)
         self.all_sprites.add(self.save_button_sprite)
@@ -1091,13 +1058,11 @@ class BitmapEditorScene(RootScene):
         log.info(f'New File: event: {event}, trigger: {trigger}')
         self.canvas_sprite.on_new_file_event(event, trigger)
 
-    def on_load_file_event(self, event, trigger):
-        log.info(f'Load File: event: {event}, trigger: {trigger}')
-        self.canvas_sprite.on_load_file_event(event, trigger)
+    def on_load_dialog_event(self, event, trigger):
+        self.next = LoadDialogScene(previous_scene=self)
 
-    def on_save_file_event(self, event, trigger):
-        log.info(f'Safe File: event: {event}, trigger: {trigger}')
-        self.canvas_sprite.on_save_file_event(event, trigger)
+    def on_save_dialog_event(self, event, trigger):
+        self.next = SaveDialogScene(previous_scene=self)
 
     def on_slider_event(self, event, trigger):
         value = trigger.value
@@ -1154,29 +1119,29 @@ class BitmapEditorScene(RootScene):
     def on_right_mouse_button_down_event(self, event):
         pass
 
-    def on_left_mouse_button_down_event(self, event):
+   # def on_left_mouse_button_down_event(self, event):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+   #     mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
 
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+   #     collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-        for sprite in collided_sprites:
-            sprite.on_left_mouse_button_down_event(event)
+   #     for sprite in collided_sprites:
+   #         sprite.on_left_mouse_button_down_event(event)
 
         #print(f'Mouse @ {mouse.rect}')
 
-    def on_left_mouse_button_up_event(self, event):
+    #def on_left_mouse_button_up_event(self, event):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+    #    mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
 
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+    #    collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-        for sprite in collided_sprites:
-            sprite.on_left_mouse_button_up_event(event)
+    #    for sprite in collided_sprites:
+    #        sprite.on_left_mouse_button_up_event(event)
 
         #print(f'Mouse @ {mouse.rect}')
 

@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import collections
+import configparser
 import copy
 import glob
 import inspect
@@ -1422,6 +1424,16 @@ class RootScene(object):
         log.debug(f'{self.root_scene}: Left Mouse Button Up Event: {event}')
         self.on_mouse_button_up_event(event)
 
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        if not collided_sprites:
+            log.info('No match.')
+
+        for sprite in collided_sprites:
+            sprite.on_left_mouse_button_up_event(event)        
+
     def on_middle_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button        
         log.debug(f'{self.root_scene}: Middle Mouse Button Up Event: {event}')
@@ -1437,6 +1449,16 @@ class RootScene(object):
     def on_left_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button        
         log.debug(f'{self.root_scene}: Left Mouse Button Down Event: {event}')
+
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        if not collided_sprites:
+            log.info('No match.')
+
+        for sprite in collided_sprites:
+            sprite.on_left_mouse_button_down_event(event)                
 
     def on_middle_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button        
@@ -1679,3 +1701,175 @@ class RootSprite(pygame.sprite.DirtySprite):
 
     def __str__(self):
         return f'{type(self)} "{self.name}" ({repr(self)})'
+
+class BitmappySprite(RootSprite):
+    def __init__(self, *args, filename=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.image = None
+        self.rect = None
+        self.name = kwargs.get('name', 'Untitled')
+        self.filename = filename
+        self.width = kwargs.get('width', 0)
+        self.height = kwargs.get('height', 0)
+
+        # Try to load a file if one was specified, otherwise
+        # if a width and height is specified, make a surface.
+        if filename:
+            (self.image, self.rect, self.name) = self.load(filename=filename)
+        elif self.width and self.height:
+            self.image = pygame.Surface((self.width, self.height))
+            self.image.convert()
+            self.rect = self.image.get_rect()
+        else:
+            raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
+
+    def load(self, filename):
+        """
+        """
+        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
+                                           empty_lines_in_values=True,
+                                           strict=True)
+
+        config.read(filename)
+
+        # [sprite]
+        # name = <name>
+        name = config.get(section='sprite', option='name')
+        
+        # pixels = <pixels>
+        pixels = config.get(section='sprite', option='pixels').split('\n')
+
+        # Set our sprite's length and width.
+        width = 0
+        height = 0
+        index = -1
+
+        # This is a bit of a cleanup in case the config contains something like:
+        #
+        # pixels = \n
+        #  .........
+        #
+        while not width:
+            index += 1            
+            width = len(pixels[index])
+            height = len(pixels[index:])
+
+        # Trim any dead whitespace.
+        # We're off by one since we increment the 
+        pixels = pixels[index:]
+        
+        color_map = {}
+        for section in config.sections():
+            # This is checking the length of the section's name.
+            # Colors are length 1.  This works with unicode, too.
+            if len(section) == 1:
+                red = config.getint(section=section, option='red')
+                green = config.getint(section=section, option='green')
+                blue = config.getint(section=section, option='blue')
+
+                color_map[section] = (red, green, blue)
+
+        (image, rect) = self.inflate(width=width,
+                                     height=height,
+                                     pixels=pixels,
+                                     color_map=color_map)
+
+        return (image, rect, name)
+
+    def inflate(self, width, height, pixels, color_map):
+        """
+        """
+        image = pygame.Surface((width, height))
+        image.convert()
+
+        raw_pixels = []
+        for y, row in enumerate(pixels):
+            for x, pixel in enumerate(row):
+                color = color_map[pixel]
+                raw_pixels.append(color)
+                pygame.draw.rect(image, color, (x, y, 1, 1))
+
+        return (image, image.get_rect())
+    
+    def save(self, filename):
+        """
+        """
+        config = self.deflate()
+        
+        with open(filename, 'w') as deflated_sprite:
+            config.write(deflated_sprite)
+
+    def deflate(self):
+        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
+                                           empty_lines_in_values=True,
+                                           strict=True)
+        
+        # Get the set of distinct pixels.
+        color_map = {}
+        pixels = []
+
+        raw_pixels = rgb_triplet_generator(
+            pixel_data=pygame.image.tostring(self.image, 'RGB')
+        )
+
+        # We're utilizing the generator to give us RGB triplets.
+        # We need a list here becasue we'll use set() to pull out the
+        # unique values, but we also need to consume the list again
+        # down below, so we can't solely use a generator.
+        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]
+
+        # This gives us the unique rgb triplets in the image.
+        colors = set(raw_pixels)
+
+        config.add_section('sprite')
+        config.set('sprite', 'name', self.name)
+
+        # Generate the color key
+        color_key = chr(47)
+        for i, color in enumerate(colors):
+            # Characters above doublequote.
+            color_key = chr(ord(color_key) + 1)
+            config.add_section(color_key)
+
+            color_map[color] = color_key
+
+            log.debug(f'Key: {color} -> {color_key}')
+            
+            red = color[0]
+            config.set(color_key, 'red', str(red))
+            
+            green = color[1]
+            config.set(color_key, 'green', str(green))
+            
+            blue = color[2]
+            config.set(color_key, 'blue', str(blue))
+
+        x = 0
+        row = []
+        while raw_pixels:
+            row.append(color_map[raw_pixels.pop(0)])
+            x += 1
+
+            if x % self.rect.width == 0:
+                log.debug(f'Row: {row}')
+                pixels.append(''.join(row))
+                row = []
+                x = 0
+
+        log.debug(pixels)
+
+        config.set('sprite', 'pixels', '\n'.join(pixels))
+
+        log.debug(f'Deflated Sprite: {config}')
+
+        return config
+
+class MouseSprite(BitmappySprite):
+    def __init__(self, *args, **kwargs):
+        self.x = kwargs.get('x')
+        self.y = kwargs.get('y')
+
+        super().__init__(*args, **kwargs)
+
+        self.rect.x = self.x
+        self.rect.y = self.y
