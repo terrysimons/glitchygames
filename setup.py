@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="Ghetto Games",
+    name="ghettogames",
     version="0.0.1",
     author="Terry Simons",
     author_email="terry.simons@gmail.com",

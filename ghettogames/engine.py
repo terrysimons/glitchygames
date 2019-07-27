@@ -621,9 +621,17 @@ class GameEngine(object):
             # For Ubuntu 19.04, we can't reset the original res
             # so let's just let the system figure it out.
             if self.system == 'Linux':
-                log.info('Ignoring full screen resolution change on Linux.')
-                self.desired_width = 0
-                self.desired_height = 0                
+                if not 'arm' in self.machine:
+                    log.info('Ignoring full screen resolution change on Linux.')
+                    self.desired_width = 0
+                    self.desired_height = 0
+                else:
+                    # RPi Hack
+                    #
+                    # The Raspberry Pi screen exposes
+                    # 2 resolutions, but only one works properly
+                    self.desired_width = 800
+                    self.desired_height = 480
         self.color_depth = 0
         self.desired_resolution = (int(self.desired_width), int(self.desired_height))
 
