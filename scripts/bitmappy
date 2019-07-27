@@ -510,6 +510,7 @@ class CanvasSprite(BitmappySprite):
                 cached_image = BitmapPixelSprite.PIXEL_CACHE.get(self.pixel_color)
 
                 if not cached_image:
+                    self.image = pygame.Surface((self.width, self.height))
                     pygame.draw.rect(self.image, self.pixel_color, (0, 0, self.width, self.height))
                 
                     # Store this as an image and blit for a speedup.
@@ -617,7 +618,7 @@ class CanvasSprite(BitmappySprite):
         else:
             #print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}, {self.pixel_boxes[trigger.pixel_number].pixel_color} -> {trigger.pixel_color}')            
             self.pixel_boxes[trigger.pixel_number].pixel_color = trigger.pixel_color            
-            self.pixel_boxes[trigger.pixel_number].dirty = 2
+            self.pixel_boxes[trigger.pixel_number].dirty = 1
             self.dirty = 1
             self.update()
             self.pixel_boxes[trigger.pixel_number].update()
