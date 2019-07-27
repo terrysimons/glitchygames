@@ -427,21 +427,6 @@ def pixels_from_path(path, width, height):
 
     return pixels
 
-
-
-
-
-#class BaseEngine(object):
-#    def __init__(self, *args, **kwargs):
-#        self.ready = False
-
-#    @classmethod
-#    def args(cls, parser):
-#        return parser
-
-#    def start(self):
-#        pass
-
 class ResourceManager(object):
     def __init__(self, game, **kwargs):
         super().__init__()
@@ -1199,7 +1184,10 @@ class GameEngine(object):
 
         # On Some platforms, pygame.USEREVENT is used to convey codes
         # so, we'll use USEREVENT + 1 to avoid confusion.
-        pygame.time.set_timer(GameEngine.FPSEVENT, self.fps_refresh_rate)
+        pygame.time.set_timer(
+            GameEngine.FPSEVENT,
+            self.fps_refresh_rate
+        )
 
         self.active_scene = None
 

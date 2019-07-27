@@ -486,6 +486,7 @@ class CanvasSprite(BitmappySprite):
         class BitmapPixelSprite(BitmappySprite):
             """
             """
+            PIXEL_CACHE = {}
 
             def __init__(self, *args, border_thickness=1, **kwargs):
                 self.name = kwargs.get('name')
@@ -497,37 +498,27 @@ class CanvasSprite(BitmappySprite):
                 self.height = self.pixel_height
                 self.color = (96, 96, 96)
                 self.pixel_color = (0, 0, 0)
-
-                # Check
-                #if self.pixel_width == 0:
-                #    self.pixel_width = 4
-                    #raise Exception('Pixel Width == 0')
-
-                #if self.pixel_height == 0:
-                #    self.pixel_height = 4
-                    #raise Exception('Pixel Height == 0')                
-
+                
                 super().__init__(self, *args, width=self.width, height=self.height)
-
-                #print(f'Width: {self.width}, Height: {self.height}')
-                #print(f'Pixel Number: {self.pixel_number}')                    
 
                 self.rect = pygame.Rect(0, 0, self.width, self.height)
                 self.rect = pygame.draw.rect(self.image, self.color, (0, 0, self.width, self.height), 0)
-                    
- 
-                #-                pygame.draw.rect(self.image, self.pixel_color, (1, 1, self.width - self.border_thickness * 2, self.height - self.border_thickness 
-                
+
+                self.dirty = 2                
 
             def update(self):
-                self.dirty = 2
-                #pygame.draw.rect()
-                #pygame.draw.rect(self.image, self.pixel_color, (self.border_thickness, self.border_thickness, self.width - self.border_thickness, self.height - self.border_thickness))                
-                pygame.draw.rect(self.image, self.pixel_color, (0, 0, self.width, self.height))
+                cached_image = BitmapPixelSprite.PIXEL_CACHE.get(self.pixel_color)
+
+                if not cached_image:
+                    pygame.draw.rect(self.image, self.pixel_color, (0, 0, self.width, self.height))
                 
-                # Store this as an image and blit for a speedup.
-                if self.border_thickness:
-                    pygame.draw.rect(self.image, self.color, (0, 0, self.width, self.height), self.border_thickness)                
+                    # Store this as an image and blit for a speedup.
+                    if self.border_thickness:
+                        pygame.draw.rect(self.image, self.color, (0, 0, self.width, self.height), self.border_thickness)
+
+                    BitmapPixelSprite.PIXEL_CACHE[self.pixel_color] = self.image
+                else:
+                    self.image = cached_image
 
             def on_pixel_update_event(self, event):
                 callback = None
