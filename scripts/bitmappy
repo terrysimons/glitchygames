@@ -1071,19 +1071,19 @@ class BitmapEditorScene(RootScene):
         self.canvas_sprite = CanvasSprite(name='Bitmap Canvas', x=0, y=0, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75))
         self.new_button_sprite = ButtonSprite(name='New', x=self.screen_width - self.button_width, y=219, width=self.button_width, height=20)
 
-        self.new_button_sprite.callbacks = {'on_left_mouse_button_down_event': self.on_new_file_event}
+        self.new_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_new_file_event}
 
         self.save_button_sprite = ButtonSprite(name='Save', x=self.screen_width - self.button_width, y=249, width=self.button_width, height=20)
 
-        self.save_button_sprite.callbacks = {'on_left_mouse_button_down_event': self.on_save_file_event}
+        self.save_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_save_file_event}
 
         self.load_button_sprite = ButtonSprite(name='Load', x=self.screen_width - self.button_width, y=279, width=self.button_width, height=20)
 
-        self.load_button_sprite.callbacks = {'on_left_mouse_button_down_event': self.on_load_file_event}
+        self.load_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_load_file_event}
 
         self.quit_button_sprite = ButtonSprite(name='Quit', x=self.screen_width - self.button_width, y=309, width=self.button_width, height=20)
 
-        self.quit_button_sprite.callbacks = {'on_left_mouse_button_down_event': self.on_quit_event}
+        self.quit_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_quit_event}
 
         self.red_slider_sprite = LabeledSliderSprite(name='R', x=0, y=self.screen_height - 70, width=256, height=10)
 
