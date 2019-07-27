@@ -399,7 +399,7 @@ def image_from_pixels(pixels, width, height):
     for pixel in pixels:
         image.fill(pixel, ((x, y), (1, 1)))
 
-        if (x + 1) % 32 == 0:
+        if (x + 1) % width == 0:
             x = 0
             y += 1
         else:
