@@ -395,6 +395,9 @@ class ResizeWidgetSprite(BitmappySprite):
         pass
 
 class CanvasSprite(BitmappySprite):
+    WIDTH = 32
+    HEIGHT = 32
+    
     def __init__(self, *args, has_mini_view=True, **kwargs):
         self.character_sprite = False
         self.color = (128, 128, 128)
@@ -402,8 +405,8 @@ class CanvasSprite(BitmappySprite):
 
         self.border_thickness = 0
         self.border_margin = 0
-        self.pixels_across = 64
-        self.pixels_tall = 64
+        self.pixels_across = CanvasSprite.WIDTH
+        self.pixels_tall = CanvasSprite.HEIGHT
         self.pixels = [(255, 0, 255)] * self.pixels_across * self.pixels_tall
         self.grid_line_width = 0
         self.pixel_boxes = []
@@ -441,12 +444,8 @@ class CanvasSprite(BitmappySprite):
                 self.rect.width = self.width
                 self.rect.height = self.height
 
-                # Update our pixel boxes.
-                #for pixel_box in self.pixel_boxes:
-                #    pixel_box.border_thickness = 0
-                #    print(f'Pixel Width: {pixel_box.width}')
                 self.dirty_pixels = [True] * len(self.pixels)
-                self.dirty = 2                
+                self.dirty = 2
 
             def update(self):
                 x = 0
@@ -536,8 +535,12 @@ class CanvasSprite(BitmappySprite):
 
         self.name = 'Bitmap Canvas'
 
-        self.pixel_width = self.width//self.pixels_across - self.border_thickness * 2 #(self.width - self.border_margin - self.border_thickness - self.pixels_across) // self.pixels_across
-        self.pixel_height = self.width//self.pixels_across - self.border_thickness * 2# (self.height - self.border_margin - self.border_thickness - self.pixels_tall) // self.pixels_tall
+        if self.pixels_across >= self.pixels_tall:
+            self.pixel_width = self.width//self.pixels_across - self.border_thickness * 2
+            self.pixel_height = self.width//self.pixels_across - self.border_thickness * 2
+        else:
+            self.pixel_width = self.height//self.pixels_tall - self.border_thickness * 2
+            self.pixel_height = self.height//self.pixels_tall - self.border_thickness * 2            
         print(f'Pixels Across: {self.pixels_across}')
         print(f'Pixels Tall: {self.pixels_tall}')
         print(f'')
@@ -570,23 +573,6 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.pixels = self.pixels
             self.mini_view.rect.x = self.screen_width - self.mini_view.width
             self.mini_view.rect.y = 0
-            #self.mini_view.add(self.all_sprites)
-            #self.mini_view.dirty = 1
-
-        # Draw 4 squares around the screen.
-        # Green
-        # Blue
-        # Yellow
-        # Red
-        self.quadrants = [pygame.Surface((self.screen_width//2, self.screen_height//2))]
-
-        
-
-        # Set up our resize widget.
-        #self.resize_widget = ResizeWidgetSprite(width=16, height=16)
-        #self.resize_widget.rect.bottomright = self.rect.bottomright
-        #self.resize_widget.dirty = 2
-        #self.resize_widget.update()
 
         # Do some cleanup
         # For some reason we have a double grid border, so let's wipe out the canvas.
@@ -1198,6 +1184,12 @@ class Game(GameEngine):
         super().__init__(options=options)
         self.load_resources()
 
+        width, height = options.get('size').split('x')
+
+        # Convert to integers
+        CanvasSprite.WIDTH = int(width)
+        CanvasSprite.HEIGHT = int(height)
+
         #self.register_game_event('save', self.on_save_event)
         #self.register_game_event('load', self.on_load_event)
 
@@ -1211,9 +1203,11 @@ class Game(GameEngine):
         group = parser.add_argument_group('Game Options')
 
         group.add_argument('-v', '--version',
-                        action='store_true',
-                        help='print the game version and exit')
-
+                           action='store_true',
+                           help='print the game version and exit')
+        group.add_argument('-s', '--size',
+                           default='32x32')
+        
         return parser
 
     def start(self):
