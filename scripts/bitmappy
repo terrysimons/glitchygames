@@ -769,7 +769,7 @@ class CanvasSprite(BitmappySprite):
 
         save_sprite.save(filename='savefile.cfg')
 
-        self.save(filename='screenshot.cfg')
+        #self.save(filename='screenshot.cfg')
             
 
     def on_load_file_event(self, event, trigger):
