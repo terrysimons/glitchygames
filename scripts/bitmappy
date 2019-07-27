@@ -243,7 +243,7 @@ class ColorWellSprite(BitmappySprite):
         self.blue = 0
         self._dirty = 1
         self.text_sprite = TextBoxSprite(name=str(self.active_color), width=100, height=20)
-        self.text_sprite.border_width = 0
+        self.text_sprite.border_width = 1
         super().__init__(*args, **kwargs)
 
     @property
@@ -284,7 +284,7 @@ class ColorWellSprite(BitmappySprite):
         self.text_sprite.value = str(self.active_color)
         self.text_sprite.text.text = self.hex_color
         self.text_sprite.text.text_box.start_x = 5
-        self.text_sprite.text.text_box.start_y = 0
+        self.text_sprite.text.text_box.start_y = 6
         self.text_sprite.update()
 
         self.screen.blit(self.text_sprite.image, (self.text_sprite.rect.x, self.text_sprite.rect.y))
@@ -426,10 +426,23 @@ class CanvasSprite(BitmappySprite):
                 super().__init__(*args, has_mini_view=False, **kwargs)
 
                 self.name = "Mini View"
-                self.pixel_width = 2
-                self.pixel_height = 2
+                if self.pixels_across < 64:
+                    self.pixel_width = 64 // self.pixels_across
+                else:
+                    self.pixel_width = 1
+                    
+                if self.pixels_tall < 64:
+                    self.pixel_height = 64 // self.pixels_tall
+                else:
+                    self.pixel_height = 1
+
                 self.width = self.pixels_across * self.pixel_width
                 self.height = self.pixels_tall * self.pixel_height
+
+                #self.width = 64 // self.pixels_across
+                #self.height = 64 // self.pixels_tall
+                    
+                
                 self.border_thickness = 0
                 self.border_margin = 0
 
@@ -844,10 +857,11 @@ class SliderSprite(BitmappySprite):
         self.width = kwargs.get('width')
         self.x = kwargs.get('x')
         self.y = kwargs.get('y')
-        self.text = TextSprite(background_color=(255, 0, 0), x=0, y=0, width=0, height=self.height, text=self.name)
+        self.text_sprite = TextBoxSprite(name=str((0, 0, 0)), width=40, height=20)
+        self.text_sprite.border_width = 1
 
-        self.width = self.text.width + self.width + 20
-        self.height = self.text.height + self.height
+        self.width = self.width + 20
+        self.height = self.height
 
 
         class SliderKnobSprite(BitmappySprite):
@@ -856,8 +870,7 @@ class SliderSprite(BitmappySprite):
                 self.value = 0
 
                 super().__init__(*args, **kwargs)
-
-                #self.image.set_colorkey((0, 0, 0))
+                
                 self.image.fill((0, 0, 0))
 
                 self.rect = Rect(1, 1, self.width - 2, self.height - 2)
@@ -865,7 +878,7 @@ class SliderSprite(BitmappySprite):
                 self.update()
 
             def update(self):
-                pygame.draw.rect(self.image, (127, 127, 127), self.rect)  
+                pygame.draw.rect(self.image, (127, 127, 127), self.rect)
                 #pygame.draw_rect(self.image, (0, 0, 0))
 
             def on_left_mouse_button_down_event(self, event):
@@ -887,7 +900,7 @@ class SliderSprite(BitmappySprite):
                 # since we're not using the event for anything in this class.
                 self.on_left_mouse_button_down_event(event)
 
-        self.slider_knob = SliderKnobSprite(name=self.name, width=self.height//2, height=self.height//2)
+        self.slider_knob = SliderKnobSprite(name=self.name, width=self.height*2, height=self.height*4)
 
         super().__init__(height=self.height, width=self.width, x=self.x, y=self.y)
 
@@ -899,11 +912,11 @@ class SliderSprite(BitmappySprite):
         self.image.fill((255,255,255))
         self.rect = self.image.get_rect()
 
-        self.image.blit(self.text.image, (0, 0))
+        #self.image.blit(self.text.image, (0, 0))
         self.rect.x = self.x
         self.rect.y = self.y
-        self.text.start_x = 0
-        self.text.start_y = 0
+        #self.text.start_x = 0
+        #self.text.start_y = 0
 
         #self.all_sprites = pygame.sprite.LayeredDirty((self.slider_knob))
 
@@ -918,6 +931,11 @@ class SliderSprite(BitmappySprite):
 
     def update(self):
         #pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
+        self.text_sprite.rect.midleft = self.rect.midright
+        self.text_sprite.rect.x -= 10
+        self.text_sprite.value = self.slider_knob.value
+        self.text_sprite.text.text = self.slider_knob.value
+        self.text_sprite.update()
 
         self.image.fill((0, 0, 0))
 
@@ -935,19 +953,19 @@ class SliderSprite(BitmappySprite):
                 
             pygame.draw.line(self.image,
                              color,
-                             (self.text.width + i, self.height//2 - 1),
-                             (self.text.width + i, self.height//2), 1)
+                             (i, self.height//2 - 1),
+                             (i, self.height//2), 1)
                 
             pygame.draw.line(self.image,
                              color,
-                             (self.text.width + i, self.height//2),
-                             (self.text.width + i, self.height//2), 1)
+                             (i, self.height//2),
+                             (i, self.height//2), 1)
                 
             pygame.draw.line(self.image,
                              color,
-                             (self.text.width + i,
+                             (i,
                               self.height//2 + 1),
-                             (self.text.width + i, self.height//2), 1)
+                             (i, self.height//2), 1)
 
         # Draw the knob
         self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height//4))
@@ -1033,7 +1051,7 @@ class BitmapEditorScene(RootScene):
         self.color_well_sprite = ColorWellSprite(name='Colorwell', x=0, y=0, width=64, height=64)
 
         self.color_well_sprite.rect.midleft = self.green_slider_sprite.rect.midright
-        self.color_well_sprite.rect.x += 15
+        self.color_well_sprite.rect.x += 30
 
         self.red = self.red_slider_sprite.value
         self.green = self.green_slider_sprite.value
@@ -1049,8 +1067,11 @@ class BitmapEditorScene(RootScene):
         self.all_sprites.add(self.load_button_sprite)
         self.all_sprites.add(self.quit_button_sprite)
         self.all_sprites.add(self.red_slider_sprite)
+        self.all_sprites.add(self.red_slider_sprite.text_sprite)
         self.all_sprites.add(self.blue_slider_sprite)
+        self.all_sprites.add(self.blue_slider_sprite.text_sprite)
         self.all_sprites.add(self.green_slider_sprite)
+        self.all_sprites.add(self.green_slider_sprite.text_sprite)
         self.all_sprites.add(self.color_well_sprite)
         self.all_sprites.add(self.color_well_sprite.text_sprite)
 
@@ -1104,6 +1125,15 @@ class BitmapEditorScene(RootScene):
         self.color_well_sprite.active_color = (self.red, self.green, self.blue)
         self.color_well_sprite.dirty = 1
         self.color_well_sprite.update()
+
+        self.red_slider_sprite.text_sprite.dirty = 1
+        self.red_slider_sprite.text_sprite.update()
+        
+        self.green_slider_sprite.text_sprite.dirty = 1
+        self.green_slider_sprite.text_sprite.update()
+
+        self.blue_slider_sprite.text_sprite.dirty = 1
+        self.blue_slider_sprite.text_sprite.update()                
 
 
     def on_key_up_event(self, event):
