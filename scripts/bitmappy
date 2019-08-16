@@ -36,7 +36,10 @@ class MenuBar(BitmappySprite):
         self.background_color = (255, 255, 0)
         self.border_width = 2
         self.menu_items = {}
-        super().__init__(*args, **kwargs)
+        self.menu_offset_x = self.border_width
+        self.menu_offset_y = self.border_width
+        self.all_sprites = pygame.sprite.LayeredDirty()
+        super().__init__(*args, **kwargs)        
 
         pygame.draw.rect(self.image, (255, 255, 255), self.rect)
         pygame.draw.rect(self.image, (255, 255, 255), self.rect, self.border_width)
@@ -45,6 +48,10 @@ class MenuBar(BitmappySprite):
         self.menu_items[menu.name] = menu
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
+        menu.add(self.all_sprites)
+        menu.rect.x += self.menu_offset_x
+        menu.rect.y += self.menu_offset_y
+        self.menu_offset_x += menu.rect.width
         log.info(f'Menu Items: {self.menu_items}')
 
     def add_menu_item(self, menu_item, menu):
@@ -56,20 +63,28 @@ class MenuBar(BitmappySprite):
 
         self.dirty = 1
 
-    def update(self):
-        menu_offset_x = self.border_width
-        menu_offset_y = self.border_width
-        
-        for menu_item_name in self.menu_items.keys():
+    def update(self):        
+        for menu_item_name, menu_item in self.menu_items.items():
             menu_item = self.menu_items[menu_item_name]
-            self.image.blit(menu_item.image, (menu_offset_x, menu_offset_y))
-            menu_offset_x += menu_item.width
+            self.image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))
 
     def add(self, *groups):
         super().add(*groups)
 
     def remove(self, *groups):
         super().remove(*groups)
+
+    def on_left_mouse_button_down_event(self, event):
+        # Figure out which item was clicked.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        log.info(f'Collided Sprites: {[collided_sprite.name for collided_sprite in collided_sprites]}')
+
+        #for menu_item_name, menu_item in self.menu_items.items():
+        #    if
+    
         
 
 class MenuItem(BitmappySprite):
@@ -96,6 +111,9 @@ class MenuItem(BitmappySprite):
 
     def remove(self, *groups):
         super().remove(*groups)
+
+    def on_left_mouse_button_down_event(self, event):
+        log.info(f'{self.name}')
 
 
 class InputDialog(BitmappySprite):
@@ -430,7 +448,7 @@ class CanvasSprite(BitmappySprite):
                 self.rect.width = self.width
                 self.rect.height = self.height
 
-                self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0)]
+                self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0), (0, 0, 0)]
                 self.palette_index = 0
                 #self.image.set_colorkey(self.color_palette[self.palette_index])
                 self.image.fill(self.color_palette[self.palette_index])
