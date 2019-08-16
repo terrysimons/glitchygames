@@ -28,9 +28,33 @@ log.addHandler(ch)
 
 
 class Speed(object):
-    def __init__(self, x=0, y=0):
+    def __init__(self, x=0, y=0, increment=.2):
         self.x = x
         self.y = y
+        self.increment = increment
+
+    def speed_up(self):
+        self.x += self.increment if self.x >= 0 else self.increment*-1
+        self.y += self.increment if self.y >= 0 else self.increment*-1
+
+
+class Rally:
+    def __init__(self, trigger_value, action):
+        self._trigger_value = trigger_value
+        self._action = action
+        self._count = 0
+
+    def hit(self):
+        self._count += 1
+
+    def reset(self):
+        self._count = 0
+
+    def do_rally(self):
+        if self._trigger_value == self._count:
+            self._action()
+            return True
+        return False
 
 
 class PaddleSprite(pygame.sprite.DirtySprite):
@@ -40,9 +64,9 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         # Adding some slap to the paddle
         self.slap_snd = pygame.mixer.Sound(
             os.path.join(
-                os.path.dirname(__file__)
-            ),
+                os.path.dirname(__file__),
             'resources/snd/slap8.wav')
+        )
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
@@ -91,7 +115,6 @@ class BallSprite(pygame.sprite.DirtySprite):
     def __init__(self):
         super().__init__()
         self.use_gfxdraw = True
-
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -103,6 +126,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.rect = self.image.get_rect()
 
         self.speed = Speed(4, 2)
+        self.rally = Rally(5, self.speed.speed_up)
         self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_menu_move1.wav')
 
         # The ball always needs refreshing.
@@ -138,6 +162,7 @@ class BallSprite(pygame.sprite.DirtySprite):
             self.direction += 180
             self.y = 50
 
+        self.rally.reset()
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self, diff):
@@ -174,6 +199,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         # Do we bounce of the right side of the screen?
         if self.x > self.screen_width-self.width:
             self.direction = (360-self.direction)%360
+
 
 class TextSprite(pygame.sprite.DirtySprite):
     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
@@ -291,14 +317,19 @@ class TableScene(RootScene):
         super().update()
 
         if pygame.sprite.collide_rect(self.player1, self.ball) and self.ball.speed.x <= 0:
-            self.player1_sprite.slap_snd.play()
-            self.ball_sprite.speed.x *= -1
-            self.ball_sprite.speed.y *= 1
+            self.ball.rally.hit()
+            if self.ball.rally.do_rally():
+                self.ball.rally.reset()
+            self.player1.slap_snd.play()
+            self.ball.speed.x *= -1
 
         if pygame.sprite.collide_rect(self.player2, self.ball) and self.ball.speed.x > 0:
+            self.ball.rally.hit()
+            if self.ball.rally.do_rally():
+                self.ball.rally.reset()
             self.player2.slap_snd.play()
             self.ball.speed.x *= -1
-            self.ball.speed.y *= 1
+
 
     def render(self, screen):
         super().render(screen)
