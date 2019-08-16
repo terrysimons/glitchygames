@@ -1411,9 +1411,33 @@ class RootScene(object):
 
     def on_mouse_drag_down_event(self, event, trigger):
         log.debug(f'{self.root_scene}: Mouse Drag Down: {event} {trigger}')
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for sprite in collided_sprites:
+            sprite.on_mouse_drag_down_event(event, trigger)
+
+    def on_left_mouse_drag_down_event(self, event, trigger):
+        log.info(f'{self.root_scene}: Left Mouse Drag Down: {event} {trigger}')        
+
+    def on_left_mouse_drag_up_event(self, event, trigger):
+        log.info(f'{self.root_scene}: Left Mouse Drag Up: {event} {trigger}')        
+
+    def on_right_mouse_drag_down_event(self, event, trigger):
+        log.info(f'{self.root_scene}: Right Mouse Drag Down: {event} {trigger}')        
+
+    def on_right_mouse_drag_up_event(self, event, trigger):
+        log.info(f'{self.root_scene}: Right Mouse Drag Up: {event} {trigger}')        
 
     def on_mouse_drag_up_event(self, event):
         log.debug(f'{self.root_scene}: Mouse Drag Up: {event}')
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for sprite in collided_sprites:
+            sprite.on_mouse_drag_up_event(event)        
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -1440,7 +1464,18 @@ class RootScene(object):
 
     def on_right_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button        
-        log.debug(f'{self.root_scene}: Right Mouse Button Up Event: {event}')
+        log.info(f'{self.root_scene}: Right Mouse Button Up Event: {event}')
+        self.on_mouse_button_up_event(event)
+
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        if not collided_sprites:
+            log.info('No match.')
+
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_button_up_event(event)                
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
@@ -1466,7 +1501,18 @@ class RootScene(object):
 
     def on_right_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button        
-        log.debug(f'{self.root_scene}: Right Mouse Button Down Event: {event}')
+        log.info(f'{self.root_scene}: Right Mouse Button Down Event: {event}')
+        self.on_mouse_button_down_event(event)
+
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        if not collided_sprites:
+            log.info('No match.')
+
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_button_down_event(event)                        
 
     def on_mouse_scroll_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button        
@@ -1590,7 +1636,7 @@ class RootSprite(pygame.sprite.DirtySprite):
         log.debug(f'{type(self)}: {event}')
 
     def on_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')        
 
     def on_mouse_drag_up_event(self, event):
         log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
@@ -1615,8 +1661,13 @@ class RootSprite(pygame.sprite.DirtySprite):
         log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
     def on_right_mouse_button_up_event(self, event):
-        # MOUSEBUTTONUP    pos, button        
-        log.debug(f'{type(self)}: Right Mouse Button Up Event: {event}')
+        # MOUSEBUTTONUP    pos, button
+        if self.callbacks:
+            callback = self.callbacks.get('on_right_mouse_button_up_event', None)
+            if callback:
+                callback(event=event, trigger=self)
+        else:
+            log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
@@ -1639,8 +1690,13 @@ class RootSprite(pygame.sprite.DirtySprite):
         log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
     def on_right_mouse_button_down_event(self, event):
-        # MOUSEBUTTONDOWN  pos, button        
-        log.debug(f'{type(self)}: Right Mouse Button Down Event: {event}')
+        # MOUSEBUTTONDOWN  pos, button
+        if self.callbacks:
+            callback = self.callbacks.get('on_right_mouse_button_down_event', None)
+            if callback:
+                callback(event=event, trigger=self)
+        else:
+            log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')            
 
     def on_mouse_scroll_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button        
@@ -1703,6 +1759,8 @@ class RootSprite(pygame.sprite.DirtySprite):
         return f'{type(self)} "{self.name}" ({repr(self)})'
 
 class BitmappySprite(RootSprite):
+    DEBUG = False
+    
     def __init__(self, *args, filename=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.image = None
@@ -1712,6 +1770,8 @@ class BitmappySprite(RootSprite):
         self.width = kwargs.get('width', 0)
         self.height = kwargs.get('height', 0)
 
+        log.info(f'{type(self)}: args: {args}, kwargs: {kwargs}')
+
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
         if filename:
@@ -1719,9 +1779,18 @@ class BitmappySprite(RootSprite):
         elif self.width and self.height:
             self.image = pygame.Surface((self.width, self.height))
             self.image.convert()
-            self.rect = self.image.get_rect()
         else:
             raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
+
+        # This doesn't work.
+        # This allows per-subclass debugging, if desired.
+        # Just set a DEBUG flag in your class the same as here.
+        #if type(self).DEBUG:
+        #    self.image.fill((255, 255, 0))                        
+
+        self.rect = self.image.get_rect()
+        self.rect.x = kwargs.get('x', 0)
+        self.rect.y = kwargs.get('y', 0)
 
     def load(self, filename):
         """

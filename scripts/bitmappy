@@ -28,6 +28,76 @@ ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
 
+# Turn on sprite debugging
+BitmappySprite.DEBUG = True
+
+class MenuBar(BitmappySprite):
+    def __init__(self, *args, **kwargs):
+        self.background_color = (255, 255, 0)
+        self.border_width = 2
+        self.menu_items = {}
+        super().__init__(*args, **kwargs)
+
+        pygame.draw.rect(self.image, (255, 255, 255), self.rect)
+        pygame.draw.rect(self.image, (255, 255, 255), self.rect, self.border_width)
+
+    def add_menu(self, menu):
+        self.menu_items[menu.name] = menu
+        menu.image.set_colorkey((255, 0, 255))
+        menu.add(self.groups())
+        log.info(f'Menu Items: {self.menu_items}')
+
+    def add_menu_item(self, menu_item, menu):
+        if menu is None:
+            self.add_menu(menu=menu_item)
+            log.info(f'Adding new menu {menu_item}.')
+        else:
+            log.info(f'Adding menu item {menu_item} to menu {menu}.')
+
+        self.dirty = 1
+
+    def update(self):
+        menu_offset_x = self.border_width
+        menu_offset_y = self.border_width
+        
+        for menu_item_name in self.menu_items.keys():
+            menu_item = self.menu_items[menu_item_name]
+            self.image.blit(menu_item.image, (menu_offset_x, menu_offset_y))
+            menu_offset_x += menu_item.width
+
+    def add(self, *groups):
+        super().add(*groups)
+
+    def remove(self, *groups):
+        super().remove(*groups)
+        
+
+class MenuItem(BitmappySprite):
+    def __init__(self, *args, **kwargs):
+        self.background_color = (255, 255, 255)
+        self.border_width = 1
+        super().__init__(*args, **kwargs)
+
+        self.name = kwargs.get('name', None)
+
+        # Don't set a name for the icon.
+        if self.name:
+            self.text = TextSprite(background_color=self.background_color, text_color=(0, 0, 0), x=0, y=0, width=self.width, height=self.height, text=self.name)
+            self.text.image.set_colorkey((255, 0, 255))
+            self.image.blit(self.text.image, (0, 0))
+
+
+    def update(self):
+        log.info('Updated Menu Item')
+
+    def add(self, *groups):
+        super().add(*groups)
+        log.info(f'Added {groups}')
+
+    def remove(self, *groups):
+        super().remove(*groups)
+
+
 class InputDialog(BitmappySprite):
     def __init__(self, *args, dialog_text='Would you like to do a thing?', confirm_text='Confirm', cancel_text='Cancel', **kwargs):
         self.name = None
@@ -62,7 +132,7 @@ class InputDialog(BitmappySprite):
     def update(self):
         self.dirty = 2
         # Draw the bounding box.
-        pygame.draw.rect(self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width)
+        #pygame.draw.rect(self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width)
 
         #self.dialog_text_sprite.text.rect.x = self.dialog_text_sprite.rect.x - 200
         self.dialog_text_sprite.rect.center = self.rect.center
@@ -304,11 +374,12 @@ class ResizeWidgetSprite(BitmappySprite):
 class CanvasSprite(BitmappySprite):
     WIDTH = 32
     HEIGHT = 32
+    DEBUG = False
     
     def __init__(self, *args, has_mini_view=True, **kwargs):
         self.character_sprite = False
         self.color = (128, 128, 128)
-        self.grid_color = (255, 255, 0)
+        #self.grid_color = (255, 255, 0)
 
         self.border_thickness = 0
         self.border_margin = 0
@@ -328,7 +399,7 @@ class CanvasSprite(BitmappySprite):
         class MiniView(CanvasSprite):
             def __init__(self, *args, border_thickness=0, pixels=None, **kwargs):
                 self.pixels = pixels
-                self.dirty_pixels = [True] * len(self.pixels)
+                self.dirty_pixels = [False] * len(self.pixels)
 
                 super().__init__(*args, has_mini_view=False, **kwargs)
 
@@ -346,10 +417,6 @@ class CanvasSprite(BitmappySprite):
 
                 self.width = self.pixels_across * self.pixel_width
                 self.height = self.pixels_tall * self.pixel_height
-
-                #self.width = 64 // self.pixels_across
-                #self.height = 64 // self.pixels_tall
-                    
                 
                 self.border_thickness = 0
                 self.border_margin = 0
@@ -358,15 +425,18 @@ class CanvasSprite(BitmappySprite):
 
                 self.image = pygame.Surface((self.width, self.height))
                 self.rect = self.image.get_rect()
-                self.image.fill((0, 255, 0))
-                self.image.set_colorkey((255, 0, 255))
-                self.rect.x = self.screen_width - self.width
-                self.rect.y = 0
+                self.rect.x = kwargs.get('x', 0)
+                self.rect.y = kwargs.get('y', 0)
                 self.rect.width = self.width
                 self.rect.height = self.height
 
+                self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0)]
+                self.palette_index = 0
+                #self.image.set_colorkey(self.color_palette[self.palette_index])
+                self.image.fill(self.color_palette[self.palette_index])
+
                 self.dirty_pixels = [True] * len(self.pixels)
-                self.dirty = 2
+                self.dirty = 1
 
             def update(self):
                 x = 0
@@ -375,7 +445,7 @@ class CanvasSprite(BitmappySprite):
                 for i, pixel in enumerate(self.pixels):
                     if self.dirty_pixels[i]:
                         if pixel == (255, 0, 255):
-                            pygame.draw.rect(self.image, (0, 255, 0), ((x, y), (self.pixel_width, self.pixel_height)))
+                            pygame.draw.rect(self.image, self.color_palette[self.palette_index], ((x, y), (self.pixel_width, self.pixel_height)))
                         else:
                             pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
                             #print(f'Updated pixel {i}')
@@ -389,6 +459,30 @@ class CanvasSprite(BitmappySprite):
                         x += self.pixel_width
                         
                 self.screen.blit(self.image, (self.rect.x, self.rect.y))
+
+            def on_left_mouse_button_up_event(self, event):
+                self.palette_index += 1
+                
+                if self.palette_index >= len(self.color_palette):
+                    self.palette_index = 0
+
+                print(f'Palette {self.palette_index}: {self.color_palette[self.palette_index]}')
+
+                self.image.fill(self.color_palette[self.palette_index])
+                #self.image.set_colorkey(self.color_palette[self.palette_index])                
+
+                self.dirty_pixels = [True] * len(self.pixels)
+
+                self.dirty = 1
+
+            def on_left_mouse_button_down_event(self, event):
+                self.image.fill((255, 255, 255))
+                #self.image.set_colorkey(self.color_palette[self.palette_index])                
+
+                self.dirty_pixels = [True] * len(self.pixels)
+
+                self.dirty = 1
+                self.update()
 
             def __str__(self):
                 return f'pixels across: {self.pixels_across}, pixels tall: {self.pixels_tall}, width: {self.width}, height: {self.height}, pixel width: {self.pixel_width}, pixel_height: {self.pixel_height}, pixels: {len(self.pixels)}, rect: {self.rect}'
@@ -442,6 +536,9 @@ class CanvasSprite(BitmappySprite):
                 #else:
                 #    log.debug(f'{type(self)}: Pixel Update Event: {event} @ {self} (Pixel Number: {self.pixel_number}')
 
+            def on_right_mouse_button_down_event(self, event):
+                log.info(f'Right Mouse Button: {event}')
+
             def on_left_mouse_button_down_event(self, event):
                 self.dirty = 1
                 self.on_pixel_update_event(event)
@@ -453,6 +550,8 @@ class CanvasSprite(BitmappySprite):
                 self.on_left_mouse_button_down_event(None)
 
         super().__init__(*args, **kwargs)
+
+        print(f'Canvas: {self.rect.x}, {self.rect.y}')        
 
         self.name = 'Bitmap Canvas'
 
@@ -466,8 +565,6 @@ class CanvasSprite(BitmappySprite):
         print(f'Pixels Tall: {self.pixels_tall}')
         print(f'')
 
-        #self.pixels = pixels_from_path(path='resources/flower_tile1_32.raw', width=32, height=32)
-
         self.all_sprites = pygame.sprite.LayeredDirty()
 
         self.pixel_boxes = [BitmapPixelSprite(name=f'pixel {i}',
@@ -477,7 +574,7 @@ class CanvasSprite(BitmappySprite):
                                               height=self.pixel_width,
                                               width=self.pixel_height)
                                               for i in range(self.pixels_across * self.pixels_tall)]
-
+        
         for i in range(self.pixels_across * self.pixels_tall):
             self.pixel_boxes[i].pixel_color = self.pixels[i]
             self.pixel_boxes[i].add(self.all_sprites)
@@ -493,12 +590,15 @@ class CanvasSprite(BitmappySprite):
             self.mini_view = MiniView(pixels=self.pixels, width=self.pixels_across, height=self.pixels_tall)
             self.mini_view.pixels = self.pixels
             self.mini_view.rect.x = self.screen_width - self.mini_view.width
-            self.mini_view.rect.y = 0
+            self.mini_view.rect.y = self.rect.y
 
         # Do some cleanup
         # For some reason we have a double grid border, so let's wipe out the canvas.
-        self.dirty = 1                        
-        self.image.fill((0, 0, 0), rect=self.rect)
+        #self.dirty = 1                        
+        #self.image.fill((255, 255, 0), rect=self.rect)
+
+        self.update_anyway = True
+        self.dirty = 1
         self.update()
 
     def on_pixel_update_event(self, event, trigger):
@@ -507,16 +607,21 @@ class CanvasSprite(BitmappySprite):
 
             # Note: Shouldn't we
             self.mini_view.dirty_pixels[trigger.pixel_number] = True
-            #self.mini_view.on_pixel_update_event(event, trigger)            
+            self.mini_view.on_pixel_update_event(event, trigger)
+            self.mini_view.dirty = 1
+            self.mini_view.update()
 
-        if self.pixel_boxes[trigger.pixel_number].pixel_color == trigger.pixel_color:
-            # This prevents us from updating the pixel if it's already the same color.
+        if not self.update_anyway and self.pixel_boxes[trigger.pixel_number].pixel_color == trigger.pixel_color:
+        #    # This prevents us from updating the pixel if it's already the same color.
+        #    log.info('pass')
             pass
         else:
-            #print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}, {self.pixel_boxes[trigger.pixel_number].pixel_color} -> {trigger.pixel_color}')            
+            print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}, {self.pixel_boxes[trigger.pixel_number].pixel_color} -> {trigger.pixel_color}')            
             self.pixel_boxes[trigger.pixel_number].pixel_color = trigger.pixel_color            
             self.pixel_boxes[trigger.pixel_number].dirty = 1
             self.pixel_boxes[trigger.pixel_number].update()
+            self.dirty = 1
+            self.update()
 
     def update(self):        
         if self.mini_view is None:
@@ -525,7 +630,10 @@ class CanvasSprite(BitmappySprite):
         else:
             self.draw_grid()
             self.draw_pixels()
+
+            self.mini_view.dirty = 1
             self.mini_view.update()
+            self.update_anyway = False            
 
     def add(self, *groups):
         super().add(*groups)
@@ -557,8 +665,10 @@ class CanvasSprite(BitmappySprite):
             #pixel_y = self.border_margin + self.border_thickness + (y * pixel_box.pixel_height) + (y * pixel_box.border_thickness)
 
             # Note: We might be able to do this up above, and make this method super efficient.
-            pixel_box.rect.x = pixel_x
-            pixel_box.rect.y = pixel_y
+            pixel_box.rect.x = pixel_x + self.rect.x
+            pixel_box.rect.y = pixel_y + self.rect.y
+
+            #log.info(f'x: {self.rect.x}, y: {self.rect.y}')
 
             self.image.blit(pixel_box.image, (pixel_x, pixel_y))
 
@@ -587,7 +697,14 @@ class CanvasSprite(BitmappySprite):
         self.dirty = 1
         self.update()
 
+    #def on_right_mouse_button_down_event(self, event):
+    #    log.info(f'Right Mouse Down: {event}')
+
+    #def on_right_mouse_button_up_event(self, event):
+    #    log.info(f'Right Mouse Up: {event}')
+
     def on_mouse_drag_down_event(self, event, trigger):
+        # TODO: Mask out right and left.
         self.on_left_mouse_button_down_event(event)
 
     def on_new_file_event(self, event, trigger):        
@@ -601,7 +718,6 @@ class CanvasSprite(BitmappySprite):
 
         self.dirty = 1
         self.update()
-        #self.mini_view.update()        
 
     def on_save_file_event(self, event, trigger):
         pixels = []
@@ -632,13 +748,14 @@ class CanvasSprite(BitmappySprite):
 
         pixels = pixels_from_data(pixel_data=pixel_data)
 
+        print(pixels)
 
         # Update the canvas' pixels across and tall
         self.pixels_across = load_sprite.width
         self.pixels_tall = load_sprite.height
 
-        # pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-        #pixels = [(255, 255, 255)] * 1024
+        #pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
+        #pixels = [(255, 255, 255)] * len(pixels)
 
         #print(pixels)
 
@@ -647,28 +764,23 @@ class CanvasSprite(BitmappySprite):
             trigger.pixel_color = (255, 255, 255)
 
             event = pygame.event.Event(GameEngine.GAMEEVENT, {'action':'on_load_file_event',
-                                                              'pixel_color': pixels[i],
+                                                              'pixel_color': pixel,
                                                               'pixel_number': i})
 
             # Create a pixel update event for the mini map.
             self.on_pixel_update_event(event=event, trigger=event)
 
-            #self.update()
-        #self.dirty = 1
-        #self.dirty = 1
-        #self.mini_view.dirty = 1
-        #self.mini_view.update()
-        #self.update()
+        #for pixel_box in self.pixel_boxes:
+        #    pixel_box.dirty = 1
+        #    pixel_box.update()
 
-        self.dirty = 2
+        self.dirty = 1
         self.update()
 
-        self.mini_view.dirty = 2
-        self.mini_view.update()        
-
 class TextSprite(RootSprite):
-    def __init__(self, *args, background_color=BLACKLUCENT, alpha=0, text='Text', **kwargs):
-        self.background_color = (0, 0, 0)
+    def __init__(self, *args, background_color=BLACKLUCENT, text_color=WHITE, alpha=0, text='Text', **kwargs):
+        self.background_color = background_color
+        self.text_color = text_color
         self.alpha = 0
         self.text = text
         self.font_manager = FontManager(self)
@@ -676,12 +788,13 @@ class TextSprite(RootSprite):
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
-            def __init__(self, font_controller, x, y, line_height=15, text='Text'):
+            def __init__(self, font_controller, x, y, line_height=15, text='Text', text_color=WHITE):
                 self.image = None
                 self.rect = None
                 self.start_x = x
                 self.start_y = y
                 self.line_height = line_height
+                self.text_color = text_color
 
                 super().__init__()
 
@@ -691,7 +804,7 @@ class TextSprite(RootSprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, WHITE)
+                (self.image, self.rect) = self.font.render(string, self.text_color)
                 
                 #pygame.draw.rect(self.image, (255, 255, 0), self.rect, 0)
 
@@ -710,7 +823,7 @@ class TextSprite(RootSprite):
             def unindent(self):
                 self.x -= 10
 
-        self.text_box = TextBox(font_controller=self.font_manager, x=0, y=0, text=self.text)
+        self.text_box = TextBox(font_controller=self.font_manager, x=0, y=0, text=self.text, text_color=self.text_color)
 
         super().__init__(*args, **kwargs)
 
@@ -985,17 +1098,35 @@ class BitmapEditorScene(RootScene):
         self.screen_height = self.screen.get_height()
         self.button_width = 75
 
-        self.all_sprites = pygame.sprite.LayeredDirty()        
+        self.all_sprites = pygame.sprite.LayeredDirty()
 
-        self.scroll_bar_sprite = ScrollBarSprite(name='File List', x=0, y=0, width=20, height=300)
+        #self.scroll_bar_sprite = ScrollBarSprite(name='File List', x=0, y=0, width=20, height=300)
+
+        self.menu_bar_sprite = MenuBar(name='Menu Bar', x=0, y=0, width=self.screen_width, height=20)
+
+        log.info('Rect is: %s' % self.menu_bar_sprite.rect)
+        log.info('Rect bottom: %s' % self.menu_bar_sprite.rect.bottom)
+
+        self.menu_icon = MenuItem(name=None, filename='raspberry.cfg', x=0, y=0, width=16, height=16)
+        # When we load the sprite, we set a name.
+        self.menu_icon.name = None
+        self.file_menu = MenuItem(name='File', width=32, height=16)
+        self.edit_menu = MenuItem(name='Edit', width=32, height=16)        
+
+        #print(self.menu_icon)
+
+        # Add the menu icon as a root level menu item.
+        self.menu_bar_sprite.add_menu_item(menu_item=self.menu_icon, menu=None)
+        self.menu_bar_sprite.add_menu_item(menu_item=self.file_menu, menu=None)
+        self.menu_bar_sprite.add_menu_item(menu_item=self.edit_menu, menu=None)
 
         # We'll use the top left quartile of the screen to draw the canvas.
         # We want a square canvas, so we'll use the height as our input.
-        self.canvas_sprite = CanvasSprite(name='Bitmap Canvas', x=0, y=0, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75))
+        self.canvas_sprite = CanvasSprite(name='Bitmap Canvas', x=0, y=self.menu_bar_sprite.rect.bottom + 10, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75))
         self.canvas_sprite.add(self.all_sprites)
         
-        self.new_button_sprite = ButtonSprite(name='New', x=self.screen_width - self.button_width, y=219, width=self.button_width, height=20)
-        self.new_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_new_file_event}
+        #self.new_button_sprite = ButtonSprite(name='New', x=self.screen_width - self.button_width, y=219, width=self.button_width, height=20)
+        #self.new_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_new_file_event}
 
         self.save_button_sprite = ButtonSprite(name='Save', x=self.screen_width - self.button_width, y=249, width=self.button_width, height=20)
 
@@ -1031,12 +1162,10 @@ class BitmapEditorScene(RootScene):
         self.blue = self.blue_slider_sprite.value
 
         self.canvas_sprite.active_color = (self.red, self.green, self.blue)
-        #self.all_sprites.add(self.canvas_sprite)
-        #self.all_sprites.add(self.canvas_sprite.mini_view)
 
 
         # Change this?
-        self.all_sprites.add(self.new_button_sprite)
+        #self.all_sprites.add(self.new_button_sprite)
         self.all_sprites.add(self.save_button_sprite)
         self.all_sprites.add(self.load_button_sprite)
         self.all_sprites.add(self.quit_button_sprite)
@@ -1048,6 +1177,7 @@ class BitmapEditorScene(RootScene):
         self.all_sprites.add(self.green_slider_sprite.text_sprite)
         self.all_sprites.add(self.color_well_sprite)
         self.all_sprites.add(self.color_well_sprite.text_sprite)
+        self.all_sprites.add(self.menu_bar_sprite)        
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -1073,20 +1203,41 @@ class BitmapEditorScene(RootScene):
     def on_slider_event(self, event, trigger):
         value = trigger.value
 
+        log.info(f'Slider: event: {event}, trigger: {trigger} value: {value}')                    
+
         if value < 0:
             value = 0
             trigger.value = 0
         elif value > 255:
             value = 255
             trigger.value = 255
-            log.info(f'Slider: event: {event}, trigger: {trigger} value: {value}')            
         
         if trigger.name == 'R':
             self.red = value
+
+            self.red_slider_sprite.slider_knob.value = value
+            self.red_slider_sprite.dirty = 1
+            self.red_slider_sprite.update()
+            self.red_slider_sprite.text_sprite.dirty = 1
+            self.red_slider_sprite.text_sprite.update()            
         elif trigger.name == 'G':
             self.green = value
+
+            self.green_slider_sprite.slider_knob.value = value            
+            self.green_slider_sprite.dirty = 1
+            self.green_slider_sprite.update()        
+            self.green_slider_sprite.text_sprite.dirty = 1
+            self.green_slider_sprite.text_sprite.update()            
         elif trigger.name == 'B':
             self.blue = value
+
+            self.blue_slider_sprite.slider_knob.value = value            
+            self.blue_slider_sprite.dirty = 1
+            self.blue_slider_sprite.update()        
+            self.blue_slider_sprite.text_sprite.dirty = 1
+            self.blue_slider_sprite.text_sprite.update()                            
+
+            
         #else:
 
 
@@ -1097,15 +1248,6 @@ class BitmapEditorScene(RootScene):
         self.color_well_sprite.active_color = (self.red, self.green, self.blue)
         self.color_well_sprite.dirty = 1
         self.color_well_sprite.update()
-
-        self.red_slider_sprite.text_sprite.dirty = 1
-        self.red_slider_sprite.text_sprite.update()
-        
-        self.green_slider_sprite.text_sprite.dirty = 1
-        self.green_slider_sprite.text_sprite.update()
-
-        self.blue_slider_sprite.text_sprite.dirty = 1
-        self.blue_slider_sprite.text_sprite.update()                
 
 
     def on_key_up_event(self, event):
@@ -1123,7 +1265,30 @@ class BitmapEditorScene(RootScene):
         pass
 
     def on_right_mouse_button_down_event(self, event):
-        pass
+        log.info('Right Down')
+
+    def on_right_mouse_button_up_event(self, event):
+        log.info('Right Up')
+        # If we're on the edge of an outside pixel, ignore
+        # the right click so we don't crash.
+        try:
+            red, green, blue, alpha = self.screen.get_at(event.pos)
+            log.info(f'Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}')
+
+            # TODO: Make this a proper type.
+            trigger = pygame.event.Event(0, {'name': 'R', 'value': red})
+            self.on_slider_event(event=event, trigger=trigger)
+
+            trigger = pygame.event.Event(0, {'name': 'G', 'value': green})
+            self.on_slider_event(event=event, trigger=trigger)
+
+            trigger = pygame.event.Event(0, {'name': 'B', 'value': blue})
+            self.on_slider_event(event=event, trigger=trigger)
+
+            self.dirty = 1
+        except IndexError:
+            pass
+        
 
    # def on_left_mouse_button_down_event(self, event):
         # Check for a sprite collision against the mouse pointer.
@@ -1151,29 +1316,17 @@ class BitmapEditorScene(RootScene):
 
         #print(f'Mouse @ {mouse.rect}')
 
-    def on_mouse_drag_down_event(self, event, trigger):
+    #def on_mouse_drag_down_event(self, event, trigger):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        for sprite in collided_sprites:
-            sprite.on_mouse_drag_down_event(event, trigger)
 
         #print(f'Mouse Drag @ {mouse.rect}')
 
-    def on_mouse_drag_up_event(self, event):
+        #def on_mouse_drag_up_event(self, event):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        for sprite in collided_sprites:
-            sprite.on_mouse_drag_up_event(event)
 
         #print(f'Mouse Drag @ {mouse.rect}')
 
