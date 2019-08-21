@@ -46,6 +46,7 @@ class MenuBar(BitmappySprite):
 
     def add_menu(self, menu):
         self.menu_items[menu.name] = menu
+        log.info(f'add_menu({menu})')
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
         menu.add(self.all_sprites)
@@ -80,20 +81,38 @@ class MenuBar(BitmappySprite):
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-        log.info(f'Collided Sprites: {[collided_sprite.name for collided_sprite in collided_sprites]}')
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                collided_sprite.on_left_mouse_button_down_event(event)
 
-        #for menu_item_name, menu_item in self.menu_items.items():
-        #    if
-    
-        
+        self.dirty = 1            
+
+    def on_left_mouse_button_up_event(self, event):
+        log.info(f'Mouse button up on menu.')
+
 
 class MenuItem(BitmappySprite):
     def __init__(self, *args, **kwargs):
         self.background_color = (255, 255, 255)
-        self.border_width = 1
+        self.border_width = 2
+        self.menu_items = {}
+        self.menu_offset_x = self.border_width
+        self.menu_offset_y = self.border_width
+        self.all_sprites = pygame.sprite.LayeredDirty()
+        self.menu_image = None
+        self.menu_rect = None
+        self.menu_down_image = None
+        self.menu_down_rect = None
+        self.menu_up_image = None
+        self.menu_up_rect = None
+        self.active = False
         super().__init__(*args, **kwargs)
 
         self.name = kwargs.get('name', None)
+        self.dirty = 0
 
         # Don't set a name for the icon.
         if self.name:
@@ -101,19 +120,108 @@ class MenuItem(BitmappySprite):
             self.text.image.set_colorkey((255, 0, 255))
             self.image.blit(self.text.image, (0, 0))
 
+        self.menu_up_image = self.image
+        self.menu_up_rect = self.rect
+        self.menu_down_image = self.menu_up_image  
+        self.menu_down_rect = self.menu_up_rect      
+
+    def add_menu(self, menu):
+        #menu.image.set_colorkey((255, 0, 255))
+        menu.add(self.groups())
+        menu.add(self.all_sprites)
+        if not len(self.menu_items.keys()):
+            self.menu_offset_y += self.rect.height
+        else:
+            menu.rect.x += self.menu_offset_x
+            menu.rect.y += self.menu_offset_y
+            self.menu_offset_y += menu.rect.height
+
+        self.menu_items[menu.name] = menu
+
+        # Now recreate the menu image for later use.
+        self.menu_image = pygame.Surface((400, 300))
+        self.menu_image.convert()
+        self.menu_image.set_colorkey((255, 0, 255))        
+        self.menu_image.fill((255, 255, 255))
+        self.menu_rect = self.menu_image.get_rect()
+        self.menu_rect.x = self.rect.x
+        self.menu_rect.y = 21
+
+        width = max([self.menu_items[menu_item].rect.width + 20
+                     for menu_item
+                     in self.menu_items]) * 2.5
+        heights = [self.menu_items[menu_item].rect.height for menu_item in self.menu_items]
+        height = self.rect.height
+
+        if heights:
+            log.info(f'{[self.menu_items[menu_item].rect.height for menu_item in self.menu_items]}')
+            log.info(f'Heights: {heights}')
+            heights.append(self.rect.height)
+            log.info(f'New Heights: {heights}')
+            height = sum(heights)
+
+        # Create a new image that is self.height + [menu.height for menu in self.menu_items]
+        # Create a new image that is self.width + [menu.width for menu in self.menu_items]
+        self.menu_down_image = pygame.Surface((width, height))
+        self.menu_down_image.set_colorkey((255,  0, 255))
+        self.menu_down_rect = self.menu_down_image.get_rect()
+        self.menu_down_rect.x = self.rect.x
+        self.menu_down_rect.y = self.rect.y
+        self.menu_down_image.fill((255, 255, 255))
+        #self.rect.width = self.menu_down_rect.width
+        #self.rect.height = self.menu_down_rect.height
+        
+        y_offset = self.rect.height
+        for menu_item in self.menu_items.values():
+            self.menu_down_image.blit(menu_item.image, (0, y_offset))
+            y_offset += menu_item.rect.height
+            
+    def add_menu_item(self, menu_item, menu):
+        if menu is None:
+            self.add_menu(menu=menu_item)
+            log.info(f'Adding new menu {menu_item}.')
+        else:
+            log.info(f'Adding menu item {menu_item} to menu {menu}.')
 
     def update(self):
-        log.info('Updated Menu Item')
+        #log.info(f'Menu Items: {self.menu_items.items()}')
+        self.screen.blit(self.image, (self.rect.x, self.rect.y))
+
+        #if self.active:
+        #    if self.menu_image and self.menu_rect:
+        #        log.info('Trying to draw the menu')
+        #        pygame.display.get_surface().blit(self.menu_image, (self.menu_rect.x, self.menu_rect.y))
 
     def add(self, *groups):
         super().add(*groups)
-        log.info(f'Added {groups}')
 
     def remove(self, *groups):
         super().remove(*groups)
 
+    def on_left_mouse_button_up_event(self, event):
+        log.info(f'Mouse Up {self.name}')
+        self.image = self.menu_up_image
+        self.rect = self.menu_up_rect
+        self.active = 0
+        self.dirty = 2
+        self.update()
+        log.info(f'Width: {self.rect.width}, Height: {self.rect.height}')        
+
     def on_left_mouse_button_down_event(self, event):
-        log.info(f'{self.name}')
+        log.info(f'Mouse Down {self.name}')
+        self.image = self.menu_down_image
+        self.rect = self.menu_down_rect
+        self.active = 1
+        self.dirty = 2
+
+        #for menu_item_name, menu_item in self.menu_items.items():
+        #    menu_item = self.menu_items[menu_item_name]
+
+        #if self.menu_image:
+        #    log.info(f'Menu Image: {self.menu_image}')
+        #    log.info(f'Menu Rect: {self.menu_rect}')        
+        self.update()
+        log.info(f'Width: {self.rect.width}, Height: {self.rect.height}')
 
 
 class InputDialog(BitmappySprite):
@@ -1128,8 +1236,14 @@ class BitmapEditorScene(RootScene):
         self.menu_icon = MenuItem(name=None, filename='raspberry.cfg', x=0, y=0, width=16, height=16)
         # When we load the sprite, we set a name.
         self.menu_icon.name = None
+        
         self.file_menu = MenuItem(name='File', width=32, height=16)
-        self.edit_menu = MenuItem(name='Edit', width=32, height=16)        
+        self.save_menu_item = MenuItem(name='Save', width=32, height=16)
+        self.load_menu_item = MenuItem(name='Load', width=32, height=16)
+        self.spacer_menu_item = MenuItem(name='----', width=32, height=16)
+        self.quit_menu_item = MenuItem(name='Quit', width=32, height=16)
+        
+        self.edit_menu = MenuItem(name='Edit', width=32, height=16)   
 
         #print(self.menu_icon)
 
@@ -1137,6 +1251,12 @@ class BitmapEditorScene(RootScene):
         self.menu_bar_sprite.add_menu_item(menu_item=self.menu_icon, menu=None)
         self.menu_bar_sprite.add_menu_item(menu_item=self.file_menu, menu=None)
         self.menu_bar_sprite.add_menu_item(menu_item=self.edit_menu, menu=None)
+
+        self.file_menu.add_menu_item(menu_item=self.save_menu_item, menu=None)
+        self.file_menu.add_menu_item(menu_item=self.load_menu_item, menu=None)
+        self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
+        self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
+        
 
         # We'll use the top left quartile of the screen to draw the canvas.
         # We want a square canvas, so we'll use the height as our input.
@@ -1195,7 +1315,8 @@ class BitmapEditorScene(RootScene):
         self.all_sprites.add(self.green_slider_sprite.text_sprite)
         self.all_sprites.add(self.color_well_sprite)
         self.all_sprites.add(self.color_well_sprite.text_sprite)
-        self.all_sprites.add(self.menu_bar_sprite)        
+        self.all_sprites.add(self.menu_bar_sprite)
+        self.all_sprites.add(self.file_menu)
 
         self.all_sprites.clear(self.screen, self.background)
 

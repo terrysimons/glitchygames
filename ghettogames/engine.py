@@ -429,8 +429,20 @@ def pixels_from_path(path, width, height):
 
     return pixels
 
+# ResourceManager is a singleton, so we can instantiate
+# any ResourceManager subclass from anywhere and ensure
+# only one copy is being used.
 class ResourceManager(object):
-    def __init__(self, game, **kwargs):
+    __instance__ = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance__ is None:
+            cls.__instance__ = object.__new__(cls)
+        cls.__instance__.args = args
+        cls.__instance__.kwargs = kwargs
+        return cls.__instance__    
+    
+    def __init__(self, game, *args, **kwargs):
         super().__init__()
         self.game = game
 
@@ -1776,6 +1788,9 @@ class BitmappySprite(RootSprite):
         # if a width and height is specified, make a surface.
         if filename:
             (self.image, self.rect, self.name) = self.load(filename=filename)
+            self.width = self.rect.width
+            self.height = self.rect.height
+                
         elif self.width and self.height:
             self.image = pygame.Surface((self.width, self.height))
             self.image.convert()
