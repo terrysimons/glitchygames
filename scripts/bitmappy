@@ -14,6 +14,7 @@ import pygame.locals
 
 from ghettogames.color import WHITE, BLACKLUCENT
 from ghettogames.engine import RootSprite, MouseSprite, BitmappySprite
+from ghettogames.engine import SingletonBitmappySprite
 from ghettogames.engine import RootScene, GameEngine, FontManager
 from ghettogames.engine import JoystickManager
 from ghettogames.engine import pixels_from_data, pixels_from_path
@@ -31,7 +32,7 @@ log.addHandler(ch)
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
 
-class MenuBar(BitmappySprite):
+class MenuBar(SingletonBitmappySprite):
     def __init__(self, *args, **kwargs):
         self.background_color = (255, 255, 0)
         self.border_width = 2
@@ -394,7 +395,6 @@ class ColorWellSprite(BitmappySprite):
 
     def add(self, *groups):
         super().add(*groups)
-        import pdb; pdb.set_trace()
         self.text_sprite.add(self.groups())
 
     def remove(self, *groups):
@@ -909,9 +909,10 @@ class TextSprite(RootSprite):
         self.text_color = text_color
         self.alpha = 0
         self.text = text
-        self.font_manager = FontManager(self)
-        self.joystick_manager = JoystickManager(self)
-        self.joystick_count = len(self.joystick_manager.joysticks)
+        log.info(f'Game Options: {GameEngine.OPTIONS}')
+        self.font_manager = FontManager(**GameEngine.OPTIONS)
+        #self.joystick_manager = JoystickManager(game=self)
+        #self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
             def __init__(self, font_controller, x, y, line_height=15, text='Text', text_color=WHITE):
@@ -1486,6 +1487,9 @@ class Game(GameEngine):
 
         #self.register_game_event('save', self.on_save_event)
         #self.register_game_event('load', self.on_load_event)
+        
+        # These are set up in the GameEngine class.
+        log.info(f'Game Options: {Game.OPTIONS}')
 
     @classmethod
     def args(cls, parser):

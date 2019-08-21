@@ -442,13 +442,42 @@ class ResourceManager(object):
         cls.__instance__.kwargs = kwargs
         return cls.__instance__    
     
-    def __init__(self, game, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__()
-        self.game = game
+        self.game = kwargs.get('game', None)
+
+        if not self.game:
+            raise Exception(f'A resource manager ({type(self)}) was created with no game= parameter, or game=None.')
+
+        # TODO: Comment this.
+        # The proxy interface is for being able to call into
+        # other objects when __getattr__ would be called on the resource manager.
+        #
+        # This reduces code size by allowing us to pull __getattr__ into this class.
+        #
+        # Just create a new ResourceManager subclass and set self.proxy_interface to something useful.
+        self.proxy_interface = None
+
+    # For any unimplemented attributes, we'll first try to call out
+    # to the game.  If that fails, we'll try calling the proxy interface.
+    #
+    # In the case of MouseManager, this is pygame.mouse
+    # In the case of KeyboardManager, this is pygame.key
+    def __getattr__(self, attr):
+        error = None
+                
+        try:
+            try:
+                return getattr(self.game, attr)
+            except AttributeError as e:
+                error = e
+                return getattr(self.proxy_interface, attr)
+        except AttributeError:
+            raise error
 
 class FontManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         
         # Register pygame.freetype
         pygame.freetype.init()
@@ -503,8 +532,8 @@ class FontManager(ResourceManager):
         return parser
 
 class MusicManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)        
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     @classmethod
     def args(cls, parser):
@@ -513,8 +542,8 @@ class MusicManager(ResourceManager):
         return parser
 
 class SoundManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
@@ -533,14 +562,14 @@ class SoundManager(ResourceManager):
         return parser
 
 class KeyboardManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-        class KeyboardProxy(object):
-            def __init__(self, game, **kwargs):
-                super().__init__()
-                self.game = game
+        class KeyboardProxy(ResourceManager):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
                 self.keys = {}
+                self.proxy_interface = pygame.key                
 
             def on_key_down_event(self, event):
                 # The KEYUP and KEYDOWN events are
@@ -597,17 +626,17 @@ class KeyboardManager(ResourceManager):
                 self.game.on_key_chord_up_event(event, keys_down)
 
             # This will allow calls to the keyboard which aren't implemented here.
-            def __getattr__(self, attr):
-                error = None
+            #def __getattr__(self, attr):
+            #    error = None
                 
-                try:
-                    try:
-                        return getattr(self.game, attr)
-                    except AttributeError as e:
-                        error = e
-                        return getattr(pygame.key, attr)
-                except AttributeError:
-                    raise error
+            #    try:
+            #        try:
+            #            return getattr(self.game, attr)
+            #        except AttributeError as e:
+            #            error = e
+            #            return getattr(pygame.key, attr)
+            #    except AttributeError:
+            #        raise error
 
         self.keyboard = KeyboardProxy(game=self.game)
 
@@ -618,16 +647,15 @@ class KeyboardManager(ResourceManager):
             raise AttributeError(f'{attr} is not implemented in {type(self.game)}')    
 
 class MouseManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
-        self.game = game
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-        class MouseProxy(object):
-            def __init__(self, game, **kwargs):
-                super().__init__()                
-                self.game = game
+        class MouseProxy(ResourceManager):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
                 self.mouse_state = {}
                 self.mouse_dragging = False
+                self.proxy_interface = pygame.mouse
 
             def on_mouse_motion_event(self, event):
                 self.mouse_state[event.type] = event
@@ -656,26 +684,6 @@ class MouseManager(ResourceManager):
                 self.mouse_state[event.button] = event
 
                 self.game.on_mouse_button_down_event(event)
-
-            # For any unimplemented attributes, we'll first try to call out
-            # to the game.  If that fails, we'll try calling pygame.
-            #
-            # Specifically
-            # on_mouse_chord_up_event
-            # on_mouse_chord_down_event
-            # on_mouse_scroll_up_event
-            # on_mouse_scroll_down_event
-            def __getattr__(self, attr):
-                error = None
-                
-                try:
-                    try:
-                        return getattr(self.game, attr)
-                    except AttributeError as e:
-                        error = e
-                        return getattr(pygame.mouse, attr)
-                except AttributeError:
-                    raise error
         
         self.mouse = MouseProxy(game=self.game)
 
@@ -687,17 +695,16 @@ class MouseManager(ResourceManager):
     
     
 class JoystickManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
-        self.game = game
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.joysticks = []
 
-        class JoystickProxy(object):
+        class JoystickProxy(ResourceManager):
             """Some Joysticks are very slow reading certain attributes such as name, etc.  This fixes that.
             """
-            def __init__(self, game, id):
+            def __init__(self, id, **kwargs):
                 super().__init__()
-                self.game = game
+                self.proxy_interface = self.joystick
                 self._id = id
                 self.joystick = pygame.joystick.Joystick(self._id)
                 self.joystick.init()
@@ -775,20 +782,6 @@ class JoystickManager(ResourceManager):
             def __repr__(self):
                 return repr(self.joystick)
 
-            # For any unimplemented attributes, we'll first try to call out
-            # to the game.  If that fails, we'll try calling pygame.            
-            def __getattr__(self, attr):
-                error = None
-                
-                try:
-                    try:
-                        return getattr(self.game, attr)
-                    except AttributeError as e:
-                        error = e
-                        return getattr(self.joystick, attr)
-                except AttributeError:
-                    raise error
-
         # This must be called before other joystick methods,
         # and is safe to call more than once.
         pygame.joystick.init()
@@ -801,7 +794,7 @@ class JoystickManager(ResourceManager):
 
         for i, joystick in enumerate(joysticks):
             joystick.init()
-            joystick_proxy = JoystickProxy(game=self.game, id=joystick.get_id())
+            joystick_proxy = JoystickProxy(id=joystick.get_id(), game=self.game)
             self.joysticks.append(joystick_proxy)
 
             # The joystick proxy overrides the joystick object
@@ -848,46 +841,14 @@ class JoystickManager(ResourceManager):
         log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
         self.joysticks[event.joy].on_ball_motion_event(event)
 
-# NB: Do we even need this, really?
-class InputManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
-        self.game = game
-        self.joystick_manager = JoystickManager(game, **kwargs)
-        self.keyboard_manager = KeyboardManager(game, **kwargs)
-        self.mouse_manager = MouseManager(game, **kwargs)
-
-    @classmethod
-    def args(cls, parser):
-        group = parser.add_argument_group('Input Options')
-
-        return parser
-
     
 class GameManager(ResourceManager):
-    def __init__(self, game, **kwargs):
-        super().__init__(game, **kwargs)
-        self.game = game
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         
-        class GameProxy(object):
-            def __init__(self, game, **kwargs):
-                super().__init__()
-                self.game = game
-
-            # For any unimplemented attributes, we'll first try to call out
-            # to the game.  If that fails, we'll try calling pygame.  If
-            # that fails, then we'll surface the error from the game access error.
-            def __getattr__(self, attr):
-                error = None
-                
-                try:
-                    try:
-                        return getattr(self.game, attr)
-                    except AttributeError as e:
-                        error = e
-                        return getattr(pygame, attr)
-                except AttributeError:
-                    raise error
+        class GameProxy(ResourceManager):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
 
         self.game = GameProxy(game=self.game)
 
@@ -909,8 +870,17 @@ class GameEngine(object):
     FPSEVENT = pygame.USEREVENT + 1
     GAMEEVENT = pygame.USEREVENT + 2
     FPS = 0
+    OPTIONS = None
+    __instance__ = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance__ is None:
+            cls.__instance__ = object.__new__(cls)
+        cls.__instance__.args = args
+        cls.__instance__.kwargs = kwargs
+        return cls.__instance__
     
-    def __init__(self, options=None):
+    def __init__(self, options=dict()):
         # General stuff.
         self.cpu_count = multiprocessing.cpu_count()
         self.system = platform.system()
@@ -950,14 +920,21 @@ class GameEngine(object):
 
         self.clock = pygame.time.Clock()
 
-        self.font_manager = FontManager(self, **options)
-        self.sound_manager = SoundManager(self, **options)
-        self.music_manager = MusicManager(self, **options)
-        self.input_manager = InputManager(self, **options)
-        self.joystick_manager = self.input_manager.joystick_manager
-        self.keyboard_manager = self.input_manager.keyboard_manager
-        self.mouse_manager = self.input_manager.mouse_manager
-        self.game_manager = GameManager(self, **options)
+        # Persist this game's options.
+        GameEngine.OPTIONS = options
+
+        # Add a copy of ourselves to this singleton's options.
+        #
+        # This makes getting a handle to the running game easy.
+        GameEngine.OPTIONS['game'] = self
+
+        self.font_manager = FontManager(**GameEngine.OPTIONS)
+        self.sound_manager = SoundManager(**GameEngine.OPTIONS)
+        self.music_manager = MusicManager(**GameEngine.OPTIONS)
+        self.joystick_manager = JoystickManager(**GameEngine.OPTIONS)
+        self.keyboard_manager = KeyboardManager(**GameEngine.OPTIONS)
+        self.mouse_manager = MouseManager(**GameEngine.OPTIONS)
+        self.game_manager = GameManager(**GameEngine.OPTIONS)
         self.registered_events = {}
 
         # Get count of joysticks
@@ -1948,7 +1925,26 @@ class BitmappySprite(RootSprite):
 
         return config
 
-class MouseSprite(BitmappySprite):
+# This is a root class for sprites that should be singletons, like
+# the MenuBar class, and the MouseSprite class.
+class SingletonBitmappySprite(BitmappySprite):
+    __instance__ = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance__ is None:
+            cls.__instance__ = object.__new__(cls)
+        cls.__instance__.args = args
+        cls.__instance__.kwargs = kwargs
+        return cls.__instance__
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+# We're making this a singleton class becasue
+# pygame doesn't understand multiple cursors
+# and so there is only ever 1 x/y coordinate sprite
+# for the mouse at any given time.
+class MouseSprite(SingletonBitmappySprite):
     def __init__(self, *args, **kwargs):
         self.x = kwargs.get('x')
         self.y = kwargs.get('y')
