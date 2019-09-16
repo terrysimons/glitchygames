@@ -22,10 +22,10 @@ from ghettogames.engine import image_from_pixels
 from ghettogames.engine import rgb_triplet_generator
 
 log = logging.getLogger('game')
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.DEBUG)
 
 log.addHandler(ch)
 
@@ -34,12 +34,13 @@ BitmappySprite.DEBUG = True
 
 class MenuBar(SingletonBitmappySprite):
     def __init__(self, *args, **kwargs):
-        self.background_color = (255, 255, 0)
+        self.background_color = (255, 0, 255)
         self.border_width = 2
         self.menu_items = {}
         self.menu_offset_x = self.border_width
         self.menu_offset_y = self.border_width
         self.all_sprites = pygame.sprite.LayeredDirty()
+        self.has_focus = False        
         super().__init__(*args, **kwargs)        
 
         pygame.draw.rect(self.image, (255, 255, 255), self.rect)
@@ -59,22 +60,70 @@ class MenuBar(SingletonBitmappySprite):
     def add_menu_item(self, menu_item, menu):
         if menu is None:
             self.add_menu(menu=menu_item)
-            log.info(f'Adding new menu {menu_item}.')
+            log.info(f'{type(self)} Adding new menu {menu_item}.')
         else:
-            log.info(f'Adding menu item {menu_item} to menu {menu}.')
+            log.info(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
 
         self.dirty = 1
 
-    def update(self):        
+    def update(self):
         for menu_item_name, menu_item in self.menu_items.items():
             menu_item = self.menu_items[menu_item_name]
             self.image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))
+
+        if self.has_focus:
+            pygame.draw.rect(self.image, (255, 255, 0), self.rect, 1)
 
     def add(self, *groups):
         super().add(*groups)
 
     def remove(self, *groups):
         super().remove(*groups)
+
+    def on_mouse_motion_event(self, event):
+        log.info(f'{type(self)} MOUSE MOVE {self.name}')
+
+    def on_mouse_enter_event(self, event):
+        log.info(f'{type(self)} ENTER MENU {self.name}')
+        # Figure out which item was entered.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'{type(self)} {self.name} Mouse enter on {self.name} at {mouse}')                
+                collided_sprite.on_mouse_enter_event(event)
+
+                for menu_item in collided_sprite.menu_items:
+                    collided_sprite.menu_items[menu_item].on_mouse_enter_event(event)
+                    
+        self.has_focus = True
+        self.dirty = 1
+       
+
+    def on_mouse_exit_event(self, event):
+        # Figure out which item was entered.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'{type(self)} {self.name} Mouse exit on {self.name} at {mouse}')                                
+                collided_sprite.on_mouse_exit_event(event)
+
+                for menu_item in collided_sprite.menu_items:
+                    collided_sprite.menu_items[menu_item].on_mouse_exit_event(event)
+
+        self.has_focus = False
+        self.dirty = 1
 
     def on_left_mouse_button_down_event(self, event):
         # Figure out which item was clicked.
@@ -87,17 +136,36 @@ class MenuBar(SingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
+                log.info(f'{type(self)} Mouse button down on {self.name} at {mouse}')                                
                 collided_sprite.on_left_mouse_button_down_event(event)
+
+                #for menu_item in collided_sprite.menu_items:
+                #    collided_sprite.menu_items[menu_item].on_left_mouse_button_down_event(event)                
 
         self.dirty = 1            
 
     def on_left_mouse_button_up_event(self, event):
-        log.info(f'Mouse button up on menu.')
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'{type(self)} {self.name} Mouse button down on {self.name} at {mouse}')                                                
+                collided_sprite.on_left_mouse_button_down_event(event)
+
+                #for menu_item in collided_sprite.menu_items:
+                #    collided_sprite.menu_items[menu_item].on_left_mouse_button_up_event(event)
+
+        self.dirty = 1
 
 
 class MenuItem(BitmappySprite):
     def __init__(self, *args, **kwargs):
-        self.background_color = (255, 255, 255)
+        self.background_color = (0, 255, 255)
         self.border_width = 2
         self.menu_items = {}
         self.menu_offset_x = self.border_width
@@ -171,18 +239,25 @@ class MenuItem(BitmappySprite):
         self.menu_down_image.fill((255, 255, 255))
         #self.rect.width = self.menu_down_rect.width
         #self.rect.height = self.menu_down_rect.height
+
+        # Put ourselves at the top of the list.
+        self.menu_down_image.blit(self.image, (0, self.rect.y))
         
         y_offset = self.rect.height
-        for menu_item in self.menu_items.values():
-            self.menu_down_image.blit(menu_item.image, (0, y_offset))
+        for menu_name in self.menu_items:
+            menu_item = self.menu_items[menu_name]
+            menu_item.rect.y = y_offset
+            #menu_item.rect.width = menu_item.text.width
+            #menu_item.rect.height = menu_item.text.height
+            self.menu_down_image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))      
             y_offset += menu_item.rect.height
             
     def add_menu_item(self, menu_item, menu):
         if menu is None:
             self.add_menu(menu=menu_item)
-            log.info(f'Adding new menu {menu_item}.')
+            log.info(f'{type(self)} Adding new menu {menu_item}.')
         else:
-            log.info(f'Adding menu item {menu_item} to menu {menu}.')
+            log.info(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
 
     def update(self):
         #log.info(f'Menu Items: {self.menu_items.items()}')
@@ -199,30 +274,129 @@ class MenuItem(BitmappySprite):
     def remove(self, *groups):
         super().remove(*groups)
 
+    def on_mouse_motion_event(self, event):
+        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        #log.info(f'{type(self)} MOUSE ITEM MOVE {self.name} at {mouse.rect}')
+
+        #for menu_name in self.menu_items:
+        #    menu_item = self.menu_items[menu_name]
+            #log.info(f'{menu_item.name} @ {menu_item.rect} mouse @ {mouse.rect}')
+
+        for collided_sprite in collided_sprites:
+            if collided_sprite.name in self.menu_items:
+                log.info(f'Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}')                
+                collided_sprite.on_mouse_motion_event(event)
+
+                #for submenu in collided_sprite.menu_items:
+                #    submenu.on_mouse_motion_event(event)
+                
+        self.has_focus = False
+        self.dirty = 1        
+
+    def on_mouse_enter_event(self, event):
+        log.info(f'{type(self)} ENTER MENU {self.name}')
+        # Figure out which item was entered.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}')                
+                collided_sprite.on_mouse_enter_event(event)
+
+                for submenu in collided_sprite.menu_items:
+                    submenu.on_mouse_enter_event(event)
+       
+        self.has_focus = True
+        self.dirty = 1
+       
+
+    def on_mouse_exit_event(self, event):
+        # Figure out which item was entered.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'Mouse exit on {collided_sprite.name} {collided_sprite.rect} at {mouse}')                                
+                collided_sprite.on_mouse_exit_event(event)
+
+                #for submenu in collided_sprite.menu_items:
+                #    submenu.on_mouse_enter_event(event)                                
+
+        self.has_focus = False
+        self.dirty = 1        
+
     def on_left_mouse_button_up_event(self, event):
-        log.info(f'Mouse Up {self.name}')
+        log.info(f'{type(self)} Mouse Up {self.name}')
         self.image = self.menu_up_image
         self.rect = self.menu_up_rect
         self.active = 0
         self.dirty = 2
         self.update()
-        log.info(f'Width: {self.rect.width}, Height: {self.rect.height}')        
+
+        # Figure out which item was clicked.
+        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
+
+        log.info(f'Process MOUSE UP {event} at {mouse}')
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                #log.info(f'Mouse button up on {collided_sprite.name} at {mouse.rect}')
+
+                log.info(f'{type(self)} Clicked Menu Item: Name: {collided_sprite.name}, Width: {collided_sprite.rect.width}, Height: {collided_sprite.rect.height}, Clicked X: {mouse.x}, Clicked Y: {mouse.y}, my X: {collided_sprite.rect.x}, my Y: {collided_sprite.rect.y}')
+                #menu_item_callback = collided_sprite.callbacks.get('on_menu_item_event', None)
+                
+                #if menu_item_callback:
+                #    menu_item_callback(self, event)
+                # Create a menu item clicked event.
+                # Emit it to the pygame event subsystem.
+                pygame.event.post(
+                    pygame.event.Event(GameEngine.MENUEVENT, {'menu': self, 'menu_item': collided_sprite})
+                )
+                #self.game.on_menu_item_clicked_event()
+
+        self.dirty = 1
 
     def on_left_mouse_button_down_event(self, event):
-        log.info(f'Mouse Down {self.name}')
+        log.info(f'{type(self)} Mouse Down {self.name}')
         self.image = self.menu_down_image
         self.rect = self.menu_down_rect
         self.active = 1
         self.dirty = 2
 
-        #for menu_item_name, menu_item in self.menu_items.items():
-        #    menu_item = self.menu_items[menu_item_name]
-
-        #if self.menu_image:
-        #    log.info(f'Menu Image: {self.menu_image}')
-        #    log.info(f'Menu Rect: {self.menu_rect}')        
         self.update()
-        log.info(f'Width: {self.rect.width}, Height: {self.rect.height}')
+        
+        # Figure out which item was clicked.
+        mouse = MouseSprite(x=event.pos[0],y=event.pos[1] , width=1, height=1)
+
+        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+        for collided_sprite in collided_sprites:
+            # Click the menu item.
+            #
+            # Don't click sub menus.
+            if collided_sprite.name in self.menu_items:
+                log.info(f'{type(collided_sprite)} Mouse button down on {collided_sprite.name} at {mouse.rect}') 
+                collided_sprite.on_left_mouse_button_down_event(event)
+
+        self.dirty = 1            
 
 
 class InputDialog(BitmappySprite):
@@ -670,7 +844,7 @@ class CanvasSprite(BitmappySprite):
                 self.on_pixel_update_event(event)
                 self.update()
 
-            def on_mouse_drag_down_event(self, event, trigger):
+            def on_left_mouse_drag_down_event(self, event, trigger):
                 # There's not a good way to pass any useful info, so for now, pass None
                 # since we're not using the event for anything in this class.
                 self.on_left_mouse_button_down_event(None)
@@ -742,7 +916,7 @@ class CanvasSprite(BitmappySprite):
         #    log.info('pass')
             pass
         else:
-            print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}, {self.pixel_boxes[trigger.pixel_number].pixel_color} -> {trigger.pixel_color}')            
+            #print(f'Pixel Update: {event}, {trigger} Pixel Number: {trigger.pixel_number}, {self.pixel_boxes[trigger.pixel_number].pixel_color} -> {trigger.pixel_color}')            
             self.pixel_boxes[trigger.pixel_number].pixel_color = trigger.pixel_color            
             self.pixel_boxes[trigger.pixel_number].dirty = 1
             self.pixel_boxes[trigger.pixel_number].update()
@@ -829,7 +1003,10 @@ class CanvasSprite(BitmappySprite):
     #def on_right_mouse_button_up_event(self, event):
     #    log.info(f'Right Mouse Up: {event}')
 
-    def on_mouse_drag_down_event(self, event, trigger):
+    def on_mouse_motion_event(self, event):
+        pass
+
+    def on_left_mouse_drag_down_event(self, event, trigger):
         # TODO: Mask out right and left.
         self.on_left_mouse_button_down_event(event)
 
@@ -903,16 +1080,95 @@ class CanvasSprite(BitmappySprite):
         self.dirty = 1
         self.update()
 
+# Wants:
+#
+# Pass in font config, and text.
+# Get back image, rect.
+
+class NewTextSprite(RootSprite):
+    DEFAULT_FONT_SETTINGS = {
+        'font_name': pygame.freetype.get_default_font(),
+        'font_size': 12,
+        'font_bold': False,
+        'font_italic': False,
+        'font_antialias': False,
+        'font_dpi': 72
+    }
+
+    def __init__(self, background_color=BLACKLUCENT, text_color=WHITE, alpha=0.0, text='Text', font_settings=dict()):
+        self.background_color = background_color
+        self.text_color = text_color
+        self.alpha = alpha
+        self.text = text
+
+        # Start with the defaults.
+        self.font_settings = self.DEFAULT_FONT_SETTINGS
+
+        # If new settings were passed in, use them.
+        if font_settings:
+            for key, value in font_settings.items():
+                self.font_settings[key] = value
+
+        self.font_name = self.font_settings.get('font_name')
+        self.font_size = self.font_settings.get('font_size')
+        self.font_dpi = self.font_settings.get('font_dpi')
+
+        self.font = pygame.freetype.SysFont(name=self.font_name,
+                                            size=self.font_size)
+        self._image = None
+        self._rect = None
+
+        class TextBox(object):
+            def __init__(self, font_controller, x, y, line_height=15, text='Text', text_color=WHITE):
+                self.image = None
+                self.rect = None
+                self.start_x = x
+                self.start_y = y
+                self.line_height = line_height
+                self.text_color = text_color
+
+                super().__init__()
+
+
+                pygame.freetype.set_default_resolution(font_controller.font_dpi)
+                self.font = pygame.freetype.SysFont(name=font_controller.font,
+                                                    size=font_controller.font_size)
+
+            def print(self, surface, string):
+                (self.image, self.rect) = self.font.render(string, self.text_color)
+
+                surface.blit(self.image, (self.x, self.y))
+                self.rect.x = self.x
+                self.rect.y = self.y
+                self.y += self.line_height
+
+            def reset(self):
+                self.x = self.start_x
+                self.y = self.start_y
+
+            def indent(self):
+                self.x += 10
+
+            def unindent(self):
+                self.x -= 10        
+
+        super().__init__()
+
+    @property
+    def image(self):
+        return self._image
+
+    @property
+    def rect(self):
+        return self._rect
+
 class TextSprite(RootSprite):
     def __init__(self, *args, background_color=BLACKLUCENT, text_color=WHITE, alpha=0, text='Text', **kwargs):
         self.background_color = background_color
         self.text_color = text_color
         self.alpha = 0
         self.text = text
-        log.info(f'Game Options: {GameEngine.OPTIONS}')
         self.font_manager = FontManager(**GameEngine.OPTIONS)
-        #self.joystick_manager = JoystickManager(game=self)
-        #self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
             def __init__(self, font_controller, x, y, line_height=15, text='Text', text_color=WHITE):
@@ -1043,7 +1299,7 @@ class SliderSprite(BitmappySprite):
                 self.update()
                 super().on_left_mouse_button_down_event(event)
 
-            def on_mouse_drag_down_event(self, event, trigger):
+            def on_left_mouse_drag_down_event(self, event, trigger):
                 # There's not a good way to pass any useful info, so for now, pass None
                 # since we're not using the event for anything in this class.
                 self.on_left_mouse_button_down_event(event)
@@ -1128,7 +1384,7 @@ class SliderSprite(BitmappySprite):
         self.update()
         super().on_left_mouse_button_down_event(event)
 
-    def on_mouse_drag_down_event(self, event, trigger):
+    def on_left_mouse_drag_down_event(self, event, trigger):
         self.dirty = 1
         self.on_left_mouse_button_down_event(event)
         # There's not a good way to pass any useful info, so for now, pass None
@@ -1227,8 +1483,6 @@ class BitmapEditorScene(RootScene):
 
         self.all_sprites = pygame.sprite.LayeredDirty()
 
-        #self.scroll_bar_sprite = ScrollBarSprite(name='File List', x=0, y=0, width=20, height=300)
-
         self.menu_bar_sprite = MenuBar(name='Menu Bar', x=0, y=0, width=self.screen_width, height=20)
 
         log.info('Rect is: %s' % self.menu_bar_sprite.rect)
@@ -1239,14 +1493,12 @@ class BitmapEditorScene(RootScene):
         self.menu_icon.name = None
         
         self.file_menu = MenuItem(name='File', width=32, height=16)
-        self.save_menu_item = MenuItem(name='Save', width=32, height=16)
-        self.load_menu_item = MenuItem(name='Load', width=32, height=16)
-        self.spacer_menu_item = MenuItem(name='----', width=32, height=16)
-        self.quit_menu_item = MenuItem(name='Quit', width=32, height=16)
+        self.save_menu_item = MenuItem(name='Save', width=40, height=16)
+        self.load_menu_item = MenuItem(name='Load', width=40, height=16)         
+        self.spacer_menu_item = MenuItem(name='----', width=40, height=16)
+        self.quit_menu_item = MenuItem(name='Quit', width=40, height=16)
         
         self.edit_menu = MenuItem(name='Edit', width=32, height=16)   
-
-        #print(self.menu_icon)
 
         # Add the menu icon as a root level menu item.
         self.menu_bar_sprite.add_menu_item(menu_item=self.menu_icon, menu=None)
@@ -1264,21 +1516,6 @@ class BitmapEditorScene(RootScene):
         self.canvas_sprite = CanvasSprite(name='Bitmap Canvas', x=0, y=self.menu_bar_sprite.rect.bottom + 10, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75))
         self.canvas_sprite.add(self.all_sprites)
         
-        #self.new_button_sprite = ButtonSprite(name='New', x=self.screen_width - self.button_width, y=219, width=self.button_width, height=20)
-        #self.new_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_new_file_event}
-
-        self.save_button_sprite = ButtonSprite(name='Save', x=self.screen_width - self.button_width, y=249, width=self.button_width, height=20)
-
-        self.save_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_save_dialog_event}
-
-        self.load_button_sprite = ButtonSprite(name='Load', x=self.screen_width - self.button_width, y=279, width=self.button_width, height=20)
-
-        self.load_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_load_dialog_event}
-
-        self.quit_button_sprite = ButtonSprite(name='Quit', x=self.screen_width - self.button_width, y=309, width=self.button_width, height=20)
-
-        self.quit_button_sprite.callbacks = {'on_left_mouse_button_up_event': self.on_quit_event}
-
         self.red_slider_sprite = LabeledSliderSprite(name='R', x=0, y=self.screen_height - 70, width=256, height=10)
 
         self.red_slider_sprite.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
@@ -1302,12 +1539,6 @@ class BitmapEditorScene(RootScene):
 
         self.canvas_sprite.active_color = (self.red, self.green, self.blue)
 
-
-        # Change this?
-        #self.all_sprites.add(self.new_button_sprite)
-        self.all_sprites.add(self.save_button_sprite)
-        self.all_sprites.add(self.load_button_sprite)
-        self.all_sprites.add(self.quit_button_sprite)
         self.all_sprites.add(self.red_slider_sprite)
         self.all_sprites.add(self.red_slider_sprite.text_sprite)
         self.all_sprites.add(self.blue_slider_sprite)
@@ -1330,20 +1561,38 @@ class BitmapEditorScene(RootScene):
     def switch_to_scene(self, next_scene):
         super().switch_to_scene(next_scene)
 
-    def on_new_file_event(self, event, trigger):
-        log.info(f'New File: event: {event}, trigger: {trigger}')
-        self.canvas_sprite.on_new_file_event(event, trigger)
+    def on_menu_item_event(self, event):
+        log.info(f'Scene got menu item event: {event}')
+        if not event.menu.name:
+            # This is for the system menu.
+            log.info('System Menu Clicked')
+        else:
+            if event.menu.name == 'File':
+                log.info('File Menu Clicked')
+                if event.menu_item.name == 'Save':
+                    self.on_save_dialog_event(event)
+                elif event.menu_item.name == 'Load':
+                    self.on_load_dialog_event(event)
+                elif event.menu.name == 'Quit':
+                    pygame.quit()
+            elif event.menu.name == 'Edit':
+                log.info('Edit Menu Clicked')
+            else:
+                raise Exception(f'Unhandled Menu Item: {event}')
 
-    def on_load_dialog_event(self, event, trigger):
+    def on_new_file_event(self, event):
+        self.canvas_sprite.on_new_file_event(event)
+
+    def on_load_dialog_event(self, event):
         self.next = LoadDialogScene(previous_scene=self)
 
-    def on_save_dialog_event(self, event, trigger):
+    def on_save_dialog_event(self, event):
         self.next = SaveDialogScene(previous_scene=self)
 
     def on_slider_event(self, event, trigger):
         value = trigger.value
 
-        log.info(f'Slider: event: {event}, trigger: {trigger} value: {value}')                    
+        log.debug(f'Slider: event: {event}, trigger: {trigger} value: {value}')                    
 
         if value < 0:
             value = 0
@@ -1375,11 +1624,7 @@ class BitmapEditorScene(RootScene):
             self.blue_slider_sprite.dirty = 1
             self.blue_slider_sprite.update()        
             self.blue_slider_sprite.text_sprite.dirty = 1
-            self.blue_slider_sprite.text_sprite.update()                            
-
-            
-        #else:
-
+            self.blue_slider_sprite.text_sprite.update()
 
         self.canvas_sprite.active_color = (self.red, self.green, self.blue)
         self.canvas_sprite.dirty = 2
@@ -1399,9 +1644,6 @@ class BitmapEditorScene(RootScene):
         # n new bitmap
         # l load bitmap
         # s save bitmap
-        pass
-
-    def on_key_down_event(self, event):
         pass
 
     def on_right_mouse_button_down_event(self, event):
@@ -1429,7 +1671,6 @@ class BitmapEditorScene(RootScene):
         except IndexError:
             pass
         
-
    # def on_left_mouse_button_down_event(self, event):
         # Check for a sprite collision against the mouse pointer.
         #
@@ -1535,11 +1776,11 @@ class Game(GameEngine):
 
             self.active_scene = self.active_scene.next
 
-    def on_key_up_event(self, event):
-        self.active_scene.on_key_up_event(event)
+    #def on_key_up_event(self, event):
+    #    self.active_scene.on_key_up_event(event)
 
         # Process normal key events like q/ESCAPE for quit via engine.
-        super().on_key_up_event(event)
+        #super().on_key_up_event(event)
 
         # KEYUP            key, mod
         #if event.key == pygame.K_q:

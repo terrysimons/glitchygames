@@ -11,7 +11,9 @@ import pygame.locals
 from pygame import Rect
 
 from ghettogames.engine import RootScene, GameEngine, FontManager, JoystickManager
-from ghettogames.color import *
+from ghettogames.engine import RootSprite
+from ghettogames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
+from ghettogames.color import PURPLE, WHITE
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
@@ -21,9 +23,9 @@ ch.setLevel(logging.DEBUG)
 
 log.addHandler(ch)
 
-    
-class ShapesSprite(pygame.sprite.DirtySprite):
-    def __init__(self):
+
+class ShapesSprite(RootSprite):
+    def __init__(self, *args, **kwargs):
         super().__init__()
         self.use_gfxdraw = True
 
@@ -38,18 +40,18 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         self.point = None
         self.circle = None
         self.triangle = None
- 
+
         self._draw_point()
-        self._draw_triangle()        
+        self._draw_triangle()
         self._draw_circle()
-        self._draw_rectangle()       
+        self._draw_rectangle()
 
         self.update()
 
     def move(self, pos):
         self.rect.center = pos
         self.dirty = 1
-            
+
     def update(self):
         self.dirty = 1
 
@@ -59,28 +61,35 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         # it with the line API.
         if self.use_gfxdraw:
             pygame.gfxdraw.pixel(self.screen,
-                                 self.screen_width//2,
-                                 self.screen_height//2,
+                                 self.screen_width // 2,
+                                 self.screen_height // 2,
                                  YELLOW)
 
-            self.point = (self.screen_width//2, self.screen_height//2)
+            self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
             self.point = pygame.draw.line(self.screen,
                                           YELLOW,
-                                          (self.screen_width//2, self.screen_height//2),
-                                          (self.screen_width//2, self.screen_height//2))    
+                                          (self.screen_width // 2, self.screen_height // 2),
+                                          (self.screen_width // 2, self.screen_height // 2))
 
     def _draw_circle(self):
         # Draw a blue circle.
         if self.use_gfxdraw:
-            circle = pygame.gfxdraw.circle(self.screen, self.screen_width//2, self.screen_height//2, self.screen_height//2, BLUE)
+            pygame.gfxdraw.circle(self.screen,
+                                  self.screen_width // 2,
+                                  self.screen_height // 2,
+                                  self.screen_height // 2,
+                                  BLUE)
         else:
-            circle = pygame.draw.circle(self.screen, BLUE, (self.screen_width//2, self.screen_height//2), self.screen_height//2, 1)        
+            pygame.draw.circle(self.screen,
+                               BLUE,
+                               (self.screen_width // 2, self.screen_height // 2),
+                               self.screen_height // 2, 1)
 
     def _draw_triangle(self):
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
-        x1 = self.screen_width//2
+        x1 = self.screen_width // 2
         y1 = 0
         x2 = self.rectangle.bottomleft[0]
         y2 = self.rectangle.bottomleft[1] - 1
@@ -94,10 +103,10 @@ class ShapesSprite(pygame.sprite.DirtySprite):
 
         if self.use_gfxdraw:
             pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)
-                
+
             # You could also use:
             # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, GREEN)
-            
+
             self.triangle = pointlist
         else:
             self.triangle = pygame.draw.polygon(self.screen, GREEN, pointlist, 1)
@@ -105,7 +114,7 @@ class ShapesSprite(pygame.sprite.DirtySprite):
     @property
     def rectangle(self):
         rect = Rect(0, 0, self.screen_height, self.screen_height)
-        rect.center = (self.screen_width/2, self.screen_height/2)
+        rect.center = (self.screen_width / 2, self.screen_height / 2)
 
         return rect
 
@@ -115,22 +124,21 @@ class ShapesSprite(pygame.sprite.DirtySprite):
         # Do not use width=1, use 1 instead.
         if self.use_gfxdraw:
             pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
-            #log.info(f'gfxdraw rectangle: {self.rectangle}')
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
-            #log.info(f'pygame rectangle: {self.rectangle}')
-        
 
-class TextSprite(pygame.sprite.DirtySprite):
+
+class TextSprite(RootSprite):
     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
-        super().__init__()
         self.background_color = background_color
         self.alpha = alpha
         self.x = x
         self.y = y
-        
+        self.text_box = None
+        super().__init__()
+
         # Quick and dirty, for now.
-        self.image = pygame.Surface((1024, 768))
+        self.image = pygame.Surface((200, 200))
         self.screen = pygame.display.get_surface()
 
         if not alpha:
@@ -154,12 +162,12 @@ class TextSprite(pygame.sprite.DirtySprite):
             # on the text than the window.
             self.image.convert_alpha()
             self.image.set_alpha(self.alpha)
-            
+
         self.rect = self.image.get_rect()
         self.rect.x += x
         self.rect.y += y
-        self.font_manager = FontManager(self)
-        self.joystick_manager = JoystickManager(self)
+        self.font_manager = FontManager()
+        self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
@@ -170,7 +178,7 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.start_x = x
                 self.start_y = y
                 self.line_height = line_height
-                
+
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
@@ -182,14 +190,14 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.rect.x = self.x
                 self.rect.y = self.y
                 self.y += self.line_height
-        
+
             def reset(self):
                 self.x = self.start_x
                 self.y = self.start_y
-                
+
             def indent(self):
                 self.x += 10
-        
+
             def unindent(self):
                 self.x -= 10
 
@@ -199,64 +207,65 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
         self.update()
-        
+
     def update(self):
         self.dirty = 2
         self.image.fill(self.background_color)
 
-        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)        
+        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
 
         self.text_box.reset()
         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
 
         self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
-        
+
         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count) )        
+        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count))
         if self.joystick_count:
             for i, joystick in enumerate(self.joystick_manager.joysticks):
                 self.text_box.print(self.image, f'Joystick {i}')
-                
+
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
                 self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
-        
+
                 # Usually axis run in pairs, up/down for one, and left/right for
                 # the other.
                 axes = joystick.get_numaxes()
                 self.text_box.print(self.image, f'Number of axes: {axes}')
-                
-                self.text_box.indent()                
+
+                self.text_box.indent()
                 for i in range(axes):
                     self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
                 self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
-                
+
                 self.text_box.indent()
                 for i in range(buttons):
                     self.text_box.print(self.image, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
                 self.text_box.unindent()
-            
+
                 # Hat switch. All or nothing for direction, not like joysticks.
                 # Value comes back in an array.
                 hats = 0
                 self.text_box.print(self.image, f'Number of hats: {hats}')
-                
+
                 self.text_box.indent()
                 for i in range(hats):
-                    self.text_box.print(self.image, f'Hat {hat} value: {str(joystick.get_hat(i))}')
+                    self.text_box.print(self.image, f'Hat {i} value: {str(joystick.get_hat(i))}')
                     self.text_box.unindent()
                 self.text_box.unindent()
+
 
 class AdventureScene(RootScene):
     def __init__(self):
         super().__init__()
         self.tiles = []
 
-        #self.load_resources()        
+        # self.load_resources()
         self.shapes_sprite = ShapesSprite()
         self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
@@ -267,17 +276,18 @@ class AdventureScene(RootScene):
             )
         )
 
-        self.all_sprites.clear(self.screen, self.background)                
-
-        #self.load_resources()
+        self.all_sprites.clear(self.screen, self.background)
+        # self.load_resources()
 
     def load_resources(self):
         # Load tiles.
-        for resource in glob.iglob('resources/*', recursive=True):
-            try:
-                self.tiles.append(load_graphic(resource))
-            except IsADirectoryError:
-                pass        
+        pass
+        # NOTE: This is broken and needs to be fixed.
+        # for resource in glob.iglob('resources/*', recursive=True):
+        #     try:
+        #         self.tiles.append(load_graphic(resource))
+        #     except IsADirectoryError:
+        #         pass
 
     def update(self):
         super().update()
@@ -288,98 +298,88 @@ class AdventureScene(RootScene):
         x = 0
         y = 0
         tiles_across = 640 / 32
-        tiles_down = 480 / 32
+        # tiles_down = 480 / 32
         for i, graphic in enumerate(self.tiles):
-            rect = screen.blit(graphic, (x, y))
+            screen.blit(graphic, (x, y))
             if i % tiles_across == 0:
                 x = 0
                 y += 32
             else:
-                x += 32        
-        
+                x += 32
 
     def switch_to_scene(self, next_scene):
         super().switch_to_scene(next_scene)
 
     def on_mouse_motion_event(self, event):
-        self.shapes_sprite.move(event.pos)                
-
-    #def on_mouse_motion_event(self, event):
-        # MOUSEMOTION      pos, rel, buttons
-        #super().on_mouse_motion_event(event)
-        #print('GOT MOUSE MOTION')
-        #self.shapes_sprite.move(event.pos)
+        self.shapes_sprite.move(event.pos)
 
     def on_left_mouse_button_up(self, event):
-        #super().on_left_mouse_button_up(event)
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
-        
+
     def on_left_mouse_button_down(self, event):
-        #super().on_left_mouse_button_down(event)
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
     def on_pew_pew_event(self, event):
         log.info(f'PEW PEW Event: {event}')
 
     def on_recharge_event(self, event):
-        log.info(f'Recharge Event: {event}')        
+        log.info(f'Recharge Event: {event}')
 
-    
+
 class Game(GameEngine):
     # Set your game name/version here.
     NAME = "Adventure Tale"
     VERSION = "0.0"
-    
+
     def __init__(self, options):
         super().__init__(options=options)
-        self.time = options.get('time')        
-        
+        self.time = options.get('time')
+
         # TODO:
         # Write an FPS layer that uses time.ns_time()
-        
+
         # Hook up pygame.display.get_active()
         # ACTIVEEVENT on the eventqueue
 
         # Hook up pygame.display.toggle_fullscreen()
         # Only available on X11
         # Setting a new displaymode will also allow this behavior on other OSes.
-        
+
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         #
         # (0, 0), 0, 0 is the recommended setting for auto-configure.
-       # if self.windowed:
-       #     self.mode_flags = 0
-       # else:
-       #     self.mode_flags = pygame.FULLSCREEN 
-       #     self.screen_width = 0
-       #     self.screen_height = 0
-       # self.color_depth = 0
-
+        # if self.windowed:
+        #     self.mode_flags = 0
+        # else:
+        #     self.mode_flags = pygame.FULLSCREEN
+        #     self.screen_width = 0
+        #     self.screen_height = 0
+        # self.color_depth = 0
 
         # Uncomment to easily block a class of events, if you
         # don't want them to be processed by the event queue.
         #
-        #pygame.event.set_blocked(self.mouse_events)
-        #pygame.event.set_blocked(self.joystick_events)
-        #pygame.event.set_blocked(self.keyboard_events)
+        # pygame.event.set_blocked(self.mouse_events)
+        # pygame.event.set_blocked(self.joystick_events)
+        # pygame.event.set_blocked(self.keyboard_events)
 
         # Let's hook up the 'pew pew' event.
-        #self.register_game_event('pew pew', self.on_pew_pew_event)
+        # self.register_game_event('pew pew', self.on_pew_pew_event)
 
         # And the recharge event.
-        #self.register_game_event('recharge', self.on_recharge_event)
+        # self.register_game_event('recharge', self.on_recharge_event)
 
     def update_cursor(self):
         # For giggles, we can draw two cursors.
         # This can cause extra flicker on the cursor.
-        # 
+        #
         # We need to re-configure the various cursor attributes once we do this.
         self.cursor = [cursor_row for cursor_row in self.cursor]
         self.cursor_width = len(self.cursor[0])
         self.cursor_height = len(self.cursor)
-        
+
         log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
-        
+
         # Now call the GameEngine update_cursor method to compile and set the cursor.
         super().update_cursor()
 
@@ -391,7 +391,7 @@ class Game(GameEngine):
         parser = GameEngine.args(parser)
 
         group = parser.add_argument_group('Game Options')
-        
+
         group.add_argument('--time',
                            type=int,
                            help='time in seconds to wait before quitting',
@@ -412,13 +412,13 @@ class Game(GameEngine):
         super().start()
 
         # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.        
+        # calling super().start() in this method.
         self.clock = pygame.time.Clock()
         self.active_scene = AdventureScene()
 
-        while self.active_scene != None:
+        while self.active_scene is not None:
             self.process_events()
-            
+
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
@@ -426,7 +426,7 @@ class Game(GameEngine):
             if self.update_type == 'update':
                 pygame.display.update(self.active_scene.rects)
             elif self.update_type == 'flip':
-                pygame.display.flip()            
+                pygame.display.flip()
 
             self.clock.tick(self.fps)
 
@@ -434,7 +434,7 @@ class Game(GameEngine):
 
     def quit(self):
         log.info('Quit was called.')
-        
+
         # Call the GameEngine quit, so it will clean up.
         super().quit()
 
@@ -444,7 +444,7 @@ class Game(GameEngine):
     def on_key_up_event(self, event):
         # KEYUP            key, mod
         if event.key == pygame.K_q:
-            log.info(f'User requested quit.')                        
+            log.info(f'User requested quit.')
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
 
@@ -457,13 +457,14 @@ class Game(GameEngine):
             if self.active_scene:
                 return getattr(self.active_scene, attr)
             else:
-                raise Exception(f'Scene not activated in call to {attr}()')                
+                raise Exception(f'Scene not activated in call to {attr}()')
         except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')    
-        
+            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+
+
 def main():
     parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
-    
+
     # args is a class method, which allows us to call it before initializing a game
     # object, which allows us to query all of the game engine objects for their
     # command line parameters.
@@ -471,6 +472,7 @@ def main():
     args = parser.parse_args()
     game = Game(options=vars(args))
     game.start()
+
 
 if __name__ == '__main__':
     try:
@@ -481,5 +483,3 @@ if __name__ == '__main__':
     finally:
         log.info('Shutting down pygame.')
         pygame.quit()
-
-

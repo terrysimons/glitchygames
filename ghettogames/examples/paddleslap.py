@@ -13,7 +13,7 @@ import pygame.locals
 
 from ghettogames.engine import RootScene, GameEngine, FontManager
 from ghettogames.engine import JoystickManager
-from ghettogames.color import BLACK, WHITE, BLACKLUCENT
+from ghettogames.color import WHITE, BLACKLUCENT
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -21,21 +21,16 @@ ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 log.addHandler(ch)
 
-# TODO:
-# Add --log-level flag.
-# Package.
-#
-
 
 class Speed(object):
-    def __init__(self, x=0, y=0, increment=.2):
+    def __init__(self, x=0, y=0, increment=0.2):
         self.x = x
         self.y = y
         self.increment = increment
 
     def speed_up(self):
-        self.x += self.increment if self.x >= 0 else self.increment*-1
-        self.y += self.increment if self.y >= 0 else self.increment*-1
+        self.x += self.increment if self.x >= 0 else self.increment * -1
+        self.y += self.increment if self.y >= 0 else self.increment * -1
 
 
 class Rally:
@@ -65,15 +60,16 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         self.slap_snd = pygame.mixer.Sound(
             os.path.join(
                 os.path.dirname(__file__),
-            'resources/snd/slap8.wav')
+                'resources/snd/slap8.wav'
+            )
         )
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
         self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()        
+        self.screen_height = self.screen.get_height()
         self.width = 20
-        self.height = 80       
+        self.height = 80
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
         self.rect = self.image.get_rect()
@@ -99,13 +95,13 @@ class PaddleSprite(pygame.sprite.DirtySprite):
             self.stop()
         else:
             self.rect.y += self.speed.y
-            
-    def move_down(self):        
-        self.speed.y = 10 
-        
+
+    def move_down(self):
+        self.speed.y = 10
+
     def move_up(self):
-        self.speed.y = -10 
-        
+        self.speed.y = -10
+
     def stop(self):
         self.speed.x = 0
         self.speed.y = 0
@@ -119,7 +115,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
         self.width = 20
-        self.height = 20        
+        self.height = 20
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
         self.image.set_colorkey(0)
@@ -131,9 +127,13 @@ class BallSprite(pygame.sprite.DirtySprite):
 
         # The ball always needs refreshing.
         # This saves us a set on dirty every update.
-        self.dirty = 2        
+        self.dirty = 2
 
-        pygame.draw.circle(self.image, WHITE, (self.width//2, self.height//2), 5, 0)
+        pygame.draw.circle(self.image,
+                           WHITE,
+                           (self.width // 2, self.height // 2),
+                           5,
+                           0)
 
         self.reset()
         self.update()
@@ -149,15 +149,14 @@ class BallSprite(pygame.sprite.DirtySprite):
             self.speed.y *= -1
 
     def reset(self):
-        self.x = random.randrange(50,750)
+        self.x = random.randrange(50, 750)
         self.y = 350.0
-        #self.speed=8.0
- 
+
         # Direction of ball (in degrees)
-        self.direction = random.randrange(-45,45)
- 
+        self.direction = random.randrange(-45, 45)
+
         # Flip a 'coin'
-        if random.randrange(2) == 0 :
+        if random.randrange(2) == 0:
             # Reverse ball direction, let the other guy get it first
             self.direction += 180
             self.y = 50
@@ -166,39 +165,39 @@ class BallSprite(pygame.sprite.DirtySprite):
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self, diff):
-        self.direction = (180-self.direction)%360
+        self.direction = (180 - self.direction) % 360
         self.direction -= diff
- 
+
         # Speed the ball up
         self.speed *= 1.1
 
     def update(self):
 
         if GameEngine.FPS:
-            self.rect.y += self.speed.y 
-            self.rect.x += self.speed.x 
+            self.rect.y += self.speed.y
+            self.rect.x += self.speed.x
 
         self._do_bounce()
 
         if self.rect.x > self.screen_width or self.rect.x < 0:
             self.reset()
- 
+
         if self.y > 600:
             self.reset()
- 
+
         # Move the image to where our x and y are
         self.rect.x = self.x
         self.rect.y = self.y
- 
+
         # Do we bounce off the left of the screen?
         if self.x <= 0:
-            self.direction = (360-self.direction)%360
+            self.direction = (360 - self.direction) % 360
             print(self.direction)
-            #self.x=1
- 
+            self.x = 1
+
         # Do we bounce of the right side of the screen?
-        if self.x > self.screen_width-self.width:
-            self.direction = (360-self.direction)%360
+        if self.x > self.screen_width - self.width:
+            self.direction = (360 - self.direction) % 360
 
 
 class TextSprite(pygame.sprite.DirtySprite):
@@ -208,7 +207,7 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.alpha = alpha
         self.x = x
         self.y = y
-        
+
         # Quick and dirty, for now.
         self.image = pygame.Surface((400, 400))
         self.screen = pygame.display.get_surface()
@@ -234,12 +233,12 @@ class TextSprite(pygame.sprite.DirtySprite):
             # on the text than the window.
             self.image.convert_alpha()
             self.image.set_alpha(self.alpha)
-            
+
         self.rect = self.image.get_rect()
         self.rect.x += x
         self.rect.y += y
-        self.font_manager = FontManager(self)
-        self.joystick_manager = JoystickManager(self)
+        self.font_manager = FontManager()
+        self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         class TextBox(object):
@@ -249,24 +248,24 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.start_pos = pos
                 self.rect = pygame.Rect(pos, (640, 480))
                 self.line_height = line_height
-                
+
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
 
-            def print(self, surface, string):                
+            def print(self, surface, string):
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
                 self.rect.y += self.line_height
-        
+
             def reset(self):
                 self.rect.center = self.start_pos
-                
+
             def indent(self):
                 self.x += 10
-        
+
             def unindent(self):
                 self.x -= 10
 
@@ -276,7 +275,7 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
 
         self.update()
-        
+
     def update(self):
         self.dirty = 2
         self.image.fill(self.background_color)
@@ -289,15 +288,11 @@ class TextSprite(pygame.sprite.DirtySprite):
 class TableScene(RootScene):
     def __init__(self):
         super().__init__()
-        self.screen = pygame.display.get_surface()        
+        self.screen = pygame.display.get_surface()
         self.player1 = PaddleSprite(name="Player 1")
         self.player2 = PaddleSprite(name="Player 2")
         self.ball = BallSprite()
-        self.info_sprite = TextSprite(background_color=BLACK, alpha=0, x=0, y=0)
-        #self.scoreboard_sprite = TextSprite(background_color=blacklucent, alpha=0, x=0, y=0)
 
-        self.info_sprite.rect.center = self.screen.get_rect().center
-        
         # Set player 2's position on the right side of the screen.
         self.player2.rect.x = self.player2.screen.get_width() - self.player2.width
 
@@ -305,13 +300,11 @@ class TableScene(RootScene):
             (
                 self.player1,
                 self.player2,
-                self.ball,
-                #self.info_sprite
-                #self.scoreboard_sprite
+                self.ball
             )
         )
 
-        self.all_sprites.clear(self.screen, self.background)        
+        self.all_sprites.clear(self.screen, self.background)
 
     def update(self):
         super().update()
@@ -320,6 +313,7 @@ class TableScene(RootScene):
             self.ball.rally.hit()
             if self.ball.rally.do_rally():
                 self.ball.rally.reset()
+
             self.player1.slap_snd.play()
             self.ball.speed.x *= -1
 
@@ -327,9 +321,9 @@ class TableScene(RootScene):
             self.ball.rally.hit()
             if self.ball.rally.do_rally():
                 self.ball.rally.reset()
+
             self.player2.slap_snd.play()
             self.ball.speed.x *= -1
-
 
     def render(self, screen):
         super().render(screen)
@@ -342,12 +336,12 @@ class TableScene(RootScene):
         if event.key == pygame.K_UP:
             self.player1.stop()
         if event.key == pygame.K_DOWN:
-            self.player1.stop()            
+            self.player1.stop()
         if event.key == pygame.K_w:
             self.player2.stop()
         if event.key == pygame.K_s:
-            self.player2.stop()            
-            
+            self.player2.stop()
+
     def on_key_down_event(self, event):
         # KEYDOWN            key, mod
         if event.key == pygame.K_UP:
@@ -358,13 +352,13 @@ class TableScene(RootScene):
             self.player2.move_up()
         if event.key == pygame.K_s:
             self.player2.move_down()
-    
+
 
 class Game(GameEngine):
     # Set your game name/version here.
     NAME = "Paddle Slap"
     VERSION = "1.1"
-    
+
     def __init__(self, options):
         super().__init__(options=options)
         self.load_resources()
@@ -374,8 +368,8 @@ class Game(GameEngine):
         # pygame.event.set_blocked(self.keyboard_events)
 
         # Hook up some events.
-        #self.register_game_event('save', self.on_save_event)
-        #self.register_game_event('load', self.on_load_event)
+        # self.register_game_event('save', self.on_save_event)
+        # self.register_game_event('load', self.on_load_event)
 
     @classmethod
     def args(cls, parser):
@@ -385,7 +379,7 @@ class Game(GameEngine):
         parser = GameEngine.args(parser)
 
         group = parser.add_argument_group('Game Options')
-        
+
         group.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
@@ -405,33 +399,33 @@ class Game(GameEngine):
         # Note: Due to the way things are wired, you must set self.active_scene after
         # calling super().start() in this method.
         self.clock = pygame.time.Clock()
-        self.active_scene = TableScene()        
+        self.active_scene = TableScene()
 
-        while self.active_scene != None:
-                self.process_events()                
+        while self.active_scene is not None:
+            self.process_events()
 
-                # Don't do anything until we know our framerate.
-                while GameEngine.FPS == 0:
-                    # Display the startup screen here?
-                    self.clock.tick(self.fps)
-                    GameEngine.FPS = self.clock.get_fps()
-                
-                self.active_scene.update()
-
-                self.active_scene.render(self.screen)
-
-                if self.update_type == 'update':
-                    pygame.display.update(self.active_scene.rects)
-                elif self.update_type == 'flip':
-                    pygame.display.flip()
-
+            # Don't do anything until we know our framerate.
+            while GameEngine.FPS == 0:
+                # Display the startup screen here?
                 self.clock.tick(self.fps)
-            
-                self.active_scene = self.active_scene.next
+                GameEngine.FPS = self.clock.get_fps()
+
+            self.active_scene.update()
+
+            self.active_scene.render(self.screen)
+
+            if self.update_type == 'update':
+                pygame.display.update(self.active_scene.rects)
+            elif self.update_type == 'flip':
+                pygame.display.flip()
+
+            self.clock.tick(self.fps)
+
+            self.active_scene = self.active_scene.next
 
     def on_key_up_event(self, event):
         self.active_scene.on_key_up_event(event)
-        
+
         # KEYUP            key, mod
         if event.key == pygame.K_q:
             log.info(f'User requested quit.')
@@ -444,14 +438,14 @@ class Game(GameEngine):
             if self.active_scene:
                 return getattr(self.active_scene, attr)
             else:
-                raise Exception(f'Scene not activated in call to {attr}()')                
+                raise Exception(f'Scene not activated in call to {attr}()')
         except AttributeError:
             raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
 
 
 def main():
     parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
-    
+
     # args is a class method, which allows us to call it before initializing a game
     # object, which allows us to query all of the game engine objects for their
     # command line parameters.
@@ -459,6 +453,7 @@ def main():
     args = parser.parse_args()
     game = Game(options=vars(args))
     game.start()
+
 
 if __name__ == '__main__':
     try:
@@ -469,5 +464,3 @@ if __name__ == '__main__':
     finally:
         log.info('Shutting down pygame.')
         pygame.quit()
-
-

@@ -26,4 +26,3 @@ class ColorPallet:
         if ord < self._size:
             return self._colors[ord]
         return None
-
