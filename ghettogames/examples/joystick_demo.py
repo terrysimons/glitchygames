@@ -262,19 +262,19 @@ class TextSprite(RootSprite):
                 self.text_box.unindent()
 
 
-class AdventureScene(RootScene):
+class JoystickScene(RootScene):
     def __init__(self):
         super().__init__()
         self.tiles = []
 
         # self.load_resources()
         self.shapes_sprite = ShapesSprite()
-        self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
+        # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
             (
-                self.shapes_sprite,
-                self.text_sprite
+                # self.shapes_sprite,
+                # self.text_sprite
             )
         )
 
@@ -283,10 +283,11 @@ class AdventureScene(RootScene):
 
     def load_resources(self):
         # Load tiles.
-        pass
-        # NOTE: This is broken and needs to be fixed.
-        # for resource in glob.iglob('resources/*', recursive=True):
-        #     try:
+        for resource in glob.iglob('resources/*', recursive=True):
+            try:
+                log.info(f'Load Resource: {resource}')
+            except IsADirectoryError:
+                pass
         #         self.tiles.append(load_graphic(resource))
         #     except IsADirectoryError:
         #         pass
@@ -330,7 +331,7 @@ class AdventureScene(RootScene):
 
 class Game(GameEngine):
     # Set your game name/version here.
-    NAME = "Adventure Tale"
+    NAME = "Joystick and Font Demo"
     VERSION = "0.0"
 
     def __init__(self, options):
@@ -405,10 +406,6 @@ class Game(GameEngine):
         return parser
 
     def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.0
-
         # Call the main game engine's start routine to initialize
         # the screen and set the self.screen_width, self.screen_height variables
         super().start()
@@ -416,7 +413,7 @@ class Game(GameEngine):
         # Note: Due to the way things are wired, you must set self.active_scene after
         # calling super().start() in this method.
         self.clock = pygame.time.Clock()
-        self.active_scene = AdventureScene()
+        self.active_scene = JoystickScene()
 
         while self.active_scene is not None:
             self.process_events()
@@ -440,29 +437,12 @@ class Game(GameEngine):
         # Call the GameEngine quit, so it will clean up.
         super().quit()
 
-    def on_active_event(self, event):
-        pass
-
     def on_key_up_event(self, event):
         # KEYUP            key, mod
         if event.key == pygame.K_q:
             log.info(f'User requested quit.')
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
-
-    def on_key_chord_event(self, event):
-        print('DUN DUN DUN')
-
-    # This will catch calls which our scene engine doesn't yet implement.
-    def __getattr__(self, attr):
-        try:
-            if self.active_scene:
-                return getattr(self.active_scene, attr)
-            else:
-                raise Exception(f'Scene not activated in call to {attr}()')
-        except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
-                                 'or active scene {type(self.active_scene)}.')
 
 
 def main():

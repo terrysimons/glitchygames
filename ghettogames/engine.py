@@ -482,17 +482,6 @@ class EventManager(ResourceManager):
 
             log.debug(f'Unhandled Event {event_handler}: {self.event_source}->{event}')
 
-        def unimplemented_event(self, *args, **kwargs):
-            # inspect.stack()[1] is the call frame above us, so this should be reasonable.
-            event_handler = inspect.stack()[1].function
-
-            event = kwargs.get('event')
-
-            log.debug(f'Unimplemented Event {event_handler}: {self.event_source}->{event}')
-
-            raise Exception(f'Add a stub for {event_handler}(self, *args, **kwargs) '
-                            'to {type(self)}.')
-
         def on_active_event(self, event):
             # ACTIVEEVENT      gain, state
             self.unhandled_event(event=event)
@@ -556,9 +545,6 @@ class EventManager(ResourceManager):
         def on_key_chord_up_event(self, event, trigger):
             # This is a synthesized event.
             self.unhandled_event(event=event)
-
-        def __getattr__(self, attr):
-            return self.unimplemented_even
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -6,12 +6,11 @@ import configparser
 import logging
 import struct
 
-from pygame import Color, Rect
 import pygame
 
 from ghettogames.engine import GameEngine, RootSprite, RootScene
 from ghettogames.engine import vga_palette
-from ghettogames.engine import rgb_triplet_generator, indexed_rgb_triplet_generator
+from ghettogames.engine import indexed_rgb_triplet_generator
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -20,6 +19,7 @@ ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 
 log.addHandler(ch)
+
 
 class BitmappyLegacySprite(RootSprite):
     def __init__(self, filename, palette, *args, **kwargs):
@@ -40,11 +40,9 @@ class BitmappyLegacySprite(RootSprite):
         """
         """
         # We need to load an 8-bit palette for color conversion.
-        #image = pygame.Surface((width, height), 0, 8)
         palette = palette
         image = None
         rect = None
-        name = None
         data = []
         rgb_pixels = []
 
@@ -69,13 +67,12 @@ class BitmappyLegacySprite(RootSprite):
 
         return (image, rect, filename)
 
-
     def inflate(self, width, height, pixels):
         """
         """
         image = pygame.Surface((width, height))
         image.fill((0, 255, 0))
-        image.convert()        
+        image.convert()
         image.set_colorkey((255, 0, 255))
 
         x = 0
@@ -90,18 +87,18 @@ class BitmappyLegacySprite(RootSprite):
                 x += 1
 
         return (image, image.get_rect())
-    
+
     def save(self, filename):
         """
         """
         config = self.deflate()
-        
+
         with open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self):
         config = configparser.ConfigParser(dict_type=OrderedDict)
-        
+
         # Get the set of distinct pixels.
         color_map = {}
         pixels = []
@@ -132,13 +129,13 @@ class BitmappyLegacySprite(RootSprite):
             color_map[color] = color_key
 
             log.debug(f'Key: {color} -> {color_key}')
-            
+
             red = color[0]
             config.set(color_key, 'red', str(red))
-            
+
             green = color[1]
             config.set(color_key, 'green', str(green))
-            
+
             blue = color[2]
             config.set(color_key, 'blue', str(blue))
 
@@ -163,7 +160,8 @@ class BitmappyLegacySprite(RootSprite):
         return config
 
     def __str__(self):
-        description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}\nColor Key: {self.color_key}\n'
+        description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
+            '\nColor Key: {self.color_key}\n'
 
         for y, row in enumerate(self.pixels):
             for x, pixel in enumerate(row):
@@ -171,6 +169,7 @@ class BitmappyLegacySprite(RootSprite):
             description += '\n'
 
         return description
+
 
 class GameScene(RootScene):
     def __init__(self, filename, palette):
@@ -197,6 +196,7 @@ class GameScene(RootScene):
     def switch_to_scene(self, next_scene):
         super().switch_to_scene(next_scene)
 
+
 class Game(GameEngine):
     # Set your game name/version here.
     NAME = "Sprite Loader"
@@ -217,8 +217,8 @@ class Game(GameEngine):
         group = parser.add_argument_group('Game Options')
 
         group.add_argument('-v', '--version',
-                        action='store_true',
-                        help='print the game version and exit')
+                           action='store_true',
+                           help='print the game version and exit')
 
         group.add_argument('--filename',
                            help='the file to load',
@@ -237,7 +237,7 @@ class Game(GameEngine):
         self.clock = pygame.time.Clock()
         self.active_scene = GameScene(filename=self.filename, palette=self.palette)
 
-        while self.active_scene != None:
+        while self.active_scene is not None:
             self.process_events()
 
             self.active_scene.update()
@@ -253,16 +253,18 @@ class Game(GameEngine):
 
             self.active_scene = self.active_scene.next
 
+
 def main():
     parser = argparse.ArgumentParser(f'{Game.NAME} version {Game.VERSION}')
 
     # args is a class method, which allows us to call it before initializing a game
     # object, which allows us to query all of the game engine objects for their
-    # command line parameters.    
+    # command line parameters.
     parser = Game.args(parser)
     args = parser.parse_args()
     game = Game(options=vars(args))
     game.start()
+
 
 if __name__ == '__main__':
     try:
