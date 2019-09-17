@@ -461,109 +461,109 @@ class ResourceManager(object):
 
 
 class EventManager(ResourceManager):
+    class EventProxy(object):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            # No proxies for the root class.
+            self.proxies = []
+
+            # This is used for leave objects which
+            # don't have their own proxies.
+            #
+            # Subclassed managers that set their own proxy
+            # will not have this.
+            self.event_source = kwargs.get('event_source', None)
+
+        def unhandled_event(self, *args, **kwargs):
+            # inspect.stack()[1] is the call frame above us, so this should be reasonable.
+            event_handler = inspect.stack()[1].function
+
+            event = kwargs.get('event')
+
+            log.debug(f'Unhandled Event {event_handler}: {self.event_source}->{event}')
+
+        def unimplemented_event(self, *args, **kwargs):
+            # inspect.stack()[1] is the call frame above us, so this should be reasonable.
+            event_handler = inspect.stack()[1].function
+
+            event = kwargs.get('event')
+
+            log.debug(f'Unimplemented Event {event_handler}: {self.event_source}->{event}')
+
+            raise Exception(f'Add a stub for {event_handler}(self, *args, **kwargs) '
+                            'to {type(self)}.')
+
+        def on_active_event(self, event):
+            # ACTIVEEVENT      gain, state
+            self.unhandled_event(event=event)
+
+        def on_mouse_motion_event(self, event):
+            # MOUSEMOTION      pos, rel, buttons
+            self.unhandled_event(event=event)
+
+        def on_mouse_button_up_event(self, event):
+            # MOUSEBUTTONUP    pos, button
+            self.unhandled_event(event=event)
+
+        def on_left_mouse_button_up_event(self, event):
+            # Left Mouse Button Up pos, button
+            self.unhandled_event(event=event)
+
+        def on_middle_mouse_button_up_event(self, event):
+            # Middle Mouse Button Up pos, button
+            self.unhandled_event(event=event)
+
+        def on_right_mouse_button_up_event(self, event):
+            # Right Mouse Button Up pos, button
+            self.unhandled_event(event=event)
+
+        def on_mouse_button_down_event(self, event):
+            # MOUSEBUTTONDOWN  pos, button
+            self.unhandled_event(event=event)
+
+        def on_left_mouse_button_down_event(self, event):
+            # Left Mouse Button Down pos, button
+            self.unhandled_event(event=event)
+
+        def on_middle_mouse_button_down_event(self, event):
+            # Middle Mouse Button Down pos, button
+            self.unhandled_event(event=event)
+
+        def on_right_mouse_button_down_event(self, event):
+            # Right Mouse Button Down pos, button
+            self.unhandled_event(event=event)
+
+        def on_mouse_scroll_down_event(self, event):
+            # This is a synthesized event.
+            self.unhandled_event(event=event)
+
+        def on_mouse_scroll_up_event(self, event):
+            # This is a synthesized event.
+            self.unhandled_event(event=event)
+
+        def on_key_up_event(self, event):
+            # KEYUP            key, mod
+            self.unhandled_event(event=event)
+
+        def on_key_down_event(self, event):
+            # KEYDOWN            key, mod
+            self.unhandled_event(event=event)
+
+        def on_key_chord_down_event(self, event, trigger):
+            # This is a synthesized event.
+            self.unhandled_event(event=event)
+
+        def on_key_chord_up_event(self, event, trigger):
+            # This is a synthesized event.
+            self.unhandled_event(event=event)
+
+        def __getattr__(self, attr):
+            return self.unimplemented_even
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        class EventProxy(object):
-            def __init__(self, *args, **kwargs):
-                super().__init__()
-                # No proxies for the root class.
-                self.proxies = []
-
-                # This is used for leave objects which
-                # don't have their own proxies.
-                #
-                # Subclassed managers that set their own proxy
-                # will not have this.
-                self.event_source = kwargs.get('event_source', None)
-
-            def unhandled_event(self, *args, **kwargs):
-                # inspect.stack()[1] is the call frame above us, so this should be reasonable.
-                event_handler = inspect.stack()[1].function
-
-                event = kwargs.get('event')
-
-                log.debug(f'Unhandled Event {event_handler}: {self.event_source}->{event}')
-
-            def unimplemented_event(self, *args, **kwargs):
-                # inspect.stack()[1] is the call frame above us, so this should be reasonable.
-                event_handler = inspect.stack()[1].function
-
-                event = kwargs.get('event')
-
-                log.debug(f'Unimplemented Event {event_handler}: {self.event_source}->{event}')
-
-                raise Exception(f'Add a stub for {event_handler}(self, *args, **kwargs) '
-                                'to {type(self)}.')
-
-            def on_active_event(self, event):
-                # ACTIVEEVENT      gain, state
-                self.unhandled_event(event=event)
-
-            def on_mouse_motion_event(self, event):
-                # MOUSEMOTION      pos, rel, buttons
-                self.unhandled_event(event=event)
-
-            def on_mouse_button_up_event(self, event):
-                # MOUSEBUTTONUP    pos, button
-                self.unhandled_event(event=event)
-
-            def on_left_mouse_button_up_event(self, event):
-                # Left Mouse Button Up pos, button
-                self.unhandled_event(event=event)
-
-            def on_middle_mouse_button_up_event(self, event):
-                # Middle Mouse Button Up pos, button
-                self.unhandled_event(event=event)
-
-            def on_right_mouse_button_up_event(self, event):
-                # Right Mouse Button Up pos, button
-                self.unhandled_event(event=event)
-
-            def on_mouse_button_down_event(self, event):
-                # MOUSEBUTTONDOWN  pos, button
-                self.unhandled_event(event=event)
-
-            def on_left_mouse_button_down_event(self, event):
-                # Left Mouse Button Down pos, button
-                self.unhandled_event(event=event)
-
-            def on_middle_mouse_button_down_event(self, event):
-                # Middle Mouse Button Down pos, button
-                self.unhandled_event(event=event)
-
-            def on_right_mouse_button_down_event(self, event):
-                # Right Mouse Button Down pos, button
-                self.unhandled_event(event=event)
-
-            def on_mouse_scroll_down_event(self, event):
-                # This is a synthesized event.
-                self.unhandled_event(event=event)
-
-            def on_mouse_scroll_up_event(self, event):
-                # This is a synthesized event.
-                self.unhandled_event(event=event)
-
-            def on_key_up_event(self, event):
-                # KEYUP            key, mod
-                self.unhandled_event(event=event)
-
-            def on_key_down_event(self, event):
-                # KEYDOWN            key, mod
-                self.unhandled_event(event=event)
-
-            def on_key_chord_down_event(self, event, trigger):
-                # This is a synthesized event.
-                self.unhandled_event(event=event)
-
-            def on_key_chord_up_event(self, event, trigger):
-                # This is a synthesized event.
-                self.unhandled_event(event=event)
-
-            def __getattr__(self, attr):
-                return self.unimplemented_event
-
-        self.proxies = [EventProxy(event_source=self)]
+        self.proxies = [EventManager.EventProxy(event_source=self)]
         self.game = kwargs.get('game', None)
 
 
@@ -638,15 +638,6 @@ class MusicManager(ResourceManager):
 
 
 class SoundManager(ResourceManager):
-    __instance__ = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cls.__instance__
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -668,412 +659,410 @@ class SoundManager(ResourceManager):
 
 
 class KeyboardManager(ResourceManager):
+    class KeyboardProxy(ResourceManager):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.keys = {}
+
+            self.game = kwargs.get('game', None)
+            self.proxies = [self.game, pygame.key]
+
+        def on_key_down_event(self, event):
+            # The KEYUP and KEYDOWN events are
+            # different.  KEYDOWN contains an extra
+            # key in its dictionary (unicode), which
+            # KEYUP does not contain, so we'll make
+            # a copy of the dictionary, and then
+            # delete the key "unicode" so we can track
+            # both sets of events.
+            keyboard_key = event.dict.copy()
+            del keyboard_key['unicode']
+
+            # This makes it possible to use
+            # a dictionary as a key, which is
+            # normally not possible.
+            self.keys[
+                tuple(
+                    sorted(
+                        frozenset(keyboard_key.items())
+                    )
+                )
+            ] = event
+
+            self.game.on_key_down_event(event)
+            self.on_key_chord_down_event(event)
+
+        def on_key_up_event(self, event):
+            # This makes it possible to use
+            # a dictionary as a key, which is
+            # normally not possible.
+            self.keys[
+                tuple(
+                    sorted(
+                        frozenset(event.dict.items())
+                    )
+                )
+            ] = event
+
+            self.game.on_key_up_event(event)
+            self.on_key_chord_up_event(event)
+
+        def on_key_chord_down_event(self, event):
+            keys_down = [self.keys[key]
+                         for key in self.keys
+                         if self.keys[key].type == pygame.KEYDOWN]
+
+            self.game.on_key_chord_down_event(event, keys_down)
+
+        def on_key_chord_up_event(self, event):
+            keys_down = [self.keys[key]
+                         for key in self.keys
+                         if self.keys[key].type == pygame.KEYDOWN]
+
+            self.game.on_key_chord_up_event(event, keys_down)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.game = kwargs.get('game', None)
 
-        class KeyboardProxy(ResourceManager):
-            def __init__(self, **kwargs):
-                super().__init__(**kwargs)
-                self.keys = {}
-
-                self.game = kwargs.get('game', None)
-                self.proxies = [self.game, pygame.key]
-
-            def on_key_down_event(self, event):
-                # The KEYUP and KEYDOWN events are
-                # different.  KEYDOWN contains an extra
-                # key in its dictionary (unicode), which
-                # KEYUP does not contain, so we'll make
-                # a copy of the dictionary, and then
-                # delete the key "unicode" so we can track
-                # both sets of events.
-                keyboard_key = event.dict.copy()
-                del keyboard_key['unicode']
-
-                # This makes it possible to use
-                # a dictionary as a key, which is
-                # normally not possible.
-                self.keys[
-                    tuple(
-                        sorted(
-                            frozenset(keyboard_key.items())
-                        )
-                    )
-                ] = event
-
-                self.game.on_key_down_event(event)
-                self.on_key_chord_down_event(event)
-
-            def on_key_up_event(self, event):
-                # This makes it possible to use
-                # a dictionary as a key, which is
-                # normally not possible.
-                self.keys[
-                    tuple(
-                        sorted(
-                            frozenset(event.dict.items())
-                        )
-                    )
-                ] = event
-
-                self.game.on_key_up_event(event)
-                self.on_key_chord_up_event(event)
-
-            def on_key_chord_down_event(self, event):
-                keys_down = [self.keys[key]
-                             for key in self.keys
-                             if self.keys[key].type == pygame.KEYDOWN]
-
-                self.game.on_key_chord_down_event(event, keys_down)
-
-            def on_key_chord_up_event(self, event):
-                keys_down = [self.keys[key]
-                             for key in self.keys
-                             if self.keys[key].type == pygame.KEYDOWN]
-
-                self.game.on_key_chord_up_event(event, keys_down)
-
-        self.proxies = [KeyboardProxy(game=self.game)]
+        self.proxies = [KeyboardManager.KeyboardProxy(game=self.game)]
 
 
 class MouseManager(ResourceManager):
+    class MouseProxy(ResourceManager):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.mouse_state = {}
+            self.mouse_dragging = False
+            self.current_focus = None
+            self.previous_focus = None
+            self.focus_locked = False
+
+            self.game = kwargs.get('game', None)
+            self.proxies = [self.game, pygame.mouse]
+
+        def on_mouse_motion_event(self, event):
+            self.mouse_state[event.type] = event
+            self.game.on_mouse_motion_event(event)
+
+            # Figure out which item was clicked.
+            mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
+
+            collided_sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
+            collided_sprite = None
+
+            if collided_sprites:
+                collided_sprite = collided_sprites[-1]
+
+                # See if we're focused on the same sprite.
+                if self.current_focus != collided_sprite:
+                    # Newly focused object can "see" what the previously focused object was.
+                    #
+                    # Will be "None" if nothing is focused.
+                    #
+                    # We can use this to enable drag and drop.
+                    #
+                    # This will take care of the unfocus event, too.
+                    self.on_mouse_focus_event(event, collided_sprite)
+                    collided_sprite.on_mouse_enter_event(event)
+                else:
+                    # Otherwise, pass motion event to the focused sprite
+                    # so it can handle sub-components if it wants to.
+                    self.current_focus.on_mouse_motion_event(event)
+            elif self.current_focus:
+                # If we're focused on a sprite but the collide sprites list is empty, then
+                # we're moving from a focus to empty space, and we should send an unfocus event.
+                self.current_focus.on_mouse_exit_event(event)
+                self.on_mouse_unfocus_event(event, self.current_focus)
+
+            # Caller can check the buttons.
+            # Note: This probably doesn't work right because
+            # we aren't keeping track of button states.
+            # We should be looking at all mouse states and emitting appropriately.
+            for trigger in self.mouse_state.values():
+                if trigger.type == pygame.MOUSEBUTTONDOWN:
+                    self.on_mouse_drag_down_event(event, trigger)
+                    self.mouse_dragging = True
+
+        def on_mouse_drag_down_event(self, event, trigger):
+            self.game.on_mouse_drag_down_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_mouse_drag_down_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_mouse_drag_down_event(event, trigger)
+
+            if trigger.button == 1:
+                self.on_left_mouse_drag_down_event(event, trigger)
+            if trigger.button == 2:
+                self.on_middle_mouse_drag_down_event(event, trigger)
+            if trigger.button == 3:
+                self.on_right_mouse_drag_down_event(event, trigger)
+            if trigger.button == 4:
+                # This doesn't really make sense.
+                pass
+            if trigger.button == 5:
+                # This doesn't really make sense.
+                pass
+
+        def on_left_mouse_drag_down_event(self, event, trigger):
+            self.game.on_left_mouse_drag_down_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_left_mouse_drag_down_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_left_mouse_drag_down_event(event, trigger)
+
+        def on_left_mouse_drag_up_event(self, event, trigger):
+            self.game.on_left_mouse_drag_up_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_left_mouse_drag_up_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_left_mouse_drag_up_event(event, trigger)
+
+        def on_middle_mouse_drag_down_event(self, event, trigger):
+            self.game.on_middle_mouse_drag_down_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_middle_mouse_drag_down_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_middle_mouse_drag_down_event(event, trigger)
+
+        def on_middle_mouse_drag_up_event(self, event, trigger):
+            self.game.on_middle_mouse_drag_up_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_middle_mouse_drag_up_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_middle_mouse_drag_up_event(event, trigger)
+
+        def on_right_mouse_drag_down_event(self, event, trigger):
+            self.game.on_right_mouse_drag_down_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_right_mouse_drag_down_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_right_mouse_drag_down_event(event, trigger)
+
+        def on_right_mouse_drag_up_event(self, event, trigger):
+            self.game.on_right_mouse_drag_up_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_right_mouse_drag_up_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_right_mouse_drag_up_event(event, trigger)
+
+        def on_mouse_drag_up_event(self, event):
+            log.debug(f'{type(self)}: Mouse Drag Up: {event}')
+            mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
+
+            collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+            for sprite in collided_sprites:
+                sprite.on_mouse_drag_up_event(event)
+
+        def on_mouse_focus_event(self, event, entering_focus):
+            # Send a leave focus event for the old focus.
+            if not self.focus_locked:
+                self.on_mouse_unfocus_event(event, self.current_focus)
+
+                # We've entered a new object.
+                self.current_focus = entering_focus
+
+                # Send an enter event for the new focus.
+                entering_focus.on_mouse_focus_event(event, self.current_focus)
+
+                log.info(f'Entered Focus: {self.current_focus}')
+            else:
+                log.info(f'Focus Locked: {self.previous_focus}')
+
+        def on_mouse_unfocus_event(self, event, leaving_focus):
+            self.previous_focus = leaving_focus
+
+            if leaving_focus:
+                leaving_focus.on_mouse_unfocus_event(event)
+                self.current_focus = None
+
+                log.info(f'Left Focus: {self.previous_focus}')
+
+        def on_mouse_button_up_event(self, event):
+            self.mouse_state[event.button] = event
+
+            self.game.on_mouse_button_up_event(event)
+
+            if event.button == 1:
+                self.on_left_mouse_button_up_event(event)
+            if event.button == 2:
+                self.on_middle_mouse_button_up_event(event)
+            if event.button == 3:
+                self.on_right_mouse_button_up_event(event)
+            if event.button == 4:
+                # It doesn't really make sense to hook this
+                pass
+            if event.button == 5:
+                # It doesn't really make sense to hook this
+                pass
+
+            if self.mouse_dragging:
+                self.game.on_mouse_drag_up_event(event)
+                self.mouse_dragging = False
+
+            # Whatever was locked gets unlocked.
+            self.focus_locked = False
+
+        def on_left_mouse_button_up_event(self, event):
+            self.game.on_left_mouse_button_up_event(event)
+
+        def on_middle_mouse_button_up_event(self, event):
+            self.game.on_middle_mouse_button_up_event(event)
+
+        def on_right_mouse_button_up_event(self, event):
+            self.game.on_right_mouse_button_up_event(event)
+
+        def on_mouse_button_down_event(self, event):
+            self.mouse_state[event.button] = event
+
+            # Whatever was clicked on gets lock.
+            if self.current_focus:
+                self.focus_locked = True
+
+            if event.button == 1:
+                self.on_left_mouse_button_down_event(event)
+            if event.button == 2:
+                self.on_middle_mouse_button_down_event(event)
+            if event.button == 3:
+                self.on_right_mouse_button_down_event(event)
+            if event.button == 4:
+                self.on_mouse_scroll_down_event(event)
+            if event.button == 5:
+                self.on_mouse_scroll_up_event(event)
+
+            self.game.on_mouse_button_down_event(event)
+
+        def on_left_mouse_button_down_event(self, event):
+            self.game.on_left_mouse_button_down_event(event)
+
+        def on_middle_mouse_button_down_event(self, event):
+            self.game.on_middle_mouse_button_down_event(event)
+
+        def on_right_mouse_button_down_event(self, event):
+            self.game.on_right_mouse_button_down_event(event)
+
+        def on_mouse_scroll_down_event(self, event):
+            self.game.on_mouse_scroll_down_event(event)
+
+        def on_mouse_scroll_up_event(self, event):
+            self.game.on_mouse_scroll_up_event(event)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.game = kwargs.get('game', None)
-
-        class MouseProxy(ResourceManager):
-            def __init__(self, **kwargs):
-                super().__init__(**kwargs)
-                self.mouse_state = {}
-                self.mouse_dragging = False
-                self.current_focus = None
-                self.previous_focus = None
-                self.focus_locked = False
-
-                self.game = kwargs.get('game', None)
-                self.proxies = [self.game, pygame.mouse]
-
-            def on_mouse_motion_event(self, event):
-                self.mouse_state[event.type] = event
-
-                self.game.on_mouse_motion_event(event)
-
-                # Figure out which item was clicked.
-                mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-                collided_sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
-                collided_sprite = None
-
-                if collided_sprites:
-                    collided_sprite = collided_sprites[-1]
-
-                    # See if we're focused on the same sprite.
-                    if self.current_focus != collided_sprite:
-                        # Newly focused object can "see" what the previously focused object was.
-                        #
-                        # Will be "None" if nothing is focused.
-                        #
-                        # We can use this to enable drag and drop.
-                        #
-                        # This will take care of the unfocus event, too.
-                        self.on_mouse_focus_event(event, collided_sprite)
-                        collided_sprite.on_mouse_enter_event(event)
-                    else:
-                        # Otherwise, pass motion event to the focused sprite
-                        # so it can handle sub-components if it wants to.
-                        self.current_focus.on_mouse_motion_event(event)
-                elif self.current_focus:
-                    # If we're focused on a sprite but the collide sprites list is empty, then
-                    # we're moving from a focus to empty space, and we should send an unfocus event.
-                    self.current_focus.on_mouse_exit_event(event)
-                    self.on_mouse_unfocus_event(event, self.current_focus)
-
-                # Caller can check the buttons.
-                # Note: This probably doesn't work right because
-                # we aren't keeping track of button states.
-                # We should be looking at all mouse states and emitting appropriately.
-                for trigger in self.mouse_state.values():
-                    if trigger.type == pygame.MOUSEBUTTONDOWN:
-                        self.on_mouse_drag_down_event(event, trigger)
-                        self.mouse_dragging = True
-
-            def on_mouse_drag_down_event(self, event, trigger):
-                self.game.on_mouse_drag_down_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_mouse_drag_down_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_mouse_drag_down_event(event, trigger)
-
-                if trigger.button == 1:
-                    self.on_left_mouse_drag_down_event(event, trigger)
-                if trigger.button == 2:
-                    self.on_middle_mouse_drag_down_event(event, trigger)
-                if trigger.button == 3:
-                    self.on_right_mouse_drag_down_event(event, trigger)
-                if trigger.button == 4:
-                    # This doesn't really make sense.
-                    pass
-                if trigger.button == 5:
-                    # This doesn't really make sense.
-                    pass
-
-            def on_left_mouse_drag_down_event(self, event, trigger):
-                self.game.on_left_mouse_drag_down_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_left_mouse_drag_down_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_left_mouse_drag_down_event(event, trigger)
-
-            def on_left_mouse_drag_up_event(self, event, trigger):
-                self.game.on_left_mouse_drag_up_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_left_mouse_drag_up_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_left_mouse_drag_up_event(event, trigger)
-
-            def on_middle_mouse_drag_down_event(self, event, trigger):
-                self.game.on_middle_mouse_drag_down_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_middle_mouse_drag_down_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_middle_mouse_drag_down_event(event, trigger)
-
-            def on_middle_mouse_drag_up_event(self, event, trigger):
-                self.game.on_middle_mouse_drag_up_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_middle_mouse_drag_up_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_middle_mouse_drag_up_event(event, trigger)
-
-            def on_right_mouse_drag_down_event(self, event, trigger):
-                self.game.on_right_mouse_drag_down_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_right_mouse_drag_down_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_right_mouse_drag_down_event(event, trigger)
-
-            def on_right_mouse_drag_up_event(self, event, trigger):
-                self.game.on_right_mouse_drag_up_event(event, trigger)
-
-                if self.focus_locked:
-                    if self.current_focus:
-                        self.current_focus.on_right_mouse_drag_up_event(event, trigger)
-                    elif self.previous_focus:
-                        self.previous_focus.on_right_mouse_drag_up_event(event, trigger)
-
-            def on_mouse_drag_up_event(self, event):
-                log.debug(f'{type(self)}: Mouse Drag Up: {event}')
-                mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-                collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-                for sprite in collided_sprites:
-                    sprite.on_mouse_drag_up_event(event)
-
-            def on_mouse_focus_event(self, event, entering_focus):
-                # Send a leave focus event for the old focus.
-                if not self.focus_locked:
-                    self.on_mouse_unfocus_event(event, self.current_focus)
-
-                    # We've entered a new object.
-                    self.current_focus = entering_focus
-
-                    # Send an enter event for the new focus.
-                    entering_focus.on_mouse_focus_event(event, self.current_focus)
-
-                    log.info(f'Entered Focus: {self.current_focus}')
-                else:
-                    log.info(f'Focus Locked: {self.previous_focus}')
-
-            def on_mouse_unfocus_event(self, event, leaving_focus):
-                self.previous_focus = leaving_focus
-
-                if leaving_focus:
-                    leaving_focus.on_mouse_unfocus_event(event)
-                    self.current_focus = None
-
-                    log.info(f'Left Focus: {self.previous_focus}')
-
-            def on_mouse_button_up_event(self, event):
-                self.mouse_state[event.button] = event
-
-                self.game.on_mouse_button_up_event(event)
-
-                if event.button == 1:
-                    self.on_left_mouse_button_up_event(event)
-                if event.button == 2:
-                    self.on_middle_mouse_button_up_event(event)
-                if event.button == 3:
-                    self.on_right_mouse_button_up_event(event)
-                if event.button == 4:
-                    # It doesn't really make sense to hook this
-                    pass
-                if event.button == 5:
-                    # It doesn't really make sense to hook this
-                    pass
-
-                if self.mouse_dragging:
-                    self.game.on_mouse_drag_up_event(event)
-                    self.mouse_dragging = False
-
-                # Whatever was locked gets unlocked.
-                self.focus_locked = False
-
-            def on_left_mouse_button_up_event(self, event):
-                self.game.on_left_mouse_button_up_event(event)
-
-            def on_middle_mouse_button_up_event(self, event):
-                self.game.on_middle_mouse_button_up_event(event)
-
-            def on_right_mouse_button_up_event(self, event):
-                self.game.on_right_mouse_button_up_event(event)
-
-            def on_mouse_button_down_event(self, event):
-                self.mouse_state[event.button] = event
-
-                # Whatever was clicked on gets lock.
-                if self.current_focus:
-                    self.focus_locked = True
-
-                if event.button == 1:
-                    self.on_left_mouse_button_down_event(event)
-                if event.button == 2:
-                    self.on_middle_mouse_button_down_event(event)
-                if event.button == 3:
-                    self.on_right_mouse_button_down_event(event)
-                if event.button == 4:
-                    self.on_mouse_scroll_down_event(event)
-                if event.button == 5:
-                    self.on_mouse_scroll_up_event(event)
-
-                self.game.on_mouse_button_down_event(event)
-
-            def on_left_mouse_button_down_event(self, event):
-                self.game.on_left_mouse_button_down_event(event)
-
-            def on_middle_mouse_button_down_event(self, event):
-                self.game.on_middle_mouse_button_down_event(event)
-
-            def on_right_mouse_button_down_event(self, event):
-                self.game.on_right_mouse_button_down_event(event)
-
-            def on_mouse_scroll_down_event(self, event):
-                self.game.on_mouse_scroll_down_event(event)
-
-            def on_mouse_scroll_up_event(self, event):
-                self.game.on_mouse_scroll_up_event(event)
-
-        self.proxies = [MouseProxy(game=self.game)]
+        self.proxies = [MouseManager.MouseProxy(game=self.game)]
 
 
 class JoystickManager(ResourceManager):
+    class JoystickProxy(ResourceManager):
+
+        def __init__(self, id, **kwargs):
+            super().__init__()
+            self._id = id
+            self.joystick = pygame.joystick.Joystick(self._id)
+            self.joystick.init()
+            self._name = self.joystick.get_name()
+            self._init = self.joystick.get_init()
+
+            self._numaxes = self.joystick.get_numaxes()
+            self._numballs = self.joystick.get_numballs()
+            self._numbuttons = self.joystick.get_numbuttons()
+            self._numhats = self.joystick.get_numhats()
+
+            # Initialize button state.
+            self._axes = [self.joystick.get_axis(i)
+                          for i in range(self.get_numaxes())]
+
+            self._balls = [self.joystick.get_ball(i)
+                           for i in range(self.get_numballs())]
+
+            self._buttons = [self.joystick.get_button(i)
+                             for i in range(self.get_numbuttons())]
+
+            self._hats = [self.joystick.get_hat(i)
+                          for i in range(self.get_numhats())]
+
+            self.game = kwargs.get('game', None)
+            self.proxies = [self.game, self.joystick]
+
+        # Define some high level APIs
+        def on_axis_motion_event(self, event):
+            # JOYAXISMOTION    joy, axis, value
+            self._axes[event.axis] = event.value
+            self.game.on_axis_motion_event(event)
+
+        def on_button_down_event(self, event):
+            # JOYBUTTONDOWN    joy, button
+            self._buttons[event.button] = 1
+            self.game.on_button_down_event(event)
+
+        def on_button_up_event(self, event):
+            # JOYBUTTONUP      joy, button
+            self._buttons[event.button] = 0
+            self.game.on_button_up_event(event)
+
+        def on_hat_motion_event(self, event):
+            # JOYHATMOTION     joy, hat, value
+            self._hats[event.hat] = event.value
+            self.game.on_hat_motion_event(event)
+
+        def on_ball_motion_event(self, event):
+            # JOYBALLMOTION    joy, ball, rel
+            self._balls[event.ball] = event.rel
+            self.game.on_ball_motion_event(event)
+
+        # We can't make these properties, because then they
+        # wouldn't be callable as functions.
+        def get_name(self):
+            return self._name
+
+        def get_init(self):
+            return self._init
+
+        def get_numaxes(self):
+            return self._numaxes
+
+        def get_numballs(self):
+            return self._numballs
+
+        def get_numbuttons(self):
+            return self._numbuttons
+
+        def get_numhats(self):
+            return self._numhats
+
+        def __str__(self):
+            joystick_info = []
+            joystick_info.append(f'Joystick Name: self.get_name()')
+            joystick_info.append(f'\tJoystick Id: {self.get_id()}')
+            joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
+            joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
+            joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
+            joystick_info.append(f'\tJoystick Button Count: {self.get_numbuttons()}')
+            joystick_info.append(f'\tJoystick Hat Count: {self.get_numhats()}')
+            return '\n'.join(joystick_info)
+
+        def __repr__(self):
+            return repr(self.joystick)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.joysticks = []
-
-        class JoystickProxy(ResourceManager):
-
-            def __init__(self, id, **kwargs):
-                super().__init__()
-                self._id = id
-                self.joystick = pygame.joystick.Joystick(self._id)
-                self.joystick.init()
-                self._name = self.joystick.get_name()
-                self._init = self.joystick.get_init()
-
-                self._numaxes = self.joystick.get_numaxes()
-                self._numballs = self.joystick.get_numballs()
-                self._numbuttons = self.joystick.get_numbuttons()
-                self._numhats = self.joystick.get_numhats()
-
-                # Initialize button state.
-                self._axes = [self.joystick.get_axis(i)
-                              for i in range(self.get_numaxes())]
-                self._balls = [self.joystick.get_ball(i)
-                               for i in range(self.get_numballs())]
-                self._buttons = [self.joystick.get_button(i)
-                                 for i in range(self.get_numbuttons())]
-                self._hats = [self.joystick.get_hat(i)
-                              for i in range(self.get_numhats())]
-
-                self.game = kwargs.get('game', None)
-                self.proxies = [self.game, self.joystick]
-
-            # Define some high level APIs
-            def on_axis_motion_event(self, event):
-                # JOYAXISMOTION    joy, axis, value
-                self._axes[event.axis] = event.value
-                self.game.on_axis_motion_event(event)
-
-            def on_button_down_event(self, event):
-                # JOYBUTTONDOWN    joy, button
-                self._buttons[event.button] = 1
-                self.game.on_button_down_event(event)
-
-            def on_button_up_event(self, event):
-                # JOYBUTTONUP      joy, button
-                self._buttons[event.button] = 0
-                self.game.on_button_up_event(event)
-
-            def on_hat_motion_event(self, event):
-                # JOYHATMOTION     joy, hat, value
-                self._hats[event.hat] = event.value
-                self.game.on_hat_motion_event(event)
-
-            def on_ball_motion_event(self, event):
-                # JOYBALLMOTION    joy, ball, rel
-                self._balls[event.ball] = event.rel
-                self.game.on_ball_motion_event(event)
-
-            # We can't make these properties, because then they
-            # wouldn't be callable as functions.
-            def get_name(self):
-                return self._name
-
-            def get_init(self):
-                return self._init
-
-            def get_numaxes(self):
-                return self._numaxes
-
-            def get_numballs(self):
-                return self._numballs
-
-            def get_numbuttons(self):
-                return self._numbuttons
-
-            def get_numhats(self):
-                return self._numhats
-
-            def __str__(self):
-                joystick_info = []
-                joystick_info.append(f'Joystick Name: self.get_name()')
-                joystick_info.append(f'\tJoystick Id: {self.get_id()}')
-                joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
-                joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
-                joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
-                joystick_info.append(f'\tJoystick Button Count: {self.get_numbuttons()}')
-                joystick_info.append(f'\tJoystick Hat Count: {self.get_numhats()}')
-                return '\n'.join(joystick_info)
-
-            def __repr__(self):
-                return repr(self.joystick)
 
         # This must be called before other joystick methods,
         # and is safe to call more than once.
@@ -1087,7 +1076,7 @@ class JoystickManager(ResourceManager):
 
         for i, joystick in enumerate(joysticks):
             joystick.init()
-            joystick_proxy = JoystickProxy(id=joystick.get_id(), game=self.game)
+            joystick_proxy = JoystickManager.JoystickProxy(id=joystick.get_id(), game=self.game)
             self.joysticks.append(joystick_proxy)
 
             # The joystick proxy overrides the joystick object
