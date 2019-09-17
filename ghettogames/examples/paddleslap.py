@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import argparse
 import logging
 import os
@@ -22,7 +21,9 @@ ch.setLevel(logging.INFO)
 log.addHandler(ch)
 
 
-class Speed(object):
+# Interiting from object is default in Python 3.
+# Linters complain if you do it.
+class Speed:
     def __init__(self, x=0, y=0, increment=0.2):
         self.x = x
         self.y = y
@@ -121,6 +122,7 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
 
+        self.direction = 0
         self.speed = Speed(4, 2)
         self.rally = Rally(5, self.speed.speed_up)
         self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_menu_move1.wav')
@@ -241,7 +243,9 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
-        class TextBox(object):
+        # Interiting from object is default in Python 3.
+        # Linters complain if you do it.
+        class TextBox:
             def __init__(self, font_controller, pos, line_height=15):
                 super().__init__()
                 self.image = None
@@ -264,13 +268,10 @@ class TextSprite(pygame.sprite.DirtySprite):
                 self.rect.center = self.start_pos
 
             def indent(self):
-                self.x += 10
+                self.rect.x += 10
 
             def unindent(self):
-                self.x -= 10
-
-            def rect(self):
-                return self.rect
+                self.rect.x -= 10
 
         self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
 
@@ -324,12 +325,6 @@ class TableScene(RootScene):
 
             self.player2.slap_snd.play()
             self.ball.speed.x *= -1
-
-    def render(self, screen):
-        super().render(screen)
-
-    def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
@@ -435,10 +430,11 @@ class Game(GameEngine):
     # This will catch calls which our scene engine doesn't yet implement.
     def __getattr__(self, attr):
         try:
-            if self.active_scene:
-                return getattr(self.active_scene, attr)
-            else:
+            if not self.active_scene:
                 raise Exception(f'Scene not activated in call to {attr}()')
+
+            return getattr(self.active_scene, attr)
+
         except AttributeError:
             raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
                                  'or active scene {type(self.active_scene)}.')

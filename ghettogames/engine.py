@@ -615,8 +615,8 @@ class FontManager(ResourceManager):
 
 
 class MusicManager(ResourceManager):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):  # noqa: W0235
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def args(cls, parser):
@@ -634,9 +634,13 @@ class SoundManager(ResourceManager):
 
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
-        (frequency, format, channels) = pygame.mixer.get_init()
+        (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
         log.info('Mixer Settings:')
-        log.info(f'Frequency: {frequency}, Format: {format}, Channels: {channels}')
+        log.info(
+            f'Frequency: {sound_frequency}, '
+            f'Format: {sound_format}, '
+            f'Channels: {sound_channels}'
+        )
         self.ready = True
 
     @classmethod
@@ -959,9 +963,9 @@ class MouseManager(ResourceManager):
 class JoystickManager(ResourceManager):
     class JoystickProxy(ResourceManager):
 
-        def __init__(self, id, **kwargs):
+        def __init__(self, joystick_id, **kwargs):
             super().__init__()
-            self._id = id
+            self._id = joystick_id
             self.joystick = pygame.joystick.Joystick(self._id)
             self.joystick.init()
             self._name = self.joystick.get_name()
@@ -1037,7 +1041,7 @@ class JoystickManager(ResourceManager):
         def __str__(self):
             joystick_info = []
             joystick_info.append(f'Joystick Name: self.get_name()')
-            joystick_info.append(f'\tJoystick Id: {self.get_id()}')
+            joystick_info.append(f'\tJoystick Id: {self._id}')
             joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
             joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
             joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
@@ -1062,9 +1066,12 @@ class JoystickManager(ResourceManager):
         log.info(f'Joystick Count: {pygame.joystick.get_count()}')
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
-        for i, joystick in enumerate(joysticks):
+        for joystick in joysticks:
             joystick.init()
-            joystick_proxy = JoystickManager.JoystickProxy(id=joystick.get_id(), game=self.game)
+            joystick_proxy = JoystickManager.JoystickProxy(
+                joystick_id=joystick.get_id(),
+                game=self.game
+            )
             self.joysticks.append(joystick_proxy)
 
             # The joystick proxy overrides the joystick object
@@ -1161,7 +1168,10 @@ class GameEngine(EventManager):
                    pygame.VIDEOEXPOSE,
                    pygame.SYSWMEVENT]
 
-    def __init__(self, options=dict()):
+    def __init__(self, options=None):
+        if not options:
+            options = {}
+
         # Persist this game's options.
         GameEngine.OPTIONS = options
 
@@ -1171,6 +1181,7 @@ class GameEngine(EventManager):
         GameEngine.OPTIONS['game'] = self
 
         super().__init__(**options)
+        self._active_scene = None
 
         # A bit of black magic.
         self.proxies = [self]
@@ -1184,14 +1195,6 @@ class GameEngine(EventManager):
         self.processor = platform.processor()
         self.release = platform.release()
 
-        log.info(f'CPU Count: {self.cpu_count}')
-        log.info(f'System: {self.system}')
-        log.info(f'Machine: {self.machine}')
-        log.info(f'Platform: {self.platform}')
-        log.info(f'Platform (Terse): {self.platform_terse}')
-        log.info(f'Processor: {self.processor}')
-        log.info(f'Release: {self.release}')
-
         # Pygame stuff.
         pygame.register_quit(self.quit)
         self.fps = options.get('fps', 0)
@@ -1202,32 +1205,44 @@ class GameEngine(EventManager):
         self.desired_resolution = options.get('resolution')
         self.fps_refresh_rate = options.get('fps_refresh_rate')
 
-        log.info(f'Game Title: {type(self).NAME}')
-        log.info(f'Game Version: {type(self).VERSION}')
-
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
-        log.debug(f'Successfully loaded {self.init_pass} modules '
-                  'and failed loading {self.init_fail} modules.')
+        self.print_game_info()
 
         # Enable fast events for multithreaded applications
         pygame.fastevent.init()
 
         self.clock = pygame.time.Clock()
 
-        self.font_manager = FontManager(**GameEngine.OPTIONS)
+        self.registered_events = {}
+        self.game_manager = GameManager(**GameEngine.OPTIONS)
+
+        # Event Handling Shortcuts
+        self.mouse_events = [pygame.MOUSEMOTION,
+                             pygame.MOUSEBUTTONDOWN,
+                             pygame.MOUSEBUTTONUP]
+
+        self.joystick_events = [pygame.JOYAXISMOTION,
+                                pygame.JOYBALLMOTION,
+                                pygame.JOYHATMOTION,
+                                pygame.JOYBUTTONUP,
+                                pygame.JOYBUTTONDOWN]
+
+        self.keyboard_events = [pygame.KEYDOWN,
+                                pygame.KEYUP]
+
+        self.mouse_manager = MouseManager(**GameEngine.OPTIONS)
+        self.keyboard_manager = KeyboardManager(**GameEngine.OPTIONS)
         self.sound_manager = SoundManager(**GameEngine.OPTIONS)
         self.music_manager = MusicManager(**GameEngine.OPTIONS)
+        self.font_manager = FontManager(**GameEngine.OPTIONS)
         self.joystick_manager = JoystickManager(**GameEngine.OPTIONS)
-        self.keyboard_manager = KeyboardManager(**GameEngine.OPTIONS)
-        self.mouse_manager = MouseManager(**GameEngine.OPTIONS)
-        self.game_manager = GameManager(**GameEngine.OPTIONS)
-        self.registered_events = {}
 
         # Get count of joysticks
+        self.joysticks = []
         if self.joystick_manager:
             self.joysticks = self.joystick_manager.joysticks
-            self.joystick_count = len(self.joysticks)
+        self.joystick_count = len(self.joysticks)
 
         # Resolution initialization.
         # Convert our resolution to a tuple
@@ -1254,47 +1269,8 @@ class GameEngine(EventManager):
         self.color_depth = 0
         self.desired_resolution = (int(self.desired_width), int(self.desired_height))
 
-        # Event Handling Shortcuts
-        self.mouse_events = [pygame.MOUSEMOTION,
-                             pygame.MOUSEBUTTONDOWN,
-                             pygame.MOUSEBUTTONUP]
-
-        self.joystick_events = [pygame.JOYAXISMOTION,
-                                pygame.JOYBALLMOTION,
-                                pygame.JOYHATMOTION,
-                                pygame.JOYBUTTONUP,
-                                pygame.JOYBUTTONDOWN]
-
-        self.keyboard_events = [pygame.KEYDOWN,
-                                pygame.KEYUP]
-
-        # Display some configuration information.
-        log.info(f'SDL Version: {pygame.get_sdl_version()}')
-        log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
-
-        # Set up a display mode.
-        # Note: pygame.display.init() isn't necessary here
-        # because we've already called pygame.init() which
-        # initializes all available modules.
-        #
-        # Let's do a sanity check and make sure we're initialized.
-        log.info(f'Display inited: {pygame.display.get_init()}')
-
-        # Set the window icon.
-        #
-        # Always call this before you call set_mode()
-        icon = pygame.Surface((32, 32))
-        icon.fill(PURPLE)
-        pygame.display.set_icon(icon)
-
-        # Set the display caption.
-        pygame.display.set_caption(f'{type(self).NAME}',
-                                   f'{type(self).NAME}')
-
-        # Get captions:
-        (title, icontitle) = pygame.display.get_caption()
-        log.info(f'Window Title: {title}')
-        log.info(f'Icon Title: {icontitle}')
+        # window icon and system tray/dock icon
+        self.initialize_system_icons()
 
         # Let's try to set a resolution to the most compatible for
         # the system.  If we don't provide any parameters, we'll get
@@ -1312,58 +1288,7 @@ class GameEngine(EventManager):
         self.initial_resolution = (self.display_info.current_w,
                                    self.display_info.current_h)
 
-        # Dump a bit more info about the configured mode.
-        log.info(f'Display Driver: {pygame.display.get_driver()}')
-        log.info(f'Display Info: {self.display_info}')
-        log.info(f'Initial Resolution: {self.initial_resolution}')
-        log.info(f'8-bit Modes: {pygame.display.list_modes(8)}')
-        log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
-        log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
-        log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
-        log.info(f'Best Color Depth: '
-                 '{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-                 ' ({self.mode_flags})')
-        log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
-        log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
-
-        # Cursor setup.
-        # Cursor width/height must be a multiple of 8
-        self.cursor = [
-            "XX                      ",
-            "XXX                     ",
-            "XXXX                    ",
-            "XX.XX                   ",
-            "XX..XX                  ",
-            "XX...XX                 ",
-            "XX....XX                ",
-            "XX.....XX               ",
-            "XX......XX              ",
-            "XX.......XX             ",
-            "XX........XX            ",
-            "XX........XXX           ",
-            "XX......XXXXX           ",
-            "XX.XXX..XX              ",
-            "XXXX XX..XX             ",
-            "XX   XX..XX             ",
-            "     XX..XX             ",
-            "      XX..XX            ",
-            "      XX..XX            ",
-            "       XXXX             ",
-            "       XX               ",
-            "                        ",
-            "                        ",
-            "                        "]
-
-        self.cursor_width = len(self.cursor[0])
-        self.cursor_height = len(self.cursor)
-        self.cursor_data = None
-        self.cursor_mask = None
-        self.cursor_black = '.'
-        self.cursor_white = 'X'
-        self.cursor_xor = 'o'
-
-        # Compile and set our cursor for drawing.
-        self.update_cursor()
+        self.cursor = self.set_cursor(cursor=None)
 
         # Set the screen update type.
         if self.update_type == 'update':
@@ -1379,9 +1304,6 @@ class GameEngine(EventManager):
         else:
             self.video_driver = os.environ.get('SDL_VIDEODRIVER', None)
 
-        if self.video_driver:
-            log.info(f'SDL_VIDEODRIVER == {os.environ["SDL_VIDEODRIVER"]}')
-
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
@@ -1392,18 +1314,114 @@ class GameEngine(EventManager):
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
-    def update_cursor(self):
+        self.print_system_info()        
+
+    def print_system_info(self):
+        log.info(f'CPU Count: {self.cpu_count}')
+        log.info(f'System: {self.system}')
+        log.info(f'Machine: {self.machine}')
+        log.info(f'Platform: {self.platform}')
+        log.info(f'Platform (Terse): {self.platform_terse}')
+        log.info(f'Processor: {self.processor}')
+        log.info(f'Release: {self.release}')
+        # Set up a display mode.
+        # Note: pygame.display.init() isn't necessary here
+        # because we've already called pygame.init() which
+        # initializes all available modules.
+        #
+        # Let's do a sanity check and make sure we're initialized.
+        log.info(f'Display inited: {pygame.display.get_init()}')
+
+        # Display some configuration information.
+        log.info(f'SDL Version: {pygame.get_sdl_version()}')
+        log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
+
+        # Dump a bit more info about the configured mode.
+        log.info(f'Display Driver: {pygame.display.get_driver()}')
+        log.info(f'Display Info: {self.display_info}')
+        log.info(f'Initial Resolution: {self.initial_resolution}')
+        log.info(f'8-bit Modes: {pygame.display.list_modes(8)}')
+        log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
+        log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
+        log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
+        log.info(f'Best Color Depth: '
+                 '{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
+                 ' ({self.mode_flags})')
+        log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
+        log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
+
+    def print_game_info(self):
+        log.debug(f'Successfully loaded {self.init_pass} modules '
+                  'and failed loading {self.init_fail} modules.')
+
+        log.info(f'Game Title: {type(self).NAME}')
+        log.info(f'Game Version: {type(self).VERSION}')
+
+    def set_cursor(self, cursor=None, cursor_black='.', cursor_white='X', cursor_xor='o'):  # noqa R0201
+        if not cursor:
+            # Cursor setup.
+            # Cursor width/height must be a multiple of 8
+            cursor = [
+                "XX                      ",
+                "XXX                     ",
+                "XXXX                    ",
+                "XX.XX                   ",
+                "XX..XX                  ",
+                "XX...XX                 ",
+                "XX....XX                ",
+                "XX.....XX               ",
+                "XX......XX              ",
+                "XX.......XX             ",
+                "XX........XX            ",
+                "XX........XXX           ",
+                "XX......XXXXX           ",
+                "XX.XXX..XX              ",
+                "XXXX XX..XX             ",
+                "XX   XX..XX             ",
+                "     XX..XX             ",
+                "      XX..XX            ",
+                "      XX..XX            ",
+                "       XXXX             ",
+                "       XX               ",
+                "                        ",
+                "                        ",
+                "                        "]
+
+        cursor_width = len(cursor[0])
+        cursor_height = len(cursor)
+
+        cursor = cursor
+
         # Compile our cursor so we can draw it to the screen.
-        self.cursor_data, self.cursor_mask = pygame.cursors.compile(self.cursor,
-                                                                    black=self.cursor_black,
-                                                                    white=self.cursor_white,
-                                                                    xor=self.cursor_xor)
+        cursor_data, cursor_mask = pygame.cursors.compile(cursor,
+                                                          black=cursor_black,
+                                                          white=cursor_white,
+                                                          xor=cursor_xor)
 
         # Now set the cursor as the active cursor.
-        pygame.mouse.set_cursor((self.cursor_width, self.cursor_height),
+        pygame.mouse.set_cursor((cursor_width, cursor_height),
                                 (0, 0),
-                                self.cursor_data,
-                                self.cursor_mask)
+                                cursor_data,
+                                cursor_mask)
+
+        return cursor
+
+    def initialize_system_icons(self):
+        # Set the window icon.
+        #
+        # Always call this before you call set_mode()
+        icon = pygame.Surface((32, 32))
+        icon.fill(PURPLE)
+        pygame.display.set_icon(icon)
+
+        # Set the display caption.
+        pygame.display.set_caption(f'{type(self).NAME}',
+                                   f'{type(self).NAME}')
+
+        # Get captions:
+        (title, icontitle) = pygame.display.get_caption()
+        log.info(f'Window Title: {title}')
+        log.info(f'Icon Title: {icontitle}')
 
     @classmethod
     def args(cls, parser):
@@ -1478,7 +1496,7 @@ class GameEngine(EventManager):
 
         self._active_scene = None
 
-    def quit(self):
+    def quit(self):  # noqa: R0201
         # put a quit event in the event queue.
         pygame.event.post(
             pygame.event.Event(pygame.QUIT, {})
@@ -1495,7 +1513,7 @@ class GameEngine(EventManager):
             self._active_scene = new_scene
             self.proxies = [self, self._active_scene]
 
-    def load_resources(self):
+    def load_resources(self):  # noqa: R0201
         log.info('Implement load_resource() in your subclass.')
 
     def process_events(self):
@@ -1584,7 +1602,7 @@ class GameEngine(EventManager):
         log.info(f'Registering event type "{event_type}" for {callback}')
         self.registered_events[event_type] = callback
 
-    def post_game_event(self, event_subtype, event_data):
+    def post_game_event(self, event_subtype, event_data):  # noqa: R0201
         event = event_data.copy()
         event['subtype'] = event_subtype
         pygame.event.post(
@@ -1799,7 +1817,8 @@ class RootScene(EventManager):
 
 
 class RootSprite(pygame.sprite.DirtySprite):
-    """This is a convenience class for handling all of the common sprite behaviors."""
+    """A convenience class for handling all of the common sprite behaviors."""
+
     USE_GFXDRAW = False
 
     def __init__(self, *args, **kwargs):
@@ -2044,9 +2063,7 @@ class BitmappySprite(RootSprite):
         self.rect.x = kwargs.get('x', 0)
         self.rect.y = kwargs.get('y', 0)
 
-    def load(self, filename):
-        """
-        """
+    def load(self, filename):  # noqa: R0914
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,
                                            empty_lines_in_values=True,
                                            strict=True)
@@ -2097,9 +2114,7 @@ class BitmappySprite(RootSprite):
 
         return (image, rect, name)
 
-    def inflate(self, width, height, pixels, color_map):
-        """
-        """
+    def inflate(self, width, height, pixels, color_map):  # noqa: R0201
         image = pygame.Surface((width, height))
         image.convert()
 
@@ -2113,8 +2128,6 @@ class BitmappySprite(RootSprite):
         return (image, image.get_rect())
 
     def save(self, filename):
-        """
-        """
         config = self.deflate()
 
         with open(filename, 'w') as deflated_sprite:
@@ -2147,7 +2160,7 @@ class BitmappySprite(RootSprite):
 
         # Generate the color key
         color_key = chr(47)
-        for i, color in enumerate(colors):
+        for color in colors:
             # Characters above doublequote.
             color_key = chr(ord(color_key) + 1)
             config.add_section(color_key)

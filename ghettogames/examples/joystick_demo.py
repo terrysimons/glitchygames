@@ -46,6 +46,7 @@ class ShapesSprite(RootSprite):
         self._draw_circle()
         self._draw_rectangle()
 
+        self.dirty = 1
         self.update()
 
     def move(self, pos):
@@ -60,10 +61,10 @@ class ShapesSprite(RootSprite):
         # There's no point API, so we'll fake
         # it with the line API.
         if self.use_gfxdraw:
-            pygame.gfxdraw.pixel(self.screen,
+            pygame.gfxdraw.pixel(self.screen,  # noqa: I1101
                                  self.screen_width // 2,
                                  self.screen_height // 2,
-                                 YELLOW)
+                                 YELLOW)  # noqa: I1101
 
             self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
@@ -75,7 +76,7 @@ class ShapesSprite(RootSprite):
     def _draw_circle(self):
         # Draw a blue circle.
         if self.use_gfxdraw:
-            pygame.gfxdraw.circle(self.screen,
+            pygame.gfxdraw.circle(self.screen,  # noqa: I1101
                                   self.screen_width // 2,
                                   self.screen_height // 2,
                                   self.screen_height // 2,
@@ -102,7 +103,7 @@ class ShapesSprite(RootSprite):
         pointlist = (top_point, left_point, right_point)
 
         if self.use_gfxdraw:
-            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)
+            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)  # noqa: I1101
 
             # You could also use:
             # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, GREEN)
@@ -123,7 +124,7 @@ class ShapesSprite(RootSprite):
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
         if self.use_gfxdraw:
-            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
+            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)  # noqa: I1101
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
 
@@ -170,13 +171,17 @@ class TextSprite(RootSprite):
         self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
-        class TextBox(object):
+        # Interiting from object is default in Python 3.
+        # Linters complain if you do it.
+        class TextBox:
             def __init__(self, font_controller, x, y, line_height=15):
                 super().__init__()
                 self.image = None
                 self.rect = None
                 self.start_x = x
                 self.start_y = y
+                self.x = self.start_x
+                self.y = self.start_y
                 self.line_height = line_height
 
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
@@ -185,7 +190,6 @@ class TextSprite(RootSprite):
 
             def print(self, surface, string):
                 (self.image, self.rect) = self.font.render(string, WHITE)
-                self.image
                 surface.blit(self.image, (self.x, self.y))
                 self.rect.x = self.x
                 self.rect.y = self.y
@@ -200,9 +204,6 @@ class TextSprite(RootSprite):
 
             def unindent(self):
                 self.x -= 10
-
-            def rect(self):
-                return self.rect
 
         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
@@ -236,18 +237,18 @@ class TextSprite(RootSprite):
                 self.text_box.print(self.image, f'Number of axes: {axes}')
 
                 self.text_box.indent()
-                for i in range(axes):
+                for j in range(axes):
                     self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'
-                                        .format(i, joystick.get_axis(i)))
+                                        .format(j, joystick.get_axis(j)))
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
                 self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
 
                 self.text_box.indent()
-                for i in range(buttons):
+                for j in range(buttons):
                     self.text_box.print(self.image, 'Button {:>2} value: {}'
-                                        .format(i, joystick.get_button(i)))
+                                        .format(j, joystick.get_button(i)))
                 self.text_box.unindent()
 
                 # Hat switch. All or nothing for direction, not like joysticks.
@@ -256,8 +257,8 @@ class TextSprite(RootSprite):
                 self.text_box.print(self.image, f'Number of hats: {hats}')
 
                 self.text_box.indent()
-                for i in range(hats):
-                    self.text_box.print(self.image, f'Hat {i} value: {str(joystick.get_hat(i))}')
+                for j in range(hats):
+                    self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
                     self.text_box.unindent()
                 self.text_box.unindent()
 
@@ -281,7 +282,7 @@ class JoystickScene(RootScene):
         self.all_sprites.clear(self.screen, self.background)
         # self.load_resources()
 
-    def load_resources(self):
+    def load_resources(self):  # noqa: R0201
         # Load tiles.
         for resource in glob.iglob('resources/*', recursive=True):
             try:
@@ -291,9 +292,6 @@ class JoystickScene(RootScene):
         #         self.tiles.append(load_graphic(resource))
         #     except IsADirectoryError:
         #         pass
-
-    def update(self):
-        super().update()
 
     def render(self, screen):
         super().render(screen)
@@ -310,9 +308,6 @@ class JoystickScene(RootScene):
             else:
                 x += 32
 
-    def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
-
     def on_mouse_motion_event(self, event):
         self.shapes_sprite.move(event.pos)
 
@@ -322,10 +317,10 @@ class JoystickScene(RootScene):
     def on_left_mouse_button_down(self, event):
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
-    def on_pew_pew_event(self, event):
+    def on_pew_pew_event(self, event):  # noqa: R0201
         log.info(f'PEW PEW Event: {event}')
 
-    def on_recharge_event(self, event):
+    def on_recharge_event(self, event):  # noqa: R0201
         log.info(f'Recharge Event: {event}')
 
 
@@ -340,13 +335,6 @@ class Game(GameEngine):
 
         # TODO:
         # Write an FPS layer that uses time.ns_time()
-
-        # Hook up pygame.display.get_active()
-        # ACTIVEEVENT on the eventqueue
-
-        # Hook up pygame.display.toggle_fullscreen()
-        # Only available on X11
-        # Setting a new displaymode will also allow this behavior on other OSes.
 
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         #
@@ -372,19 +360,19 @@ class Game(GameEngine):
         # And the recharge event.
         # self.register_game_event('recharge', self.on_recharge_event)
 
-    def update_cursor(self):
+    # def update_cursor(self):
         # For giggles, we can draw two cursors.
         # This can cause extra flicker on the cursor.
         #
         # We need to re-configure the various cursor attributes once we do this.
-        self.cursor = [cursor_row for cursor_row in self.cursor]
-        self.cursor_width = len(self.cursor[0])
-        self.cursor_height = len(self.cursor)
+    #    self.cursor = [cursor_row for cursor_row in self.cursor]
+    #    self.cursor_width = len(self.cursor[0])
+    #    self.cursor_height = len(self.cursor)
 
-        log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
+        # log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
 
         # Now call the GameEngine update_cursor method to compile and set the cursor.
-        super().update_cursor()
+        # super().update_cursor()
 
     @classmethod
     def args(cls, parser):
