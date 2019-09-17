@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import collections
 import configparser
 import inspect
@@ -9,7 +8,6 @@ import multiprocessing
 import os
 import platform
 
-# from pygame import Color, Rect
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
@@ -428,7 +426,9 @@ def pixels_from_path(path):
     return pixels
 
 
-class ResourceManager(object):
+# Interiting from object is default in Python 3.
+# Linters complain if you do it.
+class ResourceManager:
     __instances__ = {}
 
     def __new__(cls, *args, **kwargs):
@@ -442,7 +442,7 @@ class ResourceManager(object):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.proxies = None
+        self.proxies = []
 
     # A resource manager will generally pass all requests through
     # to its proxy object, however, for certain types of resources
@@ -461,7 +461,9 @@ class ResourceManager(object):
 
 
 class EventManager(ResourceManager):
-    class EventProxy(object):
+    # Interiting from object is default in Python 3.
+    # Linters complain if you do it.
+    class EventProxy:
         def __init__(self, *args, **kwargs):
             super().__init__()
             # No proxies for the root class.
@@ -1797,9 +1799,7 @@ class RootScene(EventManager):
 
 
 class RootSprite(pygame.sprite.DirtySprite):
-    """
-    This is a convenience class for handling all of the common sprite behaviors.
-    """
+    """This is a convenience class for handling all of the common sprite behaviors."""
     USE_GFXDRAW = False
 
     def __init__(self, *args, **kwargs):

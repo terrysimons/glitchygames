@@ -272,7 +272,7 @@ class Game(GameEngine):
             self.clock.tick(self.fps)
 
             self.active_scene = self.active_scene.next
-
+e
 
 def main():
     parser = argparse.ArgumentParser(f'{Game.NAME} version {Game.VERSION}')
