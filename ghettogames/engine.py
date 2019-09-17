@@ -566,6 +566,7 @@ class EventManager(ResourceManager):
         self.proxies = [EventProxy(event_source=self)]
         self.game = kwargs.get('game', None)
 
+
 class FontManager(ResourceManager):
     DEFAULT_FONT_SETTINGS = {}
 
@@ -598,7 +599,7 @@ class FontManager(ResourceManager):
         # than 'uFFFF'. If pygame.freetypeEnhanced pygame module for loading and
         # rendering computer fonts is unavailable then the SDL_ttf font module
         # will be loaded instead.
-        #pygame.ftfont.init()
+        # pygame.ftfont.init()
 
     @classmethod
     def args(cls, parser):
@@ -624,6 +625,7 @@ class FontManager(ResourceManager):
 
         return parser
 
+
 class MusicManager(ResourceManager):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -633,6 +635,7 @@ class MusicManager(ResourceManager):
         group = parser.add_argument_group('Music Options')  # noqa: W0612
 
         return parser
+
 
 class SoundManager(ResourceManager):
     __instance__ = None
@@ -662,6 +665,7 @@ class SoundManager(ResourceManager):
         group = parser.add_argument_group('Sound Mixer Options')  # noqa: W0612
 
         return parser
+
 
 class KeyboardManager(ResourceManager):
 
@@ -732,6 +736,7 @@ class KeyboardManager(ResourceManager):
                 self.game.on_key_chord_up_event(event, keys_down)
 
         self.proxies = [KeyboardProxy(game=self.game)]
+
 
 class MouseManager(ResourceManager):
 
@@ -975,6 +980,7 @@ class MouseManager(ResourceManager):
 
         self.proxies = [MouseProxy(game=self.game)]
 
+
 class JoystickManager(ResourceManager):
 
     def __init__(self, **kwargs):
@@ -1146,6 +1152,7 @@ class GameManager(ResourceManager):
 
         return parser
 
+
 class GameEngine(EventManager):
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
@@ -1256,7 +1263,7 @@ class GameEngine(EventManager):
             # For Ubuntu 19.04, we can't reset the original res
             # so let's just let the system figure it out.
             if self.system == 'Linux':
-                if not 'arm' in self.machine:
+                if 'arm' not in self.machine:
                     log.info('Ignoring full screen resolution change on Linux.')
                     self.desired_width = 0
                     self.desired_height = 0
@@ -1336,7 +1343,9 @@ class GameEngine(EventManager):
         log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
         log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
         log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
-        log.info(f'Best Color Depth: {pygame.display.mode_ok(self.initial_resolution), self.mode_flags} ({self.mode_flags})')
+        log.info(f'Best Color Depth: '
+                 '{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
+                 ' ({self.mode_flags})')
         log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
         log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
 
@@ -1448,6 +1457,8 @@ class GameEngine(EventManager):
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         windows_videodriver_choices = ['windib', 'directx']
 
+        log.debug(f'Windows Video Driver Choices: {windows_videodriver_choices}')
+
         linux_videodriver_choices = ['x11',
                                      'dga',
                                      'fbcon',
@@ -1458,6 +1469,10 @@ class GameEngine(EventManager):
                                      'aalib']
 
         mac_videodriver_choices = []
+
+        log.debug(f'Mac Video Driver Choices: {mac_videodriver_choices}')
+
+        # TODO: Detect the OS and auto-stuff the video driver option.
 
         group.add_argument('--video-driver',
                            default=None,
@@ -1614,15 +1629,14 @@ class GameEngine(EventManager):
             log.error(f'Unregistered Event: {event} '
                       '(call self.register_game_event(<event subtype>, <event data>))')
 
-    #def on_key_up_event(self, event):
-    #    super().on_key_up_event(event)
+    def on_key_up_event(self, event):
         # Wire up quit by default for escape and q.
         #
         # If a game implements on_key_up_event themselves
         # they'll have to map their quit keys or call super().on_key_up_event()
-    #    if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
-    #        log.info('User requested quit.')
-    #        self.quit()
+        if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+            log.info('User requested quit.')
+            self.quit()
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
@@ -1640,6 +1654,7 @@ class GameEngine(EventManager):
             log.info(f'{attr} is not implemented for {type(self)} or '
                      'for the active scene {type(self.active_scene)}')
             return getattr(super(), attr)
+
 
 class RootScene(EventManager):
     def __init__(self):
@@ -1661,8 +1676,6 @@ class RootScene(EventManager):
 
         self.all_sprites.clear(self.screen, self.background)
 
-        #self.proxies = [EventManager()]
-
     def update(self):
         self.rects = self.all_sprites.draw(self.screen)
 
@@ -1675,55 +1688,31 @@ class RootScene(EventManager):
     def terminate(self):
         self.switch_to_scene(None)
 
-    #def on_axis_motion_event(self, event):
-        # JOYAXISMOTION    joy, axis, value
-    #    log.debug(f'{type(self)}: {event}')
+    def sprites_at_position(self, pos):
+        mouse = MouseSprite(x=pos[0], y=pos[1], width=1, height=1)
 
-    #def on_button_down_event(self, event):
-    #    # JOYBUTTONDOWN    joy, button
-    #    log.debug(f'{}: {event}')
-
-    #def on_button_up_event(self, event):
-    #    # JOYBUTTONUP      joy, button
-    #    log.debug(f'{self.root_scene}: {event}')
-
-    #def on_hat_motion_event(self, event):
-    #    # JOYHATMOTION     joy, hat, value
-    #    log.debug(f'{self.root_scene}: {event}')
-
-    #def on_ball_motion_event(self, event):
-    #    # JOYBALLMOTION    joy, ball, rel
-    #    log.debug(f'{type(self)}: {event}')
-
-    #def on_mouse_motion_event(self, event):
-    #    # MOUSEMOTION      pos, rel, buttons
-    #    log.debug(f'{self.root_scene}: {event}')
+        return pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
     def on_mouse_drag_down_event(self, event, trigger):
         log.debug(f'{type(self)}: Mouse Drag Down: {event} {trigger}')
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
 
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_mouse_drag_down_event(event, trigger)
 
     def on_left_mouse_drag_down_event(self, event, trigger):
-        #log.info(f'{self.root_scene}: Left Mouse Drag Down: {event} {trigger}')
+        log.debug(f'{type(self)}: Left Mouse Drag Down: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_left_mouse_drag_down_event(event, trigger)
 
     def on_left_mouse_drag_up_event(self, event, trigger):
-        log.info(f'{type(self)}: Left Mouse Drag Up: {event} {trigger}')
+        log.debug(f'{type(self)}: Left Mouse Drag Up: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_left_mouse_drag_up_event(event)
@@ -1731,9 +1720,7 @@ class RootScene(EventManager):
     def on_middle_mouse_drag_down_event(self, event, trigger):
         log.info(f'{type(self)}: Middle Mouse Drag Down: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_middle_mouse_drag_down_event(event, trigger)
@@ -1741,9 +1728,7 @@ class RootScene(EventManager):
     def on_middle_mouse_drag_up_event(self, event, trigger):
         log.info(f'{type(self)}: Middle Mouse Drag Up: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_middle_mouse_drag_up_event(event)
@@ -1751,9 +1736,7 @@ class RootScene(EventManager):
     def on_right_mouse_drag_down_event(self, event, trigger):
         log.info(f'{type(self)}: Right Mouse Drag Down: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_right_mouse_drag_up_event(event, trigger)
@@ -1761,56 +1744,42 @@ class RootScene(EventManager):
     def on_right_mouse_drag_up_event(self, event, trigger):
         log.info(f'{type(self)}: Right Mouse Drag Up: {event} {trigger}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_right_mouse_drag_up_event(event)
 
     def on_mouse_drag_up_event(self, event):
         log.debug(f'{type(self)}: Mouse Drag Up: {event}')
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
 
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_mouse_drag_up_event(event)
 
-    #def on_mouse_button_up_event(self, event):
-    #    # MOUSEBUTTONUP    pos, button
-    #    log.debug(f'{self.root_scene}: {event}')
-
     def on_left_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
         log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
-        self.on_mouse_button_up_event(event)
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        if not collided_sprites:
-            log.info('No match.')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_left_mouse_button_up_event(event)
 
-    #def on_middle_mouse_button_up_event(self, event):
+    def on_middle_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-    #    log.debug(f'{self.root_scene}: Middle Mouse Button Up Event: {event}')
+        log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+
+        collided_sprites = self.sprites_at_position(pos=event.pos)
+
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_button_up_event(event)
 
     def on_right_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
         log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
-        self.on_mouse_button_up_event(event)
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        if not collided_sprites:
-            log.info('No match.')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_right_mouse_button_up_event(event)
@@ -1819,27 +1788,25 @@ class RootScene(EventManager):
         # MOUSEBUTTONDOWN  pos, button
         log.debug(f'{type(self)}: Left Mouse Button Down Event: {event}')
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        if not collided_sprites:
-            log.info('No match.')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_left_mouse_button_down_event(event)
 
+    def on_middle_mouse_button_down_event(self, event):
+        # MOUSEBUTTONDOWN    pos, button
+        log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+
+        collided_sprites = self.sprites_at_position(pos=event.pos)
+
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_button_down_event(event)
+
     def on_right_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
         log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
-        self.on_mouse_button_down_event(event)
 
-        mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-        collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        if not collided_sprites:
-            log.info('No match.')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
             sprite.on_right_mouse_button_down_event(event)
@@ -1852,6 +1819,7 @@ class RootScene(EventManager):
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
         log.info(f'{type(self)}: {GameEngine.FPS}')
+
 
 class RootSprite(pygame.sprite.DirtySprite):
     """
@@ -1970,7 +1938,6 @@ class RootSprite(pygame.sprite.DirtySprite):
         else:
             log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
 
-
     def on_middle_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
         log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
@@ -2071,6 +2038,7 @@ class RootSprite(pygame.sprite.DirtySprite):
 
     def __str__(self):
         return f'{type(self)} "{self.name}" ({repr(self)})'
+
 
 class BitmappySprite(RootSprite):
     DEBUG = False
@@ -2242,6 +2210,7 @@ class BitmappySprite(RootSprite):
 
         return config
 
+
 # This is a root class for sprites that should be singletons, like
 # the MenuBar class, and the MouseSprite class.
 class SingletonBitmappySprite(BitmappySprite):
@@ -2256,6 +2225,7 @@ class SingletonBitmappySprite(BitmappySprite):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
 
 # We're making this a singleton class becasue
 # pygame doesn't understand multiple cursors

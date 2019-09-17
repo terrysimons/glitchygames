@@ -237,7 +237,8 @@ class TextSprite(RootSprite):
 
                 self.text_box.indent()
                 for i in range(axes):
-                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'.format(i, joystick.get_axis(i)))
+                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'
+                                        .format(i, joystick.get_axis(i)))
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
@@ -245,7 +246,8 @@ class TextSprite(RootSprite):
 
                 self.text_box.indent()
                 for i in range(buttons):
-                    self.text_box.print(self.image, 'Button {:>2} value: {}'.format(i, joystick.get_button(i)))
+                    self.text_box.print(self.image, 'Button {:>2} value: {}'
+                                        .format(i, joystick.get_button(i)))
                 self.text_box.unindent()
 
                 # Hat switch. All or nothing for direction, not like joysticks.
@@ -459,7 +461,8 @@ class Game(GameEngine):
             else:
                 raise Exception(f'Scene not activated in call to {attr}()')
         except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+            raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
+                                 'or active scene {type(self.active_scene)}.')
 
 
 def main():

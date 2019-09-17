@@ -440,7 +440,8 @@ class Game(GameEngine):
             else:
                 raise Exception(f'Scene not activated in call to {attr}()')
         except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+            raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
+                                 'or active scene {type(self.active_scene)}.')
 
 
 def main():
