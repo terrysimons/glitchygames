@@ -311,10 +311,10 @@ class JoystickScene(RootScene):
     def on_mouse_motion_event(self, event):
         self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_up(self, event):
+    def on_left_mouse_button_up(self, event):  # noqa: W0613
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
-    def on_left_mouse_button_down(self, event):
+    def on_left_mouse_button_down(self, event):  # noqa: W0613
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
     def on_pew_pew_event(self, event):  # noqa: R0201
@@ -333,9 +333,7 @@ class Game(GameEngine):
         super().__init__(options=options)
         self.time = options.get('time')
 
-        # TODO:
-        # Write an FPS layer that uses time.ns_time()
-
+        # TODO: Write an FPS layer that uses time.ns_time()
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         #
         # (0, 0), 0, 0 is the recommended setting for auto-configure.

@@ -1661,6 +1661,7 @@ class RootScene(EventManager):
         self.all_sprites = pygame.sprite.LayeredDirty()
 
         # Initial screen state.
+
         self.screen = pygame.display.get_surface()
         self.background = pygame.Surface(self.screen.get_size())
         self.background.convert()
@@ -1671,7 +1672,7 @@ class RootScene(EventManager):
     def update(self):
         self.rects = self.all_sprites.draw(self.screen)
 
-    def render(self, screen):
+    def render(self, screen):  # noqa: W0613
         self.all_sprites.update()
 
     def switch_to_scene(self, next_scene):
