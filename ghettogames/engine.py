@@ -440,7 +440,7 @@ class ResourceManager:
 
         return cls.__instances__[cls]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa: W0613
         super().__init__()
         self.proxies = []
 
@@ -467,7 +467,7 @@ class EventManager(ResourceManager):
     # This isn't a ResourceManager like other proxies, because
     # it's the fallthrough event object, so we don't have a proxy.
     class EventProxy:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs):  # noqa: W0613
             super().__init__()
             # No proxies for the root class.
             self.proxies = []
@@ -479,13 +479,16 @@ class EventManager(ResourceManager):
             # will not have this.
             self.event_source = kwargs.get('event_source', None)
 
-        def unhandled_event(self, *args, **kwargs):
+        def unhandled_event(self, *args, **kwargs):  # noqa: W0613
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
             event_handler = inspect.stack()[1].function
 
             event = kwargs.get('event')
 
-            log.debug(f'Unhandled Event {event_handler}: {self.event_source}->{event}')
+            event_trigger = kwargs.get('trigger', None)
+
+            log.debug(f'Unhandled Event {event_handler}: '
+                      f'{self.event_source}->{event} Event Trigger: {event_trigger}')
 
         def on_active_event(self, event):
             # ACTIVEEVENT      gain, state
@@ -545,11 +548,11 @@ class EventManager(ResourceManager):
 
         def on_key_chord_down_event(self, event, trigger):
             # This is a synthesized event.
-            self.unhandled_event(event=event)
+            self.unhandled_event(event=event, trigger=trigger)
 
         def on_key_chord_up_event(self, event, trigger):
             # This is a synthesized event.
-            self.unhandled_event(event=event)
+            self.unhandled_event(event=event, trigger=trigger)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -561,8 +564,8 @@ class EventManager(ResourceManager):
 class FontManager(ResourceManager):
     DEFAULT_FONT_SETTINGS = {}
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         # Register pygame.freetype
         pygame.freetype.init()
@@ -629,8 +632,8 @@ class MusicManager(ResourceManager):
 
 
 class SoundManager(ResourceManager):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
@@ -1805,7 +1808,7 @@ class RootScene(EventManager):
         log.debug(f'{type(self)}: {event}')
         self.terminate()
 
-    def on_fps_event(self, event):
+    def on_fps_event(self, event):  # noqa: W0613
         # FPSEVENT is pygame.USEREVENT + 1
         log.info(f'{type(self)}: {GameEngine.FPS}')
 
@@ -1815,7 +1818,7 @@ class RootSprite(pygame.sprite.DirtySprite):
 
     USE_GFXDRAW = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa: W0613
         super().__init__()
         self.name = type(self)
         self.x = kwargs.get('x', 0)
@@ -2020,7 +2023,7 @@ class RootSprite(pygame.sprite.DirtySprite):
         # USEREVENT        code
         log.debug(f'{type(self)}: {event}')
 
-    def on_fps_event(self, event):
+    def on_fps_event(self, event):  # noqa: W0613
         # FPSEVENT is pygame.USEREVENT + 1
         log.debug(f'{type(self)}: {GameEngine.FPS}')
 
