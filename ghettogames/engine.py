@@ -5,8 +5,8 @@ import configparser
 import inspect
 import logging
 import multiprocessing
-import os
 import platform
+import re
 
 import pygame
 import pygame.freetype
@@ -463,6 +463,9 @@ class ResourceManager:
 class EventManager(ResourceManager):
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
+    #
+    # This isn't a ResourceManager like other proxies, because
+    # it's the fallthrough event object, so we don't have a proxy.
     class EventProxy:
         def __init__(self, *args, **kwargs):
             super().__init__()
@@ -961,8 +964,14 @@ class MouseManager(ResourceManager):
 
 
 class JoystickManager(ResourceManager):
-    class JoystickProxy(ResourceManager):
 
+    # Interiting from object is default in Python 3.
+    # Linters complain if you do it.
+    #
+    # This isn't a ResourceManager like other proxies, because
+    # there can be multiple joysticks, so having one instance
+    # won't work.
+    class JoystickProxy:
         def __init__(self, joystick_id, **kwargs):
             super().__init__()
             self._id = joystick_id
@@ -1117,18 +1126,17 @@ class JoystickManager(ResourceManager):
 
 
 class GameManager(ResourceManager):
+    class GameProxy(ResourceManager):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.game = kwargs.get('game')
+            self.proxies = [self.game]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.game = kwargs.get('game', None)
 
-        class GameProxy(ResourceManager):
-            def __init__(self, **kwargs):
-                super().__init__(**kwargs)
-                self.game = kwargs.get('game')
-                self.proxies = [self.game]
-
-        self.proxies = [GameProxy(game=self.game)]
+        self.proxies = [GameManager.GameProxy(game=self.game)]
 
     @classmethod
     def args(cls, parser):
@@ -1137,70 +1145,66 @@ class GameManager(ResourceManager):
         return parser
 
 
+def supported_events(like='.*'):
+    # Get a list of all of the events
+    # by name, but ignore duplicates.
+    event_names = [*set(pygame.event.event_name(event_num)
+                        for event_num in range(0, pygame.NUMEVENTS))]
+    event_names = set(event_names) - set('Unknown')
+    event_list = []
+
+    for event_name in list(event_names):
+        try:
+            if re.match(like, event_name.upper()):
+                event_list.append(getattr(pygame, event_name.upper()))
+                log.info(event_name.upper())
+        except AttributeError as e:
+            log.error(f'Failed to init: {e}')
+
+    return event_list
+
+
 class GameEngine(EventManager):
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
     FPS = 0
     OPTIONS = None
-    MOUSE_EVENTS = [pygame.MOUSEMOTION,
-                    pygame.MOUSEBUTTONUP,
-                    pygame.MOUSEBUTTONDOWN]
-
-    KEYBOARD_EVENTS = [pygame.KEYDOWN,
-                       pygame.KEYUP]
-
-    JOYSTICK_EVENTS = [pygame.JOYAXISMOTION,
-                       pygame.JOYBALLMOTION,
-                       pygame.JOYHATMOTION,
-                       pygame.JOYBUTTONUP,
-                       pygame.JOYBUTTONDOWN]
 
     FPSEVENT = pygame.USEREVENT + 1
     GAMEEVENT = pygame.USEREVENT + 2
     MENUEVENT = pygame.USEREVENT + 3
-    GAME_EVENTS = [FPSEVENT,
-                   GAMEEVENT,
-                   MENUEVENT,
-                   pygame.USEREVENT,
-                   pygame.QUIT,
-                   pygame.ACTIVEEVENT,
-                   pygame.VIDEORESIZE,
-                   pygame.VIDEOEXPOSE,
-                   pygame.SYSWMEVENT]
+
+    MOUSE_EVENTS = supported_events(like='MOUSE.*?')
+    KEYBOARD_EVENTS = supported_events(like='KEY.*?')
+    JOYSTICK_EVENTS = supported_events(like='JOY.*?')
+    ALL_EVENTS = supported_events()
+    GAME_EVENTS = list(set(ALL_EVENTS) -
+                       set(MOUSE_EVENTS) -
+                       set(KEYBOARD_EVENTS) -
+                       set(JOYSTICK_EVENTS))
+
+    GAME_EVENTS.append(FPSEVENT)
+    GAME_EVENTS.append(GAMEEVENT)
+    GAME_EVENTS.append(MENUEVENT)
 
     def __init__(self, options=None):
-        if not options:
-            options = {}
-
         # Persist this game's options.
-        GameEngine.OPTIONS = options
+        GameEngine.OPTIONS = options or {}
 
         # Add a copy of ourselves to this singleton's options.
         #
         # This makes getting a handle to the running game easy.
         GameEngine.OPTIONS['game'] = self
 
-        super().__init__(**options)
         self._active_scene = None
 
-        # A bit of black magic.
-        self.proxies = [self]
-
-        # General stuff.
-        self.cpu_count = multiprocessing.cpu_count()
-        self.system = platform.system()
-        self.machine = platform.machine()
-        self.platform = platform.platform(aliased=0, terse=0)
-        self.platform_terse = platform.platform(aliased=0, terse=1)
-        self.processor = platform.processor()
-        self.release = platform.release()
+        super().__init__(**GameEngine.OPTIONS)
 
         # Pygame stuff.
         pygame.register_quit(self.quit)
         self.fps = options.get('fps', 0)
         self.update_type = options.get('update_type')
         self.use_gfxdraw = options.get('use_gfxdraw')
-        self.video_driver = options.get('video_driver')
         self.windowed = options.get('windowed')
         self.desired_resolution = options.get('resolution')
         self.fps_refresh_rate = options.get('fps_refresh_rate')
@@ -1216,21 +1220,6 @@ class GameEngine(EventManager):
 
         self.registered_events = {}
         self.game_manager = GameManager(**GameEngine.OPTIONS)
-
-        # Event Handling Shortcuts
-        self.mouse_events = [pygame.MOUSEMOTION,
-                             pygame.MOUSEBUTTONDOWN,
-                             pygame.MOUSEBUTTONUP]
-
-        self.joystick_events = [pygame.JOYAXISMOTION,
-                                pygame.JOYBALLMOTION,
-                                pygame.JOYHATMOTION,
-                                pygame.JOYBUTTONUP,
-                                pygame.JOYBUTTONDOWN]
-
-        self.keyboard_events = [pygame.KEYDOWN,
-                                pygame.KEYUP]
-
         self.mouse_manager = MouseManager(**GameEngine.OPTIONS)
         self.keyboard_manager = KeyboardManager(**GameEngine.OPTIONS)
         self.sound_manager = SoundManager(**GameEngine.OPTIONS)
@@ -1246,28 +1235,14 @@ class GameEngine(EventManager):
 
         # Resolution initialization.
         # Convert our resolution to a tuple
-        (self.desired_width, self.desired_height) = self.desired_resolution.split('x')
+        (desired_width, desired_height) = self.desired_resolution.split('x')
+
         if self.windowed:
             self.mode_flags = 0
         else:
             self.mode_flags = pygame.FULLSCREEN
 
-            # For Ubuntu 19.04, we can't reset the original res
-            # so let's just let the system figure it out.
-            if self.system == 'Linux':
-                if 'arm' not in self.machine:
-                    log.info('Ignoring full screen resolution change on Linux.')
-                    self.desired_width = 0
-                    self.desired_height = 0
-                else:
-                    # RPi Hack
-                    #
-                    # The Raspberry Pi screen exposes
-                    # 2 resolutions, but only one works properly
-                    self.desired_width = 800
-                    self.desired_height = 480
-        self.color_depth = 0
-        self.desired_resolution = (int(self.desired_width), int(self.desired_height))
+        self.desired_resolution = self.suggested_resolution(desired_width, desired_height)
 
         # window icon and system tray/dock icon
         self.initialize_system_icons()
@@ -1276,10 +1251,6 @@ class GameEngine(EventManager):
         # the system.  If we don't provide any parameters, we'll get
         # a reasonble default, but you should consider whether that's
         # a good idea for your particular application.
-        #
-        # We'll cover how to set modes in  different tutorial.
-        #
-        # This tutorial aims for maximum compatibility.
         #
         # There are various caveats for hardware accelerated blitting
         # that make it undesirable in a lot of cases, so we'll just use
@@ -1298,32 +1269,32 @@ class GameEngine(EventManager):
         else:
             log.error('Screen update type was neither "update" nor "flip".')
 
-        # If a video driver was set, use it.
-        if self.video_driver:
-            os.environ['SDL_VIDEODRIVER'] = self.video_driver
-        else:
-            self.video_driver = os.environ.get('SDL_VIDEODRIVER', None)
-
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
         self.screen = pygame.display.set_mode(self.desired_resolution,
-                                              self.mode_flags,
-                                              self.color_depth)
+                                              self.mode_flags)
 
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
+        self.print_system_info()
 
-        self.print_system_info()        
+    @property
+    def screen_width(self):
+        return self.screen.get_width()
+
+    @property
+    def screen_height(self):
+        return self.screen.get_height()
 
     def print_system_info(self):
-        log.info(f'CPU Count: {self.cpu_count}')
-        log.info(f'System: {self.system}')
-        log.info(f'Machine: {self.machine}')
-        log.info(f'Platform: {self.platform}')
-        log.info(f'Platform (Terse): {self.platform_terse}')
-        log.info(f'Processor: {self.processor}')
-        log.info(f'Release: {self.release}')
+        # General Info
+        log.info(f'CPU Count: {multiprocessing.cpu_count()}')
+        log.info(f'System: {platform.system()}')
+        log.info(f'Machine: {platform.machine()}')
+        log.info(f'Platform: {platform.platform()}')
+        log.info(f'Platform (Terse): {platform.platform(aliased=0, terse=1)}')
+        log.info(f'Processor: {platform.processor()}')
+        log.info(f'Release: {platform.release()}')
+
         # Set up a display mode.
         # Note: pygame.display.init() isn't necessary here
         # because we've already called pygame.init() which
@@ -1352,10 +1323,26 @@ class GameEngine(EventManager):
 
     def print_game_info(self):
         log.debug(f'Successfully loaded {self.init_pass} modules '
-                  'and failed loading {self.init_fail} modules.')
+                  f'and failed loading {self.init_fail} modules.')
 
         log.info(f'Game Title: {type(self).NAME}')
         log.info(f'Game Version: {type(self).VERSION}')
+
+    def suggested_resolution(self, desired_width=0, desired_height=0):  # noqa: R0201
+        # For Ubuntu 19.04, we can't reset the original res
+        # so let's just let the system figure it out.
+        if platform.system() == 'Linux':
+            if 'arm' not in platform.machine():
+                log.info('Ignoring full screen resolution change on Linux.')
+            else:
+                # RPi Hack
+                #
+                # The Raspberry Pi screen exposes
+                # 2 resolutions, but only one works properly
+                desired_width = 800
+                desired_height = 480
+
+        return (int(desired_width), int(desired_height))
 
     def set_cursor(self, cursor=None, cursor_black='.', cursor_white='X', cursor_xor='o'):  # noqa R0201
         if not cursor:
@@ -1450,28 +1437,35 @@ class GameEngine(EventManager):
                            default='update')
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
-        windows_videodriver_choices = ['windib', 'directx']
+        default_videodriver = []
+        if platform.system() == 'Linux':
+            linux_videodriver_choices = ['x11',
+                                         'dga',
+                                         'fbcon',
+                                         'directfb',
+                                         'ggi',
+                                         'vgl',
+                                         'svgalib',
+                                         'aalib']
 
-        log.debug(f'Windows Video Driver Choices: {windows_videodriver_choices}')
+            log.debug('Linux Video Driver Choices: {linux_videodriver_choices}')
 
-        linux_videodriver_choices = ['x11',
-                                     'dga',
-                                     'fbcon',
-                                     'directfb',
-                                     'ggi',
-                                     'vgl',
-                                     'svgalib',
-                                     'aalib']
+            default_videodriver = linux_videodriver_choices
 
-        mac_videodriver_choices = []
+        elif platform.system() == 'MacOS':
+            mac_videodriver_choices = []
 
-        log.debug(f'Mac Video Driver Choices: {mac_videodriver_choices}')
+            log.debug(f'Mac Video Driver Choices: {mac_videodriver_choices}')
+            default_videodriver = mac_videodriver_choices
+        elif platform.system() == 'Windows':
+            windows_videodriver_choices = ['windib', 'directx']
 
-        # TODO: Detect the OS and auto-stuff the video driver option.
+            log.debug(f'Windows Video Driver Choices: {windows_videodriver_choices}')
+            default_videodriver = windows_videodriver_choices
 
         group.add_argument('--video-driver',
                            default=None,
-                           choices=linux_videodriver_choices)
+                           choices=default_videodriver)
 
         # Init Font Options
         parser = FontManager.args(parser=parser)
@@ -1520,17 +1514,17 @@ class GameEngine(EventManager):
         # To use events in a different thread, use the fastevent package from pygame.
         # You can create your own new events with the pygame.event.Event() function.
         for event in pygame.fastevent.get():
-            if event.type in self.GAME_EVENTS:
+            if event.type in GameEngine.GAME_EVENTS:
                 self.process_game_event(event)
-            elif event.type in self.JOYSTICK_EVENTS:
+            elif event.type in GameEngine.JOYSTICK_EVENTS:
                 self.process_joystick_event(event)
-            elif event.type in self.MOUSE_EVENTS:
+            elif event.type in GameEngine.MOUSE_EVENTS:
                 self.process_mouse_event(event)
-            elif event.type in self.KEYBOARD_EVENTS:
+            elif event.type in GameEngine.KEYBOARD_EVENTS:
                 self.process_keyboard_event(event)
             else:
                 # This will catch any unimplemented event types that we see.
-                log.error(f'Unknown Event Type: {event.type}: {event}')
+                log.error(f'Unknown Event Type: {event.type}: {event} {GameEngine.ALL_EVENTS}')
 
     def process_mouse_event(self, event):
         if event.type == pygame.MOUSEMOTION:
