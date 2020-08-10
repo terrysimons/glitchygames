@@ -1,14 +1,20 @@
+# GhettoGames
+# ColorPalette: Manages the custom color palette file format used by the engine
+#
+# A color palette is contained in a CFG file with each color having a section with the
+# R,G,B,A values.  This is designed for learning purposes.  Palette files are stored in
+# the resource folder.
 from collections import deque
 import configparser
 import os.path
 from pygame import Color
+
 
 class ColorPalette:
 
     def __init__(self, colors):
         self._colors = deque(colors)
         self._size = len(colors)
-        print( self._size, self._colors)
 
     def rotate(self):
         self._colors.rotate(1)
@@ -21,7 +27,7 @@ class ColorPalette:
     @staticmethod
     # Load a palette from a file.
     def load_palette(path):
-        file_obj = path
+        file_obj = open(path)
         config = configparser.ConfigParser()
         config.read_file(file_obj)
         file_obj.close()
@@ -64,7 +70,4 @@ class ColorPalette:
 class NESColorPalette(ColorPalette):
 
     def __init__(self):
-        super().__init__(self.load_palette('resources/NES.cfg'))
-
-
-ColorPalette.create_palette(os.path.join(os.path.dirname(__file__), 'resources/test.txt'))
+        super().__init__(self.load_palette(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
