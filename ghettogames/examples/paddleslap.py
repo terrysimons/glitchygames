@@ -20,7 +20,6 @@ ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 log.addHandler(ch)
 
-
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
 class Speed:
@@ -64,6 +63,7 @@ class PaddleSprite(pygame.sprite.DirtySprite):
                 'resources/snd/slap8.wav'
             )
         )
+
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
@@ -121,7 +121,6 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.image.convert()
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
-
         self.direction = 0
         self.speed = Speed(4, 2)
         self.rally = Rally(5, self.speed.speed_up)

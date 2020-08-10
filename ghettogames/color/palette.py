@@ -32,9 +32,9 @@ class ColorPalette:
         config.read_file(file_obj)
         file_obj.close()
         colors = []
-        for color in range(int(config['palette']['colors'])):
-            color = str(color)
-            tmp_color = Color(config[color].getint('red'), config[color].getint('green'), config[color].getint('blue'))
+        for color_index in range(int(config['palette']['colors'])):
+            color_index = str(color_index)
+            tmp_color = Color(config[color_index].getint('red'), config[color_index].getint('green'), config[color_index].getint('blue'), config[color_index].getint('alpha', 255))
             colors.append(tmp_color)
         
         return colors
@@ -55,7 +55,7 @@ class ColorPalette:
                 colors.append(color)
         
         # Create palette data
-        config['palette'] = {"count": str(len(colors)) }
+        config['palette'] = {"colors": str(len(colors)) }
         for count, color in enumerate(colors):
             config[count] = {
                 "red": color.r,
@@ -71,3 +71,18 @@ class NESColorPalette(ColorPalette):
 
     def __init__(self):
         super().__init__(self.load_palette(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
+
+
+class Basic(ColorPalette):
+
+    def __init__(self):
+        super().__init__(self.load_palette(os.path.join(os.path.dirname(__file__), 'resources/basic.cfg')))
+        self.YELLOW = self.get_color(0)
+        self.PURPLE = self.get_color(1)
+        self.BLUE = self.get_color(2)
+        self.GREEN = self.get_color(3)
+        self.WHITE = self.get_color(4)
+        self.BLACK = self.get_color(5)
+        self.BLACKLUCENT = self.get_color(6)
+        self.BLUELUCENT = self.get_color(7)
+        self.RED = self.get_color(8)
