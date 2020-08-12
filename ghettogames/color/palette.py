@@ -1,9 +1,9 @@
 # GhettoGames
-# ColorPalette: Manages the custom color palette file format used by the engine
+# palette: Manages the custom color palette file format used by the engine
 #
 # A color palette is contained in a CFG file with each color having a section with the
 # R,G,B,A values.  This is designed for learning purposes.  Palette files are stored in
-# the resource folder.
+# the resources folder.
 from collections import deque
 import configparser
 import os.path
@@ -16,67 +16,94 @@ class ColorPalette:
         self._colors = deque(colors)
         self._size = len(colors)
 
-    def rotate(self):
-        self._colors.rotate(1)
+    # Shift colors in palette by number of slots
+    def rotate(self, slots=1):
+        self._colors.rotate(slots)
 
+    # Return PyGame Color object at palette index
     def get_color(self, palette_index):
         if palette_index < self._size:
             return self._colors[palette_index]
         return None
-    
+
+    # Replace color at palette index with a new PyGame color object
+    def set_color(self, palette_index, new_color):
+        if palette_index < self._size:
+            self._colors[palette_index] = new_color
+        else:
+            self._colors.append(new_color)
+
+
+class PaletteUtility:
+
+    # Load a palette from a ConfigParser object. Returns a list of PyGame Color objects
     @staticmethod
-    # Load a palette from a file.
-    def load_palette(path):
-        file_obj = open(path)
-        config = configparser.ConfigParser()
-        config.read_file(file_obj)
-        file_obj.close()
+    def load_palette_from_config(config):
         colors = []
         for color_index in range(int(config['palette']['colors'])):
             color_index = str(color_index)
-            tmp_color = Color(config[color_index].getint('red'), config[color_index].getint('green'), config[color_index].getint('blue'), config[color_index].getint('alpha', 255))
+            tmp_color = Color(config[color_index].getint('red'), config[color_index].getint('green'),
+                              config[color_index].getint('blue'), config[color_index].getint('alpha', 255))
             colors.append(tmp_color)
-        
-        return colors
- 
-    @staticmethod
-    # Create a palette file using rgb color codes in a file.  One R,G,B color per line.  No blank lines
-    # You can set an alpha value also by specifying it as R,G,B,A instead
-    def create_palette(path):
 
-        # Read input RGBA Values from file.  No duplicates
-        file_obj = open(path)
+        return colors
+
+    # Load a palette from a GhettoGames CFG file. Returns a list of PyGame Color objects
+    @staticmethod
+    def load_palette_from_file(config_file_path):
         config = configparser.ConfigParser()
+        # Read contents of file and close after
+        with open(config_file_path) as file_obj:
+            config.read_file(file_obj)
+        return ColorPalette.load_palette_from_config(config)
+
+    # Write a GhettoGames palette to a file.  output_file extension should be .cfg
+    @staticmethod
+    def write_palette_to_file(config_data, output_file, mode='w'):
+        with open(output_file, mode) as file_obj:
+            config_data.write(file_obj)
+
+    # Read RGB data from a file, 1 per line. No blank lines. Use RGBA to specify transparency.
+    # Returns a list of PyGame Colors
+    @staticmethod
+    def parse_rgb_data_in_file(rgb_data_file):
+        # Read input RGBA Values from file.  No duplicates
         colors = []
-        for line in file_obj.readlines():
-            tmp = [int(x) for x in line.strip().split(',')]
-            color = Color(*tmp)
-            if color not in colors:
-                colors.append(color)
-        
-        # Create palette data
-        config['palette'] = {"colors": str(len(colors)) }
+        with open(rgb_data_file) as file_obj:
+            for line in file_obj.readlines():
+                tmp = [int(x) for x in line.strip().split(',')]
+                color = Color(*tmp)
+                if color not in colors:
+                    colors.append(color)
+        return colors
+
+    # Create a ConfigParser object containing palette data.  Returns a ConfigParser
+    @staticmethod
+    def create_palette_data(colors):
+        palette_data = configparser.ConfigParser()
+        palette_data['palette'] = {"colors": str(len(colors)) }
         for count, color in enumerate(colors):
-            config[count] = {
+            palette_data[count] = {
                 "red": color.r,
                 "green": color.g,
                 "blue": color.b,
                 "alpha": color.a
             }
-        # Write palette file
-        config.write(open(path[0:-3]+'cfg', 'w'))
+        return palette_data
 
 
+# Nintendo Entertainment System color palette
 class NESColorPalette(ColorPalette):
 
     def __init__(self):
-        super().__init__(self.load_palette(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
+        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
 
 
-class Basic(ColorPalette):
+# A Custom Color palette with named colors
+class Custom(ColorPalette):
 
     def __init__(self):
-        super().__init__(self.load_palette(os.path.join(os.path.dirname(__file__), 'resources/basic.cfg')))
+        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/custom.cfg')))
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)
