@@ -22,6 +22,7 @@ colors = 2
 red = 172
 green = 124
 blue = 0
+alpha = 128
 
 [1]
 red = 124

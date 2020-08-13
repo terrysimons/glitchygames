@@ -55,7 +55,7 @@ class PaletteUtility:
         # Read contents of file and close after
         with open(config_file_path) as file_obj:
             config.read_file(file_obj)
-        return ColorPalette.load_palette_from_config(config)
+        return PaletteUtility.load_palette_from_config(config)
 
     # Write a GhettoGames palette to a file.  output_file extension should be .cfg
     @staticmethod
@@ -93,7 +93,7 @@ class PaletteUtility:
 
 
 # Nintendo Entertainment System color palette
-class NESColorPalette(ColorPalette):
+class NES(ColorPalette):
 
     def __init__(self):
         super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
@@ -113,3 +113,31 @@ class Custom(ColorPalette):
         self.BLACKLUCENT = self.get_color(6)
         self.BLUELUCENT = self.get_color(7)
         self.RED = self.get_color(8)
+
+
+# A palette representing the 16 default system colors
+class System(ColorPalette):
+    def __init__(self):
+        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/system.cfg')))
+        self.BLACK = self.get_color(0)
+        self.MAROON = self.get_color(1)
+        self.GREEN = self.get_color(2)
+        self.OLIVE = self.get_color(3)
+        self.NAVY = self.get_color(4)
+        self.PURPLE = self.get_color(5)
+        self.TEAL = self.get_color(6)
+        self.SILVER = self.get_color(7)
+        self.GREY = self.get_color(8)
+        self.RED = self.get_color(9)
+        self.LIME = self.get_color(10)
+        self.YELLOW = self.get_color(11)
+        self.BLUE = self.get_color(12)
+        self.MAGENTA = self.get_color(13)
+        self.CYAN = self.get_color(14)
+        self.WHITE = self.get_color(15)
+
+
+# The 256 VGA color palette
+class VGA(ColorPalette):
+    def __init__(self):
+        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/vga.cfg')))
