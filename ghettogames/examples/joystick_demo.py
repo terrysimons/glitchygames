@@ -26,7 +26,7 @@ log.addHandler(ch)
 
 class ShapesSprite(RootSprite):
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
 
         self.screen = pygame.display.get_surface()
@@ -269,7 +269,7 @@ class JoystickScene(RootScene):
         self.tiles = []
 
         # self.load_resources()
-        self.shapes_sprite = ShapesSprite()
+        self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480)
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
