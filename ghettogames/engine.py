@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Contains GameEngine and helper classes for building a game."""
-import collections
-import configparser
 import logging
 import multiprocessing
 import platform
@@ -27,14 +25,16 @@ from ghettogames.sprites import SingletonBitmappySprite
 ##########################
 
 from ghettogames.color import PURPLE, BLACK, VGA
+from ghettogames.pixels import *
 from ghettogames.events import ResourceManager, EventManager
 
+from ghettogames.audio import AudioManager
+# from ghettogames.controllers import ControllerManager
 from ghettogames.fonts import FontManager
 from ghettogames.joysticks import JoystickManager
 from ghettogames.keyboard import KeyboardManager
+from ghettogames.midi import MidiManager
 from ghettogames.mouse import MouseManager
-from ghettogames.music import MusicManager
-from ghettogames.sounds import SoundManager
 
 
 log = logging.getLogger('game.engine')
@@ -42,167 +42,7 @@ log.addHandler(logging.NullHandler())
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
-
 vga_palette = VGA
-
-def indexed_rgb_triplet_generator(pixel_data):
-    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
-    try:
-        for datum in pixel_data:
-            yield datum[0]
-    except StopIteration:
-        pass
-
-
-def rgb_555_triplet_generator(pixel_data):
-    """Yield (R, G, B) pixel tuples for 555 formated color data."""
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
-
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
-
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
-
-            rgb_data = pad_data + rgb_data
-
-            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
-
-            if red:
-                red += 7
-
-            # green is 6 bits
-            green = int(rgb_data[5:10] + '000', 2)
-
-            if green:
-                green += 7
-
-            # blue is 5 bits
-            blue = int(rgb_data[10:15] + '000', 2)
-
-            # last bit is ignored or used for alpha.
-
-            if blue:
-                blue += 7
-
-            log.info(f'Packed RGB: {rgb_data}')
-            log.info(f'Red: {red}')
-            log.info(f'Green: {green}')
-            log.info(f'Blue: {blue}')
-
-            yield tuple([red, green, blue])
-    except StopIteration:
-        pass
-
-
-def rgb_565_triplet_generator(pixel_data):
-    """Yield (R, G, B) tuples for 565 formatted color data."""
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
-
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
-
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
-
-            rgb_data = pad_data + rgb_data
-
-            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
-
-            if red:
-                red += 7
-
-            # green is 6 bits
-            green = int(rgb_data[5:11] + '00', 2)
-
-            if green:
-                green += 3
-
-            # blue is 5 bits
-            blue = int(rgb_data[11:] + '000', 2)
-
-            if blue:
-                blue += 7
-
-            log.info(f'Packed RGB: {rgb_data}')
-            log.info(f'Red: {red}')
-            log.info(f'Green: {green}')
-            log.info(f'Blue: {blue}')
-
-            yield tuple([red, green, blue])
-    except StopIteration:
-        pass
-
-
-def rgb_triplet_generator(pixel_data):
-    """Yield (R, G, B) tuples for the provided pixel data."""
-    iterator = iter(pixel_data)
-
-    try:
-        while True:
-            # range(3) gives us 3 at a time, so r, g, b.
-            yield tuple([next(iterator) for i in range(3)])
-    except StopIteration:
-        pass
-
-
-def image_from_pixels(pixels, width, height):
-    """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data."""
-    image = pygame.Surface((width, height))
-    y = 0
-    x = 0
-    for pixel in pixels:
-        image.fill(pixel, ((x, y), (1, 1)))
-
-        if (x + 1) % width == 0:
-            x = 0
-            y += 1
-        else:
-            x += 1
-
-    return image
-
-
-def pixels_from_data(pixel_data):
-    """Expand raw pixel data into [(R, G, B), ...] triplets."""
-    pixels = rgb_triplet_generator(
-        pixel_data=pixel_data,
-    )
-
-    # We are converting the data from a generator to
-    # a list of data so that it can be referenced
-    # multiple times.
-    pixels = [pixel for pixel in pixels]  # noqa: R1721
-
-    return pixels
-
-
-def pixels_from_path(path):
-    """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
-    with open(path, 'rb') as fh:
-        pixel_data = fh.read()
-
-    pixels = pixels_from_data(
-        pixel_data=pixel_data
-    )
-
-    return pixels
 
 class GameManager(ResourceManager):
     class GameProxy(ResourceManager):
@@ -263,8 +103,6 @@ def supported_events(like='.*'):
             log.error(f'Failed to init: {e}')
 
     return event_list
-
-
 class GameEngine(EventManager):
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
@@ -275,14 +113,27 @@ class GameEngine(EventManager):
     GAMEEVENT = pygame.USEREVENT + 2
     MENUEVENT = pygame.USEREVENT + 3
 
-    MOUSE_EVENTS = supported_events(like='MOUSE.*?')
-    KEYBOARD_EVENTS = supported_events(like='KEY.*?')
+    AUDIO_EVENTS = supported_events(like='AUDIO.*?')
+    # TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
+    DROP_EVENTS = supported_events(like='DROP.*?')
+    FINGER_EVENTS = supported_events(like='(FINGER|MULTI).*?')
     JOYSTICK_EVENTS = supported_events(like='JOY.*?')
+    KEYBOARD_EVENTS = supported_events(like='KEY.*?')
+    MIDI_EVENTS = supported_events(like='MIDI.*?')
+    MOUSE_EVENTS = supported_events(like='MOUSE.*?')
+    TEXT_EVENTS = supported_events(like='TEXT.*?')
+    WINDOW_EVENTS = supported_events(like='WINDOW.*?')
     ALL_EVENTS = supported_events()
     GAME_EVENTS = list(set(ALL_EVENTS) -
-                       set(MOUSE_EVENTS) -
+                       set(AUDIO_EVENTS) -
+                       set(DROP_EVENTS) -
+                       set(FINGER_EVENTS) -
+                       set(JOYSTICK_EVENTS) - 
                        set(KEYBOARD_EVENTS) -
-                       set(JOYSTICK_EVENTS))
+                       set(MIDI_EVENTS) -
+                       set(MOUSE_EVENTS) -
+                       set(TEXT_EVENTS) -
+                       set(WINDOW_EVENTS))
 
     GAME_EVENTS.append(FPSEVENT)
     GAME_EVENTS.append(GAMEEVENT)
@@ -326,13 +177,22 @@ class GameEngine(EventManager):
         self.clock = pygame.time.Clock()
 
         self.registered_events = {}
-        self.game_manager = GameManager(self)
-        self.mouse_manager = MouseManager(self)
-        self.keyboard_manager = KeyboardManager(self)
-        self.sound_manager = SoundManager(self)
-        self.music_manager = MusicManager(self)
+        self.audio_manager = AudioManager(self)
+        # TODO: self.controller_manager = ControllerManager(self)
+        # TODO: self.finger_manager = FingerManager(self)
         self.font_manager = FontManager(self)
+        self.game_manager = GameManager(self)
         self.joystick_manager = JoystickManager(self)
+        self.keyboard_manager = KeyboardManager(self)
+        self.midi_manager = MidiManager(self)
+        self.mouse_manager = MouseManager(self)
+        # TODO: self.window_manager = WindowManager(self)
+
+        # TODO: Something similar for controllers?
+        # self.controllers = []
+        # if self.controller_manager:
+        #     self.controllers = self.controller_manager.controllers
+        # self.controller_count = len(self.controllers)
 
         # Get count of joysticks
         self.joysticks = []
@@ -598,10 +458,10 @@ class GameEngine(EventManager):
         parser = FontManager.args(parser=parser)
 
         # Init Sound Options
-        parser = SoundManager.args(parser=parser)
+        parser = AudioManager.args(parser=parser)
 
         # Init Music Options
-        parser = MusicManager.args(parser=parser)
+        parser = MidiManager.args(parser=parser)
 
         return parser
 
@@ -641,17 +501,77 @@ class GameEngine(EventManager):
         # To use events in a different thread, use the fastevent package from pygame.
         # You can create your own new events with the pygame.event.Event() function.
         for event in pygame.fastevent.get():
-            if event.type in GameEngine.GAME_EVENTS:
+            if event.type in GameEngine.AUDIO_EVENTS:
+                self.process_audio_event(event)
+            # elif event.type in GameEngine.CONTROLLER_EVENTS:
+            #     self.process_controller_event(event)
+            # elif event.type in GameEngine.DROP_EVENTS:
+            #     self.process_drop_event(event)
+            # elif event.type in GameEngine.FINGER_EVENTS:
+            #     self.process_finger_event(event)
+            elif event.type in GameEngine.GAME_EVENTS:
                 self.process_game_event(event)
             elif event.type in GameEngine.JOYSTICK_EVENTS:
                 self.process_joystick_event(event)
+            elif event.type in GameEngine.MIDI_EVENTS:
+                self.process_midi_event(event)
             elif event.type in GameEngine.MOUSE_EVENTS:
                 self.process_mouse_event(event)
             elif event.type in GameEngine.KEYBOARD_EVENTS:
                 self.process_keyboard_event(event)
+            elif event.type in GameEngine.TEXT_EVENTS:
+                self.process_text_event(event)
+            elif event.type in GameEngine.WINDOW_EVENTS:
+                self.process_window_event(event)
             else:
                 # This will catch any unimplemented event types that we see.
-                log.error(f'Unknown Event Type: {event.type}: {event} {GameEngine.ALL_EVENTS}')
+                log.error(f'Unknown Event Type: {pygame.event.event_name(event.type).upper()}: {event.type}: {event} {GameEngine.ALL_EVENTS}')
+
+    def process_audio_event(self, event):
+        if event.type == pygame.AUDIODEVICEADDED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.AUDIODEVICEREMOVED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_controller_event(self, event):
+        if event.type == pygame.CONTROLLERAXISMOTION:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERBUTTONDOWN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERBUTTONUP:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERDEVICEADDED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERDEVICEADDED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERDEVICEREMAPPED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.CONTROLLERDEVICEREMOVED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_drop_event(self, event):
+        if event.type == pygame.DROPBEGIN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.DROPCOMPLETE:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.DROPFILE:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.DROPTEXT:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_finger_event(self, event):
+        if event.type == pygame.FINGERDOWN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.FINGERUP:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.FINGERMOTION:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_midi_event(self, event):
+        if event.type == pygame.MIDIIN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.MIDIOUT:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
 
     def process_mouse_event(self, event):
         if event.type == pygame.MOUSEMOTION:
@@ -663,6 +583,8 @@ class GameEngine(EventManager):
         elif event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
             self.mouse_manager.on_mouse_button_down_event(event)
+        elif event.type == pygame.MOUSEWHEEL:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
 
     def process_keyboard_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -679,17 +601,63 @@ class GameEngine(EventManager):
         elif event.type == pygame.JOYBALLMOTION:
             # JOYBALLMOTION    joy, ball, rel
             self.joystick_.on_ball_motion_event(event)
-        elif event.type == pygame.JOYHATMOTION:
-            # JOYHATMOTION     joy, hat, value
-            self.joystick_manager.on_hat_motion_event(event)
         elif event.type == pygame.JOYBUTTONUP:
             # JOYBUTTONUP      joy, button
             self.joystick_manager.on_button_up_event(event)
         elif event.type == pygame.JOYBUTTONDOWN:
             # JOYBUTTONDOWN    joy, button
             self.joystick_manager.on_button_down_event(event)
+        elif event.type == pygame.JOYHATMOTION:
+            # JOYHATMOTION     joy, hat, value
+            self.joystick_manager.on_hat_motion_event(event)
+        elif event.type == pygame.JOYDEVICEADDED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.JOYDEVICEREMOVED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_text_event(self, event):
+        if event.type == pygame.TEXTEDITING:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.TEXTINPUT:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+
+    def process_window_event(self, event):
+        if event.type == pygame.WINDOWSHOWN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWLEAVE:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWSIZECHANGED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWENTER:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWFOCUSGAINED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWRESTORED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWHITTEST:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWHIDDEN:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWFOCUSLOST:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWMINIMIZED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWMAXIMIZED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWCLOSE:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWEXPOSED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWTAKEFOCUS:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWMOVED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        elif event.type == pygame.WINDOWRESIZED:
+            log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
 
     def process_game_event(self, event):
+        # Game events are listed in the order they're most
+        # likely to occur in.
         if event.type == GameEngine.FPSEVENT:
             # FPSEVENT is pygame.USEREVENT + 1
             self.game_manager.on_fps_event(event)
@@ -699,15 +667,12 @@ class GameEngine(EventManager):
         elif event.type == GameEngine.MENUEVENT:
             # MENUEVENT is pygame.USEREVENT + 3
             self.game_manager.on_menu_item_event(event)
-        elif event.type == pygame.USEREVENT:
-            # USEREVENT        code
-            self.game_manager.on_user_event(event)
-        elif event.type == pygame.QUIT:
-            # QUIT             none
-            self.game_manager.on_quit_event(event)
         elif event.type == pygame.ACTIVEEVENT:
             # ACTIVEEVENT      gain, state
             self.game_manager.on_active_event(event)
+        elif event.type == pygame.USEREVENT:
+            # USEREVENT        code
+            self.game_manager.on_user_event(event)
         elif event.type == pygame.VIDEORESIZE:
             # VIDEORESIZE      size, w, h
             self.game_manager.on_video_resize_event(event)
@@ -717,6 +682,9 @@ class GameEngine(EventManager):
         elif event.type == pygame.SYSWMEVENT:
             # SYSWMEVENT
             self.game_manager.on_sys_wm_event(event)
+        elif event.type == pygame.QUIT:
+            # QUIT             none
+            self.game_manager.on_quit_event(event)            
 
     def register_game_event(self, event_type, callback):
         # This registers a subtype of type GAMEEVENT to call a callback.

@@ -5,16 +5,16 @@ import pygame
 from ghettogames.events import ResourceManager
 
 
-log = logging.getLogger('game.sounds')
+log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
 
 
-class SoundManager(ResourceManager):
+class AudioManager(ResourceManager):
     def __init__(self, game=None):
         """
-        Manage sounds.
+        Manage audio.
 
-        SoundManager manages sounds.
+        AudioManager manages audio.
 
         Args:
         ----

@@ -3,11 +3,11 @@ import logging
 from ghettogames.events import ResourceManager
 
 
-log = logging.getLogger('game.music')
+log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
 
 
-class MusicManager(ResourceManager):
+class MidiManager(ResourceManager):
     def __init__(self, game=None):  # noqa: W0235
         """
         Manage music.
@@ -23,6 +23,6 @@ class MusicManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Music Options')  # noqa: W0612
+        group = parser.add_argument_group('Midi Options')  # noqa: W0612
 
         return parser

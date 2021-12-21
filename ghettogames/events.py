@@ -11,6 +11,7 @@ def unhandled_event(*args, **kwargs):
     #log.info(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
     raise AttributeError(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
 
+
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
 class ResourceManager:
