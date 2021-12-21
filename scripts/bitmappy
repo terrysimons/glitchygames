@@ -13,10 +13,8 @@ import pygame.gfxdraw
 import pygame.locals
 
 from ghettogames.color import WHITE, BLACKLUCENT
-from ghettogames.engine import RootSprite, MousePointer, BitmappySprite
-from ghettogames.engine import SingletonBitmappySprite
-from ghettogames.engine import RootScene, GameEngine, FontManager
-from ghettogames.engine import JoystickManager
+from ghettogames.engine import MousePointer, BitmappySprite
+from ghettogames.engine import RootScene, GameEngine
 from ghettogames.engine import pixels_from_data, pixels_from_path
 from ghettogames.engine import image_from_pixels
 from ghettogames.engine import rgb_triplet_generator
