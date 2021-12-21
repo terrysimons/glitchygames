@@ -8,8 +8,8 @@ import struct
 
 import pygame
 
-from engine import GameEngine, RootSprite, RootScene
-from engine import rgb_triplet_generator, rgb_565_triplet_generator
+from ghettogames.engine import GameEngine, RootSprite, RootScene
+from ghettogames.engine import rgb_triplet_generator, rgb_565_triplet_generator
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -177,15 +177,6 @@ class GameScene(RootScene):
         self.all_sprites = pygame.sprite.LayeredDirty((self.sprite))
 
         self.all_sprites.clear(self.screen, self.background)
-
-    def update(self):
-        super().update()
-
-    def render(self, screen):
-        super().render(screen)
-
-    def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
 
 
 class Game(GameEngine):

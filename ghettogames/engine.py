@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""Contains GameEngine and helper classes for building a game."""
+import abc
 import collections
 import configparser
 import inspect
@@ -14,6 +16,9 @@ import pygame.gfxdraw
 import pygame.locals
 
 from ghettogames.color import PURPLE, BLACK, VGA
+from ghettogames.events import ResourceManager, EventManager
+from ghettogames.events import FontEvents
+from ghettogames.events import KeyboardEvents, MouseEvents, JoystickEvents
 
 log = logging.getLogger('game.engine')
 log.addHandler(logging.NullHandler())
@@ -22,6 +27,7 @@ vga_palette = VGA
 
 
 def indexed_rgb_triplet_generator(pixel_data):
+    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
     try:
         for datum in pixel_data:
             yield datum[0]
@@ -30,6 +36,7 @@ def indexed_rgb_triplet_generator(pixel_data):
 
 
 def rgb_555_triplet_generator(pixel_data):
+    """Yield (R, G, B) pixel tuples for 555 formated color data."""
     try:
         # Construct RGB triplets.
         for packed_rgb_triplet in pixel_data:
@@ -78,6 +85,7 @@ def rgb_555_triplet_generator(pixel_data):
 
 
 def rgb_565_triplet_generator(pixel_data):
+    """Yield (R, G, B) tuples for 565 formatted color data."""
     try:
         # Construct RGB triplets.
         for packed_rgb_triplet in pixel_data:
@@ -124,6 +132,7 @@ def rgb_565_triplet_generator(pixel_data):
 
 
 def rgb_triplet_generator(pixel_data):
+    """Yield (R, G, B) tuples for the provided pixel data."""
     iterator = iter(pixel_data)
 
     try:
@@ -135,6 +144,7 @@ def rgb_triplet_generator(pixel_data):
 
 
 def image_from_pixels(pixels, width, height):
+    """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data."""
     image = pygame.Surface((width, height))
     y = 0
     x = 0
@@ -151,16 +161,21 @@ def image_from_pixels(pixels, width, height):
 
 
 def pixels_from_data(pixel_data):
+    """Expand raw pixel data into [(R, G, B), ...] triplets."""
     pixels = rgb_triplet_generator(
         pixel_data=pixel_data,
     )
 
-    pixels = [pixel for pixel in pixels]
+    # We are converting the data from a generator to
+    # a list of data so that it can be referenced
+    # multiple times.
+    pixels = [pixel for pixel in pixels]  # noqa: R1721
 
     return pixels
 
 
 def pixels_from_path(path):
+    """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
     with open(path, 'rb') as fh:
         pixel_data = fh.read()
 
@@ -171,158 +186,65 @@ def pixels_from_path(path):
     return pixels
 
 
-# Interiting from object is default in Python 3.
-# Linters complain if you do it.
-class ResourceManager:
-    __instances__ = {}
-
-    def __new__(cls, *args, **kwargs):
-        if cls not in cls.__instances__:
-            cls.__instances__[cls] = object.__new__(cls)
-            log.debug(f'Created Resource Manager: {cls}')
-            cls.__instances__[cls].args = args
-            cls.__instances__[cls].kwargs = kwargs
-
-        return cls.__instances__[cls]
-
-    def __init__(self, *args, **kwargs):  # noqa: W0613
-        super().__init__()
-        self.proxies = []
-
-    # A resource manager will generally pass all requests through
-    # to its proxy object, however, for certain types of resources
-    # such as joysticks, the subclass will manage things itself.
-    #
-    # Doing things this way reduces code footprint, and allows
-    # maximum flexibility when needed at the expense of a bit
-    # of over abstracting.
-    def __getattr__(self, attr):
-        # Try each proxy in turn
-        for proxy in self.proxies:
-            try:
-                return getattr(proxy, attr)
-            except AttributeError:
-                log.error(f'No proxies for {type(self)}.{attr}')
-
-
-class EventManager(ResourceManager):
-    # Interiting from object is default in Python 3.
-    # Linters complain if you do it.
-    #
-    # This isn't a ResourceManager like other proxies, because
-    # it's the fallthrough event object, so we don't have a proxy.
-    class EventProxy:
-        def __init__(self, *args, **kwargs):  # noqa: W0613
-            super().__init__()
-            # No proxies for the root class.
-            self.proxies = []
-
-            # This is used for leave objects which
-            # don't have their own proxies.
-            #
-            # Subclassed managers that set their own proxy
-            # will not have this.
-            self.event_source = kwargs.get('event_source', None)
-
-        def unhandled_event(self, *args, **kwargs):  # noqa: W0613
-            # inspect.stack()[1] is the call frame above us, so this should be reasonable.
-            event_handler = inspect.stack()[1].function
-
-            event = kwargs.get('event')
-
-            event_trigger = kwargs.get('trigger', None)
-
-            log.debug(f'Unhandled Event {event_handler}: '
-                      f'{self.event_source}->{event} Event Trigger: {event_trigger}')
-
-        def on_active_event(self, event):
-            # ACTIVEEVENT      gain, state
-            self.unhandled_event(event=event)
-
-        def on_mouse_motion_event(self, event):
-            # MOUSEMOTION      pos, rel, buttons
-            self.unhandled_event(event=event)
-
-        def on_mouse_button_up_event(self, event):
-            # MOUSEBUTTONUP    pos, button
-            self.unhandled_event(event=event)
-
-        def on_left_mouse_button_up_event(self, event):
-            # Left Mouse Button Up pos, button
-            self.unhandled_event(event=event)
-
-        def on_middle_mouse_button_up_event(self, event):
-            # Middle Mouse Button Up pos, button
-            self.unhandled_event(event=event)
-
-        def on_right_mouse_button_up_event(self, event):
-            # Right Mouse Button Up pos, button
-            self.unhandled_event(event=event)
-
-        def on_mouse_button_down_event(self, event):
-            # MOUSEBUTTONDOWN  pos, button
-            self.unhandled_event(event=event)
-
-        def on_left_mouse_button_down_event(self, event):
-            # Left Mouse Button Down pos, button
-            self.unhandled_event(event=event)
-
-        def on_middle_mouse_button_down_event(self, event):
-            # Middle Mouse Button Down pos, button
-            self.unhandled_event(event=event)
-
-        def on_right_mouse_button_down_event(self, event):
-            # Right Mouse Button Down pos, button
-            self.unhandled_event(event=event)
-
-        def on_mouse_scroll_down_event(self, event):
-            # This is a synthesized event.
-            self.unhandled_event(event=event)
-
-        def on_mouse_scroll_up_event(self, event):
-            # This is a synthesized event.
-            self.unhandled_event(event=event)
-
-        def on_key_up_event(self, event):
-            # KEYUP            key, mod
-            self.unhandled_event(event=event)
-
-        def on_key_down_event(self, event):
-            # KEYDOWN            key, mod
-            self.unhandled_event(event=event)
-
-        def on_key_chord_down_event(self, event, trigger):
-            # This is a synthesized event.
-            self.unhandled_event(event=event, trigger=trigger)
-
-        def on_key_chord_up_event(self, event, trigger):
-            # This is a synthesized event.
-            self.unhandled_event(event=event, trigger=trigger)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.proxies = [EventManager.EventProxy(event_source=self)]
-        self.game = kwargs.get('game', None)
-
-
 class FontManager(ResourceManager):
-    DEFAULT_FONT_SETTINGS = {}
+    OPTIONS = {}
+    RENDER_CACHE = {}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    class FontProxy(FontEvents, ResourceManager):
+        def __init__(self, game=None):
+            """
+            """
+            super().__init__(game=game)
+            self.game = game
+            self.proxies = [self.game, pygame.freetype]
+
+    def __init__(self, game=None):
+        """
+        Manage fonts.
+
+        FontManager manages fonts.
+
+        Args:
+        ----
+        font - The name of the font to use.  Default: pygame.freetype.get_default_font()
+        font_size - The size of the font to use. Default: 12
+        font_bold - True for bold.  Default: False
+        font_italic - True for italic. Default: False
+        font_antialias - True for antialiased. Default: False
+        font_dpi - Font DPI.  Default: 72
+
+        """
+        super().__init__(game=game)
 
         # Register pygame.freetype
         pygame.freetype.init()
-        pygame.font.init()
+        #pygame.font.init()
+        #pygame.ftfont.init()
 
-        self.font = kwargs.get('font', pygame.freetype.get_default_font())
-        self.font_size = kwargs.get('font_size', 12)
-        self.font_bold = kwargs.get('font_bold', False)
-        self.font_italic = kwargs.get('font_italic', False)
-        self.font_antialias = kwargs.get('font_antialias', False)
-        self.font_dpi = kwargs.get('font_dpi', 72)
-        self.ready = True
+        log.info('Freetype Font Cache Size: '
+                 f'{pygame.freetype.get_cache_size()}')
+        log.info('Freetype Font Default Resolution: '
+                 f'{pygame.freetype.get_default_resolution()}')
+
+        # Set up the default options.
+        FontManager.OPTIONS['font_name'] = game.OPTIONS['font_name']
+        FontManager.OPTIONS['font_size'] = game.OPTIONS['font_size']
+        FontManager.OPTIONS['font_bold'] = game.OPTIONS['font_bold']
+        FontManager.OPTIONS['font_italic'] = game.OPTIONS['font_italic']
+        FontManager.OPTIONS['font_antialias'] = game.OPTIONS['font_antialias']
+        FontManager.OPTIONS['font_dpi'] = game.OPTIONS['font_dpi']
+
+        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])
+
+        # Ideas:
+        #
+        # Pre-generate font cache based on settings that are provided.
+        # Indexed by the letter they represent.
+        # a -> <font name>
+        # What about bold, italic, bold + italic, anti-aliased?
+        # Maybe we can generate all combinations?
+        # Allow caller to pass in a font settings blob and generate.
+        # A progress bar class that integrates with tqdm?
 
         # Ideally, I'd like to support both modes.
         #
@@ -340,15 +262,17 @@ class FontManager(ResourceManager):
         # will be loaded instead.
         # pygame.ftfont.init()
 
+        # self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
+
     @classmethod
     def args(cls, parser):
         group = parser.add_argument_group('Font Options')
 
-        group.add_argument('--font',
-                           default=None)
+        group.add_argument('--font-name',
+                           default=pygame.freetype.get_default_font())
         group.add_argument('--font-size',
                            type=int,
-                           default=16)
+                           default=14)
         group.add_argument('--font-bold',
                            action='store_true',
                            default=False)
@@ -364,10 +288,27 @@ class FontManager(ResourceManager):
 
         return parser
 
+    def font(self, font_config=None):  # noqa: R0201
+        if not font_config:
+            font_config = FontManager.OPTIONS
+
+        return pygame.freetype.SysFont(name=font_config['font_name'],
+                                       size=font_config['font_size'])
+
 
 class MusicManager(ResourceManager):
-    def __init__(self, *args, **kwargs):  # noqa: W0235
-        super().__init__(*args, **kwargs)
+    def __init__(self, game=None):  # noqa: W0235
+        """
+        Manage music.
+
+        MusicManager manages music.
+
+        Args:
+        ----
+        game -
+
+        """
+        super().__init__(game=game)
 
     @classmethod
     def args(cls, parser):
@@ -377,11 +318,22 @@ class MusicManager(ResourceManager):
 
 
 class SoundManager(ResourceManager):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, game=None):
+        """
+        Manage sounds.
+
+        SoundManager manages sounds.
+
+        Args:
+        ----
+        game -
+
+        """
+        super().__init__(game=game)
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
+        pygame.mixer.init()
 
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
@@ -392,7 +344,6 @@ class SoundManager(ResourceManager):
             f'Format: {sound_format}, '
             f'Channels: {sound_channels}'
         )
-        self.ready = True
 
     @classmethod
     def args(cls, parser):
@@ -400,14 +351,23 @@ class SoundManager(ResourceManager):
 
         return parser
 
-
 class KeyboardManager(ResourceManager):
-    class KeyboardProxy(ResourceManager):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-            self.keys = {}
+    class KeyboardProxy(KeyboardEvents, ResourceManager):
+        def __init__(self, game=None):
+            """
+            Pygame keyboard event proxy.
 
-            self.game = kwargs.get('game', None)
+            KeyboardProxy facilitates key handling by bridging keyboard events between
+            pygame and your game.
+
+            Args:
+            ----
+            game - The game instance.
+
+            """
+            super().__init__(game=game)
+            self.keys = {}
+            self.game = game
             self.proxies = [self.game, pygame.key]
 
         def on_key_down_event(self, event):
@@ -464,24 +424,43 @@ class KeyboardManager(ResourceManager):
 
             self.game.on_key_chord_up_event(event, keys_down)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.game = kwargs.get('game', None)
+    def __init__(self, game=None):
+        """
+        Keyboard event manager.
 
-        self.proxies = [KeyboardManager.KeyboardProxy(game=self.game)]
+        KeyboardManager interfaces GameEngine with KeyboardManager.KeyboardManagerProxy.
 
+        Args:
+        ----
+        game - The game instance.
+
+        """
+        super().__init__(game=game)
+        self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
 
 class MouseManager(ResourceManager):
-    class MouseProxy(ResourceManager):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
+    class MouseProxy(MouseEvents, ResourceManager):
+        def __init__(self, game=None):
+            """
+            Pygame mouse event proxy.
+
+            MouseProxy facilitates key handling by bridging mouse events between
+            pygame and your game.
+
+            Args:
+            ----
+            game - The game instance.
+
+            """
+            super().__init__(game)
             self.mouse_state = {}
             self.mouse_dragging = False
+            self.mouse_dropping = False
             self.current_focus = None
             self.previous_focus = None
             self.focus_locked = False
 
-            self.game = kwargs.get('game', None)
+            self.game = game
             self.proxies = [self.game, pygame.mouse]
 
         def on_mouse_motion_event(self, event):
@@ -489,7 +468,7 @@ class MouseManager(ResourceManager):
             self.game.on_mouse_motion_event(event)
 
             # Figure out which item was clicked.
-            mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
+            mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
             collided_sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
             collided_sprite = None
@@ -524,24 +503,25 @@ class MouseManager(ResourceManager):
             # We should be looking at all mouse states and emitting appropriately.
             for trigger in self.mouse_state.values():
                 if trigger.type == pygame.MOUSEBUTTONDOWN:
-                    self.on_mouse_drag_down_event(event, trigger)
+                    self.on_mouse_drag_event(event, trigger)
                     self.mouse_dragging = True
 
-        def on_mouse_drag_down_event(self, event, trigger):
-            self.game.on_mouse_drag_down_event(event, trigger)
+        def on_mouse_drag_event(self, event, trigger):
+            log.debug(f'{type(self)}: Mouse Drag: {event}')            
+            self.game.on_mouse_drag_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_mouse_drag_down_event(event, trigger)
+                    self.current_focus.on_mouse_drag_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_mouse_drag_down_event(event, trigger)
+                    self.previous_focus.on_mouse_drag_event(event, trigger)
 
             if trigger.button == 1:
-                self.on_left_mouse_drag_down_event(event, trigger)
+                self.on_left_mouse_drag_event(event, trigger)
             if trigger.button == 2:
-                self.on_middle_mouse_drag_down_event(event, trigger)
+                self.on_middle_mouse_drag_event(event, trigger)
             if trigger.button == 3:
-                self.on_right_mouse_drag_down_event(event, trigger)
+                self.on_right_mouse_drag_event(event, trigger)
             if trigger.button == 4:
                 # This doesn't really make sense.
                 pass
@@ -549,68 +529,82 @@ class MouseManager(ResourceManager):
                 # This doesn't really make sense.
                 pass
 
-        def on_left_mouse_drag_down_event(self, event, trigger):
-            self.game.on_left_mouse_drag_down_event(event, trigger)
+        def on_mouse_drop_event(self, event, trigger):
+            log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.game.on_mouse_drop_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_left_mouse_drag_down_event(event, trigger)
+                    self.current_focus.on_mouse_drop_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_left_mouse_drag_down_event(event, trigger)
+                    self.previous_focus.on_mouse_drop_event(event, trigger)
 
-        def on_left_mouse_drag_up_event(self, event, trigger):
+            if trigger.button == 1:
+                self.on_left_mouse_drop_event(event, trigger)
+            if trigger.button == 2:
+                self.on_middle_mouse_drop_event(event, trigger)
+            if trigger.button == 3:
+                self.on_right_mouse_drop_event(event, trigger)
+            if trigger.button == 4:
+                # This doesn't really make sense.
+                pass
+            if trigger.button == 5:
+                # This doesn't really make sense.
+                pass
+
+        def on_left_mouse_drag_event(self, event, trigger):
+            self.game.on_left_mouse_drag_event(event, trigger)
+
+            if self.focus_locked:
+                if self.current_focus:
+                    self.current_focus.on_left_mouse_drag_event(event, trigger)
+                elif self.previous_focus:
+                    self.previous_focus.on_left_mouse_drag_event(event, trigger)
+
+        def on_left_mouse_drop_event(self, event, trigger):
             self.game.on_left_mouse_drag_up_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_left_mouse_drag_up_event(event, trigger)
+                    self.current_focus.on_left_mouse_drop_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_left_mouse_drag_up_event(event, trigger)
+                    self.previous_focus.on_left_mouse_drop_event(event, trigger)
 
-        def on_middle_mouse_drag_down_event(self, event, trigger):
+        def on_middle_mouse_drag_event(self, event, trigger):
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_middle_mouse_drag_down_event(event, trigger)
+                    self.current_focus.on_middle_mouse_drag_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_middle_mouse_drag_down_event(event, trigger)
+                    self.previous_focus.on_middle_mouse_drag_event(event, trigger)
 
-        def on_middle_mouse_drag_up_event(self, event, trigger):
+        def on_middle_mouse_drop_event(self, event, trigger):
             self.game.on_middle_mouse_drag_up_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_middle_mouse_drag_up_event(event, trigger)
+                    self.current_focus.on_middle_mouse_drop_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_middle_mouse_drag_up_event(event, trigger)
+                    self.previous_focus.on_middle_mouse_drop_event(event, trigger)
 
-        def on_right_mouse_drag_down_event(self, event, trigger):
+        def on_right_mouse_drag_event(self, event, trigger):
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_right_mouse_drag_down_event(event, trigger)
+                    self.current_focus.on_right_mouse_drag_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_right_mouse_drag_down_event(event, trigger)
+                    self.previous_focus.on_right_mouse_drag_event(event, trigger)
 
-        def on_right_mouse_drag_up_event(self, event, trigger):
+        def on_right_mouse_drop_event(self, event, trigger):
             self.game.on_right_mouse_drag_up_event(event, trigger)
 
             if self.focus_locked:
                 if self.current_focus:
-                    self.current_focus.on_right_mouse_drag_up_event(event, trigger)
+                    self.current_focus.on_right_mouse_drop_event(event, trigger)
                 elif self.previous_focus:
-                    self.previous_focus.on_right_mouse_drag_up_event(event, trigger)
-
-        def on_mouse_drag_up_event(self, event):
-            log.debug(f'{type(self)}: Mouse Drag Up: {event}')
-            mouse = MouseSprite(x=event.pos[0], y=event.pos[1], width=1, height=1)
-
-            collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-            for sprite in collided_sprites:
-                sprite.on_mouse_drag_up_event(event)
+                    self.previous_focus.on_right_mouse_drop_event(event, trigger)
 
         def on_mouse_focus_event(self, event, entering_focus):
             # Send a leave focus event for the old focus.
@@ -638,7 +632,6 @@ class MouseManager(ResourceManager):
 
         def on_mouse_button_up_event(self, event):
             self.mouse_state[event.button] = event
-
             self.game.on_mouse_button_up_event(event)
 
             if event.button == 1:
@@ -648,14 +641,15 @@ class MouseManager(ResourceManager):
             if event.button == 3:
                 self.on_right_mouse_button_up_event(event)
             if event.button == 4:
-                # It doesn't really make sense to hook this
+                # This doesn't really make sense.
                 pass
             if event.button == 5:
-                # It doesn't really make sense to hook this
+                # This doesn't really make sense.
                 pass
-
+            
             if self.mouse_dragging:
-                self.game.on_mouse_drag_up_event(event)
+                # The mouse up location is also the trigger.
+                self.game.on_mouse_drop_event(event=event, trigger=event)
                 self.mouse_dragging = False
 
             # Whatever was locked gets unlocked.
@@ -705,22 +699,42 @@ class MouseManager(ResourceManager):
         def on_mouse_scroll_up_event(self, event):
             self.game.on_mouse_scroll_up_event(event)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.game = kwargs.get('game', None)
-        self.proxies = [MouseManager.MouseProxy(game=self.game)]
+    def __init__(self, game=None):
+        """
+        Mouse event manager.
+
+        MouseManager interfaces GameEngine with MouseManager.MouseManagerProxy.
+
+        Args:
+        ----
+        game - The game instance.
+
+        """
+        super().__init__(game=game)
+        self.proxies = [MouseManager.MouseProxy(game=game)]
 
 
 class JoystickManager(ResourceManager):
-
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #
     # This isn't a ResourceManager like other proxies, because
     # there can be multiple joysticks, so having one instance
     # won't work.
-    class JoystickProxy:
-        def __init__(self, joystick_id, **kwargs):
+    class JoystickProxy(JoystickEvents):
+        def __init__(self, game=None, joystick_id=-1):
+            """
+            Pygame joystick event proxy.
+
+            JoystickProxy facilitates joystick handling by bridging joystick events between
+            pygame and your game.
+
+            Args:
+            ----
+            joystick_id - the id of the joystick to init
+            game - The game instance.
+
+            """
             super().__init__()
             self._id = joystick_id
             self.joystick = pygame.joystick.Joystick(self._id)
@@ -746,7 +760,7 @@ class JoystickManager(ResourceManager):
             self._hats = [self.joystick.get_hat(i)
                           for i in range(self.get_numhats())]
 
-            self.game = kwargs.get('game', None)
+            self.game = game
             self.proxies = [self.game, self.joystick]
 
         # Define some high level APIs
@@ -809,8 +823,18 @@ class JoystickManager(ResourceManager):
         def __repr__(self):
             return repr(self.joystick)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, game=None):
+        """
+        Joystick event manager.
+
+        JoystickManager interfaces GameEngine with JoystickManager.JoystickProxy.
+
+        Args:
+        ----
+        game - The game instance.
+
+        """
+        super().__init__(game=game)
         self.joysticks = []
 
         # This must be called before other joystick methods,
@@ -827,14 +851,12 @@ class JoystickManager(ResourceManager):
             joystick.init()
             joystick_proxy = JoystickManager.JoystickProxy(
                 joystick_id=joystick.get_id(),
-                game=self.game
+                game=game
             )
             self.joysticks.append(joystick_proxy)
 
             # The joystick proxy overrides the joystick object
             log.info(joystick_proxy)
-
-        self.ready = True
 
     @classmethod
     def args(cls, parser):
@@ -876,22 +898,44 @@ class JoystickManager(ResourceManager):
 class GameManager(ResourceManager):
     class GameProxy(ResourceManager):
         def __init__(self, **kwargs):
+            """
+            Game event proxy.
+
+            GameProxy facilitates custom and otherwise unhandled pygame
+            events between pygame and your game.
+
+            Args:
+            ----
+            joystick_id - the id of the joystick to init
+            game - The game instance.
+
+            """
             super().__init__(**kwargs)
             self.game = kwargs.get('game')
             self.proxies = [self.game]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.game = kwargs.get('game', None)
+        def on_active_event(self, event):
+            self.game.on_active_event(event)
 
-        self.proxies = [GameManager.GameProxy(game=self.game)]
+    def __init__(self, game=None):
+        """
+        Game event manager.
+
+        GameManager interfaces GameEngine with miscellaneous pygame events.
+
+        Args:
+        ----
+        game - The game instance.
+
+        """
+        super().__init__(game=game)
+        self.proxies = [GameManager.GameProxy(game=game)]
 
     @classmethod
     def args(cls, parser):
         group = parser.add_argument_group('Game Options')  # noqa: W0612
 
         return parser
-
 
 def supported_events(like='.*'):
     # Get a list of all of the events
@@ -935,18 +979,24 @@ class GameEngine(EventManager):
     GAME_EVENTS.append(GAMEEVENT)
     GAME_EVENTS.append(MENUEVENT)
 
-    def __init__(self, options=None):
-        # Persist this game's options.
-        GameEngine.OPTIONS = options or {}
+    def __init__(self, game=None, options=None):
+        """
+        Set up pygame and handle events.
 
-        # Add a copy of ourselves to this singleton's options.
-        #
-        # This makes getting a handle to the running game easy.
-        GameEngine.OPTIONS['game'] = self
+        Your game should subclass this class.
+
+        Args:
+        ----
+        game - None, since it *is* the game.
+        options - the configuration options passed via the command line.
+
+        """
+        # Persist this game's options.
+        GameEngine.OPTIONS = options
+
+        super().__init__(game=self)
 
         self._active_scene = None
-
-        super().__init__(**GameEngine.OPTIONS)
 
         # Pygame stuff.
         pygame.register_quit(self.quit)
@@ -967,13 +1017,13 @@ class GameEngine(EventManager):
         self.clock = pygame.time.Clock()
 
         self.registered_events = {}
-        self.game_manager = GameManager(**GameEngine.OPTIONS)
-        self.mouse_manager = MouseManager(**GameEngine.OPTIONS)
-        self.keyboard_manager = KeyboardManager(**GameEngine.OPTIONS)
-        self.sound_manager = SoundManager(**GameEngine.OPTIONS)
-        self.music_manager = MusicManager(**GameEngine.OPTIONS)
-        self.font_manager = FontManager(**GameEngine.OPTIONS)
-        self.joystick_manager = JoystickManager(**GameEngine.OPTIONS)
+        self.game_manager = GameManager(self)
+        self.mouse_manager = MouseManager(self)
+        self.keyboard_manager = KeyboardManager(self)
+        self.sound_manager = SoundManager(self)
+        self.music_manager = MusicManager(self)
+        self.font_manager = FontManager(self)
+        self.joystick_manager = JoystickManager(self)
 
         # Get count of joysticks
         self.joysticks = []
@@ -1025,6 +1075,15 @@ class GameEngine(EventManager):
 
         self.print_system_info()
 
+    def __del__(self):
+        # This is the total # of sprites.
+        log.info(f'Sprite Count: {RootSprite.SPRITE_COUNT}')
+
+        # This is a count of each type of sprite.
+        for sprite_type, counters in RootSprite.SPRITE_COUNTERS.items():
+            #sprite_count = RootSprite.SPRITE_COUNTERS[sprite_type][key]            
+            for key, value in counters.items():
+                log.info(f'{sprite_type} Sprite {key}: {value}')
     @property
     def screen_width(self):
         return self.screen.get_width()
@@ -1056,25 +1115,36 @@ class GameEngine(EventManager):
         log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
 
         # Dump a bit more info about the configured mode.
-        log.info(f'Display Driver: {pygame.display.get_driver()}')
-        log.info(f'Display Info: {self.display_info}')
-        log.info(f'Initial Resolution: {self.initial_resolution}')
-        log.info(f'8-bit Modes: {pygame.display.list_modes(8)}')
-        log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
-        log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
-        log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
-        log.info(f'Best Color Depth: '
-                 '{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-                 ' ({self.mode_flags})')
-        log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
-        log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
+        log.info('Display Driver: '
+                 f'{pygame.display.get_driver()}')
+        log.info('Display Info: '
+                 f'{self.display_info}')
+        log.info('Initial Resolution: '
+                 f'{self.initial_resolution}')
+        log.info('8-bit Modes: '
+                 f'{pygame.display.list_modes(8)}')
+        log.info('16-bit Modes: '
+                 f'{pygame.display.list_modes(16)}')
+        log.info('24-bit Modes: '
+                 f'{pygame.display.list_modes(24)}')
+        log.info('32-bit Modes: '
+                 f'{pygame.display.list_modes(32)}')
+        log.info('Best Color Depth: '
+                 f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
+                 f' ({self.mode_flags})')
+        log.info('Window Manager Info: '
+                 f'{pygame.display.get_wm_info()}')
+        log.info('Platform Timer Resolution: '
+                 f'{pygame.TIMER_RESOLUTION}')
 
     def print_game_info(self):
         log.debug(f'Successfully loaded {self.init_pass} modules '
                   f'and failed loading {self.init_fail} modules.')
 
-        log.info(f'Game Title: {type(self).NAME}')
-        log.info(f'Game Version: {type(self).VERSION}')
+        log.info('Game Title: '
+                 f'{type(self).NAME}')
+        log.info('Game Version: '
+                 f'{type(self).VERSION}')
 
     def suggested_resolution(self, desired_width=0, desired_height=0):  # noqa: R0201
         # For Ubuntu 19.04, we can't reset the original res
@@ -1125,7 +1195,7 @@ class GameEngine(EventManager):
         cursor_width = len(cursor[0])
         cursor_height = len(cursor)
 
-        cursor = cursor
+        # cursor = cursor
 
         # Compile our cursor so we can draw it to the screen.
         cursor_data, cursor_mask = pygame.cursors.compile(cursor,
@@ -1172,7 +1242,7 @@ class GameEngine(EventManager):
         group.add_argument('-w', '--windowed',
                            help='run the program in windowed mode',
                            action='store_true',
-                           default=False)
+                           default=True)
         group.add_argument('-r', '--resolution',
                            help='the resolution to use (default: 1024x768)',
                            default='800x480')
@@ -1196,7 +1266,7 @@ class GameEngine(EventManager):
                                          'svgalib',
                                          'aalib']
 
-            log.debug('Linux Video Driver Choices: {linux_videodriver_choices}')
+            log.debug(f'Linux Video Driver Choices: {linux_videodriver_choices}')
 
             default_videodriver = linux_videodriver_choices
 
@@ -1394,7 +1464,12 @@ class GameEngine(EventManager):
 
 
 class RootScene(EventManager):
-    def __init__(self):
+    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+        """
+        Scene object base class.
+
+        Subclass this to properly receive on_*_event() messages automatically.
+        """
         super().__init__()
         # This will resolve to the class name of any subclass.
         self.name = type(self)
@@ -1403,7 +1478,7 @@ class RootScene(EventManager):
         self.rects = None
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
-        self.all_sprites = pygame.sprite.LayeredDirty()
+        self.all_sprites = groups
 
         # Initial screen state.
 
@@ -1411,6 +1486,11 @@ class RootScene(EventManager):
         self.background = pygame.Surface(self.screen.get_size())
         self.background.convert()
         self.background.fill(self.background_color)
+
+        # I don't think this will work since init() is called first.
+        # for group in groups:
+        #    for sprite in self.all_sprites:
+        #        group.add(sprite)
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -1427,73 +1507,68 @@ class RootScene(EventManager):
         self.switch_to_scene(None)
 
     def sprites_at_position(self, pos):
-        mouse = MouseSprite(x=pos[0], y=pos[1], width=1, height=1)
+        mouse = MousePointer(x=pos[0], y=pos[1])
 
         return pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-    def on_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'{type(self)}: Mouse Drag Down: {event} {trigger}')
-
+    def on_mouse_drag_event(self, event, trigger):
+        log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_mouse_drag_down_event(event, trigger)
+            sprite.on_mouse_drag_event(event, trigger)
 
-    def on_left_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'{type(self)}: Left Mouse Drag Down: {event} {trigger}')
-
+    def on_mouse_drop_event(self, event, trigger):
+        log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_left_mouse_drag_down_event(event, trigger)
+            sprite.on_mouse_drop_event(event, trigger)            
 
-    def on_left_mouse_drag_up_event(self, event, trigger):
-        log.debug(f'{type(self)}: Left Mouse Drag Up: {event} {trigger}')
+    def on_left_mouse_drag_event(self, event, trigger):
+        log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
+        if collided_sprites:
+            collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
+        
+        #for sprite in collided_sprites:
+        #    sprite.on_left_mouse_drag_event(event, trigger)
+
+    def on_left_mouse_drop_event(self, event, trigger):
+        log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_left_mouse_drag_up_event(event)
+            sprite.on_left_mouse_drop_event(event, trigger)
 
-    def on_middle_mouse_drag_down_event(self, event, trigger):
-        log.info(f'{type(self)}: Middle Mouse Drag Down: {event} {trigger}')
-
+    def on_middle_mouse_drag_event(self, event, trigger):
+        log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_middle_mouse_drag_down_event(event, trigger)
+            sprite.on_middle_mouse_drag_event(event, trigger)
 
-    def on_middle_mouse_drag_up_event(self, event, trigger):
-        log.info(f'{type(self)}: Middle Mouse Drag Up: {event} {trigger}')
-
+    def on_middle_mouse_drop_event(self, event, trigger):
+        log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_middle_mouse_drag_up_event(event)
+            sprite.on_middle_mouse_drop_event(event, trigger)
 
-    def on_right_mouse_drag_down_event(self, event, trigger):
-        log.info(f'{type(self)}: Right Mouse Drag Down: {event} {trigger}')
-
+    def on_right_mouse_drag_event(self, event, trigger):
+        log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_right_mouse_drag_up_event(event, trigger)
+            sprite.on_right_mouse_drag_event(event, trigger)
 
-    def on_right_mouse_drag_up_event(self, event, trigger):
-        log.info(f'{type(self)}: Right Mouse Drag Up: {event} {trigger}')
-
+    def on_right_mouse_drop_event(self, event, trigger):
+        log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in collided_sprites:
-            sprite.on_right_mouse_drag_up_event(event)
-
-    def on_mouse_drag_up_event(self, event):
-        log.debug(f'{type(self)}: Mouse Drag Up: {event}')
-
-        collided_sprites = self.sprites_at_position(pos=event.pos)
-
-        for sprite in collided_sprites:
-            sprite.on_mouse_drag_up_event(event)
+            sprite.on_right_mouse_drop_event(event, trigger)
 
     def on_left_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -1528,6 +1603,10 @@ class RootScene(EventManager):
 
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
+        log.info(f'ENGINE SPRITES: {collided_sprites}')
+
+        #if collided_sprites:
+        #    collided_sprites[0].on_left_mouse_button_down_event(event)
         for sprite in collided_sprites:
             sprite.on_left_mouse_button_down_event(event)
 
@@ -1559,19 +1638,48 @@ class RootScene(EventManager):
         log.info(f'{type(self)}: {GameEngine.FPS}')
 
 
-class RootSprite(pygame.sprite.DirtySprite):
+class RootRootSprite(pygame.sprite.DirtySprite):
+    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(groups)
+
+
+class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
     """A convenience class for handling all of the common sprite behaviors."""
 
     USE_GFXDRAW = False
+    PROXIES = [pygame.sprite]
+    SPRITE_BREAKPOINTS = None  # None means no breakpoints.  Empty list means all.
+    SPRITE_COUNTERS = collections.OrderedDict()
+    SPRITE_COUNT = 0
 
-    def __init__(self, *args, **kwargs):  # noqa: W0613
-        super().__init__()
-        self.name = type(self)
-        self.x = kwargs.get('x', 0)
-        self.y = kwargs.get('y', 0)
-        self.width = int(kwargs.get('width', 0))
-        self.height = int(kwargs.get('height', 0))
+    @classmethod
+    def break_when(cls, sprite_type=None):
+        # None means disabled.
+        # [] means any.
+        if cls.SPRITE_BREAKPOINTS is None:
+            cls.SPRITE_BREAKPOINTS = []
+        
+        # If none, break always.
+        if sprite_type is not None:
+            log.info(f'Register break when sprite_type=={cls}')
+            cls.SPRITE_BREAKPOINTS.append(str(cls))
+        else:
+            log.info('Register break when sprite_type==<any>')
+
+    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
+        super().__init__(groups)
+
+        self.x = x
+        self.y = y
+
+        self.width = int(width)
+        self.height = int(height)
+        self.name = name
         self.proxies = [self]
+
+        # For debugging sanity.
+        if not name:
+            self.name = type(self)
 
         if not self.width:
             log.error(f'{type(self)} has 0 Width')
@@ -1591,8 +1699,34 @@ class RootSprite(pygame.sprite.DirtySprite):
         self.image = pygame.Surface((self.width, self.height))
         self.rect = self.image.get_rect()
 
-        # Cause the sprite to update itself when it comes into existence.
-        self.update()
+        groups.add(self)
+
+        # Add ourselves to the sprite counters.
+        my_type = str(type(self))
+        
+        if my_type in self.SPRITE_COUNTERS:
+            self.SPRITE_COUNTERS[my_type]['count'] += 1
+            self.SPRITE_COUNTERS[my_type]['pixels'] = self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
+        else:
+            self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
+            self.SPRITE_COUNTERS[my_type]['count'] = 1
+            self.SPRITE_COUNTERS[my_type]['pixels'] = 0
+        self.SPRITE_COUNT += 1
+
+        # None means disabled.
+        if self.SPRITE_BREAKPOINTS is not None:
+            # Empty list means all.
+            if len(self.SPRITE_BREAKPOINTS) == 0:
+                log.info(f'Break when sprite_type=={str(type(self))}')
+                import pdb; pdb.set_trace()
+            else:
+                for sprite_type in self.SPRITE_BREAKPOINTS:
+                    import pdb; pdb.set_trace()                    
+                    if str(type(self)) == sprite_type:
+                        log.info(f'Break when sprite_type==<any>')                        
+                        import pdb; pdb.set_trace()
+            
+            
 
     def update(self):
         pass
@@ -1773,21 +1907,46 @@ class RootSprite(pygame.sprite.DirtySprite):
         # FPSEVENT is pygame.USEREVENT + 1
         log.debug(f'{type(self)}: {GameEngine.FPS}')
 
+    # def __getattr__(self, attr):
+    #    import pdb; pdb.set_trace()
+        # Try each proxy in turn
+   #     for proxy in type(self).PROXIES:
+   #         try:
+   #             it = getattr(super(), attr)
+   #             import pdb; pdb.set_trace()
+   #             return getattr(proxy, attr)
+   #         except AttributeError:
+   #             log.error(f'No proxies for {type(self)}.{attr}')
+
     def __str__(self):
         return f'{type(self)} "{self.name}" ({repr(self)})'
 
 
 class BitmappySprite(RootSprite):
     DEBUG = False
+    # __instance__ = None
 
-    def __init__(self, *args, filename=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.image = None
-        self.rect = None
-        self.name = kwargs.get('name', 'Untitled')
+    # def __new__(cls, *args, **kwargs):
+    #    cls.__instance__ = object.__new__(cls)
+    #    cls.__instance__.args = args
+    #    cls.__instance__.kwargs = kwargs
+    #    log.info(f'Args: {args}, Kwargs: {kwargs}')
+    #    return cls.__instance
+
+    def __init__(self, x, y, width, height, name=None, filename=None,
+                 groups=pygame.sprite.LayeredDirty()):
+        """
+        Subclass to load sprite files.
+
+        Args:
+        ----
+        filename - optional, the BitmappySprite config to load.
+
+        """
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.filename = filename
-        self.width = kwargs.get('width', 0)
-        self.height = kwargs.get('height', 0)
+        # self.width = width
+        # self.height = height
 
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
@@ -1803,8 +1962,8 @@ class BitmappySprite(RootSprite):
             raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
 
         self.rect = self.image.get_rect()
-        self.rect.x = kwargs.get('x', 0)
-        self.rect.y = kwargs.get('y', 0)
+        self.rect.x = x
+        self.rect.y = y
 
     def load(self, filename):  # noqa: R0914
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,
@@ -1893,7 +2052,7 @@ class BitmappySprite(RootSprite):
         # We need a list here becasue we'll use set() to pull out the
         # unique values, but we also need to consume the list again
         # down below, so we can't solely use a generator.
-        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]
+        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]  # noqa: R1721
 
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
@@ -1943,7 +2102,7 @@ class BitmappySprite(RootSprite):
 
 
 # This is a root class for sprites that should be singletons, like
-# the MenuBar class, and the MouseSprite class.
+# the MenuBar class, and the MousePointer class.
 class SingletonBitmappySprite(BitmappySprite):
     __instance__ = None
 
@@ -1954,20 +2113,17 @@ class SingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cls.__instance__
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
 
 # We're making this a singleton class becasue
 # pygame doesn't understand multiple cursors
 # and so there is only ever 1 x/y coordinate sprite
 # for the mouse at any given time.
-class MouseSprite(SingletonBitmappySprite):
-    def __init__(self, *args, **kwargs):
-        self.x = kwargs.get('x')
-        self.y = kwargs.get('y')
-
-        super().__init__(*args, **kwargs)
+class MousePointer(SingletonBitmappySprite):
+    def __init__(self, x, y):
+        super().__init__(x=x, y=y, width=1, height=1)
 
         self.rect.x = self.x
         self.rect.y = self.y
