@@ -834,45 +834,45 @@ class BitmapEditorScene(RootScene):
 
         self.all_sprites = groups
 
-        self.menu_bar = MenuBar(name='Menu Bar',
-                                x=0,
-                                y=0,
-                                width=self.screen_width,
-                                height=20, groups=self.all_sprites)
+        # self.menu_bar = MenuBar(name='Menu Bar',
+        #                         x=0,
+        #                         y=0,
+        #                         width=self.screen_width,
+        #                         height=20, groups=self.all_sprites)
 
-        #log.info('Rect is: %s' % self.menu_bar.rect)
-        #log.info('Rect bottom: %s' % self.menu_bar_sprite.rect.bottom)
+        # #log.info('Rect is: %s' % self.menu_bar.rect)
+        # #log.info('Rect bottom: %s' % self.menu_bar_sprite.rect.bottom)
 
-        self.menu_icon = MenuItem(name=None,
-                                  filename='raspberry.cfg',
-                                  x=0,
-                                  y=0,
-                                  width=16,
-                                  height=self.menu_bar.height)
-        # When we load the sprite, we set a name.
-        self.menu_icon.name = None
+        # self.menu_icon = MenuItem(name=None,
+        #                           filename='raspberry.cfg',
+        #                           x=0,
+        #                           y=0,
+        #                           width=16,
+        #                           height=self.menu_bar.height)
+        # # When we load the sprite, we set a name.
+        # self.menu_icon.name = None
 
-        self.menu_bar.add_menu_item(menu_item=self.menu_icon,
-                                    menu=None)
+        # self.menu_bar.add_menu_item(menu_item=self.menu_icon,
+        #                             menu=None)
         
-        self.save_menu_item = MenuItem(name='Save',
-                                       x=self.menu_icon.rect.topright[0],
-                                       y=self.menu_icon.y,
-                                       width=40,
-                                       height=self.menu_bar.height,
-                                       groups=self.all_sprites)
-        self.load_menu_item = MenuItem(name='Load',
-                                       x=self.save_menu_item.rect.midright[0],
-                                       y=self.save_menu_item.y,
-                                       width=40,
-                                       height=self.save_menu_item.height,
-                                       groups=self.all_sprites)
-        self.quit_menu_item = MenuItem(name='Quit',
-                                       x=self.load_menu_item.rect.midright[0],
-                                       y=self.load_menu_item.y,
-                                       width=40,
-                                       height=self.load_menu_item.height,
-                                       groups=self.all_sprites)
+        # self.save_menu_item = MenuItem(name='Save',
+        #                                x=self.menu_icon.rect.topright[0],
+        #                                y=self.menu_icon.y,
+        #                                width=40,
+        #                                height=self.menu_bar.height,
+        #                                groups=self.all_sprites)
+        # self.load_menu_item = MenuItem(name='Load',
+        #                                x=self.save_menu_item.rect.midright[0],
+        #                                y=self.save_menu_item.y,
+        #                                width=40,
+        #                                height=self.save_menu_item.height,
+        #                                groups=self.all_sprites)
+        # self.quit_menu_item = MenuItem(name='Quit',
+        #                                x=self.load_menu_item.rect.midright[0],
+        #                                y=self.load_menu_item.y,
+        #                                width=40,
+        #                                height=self.load_menu_item.height,
+        #                                groups=self.all_sprites)
 
         #self.file_menu = MenuItem(name='File', width=32, height=16, groups=self.all_sprites)
         #self.save_menu_item = MenuItem(name='Save', width=40, height=16, groups=self.all_sprites)
@@ -897,7 +897,9 @@ class BitmapEditorScene(RootScene):
 
         # We'll use the top left quartile of the screen to draw the canvas.
         # We want a square canvas, so we'll use the height as our input.
-        self.canvas = CanvasSprite(name='Bitmap Canvas', x=0, y=self.menu_bar.rect.bottom + 10, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75), groups=self.all_sprites)
+        # self.canvas = CanvasSprite(name='Bitmap Canvas', x=0, y=self.menu_bar.rect.bottom + 10, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75), groups=self.all_sprites)
+        self.canvas = CanvasSprite(name='Bitmap Canvas', x=0, y=40, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75), groups=self.all_sprites)
+
         #self.canvas.add(self.all_sprites)
         
         self.red_slider = LabeledSliderSprite(name='R', x=0, y=self.screen_height - 70, width=256, height=10, groups=self.all_sprites)
