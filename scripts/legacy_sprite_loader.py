@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
 from collections import OrderedDict
 import configparser
 import logging
@@ -11,15 +10,16 @@ import pygame
 from ghettogames.engine import GameEngine
 from ghettogames.engine import vga_palette
 from ghettogames.pixels import indexed_rgb_triplet_generator
-from ghettogames.sprites import RootSprite
+from ghettogames.sprites import Sprite
 from ghettogames.scenes import Scene
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.INFO)
 
 
-class BitmappyLegacySprite(RootSprite):
+class BitmappyLegacySprite(Sprite):
     log = LOG
+
     def __init__(self, filename, palette, *args, **kwargs):
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
@@ -56,7 +56,7 @@ class BitmappyLegacySprite(RootSprite):
 
         pixels = [pixel for pixel in pixels]
 
-        for pixel in pixels[0:width*height]:
+        for pixel in pixels[0:width * height]:
             rgb_pixels.append(palette[pixel])
 
         (image, rect) = self.inflate(width=width,
@@ -185,6 +185,7 @@ class GameScene(Scene):
 
         self.all_sprites.clear(self.screen, self.background)
 
+
 class Game(Scene):
     # Set your game name/version here.
     NAME = "Sprite Loader"
@@ -200,12 +201,13 @@ class Game(Scene):
     @classmethod
     def args(cls, parser):
         parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+                            action='store_true',
+                            help='print the game version and exit')
 
         parser.add_argument('--filename',
-                           help='the file to load',
-                           required=True)
+                            help='the file to load',
+                            required=True)
+
 
 def main():
     GameEngine(game=Game).start()

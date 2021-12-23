@@ -20,6 +20,7 @@ BitmappySprite.DEBUG = True
 
 class GameScene(Scene):
     log = LOG
+
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.all_sprites = groups
@@ -30,6 +31,7 @@ class GameScene(Scene):
         self.screen.fill((255, 255, 0))
 
         self.all_sprites.clear(self.screen, self.background)
+
 
 class Game(Scene):
     # Set your game name/version here.
@@ -47,12 +49,13 @@ class Game(Scene):
     @classmethod
     def args(cls, parser):
         parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+                            action='store_true',
+                            help='print the game version and exit')
 
 
 def main():
     GameEngine(game=Game).start()
+
 
 if __name__ == '__main__':
     try:

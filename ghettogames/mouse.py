@@ -39,11 +39,11 @@ class MouseManager(ResourceManager):
             self.mouse_state[event.type] = event
             self.game.on_mouse_motion_event(event)
 
-            sprite = collided_sprites(event=event, index=-1)
+            sprite = collided_sprites(self.game, event=event, index=-1)
 
             if sprite:
                 self.log.debug(f'{type(self)}: Mouse Motion: {event}')
-                sprite.on_mouse_motion_event(event)
+                sprite[0].on_mouse_motion_event(event)
 
                 # # See if we're focused on the same sprite.
                 # if self.current_focus != collided_sprite:

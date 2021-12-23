@@ -14,9 +14,11 @@ FPSEVENT = pygame.USEREVENT + 1
 GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
 
+
 def unhandled_event(*args, **kwargs):
     LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
     raise AttributeError(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
+
 
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
@@ -75,6 +77,7 @@ class ResourceManager:
                 self.log.error(f'No proxies for {type(self)}.{attr}')
                 raise
 
+
 # Mixin
 class GameEvents:
     def on_active_event(self, event):
@@ -113,9 +116,11 @@ class GameEvents:
         # QUIT             none
         pass
 
+
 # Mixin
 class FontEvents:
     pass
+
 
 # Mixin
 class KeyboardEvents:
@@ -222,6 +227,7 @@ class MouseEvents:
         # This is a synthesized event.
         pass
 
+
 # Mixin
 class JoystickEvents:
     def on_axis_motion_event(self, event):
@@ -244,6 +250,7 @@ class JoystickEvents:
         # JOYBALLMOTION    joy, ball, rel
         pass
 
+
 # Mixin for all events
 class EventInterface(MouseEvents,
                      KeyboardEvents,
@@ -251,6 +258,8 @@ class EventInterface(MouseEvents,
                      FontEvents,
                      GameEvents):
     pass
+
+
 class EventManager(ResourceManager):
     log = LOG
     # Interiting from object is default in Python 3.
@@ -258,6 +267,7 @@ class EventManager(ResourceManager):
     #
     # This isn't a ResourceManager like other proxies, because
     # it's the fallthrough event object, so we don't have a proxy.
+
     class EventProxy():
         log = LOG
         def __init__(self, event_source):  # noqa: W0613
@@ -290,8 +300,10 @@ class EventManager(ResourceManager):
 
             event_trigger = kwargs.get('trigger', None)
 
-            self.log.debug(f'Unhandled Event {event_handler}: '
-                      f'{self.event_source}->{event} Event Trigger: {event_trigger}')
+            self.log.debug(
+                f'Unhandled Event {event_handler}: '
+                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
+            )
 
         def __getattr__(self, attr):
             return self.unhandled_event
@@ -315,4 +327,3 @@ class EventManager(ResourceManager):
         """
         super().__init__(game)
         self.proxies = [EventManager.EventProxy(event_source=self)]
-

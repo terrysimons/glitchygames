@@ -4,12 +4,13 @@ import pygame
 
 from ghettogames.color import BLACK
 from ghettogames.events import EventInterface, EventManager
-from ghettogames.sprites import MousePointer, collided_sprites
+from ghettogames.sprites import MousePointer
 
-from ghettogames.events import FPSEVENT, GAMEEVENT, MENUEVENT
+from ghettogames.events import FPSEVENT
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
+
 
 class SceneInterface:
     def switch_to_scene(self, next_scene):
@@ -17,6 +18,7 @@ class SceneInterface:
 
     def terminate(self):
         pass
+
 
 class SceneManager(SceneInterface, EventManager):
     log = LOG
@@ -36,18 +38,23 @@ class SceneManager(SceneInterface, EventManager):
 
     def switch_to_scene(self, next_scene):
         if next_scene != self.active_scene:
-            self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
+            self.log.info(
+                f'Switching to scene "{next_scene}" '
+                f'from scene "{self.active_scene}"'
+            )
 
             self.active_scene = next_scene
 
             if self.active_scene:
-                self.log.info(f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-                              f' at {self.active_scene.fps} FPS')
+                self.log.info(
+                    f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
+                    f' at {self.active_scene.fps} FPS'
+                )
 
                 self.proxies = [self, self.active_scene]
 
     def start(self):
-        while self.active_scene != None:
+        while self.active_scene is not None:
             # Configure the refresh rate to whatever the scene requested
             self.fps = self.active_scene.fps
 
@@ -73,7 +80,6 @@ class SceneManager(SceneInterface, EventManager):
 
             self.game_engine.process_events()
 
-
     def terminate(self):
         self.switch_to_scene(None)
 
@@ -89,7 +95,7 @@ class SceneManager(SceneInterface, EventManager):
         if self.active_scene:
             self.active_scene.FPS = self.clock.get_fps()
         self.log.info(f'Scene "{self.active_scene}" FPS: {self.active_scene.FPS}')
-        #self.active_scene.on_fps_event(event)
+        # self.active_scene.on_fps_event(event)
 
     def on_game_event(self, event):
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -97,8 +103,10 @@ class SceneManager(SceneInterface, EventManager):
         try:
             self.game_engine.registered_events[event.subtype](event)
         except KeyError:
-            self.log.error(f'Unregistered Event: {event} '
-                      '(call self.register_game_event(<event subtype>, <event data>))')
+            self.log.error(
+                f'Unregistered Event: {event} '
+                '(call self.register_game_event(<event subtype>, <event data>))'
+            )
 
     def on_key_up_event(self, event):
         # Wire up quit by default for escape and q.
@@ -123,13 +131,13 @@ class SceneManager(SceneInterface, EventManager):
     #         self.log.error(f'Unregistered Event: {event} '
     #                   '(call self.register_game_event(<event subtype>, <event data>))')
 
-    # # If the game hasn't hooked a call, we should check if the scene manager has.
-    # #
-    # # This will allow scenes to get pygame events directly, but we can still
-    # # hook those events in this engine, or in the subclassed game object, too.
-    # #
-    # # This allows maximum flexibility of event processing, with low overhead
-    # # at the expense of a slight layer violation.
+    # If the game hasn't hooked a call, we should check if the scene manager has.
+    #
+    # This will allow scenes to get pygame events directly, but we can still
+    # hook those events in this engine, or in the subclassed game object, too.
+    #
+    # This allows maximum flexibility of event processing, with low overhead
+    # at the expense of a slight layer violation.
     def __getattr__(self, attr):
         # Attempt to proxy the call to the active scene.
         try:
@@ -137,6 +145,8 @@ class SceneManager(SceneInterface, EventManager):
         except AttributeError:
             raise AttributeError(f'{attr} is not implemented for {type(self)} or '
                                  f'for the active scene {type(self.active_scene)}')
+
+
 class Scene(SceneInterface, EventInterface):
     """
     Scene object base class.
@@ -145,7 +155,7 @@ class Scene(SceneInterface, EventInterface):
     """
     log = LOG
     FPS = 0
-    NAME = f'Unnamed Scene'
+    NAME = 'Unnamed Scene'
 
     def __init__(self, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__()
@@ -185,7 +195,6 @@ class Scene(SceneInterface, EventInterface):
 
         self.clock = pygame.time.Clock()
 
-
     def update(self):
         self.rects = self.all_sprites.draw(self.screen)
 
@@ -218,8 +227,8 @@ class Scene(SceneInterface, EventInterface):
         if collided_sprites:
             collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
 
-        #for sprite in collided_sprites:
-        #    sprite.on_left_mouse_drag_event(event, trigger)
+        # for sprite in collided_sprites:
+        #     sprite.on_left_mouse_drag_event(event, trigger)
 
     def on_left_mouse_drop_event(self, event, trigger):
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
@@ -291,8 +300,8 @@ class Scene(SceneInterface, EventInterface):
 
         self.log.info(f'ENGINE SPRITES: {collided_sprites}')
 
-        #if collided_sprites:
-        #    collided_sprites[0].on_left_mouse_button_down_event(event)
+        # if collided_sprites:
+        #     collided_sprites[0].on_left_mouse_button_down_event(event)
         for sprite in collided_sprites:
             sprite.on_left_mouse_button_down_event(event)
 

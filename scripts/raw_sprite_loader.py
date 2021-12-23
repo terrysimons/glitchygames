@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
 from collections import OrderedDict
 import configparser
 import logging
@@ -137,7 +136,7 @@ class BitmappyLegacySprite(Sprite):
             x += 1
 
             if x % self.rect.width == 0:
-                log.debug(f'Row: {row}')
+                self.log.debug(f'Row: {row}')
                 pixels.append(''.join(row))
                 row = []
                 x = 0
@@ -190,16 +189,17 @@ class Game(Scene):
     @classmethod
     def args(cls, parser):
         parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+                            action='store_true',
+                            help='print the game version and exit')
 
         parser.add_argument('--filename',
-                           help='the file to load',
-                           required=True)
+                            help='the file to load',
+                            required=True)
 
 
 def main():
     GameEngine(game=Game).start()
+
 
 if __name__ == '__main__':
     try:

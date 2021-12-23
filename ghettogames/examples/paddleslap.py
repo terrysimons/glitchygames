@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse
 import logging
 import os
 import random
@@ -52,7 +51,8 @@ class Rally:
 
 
 class PaddleSprite(Sprite):
-    def __init__(self, x=0, y=320, width=20, height=80, name='Player 1', groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, x=0, y=320, width=20, height=80,
+                 name='Player 1', groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.use_gfxdraw = True
         # Adding some slap to the paddle
@@ -200,7 +200,8 @@ class BallSprite(Sprite):
 
 
 class TextSprite(Sprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0,
+                 groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.background_color = background_color
         self.alpha = alpha
@@ -243,7 +244,8 @@ class TextSprite(Sprite):
         # Interiting from object is default in Python 3.
         # Linters complain if you do it.
         class TextBox(Sprite):
-            def __init__(self, font_controller, pos, line_height=15, groups=pygame.sprite.LayeredDirty()):
+            def __init__(self, font_controller, pos, line_height=15,
+                         groups=pygame.sprite.LayeredDirty()):
                 super().__init__(groups=groups)
                 self.image = None
                 self.start_pos = pos
@@ -379,7 +381,7 @@ class Game(Scene):
 
         # KEYUP            key, mod
         if event.key == pygame.K_q:
-            log.info(f'User requested quit.')
+            log.info('User requested quit.')
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
 
@@ -396,4 +398,3 @@ if __name__ == '__main__':
     finally:
         pygame.display.quit()
         pygame.quit()
-

@@ -5,17 +5,18 @@ import logging
 import pygame
 
 from ghettogames.events import MouseEvents
+from ghettogames.pixels import rgb_triplet_generator
 
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
 
-class RootRootSprite(pygame.sprite.DirtySprite):
+class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
 
 
-class Sprite(MouseEvents, pygame.sprite.DirtySprite):
+class Sprite(RootSprite):
     """A convenience class for handling all of the common sprite behaviors."""
     log = LOG
     USE_GFXDRAW = False
@@ -33,10 +34,10 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
 
         # If none, break always.
         if sprite_type is not None:
-            self.log.info(f'Register break when sprite_type=={cls}')
+            LOG.info(f'Register break when sprite_type=={cls}')
             cls.SPRITE_BREAKPOINTS.append(str(cls))
         else:
-            self.log.info('Register break when sprite_type==<any>')
+            LOG.info('Register break when sprite_type==<any>')
 
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
         super().__init__(groups)
@@ -78,7 +79,8 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
 
         if my_type in self.SPRITE_COUNTERS:
             self.SPRITE_COUNTERS[my_type]['count'] += 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
+            self.SPRITE_COUNTERS[my_type]['pixels'] = \
+                self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
         else:
             self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
             self.SPRITE_COUNTERS[my_type]['count'] = 1
@@ -90,15 +92,13 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
             # Empty list means all.
             if len(self.SPRITE_BREAKPOINTS) == 0:
                 self.log.info(f'Break when sprite_type=={str(type(self))}')
-                import pdb; pdb.set_trace()
+                breakpoint()
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
-                    import pdb; pdb.set_trace()
+                    breakpoint()
                     if str(type(self)) == sprite_type:
-                        log.info(f'Break when sprite_type==<any>')
-                        import pdb; pdb.set_trace()
-
-
+                        self.log.info('Break when sprite_type==<any>')
+                        breakpoint()
 
     def update(self):
         pass
@@ -147,22 +147,40 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
         self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_left_mouse_drag_down_event(self, event, trigger):
-        self.log.debug(f'Left Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Left Mouse Drag Down Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_left_mouse_drag_up_event(self, event, trigger):
-        self.log.debug(f'Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Left Mouse Drag Up Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_middle_mouse_drag_down_event(self, event, trigger):
-        self.log.debug(f'Middle Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Middle Mouse Drag Down Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_middle_mouse_drag_up_event(self, event, trigger):
-        self.log.debug(f'Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Middle Mouse Drag Up Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_right_mouse_drag_down_event(self, event, trigger):
-        self.log.debug(f'Right Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Right Mouse Drag Down Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_right_mouse_drag_up_event(self, event, trigger):
-        self.log.debug(f'Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Right Mouse Drag Up Event: '
+            f'{type(self)}: event: {event}, trigger: {trigger}'
+        )
 
     def on_mouse_drag_up_event(self, event):
         self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
@@ -179,7 +197,10 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
+            self.log.debug(
+                f'{type(self)}: '
+                f'Left Mouse Button Up Event: {event} @ {self}'
+            )
 
     def on_middle_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -192,7 +213,10 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
+            self.log.debug(
+                f'{type(self)}: '
+                f'Right Mouse Button Up Event: {event} @ {self}'
+            )
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
@@ -275,28 +299,27 @@ class Sprite(MouseEvents, pygame.sprite.DirtySprite):
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_fps_event(self, event):  # noqa: W0613
-        # FPSEVENT is pygame.USEREVENT + 1
-        self.log.debug(f'{type(self)}: {GameEngine.FPS}')
+    # def on_fps_event(self, event):  # noqa: W0613
+    #     # FPSEVENT is pygame.USEREVENT + 1
+    #     self.log.debug(f'{type(self)}: {GameEngine.FPS}')
 
     # def __getattr__(self, attr):
     #    import pdb; pdb.set_trace()
-        # Try each proxy in turn
-   #     for proxy in type(self).PROXIES:
-   #         try:
-   #             it = getattr(super(), attr)
-   #             import pdb; pdb.set_trace()
-   #             return getattr(proxy, attr)
-   #         except AttributeError:
-   #             log.error(f'No proxies for {type(self)}.{attr}')
+
+    #    # Try each proxy in turn
+    #    for proxy in type(self).PROXIES:
+    #        try:
+    #            it = getattr(super(), attr)
+    #            import pdb; pdb.set_trace()
+    #            return getattr(proxy, attr)
+    #        except AttributeError:
+    #            log.error(f'No proxies for {type(self)}.{attr}')
 
     def __str__(self):
         return f'{type(self)} "{self.name}" ({repr(self)})'
 
-# Backwards compatibility
-RootSprite = Sprite
 
-class BitmappySprite(RootSprite):
+class BitmappySprite(Sprite):
     DEBUG = False
 
     def __init__(self, x, y, width, height, name=None, filename=None,
@@ -483,6 +506,7 @@ class SingletonBitmappySprite(BitmappySprite):
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
+
 # This is a root class for focusable sprites that should be singletons, like
 # the MenuBar class.
 class FocusableSingletonBitmappySprite(BitmappySprite):
@@ -496,7 +520,10 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         return cls.__instance__
 
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups)
+        super().__init__(
+            x=x,y=y, width=width, height=height, #  noqa: E231
+            name=name, focusable=True, groups=groups
+        )
 
 
 # We're making this a singleton class becasue
@@ -511,12 +538,10 @@ class MousePointer(SingletonBitmappySprite):
         self.rect.y = self.y
 
 
-def collided_sprites(event, index=None):
+def collided_sprites(scene, event, index=None):
     mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-    return []
-
-    sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
+    sprites = pygame.sprite.spritecollide(mouse, scene.all_sprites, False)
 
     if sprites:
         if index is None:

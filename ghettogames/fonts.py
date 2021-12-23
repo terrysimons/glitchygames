@@ -42,8 +42,8 @@ class FontManager(ResourceManager):
 
         # Register pygame.freetype
         pygame.freetype.init()
-        #pygame.font.init()
-        #pygame.ftfont.init()
+        # pygame.font.init()
+        # pygame.ftfont.init()
 
         log.info('Freetype Font Cache Size: '
                  f'{pygame.freetype.get_cache_size()}')

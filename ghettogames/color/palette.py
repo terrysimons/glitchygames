@@ -42,8 +42,12 @@ class PaletteUtility:
         colors = []
         for color_index in range(int(config['palette']['colors'])):
             color_index = str(color_index)
-            tmp_color = Color(config[color_index].getint('red'), config[color_index].getint('green'),
-                              config[color_index].getint('blue'), config[color_index].getint('alpha', 255))
+            tmp_color = Color(
+                config[color_index].getint('red'),
+                config[color_index].getint('green'),
+                config[color_index].getint('blue'),
+                config[color_index].getint('alpha', 255)
+            )
             colors.append(tmp_color)
 
         return colors
@@ -81,7 +85,7 @@ class PaletteUtility:
     @staticmethod
     def create_palette_data(colors):
         palette_data = configparser.ConfigParser()
-        palette_data['palette'] = {"colors": str(len(colors)) }
+        palette_data['palette'] = {"colors": str(len(colors))}
         for count, color in enumerate(colors):
             palette_data[count] = {
                 "red": color.r,
@@ -96,14 +100,28 @@ class PaletteUtility:
 class NES(ColorPalette):
 
     def __init__(self):
-        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/NES.cfg')))
+        super().__init__(
+            PaletteUtility.load_palette_from_file(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    'resources/NES.cfg'
+                )
+            )
+        )
 
 
 # A Custom Color palette with named colors
 class Custom(ColorPalette):
 
     def __init__(self):
-        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/custom.cfg')))
+        super().__init__(
+            PaletteUtility.load_palette_from_file(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    'resources/custom.cfg'
+                )
+            )
+        )
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)
@@ -118,7 +136,14 @@ class Custom(ColorPalette):
 # A palette representing the 16 default system colors
 class System(ColorPalette):
     def __init__(self):
-        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/system.cfg')))
+        super().__init__(
+            PaletteUtility.load_palette_from_file(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    'resources/system.cfg'
+                )
+            )
+        )
         self.BLACK = self.get_color(0)
         self.MAROON = self.get_color(1)
         self.GREEN = self.get_color(2)
@@ -140,4 +165,11 @@ class System(ColorPalette):
 # The 256 VGA color palette
 class VGA(ColorPalette):
     def __init__(self):
-        super().__init__(PaletteUtility.load_palette_from_file(os.path.join(os.path.dirname(__file__), 'resources/vga.cfg')))
+        super().__init__(
+            PaletteUtility.load_palette_from_file(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    'resources/vga.cfg'
+                )
+            )
+        )

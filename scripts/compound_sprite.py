@@ -7,17 +7,10 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-# from ghettogames.color import WHITE, BLACKLUCENT
-# from ghettogames.engine import RootSprite, MousePointer, BitmappySprite
-# from ghettogames.engine import SingletonBitmappySprite
 from ghettogames.engine import GameEngine
 from ghettogames.ui import ButtonSprite, MenuBar, MenuItem
 from ghettogames.sprites import BitmappySprite
 from ghettogames.scenes import Scene
-# from ghettogames.engine import JoystickManager
-# from ghettogames.engine import pixels_from_data, pixels_from_path
-# from ghettogames.engine import image_from_pixels
-# from ghettogames.engine import rgb_triplet_generator
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
@@ -59,18 +52,18 @@ class GameScene(Scene):
         self.menu_bar.add_menu_item(menu_item=self.menu_icon,
                                     menu=None)
 
-        #self.file_menu = MenuItem(name='File',
+        # self.file_menu = MenuItem(name='File',
         #                          x=self.menu_icon.width,
         #                          y=self.menu_icon.y,
         #                          width=50,
         #                          height=16)
-        #self.file_save = MenuItem(name='Save', x=16, y=18, width=32, height=16)
-        #self.file_load = MenuItem(name='Load', x=16, y=18, width=32, height=16)
-        #self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
-        #self.file_menu.add_menu_item(menu_item=self.file_save, menu=self.file_menu)
-        #self.file_menu.add_menu_item(menu_item=self.file_load, menu=self.file_menu)
+        # self.file_save = MenuItem(name='Save', x=16, y=18, width=32, height=16)
+        # self.file_load = MenuItem(name='Load', x=16, y=18, width=32, height=16)
+        # self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
+        # self.file_menu.add_menu_item(menu_item=self.file_save, menu=self.file_menu)
+        # self.file_menu.add_menu_item(menu_item=self.file_load, menu=self.file_menu)
 
-        #self.file_menu = MenuItem(name='File',
+        # self.file_menu = MenuItem(name='File',
         #                          x=self.menu_icon.width,
         #                          y=self.menu_icon.y,
         #                          width=32,
@@ -89,20 +82,21 @@ class GameScene(Scene):
                                        height=self.menu_bar.height,
                                        groups=self.all_sprites)
         self.quit_menu_item = MenuItem(name='Quit',
-                                       x=self.menu_icon.width + self.save_menu_item.width + self.load_menu_item.width + 5,
+                                       x=self.menu_icon.width + self.save_menu_item.width +
+                                       self.load_menu_item.width + 5,
                                        y=self.menu_icon.y,
                                        width=40,
                                        height=self.menu_bar.height,
                                        groups=self.all_sprites)
 
         # Add the menu icon as a root level menu item.
-        #self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
-        #self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
+        # self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
+        # self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
 
-        #self.file_menu.add_menu_item(menu_item=self.save_menu_item, menu=None)
-        #self.file_menu.add_menu_item(menu_item=self.load_menu_item, menu=None)
-        #self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
-        #self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
+        # self.file_menu.add_menu_item(menu_item=self.save_menu_item, menu=None)
+        # self.file_menu.add_menu_item(menu_item=self.load_menu_item, menu=None)
+        # self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
+        # self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
 
         button_width = self.screen_width // 2 // 2
         button_height = self.screen_height // 2 // 2
@@ -146,8 +140,9 @@ class Game(Scene):
     @classmethod
     def args(cls, parser):
         parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+                            action='store_true',
+                            help='print the game version and exit')
+
 
 def main():
     GameEngine(game=Game).start()
@@ -161,4 +156,3 @@ if __name__ == '__main__':
     finally:
         pygame.display.quit()
         pygame.quit()
-

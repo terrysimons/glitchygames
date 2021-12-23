@@ -1,7 +1,10 @@
 import logging
 
+import pygame
+
 LOG = logging.getLogger('game.pixels')
 LOG.addHandler(logging.NullHandler())
+
 
 def indexed_rgb_triplet_generator(pixel_data):
     """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
@@ -29,7 +32,7 @@ def rgb_555_triplet_generator(pixel_data):
 
             rgb_data = pad_data + rgb_data
 
-            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
 
             # red is 5 bits
             red = int(rgb_data[0:5] + '000', 2)
@@ -51,10 +54,10 @@ def rgb_555_triplet_generator(pixel_data):
             if blue:
                 blue += 7
 
-            log.info(f'Packed RGB: {rgb_data}')
-            log.info(f'Red: {red}')
-            log.info(f'Green: {green}')
-            log.info(f'Blue: {blue}')
+            LOG.info(f'Packed RGB: {rgb_data}')
+            LOG.info(f'Red: {red}')
+            LOG.info(f'Green: {green}')
+            LOG.info(f'Blue: {blue}')
 
             yield tuple([red, green, blue])
     except StopIteration:
@@ -78,7 +81,7 @@ def rgb_565_triplet_generator(pixel_data):
 
             rgb_data = pad_data + rgb_data
 
-            log.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
 
             # red is 5 bits
             red = int(rgb_data[0:5] + '000', 2)
@@ -98,10 +101,10 @@ def rgb_565_triplet_generator(pixel_data):
             if blue:
                 blue += 7
 
-            log.info(f'Packed RGB: {rgb_data}')
-            log.info(f'Red: {red}')
-            log.info(f'Green: {green}')
-            log.info(f'Blue: {blue}')
+            LOG.info(f'Packed RGB: {rgb_data}')
+            LOG.info(f'Red: {red}')
+            LOG.info(f'Green: {green}')
+            LOG.info(f'Blue: {blue}')
 
             yield tuple([red, green, blue])
     except StopIteration:

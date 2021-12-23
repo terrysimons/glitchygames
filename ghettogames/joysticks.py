@@ -107,7 +107,7 @@ class JoystickManager(ResourceManager):
 
         def __str__(self):
             joystick_info = []
-            joystick_info.append(f'Joystick Name: self.get_name()')
+            joystick_info.append(f'Joystick Name: {self.get_name()}')
             joystick_info.append(f'\tJoystick Id: {self._id}')
             joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
             joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')

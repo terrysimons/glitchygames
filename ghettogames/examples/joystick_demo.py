@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse
 import glob
 import logging
 import multiprocessing
@@ -269,7 +268,7 @@ class JoystickScene(Scene):
         super().__init__(groups=groups)
         self.tiles = []
 
-        #self.load_resources()
+        # self.load_resources()
         self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480)
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
@@ -376,12 +375,12 @@ class Game(Scene):
     @classmethod
     def args(cls, parser):
         parser.add_argument('--time',
-                           type=int,
-                           help='time in seconds to wait before quitting',
-                           default=10)
+                            type=int,
+                            help='time in seconds to wait before quitting',
+                            default=10)
         parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+                            action='store_true',
+                            help='print the game version and exit')
 
 
 def main():
@@ -396,5 +395,3 @@ if __name__ == '__main__':
     finally:
         pygame.display.quit()
         pygame.quit()
-
-
