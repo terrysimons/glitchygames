@@ -4,21 +4,11 @@ import pygame
 
 from ghettogames.events import MouseEvents
 from ghettogames.events import ResourceManager
-from ghettogames.sprites import SingletonBitmappySprite
+from ghettogames.sprites import collided_sprites
 
-log = logging.getLogger('game.mouse')
-log.addHandler(logging.NullHandler())
+LOG = logging.getLogger('game.mouse')
+LOG.addHandler(logging.NullHandler())
 
-# We're making this a singleton class becasue
-# pygame doesn't understand multiple cursors
-# and so there is only ever 1 x/y coordinate sprite
-# for the mouse at any given time.
-class MousePointer(SingletonBitmappySprite):
-    def __init__(self, x, y):
-        super().__init__(x=x, y=y, width=1, height=1)
-
-        self.rect.x = self.x
-        self.rect.y = self.y
 
 class MouseManager(ResourceManager):
     class MouseProxy(MouseEvents, ResourceManager):
@@ -49,35 +39,32 @@ class MouseManager(ResourceManager):
             self.mouse_state[event.type] = event
             self.game.on_mouse_motion_event(event)
 
-            # Figure out which item was clicked.
-            mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+            sprite = collided_sprites(event=event, index=-1)
 
-            collided_sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
-            collided_sprite = None
+            if sprite:
+                self.log.debug(f'{type(self)}: Mouse Motion: {event}')
+                sprite.on_mouse_motion_event(event)
 
-            if collided_sprites:
-                collided_sprite = collided_sprites[-1]
-
-                # See if we're focused on the same sprite.
-                if self.current_focus != collided_sprite:
-                    # Newly focused object can "see" what the previously focused object was.
-                    #
-                    # Will be "None" if nothing is focused.
-                    #
-                    # We can use this to enable drag and drop.
-                    #
-                    # This will take care of the unfocus event, too.
-                    self.on_mouse_focus_event(event, collided_sprite)
-                    collided_sprite.on_mouse_enter_event(event)
-                else:
-                    # Otherwise, pass motion event to the focused sprite
-                    # so it can handle sub-components if it wants to.
-                    self.current_focus.on_mouse_motion_event(event)
-            elif self.current_focus:
-                # If we're focused on a sprite but the collide sprites list is empty, then
-                # we're moving from a focus to empty space, and we should send an unfocus event.
-                self.current_focus.on_mouse_exit_event(event)
-                self.on_mouse_unfocus_event(event, self.current_focus)
+                # # See if we're focused on the same sprite.
+                # if self.current_focus != collided_sprite:
+                #     # Newly focused object can "see" what the previously focused object was.
+                #     #
+                #     # Will be "None" if nothing is focused.
+                #     #
+                #     # We can use this to enable drag and drop.
+                #     #
+                #     # This will take care of the unfocus event, too.
+                #     self.on_mouse_focus_event(event, collided_sprite)
+                #     collided_sprite.on_mouse_enter_event(event)
+                # else:
+                #     # Otherwise, pass motion event to the focused sprite
+                #     # so it can handle sub-components if it wants to.
+                # self.current_focus.on_mouse_motion_event(event)
+            # elif self.current_focus:
+            #     # If we're focused on a sprite but the collide sprites list is empty, then
+            #     # we're moving from a focus to empty space, and we should send an unfocus event.
+            #     self.current_focus.on_mouse_exit_event(event)
+            #     self.on_mouse_unfocus_event(event, self.current_focus)
 
             # Caller can check the buttons.
             # Note: This probably doesn't work right because
@@ -89,14 +76,14 @@ class MouseManager(ResourceManager):
                     self.mouse_dragging = True
 
         def on_mouse_drag_event(self, event, trigger):
-            log.debug(f'{type(self)}: Mouse Drag: {event}')            
+            self.log.debug(f'{type(self)}: Mouse Drag: {event}')
             self.game.on_mouse_drag_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_mouse_drag_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_mouse_drag_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_mouse_drag_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_mouse_drag_event(event, trigger)
 
             if trigger.button == 1:
                 self.on_left_mouse_drag_event(event, trigger)
@@ -112,14 +99,15 @@ class MouseManager(ResourceManager):
                 pass
 
         def on_mouse_drop_event(self, event, trigger):
-            log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_mouse_drop_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_mouse_drop_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_mouse_drop_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_mouse_drop_event(event, trigger)
 
             if trigger.button == 1:
                 self.on_left_mouse_drop_event(event, trigger)
@@ -134,74 +122,76 @@ class MouseManager(ResourceManager):
                 # This doesn't really make sense.
                 pass
 
+            self.mouse_dropping = False
+
         def on_left_mouse_drag_event(self, event, trigger):
             self.game.on_left_mouse_drag_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_left_mouse_drag_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_left_mouse_drag_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_left_mouse_drag_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_left_mouse_drag_event(event, trigger)
 
         def on_left_mouse_drop_event(self, event, trigger):
             self.game.on_left_mouse_drag_up_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_left_mouse_drop_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_left_mouse_drop_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_left_mouse_drop_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_left_mouse_drop_event(event, trigger)
 
         def on_middle_mouse_drag_event(self, event, trigger):
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_middle_mouse_drag_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_middle_mouse_drag_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_middle_mouse_drag_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_middle_mouse_drag_event(event, trigger)
 
         def on_middle_mouse_drop_event(self, event, trigger):
             self.game.on_middle_mouse_drag_up_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_middle_mouse_drop_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_middle_mouse_drop_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_middle_mouse_drop_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_middle_mouse_drop_event(event, trigger)
 
         def on_right_mouse_drag_event(self, event, trigger):
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_right_mouse_drag_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_right_mouse_drag_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_right_mouse_drag_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_right_mouse_drag_event(event, trigger)
 
         def on_right_mouse_drop_event(self, event, trigger):
             self.game.on_right_mouse_drag_up_event(event, trigger)
 
-            if self.focus_locked:
-                if self.current_focus:
-                    self.current_focus.on_right_mouse_drop_event(event, trigger)
-                elif self.previous_focus:
-                    self.previous_focus.on_right_mouse_drop_event(event, trigger)
+            # if self.focus_locked:
+            #     if self.current_focus:
+            #         self.current_focus.on_right_mouse_drop_event(event, trigger)
+            #     elif self.previous_focus:
+            #         self.previous_focus.on_right_mouse_drop_event(event, trigger)
 
         def on_mouse_focus_event(self, event, entering_focus):
             # Send a leave focus event for the old focus.
-            if not self.focus_locked:
-                self.on_mouse_unfocus_event(event, self.current_focus)
+            # if not self.focus_locked:
+            self.on_mouse_unfocus_event(event, self.current_focus)
 
-                # We've entered a new object.
-                self.current_focus = entering_focus
+            # We've entered a new object.
+            self.current_focus = entering_focus
 
-                # Send an enter event for the new focus.
-                entering_focus.on_mouse_focus_event(event, self.current_focus)
+            # Send an enter event for the new focus.
+            entering_focus.on_mouse_focus_event(event, self.current_focus)
 
-                log.info(f'Entered Focus: {self.current_focus}')
-            else:
-                log.info(f'Focus Locked: {self.previous_focus}')
+            self.log.info(f'Entered Focus: {self.current_focus}')
+            # else:
+            #     self.log.info(f'Focus Locked: {self.previous_focus}')
 
         def on_mouse_unfocus_event(self, event, leaving_focus):
             self.previous_focus = leaving_focus
@@ -210,7 +200,7 @@ class MouseManager(ResourceManager):
                 leaving_focus.on_mouse_unfocus_event(event)
                 self.current_focus = None
 
-                log.info(f'Left Focus: {self.previous_focus}')
+                self.log.info(f'Left Focus: {self.previous_focus}')
 
         def on_mouse_button_up_event(self, event):
             self.mouse_state[event.button] = event
@@ -228,14 +218,14 @@ class MouseManager(ResourceManager):
             if event.button == 5:
                 # This doesn't really make sense.
                 pass
-            
+
             if self.mouse_dragging:
                 # The mouse up location is also the trigger.
-                self.game.on_mouse_drop_event(event=event, trigger=event)
                 self.mouse_dragging = False
+                self.game.on_mouse_drop_event(event=event, trigger=event)
 
             # Whatever was locked gets unlocked.
-            self.focus_locked = False
+            # self.focus_locked = False
 
         def on_left_mouse_button_up_event(self, event):
             self.game.on_left_mouse_button_up_event(event)
@@ -250,8 +240,9 @@ class MouseManager(ResourceManager):
             self.mouse_state[event.button] = event
 
             # Whatever was clicked on gets lock.
-            if self.current_focus:
-                self.focus_locked = True
+            # if self.current_focus:
+            #     # TODO: Fix - Disabling for debugging.
+            #     self.focus_locked = False
 
             if event.button == 1:
                 self.on_left_mouse_button_down_event(event)

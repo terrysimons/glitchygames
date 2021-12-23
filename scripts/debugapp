@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import logging
+
+from pygame import Rect
+import pygame
+import pygame.freetype
+import pygame.gfxdraw
+import pygame.locals
+
+from ghettogames.color import WHITE, BLACKLUCENT
+from ghettogames.fonts import FontManager
+from ghettogames.engine import GameEngine
+from ghettogames.joysticks import JoystickManager
+from ghettogames.pixels import pixels_from_data, pixels_from_path
+from ghettogames.pixels import image_from_pixels
+from ghettogames.pixels import rgb_triplet_generator
+from ghettogames.sprites import BitmappySprite, SingletonBitmappySprite, MousePointer
+from ghettogames.scenes import Scene
+
+LOG = logging.getLogger('game')
+LOG.setLevel(logging.DEBUG)
+
+# Turn on sprite debugging
+BitmappySprite.DEBUG = True
+
+
+class IntroScene(Scene):
+    def __init__(self):
+        super().__init__()
+        self.screen = pygame.display.get_surface()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        self.all_sprites = pygame.sprite.LayeredDirty()
+
+        self.all_sprites.clear(self.screen, self.background)
+
+
+class Game(Scene):
+    # Set your game name/version here.
+    NAME = "Debug App"
+    VERSION = "1.0"
+    log = LOG
+
+    def __init__(self, options):
+        super().__init__(options=options)
+        # These are set up in the GameEngine class.
+        self.log.info(f'Game Options: {options}')
+
+        self.next_scene = IntroScene()
+
+    @classmethod
+    def args(cls, parser):
+        parser.add_argument('-v', '--version',
+                           action='store_true',
+                           help='print the game version and exit')
+
+
+def main():
+    GameEngine(game=Game).start()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        raise e
+    finally:
+        pygame.display.quit()
+        pygame.quit()
+
+

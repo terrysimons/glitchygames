@@ -6,8 +6,8 @@ import pygame
 
 from ghettogames.events import MouseEvents
 
-log = logging.getLogger('game.sprites')
-log.addHandler(logging.NullHandler())
+LOG = logging.getLogger('game.sprites')
+LOG.addHandler(logging.NullHandler())
 
 
 class RootRootSprite(pygame.sprite.DirtySprite):
@@ -15,9 +15,9 @@ class RootRootSprite(pygame.sprite.DirtySprite):
         super().__init__(groups)
 
 
-class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
+class Sprite(MouseEvents, pygame.sprite.DirtySprite):
     """A convenience class for handling all of the common sprite behaviors."""
-
+    log = LOG
     USE_GFXDRAW = False
     PROXIES = [pygame.sprite]
     SPRITE_BREAKPOINTS = None  # None means no breakpoints.  Empty list means all.
@@ -30,13 +30,13 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
         # [] means any.
         if cls.SPRITE_BREAKPOINTS is None:
             cls.SPRITE_BREAKPOINTS = []
-        
+
         # If none, break always.
         if sprite_type is not None:
-            log.info(f'Register break when sprite_type=={cls}')
+            self.log.info(f'Register break when sprite_type=={cls}')
             cls.SPRITE_BREAKPOINTS.append(str(cls))
         else:
-            log.info('Register break when sprite_type==<any>')
+            self.log.info('Register break when sprite_type==<any>')
 
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
         super().__init__(groups)
@@ -54,10 +54,10 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
             self.name = type(self)
 
         if not self.width:
-            log.error(f'{type(self)} has 0 Width')
+            self.log.error(f'{type(self)} has 0 Width')
 
         if not self.height:
-            log.error(f'{type(self)} has 0 Height')
+            self.log.error(f'{type(self)} has 0 Height')
 
         # Sprites can register callbacks for any event type.
         self.callbacks = {}
@@ -75,7 +75,7 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
 
         # Add ourselves to the sprite counters.
         my_type = str(type(self))
-        
+
         if my_type in self.SPRITE_COUNTERS:
             self.SPRITE_COUNTERS[my_type]['count'] += 1
             self.SPRITE_COUNTERS[my_type]['pixels'] = self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
@@ -89,87 +89,87 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
         if self.SPRITE_BREAKPOINTS is not None:
             # Empty list means all.
             if len(self.SPRITE_BREAKPOINTS) == 0:
-                log.info(f'Break when sprite_type=={str(type(self))}')
+                self.log.info(f'Break when sprite_type=={str(type(self))}')
                 import pdb; pdb.set_trace()
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
-                    import pdb; pdb.set_trace()                    
+                    import pdb; pdb.set_trace()
                     if str(type(self)) == sprite_type:
-                        log.info(f'Break when sprite_type==<any>')                        
+                        log.info(f'Break when sprite_type==<any>')
                         import pdb; pdb.set_trace()
-            
-            
+
+
 
     def update(self):
         pass
 
     def on_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
-        log.debug(f'Mouse Motion Event: {type(self)}: {event}')
+        self.log.debug(f'Mouse Motion Event: {type(self)}: {event}')
 
     def on_mouse_focus_event(self, event, old_focus):
         # Custom Event
-        log.debug(f'Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}')
+        self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}')
 
     def on_mouse_unfocus_event(self, event):
         # Custom Event
-        log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
+        self.log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
 
     def on_mouse_enter_event(self, event):
         # Custom Event
-        log.debug(f'Mouse Enter Event: {type(self)}: {event}')
+        self.log.debug(f'Mouse Enter Event: {type(self)}: {event}')
 
     def on_mouse_exit_event(self, event):
         # Custom Event
-        log.debug(f'Mouse Exit Event: {type(self)}: {event}')
+        self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
 
     def on_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_left_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'Left Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Left Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_left_mouse_drag_up_event(self, event, trigger):
-        log.debug(f'Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_middle_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'Middle Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Middle Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_middle_mouse_drag_up_event(self, event, trigger):
-        log.debug(f'Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_right_mouse_drag_down_event(self, event, trigger):
-        log.debug(f'Right Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Right Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_right_mouse_drag_up_event(self, event, trigger):
-        log.debug(f'Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(f'Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_mouse_drag_up_event(self, event):
-        log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
+        self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_left_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -179,11 +179,11 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
+            self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
 
     def on_middle_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-        log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
     def on_right_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
@@ -192,11 +192,11 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
+            self.log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'{type(self)}: {event} @ {self}')
+        self.log.debug(f'{type(self)}: {event} @ {self}')
 
     def on_left_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
@@ -207,11 +207,11 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
+            self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
 
     def on_middle_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
     def on_right_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
@@ -220,64 +220,64 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
+            self.log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
 
     def on_mouse_scroll_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
+        self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
 
     def on_mouse_scroll_up_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
+        self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
 
     def on_mouse_chord_up_event(self, event):
-        log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
+        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
 
     def on_mouse_chord_down_event(self, event):
-        log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
+        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
 
     def on_key_down_event(self, event):
         # KEYDOWN          unicode, key, mod
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_key_chord_down_event(self, event, keys):
-        log.debug(f'{type(self)}: {event}, {keys}')
+        self.log.debug(f'{type(self)}: {event}, {keys}')
 
     def on_key_chord_up_event(self, event, keys):
-        log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
+        self.log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
 
     def on_quit_event(self, event):
         # QUIT             none
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
         self.terminate()
 
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_video_resize_event(self, event):
         # VIDEORESIZE      size, w, h
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_video_expose_event(self, event):
         # VIDEOEXPOSE      none
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_sys_wm_event(self, event):
         # SYSWMEVENT
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_user_event(self, event):
         # USEREVENT        code
-        log.debug(f'{type(self)}: {event}')
+        self.log.debug(f'{type(self)}: {event}')
 
     def on_fps_event(self, event):  # noqa: W0613
         # FPSEVENT is pygame.USEREVENT + 1
-        log.debug(f'{type(self)}: {GameEngine.FPS}')
+        self.log.debug(f'{type(self)}: {GameEngine.FPS}')
 
     # def __getattr__(self, attr):
     #    import pdb; pdb.set_trace()
@@ -293,20 +293,14 @@ class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
     def __str__(self):
         return f'{type(self)} "{self.name}" ({repr(self)})'
 
+# Backwards compatibility
+RootSprite = Sprite
 
 class BitmappySprite(RootSprite):
     DEBUG = False
-    # __instance__ = None
-
-    # def __new__(cls, *args, **kwargs):
-    #    cls.__instance__ = object.__new__(cls)
-    #    cls.__instance__.args = args
-    #    cls.__instance__.kwargs = kwargs
-    #    log.info(f'Args: {args}, Kwargs: {kwargs}')
-    #    return cls.__instance
 
     def __init__(self, x, y, width, height, name=None, filename=None,
-                 groups=pygame.sprite.LayeredDirty()):
+                 focusable=False, groups=pygame.sprite.LayeredDirty()):
         """
         Subclass to load sprite files.
 
@@ -317,6 +311,7 @@ class BitmappySprite(RootSprite):
         """
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.filename = filename
+        self.focusable = focusable
         # self.width = width
         # self.height = height
 
@@ -441,7 +436,7 @@ class BitmappySprite(RootSprite):
 
             color_map[color] = color_key
 
-            log.debug(f'Key: {color} -> {color_key}')
+            self.log.debug(f'Key: {color} -> {color_key}')
 
             red = color[0]
             config.set(color_key, 'red', str(red))
@@ -459,22 +454,22 @@ class BitmappySprite(RootSprite):
             x += 1
 
             if x % self.rect.width == 0:
-                log.debug(f'Row: {row}')
+                self.log.debug(f'Row: {row}')
                 pixels.append(''.join(row))
                 row = []
                 x = 0
 
-        log.debug(pixels)
+        self.log.debug(pixels)
 
         config.set('sprite', 'pixels', '\n'.join(pixels))
 
-        log.debug(f'Deflated Sprite: {config}')
+        self.log.debug(f'Deflated Sprite: {config}')
 
         return config
 
 
 # This is a root class for sprites that should be singletons, like
-# the MenuBar class, and the MousePointer class.
+#  MousePointer class.
 class SingletonBitmappySprite(BitmappySprite):
     __instance__ = None
 
@@ -487,3 +482,44 @@ class SingletonBitmappySprite(BitmappySprite):
 
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+
+# This is a root class for focusable sprites that should be singletons, like
+# the MenuBar class.
+class FocusableSingletonBitmappySprite(BitmappySprite):
+    __instance__ = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance__ is None:
+            cls.__instance__ = object.__new__(cls)
+        cls.__instance__.args = args
+        cls.__instance__.kwargs = kwargs
+        return cls.__instance__
+
+    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups)
+
+
+# We're making this a singleton class becasue
+# pygame doesn't understand multiple cursors
+# and so there is only ever 1 x/y coordinate sprite
+# for the mouse at any given time.
+class MousePointer(SingletonBitmappySprite):
+    def __init__(self, x, y):
+        super().__init__(x=x, y=y, width=1, height=1)
+
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+
+def collided_sprites(event, index=None):
+    mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+
+    return []
+
+    sprites = pygame.sprite.spritecollide(mouse, self.game.all_sprites, False)
+
+    if sprites:
+        if index is None:
+            return sprites
+
+        return [sprites[index]]

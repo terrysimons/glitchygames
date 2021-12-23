@@ -8,19 +8,14 @@ import logging
 import pygame
 
 from ghettogames.engine import GameEngine
-from ghettogames.engine import RootScene
-from ghettogames.engine import RootSprite
+from ghettogames.scenes import Scene
+from ghettogames.sprites import Sprite
 
 log = logging.getLogger('game')
-log.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-log.addHandler(ch)
+log.setLevel(logging.DEBUG)
 
 
-class BitmappySprite(RootSprite):
+class BitmappySprite(Sprite):
     def __init__(self, filename, *args, **kwargs):
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
@@ -188,7 +183,7 @@ class BitmappySprite(RootSprite):
         return description
 
 
-class GameScene(RootScene):
+class GameScene(Scene):
     def __init__(self, filename):
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -202,17 +197,8 @@ class GameScene(RootScene):
 
         self.all_sprites.clear(self.screen, self.background)
 
-    def update(self):
-        super().update()
 
-    def render(self, screen):
-        super().render(screen)
-
-    def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
-
-
-class Game(GameEngine):
+class Game(Scene):
     # Set your game name/version here.
     NAME = "Sprite Loader"
     VERSION = "1.0"
@@ -221,67 +207,29 @@ class Game(GameEngine):
         super().__init__(options=options)
         self.filename = options.get('filename')
 
+        self.next_scene = GameScene()
+
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
-
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('-v', '--version',
+        parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
-        group.add_argument('--filename',
+        parser.add_argument('--filename',
                            help='the file to load',
                            required=True)
 
-        return parser
-
-    def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.
-
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        # and do a few other init related things.
-        super().start()
-
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = GameScene(filename=self.filename)
-
-        while self.active_scene is not None:
-            self.process_events()
-
-            self.screen.fill((255, 255, 0))
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-            self.clock.tick(self.fps)
-
-            self.active_scene = self.active_scene.next
-
 
 def main():
-    parser = argparse.ArgumentParser(f'{Game.NAME} version {Game.VERSION}')
-
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
+    GameEngine(game=Game).start()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        raise e
+    finally:
+        pygame.display.quit()
+        pygame.quit()
+

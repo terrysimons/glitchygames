@@ -1,7 +1,7 @@
 import logging
 
-log = logging.getLogger('game.pixels')
-log.addHandler(logging.NullHandler())
+LOG = logging.getLogger('game.pixels')
+LOG.addHandler(logging.NullHandler())
 
 def indexed_rgb_triplet_generator(pixel_data):
     """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""

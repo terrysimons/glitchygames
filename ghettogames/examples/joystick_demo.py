@@ -10,21 +10,20 @@ import pygame.gfxdraw
 import pygame.locals
 from pygame import Rect
 
-from ghettogames.engine import RootScene, GameEngine, FontManager, JoystickManager
-from ghettogames.engine import RootSprite
 from ghettogames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
 from ghettogames.color import PURPLE, WHITE
-
-log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-log.addHandler(ch)
+from ghettogames.engine import GameEngine
+from ghettogames.fonts import FontManager
+from ghettogames.joysticks import JoystickManager
+from ghettogames.scenes import Scene
+from ghettogames.sprites import Sprite
 
 
-class ShapesSprite(RootSprite):
+LOG = logging.getLogger('game')
+LOG.setLevel(logging.DEBUG)
+
+
+class ShapesSprite(Sprite):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
@@ -47,13 +46,16 @@ class ShapesSprite(RootSprite):
         self._draw_rectangle()
 
         self.dirty = 1
-        self.update()
 
     def move(self, pos):
         self.rect.center = pos
         self.dirty = 1
 
     def update(self):
+        self._draw_point()
+        self._draw_circle()
+        self._draw_rectangle()
+        self._draw_triangle()
         self.dirty = 1
 
     def _draw_point(self):
@@ -129,7 +131,7 @@ class ShapesSprite(RootSprite):
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
 
 
-class TextSprite(RootSprite):
+class TextSprite(Sprite):
     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
         self.background_color = background_color
         self.alpha = alpha
@@ -207,10 +209,9 @@ class TextSprite(RootSprite):
 
         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
-        self.update()
+        self.dirty = 2
 
     def update(self):
-        self.dirty = 2
         self.image.fill(self.background_color)
 
         pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
@@ -263,30 +264,29 @@ class TextSprite(RootSprite):
                 self.text_box.unindent()
 
 
-class JoystickScene(RootScene):
-    def __init__(self):
-        super().__init__()
+class JoystickScene(Scene):
+    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(groups=groups)
         self.tiles = []
 
-        # self.load_resources()
+        #self.load_resources()
         self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480)
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
             (
-                # self.shapes_sprite,
-                # self.text_sprite
+                self.shapes_sprite
             )
         )
 
         self.all_sprites.clear(self.screen, self.background)
-        # self.load_resources()
+        self.load_resources()
 
     def load_resources(self):  # noqa: R0201
         # Load tiles.
         for resource in glob.iglob('resources/*', recursive=True):
             try:
-                log.info(f'Load Resource: {resource}')
+                self.log.info(f'Load Resource: {resource}')
             except IsADirectoryError:
                 pass
         #         self.tiles.append(load_graphic(resource))
@@ -318,13 +318,13 @@ class JoystickScene(RootScene):
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
     def on_pew_pew_event(self, event):  # noqa: R0201
-        log.info(f'PEW PEW Event: {event}')
+        self.log.info(f'PEW PEW Event: {event}')
 
     def on_recharge_event(self, event):  # noqa: R0201
-        log.info(f'Recharge Event: {event}')
+        self.log.info(f'Recharge Event: {event}')
 
 
-class Game(GameEngine):
+class Game(Scene):
     # Set your game name/version here.
     NAME = "Joystick and Font Demo"
     VERSION = "0.0"
@@ -332,6 +332,7 @@ class Game(GameEngine):
     def __init__(self, options):
         super().__init__(options=options)
         self.time = options.get('time')
+        self.next_scene = JoystickScene()
 
         # TODO: Write an FPS layer that uses time.ns_time()
         # https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
@@ -374,81 +375,26 @@ class Game(GameEngine):
 
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
-
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('--time',
+        parser.add_argument('--time',
                            type=int,
                            help='time in seconds to wait before quitting',
                            default=10)
-        group.add_argument('-v', '--version',
+        parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
-        return parser
-
-    def start(self):
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        super().start()
-
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = JoystickScene()
-
-        while self.active_scene is not None:
-            self.process_events()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-            self.clock.tick(self.fps)
-
-            self.active_scene = self.active_scene.next
-
-    def quit(self):
-        log.info('Quit was called.')
-
-        # Call the GameEngine quit, so it will clean up.
-        super().quit()
-
-    def on_key_up_event(self, event):
-        # KEYUP            key, mod
-        if event.key == pygame.K_q:
-            log.info(f'User requested quit.')
-            event = pygame.event.Event(pygame.QUIT, {})
-            pygame.event.post(event)
-
 
 def main():
-    parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
-
-    # args is a class method, which allows us to call it before initializing a game
-    # object, which allows us to query all of the game engine objects for their
-    # command line parameters.
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
+    GameEngine(game=Game).start()
 
 
 if __name__ == '__main__':
     try:
         main()
-        log.info('Done')
     except Exception as e:
         raise e
     finally:
-        log.info('Shutting down pygame.')
+        pygame.display.quit()
         pygame.quit()
+
+

@@ -8,19 +8,18 @@ import struct
 
 import pygame
 
-from ghettogames.engine import GameEngine, RootSprite, RootScene
-from ghettogames.engine import rgb_triplet_generator, rgb_565_triplet_generator
+from ghettogames.engine import GameEngine
+from ghettogames.pixels import rgb_triplet_generator, rgb_565_triplet_generator
+from ghettogames.sprites import Sprite
+from ghettogames.scenes import Scene
 
-log = logging.getLogger('game')
-log.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-log.addHandler(ch)
+LOG = logging.getLogger('game')
+LOG.setLevel(logging.INFO)
 
 
-class BitmappyLegacySprite(RootSprite):
+class BitmappyLegacySprite(Sprite):
+    log = LOG
+
     def __init__(self, filename, *args, **kwargs):
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
@@ -120,7 +119,7 @@ class BitmappyLegacySprite(RootSprite):
 
             color_map[color] = color_key
 
-            log.debug(f'Key: {color} -> {color_key}')
+            self.log.debug(f'Key: {color} -> {color_key}')
 
             red = color[0]
             config.set(color_key, 'red', str(red))
@@ -143,11 +142,11 @@ class BitmappyLegacySprite(RootSprite):
                 row = []
                 x = 0
 
-        log.debug(pixels)
+        self.log.debug(pixels)
 
         config.set('sprite', 'pixels', '\n'.join(pixels))
 
-        log.debug(f'Deflated Sprite: {config}')
+        self.log.debug(f'Deflated Sprite: {config}')
 
         return config
 
@@ -163,7 +162,7 @@ class BitmappyLegacySprite(RootSprite):
         return description
 
 
-class GameScene(RootScene):
+class GameScene(Scene):
     def __init__(self, filename):
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -179,7 +178,7 @@ class GameScene(RootScene):
         self.all_sprites.clear(self.screen, self.background)
 
 
-class Game(GameEngine):
+class Game(Scene):
     # Set your game name/version here.
     NAME = "Raw Sprite Loader"
     VERSION = "1.0"
@@ -190,59 +189,23 @@ class Game(GameEngine):
 
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
-
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('-v', '--version',
+        parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
-        group.add_argument('--filename',
+        parser.add_argument('--filename',
                            help='the file to load',
                            required=True)
 
-        return parser
-
-    def start(self):
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        # and do a few other init related things.
-        super().start()
-
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = GameScene(filename=self.filename)
-
-        while self.active_scene is not None:
-            self.process_events()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-            self.clock.tick(self.fps)
-
-            self.active_scene = self.active_scene.next
-
 
 def main():
-    parser = argparse.ArgumentParser(f'{Game.NAME} version {Game.VERSION}')
-
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
-
+    GameEngine(game=Game).start()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        raise e
+    finally:
+        pygame.display.quit()
+        pygame.quit()

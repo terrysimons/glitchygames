@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import argparse
-import collections
-import configparser
 import logging
 
 from pygame import Rect
@@ -13,33 +9,31 @@ import pygame.gfxdraw
 import pygame.locals
 
 from ghettogames.color import WHITE, BLACKLUCENT
-from ghettogames.engine import MousePointer, BitmappySprite
-from ghettogames.engine import RootScene, GameEngine
-from ghettogames.engine import pixels_from_data, pixels_from_path
-from ghettogames.engine import image_from_pixels
-from ghettogames.engine import rgb_triplet_generator
+from ghettogames.engine import GameEngine
+from ghettogames.pixels import pixels_from_data, pixels_from_path
+from ghettogames.pixels import image_from_pixels
+from ghettogames.pixels import rgb_triplet_generator
+from ghettogames.scenes import Scene
+from ghettogames.sprites import MousePointer, BitmappySprite
 from ghettogames.ui import ButtonSprite, TextSprite
 from ghettogames.ui import MenuBar, MenuItem
 
-log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-log.addHandler(ch)
+LOG = logging.getLogger('game')
+LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
 
 class InputDialog(BitmappySprite):
+    log = LOG
+
     def __init__(self, x, y, width, height, name=None, dialog_text='Would you like to do a thing?', confirm_text='Confirm', cancel_text='Cancel', callbacks=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.background_color = (0, 0, 0)
         self.border_width = 1
         self.width = width
         self.dialog_text_sprite = TextBoxSprite(name=dialog_text, x=0, y=0, width=self.width//2, height=20, groups=groups)
-        self.dialog_text_sprite.text.text = dialog_text                
+        self.dialog_text_sprite.text.text = dialog_text
         self.confirm_button = ButtonSprite(name=confirm_text, x=0, y=0, width=75, height=20, groups=groups)
         self.cancel_button = ButtonSprite(name=cancel_text, x=0, y=0, width=75, height=20, groups=groups)
         self._dirty = 1
@@ -82,10 +76,11 @@ class InputDialog(BitmappySprite):
 
         # Draw the buttons
         # Draw the text input field
-    
+
 class TextBoxSprite(BitmappySprite):
     """
     """
+    log = LOG
 
     def __init__(self, x, y, width, height, name=None, callbacks=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
@@ -114,7 +109,7 @@ class TextBoxSprite(BitmappySprite):
             self.text.update()
 
             self.image.blit(self.text.image, (self.x, self.y, self.width, self.height))
-            
+
         if self.border_width:
             pygame.draw.rect(self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width)
 
@@ -130,8 +125,10 @@ class TextBoxSprite(BitmappySprite):
 
 
 class ColorWellSprite(BitmappySprite):
+    log = LOG
+
     def __init__(self, x, y, width, height, name, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)        
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.red = 0
         self.green = 0
         self.blue = 0
@@ -144,7 +141,7 @@ class ColorWellSprite(BitmappySprite):
                                          height=20,
                                          name=str(self.active_color),
                                          groups=groups)
-        
+
         self.text_sprite.border_width = 1
         #self.text_sprite.rect.midleft = self.rect.midright
         #self.text_sprite.add(groups)
@@ -171,7 +168,7 @@ class ColorWellSprite(BitmappySprite):
         red = hex_str.format(red)
         green = hex_str.format(green)
         blue = hex_str.format(blue)
-        
+
         return f'#{red}{green}{blue}'
 
     def update(self):
@@ -184,11 +181,12 @@ class ColorWellSprite(BitmappySprite):
 class BitmapPixelSprite(BitmappySprite):
     """
     """
+    log = LOG
     PIXEL_CACHE = {}
 
     def __init__(self, x=0, y=0, width=1, height=1, name=None, pixel_number=0, border_thickness=1, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=x, width=width, height=height, name=name, groups=groups)
-        log.info(f'BITMAP PIXEL SPRITE GROUPS: {groups}')        
+        self.log.debug(f'BITMAP PIXEL SPRITE GROUPS: {groups}')
         self.pixel_number = pixel_number
         self.pixel_width = width
         self.pixel_height = height
@@ -227,7 +225,7 @@ class BitmapPixelSprite(BitmappySprite):
 
     def on_pixel_update_event(self, event):
         callback = None
-                
+
         if self.callbacks:
             callback = self.callbacks.get('on_pixel_update_event', None)
 
@@ -244,6 +242,7 @@ class BitmapPixelSprite(BitmappySprite):
         self.on_left_mouse_button_down_event(None)
 
 class CanvasSprite(BitmappySprite):
+    log = LOG
     WIDTH = 32
     HEIGHT = 32
     DEBUG = False
@@ -277,7 +276,7 @@ class CanvasSprite(BitmappySprite):
             self.pixel_height = self.width//self.pixels_across - self.border_thickness * 2
         else:
             self.pixel_width = self.height//self.pixels_tall - self.border_thickness * 2
-            self.pixel_height = self.height//self.pixels_tall - self.border_thickness * 2            
+            self.pixel_height = self.height//self.pixels_tall - self.border_thickness * 2
         print(f'Pixels Across: {self.pixels_across}')
         print(f'Pixels Tall: {self.pixels_tall}')
         print(f'')
@@ -290,13 +289,13 @@ class CanvasSprite(BitmappySprite):
         for pixel_number in range(self.pixels_across * self.pixels_tall):
             pixel_x = pixel_offset_x * self.pixel_width
             pixel_y = pixel_offset_y * self.pixel_height
-            log.info(f'Pixel box #: {pixel_number}')
+            self.log.info(f'Pixel box #: {pixel_number}')
             pixel_box = BitmapPixelSprite(name=f'pixel {pixel_number}',
                                           x=self.rect.x,
                                           y=self.rect.y,
                                           height=self.pixel_width,
                                           width=self.pixel_height, groups=groups)
-            pixel_box.pixel_color = self.pixels[pixel_number]            
+            pixel_box.pixel_color = self.pixels[pixel_number]
             pixel_box.rect.x = pixel_x + self.rect.x
             pixel_box.rect.y = pixel_y + self.rect.y
 
@@ -309,8 +308,8 @@ class CanvasSprite(BitmappySprite):
                 pixel_offset_x = 0
                 pixel_offset_y += 1
             else:
-                pixel_offset_x += 1                        
-        
+                pixel_offset_x += 1
+
         #self.pixel_boxes = [BitmapPixelSprite(name=f'pixel {i}',
         #                                      pixel_number=i,
         #                                      x=0,
@@ -321,7 +320,7 @@ class CanvasSprite(BitmappySprite):
 
         # Why does commenting this out cause the drawing routines to fail?
         #for pixel_box in self.pixel_boxes:
-        #    log.info(f'Pixel Box Groups: {pixel_box.groups}')
+        #    self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
             #self.all_sprites.add(pixel_box)
 
         #for i in range(self.pixels_across * self.pixels_tall):
@@ -351,7 +350,7 @@ class CanvasSprite(BitmappySprite):
 
         # Do some cleanup
         # For some reason we have a double grid border, so let's wipe out the canvas.
-        #self.dirty = 1                        
+        #self.dirty = 1
         #self.image.fill((255, 255, 0), rect=self.rect)
 
         #self.update_anyway = True
@@ -373,7 +372,7 @@ class CanvasSprite(BitmappySprite):
         self.dirty = 1
         self.update()
 
-    def update(self):        
+    def update(self):
         if self.mini_view is None:
             # This means that we're in a mini view, which itself doesn't contain a mini view.
             self.draw_pixels()
@@ -384,7 +383,7 @@ class CanvasSprite(BitmappySprite):
 
     def draw_pixels(self):
         update_mini_view = False
-        
+
         for pixel_box in self.pixel_boxes:
             pixel_box.dirty = 1
             update_mini_view = True
@@ -397,7 +396,7 @@ class CanvasSprite(BitmappySprite):
     #def draw_grid(self):
         # Note: We should do this instead.
         # self.grid.update()
-        
+
         #x = 0
         #y = 0
         #self.border_thickness = 0
@@ -412,7 +411,7 @@ class CanvasSprite(BitmappySprite):
             #pixel_box.rect.x = pixel_x + self.rect.x
             #pixel_box.rect.y = pixel_y + self.rect.y
 
-            #log.info(f'x: {self.rect.x}, y: {self.rect.y}')
+            #self.log.info(f'x: {self.rect.x}, y: {self.rect.y}')
 
             #self.image.blit(pixel_box.image, (pixel_x, pixel_y))
 
@@ -447,7 +446,7 @@ class CanvasSprite(BitmappySprite):
         self.on_left_mouse_button_down_event(event)
         self.dirty = 1
 
-    def on_new_file_event(self, event, trigger):        
+    def on_new_file_event(self, event, trigger):
         for i, pixel in enumerate([(255, 0, 255)] * self.pixels_across * self.pixels_tall):
             event = pygame.event.Event(GameEngine.GAMEEVENT, {'action':'on_load_file_event',
                                                               'pixel_color': pixel,
@@ -461,7 +460,7 @@ class CanvasSprite(BitmappySprite):
 
     def on_save_file_event(self, event, trigger):
         pixels = []
-        
+
         for pixel_box in self.pixel_boxes:
             pixels.append(pixel_box.pixel_color)
 
@@ -477,7 +476,7 @@ class CanvasSprite(BitmappySprite):
         save_sprite.save(filename='savefile.cfg')
 
         #self.save(filename='screenshot.cfg')
-            
+
 
     def on_load_file_event(self, event, trigger):
         load_sprite = BitmappySprite(filename='savefile.cfg',
@@ -519,11 +518,13 @@ class CanvasSprite(BitmappySprite):
 
 
 class MiniView(CanvasSprite):
+    log = LOG
+
     @staticmethod
     def pixels_per_pixel(pixels_across, pixels_tall):
         pixel_width = 0
         pixel_height = 0
-        
+
         if pixels_across < 64:
             pixel_width = 64 // pixels_tall
         else:
@@ -535,19 +536,19 @@ class MiniView(CanvasSprite):
             pixel_height = 1
 
         return (pixel_width, pixel_height)
-    
+
     def __init__(self, x=0, y=0, width=0, height=0, name=None, border_thickness=0, pixels=None, groups=None):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, has_mini_view=False, groups=groups)                
+        super().__init__(x=x, y=y, width=width, height=height, name=name, has_mini_view=False, groups=groups)
         self.pixels = pixels
         self.dirty_pixels = [False] * len(self.pixels)
 
         self.pixel_width, self.pixel_height = self.pixels_per_pixel(self.pixels_across, self.pixels_tall)
-                
+
         #if self.pixels_across < 64:
         #    self.pixel_width = 64 // self.pixels_tall
         #else:
         #    self.pixel_width = 1
-                    
+
         #if self.pixels_tall < 64:
         #    self.pixel_height = 64 // self.pixels_across
         #else:
@@ -555,7 +556,7 @@ class MiniView(CanvasSprite):
 
         self.width = self.pixels_across * self.pixel_width
         self.height = self.pixels_tall * self.pixel_height
-                
+
         self.border_thickness = 0
         self.border_margin = 0
 
@@ -567,7 +568,7 @@ class MiniView(CanvasSprite):
         self.rect.y = y
         self.rect.width = self.width
         self.rect.height = self.height
-            
+
         self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0), (0, 0, 0)]
         self.palette_index = 0
         self.image.fill(self.color_palette[self.palette_index])
@@ -587,26 +588,26 @@ class MiniView(CanvasSprite):
                     pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
                     #print(f'Updated pixel {i}')
 
-                self.dirty_pixels[i] = False                            
-                    
+                self.dirty_pixels[i] = False
+
             if (x + self.pixel_width) % (self.pixels_across * self.pixel_width) == 0:
                 x = 0
                 y += self.pixel_height
             else:
                 x += self.pixel_width
-                        
+
         self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
     def on_left_mouse_button_up_event(self, event):
         self.palette_index += 1
-                
+
         if self.palette_index >= len(self.color_palette):
             self.palette_index = 0
 
         print(f'Palette {self.palette_index}: {self.color_palette[self.palette_index]}')
 
         self.image.fill(self.color_palette[self.palette_index])
-        #self.image.set_colorkey(self.color_palette[self.palette_index])                
+        #self.image.set_colorkey(self.color_palette[self.palette_index])
 
         self.dirty_pixels = [True] * len(self.pixels)
 
@@ -614,7 +615,7 @@ class MiniView(CanvasSprite):
 
     def on_left_mouse_button_down_event(self, event):
         self.image.fill((255, 255, 255))
-        #self.image.set_colorkey(self.color_palette[self.palette_index])                
+        #self.image.set_colorkey(self.color_palette[self.palette_index])
 
         self.dirty_pixels = [True] * len(self.pixels)
 
@@ -622,14 +623,18 @@ class MiniView(CanvasSprite):
 
     def __str__(self):
         return f'pixels across: {self.pixels_across}, pixels tall: {self.pixels_tall}, width: {self.width}, height: {self.height}, pixel width: {self.pixel_width}, pixel_height: {self.pixel_height}, pixels: {len(self.pixels)}, rect: {self.rect}'
-    
+
 class SliderSprite(BitmappySprite):
+    log = LOG
+
     class SliderKnobSprite(BitmappySprite):
+        log = LOG
+
         def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
             super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
-            self.value = 0     
-                
+            self.value = 0
+
             self.image.fill((0, 255, 0))
             self.rect = Rect(0, 0, self.width - 2, self.height - 2)
             self.rect.x = x
@@ -640,12 +645,12 @@ class SliderSprite(BitmappySprite):
             self.dirty = 1
             self.value = event.pos[0]
 
-            # Hack            
+            # Hack
             if self.value > 255:
                 self.value = 255
             elif self.value < 0:
                 self.value = 0
-                
+
             self.rect.x = self.value
             super().on_left_mouse_button_down_event(event)
 
@@ -655,15 +660,15 @@ class SliderSprite(BitmappySprite):
             self.on_left_mouse_button_down_event(event)
             self.dirty = 1
             self.update()
-    
+
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width + 20, height=height, name=name, groups=groups)
         self.text_sprite = TextBoxSprite(x=x+width, y=y, width=40, height=20, name=str((0, 0, 0)), groups=groups)
-        
+
         self.text_sprite.border_width = 1
-                
+
         self.slider_knob = SliderSprite.SliderKnobSprite(x=0, y=self.y, width=height, height=height*1.5, name=name, groups=groups)
-        
+
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((self.width, self.height))
         self.background = pygame.Surface((self.width, self.height))
@@ -694,27 +699,27 @@ class SliderSprite(BitmappySprite):
         self.image.fill((0, 0, 0))
 
         color = (255, 255, 255)
-        
+
         for i in range(256):
             color = (i, i, i)
-            
+
             if self.name == 'R':
                 color = (i, 0, 0)
             elif self.name == 'G':
                 color = (0, i, 0)
             elif self.name == 'B':
                 color = (0, 0, i)
-                
+
             pygame.draw.line(self.image,
                              color,
                              (i, self.height//2 - 1),
                              (i, self.height//2), 1)
-                
+
             pygame.draw.line(self.image,
                              color,
                              (i, self.height//2),
                              (i, self.height//2), 1)
-                
+
             pygame.draw.line(self.image,
                              color,
                              (i,
@@ -725,7 +730,7 @@ class SliderSprite(BitmappySprite):
         self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height//4))
 
     def on_left_mouse_button_down_event(self, event):
-        self.dirty = 1        
+        self.dirty = 1
         self.slider_knob.on_left_mouse_button_down_event(event)
         super().on_left_mouse_button_down_event(event)
 
@@ -735,14 +740,18 @@ class SliderSprite(BitmappySprite):
         # since we're not using the event for anything in this class.
         self.slider_knob.on_left_mouse_drag_event(event, trigger)
         super().on_mouse_drag_event(event, trigger)
-        self.dirty = 1        
-        
+        self.dirty = 1
+
 
 class LabeledSliderSprite(SliderSprite):
+    log = LOG
+
     def __init__(self, x, y, width, height, name, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
-class LoadDialogScene(RootScene):
+class LoadDialogScene(Scene):
+    log = LOG
+
     def __init__(self, previous_scene, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.screen = pygame.display.get_surface()
@@ -753,7 +762,7 @@ class LoadDialogScene(RootScene):
         self.screenshot.blit(self.screen, (0, 0))
 
         self.all_sprites = pygame.sprite.LayeredDirty()
-        
+
         self.load_dialog = InputDialog(name='Load Sprite', dialog_text='Would you like to load a sprite?', confirm_text='Load', x=0, y=0, width=self.screen_width//2, height=self.screen_height//2)
         self.load_dialog.rect.center = self.screen.get_rect().center
 
@@ -771,16 +780,18 @@ class LoadDialogScene(RootScene):
         self.previous_scene.update()
 
     def on_cancel_event(self, event, trigger):
-        log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
 
-        
+
     def on_confirm_event(self, event, trigger):
-        log.info(f'Load File: event: {event}, trigger: {trigger}')
+        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
         self.previous_scene.canvas.on_load_file_event(event, trigger)
         self.dismiss()
 
-class SaveDialogScene(RootScene):
+class SaveDialogScene(Scene):
+    log = LOG
+
     def __init__(self, previous_scene, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.screen = pygame.display.get_surface()
@@ -788,10 +799,10 @@ class SaveDialogScene(RootScene):
         self.screen_height = self.screen.get_height()
         self.previous_scene = previous_scene
         self.screenshot = pygame.Surface((self.screen_width, self.screen_height))
-        self.screenshot.blit(self.screen, (0, 0))        
+        self.screenshot.blit(self.screen, (0, 0))
 
         self.all_sprites = pygame.sprite.LayeredDirty()
-        
+
         self.save_dialog = InputDialog(name='Save Sprite',
                                        dialog_text='Would you like to save your sprite?',
                                        confirm_text='Save',
@@ -811,20 +822,22 @@ class SaveDialogScene(RootScene):
         self.save_dialog.remove(self.all_sprites)
         self.next = self.previous_scene
         self.previous_scene.next = self.previous_scene
-        self.screen.blit(self.screenshot, (0, 0))        
+        self.screen.blit(self.screenshot, (0, 0))
         self.previous_scene.dirty = 1
-        self.previous_scene.update()        
+        self.previous_scene.update()
 
     def on_cancel_event(self, event, trigger):
-        log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
 
     def on_confirm_event(self, event, trigger):
-        log.info(f'Safe File: event: {event}, trigger: {trigger}')
+        self.log.info(f'Safe File: event: {event}, trigger: {trigger}')
         self.previous_scene.canvas.on_save_file_event(event, trigger)
         self.dismiss()
 
-class BitmapEditorScene(RootScene):
+class BitmapEditorScene(Scene):
+    log = LOG
+
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.screen = pygame.display.get_surface()
@@ -834,27 +847,27 @@ class BitmapEditorScene(RootScene):
 
         self.all_sprites = groups
 
-        # self.menu_bar = MenuBar(name='Menu Bar',
-        #                         x=0,
-        #                         y=0,
-        #                         width=self.screen_width,
-        #                         height=20, groups=self.all_sprites)
+        self.menu_bar = MenuBar(name='Menu Bar',
+                                x=0,
+                                y=0,
+                                width=self.screen_width,
+                                height=20, groups=self.all_sprites)
 
         # #log.info('Rect is: %s' % self.menu_bar.rect)
         # #log.info('Rect bottom: %s' % self.menu_bar_sprite.rect.bottom)
 
-        # self.menu_icon = MenuItem(name=None,
-        #                           filename='raspberry.cfg',
-        #                           x=0,
-        #                           y=0,
-        #                           width=16,
-        #                           height=self.menu_bar.height)
+        self.menu_icon = MenuItem(name=None,
+                                  filename='raspberry.cfg',
+                                  x=0,
+                                  y=0,
+                                  width=16,
+                                  height=self.menu_bar.height)
         # # When we load the sprite, we set a name.
         # self.menu_icon.name = None
 
-        # self.menu_bar.add_menu_item(menu_item=self.menu_icon,
-        #                             menu=None)
-        
+        self.menu_bar.add_menu_item(menu_item=self.menu_icon,
+                                    menu=None)
+
         # self.save_menu_item = MenuItem(name='Save',
         #                                x=self.menu_icon.rect.topright[0],
         #                                y=self.menu_icon.y,
@@ -876,11 +889,11 @@ class BitmapEditorScene(RootScene):
 
         #self.file_menu = MenuItem(name='File', width=32, height=16, groups=self.all_sprites)
         #self.save_menu_item = MenuItem(name='Save', width=40, height=16, groups=self.all_sprites)
-        #self.load_menu_item = MenuItem(name='Load', width=40, height=16, groups=self.all_sprites)         
+        #self.load_menu_item = MenuItem(name='Load', width=40, height=16, groups=self.all_sprites)
         #self.spacer_menu_item = MenuItem(name='----', width=40, height=16, groups=self.all_sprites)
         #self.quit_menu_item = MenuItem(name='Quit', width=40, height=16, groups=self.all_sprites)
-        
-        #self.edit_menu = MenuItem(name='Edit', width=32, height=16, groups=self.all_sprites)   
+
+        #self.edit_menu = MenuItem(name='Edit', width=32, height=16, groups=self.all_sprites)
 
         # Add the menu icon as a root level menu item.
         #self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
@@ -901,7 +914,7 @@ class BitmapEditorScene(RootScene):
         self.canvas = CanvasSprite(name='Bitmap Canvas', x=0, y=40, width=int(self.screen_height * 0.75), height=int(self.screen_height * 0.75), groups=self.all_sprites)
 
         #self.canvas.add(self.all_sprites)
-        
+
         self.red_slider = LabeledSliderSprite(name='R', x=0, y=self.screen_height - 70, width=256, height=10, groups=self.all_sprites)
         self.red_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
 
@@ -914,7 +927,7 @@ class BitmapEditorScene(RootScene):
         color_well_x = self.red_slider.rect.midright[0] + 30
         color_well_y = self.red_slider.rect.y
         self.color_well = ColorWellSprite(name='Colorwell', x=color_well_x, y=color_well_y, width=64, height=64, groups=groups)
-        self.color_well.callbacks = {'on_color_update_event': self.on_color_update_event}
+        self.color_well.callbacks = {'on_color_well_event': self.on_color_well_event}
 
         #self.color_well.rect.midleft = self.green_slider.rect.midright
         #self.color_well.rect.x += 30
@@ -928,20 +941,20 @@ class BitmapEditorScene(RootScene):
 
         self.all_sprites.clear(self.screen, self.background)
 
-    def update(self):
-        super().update()
+    # def update(self):
+    #     super().update()
 
-    def render(self, screen):
-        super().render(screen)
+    # def render(self, screen):
+    #     super().render(screen)
 
     def switch_to_scene(self, next_scene):
         super().switch_to_scene(next_scene)
 
     def on_menu_item_event(self, event):
-        log.info(f'Scene got menu item event: {event}')
+        self.log.info(f'Scene got menu item event: {event}')
         if not event.menu.name:
             # This is for the system menu.
-            log.info('System Menu Clicked')
+            self.log.info('System Menu Clicked')
         else:
             if event.menu.name == 'Save':
                 self.on_save_dialog_event(event)
@@ -962,12 +975,12 @@ class BitmapEditorScene(RootScene):
         self.next = SaveDialogScene(previous_scene=self)
 
     def on_color_well_event(self, event, trigger):
-        log.info('COLOR WELL EVENT')
+        self.log.info('COLOR WELL EVENT')
 
     def on_slider_event(self, event, trigger):
         value = trigger.value
 
-        log.debug(f'Slider: event: {event}, trigger: {trigger} value: {value}')                    
+        self.log.debug(f'Slider: event: {event}, trigger: {trigger} value: {value}')
 
         if value < 0:
             value = 0
@@ -975,7 +988,7 @@ class BitmapEditorScene(RootScene):
         elif value > 255:
             value = 255
             trigger.value = 255
-        
+
         if trigger.name == 'R':
             self.red = value
 
@@ -983,21 +996,21 @@ class BitmapEditorScene(RootScene):
             self.red_slider.dirty = 1
             self.red_slider.update()
             self.red_slider.text_sprite.dirty = 1
-            self.red_slider.text_sprite.update()            
+            self.red_slider.text_sprite.update()
         elif trigger.name == 'G':
             self.green = value
 
-            self.green_slider.slider_knob.value = value            
+            self.green_slider.slider_knob.value = value
             self.green_slider.dirty = 1
-            self.green_slider.update()        
+            self.green_slider.update()
             self.green_slider.text_sprite.dirty = 1
-            self.green_slider.text_sprite.update()            
+            self.green_slider.text_sprite.update()
         elif trigger.name == 'B':
             self.blue = value
 
-            self.blue_slider.slider_knob.value = value            
+            self.blue_slider.slider_knob.value = value
             self.blue_slider.dirty = 1
-            self.blue_slider.update()        
+            self.blue_slider.update()
             self.blue_slider.text_sprite.dirty = 1
             self.blue_slider.text_sprite.update()
 
@@ -1022,15 +1035,15 @@ class BitmapEditorScene(RootScene):
     #    pass
 
     #def on_right_mouse_button_down_event(self, event):
-    #    log.info('Right Down')
+    #    self.log.info('Right Down')
 
     def on_right_mouse_button_up_event(self, event):
-        log.info('Right Up')
+        self.log.info('Right Up')
         # If we're on the edge of an outside pixel, ignore
         # the right click so we don't crash.
         try:
             red, green, blue, alpha = self.screen.get_at(event.pos)
-            log.info(f'Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}')
+            self.log.info(f'Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}')
 
             # TODO: Make this a proper type.
             trigger = pygame.event.Event(0, {'name': 'R', 'value': red})
@@ -1045,57 +1058,59 @@ class BitmapEditorScene(RootScene):
             self.dirty = 1
         except IndexError:
             pass
-        
-    #def on_left_mouse_button_down_event(self, event):
+
+    def on_left_mouse_button_down_event(self, event):
+
+        # sprites = self.collided_sprites(event=event)
        # Check for a sprite collision against the mouse pointer.
        #
        # First, we need to create a pygame Sprite that represents the tip of the mouse.
-       #mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-       #collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-       #log.info(f'SPRITES: {collided_sprites}')
+    #    self.log.info(f'SPRITES: {sprites}')
 
-       #collided_sprites[-1].on_left_mouse_button_down_event(event)
+    #    collided_sprites[-1].on_left_mouse_button_down_event(event)
 
-       #for sprite in collided_sprites:
-       #    sprite.on_left_mouse_button_down_event(event)
+        for sprite in sprites:
+           sprite.on_left_mouse_button_down_event(event)
 
-       #print(f'Mouse @ {mouse.rect}')
-
-    #def on_left_mouse_button_up_event(self, event):
+    def on_left_mouse_button_up_event(self, event):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-    #    mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+       mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-    #    collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+       collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-    #    for sprite in collided_sprites:
-    #        sprite.on_left_mouse_button_up_event(event)
+       for sprite in collided_sprites:
+           sprite.on_left_mouse_button_up_event(event)
 
-        #print(f'Mouse @ {mouse.rect}')
+       print(f'Mouse @ {mouse.rect}')
 
-    #def on_mouse_drag_event(self, event, trigger):
-        # Check for a sprite collision against the mouse pointer.
-        #
-        # First, we need to create a pygame Sprite that represents the tip of the mouse.
+    # def on_mouse_drag_event(self, event, trigger):
+    #     # Check for a sprite collision against the mouse pointer.
+    #     #
+    #     # First, we need to create a pygame Sprite that represents the tip of the mouse.
 
-        #print(f'Mouse Drag @ {mouse.rect}')
+    #     print(f'BITMAPPY Mouse Drag')
 
-        #def on_mouse_drop_event(self, event):
-        # Check for a sprite collision against the mouse pointer.
-        #
-        # First, we need to create a pygame Sprite that represents the tip of the mouse.
+    #     # def on_mouse_drop_event(self, event):
+    #     # Check for a sprite collision against the mouse pointer.
+    #     #
+    #     # First, we need to create a pygame Sprite that represents the tip of the mouse.
 
-        #print(f'Mouse Drag @ {mouse.rect}')
+    #     # print(f'Mouse Drag @ {mouse.rect}')
 
-class Game(GameEngine):
+class Game(Scene):
+    log = LOG
+
     # Set your game name/version here.
     NAME = "Bitmappy"
     VERSION = "1.0"
 
-    def __init__(self, options):
+    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options)
         self.load_resources()
 
@@ -1107,53 +1122,55 @@ class Game(GameEngine):
 
         #self.register_game_event('save', self.on_save_event)
         #self.register_game_event('load', self.on_load_event)
-        
+
         # These are set up in the GameEngine class.
-        log.info(f'Game Options: {Game.OPTIONS}')
+        self.log.info(f'Game Options: {options}')
+
+        self.next_scene = BitmapEditorScene()
 
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
-
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('-v', '--version',
+        parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
-        group.add_argument('-s', '--size',
+        parser.add_argument('-s', '--size',
                            default='32x32')
-        
-        return parser
 
-    def start(self):
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        # and do a few other init related things.
-        super().start()
+    # def start(self):
+    #     self.next = BitmapEditorScene()
 
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = BitmapEditorScene()
+    # def update(self):
+    #     self.log.info(f'Update {type(self)}')
 
-        while self.active_scene != None:
-            self.process_events()
+    # def render(self, screen):
+    #     self.log.info(f'Render {type(self)} to screen "{screen}"')
 
-            self.active_scene.update()
+    # def start(self):
+    #     # Call the main game engine's start routine to initialize
+    #     # the screen and set the self.screen_width, self.screen_height variables
+    #     # and do a few other init related things.
+    #     super().start()
 
-            self.active_scene.render(self.screen)
+    #     # Note: Due to the way things are wired, you must set self.active_scene after
+    #     # calling super().start() in this method.
+    #     self.clock = pygame.time.Clock()
+    #     self.active_scene = BitmapEditorScene()
 
-            self.clock.tick(self.fps)
+    #     while self.active_scene != None:
+    #         self.process_events()
 
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()                    
+    #         self.active_scene.update()
 
-            self.active_scene = self.active_scene.next
+    #         self.active_scene.render(self.screen)
+
+    #         self.clock.tick(self.fps)
+
+    #         if self.update_type == 'update':
+    #             pygame.display.update(self.active_scene.rects)
+    #         elif self.update_type == 'flip':
+    #             pygame.display.flip()
+
+    #         self.active_scene = self.active_scene.next
 
     #def on_key_up_event(self, event):
     #    self.active_scene.on_key_up_event(event)
@@ -1163,32 +1180,24 @@ class Game(GameEngine):
 
         # KEYUP            key, mod
         #if event.key == pygame.K_q:
-        #    log.info(f'User requested quit.')
+        #    self.log.info(f'User requested quit.')
         #    event = pygame.event.Event(pygame.QUIT, {})
         #    pygame.event.post(event)
 
     # This will catch calls which our scene engine doesn't yet implement.
-    def __getattr__(self, attr):
-        try:
-            if self.active_scene:
-                return getattr(self.active_scene, attr)
-            else:
-                raise Exception(f'Scene not activated in call to {attr}()')
-        except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+    # def __getattr__(self, attr):
+    #     try:
+    #         if self.active_scene:
+    #             return getattr(self.active_scene, attr)
+    #         else:
+    #             raise Exception(f'Scene not activated in call to {attr}()')
+    #     except AttributeError:
+    #         raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
+
 
 def main():
-    parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
+    GameEngine(game=Game).start()
 
-    # RootSprite.break_when(sprite_type=str(BitmapPixelSprite))
-
-    # args is a class method, which allows us to call it before initializing a game
-    # object, which allows us to query all of the game engine objects for their
-    # command line parameters.
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
 
 if __name__ == '__main__':
     try:
@@ -1196,6 +1205,7 @@ if __name__ == '__main__':
     except Exception as e:
         raise e
     finally:
+        pygame.display.quit()
         pygame.quit()
 
 

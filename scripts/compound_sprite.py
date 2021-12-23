@@ -1,12 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import argparse
-# import collections
-# import configparser
 import logging
 
-# from pygame import Rect
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
@@ -15,8 +10,10 @@ import pygame.locals
 # from ghettogames.color import WHITE, BLACKLUCENT
 # from ghettogames.engine import RootSprite, MousePointer, BitmappySprite
 # from ghettogames.engine import SingletonBitmappySprite
-from ghettogames.engine import BitmappySprite, RootScene, GameEngine
+from ghettogames.engine import GameEngine
 from ghettogames.ui import ButtonSprite, MenuBar, MenuItem
+from ghettogames.sprites import BitmappySprite
+from ghettogames.scenes import Scene
 # from ghettogames.engine import JoystickManager
 # from ghettogames.engine import pixels_from_data, pixels_from_path
 # from ghettogames.engine import image_from_pixels
@@ -25,16 +22,11 @@ from ghettogames.ui import ButtonSprite, MenuBar, MenuItem
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
 
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-log.addHandler(ch)
-
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
 
 
-class GameScene(RootScene):
+class GameScene(Scene):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.all_sprites = groups
@@ -138,7 +130,7 @@ class GameScene(RootScene):
         log.info('fdasfdsafdsafdsa')
 
 
-class Game(GameEngine):
+class Game(Scene):
     # Set your game name/version here.
     NAME = "Compound Sprite Demo"
     VERSION = "1.0"
@@ -147,71 +139,18 @@ class Game(GameEngine):
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
-        log.info(f'Game Options: {Game.OPTIONS}')
+        log.info(f'Game Options: {options}')
+
+        self.next_scene = GameScene()
 
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
-
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('-v', '--version',
+        parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
-        return parser
-
-    def start(self):
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        # and do a few other init related things.
-        super().start()
-
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = GameScene()
-
-        while self.active_scene is not None:
-            self.process_events()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            self.clock.tick(self.fps)
-
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-            self.active_scene = self.active_scene.next
-
-    # This will catch calls which our scene engine doesn't yet implement.
-    def __getattr__(self, attr):
-        try:
-            if self.active_scene:  # noqa: R1705
-                return getattr(self.active_scene, attr)
-            else:
-                raise Exception(f'Scene not activated in call to {attr}()')
-        except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
-                                 f'or active scene {type(self.active_scene)}.')
-
 
 def main():
-    parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
-
-    # args is a class method, which allows us to call it before initializing a game
-    # object, which allows us to query all of the game engine objects for their
-    # command line parameters.
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
+    GameEngine(game=Game).start()
 
 
 if __name__ == '__main__':
@@ -220,4 +159,6 @@ if __name__ == '__main__':
     except Exception as e:
         raise e
     finally:
+        pygame.display.quit()
         pygame.quit()
+

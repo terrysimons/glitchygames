@@ -10,18 +10,17 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from ghettogames.engine import RootScene, GameEngine, FontManager
-from ghettogames.engine import JoystickManager
 from ghettogames.color import WHITE, BLACKLUCENT
+from ghettogames.engine import GameEngine
+from ghettogames.fonts import FontManager
+from ghettogames.joysticks import JoystickManager
+from ghettogames.scenes import Scene
+from ghettogames.sprites import Sprite
 
 log = logging.getLogger('game')
-log.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-log.addHandler(ch)
+log.setLevel(logging.DEBUG)
 
-# Interiting from object is default in Python 3.
-# Linters complain if you do it.
+
 class Speed:
     def __init__(self, x=0, y=0, increment=0.2):
         self.x = x
@@ -52,9 +51,9 @@ class Rally:
         return False
 
 
-class PaddleSprite(pygame.sprite.DirtySprite):
-    def __init__(self, name):
-        super().__init__()
+class PaddleSprite(Sprite):
+    def __init__(self, x=0, y=320, width=20, height=80, name='Player 1', groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.use_gfxdraw = True
         # Adding some slap to the paddle
         self.slap_snd = pygame.mixer.Sound(
@@ -69,23 +68,21 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         self.screen_rect = self.screen.get_rect()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-        self.width = 20
-        self.height = 80
+        self.width = width
+        self.height = height
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
         self.rect = self.image.get_rect()
 
         pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 0)
-        self.rect.x = 0
-        self.rect.y = 320
+        self.rect.x = x
+        self.rect.y = y
         self.moving = False
         self.speed = Speed()
 
-        self.update()
-
-    def update(self):
         self.dirty = 1
 
+    def update(self):
         # This prevents us from having the paddle bounce
         # at the edges.
         if self.rect.bottom + self.speed.y > self.screen_rect.bottom:
@@ -97,30 +94,37 @@ class PaddleSprite(pygame.sprite.DirtySprite):
         else:
             self.rect.y += self.speed.y
 
+        self.dirty = 1
+
     def move_down(self):
         self.speed.y = 10
+        self.dirty = 1
 
     def move_up(self):
         self.speed.y = -10
+        self.dirty = 1
 
     def stop(self):
         self.speed.x = 0
         self.speed.y = 0
+        self.dirty = 1
 
 
-class BallSprite(pygame.sprite.DirtySprite):
-    def __init__(self):
-        super().__init__()
+class BallSprite(Sprite):
+    def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.use_gfxdraw = True
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-        self.width = 20
-        self.height = 20
+        self.width = width
+        self.height = height
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
         self.direction = 0
         self.speed = Speed(4, 2)
         self.rally = Rally(5, self.speed.speed_up)
@@ -137,7 +141,7 @@ class BallSprite(pygame.sprite.DirtySprite):
                            0)
 
         self.reset()
-        self.update()
+        self.dirty = 2
 
     def _do_bounce(self):
         if self.rect.y <= 0:
@@ -173,22 +177,16 @@ class BallSprite(pygame.sprite.DirtySprite):
         self.speed *= 1.1
 
     def update(self):
-
-        if GameEngine.FPS:
-            self.rect.y += self.speed.y
-            self.rect.x += self.speed.x
+        self.rect.y += self.speed.y
+        self.rect.x += self.speed.x
 
         self._do_bounce()
 
         if self.rect.x > self.screen_width or self.rect.x < 0:
             self.reset()
 
-        if self.y > 600:
+        if self.y > self.screen_height or self.rect.y < 0:
             self.reset()
-
-        # Move the image to where our x and y are
-        self.rect.x = self.x
-        self.rect.y = self.y
 
         # Do we bounce off the left of the screen?
         if self.x <= 0:
@@ -201,9 +199,9 @@ class BallSprite(pygame.sprite.DirtySprite):
             self.direction = (360 - self.direction) % 360
 
 
-class TextSprite(pygame.sprite.DirtySprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
-        super().__init__()
+class TextSprite(Sprite):
+    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(groups=groups)
         self.background_color = background_color
         self.alpha = alpha
         self.x = x
@@ -244,9 +242,9 @@ class TextSprite(pygame.sprite.DirtySprite):
 
         # Interiting from object is default in Python 3.
         # Linters complain if you do it.
-        class TextBox:
-            def __init__(self, font_controller, pos, line_height=15):
-                super().__init__()
+        class TextBox(Sprite):
+            def __init__(self, font_controller, pos, line_height=15, groups=pygame.sprite.LayeredDirty()):
+                super().__init__(groups=groups)
                 self.image = None
                 self.start_pos = pos
                 self.rect = pygame.Rect(pos, (640, 480))
@@ -285,11 +283,10 @@ class TextSprite(pygame.sprite.DirtySprite):
         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
 
-class TableScene(RootScene):
-    def __init__(self):
-        super().__init__()
-        self.screen = pygame.display.get_surface()
-        self.player1 = PaddleSprite(name="Player 1")
+class TableScene(Scene):
+    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(groups=groups)
+        self.player1 = PaddleSprite(name="Player 1",)
         self.player2 = PaddleSprite(name="Player 2")
         self.ball = BallSprite()
 
@@ -305,6 +302,7 @@ class TableScene(RootScene):
         )
 
         self.all_sprites.clear(self.screen, self.background)
+        self.dirty = 1
 
     def update(self):
         super().update()
@@ -324,6 +322,8 @@ class TableScene(RootScene):
 
             self.player2.slap_snd.play()
             self.ball.speed.x *= -1
+
+        self.dirty = 1
 
     def on_key_up_event(self, event):
         # KEYUP            key, mod
@@ -348,13 +348,13 @@ class TableScene(RootScene):
             self.player2.move_down()
 
 
-class Game(GameEngine):
+class Game(Scene):
     # Set your game name/version here.
     NAME = "Paddle Slap"
     VERSION = "1.1"
 
-    def __init__(self, options):
-        super().__init__(options=options)
+    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(options=options, groups=groups)
         self.load_resources()
 
         # pygame.event.set_blocked(self.mouse_events)
@@ -364,58 +364,15 @@ class Game(GameEngine):
         # Hook up some events.
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
+        self.next_scene = TableScene()
 
     @classmethod
     def args(cls, parser):
-        # Initialize the game engine's options first.
-        # This ensures that our game's specific options
-        # are listed last.
-        parser = GameEngine.args(parser)
+        parser = parser.add_argument_group('Game Options')
 
-        group = parser.add_argument_group('Game Options')
-
-        group.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
-
-        return parser
-
-    def start(self):
-        # This is a simple class that will help us print to the screen
-        # It has nothing to do with the joysticks, just outputting the
-        # information.
-
-        # Call the main game engine's start routine to initialize
-        # the screen and set the self.screen_width, self.screen_height variables
-        # and do a few other init related things.
-        super().start()
-
-        # Note: Due to the way things are wired, you must set self.active_scene after
-        # calling super().start() in this method.
-        self.clock = pygame.time.Clock()
-        self.active_scene = TableScene()
-
-        while self.active_scene is not None:
-            self.process_events()
-
-            # Don't do anything until we know our framerate.
-            while GameEngine.FPS == 0:
-                # Display the startup screen here?
-                self.clock.tick(self.fps)
-                GameEngine.FPS = self.clock.get_fps()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            if self.update_type == 'update':
-                pygame.display.update(self.active_scene.rects)
-            elif self.update_type == 'flip':
-                pygame.display.flip()
-
-            self.clock.tick(self.fps)
-
-            self.active_scene = self.active_scene.next
+        parser.add_argument('-v', '--version',
+                            action='store_true',
+                            help='print the game version and exit')
 
     def on_key_up_event(self, event):
         self.active_scene.on_key_up_event(event)
@@ -426,37 +383,17 @@ class Game(GameEngine):
             event = pygame.event.Event(pygame.QUIT, {})
             pygame.event.post(event)
 
-    # This will catch calls which our scene engine doesn't yet implement.
-    def __getattr__(self, attr):
-        try:
-            if not self.active_scene:
-                raise Exception(f'Scene not activated in call to {attr}()')
-
-            return getattr(self.active_scene, attr)
-
-        except AttributeError:
-            raise AttributeError(f'{attr} is not implemented in Game {type(self)} '
-                                 'or active scene {type(self.active_scene)}.')
-
 
 def main():
-    parser = argparse.ArgumentParser(f"{Game.NAME} version {Game.VERSION}")
-
-    # args is a class method, which allows us to call it before initializing a game
-    # object, which allows us to query all of the game engine objects for their
-    # command line parameters.
-    parser = Game.args(parser)
-    args = parser.parse_args()
-    game = Game(options=vars(args))
-    game.start()
+    GameEngine(game=Game).start()
 
 
 if __name__ == '__main__':
     try:
         main()
-        log.info('Done')
     except Exception as e:
         raise e
     finally:
-        log.info('Shutting down pygame.')
+        pygame.display.quit()
         pygame.quit()
+

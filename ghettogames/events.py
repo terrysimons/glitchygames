@@ -4,13 +4,19 @@
 import inspect
 import logging
 
-log = logging.getLogger('game.events')
-log.addHandler(logging.NullHandler())
+import pygame
+
+LOG = logging.getLogger('game.events')
+LOG.addHandler(logging.NullHandler())
+
+# Pygame USEREVENTs
+FPSEVENT = pygame.USEREVENT + 1
+GAMEEVENT = pygame.USEREVENT + 2
+MENUEVENT = pygame.USEREVENT + 3
 
 def unhandled_event(*args, **kwargs):
-    #log.info(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
+    LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
     raise AttributeError(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
-
 
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
@@ -23,7 +29,7 @@ class ResourceManager:
     certain types of resources such as joysticks, the
     subclass will manage things itself.  This architecture
     reduces code footprint, and allows maxium flexibility
-    when needed, at the expense of a bit of over abstracting.
+    when needed, at the expense of a bit of abstraction.
 
     Unless you're implementing a new pygame event manager,
     you probably don't need to worry about this.
@@ -43,13 +49,14 @@ class ResourceManager:
     a subclass of EventManager, it too is a ResourceManager
     which can be gotten to from anywhere, since it's a singleton.
     """
+    log = LOG
 
     __instances__ = {}
 
     def __new__(cls, *args, **kwargs):
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
-            log.debug(f'Created Resource Manager: {cls}')
+            LOG.debug(f'Created Resource Manager: {cls}')
             cls.__instances__[cls].args = args
             cls.__instances__[cls].kwargs = kwargs
 
@@ -65,163 +72,194 @@ class ResourceManager:
             try:
                 return getattr(proxy, attr)
             except AttributeError:
-                log.error(f'No proxies for {type(self)}.{attr}')
+                self.log.error(f'No proxies for {type(self)}.{attr}')
+                raise
 
 # Mixin
-class FontEvents():
+class GameEvents:
+    def on_active_event(self, event):
+        # ACTIVEEVENT      gain, state
+        pass
+
+    def on_fps_event(self, event):
+        # FPSEVENT is pygame.USEREVENT + 1
+        pass
+
+    def on_game_event(self, event):
+        # GAMEEVENT is pygame.USEREVENT + 2
+        pass
+
+    def on_menu_item_event(self, event):
+        # MENUEVENT is pygame.USEREVENT + 3
+        pass
+
+    def on_sys_wm_event(self, event):
+        # SYSWMEVENT
+        pass
+
+    def on_user_event(self, event):
+        # USEREVENT        code
+        pass
+
+    def on_video_expose_event(self, event):
+        # VIDEOEXPOSE      none
+        pass
+
+    def on_video_resize_event(self, event):
+        # VIDEORESIZE      size, w, h
+        pass
+
+    def on_quit_event(self, event):
+        # QUIT             none
+        pass
+
+# Mixin
+class FontEvents:
     pass
 
 # Mixin
-class KeyboardEvents():
+class KeyboardEvents:
     def on_key_down_event(self, event):
-        unhandled_event(target=self, event=event)
+        # KEYDOWN          unicode, key, mod
+        pass
 
     def on_key_up_event(self, event):
-        unhandled_event(target=self, event=event)
+        # KEYUP            key, mod
+        pass
 
-    def on_key_chord_down_event(self, event):
-        unhandled_event(target=self, event=event)        
+    def on_key_chord_up_event(self, event, keys):
+        # Synthesized event.
+        pass
 
-    def on_key_chord_down_event(self, event):
-        unhandled_event(target=self, event=event)
+    def on_key_chord_down_event(self, event, keys):
+        # Synthesized event.
+        pass
 
 
 # Mixin
-class MouseEvents():
+class MouseEvents:
     def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_mouse_drag_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_mouse_drop_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_left_mouse_drag_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_left_mouse_drop_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_middle_mouse_drag_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_middle_mouse_drop_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_right_mouse_drag_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_right_mouse_drop_event(self, event, trigger):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, trigger=trigger)
         pass
 
     def on_mouse_focus_event(self, event, entering_focus):
         # Synthesized event.
-        #unhandled_event(target=self, event=event, entering_focus=entering_focus)
         pass
 
     def on_mouse_unfocus_event(self, event, leaving_focus):
         # Synthesized event.
-        #unhandled_event(event, leaving_focus=leaving_focus)
         pass
 
     def on_mouse_button_up_event(self, event):
         # MOUSEBUTTONUP    pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_left_mouse_button_up_event(self, event):
         # Left Mouse Button Up pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_middle_mouse_button_up_event(self, event):
         # Middle Mouse Button Up pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_right_mouse_button_up_event(self, event):
         # Right Mouse Button Up pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_mouse_button_down_event(self, event):
         # MOUSEBUTTONDOWN  pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_left_mouse_button_down_event(self, event):
         # Left Mouse Button Down pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_middle_mouse_button_down_event(self, event):
         # Middle Mouse Button Down pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_right_mouse_button_down_event(self, event):
         # Right Mouse Button Down pos, button
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_mouse_scroll_down_event(self, event):
         # This is a synthesized event.
-        #unhandled_event(target=self, event=event)
         pass
 
     def on_mouse_scroll_up_event(self, event):
         # This is a synthesized event.
-        #unhandled_event(target=self, event=event)
         pass
 
 # Mixin
-class JoystickEvents():
+class JoystickEvents:
     def on_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
-        unhandled_event(target=self, event=event)
+        pass
 
     def on_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
-        unhandled_event(target=self, event=event)
+        pass
 
     def on_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
-        unhandled_event(target=self, event=event)
+        pass
 
     def on_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
-        unhandled_event(target=self, event=event)
+        pass
 
     def on_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
-        unhandled_event(target=self, event=event)
+        pass
 
+# Mixin for all events
+class EventInterface(MouseEvents,
+                     KeyboardEvents,
+                     JoystickEvents,
+                     FontEvents,
+                     GameEvents):
+    pass
 class EventManager(ResourceManager):
+    log = LOG
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #
     # This isn't a ResourceManager like other proxies, because
     # it's the fallthrough event object, so we don't have a proxy.
     class EventProxy():
+        log = LOG
         def __init__(self, event_source):  # noqa: W0613
             """
             Catch-all event sink for unhandled game events across all ResourceManagers.
@@ -252,34 +290,8 @@ class EventManager(ResourceManager):
 
             event_trigger = kwargs.get('trigger', None)
 
-            log.debug(f'Unhandled Event {event_handler}: '
+            self.log.debug(f'Unhandled Event {event_handler}: '
                       f'{self.event_source}->{event} Event Trigger: {event_trigger}')
-
-            #unhandled_event(*args, **kwargs)
-
-        #def on_active_event(self, event):
-            # ACTIVEEVENT      gain, state
-            #unhandled_event(source=self.event_source, target=self, event=event)
-        #    pass
-
-        #def on_key_up_event(self, event):
-            # KEYUP            key, mod
-        #    unhandled_event(target=self, event=event)
-
-        #def on_key_down_event(self, event):
-            # KEYDOWN            key, mod
-        #    unhandled_event(target=self, event=event)
-
-        #def on_key_chord_down_event(self, event, trigger):
-            # This is a synthesized event.
-        #    unhandled_event(target=self, event=event, trigger=trigger)
-
-        #def on_key_chord_up_event(self, event, trigger):
-            # This is a synthesized event.
-        #    unhandled_event(target=self, event=event, trigger=trigger)
-        #def __getattribute__(self, attr):
-        #    log.info(f'__getattribute__: {attr}')
-        #    import pdb; pdb.set_trace()
 
         def __getattr__(self, attr):
             return self.unhandled_event
