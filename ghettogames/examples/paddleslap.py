@@ -128,11 +128,13 @@ class BallSprite(Sprite):
         self.direction = 0
         self.speed = Speed(4, 2)
         self.rally = Rally(5, self.speed.speed_up)
-        self.collision_snd = pygame.mixer.Sound('resources/snd/sfx_menu_move1.wav')
+        self.collision_snd = pygame.mixer.Sound(
+            os.path.join(
+                os.path.dirname(__file__),
+                'resources/snd/sfx_menu_move1.wav'
+            )
+        )
 
-        # The ball always needs refreshing.
-        # This saves us a set on dirty every update.
-        self.dirty = 2
 
         pygame.draw.circle(self.image,
                            WHITE,
@@ -141,6 +143,9 @@ class BallSprite(Sprite):
                            0)
 
         self.reset()
+
+        # The ball always needs refreshing.
+        # This saves us a set on dirty every update.
         self.dirty = 2
 
     def _do_bounce(self):
@@ -155,7 +160,7 @@ class BallSprite(Sprite):
 
     def reset(self):
         self.x = random.randrange(50, 750)
-        self.y = 350.0
+        self.y = random.randrange(25, 400)
 
         # Direction of ball (in degrees)
         self.direction = random.randrange(-45, 45)
@@ -164,9 +169,11 @@ class BallSprite(Sprite):
         if random.randrange(2) == 0:
             # Reverse ball direction, let the other guy get it first
             self.direction += 180
-            self.y = 50
 
         self.rally.reset()
+
+        self.rect.x = self.x
+        self.rect.y = self.y
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self, diff):
@@ -191,7 +198,6 @@ class BallSprite(Sprite):
         # Do we bounce off the left of the screen?
         if self.x <= 0:
             self.direction = (360 - self.direction) % 360
-            print(self.direction)
             self.x = 1
 
         # Do we bounce of the right side of the screen?

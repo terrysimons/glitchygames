@@ -92,10 +92,11 @@ class SceneManager(SceneInterface, EventManager):
 
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
+        print(f'FPS EVENT')
         if self.active_scene:
             self.active_scene.FPS = self.clock.get_fps()
-        self.log.info(f'Scene "{self.active_scene}" FPS: {self.active_scene.FPS}')
-        # self.active_scene.on_fps_event(event)
+            self.log.info(f'Scene "{self.active_scene}" FPS: {self.active_scene.FPS}')
+            self.active_scene.on_fps_event(event)
 
     def on_game_event(self, event):
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -175,6 +176,9 @@ class Scene(SceneInterface, EventInterface):
         self.background_color = BLACK
         self.next_scene = self
         self.rects = None
+        self.screen = pygame.display.get_surface()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         self.all_sprites = groups

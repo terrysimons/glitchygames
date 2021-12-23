@@ -116,12 +116,12 @@ class TextBoxSprite(BitmappySprite):
     def on_left_mouse_button_down_event(self, event):
         self.dirty = 1
         self.background_color = (128, 128, 128)
-        self.update()
+        # self.update()
 
     def on_left_mouse_button_up_event(self, event):
         self.dirty = 1
         self.background_color = (0, 0, 0)
-        self.update()
+        # self.update()
 
 
 class ColorWellSprite(BitmappySprite):
@@ -146,8 +146,7 @@ class ColorWellSprite(BitmappySprite):
         #self.text_sprite.rect.midleft = self.rect.midright
         #self.text_sprite.add(groups)
 
-        pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
-        pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
+        self.dirty = 1
 
     @property
     def active_color(self):
@@ -172,11 +171,12 @@ class ColorWellSprite(BitmappySprite):
         return f'#{red}{green}{blue}'
 
     def update(self):
+        pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
+        pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
+
         self.text_sprite.value = str(self.active_color)
         self.text_sprite.text.text = self.hex_color
         self.text_sprite.dirty = 1
-        self.text_sprite.update()
-        #self.screen.blit(self.text_sprite.image, (self.text_sprite.rect.x, self.text_sprite.rect.y))
 
 class BitmapPixelSprite(BitmappySprite):
     """
@@ -236,10 +236,10 @@ class BitmapPixelSprite(BitmappySprite):
     def on_left_mouse_button_down_event(self, event):
         self.on_pixel_update_event(event)
 
-    def on_left_mouse_drag_event(self, event, trigger):
-        # There's not a good way to pass any useful info, so for now, pass None
-        # since we're not using the event for anything in this class.
-        self.on_left_mouse_button_down_event(None)
+    # def on_left_mouse_drag_event(self, event, trigger):
+    #     # There's not a good way to pass any useful info, so for now, pass None
+    #     # since we're not using the event for anything in this class.
+    #     self.on_left_mouse_button_down_event(None)
 
 class CanvasSprite(BitmappySprite):
     log = LOG
@@ -323,16 +323,16 @@ class CanvasSprite(BitmappySprite):
         #    self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
             #self.all_sprites.add(pixel_box)
 
-        #for i in range(self.pixels_across * self.pixels_tall):
-        #    self.pixel_boxes[i].pixel_color = self.pixels[i]
-            #self.pixel_boxes[i].add(self.all_sprites)
-            #self.pixel_boxes[i].add(groups)
+        for i in range(self.pixels_across * self.pixels_tall):
+            self.pixel_boxes[i].pixel_color = self.pixels[i]
+            self.pixel_boxes[i].add(self.all_sprites)
+            self.pixel_boxes[i].add(groups)
 
             # This allows us to update the mini map.
-          #  self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
+            self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
 
             # This draws the map box.
-            #self.pixel_boxes[i].dirty = 1
+            self.pixel_boxes[i].dirty = 1
             #self.pixel_boxes[i].update()
 
         # Why does commenting this out cause the canvas to go away?
@@ -364,7 +364,7 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.dirty_pixels[trigger.pixel_number] = True
             self.mini_view.on_pixel_update_event(event, trigger)
             self.mini_view.dirty = 1
-            self.mini_view.update()
+            # self.mini_view.update()
 
         if self.pixel_boxes[trigger.pixel_number].dirty:
             self.pixel_boxes[trigger.pixel_number].update()
@@ -373,11 +373,11 @@ class CanvasSprite(BitmappySprite):
         self.update()
 
     def update(self):
-        if self.mini_view is None:
-            # This means that we're in a mini view, which itself doesn't contain a mini view.
-            self.draw_pixels()
-        #else:
-            #self.draw_grid()
+        # if self.mini_view is None:
+        #     # This means that we're in a mini view, which itself doesn't contain a mini view.
+        #     self.draw_pixels()
+        # # else:
+        # #     self.draw_grid()
 
         self.draw_pixels()
 
@@ -393,9 +393,9 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.dirty = 1
             self.mini_view.update()
 
-    #def draw_grid(self):
-        # Note: We should do this instead.
-        # self.grid.update()
+    # def draw_grid(self):
+    #     # Note: We should do this instead.
+    #     self.grid.update()
 
         #x = 0
         #y = 0
@@ -439,7 +439,7 @@ class CanvasSprite(BitmappySprite):
 
         #print(f'Mouse @ {mouse.rect}')
         self.dirty = 1
-        self.update()
+        # self.update()
 
     def on_left_mouse_drag_event(self, event, trigger):
         # TODO: Mask out right and left.
@@ -456,7 +456,7 @@ class CanvasSprite(BitmappySprite):
             self.on_pixel_update_event(event=event, trigger=event)
 
         self.dirty = 1
-        self.update()
+        # self.update()
 
     def on_save_file_event(self, event, trigger):
         pixels = []
@@ -474,6 +474,8 @@ class CanvasSprite(BitmappySprite):
                                               height=save_sprite.height)
 
         save_sprite.save(filename='savefile.cfg')
+
+        self.dirty = 1
 
         #self.save(filename='screenshot.cfg')
 
@@ -514,7 +516,7 @@ class CanvasSprite(BitmappySprite):
         #    pixel_box.update()
 
         self.dirty = 1
-        self.update()
+        # self.update()
 
 
 class MiniView(CanvasSprite):
@@ -741,6 +743,7 @@ class SliderSprite(BitmappySprite):
         self.slider_knob.on_left_mouse_drag_event(event, trigger)
         super().on_mouse_drag_event(event, trigger)
         self.dirty = 1
+        self.update()
 
 
 class LabeledSliderSprite(SliderSprite):
@@ -839,13 +842,45 @@ class BitmapEditorScene(Scene):
     log = LOG
 
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(groups=groups)
-        self.screen = pygame.display.get_surface()
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
+        pass
+
+    #def on_key_up_event(self, event):
+        # 1-8 selects Sprite Frame
+        # Spacebar
+        # Escape quits
+        # c cycles through color boxes
+        # r swap recent colors
+        # n new bitmap
+        # l load bitmap
+        # s save bitmap
+    #    pass
+
+    #def on_right_mouse_button_down_event(self, event):
+    #    self.log.info('Right Down')
+
+
+
+
+
+class Bitmappy(Scene):
+    log = LOG
+
+    # Set your game name/version here.
+    NAME = "Bitmappy"
+    VERSION = "1.0"
+
+    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(options=options, groups=groups)
+
+        width, height = options.get('size').split('x')
+
+        # Convert to integers
+        CanvasSprite.WIDTH = int(width)
+        CanvasSprite.HEIGHT = int(height)
+
         self.button_width = 75
 
-        self.all_sprites = groups
+        # self.all_sprites = groups
 
         self.menu_bar = MenuBar(name='Menu Bar',
                                 x=0,
@@ -941,14 +976,12 @@ class BitmapEditorScene(Scene):
 
         self.all_sprites.clear(self.screen, self.background)
 
-    # def update(self):
-    #     super().update()
+        # TODO: Plumb this into the scene manager
+        # self.register_game_event('save', self.on_save_event)
+        # self.register_game_event('load', self.on_load_event)
 
-    # def render(self, screen):
-    #     super().render(screen)
-
-    def switch_to_scene(self, next_scene):
-        super().switch_to_scene(next_scene)
+        # These are set up in the GameEngine class.
+        self.log.info(f'Game Options: {options}')
 
     def on_menu_item_event(self, event):
         self.log.info(f'Scene got menu item event: {event}')
@@ -1022,21 +1055,6 @@ class BitmapEditorScene(Scene):
         self.color_well.dirty = 1
         self.color_well.update()
 
-
-    #def on_key_up_event(self, event):
-        # 1-8 selects Sprite Frame
-        # Spacebar
-        # Escape quits
-        # c cycles through color boxes
-        # r swap recent colors
-        # n new bitmap
-        # l load bitmap
-        # s save bitmap
-    #    pass
-
-    #def on_right_mouse_button_down_event(self, event):
-    #    self.log.info('Right Down')
-
     def on_right_mouse_button_up_event(self, event):
         self.log.info('Right Up')
         # If we're on the edge of an outside pixel, ignore
@@ -1059,35 +1077,39 @@ class BitmapEditorScene(Scene):
         except IndexError:
             pass
 
-    def on_left_mouse_button_down_event(self, event):
+    # def on_left_mouse_button_down_event(self, event):
 
-        # sprites = self.collided_sprites(event=event)
-       # Check for a sprite collision against the mouse pointer.
-       #
-       # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+    #     # sprites = self.collided_sprites(event=event)
+    #    # Check for a sprite collision against the mouse pointer.
+    #    #
+    #    # First, we need to create a pygame Sprite that represents the tip of the mouse.
+    #     mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-        sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+    #     sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-    #    self.log.info(f'SPRITES: {sprites}')
+    # #    self.log.info(f'SPRITES: {sprites}')
 
-    #    collided_sprites[-1].on_left_mouse_button_down_event(event)
+    #     # if sprites:
+    #     #     sprites[-1].on_left_mouse_button_down_event(event)
 
-        for sprite in sprites:
-           sprite.on_left_mouse_button_down_event(event)
+    #     for sprite in sprites:
+    #        sprite.on_left_mouse_button_down_event(event)
 
-    def on_left_mouse_button_up_event(self, event):
-        # Check for a sprite collision against the mouse pointer.
-        #
-        # First, we need to create a pygame Sprite that represents the tip of the mouse.
-       mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+    #     self.dirty = 1
 
-       collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+    # def on_left_mouse_button_up_event(self, event):
+    #     # Check for a sprite collision against the mouse pointer.
+    #     #
+    #     # First, we need to create a pygame Sprite that represents the tip of the mouse.
+    #    mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-       for sprite in collided_sprites:
-           sprite.on_left_mouse_button_up_event(event)
+    #    collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-       print(f'Mouse @ {mouse.rect}')
+    #    for sprite in collided_sprites:
+    #        sprite.on_left_mouse_button_up_event(event)
+
+    #    print(f'Mouse @ {mouse.rect}')
+    #    self.dirty = 1
 
     # def on_mouse_drag_event(self, event, trigger):
     #     # Check for a sprite collision against the mouse pointer.
@@ -1096,6 +1118,8 @@ class BitmapEditorScene(Scene):
 
     #     print(f'BITMAPPY Mouse Drag')
 
+    #     self.on_left_mouse_button_up_event(event)
+
     #     # def on_mouse_drop_event(self, event):
     #     # Check for a sprite collision against the mouse pointer.
     #     #
@@ -1103,30 +1127,6 @@ class BitmapEditorScene(Scene):
 
     #     # print(f'Mouse Drag @ {mouse.rect}')
 
-class Game(Scene):
-    log = LOG
-
-    # Set your game name/version here.
-    NAME = "Bitmappy"
-    VERSION = "1.0"
-
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(options=options)
-        self.load_resources()
-
-        width, height = options.get('size').split('x')
-
-        # Convert to integers
-        CanvasSprite.WIDTH = int(width)
-        CanvasSprite.HEIGHT = int(height)
-
-        #self.register_game_event('save', self.on_save_event)
-        #self.register_game_event('load', self.on_load_event)
-
-        # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
-
-        self.next_scene = BitmapEditorScene()
 
     @classmethod
     def args(cls, parser):
@@ -1136,67 +1136,9 @@ class Game(Scene):
         parser.add_argument('-s', '--size',
                            default='32x32')
 
-    # def start(self):
-    #     self.next = BitmapEditorScene()
-
-    # def update(self):
-    #     self.log.info(f'Update {type(self)}')
-
-    # def render(self, screen):
-    #     self.log.info(f'Render {type(self)} to screen "{screen}"')
-
-    # def start(self):
-    #     # Call the main game engine's start routine to initialize
-    #     # the screen and set the self.screen_width, self.screen_height variables
-    #     # and do a few other init related things.
-    #     super().start()
-
-    #     # Note: Due to the way things are wired, you must set self.active_scene after
-    #     # calling super().start() in this method.
-    #     self.clock = pygame.time.Clock()
-    #     self.active_scene = BitmapEditorScene()
-
-    #     while self.active_scene != None:
-    #         self.process_events()
-
-    #         self.active_scene.update()
-
-    #         self.active_scene.render(self.screen)
-
-    #         self.clock.tick(self.fps)
-
-    #         if self.update_type == 'update':
-    #             pygame.display.update(self.active_scene.rects)
-    #         elif self.update_type == 'flip':
-    #             pygame.display.flip()
-
-    #         self.active_scene = self.active_scene.next
-
-    #def on_key_up_event(self, event):
-    #    self.active_scene.on_key_up_event(event)
-
-        # Process normal key events like q/ESCAPE for quit via engine.
-        #super().on_key_up_event(event)
-
-        # KEYUP            key, mod
-        #if event.key == pygame.K_q:
-        #    self.log.info(f'User requested quit.')
-        #    event = pygame.event.Event(pygame.QUIT, {})
-        #    pygame.event.post(event)
-
-    # This will catch calls which our scene engine doesn't yet implement.
-    # def __getattr__(self, attr):
-    #     try:
-    #         if self.active_scene:
-    #             return getattr(self.active_scene, attr)
-    #         else:
-    #             raise Exception(f'Scene not activated in call to {attr}()')
-    #     except AttributeError:
-    #         raise AttributeError(f'{attr} is not implemented in Game {type(self)} or active scene {type(self.active_scene)}.')
-
 
 def main():
-    GameEngine(game=Game).start()
+    GameEngine(game=Bitmappy).start()
 
 
 if __name__ == '__main__':
