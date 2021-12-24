@@ -1,4 +1,5 @@
 import logging
+import time
 
 import pygame
 
@@ -22,6 +23,7 @@ class SceneInterface:
 
 class SceneManager(SceneInterface, EventManager):
     log = LOG
+    OPTIONS = {}
 
     def __init__(self):
         super().__init__()
@@ -29,12 +31,30 @@ class SceneManager(SceneInterface, EventManager):
         # Scene manager terminates on self.next_scene = None
         self.screen = pygame.display.get_surface()
         self.update_type = 'update'
-        self.game_engine = None
+        self.fps_refresh_rate = 1000
+        self.fps = 5
+        self._game_engine = None
         self.active_scene = None
         self.next_scene = self.active_scene
         self.previous_scene = self.active_scene
 
-        self.OPTIONS = None
+        self.clock = pygame.time.Clock()
+
+    @property
+    def game_engine(self):
+        return self._game_engine
+
+    @game_engine.setter
+    def game_engine(self, new_engine):
+        self._game_engine = new_engine
+        if self._game_engine:
+            self.OPTIONS = self._game_engine.OPTIONS
+            self.update_type = self.OPTIONS['update_type']
+            self.fps_refresh_rate = self.OPTIONS['fps_refresh_rate']
+            self.fps = self.OPTIONS.get('fps', 1)
+            self.log.info(f'Screen update type: {self.update_type}')
+            self.log.info(f'FPS Refresh Rate: {self.fps_refresh_rate}')
+            self.log.info(f'Per-scene FPS: {self.fps}')
 
     def switch_to_scene(self, next_scene):
         if next_scene != self.active_scene:
@@ -46,39 +66,57 @@ class SceneManager(SceneInterface, EventManager):
             self.active_scene = next_scene
 
             if self.active_scene:
+                pygame.display.set_caption(
+                    f'{self.active_scene.NAME} v{self.active_scene.VERSION}',
+                    f'{self.active_scene.NAME} v{self.active_scene.VERSION}'
+                )
+
+                self.active_scene.load_resources()
+
+                # Infinite refresh is the default; override it if FPS was configured
+                # on the command line, unless the active scene has specific FPS requirements
+                if self.fps > 0 and self.active_scene.fps == 0:
+                    self.active_scene.fps = self.fps
+
                 self.log.info(
                     f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
                     f' at {self.active_scene.fps} FPS'
                 )
 
+                # This controls how events are marshalled
                 self.proxies = [self, self.active_scene]
 
-    def start(self):
-        while self.active_scene is not None:
-            # Configure the refresh rate to whatever the scene requested
-            self.fps = self.active_scene.fps
+                # Per-scene FPS configurability
+                self.fps = self.active_scene.fps
 
+    def start(self):
+        start_time = time.perf_counter()
+        current_time = start_time
+
+        while self.active_scene is not None:
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
 
-            self.active_scene.clock.tick(self.fps)
+            self.game_engine.process_events()
+
+            self.clock.tick(self.fps)
 
             if self.update_type == 'update':
                 pygame.display.update(self.active_scene.rects)
             elif self.update_type == 'flip':
                 pygame.display.flip()
 
+            if (current_time - start_time) * 1000 >= self.OPTIONS['fps_refresh_rate']:
+                pygame.event.post(
+                    pygame.event.Event(FPSEVENT, {'fps': self.clock.get_fps()})
+                )
+
+                start_time = current_time
+
             self.switch_to_scene(self.active_scene.next_scene)
 
-            # On Some platforms, pygame.USEREVENT is used to convey codes
-            # so, we'll use USEREVENT + 1 to avoid confusion.
-            pygame.time.set_timer(
-                FPSEVENT,
-                self.active_scene.fps
-            )
-
-            self.game_engine.process_events()
+            current_time = time.perf_counter()
 
     def terminate(self):
         self.switch_to_scene(None)
@@ -92,10 +130,7 @@ class SceneManager(SceneInterface, EventManager):
 
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
-        print(f'FPS EVENT')
         if self.active_scene:
-            self.active_scene.FPS = self.clock.get_fps()
-            self.log.info(f'Scene "{self.active_scene}" FPS: {self.active_scene.FPS}')
             self.active_scene.on_fps_event(event)
 
     def on_game_event(self, event):
@@ -108,29 +143,6 @@ class SceneManager(SceneInterface, EventManager):
                 f'Unregistered Event: {event} '
                 '(call self.register_game_event(<event subtype>, <event data>))'
             )
-
-    def on_key_up_event(self, event):
-        # Wire up quit by default for escape and q.
-        #
-        # If a game implements on_key_up_event themselves
-        # they'll have to map their quit keys or call super().on_key_up_event()
-        if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
-            self.log.info('User requested quit.')
-            self.quit()
-
-    # def on_fps_event(self, event):
-    #     # FPSEVENT is pygame.USEREVENT + 1
-    #     GameEngine.FPS = self.clock.get_fps()
-    #     self.active_scene.on_fps_event(event)
-
-    # def on_game_event(self, event):
-    #     # GAMEEVENT is pygame.USEREVENT + 2
-    #     # Call the event callback if it's registered.
-    #     try:
-    #         self.registered_events[event.subtype](event)
-    #     except KeyError:
-    #         self.log.error(f'Unregistered Event: {event} '
-    #                   '(call self.register_game_event(<event subtype>, <event data>))')
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
@@ -157,6 +169,7 @@ class Scene(SceneInterface, EventInterface):
     log = LOG
     FPS = 0
     NAME = 'Unnamed Scene'
+    VERSION = '0.0'
 
     def __init__(self, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__()
@@ -169,11 +182,11 @@ class Scene(SceneInterface, EventInterface):
         # This helps us keep the upper layers clean by not requiring
         # new scenes to care about the SceneManager when being
         # instantiated.
-        self.fps = 60
+        self.fps = 0
         self.options = options
         self.scene_manager = SceneManager()
         self.name = type(self)
-        self.background_color = BLACK
+        self._background_color = None
         self.next_scene = self
         self.rects = None
         self.screen = pygame.display.get_surface()
@@ -188,16 +201,22 @@ class Scene(SceneInterface, EventInterface):
         self.screen = pygame.display.get_surface()
         self.background = pygame.Surface(self.screen.get_size())
         self.background.convert()
-        self.background.fill(self.background_color)
+        self.background_color = BLACK
 
         # I don't think this will work since init() is called first.
         # for group in groups:
         #    for sprite in self.all_sprites:
         #        group.add(sprite)
 
-        self.all_sprites.clear(self.screen, self.background)
+    @property
+    def background_color(self):
+        return self._background_color
 
-        self.clock = pygame.time.Clock()
+    @background_color.setter
+    def background_color(self, new_color):
+        self._background_color = new_color
+        self.background.fill(self.background_color)
+        self.all_sprites.clear(self.screen, self.background)
 
     def update(self):
         self.rects = self.all_sprites.draw(self.screen)
@@ -327,15 +346,23 @@ class Scene(SceneInterface, EventInterface):
         for sprite in collided_sprites:
             sprite.on_right_mouse_button_down_event(event)
 
+    def on_key_up_event(self, event):
+        # Wire up quit by default for escape and q.
+        #
+        # If a game implements on_key_up_event themselves
+        # they'll have to map their quit keys or call super().on_key_up_event()
+        if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+            self.log.info('User requested quit.')
+            self.quit()
+
     def on_quit_event(self, event):
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
         self.scene_manager.terminate()
 
-    # TODO: Need to decouple the FPS behavior
-    # def on_fps_event(self, event):  # noqa: W0613
-    #     # FPSEVENT is pygame.USEREVENT + 1
-    #     self.log.info(f'{type(self)}: {GameEngine.FPS}')
+    def on_fps_event(self, event):  # noqa: W0613
+        # FPSEVENT is pygame.USEREVENT + 1
+        self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
 
     def load_resources(self):  # noqa: R0201
         self.log.debug(f'Implement load_resource() in {type(self)}.')

@@ -1127,7 +1127,6 @@ class Bitmappy(Scene):
 
     #     # print(f'Mouse Drag @ {mouse.rect}')
 
-
     @classmethod
     def args(cls, parser):
         parser.add_argument('-v', '--version',

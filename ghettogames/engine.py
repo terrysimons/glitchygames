@@ -14,7 +14,6 @@ import pygame.gfxdraw
 import pygame.locals
 
 from ghettogames.color import PURPLE, VGA
-import ghettogames.events
 from ghettogames.events import ResourceManager, EventManager
 from ghettogames.events import FPSEVENT, GAMEEVENT, MENUEVENT
 
@@ -235,32 +234,6 @@ class GameEngine(EventManager):
         # object
         GameEngine.game = game
         self.scene_manager = SceneManager()
-        self.scene_manager.game_engine = self
-        self.scene_manager.OPTIONS = GameEngine.OPTIONS
-
-        self.registered_events = {}
-        self.audio_manager = AudioManager(self.scene_manager)
-        # TODO: self.controller_manager = ControllerManager(self.scene_manager)
-        # TODO: self.finger_manager = FingerManager(self.scene_manager)
-        self.font_manager = FontManager(self.scene_manager)
-        self.game_manager = GameManager(self.scene_manager)
-        self.joystick_manager = JoystickManager(self.scene_manager)
-        self.keyboard_manager = KeyboardManager(self.scene_manager)
-        self.midi_manager = MidiManager(self.scene_manager)
-        self.mouse_manager = MouseManager(self.scene_manager)
-        # TODO: self.window_manager = WindowManager(self.scene_manager)
-
-        # TODO: Something similar for controllers?
-        # self.controllers = []
-        # if self.controller_manager:
-        #     self.controllers = self.controller_manager.controllers
-        # self.controller_count = len(self.controllers)
-
-        # Get count of joysticks
-        self.joysticks = []
-        if self.joystick_manager:
-            self.joysticks = self.joystick_manager.joysticks
-        self.joystick_count = len(self.joysticks)
 
         # Resolution initialization.
         # Convert our resolution to a tuple
@@ -478,8 +451,8 @@ class GameEngine(EventManager):
         pygame.display.set_icon(icon)
 
         # Set the display caption.
-        pygame.display.set_caption(f'{type(self).NAME}',
-                                   f'{type(self).NAME}')
+        pygame.display.set_caption(f'{type(self).NAME} v{self.VERSION}',
+                                   f'{type(self).NAME} v{self.VERSION}')
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
@@ -557,8 +530,34 @@ class GameEngine(EventManager):
     def start(self):
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
-        self.scene_manager.switch_to_scene(self.game)
+
         self.scene_manager.game_engine = self
+
+        self.registered_events = {}
+        self.audio_manager = AudioManager(game=self.scene_manager)
+        # TODO: self.controller_manager = ControllerManager(game=self.scene_manager)
+        # TODO: self.finger_manager = FingerManager(game=self.scene_manager)
+        self.font_manager = FontManager(game=self.scene_manager)
+        self.game_manager = GameManager(game=self.scene_manager)
+        self.joystick_manager = JoystickManager(game=self.scene_manager)
+        self.keyboard_manager = KeyboardManager(game=self.scene_manager)
+        self.midi_manager = MidiManager(game=self.scene_manager)
+        self.mouse_manager = MouseManager(game=self.scene_manager)
+        # TODO: self.window_manager = WindowManager(game=self.scene_manager)
+
+        # TODO: Something similar for controllers?
+        # self.controllers = []
+        # if self.controller_manager:
+        #     self.controllers = self.controller_manager.controllers
+        # self.controller_count = len(self.controllers)
+
+        # Get count of joysticks
+        self.joysticks = []
+        if self.joystick_manager:
+            self.joysticks = self.joystick_manager.joysticks
+        self.joystick_count = len(self.joysticks)
+
+        self.scene_manager.switch_to_scene(self.game)
         self.scene_manager.start()
 
     def quit(self):  # noqa: R0201
@@ -728,7 +727,7 @@ class GameEngine(EventManager):
     def process_game_event(self, event):
         # Game events are listed in the order they're most
         # likely to occur in.
-        if event.type == ghettogames.events.FPSEVENT:
+        if event.type == FPSEVENT:
             # FPSEVENT is pygame.USEREVENT + 1
             self.game_manager.on_fps_event(event)
         elif event.type == GAMEEVENT:
@@ -778,6 +777,8 @@ class GameEngine(EventManager):
 
             self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
             self.log.info
+
+        # Ensures we can always ctrl-c in cases where event spam occurs.
         time.sleep(0)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.

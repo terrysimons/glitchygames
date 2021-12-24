@@ -135,7 +135,6 @@ class BallSprite(Sprite):
             )
         )
 
-
         pygame.draw.circle(self.image,
                            WHITE,
                            (self.width // 2, self.height // 2),
@@ -279,21 +278,24 @@ class TextSprite(Sprite):
                 self.rect.x -= 10
 
         self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
-
-        self.update()
+        self.dirty = 2
 
     def update(self):
-        self.dirty = 2
         self.image.fill(self.background_color)
 
         self.text_box.reset()
         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
-        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
 
-class TableScene(Scene):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(groups=groups)
+class Game(Scene):
+    # Set your game name/version here.
+    NAME = "Paddle Slap"
+    VERSION = "1.1"
+
+    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(options=options, groups=groups)
+        self.fps = 60
+
         self.player1 = PaddleSprite(name="Player 1",)
         self.player2 = PaddleSprite(name="Player 2")
         self.ball = BallSprite()
@@ -311,6 +313,14 @@ class TableScene(Scene):
 
         self.all_sprites.clear(self.screen, self.background)
         self.dirty = 1
+
+        self.next_scene = self
+
+    @classmethod
+    def args(cls, parser):
+        parser.add_argument('-v', '--version',
+                            action='store_true',
+                            help='print the game version and exit')
 
     def update(self):
         super().update()
@@ -334,6 +344,9 @@ class TableScene(Scene):
         self.dirty = 1
 
     def on_key_up_event(self, event):
+        # Handle ESC/q to quit
+        super().on_key_up_event(event)
+
         # KEYUP            key, mod
         if event.key == pygame.K_UP:
             self.player1.stop()
@@ -354,42 +367,6 @@ class TableScene(Scene):
             self.player2.move_up()
         if event.key == pygame.K_s:
             self.player2.move_down()
-
-
-class Game(Scene):
-    # Set your game name/version here.
-    NAME = "Paddle Slap"
-    VERSION = "1.1"
-
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(options=options, groups=groups)
-        self.load_resources()
-
-        # pygame.event.set_blocked(self.mouse_events)
-        # pygame.event.set_blocked(self.joystick_events)
-        # pygame.event.set_blocked(self.keyboard_events)
-
-        # Hook up some events.
-        # self.register_game_event('save', self.on_save_event)
-        # self.register_game_event('load', self.on_load_event)
-        self.next_scene = TableScene()
-
-    @classmethod
-    def args(cls, parser):
-        parser = parser.add_argument_group('Game Options')
-
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
-
-    def on_key_up_event(self, event):
-        self.active_scene.on_key_up_event(event)
-
-        # KEYUP            key, mod
-        if event.key == pygame.K_q:
-            log.info('User requested quit.')
-            event = pygame.event.Event(pygame.QUIT, {})
-            pygame.event.post(event)
 
 
 def main():
