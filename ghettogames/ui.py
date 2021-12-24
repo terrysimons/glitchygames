@@ -27,7 +27,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.height = height
         self.has_focus = False
         self.dirty = 1
-        self.log.info(f'MENUBAR GROUPS: {groups}')
+        self.log.debug(f'MENUBAR GROUPS: {groups}')
 
         pygame.draw.rect(self.image, (255, 255, 255), self.rect)
         pygame.draw.rect(self.image, (255, 255, 255), self.rect, self.border_width)
@@ -35,20 +35,20 @@ class MenuBar(FocusableSingletonBitmappySprite):
     def add_menu(self, menu):
         # This makes sure that the menu items get drawn when the menu bar gets drawn.
         self.menu_items[menu.name] = menu
-        self.log.info(f'add_menu({menu})')
+        self.log.debug(f'add_menu({menu})')
         menu.image.set_colorkey((255, 255, 255))
         menu.add(self.groups())
         menu.rect.x += self.menu_offset_x
         menu.rect.y += self.menu_offset_y
         self.menu_offset_x += menu.rect.width
-        self.log.info(f'Menu Items: {self.menu_items}')
+        self.log.debug(f'Menu Items: {self.menu_items}')
 
     def add_menu_item(self, menu_item, menu):
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.info(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
         else:
-            self.log.info(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
 
         self.dirty = 1
 
@@ -61,10 +61,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
             pygame.draw.rect(self.image, (255, 255, 0), self.rect, 1)
 
     def on_mouse_motion_event(self, event):
-        self.log.info(f'{type(self)} MOUSE MOVE {self.name}')
+        self.log.debug(f'{type(self)} MOUSE MOVE {self.name}')
 
     def on_mouse_enter_event(self, event):
-        self.log.info(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
         # Figure out which item was entered.
         mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
@@ -75,7 +75,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(f'{type(self)} {self.name} Mouse enter on {self.name} at {mouse}')
+                self.log.debug(f'{type(self)} {self.name} Mouse enter on {self.name} at {mouse}')
                 collided_sprite.on_mouse_enter_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -95,7 +95,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(f'{type(self)} {self.name} Mouse exit on {self.name} at {mouse}')
+                self.log.debug(f'{type(self)} {self.name} Mouse exit on {self.name} at {mouse}')
                 collided_sprite.on_mouse_exit_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -115,7 +115,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(f'{type(self)} Mouse button down on {self.name} at {mouse}')
+                self.log.debug(f'{type(self)} Mouse button down on {self.name} at {mouse}')
                 collided_sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -133,8 +133,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if sprite.name in self.menu_items:
-                self.log.info(f'{type(self)} {self.name} '
-                              f'Mouse button down on {self.name} at {mouse}')
+                self.log.debug(f'{type(self)} {self.name} '
+                               f'Mouse button down on {self.name} at {mouse}')
                 sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in sprite.menu_items:
@@ -150,7 +150,7 @@ class MenuItem(BitmappySprite):
                          filename=filename, groups=groups)
         self.all_sprites = groups
 
-        self.log.info(f'MENUITEM GROUPS: {groups}')
+        self.log.debug(f'MENUITEM GROUPS: {groups}')
 
         self.background_color = (255, 0, 255)
         self.border_width = 2
@@ -231,9 +231,9 @@ class MenuItem(BitmappySprite):
         height = self.rect.height
 
         if heights:
-            self.log.info(f'Heights: {heights}')
+            self.log.debug(f'Heights: {heights}')
             heights.append(self.rect.height)
-            self.log.info(f'New Heights: {heights}')
+            self.log.debug(f'New Heights: {heights}')
             height = sum(heights)
 
         # Create a new image that is self.height + [menu.height for menu in self.menu_items]
@@ -262,17 +262,17 @@ class MenuItem(BitmappySprite):
     def add_menu_item(self, menu_item, menu):
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.info(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
         else:
-            self.log.info(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
 
     def update(self):
-        # self.log.info(f'Menu Items: {self.menu_items.items()}')
+        # self.log.debug(f'Menu Items: {self.menu_items.items()}')
         self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
         if self.active:
             if self.menu_image and self.menu_rect:
-                self.log.info('Trying to draw the menu')
+                self.log.debug('Trying to draw the menu')
                 pygame.display.get_surface().blit(self.menu_image,
                                                   (self.menu_rect.x, self.menu_rect.y))
         self.dirty = 1
@@ -282,15 +282,15 @@ class MenuItem(BitmappySprite):
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-        # self.log.info(f'{type(self)} MOUSE ITEM MOVE {self.name} at {mouse.rect}')
+        # self.log.debug(f'{type(self)} MOUSE ITEM MOVE {self.name} at {mouse.rect}')
 
         # for menu_name in self.menu_items:
         #    menu_item = self.menu_items[menu_name]
-        #    self.log.info(f'{menu_item.name} @ {menu_item.rect} mouse @ {mouse.rect}')
+        #    self.log.debug(f'{menu_item.name} @ {menu_item.rect} mouse @ {mouse.rect}')
 
         for collided_sprite in collided_sprites:
             if collided_sprite.name in self.menu_items:
-                self.log.info(
+                self.log.debug(
                     f'Mouse enter on {collided_sprite.name} '
                     f'{collided_sprite.rect} at {mouse.rect}'
                 )
@@ -303,7 +303,7 @@ class MenuItem(BitmappySprite):
         self.dirty = 1
 
     def on_mouse_enter_event(self, event):
-        self.log.info(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
         # Figure out which item was entered.
         mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
@@ -314,7 +314,7 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(
+                self.log.debug(
                     f'Mouse enter on {collided_sprite.name} '
                     f'{collided_sprite.rect} at {mouse.rect}'
                 )
@@ -337,7 +337,7 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(
+                self.log.debug(
                     f'Mouse exit on {collided_sprite.name} '
                     f'{collided_sprite.rect} at {mouse}'
                 )
@@ -350,7 +350,7 @@ class MenuItem(BitmappySprite):
         self.dirty = 1
 
     def on_left_mouse_button_up_event(self, event):
-        self.log.info(f'{type(self)} Mouse Up {self.name}')
+        self.log.debug(f'{type(self)} Mouse Up {self.name}')
         self.image = self.menu_up_image
         self.rect = self.menu_up_rect
         self.active = 0
@@ -360,7 +360,7 @@ class MenuItem(BitmappySprite):
         # Figure out which item was clicked.
         mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-        self.log.info(f'Process MOUSE UP {event} at {mouse}')
+        self.log.debug(f'Process MOUSE UP {event} at {mouse}')
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -369,9 +369,9 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                # self.log.info(f'Mouse button up on {collided_sprite.name} at {mouse.rect}')
+                # self.log.debug(f'Mouse button up on {collided_sprite.name} at {mouse.rect}')
 
-                self.log.info(
+                self.log.debug(
                     f'{type(self)} Clicked Menu Item: Name: {collided_sprite.name}, '
                     f'Width: {collided_sprite.rect.width},'
                     f'Height: {collided_sprite.rect.height}, '
@@ -395,7 +395,7 @@ class MenuItem(BitmappySprite):
         self.dirty = 1
 
     def on_left_mouse_button_down_event(self, event):
-        self.log.info(f'{type(self)} Mouse Down {self.name}')
+        self.log.debug(f'{type(self)} Mouse Down {self.name}')
         self.image = self.menu_down_image
         self.rect = self.menu_down_rect
         self.active = 1
@@ -413,7 +413,7 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.info(
+                self.log.debug(
                     f'{type(collided_sprite)} Mouse button down on '
                     f'{collided_sprite.name} at {mouse.rect}'
                 )
@@ -493,7 +493,7 @@ class TextSprite(BitmappySprite):
 
             # This will essentially pass any unhandled events back to the parent.
             for proxy in self.proxies:
-                self.log.info(f'Proxy: {proxy}')
+                self.log.debug(f'Proxy: {proxy}')
                 try:
                     return getattr(proxy, attr)
                 except AttributeError:
@@ -631,12 +631,12 @@ class ButtonSprite(BitmappySprite):
     #         self.text.dirty = 1
     #         self.text.update()
 
-    #         self.log.info(f'Box Width = {self.text.rect.width}')
-    #         self.log.info(f'Box Height = {self.text.rect.height}')
-    #         self.log.info(f'Text Box width = {self.text.text_box.rect.width}')
-    #         self.log.info(f'Text Box height = {self.text.text_box.rect.height}')
-    #         self.log.info(f'Text Box X: {self.text.x}, {self.text.rect.x}')
-    #         self.log.info(f'Text Box Y: {self.text.y}, {self.text.rect.y}')
+    #         self.log.debug(f'Box Width = {self.text.rect.width}')
+    #         self.log.debug(f'Box Height = {self.text.rect.height}')
+    #         self.log.debug(f'Text Box width = {self.text.text_box.rect.width}')
+    #         self.log.debug(f'Text Box height = {self.text.text_box.rect.height}')
+    #         self.log.debug(f'Text Box X: {self.text.x}, {self.text.rect.x}')
+    #         self.log.debug(f'Text Box Y: {self.text.y}, {self.text.rect.y}')
 
     #         self.image.blit(self.text.image, (self.rect.centerx,
     #                                          self.rect.centery,
