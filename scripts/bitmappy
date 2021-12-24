@@ -1077,25 +1077,25 @@ class Bitmappy(Scene):
         except IndexError:
             pass
 
-    # def on_left_mouse_button_down_event(self, event):
+    def on_left_mouse_button_down_event(self, event):
 
-    #     # sprites = self.collided_sprites(event=event)
-    #    # Check for a sprite collision against the mouse pointer.
-    #    #
-    #    # First, we need to create a pygame Sprite that represents the tip of the mouse.
-    #     mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        # sprites = self.collided_sprites(event=event)
+        # Check for a sprite collision against the mouse pointer.
+        #
+        # First, we need to create a pygame Sprite that represents the tip of the mouse.
+        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-    #     sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-    # #    self.log.info(f'SPRITES: {sprites}')
+    #    self.log.info(f'SPRITES: {sprites}')
 
-    #     # if sprites:
-    #     #     sprites[-1].on_left_mouse_button_down_event(event)
+        # if sprites:
+        #     sprites[-1].on_left_mouse_button_down_event(event)
 
-    #     for sprite in sprites:
-    #        sprite.on_left_mouse_button_down_event(event)
+        for sprite in sprites:
+           sprite.on_left_mouse_button_down_event(event)
 
-    #     self.dirty = 1
+        self.dirty = 1
 
     # def on_left_mouse_button_up_event(self, event):
     #     # Check for a sprite collision against the mouse pointer.
@@ -1111,12 +1111,23 @@ class Bitmappy(Scene):
     #    print(f'Mouse @ {mouse.rect}')
     #    self.dirty = 1
 
-    # def on_mouse_drag_event(self, event, trigger):
-    #     # Check for a sprite collision against the mouse pointer.
-    #     #
-    #     # First, we need to create a pygame Sprite that represents the tip of the mouse.
+    def on_left_mouse_drag_event(self, event, trigger):
+        # Check for a sprite collision against the mouse pointer.
+        #
+        # First, we need to create a pygame Sprite that represents the tip of the mouse.
+        print(f'BITMAPPY Mouse Drag')
+        # self.canvas.on_left_mouse_drag_event(event, trigger)
 
-    #     print(f'BITMAPPY Mouse Drag')
+        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+
+        sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+
+
+        for sprite in sprites:
+           sprite.on_left_mouse_button_down_event(event)
+
+        self.dirty = 1
+
 
     #     self.on_left_mouse_button_up_event(event)
 
