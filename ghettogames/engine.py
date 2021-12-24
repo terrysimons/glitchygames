@@ -764,11 +764,6 @@ class GameEngine(EventManager):
     def process_unimplemented_event(self, event):
         self.log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
 
-    def register_game_event(self, event_type, callback):
-        # This registers a subtype of type GAMEEVENT to call a callback.
-        self.log.info(f'Registering event type "{event_type}" for {callback}')
-        self.registered_events[event_type] = callback
-
     def post_game_event(self, event_subtype, event_data):  # noqa: R0201
         event = event_data.copy()
         event['subtype'] = event_subtype
@@ -777,12 +772,24 @@ class GameEngine(EventManager):
         )
         self.log.debug(f'Posted Event: {event}')
 
+    def suppress_event(self, *args, attr, **kwargs):
+        print(f'Suppressing event: {attr}({args}, {kwargs})')
+
+    def register_game_event(self, event_type, callback):
+        # This registers a subtype of type GAMEEVENT to call a callback.
+        self.log.info(f'Registering event type "{event_type}" for {callback}')
+        self.registered_events[event_type] = callback
+
     def missing_event(self, *args, **kwargs):
         if self.LAST_EVENT_MISS not in self.MISSING_EVENTS:
             self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
 
             self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
-            self.log.info
+            self.suppress_event(
+                *args,
+                attr=self.LAST_EVENT_MISS,
+                **kwargs
+            )
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
         time.sleep(0)
@@ -795,12 +802,10 @@ class GameEngine(EventManager):
     # This allows maximum flexibility of event processing, with low overhead
     # at the expense of a slight layer violation.
     def __getattr__(self, attr):
-        # Attempt to proxy the call to the active scene.
-        try:
-            return getattr(self.scene_manager.active_scene, attr)
-        except AttributeError:
-            # self.log.info(f'{attr}() is not implemented for {type(self.scene_manager)} or '
-            #               f'for the active scene {type(self.scene_manager.active_scene)}')
+        #
+        if attr.startswith('on_') and attr.endswith('_event'):
             self.LAST_EVENT_MISS = attr
 
             return self.missing_event
+        else:
+            raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
