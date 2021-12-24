@@ -4,14 +4,13 @@ import logging
 
 import pygame
 
-from ghettogames.events import MouseEvents
 from ghettogames.pixels import rgb_triplet_generator
 
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
 
-class RootSprite(MouseEvents, pygame.sprite.DirtySprite):
+class RootSprite(pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
 
@@ -298,10 +297,6 @@ class Sprite(RootSprite):
     def on_user_event(self, event):
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
-
-    # def on_fps_event(self, event):  # noqa: W0613
-    #     # FPSEVENT is pygame.USEREVENT + 1
-    #     self.log.debug(f'{type(self)}: {GameEngine.FPS}')
 
     # def __getattr__(self, attr):
     #    import pdb; pdb.set_trace()
