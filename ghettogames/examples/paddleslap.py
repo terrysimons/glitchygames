@@ -134,18 +134,28 @@ class BallSprite(Sprite):
                 'resources/snd/sfx_menu_move1.wav'
             )
         )
-
-        pygame.draw.circle(self.image,
-                           WHITE,
-                           (self.width // 2, self.height // 2),
-                           5,
-                           0)
+        self.color = WHITE
 
         self.reset()
 
         # The ball always needs refreshing.
         # This saves us a set on dirty every update.
         self.dirty = 2
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, new_color):
+        self._color = new_color
+        pygame.draw.circle(
+            self.image,
+            self._color,
+            (self.width // 2, self.height // 2),
+            5,
+            0
+        )
 
     def _do_bounce(self):
         if self.rect.y <= 0:
@@ -294,11 +304,17 @@ class Game(Scene):
 
     def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)
-        self.fps = 60
+        self.fps = 0
 
         self.player1 = PaddleSprite(name="Player 1",)
         self.player2 = PaddleSprite(name="Player 2")
-        self.ball = BallSprite()
+        self.balls = [BallSprite() for _ in range(self.options.get('balls', 1))]
+
+        for ball in self.balls:
+            red = random.randint(0, 255)
+            green = random.randint(0, 255)
+            blue = random.randint(0, 255)
+            ball.color = (red, green, blue)
 
         # Set player 2's position on the right side of the screen.
         self.player2.rect.x = self.player2.screen.get_width() - self.player2.width
@@ -307,7 +323,7 @@ class Game(Scene):
             (
                 self.player1,
                 self.player2,
-                self.ball
+                *self.balls
             )
         )
 
@@ -322,26 +338,30 @@ class Game(Scene):
                             action='store_true',
                             help='print the game version and exit')
 
+        parser.add_argument('-b', '--balls',
+                            type=int,
+                            help='the number of balls to start with',
+                            default=1)
+
     def update(self):
+        for ball in self.balls:
+            if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
+                ball.rally.hit()
+                if ball.rally.do_rally():
+                    ball.rally.reset()
+
+                self.player1.slap_snd.play()
+                ball.speed.x *= -1
+
+            if pygame.sprite.collide_rect(self.player2, ball) and ball.speed.x > 0:
+                ball.rally.hit()
+                if ball.rally.do_rally():
+                    ball.rally.reset()
+
+                self.player2.slap_snd.play()
+                ball.speed.x *= -1
+
         super().update()
-
-        if pygame.sprite.collide_rect(self.player1, self.ball) and self.ball.speed.x <= 0:
-            self.ball.rally.hit()
-            if self.ball.rally.do_rally():
-                self.ball.rally.reset()
-
-            self.player1.slap_snd.play()
-            self.ball.speed.x *= -1
-
-        if pygame.sprite.collide_rect(self.player2, self.ball) and self.ball.speed.x > 0:
-            self.ball.rally.hit()
-            if self.ball.rally.do_rally():
-                self.ball.rally.reset()
-
-            self.player2.slap_snd.play()
-            self.ball.speed.x *= -1
-
-        self.dirty = 1
 
     def on_key_up_event(self, event):
         # Handle ESC/q to quit
