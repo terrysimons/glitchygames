@@ -528,37 +528,43 @@ class GameEngine(EventManager):
         return parser
 
     def start(self):
-        # Initialize the game instance
-        self.game = self.game(options=GameEngine.OPTIONS)
+        try:
+            # Initialize the game instance
+            self.game = self.game(options=GameEngine.OPTIONS)
 
-        self.scene_manager.game_engine = self
+            self.scene_manager.game_engine = self
 
-        self.registered_events = {}
-        self.audio_manager = AudioManager(game=self.scene_manager)
-        # TODO: self.controller_manager = ControllerManager(game=self.scene_manager)
-        # TODO: self.finger_manager = FingerManager(game=self.scene_manager)
-        self.font_manager = FontManager(game=self.scene_manager)
-        self.game_manager = GameManager(game=self.scene_manager)
-        self.joystick_manager = JoystickManager(game=self.scene_manager)
-        self.keyboard_manager = KeyboardManager(game=self.scene_manager)
-        self.midi_manager = MidiManager(game=self.scene_manager)
-        self.mouse_manager = MouseManager(game=self.scene_manager)
-        # TODO: self.window_manager = WindowManager(game=self.scene_manager)
+            self.registered_events = {}
+            self.audio_manager = AudioManager(game=self.scene_manager)
+            # TODO: self.controller_manager = ControllerManager(game=self.scene_manager)
+            # TODO: self.finger_manager = FingerManager(game=self.scene_manager)
+            self.font_manager = FontManager(game=self.scene_manager)
+            self.game_manager = GameManager(game=self.scene_manager)
+            self.joystick_manager = JoystickManager(game=self.scene_manager)
+            self.keyboard_manager = KeyboardManager(game=self.scene_manager)
+            self.midi_manager = MidiManager(game=self.scene_manager)
+            self.mouse_manager = MouseManager(game=self.scene_manager)
+            # TODO: self.window_manager = WindowManager(game=self.scene_manager)
 
-        # TODO: Something similar for controllers?
-        # self.controllers = []
-        # if self.controller_manager:
-        #     self.controllers = self.controller_manager.controllers
-        # self.controller_count = len(self.controllers)
+            # TODO: Something similar for controllers?
+            # self.controllers = []
+            # if self.controller_manager:
+            #     self.controllers = self.controller_manager.controllers
+            # self.controller_count = len(self.controllers)
 
-        # Get count of joysticks
-        self.joysticks = []
-        if self.joystick_manager:
-            self.joysticks = self.joystick_manager.joysticks
-        self.joystick_count = len(self.joysticks)
+            # Get count of joysticks
+            self.joysticks = []
+            if self.joystick_manager:
+                self.joysticks = self.joystick_manager.joysticks
+            self.joystick_count = len(self.joysticks)
 
-        self.scene_manager.switch_to_scene(self.game)
-        self.scene_manager.start()
+            self.scene_manager.switch_to_scene(self.game)
+            self.scene_manager.start()
+        except Exception as e:
+            raise e
+        finally:
+            pygame.display.quit()
+            pygame.quit()
 
     def quit(self):  # noqa: R0201
         # put a quit event in the event queue.
