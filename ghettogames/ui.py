@@ -6,6 +6,7 @@ import pygame
 from ghettogames.color import WHITE, BLACKLUCENT
 from ghettogames.engine import FontManager
 from ghettogames.engine import GameEngine
+from ghettogames import events
 from ghettogames.sprites import FocusableSingletonBitmappySprite
 from ghettogames.sprites import BitmappySprite, RootSprite
 from ghettogames.sprites import MousePointer
@@ -450,6 +451,7 @@ class TextSprite(BitmappySprite):
             self.active_text_color = self.text_color
             self.active_background_color = self.background_color
             self.font = font
+            self.name = type(parent)
             self.proxies = [parent]
             (self.image, self.rect) = self.font.render(text, fgcolor=self.active_text_color)
             # , bgcolor=self.active_background_color)
