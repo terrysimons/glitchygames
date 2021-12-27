@@ -763,8 +763,8 @@ class SliderSprite(BitmappySprite):
     class SliderKnobSprite(BitmappySprite):
         log = LOG
 
-        def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
-            super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+        def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):
+            super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
 
             self.value = 0
 
@@ -792,16 +792,17 @@ class SliderSprite(BitmappySprite):
             self.on_left_mouse_button_down_event(event)
             self.dirty = 1
 
-    def __init__(self, x, y, width, height, name=None,
+    def __init__(self, x, y, width, height, name=None, parent=None,
                  groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width + 20, height=height, name=name, groups=groups)
+        super().__init__(x=x, y=y, width=width + 20, height=height, name=name, parent=parent, groups=groups)
         self.text_sprite = TextBoxSprite(
             x=x + width,
             y=y,
             width=40,
             height=20,
             name=str((0, 0, 0)),
-            groups=groups
+            parent=self,
+            groups=groups,
         )
 
         self.text_sprite.border_width = 1
@@ -812,6 +813,7 @@ class SliderSprite(BitmappySprite):
             width=height,
             height=height * 1.5,
             name=name,
+            parent=self,
             groups=groups
         )
 
@@ -906,8 +908,8 @@ class SliderSprite(BitmappySprite):
 class ColorWellSprite(BitmappySprite):
     log = LOG
 
-    def __init__(self, x, y, width, height, name, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+    def __init__(self, x, y, width, height, name, parent=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
         self.red = 0
         self.green = 0
         self.blue = 0
@@ -919,6 +921,7 @@ class ColorWellSprite(BitmappySprite):
                                          width=100,
                                          height=20,
                                          name=str(self.active_color),
+                                         parent=self,
                                          groups=groups)
 
         self.text_sprite.border_width = 1
