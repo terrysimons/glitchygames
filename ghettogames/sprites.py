@@ -506,17 +506,6 @@ class SingletonBitmappySprite(BitmappySprite):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
 
-class Screenshot(Sprite):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
-        self.screen = pygame.display.get_surface()
-        self._screenshot = pygame.Surface((self.screen.get_width(), self.screen.get_height()))
-
-        self.dirty = 2
-
-    def update(self, screen):
-        self._screenshot.blit(screen, (0, 0))
-
-
 # This is a root class for focusable sprites that should be singletons, like
 # the MenuBar class.
 class FocusableSingletonBitmappySprite(BitmappySprite):

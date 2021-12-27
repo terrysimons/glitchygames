@@ -5,7 +5,7 @@ import pygame
 
 from ghettogames.color import BLACK
 from ghettogames.events import EventInterface, EventManager
-from ghettogames.sprites import MousePointer, Screenshot
+from ghettogames.sprites import MousePointer
 
 from ghettogames.events import FPSEVENT
 
@@ -37,7 +37,6 @@ class SceneManager(SceneInterface, EventManager):
         self.active_scene = None
         self.next_scene = self.active_scene
         self.previous_scene = self.active_scene
-        self.quit_requested = False
 
         self.clock = pygame.time.Clock()
 
@@ -101,7 +100,7 @@ class SceneManager(SceneInterface, EventManager):
         start_time = time.perf_counter()
         current_time = start_time
 
-        while self.active_scene is not None and self.quit_requested == False:
+        while self.active_scene is not None:
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
@@ -126,9 +125,6 @@ class SceneManager(SceneInterface, EventManager):
 
             current_time = time.perf_counter()
 
-        self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, Quit Requested: {self.quit_requested}')
-        self.terminate()
-
     def terminate(self):
         self.switch_to_scene(None)
 
@@ -141,7 +137,8 @@ class SceneManager(SceneInterface, EventManager):
 
     def on_quit_event(self, event):
         # QUIT             none
-        self.quit_requested = True
+        self.active_scene.on_quit_event(event)
+        self.terminate()
 
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
@@ -158,9 +155,6 @@ class SceneManager(SceneInterface, EventManager):
                 f'Unregistered Event: {event} '
                 '(call self.register_game_event(<event subtype>, <event data>))'
             )
-
-    def register_game_event(self, event_type, callback):
-        self.game_engine.register_game_event(event_type=event_type, callback=callback)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
@@ -182,7 +176,7 @@ class SceneManager(SceneInterface, EventManager):
             raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
 
 
-class Scene(EventInterface):
+class Scene(SceneInterface, EventInterface):
     """
     Scene object base class.
 
@@ -229,13 +223,6 @@ class Scene(EventInterface):
         # for group in groups:
         #    for sprite in self.all_sprites:
         #        group.add(sprite)
-
-    @property
-    def screenshot(self):
-        _screenshot = pygame.Surface((self.screen_width, self.screen_height))
-        _screenshot.convert()
-        _screenshot.blit(self.screen, (0, 0))
-        return _screenshot
 
     @property
     def background_color(self):
