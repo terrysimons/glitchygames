@@ -464,7 +464,7 @@ class TextSprite(BitmappySprite):
             self.rect.centery = self.y
             self.y += self.line_height
             self.dirty = 1
-q
+
         def reset(self):
             self.x = self.start_x
             self.y = self.start_y
@@ -775,15 +775,6 @@ class SliderSprite(BitmappySprite):
         self.rect.y = self.y
         self.text_sprite.start_x = 0
         self.text_sprite.start_y = 0
-        self._dirty = 1
-
-    @property
-    def dirty(self):
-        return self._dirty
-
-    @dirty.setter
-    def dirty(self, new_dirty):
-        self._dirty = new_dirty
 
     @property
     def value(self):
@@ -794,7 +785,7 @@ class SliderSprite(BitmappySprite):
         self.slider_knob.value = value
 
     def update_nested_sprites(self):
-        self.text_sprite.dirty = self._dirty
+        self.text_sprite.dirty = self.dirty
 
     def update(self):
         pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
