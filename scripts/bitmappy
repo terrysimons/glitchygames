@@ -55,7 +55,7 @@ class BitmapPixelSprite(BitmappySprite):
         self.dirty = 1
 
     def update(self):
-        self.log.info(f'Updating Pixel #: {self.pixel_number} @ {self.x}, {self.y}')
+        self.log.debug(f'Updating Pixel #: {self.pixel_number} @ {self.x}, {self.y}')
         cached_image = BitmapPixelSprite.PIXEL_CACHE.get(self.pixel_color)
 
         if not cached_image:
@@ -190,16 +190,12 @@ class CanvasSprite(BitmappySprite):
         for i in range(self.pixels_across * self.pixels_tall):
             self.pixel_boxes[i].pixel_color = self.pixels[i]
             self.pixel_boxes[i].add(self.all_sprites)
-            self.pixel_boxes[i].add(groups)
-
-            print(i)
 
             # This allows us to update the mini map.
-            # self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
+            self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
 
             # This draws the map box.
             self.pixel_boxes[i].dirty = 1
-            self.pixel_boxes[i].update()
 
         if has_mini_view:
             pixel_width, pixel_height = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
@@ -213,16 +209,11 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.rect.x = self.screen_width - self.mini_view.width
             self.mini_view.rect.y = self.rect.y
 
-        # Do some cleanup
-        # For some reason we have a double grid border, so let's wipe out the canvas.
-        #self.image.fill((255, 255, 0), rect=self.rect)
-
         self.update_anyway = False
 
     def on_pixel_update_event(self, event, trigger):
         if self.mini_view:
             self.mini_view.pixels[trigger.pixel_number] = trigger.pixel_color
-            # Note: Shouldn't we
             self.mini_view.dirty_pixels[trigger.pixel_number] = True
             self.mini_view.on_pixel_update_event(event, trigger)
             self.mini_view.dirty = 1
@@ -237,80 +228,33 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.dirty = self.dirty
 
     def update(self):
-        self.draw_grid()
-        # if self.mini_view is None:
-        #     # This means that we're in a mini view, which itself doesn't contain a mini view.
-        #     self.draw_pixels()
-        # else:
-        # self.draw_grid()
-
-        # self.draw_pixels()
-
-    # def draw_pixels(self):
-    #     update_mini_view = False
-
-    #     # for pixel_box in self.pixel_boxes:
-    #     #     if pixel_box.dirty:
-    #     #         self.log.info(f'Pixel Box is Dirty: {pixel_box}')
-    #     #         update_mini_view = True
-    #     #         pixel_box.update()
-
-    #     if self.mini_view and update_mini_view:
-    #         self.mini_view.dirty = 1
-    #         self.mini_view.update()
-
-    def draw_grid(self):
-    #     # Note: We should do this instead.
-    #     # self.grid.update()
-
-    #     x = 0
-    #     y = 0
-    #     self.border_thickness = 0
-    #     self.border_margin = 0
-    #     for i, pixel_box in enumerate(self.pixel_boxes):
-    #         self.log.info(f'Pixel Number: {i}')
-    #         self.log.info(f'My X: {self.x}, My Y: {self.y}')
-    #         self.log.info(f'My Rect X: {self.rect.x}, My Rect Y: {self.rect.y}')
-    #         # self.log.info(f'pixel_x: {pixel_x}, y: {pixel_y}')
-    #         self.log.info(f'Pixel box rect x: {pixel_box.rect.x}, Pixel box rect y: {pixel_box.rect.y}')
-    #         self.log.info(f'Pixel box x: {pixel_box.x}, Pixel box y: {pixel_box.y}\n')
-
-        # for i, pixel_box in enumerate(self.pixel_boxes):
-        #     self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
-
-
         x = 0
         y = 0
         self.border_thickness = 0
         self.border_margin = 0
         for i, pixel_box in enumerate(self.pixel_boxes):
-            print(f'Pixel Box: {i}')
-            pixel_x = x * pixel_box.pixel_width
-            pixel_y = y * pixel_box.pixel_height
+            if pixel_box.dirty:
+                pixel_x = x * pixel_box.pixel_width
+                pixel_y = y * pixel_box.pixel_height
 
-            adjusted_pixel_box_width = pixel_box.pixel_width if x == 0 else pixel_box.pixel_width - 1
-            adjusted_pixel_box_height = pixel_box.pixel_height if y == 0 else pixel_box.pixel_height - 1
+                adjusted_pixel_box_width = pixel_box.pixel_width if x == 0 else pixel_box.pixel_width - 1
+                adjusted_pixel_box_height = pixel_box.pixel_height if y == 0 else pixel_box.pixel_height - 1
 
-            pixel_x = self.border_margin + self.border_thickness + (x * adjusted_pixel_box_width) + (x * pixel_box.border_thickness)
-            pixel_y = self.border_margin + self.border_thickness + (y * adjusted_pixel_box_height) + (y * pixel_box.border_thickness)
+                pixel_x = self.border_margin + self.border_thickness + (x * adjusted_pixel_box_width) + (x * pixel_box.border_thickness)
+                pixel_y = self.border_margin + self.border_thickness + (y * adjusted_pixel_box_height) + (y * pixel_box.border_thickness)
 
-            # Note: We might be able to do this up above, and make this method super efficient.
-            pixel_box.rect.x = pixel_x + self.rect.x
-            pixel_box.rect.y = pixel_y + self.rect.y
+                pixel_box.rect.x = pixel_x + self.rect.x
+                pixel_box.rect.y = pixel_y + self.rect.y
+                self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
 
-            self.log.info(f'My X: {self.x}, My Y: {self.y}')
-            self.log.info(f'My Rect X: {self.rect.x}, My Rect Y: {self.rect.y}')
-            self.log.info(f'pixel_x: {pixel_x}, y: {pixel_y}')
-            self.log.info(f'Pixel box rect x: {pixel_box.rect.x}, Pixel box rect y: {pixel_box.rect.y}')
-            self.log.info(f'Pixel box x: {pixel_box.x}, Pixel box y: {pixel_box.y}')
-
-            self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
+                if self.mini_view:
+                    self.mini_view.dirty = 1
 
             if (x + 1) % self.pixels_across == 0:
-               x = 0
-               y += 1
+                x = 0
+                y += 1
             else:
-               x += 1
+                x += 1
 
     def on_left_mouse_button_down_event(self, event):
         # Check for a sprite collision against the mouse pointer.
@@ -318,10 +262,7 @@ class CanvasSprite(BitmappySprite):
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
         mouse = MousePointer(x=event.pos[0], y=event.pos[1])
 
-        # MTS: This
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
-
-        #print(f'collided sprites: {collided_sprites}')
 
         for sprite in collided_sprites:
             sprite.pixel_color = self.active_color
@@ -466,19 +407,32 @@ class MiniView(CanvasSprite):
 
         self.dirty_pixels = [True] * len(self.pixels)
 
+    # Hack: Not sure why this is needed
+    #
+    # This is usually for sub-sprites that need to be updated when
+    # their parent changes
+    #
+    # This defers the update of the mini map down in the scene manager
+    #
+    # The dirty pixel check here saves us a lot of FPS since it ensures
+    # that we aren't updating the mini map every frame
+    def update_nested_sprites(self):
+        if any(self.dirty_pixels):
+            self.dirty = 1
+            self.dirty_pixels = [False] * len(self.pixels)
+
     def update(self):
         x = 0
         y = 0
 
         for i, pixel in enumerate(self.pixels):
-            if self.dirty_pixels[i]:
-                if pixel == (255, 0, 255):
-                    pygame.draw.rect(self.image, self.color_palette[self.palette_index], ((x, y), (self.pixel_width, self.pixel_height)))
-                else:
-                    pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
-                    print(f'Updated pixel {i}')
+            if pixel == (255, 0, 255):
+                pygame.draw.rect(self.image, self.color_palette[self.palette_index], ((x, y), (self.pixel_width, self.pixel_height)))
+            else:
+                pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
+                    # print(f'Updated pixel {i}')
 
-                self.dirty_pixels[i] = False
+
 
             if (x + self.pixel_width) % (self.pixels_across * self.pixel_width) == 0:
                 x = 0
@@ -486,7 +440,8 @@ class MiniView(CanvasSprite):
             else:
                 x += self.pixel_width
 
-        self.screen.blit(self.image, (self.rect.x, self.rect.y))
+        if any(self.dirty_pixels):
+            self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
     def on_left_mouse_button_up_event(self, event):
         self.palette_index += 1
@@ -494,21 +449,11 @@ class MiniView(CanvasSprite):
         if self.palette_index >= len(self.color_palette):
             self.palette_index = 0
 
-        print(f'Palette {self.palette_index}: {self.color_palette[self.palette_index]}')
+        self.log.debug(f'MiniMap Palette {self.palette_index}: {self.color_palette[self.palette_index]}')
 
         self.image.fill(self.color_palette[self.palette_index])
-        #self.image.set_colorkey(self.color_palette[self.palette_index])
 
         self.dirty_pixels = [True] * len(self.pixels)
-
-        self.dirty = 1
-
-    def on_left_mouse_button_down_event(self, event):
-        self.image.fill((255, 255, 255))
-        #self.image.set_colorkey(self.color_palette[self.palette_index])
-
-        self.dirty_pixels = [True] * len(self.pixels)
-
         self.dirty = 1
 
     def __str__(self):
