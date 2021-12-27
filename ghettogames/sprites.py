@@ -324,7 +324,7 @@ class BitmappySprite(Sprite):
     DEBUG = False
 
     def __init__(self, x, y, width, height, name=None, filename=None,
-                 focusable=False, groups=pygame.sprite.LayeredDirty()):
+                 focusable=False, parent=None, groups=pygame.sprite.LayeredDirty()):
         """
         Subclass to load sprite files.
 
@@ -355,6 +355,8 @@ class BitmappySprite(Sprite):
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
+        self.parent = parent
+        self.proxies = [self.parent]
 
     def load(self, filename):  # noqa: R0914
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,

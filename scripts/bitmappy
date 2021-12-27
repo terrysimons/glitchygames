@@ -18,7 +18,7 @@ from ghettogames.sprites import MousePointer, BitmappySprite
 from ghettogames.ui import SliderSprite, ColorWellSprite, MenuBar, MenuItem
 
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.INFO)
+LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -501,6 +501,7 @@ class BitmapEditorScene(Scene):
             y=self.menu_icon.y,
             width=40,
             height=self.menu_bar.height,
+            parent=self,
             groups=self.all_sprites
         )
         self.save_menu_item = MenuItem(
@@ -509,6 +510,7 @@ class BitmapEditorScene(Scene):
             y=self.new_menu_item.y,
             width=40,
             height=self.menu_bar.height,
+            parent=self,
             groups=self.all_sprites
         )
         self.load_menu_item = MenuItem(
@@ -517,6 +519,7 @@ class BitmapEditorScene(Scene):
             y=self.save_menu_item.y,
             width=40,
             height=self.menu_bar.height,
+            parent=self,
             groups=self.all_sprites
         )
         self.quit_menu_item = MenuItem(
@@ -525,6 +528,7 @@ class BitmapEditorScene(Scene):
             y=self.load_menu_item.y,
             width=40,
             height=self.menu_bar.height,
+            parent=self,
             groups=self.all_sprites
         )
 
