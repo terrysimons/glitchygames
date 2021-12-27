@@ -37,6 +37,7 @@ class SceneManager(SceneInterface, EventManager):
         self.active_scene = None
         self.next_scene = self.active_scene
         self.previous_scene = self.active_scene
+        self.quit_requested = False
 
         self.clock = pygame.time.Clock()
 
@@ -100,7 +101,7 @@ class SceneManager(SceneInterface, EventManager):
         start_time = time.perf_counter()
         current_time = start_time
 
-        while self.active_scene is not None:
+        while self.active_scene is not None and self.quit_requested == False:
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
@@ -125,6 +126,9 @@ class SceneManager(SceneInterface, EventManager):
 
             current_time = time.perf_counter()
 
+        self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, Quit Requested: {self.quit_requested}')
+        self.terminate()
+
     def terminate(self):
         self.switch_to_scene(None)
 
@@ -137,8 +141,7 @@ class SceneManager(SceneInterface, EventManager):
 
     def on_quit_event(self, event):
         # QUIT             none
-        self.active_scene.on_quit_event(event)
-        self.terminate()
+        self.quit_requested = True
 
     def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
