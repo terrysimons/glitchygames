@@ -159,6 +159,9 @@ class SceneManager(SceneInterface, EventManager):
                 '(call self.register_game_event(<event subtype>, <event data>))'
             )
 
+    def register_game_event(self, event_type, callback):
+        self.game_engine.register_game_event(event_type=event_type, callback=callback)
+
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
     # This will allow scenes to get pygame events directly, but we can still
