@@ -235,10 +235,15 @@ class Scene(SceneInterface, EventInterface):
         self.all_sprites.clear(self.screen, self.background)
 
     def update(self):
-        self.rects = self.all_sprites.draw(self.screen)
+        # Hack to enable compound sprites to manage their own subsprites dirty states
+        #
+        # Ideally we'd just make dirty a property with a setter and getter on each
+        # sprite object, but that doesn't work for some reason.
+        [sprite.update_nested_sprites() for sprite in self.all_sprites]
+        [sprite.update() for sprite in self.all_sprites if sprite.dirty]
 
     def render(self, screen):  # noqa: W0613
-        self.all_sprites.update()
+        self.rects = self.all_sprites.draw(self.screen)
 
     def sprites_at_position(self, pos):
         mouse = MousePointer(x=pos[0], y=pos[1])
