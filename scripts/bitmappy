@@ -286,10 +286,13 @@ class CanvasSprite(BitmappySprite):
         for i, pixel_box in enumerate(self.pixel_boxes):
             print(f'Pixel Box: {i}')
             pixel_x = x * pixel_box.pixel_width
-
             pixel_y = y * pixel_box.pixel_height
-            pixel_x = self.border_margin + self.border_thickness + (x * pixel_box.pixel_width) + (x * pixel_box.border_thickness)
-            pixel_y = self.border_margin + self.border_thickness + (y * pixel_box.pixel_height) + (y * pixel_box.border_thickness)
+
+            adjusted_pixel_box_width = pixel_box.pixel_width if x == 0 else pixel_box.pixel_width - 1
+            adjusted_pixel_box_height = pixel_box.pixel_height if y == 0 else pixel_box.pixel_height - 1
+
+            pixel_x = self.border_margin + self.border_thickness + (x * adjusted_pixel_box_width) + (x * pixel_box.border_thickness)
+            pixel_y = self.border_margin + self.border_thickness + (y * adjusted_pixel_box_height) + (y * pixel_box.border_thickness)
 
             # Note: We might be able to do this up above, and make this method super efficient.
             pixel_box.rect.x = pixel_x + self.rect.x
