@@ -501,6 +501,7 @@ class TextSprite(BitmappySprite):
         self.background_color = (255, 0, 255)
         self.active_color = self.background_color
         self.click_color = (0, 255, 128)
+        self.hover_color = (255, 255, 0)
         self.text = text
         self.font_manager = FontManager(GameEngine)
         self.alpha = 0
@@ -560,11 +561,7 @@ class TextSprite(BitmappySprite):
             pass
 
     def on_mouse_focus_event(self, event, focus):
-        self.active_color = (255, 0, 0)
-        self.dirty = 1
-
-    def on_mouse_unfocus_event(self, event):
-        self.active_color (0, 255, 255)
+        self.active_color = self.hover_color
         self.dirty = 1
 
     def on_mouse_unfocus_event(self, event):
@@ -632,13 +629,11 @@ class ButtonSprite(BitmappySprite):
         super().on_left_mouse_button_down_event(event)
         self.dirty = 1
 
-
     def on_left_mouse_button_up_event(self, event):
         self.background_color = self.inactive_color
         # self.update()
         super().on_left_mouse_button_up_event(event)
         self.dirty = 1
-
 
 
 class CheckboxSprite(ButtonSprite):
@@ -674,12 +669,14 @@ class CheckboxSprite(ButtonSprite):
         # self.update()
         self.dirty = 1
 
+
 class TextBoxSprite(BitmappySprite):
     """
     """
     log = LOG
 
-    def __init__(self, x, y, width, height, name=None, callbacks=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, x, y, width, height, name=None, callbacks=None,
+                 groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.value = None
         self.text = None
@@ -691,13 +688,15 @@ class TextBoxSprite(BitmappySprite):
 
         self.callbacks = callbacks
 
-        self.text = TextSprite(background_color=self.background_color,
-                               x=self.rect.x,
-                               y=self.rect.y,
-                               width=self.width-self.border_width,
-                               height=self.height-self.border_width,
-                               text=self.value,
-                               groups=groups)
+        self.text = TextSprite(
+            background_color=self.background_color,
+            x=self.rect.x,
+            y=self.rect.y,
+            width=self.width - self.border_width,
+            height=self.height - self.border_width,
+            text=self.value,
+            groups=groups
+        )
 
     def update(self):
         if self.text:
@@ -707,8 +706,14 @@ class TextBoxSprite(BitmappySprite):
 
             self.image.blit(self.text.image, (self.x, self.y, self.width, self.height))
 
+        # TODO: Update this to support hover/click/etc...
         if self.border_width:
-            pygame.draw.rect(self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width)
+            pygame.draw.rect(
+                self.image,
+                (128, 128, 128),
+                Rect(0, 0, self.width, self.height),
+                self.border_width
+            )
 
     def on_left_mouse_button_down_event(self, event):
         self.dirty = 1
@@ -719,6 +724,7 @@ class TextBoxSprite(BitmappySprite):
         self.dirty = 1
         self.background_color = (0, 0, 0)
         # self.update()
+
 
 class SliderSprite(BitmappySprite):
     log = LOG
@@ -735,7 +741,6 @@ class SliderSprite(BitmappySprite):
             self.rect = Rect(0, 0, self.width - 2, self.height - 2)
             self.rect.x = x
             self.rect.y = y
-            #pygame.draw.rect(self.image, (127, 0, 0), self.rect, 10)
 
         def on_left_mouse_button_down_event(self, event):
             self.dirty = 1
@@ -756,18 +761,33 @@ class SliderSprite(BitmappySprite):
             self.on_left_mouse_button_down_event(event)
             self.dirty = 1
 
-    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, x, y, width, height, name=None,
+                 groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width + 20, height=height, name=name, groups=groups)
-        self.text_sprite = TextBoxSprite(x=x+width, y=y, width=40, height=20, name=str((0, 0, 0)), groups=groups)
+        self.text_sprite = TextBoxSprite(
+            x=x + width,
+            y=y,
+            width=40,
+            height=20,
+            name=str((0, 0, 0)),
+            groups=groups
+        )
 
         self.text_sprite.border_width = 1
 
-        self.slider_knob = SliderSprite.SliderKnobSprite(x=0, y=self.y, width=height, height=height*1.5, name=name, groups=groups)
+        self.slider_knob = SliderSprite.SliderKnobSprite(
+            x=0,
+            y=self.y,
+            width=height,
+            height=height * 1.5,
+            name=name,
+            groups=groups
+        )
 
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((self.width, self.height))
         self.background = pygame.Surface((self.width, self.height))
-        self.image.fill((255,255,255))
+        self.image.fill((255, 255, 255))
         self.rect = self.image.get_rect()
 
         self.image.blit(self.text_sprite.image, (0, 0))
@@ -788,7 +808,12 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.dirty = self.dirty
 
     def update(self):
-        pygame.draw.rect(self.image, (255, 0, 0), Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height), 1)
+        pygame.draw.rect(
+            self.image,
+            (255, 0, 0),
+            Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height),
+            1
+        )
         self.text_sprite.value = self.slider_knob.value
         self.text_sprite.text.text = self.slider_knob.value
 
@@ -806,24 +831,32 @@ class SliderSprite(BitmappySprite):
             elif self.name == 'B':
                 color = (0, 0, i)
 
-            pygame.draw.line(self.image,
-                             color,
-                             (i, self.height//2 - 1),
-                             (i, self.height//2), 1)
+            pygame.draw.line(
+                self.image,
+                color,
+                (i, self.height // 2 - 1),
+                (i, self.height // 2),
+                1
+            )
 
-            pygame.draw.line(self.image,
-                             color,
-                             (i, self.height//2),
-                             (i, self.height//2), 1)
+            pygame.draw.line(
+                self.image,
+                color,
+                (i, self.height // 2),
+                (i, self.height // 2),
+                1
+            )
 
-            pygame.draw.line(self.image,
-                             color,
-                             (i,
-                              self.height//2 + 1),
-                             (i, self.height//2), 1)
+            pygame.draw.line(
+                self.image,
+                color,
+                (i, self.height // 2 + 1),
+                (i, self.height // 2),
+                1
+            )
 
         # Draw the knob
-        self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height//4))
+        self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height // 4))
 
     def on_left_mouse_button_down_event(self, event):
         self.dirty = 1
@@ -838,7 +871,6 @@ class SliderSprite(BitmappySprite):
         super().on_left_mouse_drag_event(event, trigger)
         self.dirty = 1
 
-    # def on_slider_event(self, event, trigger)
 
 class ColorWellSprite(BitmappySprite):
     log = LOG
@@ -848,8 +880,8 @@ class ColorWellSprite(BitmappySprite):
         self.red = 0
         self.green = 0
         self.blue = 0
-        self.rect.x=x
-        self.rect.y=y
+        self.rect.x = x
+        self.rect.y = y
 
         self.text_sprite = TextBoxSprite(x=self.rect.midleft[0] + width,
                                          y=self.rect.centery - 10,
@@ -859,8 +891,7 @@ class ColorWellSprite(BitmappySprite):
                                          groups=groups)
 
         self.text_sprite.border_width = 1
-        #self.text_sprite.rect.midleft = self.rect.midright
-        #self.text_sprite.add(groups)
+        # self.text_sprite.rect.midleft = self.rect.midright
 
     @property
     def active_color(self):

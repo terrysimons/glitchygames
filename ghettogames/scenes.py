@@ -101,7 +101,7 @@ class SceneManager(SceneInterface, EventManager):
         start_time = time.perf_counter()
         current_time = start_time
 
-        while self.active_scene is not None and self.quit_requested == False:
+        while self.active_scene is not None and self.quit_requested is False:
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
@@ -126,7 +126,8 @@ class SceneManager(SceneInterface, EventManager):
 
             current_time = time.perf_counter()
 
-        self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, Quit Requested: {self.quit_requested}')
+        self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, '
+                      f'Quit Requested: {self.quit_requested}')
         self.terminate()
 
     def terminate(self):

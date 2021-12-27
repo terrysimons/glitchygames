@@ -10,9 +10,11 @@ from ghettogames.pixels import rgb_triplet_generator
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
+
 class SpriteInterface:
     def update_nested_sprites(self):
         pass
+
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
