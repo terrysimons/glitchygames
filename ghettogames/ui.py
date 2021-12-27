@@ -116,8 +116,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             # Click the menu item.
             #
             # Don't click sub menus.
-            if type(sprite) == MenuItem:
             # if sprite.name in self.menu_items:
+            if type(sprite) == MenuItem:
                 self.log.debug(f'{type(self)} Mouse button down on {self.name} at {mouse}')
                 sprite.on_left_mouse_button_down_event(event)
 
@@ -135,8 +135,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             # Click the menu item.
             #
             # Don't click sub menus.
-            if type(sprite) == MenuItem:
             # if sprite.name in self.menu_items:
+            if type(sprite) == MenuItem:
                 self.log.debug(f'{type(self)} {self.name} '
                                f'Mouse button up on {self.name} at {mouse}')
                 sprite.on_left_mouse_button_down_event(event)
@@ -399,7 +399,7 @@ class MenuItem(BitmappySprite):
                                        {'menu': self,
                                         'menu_item': sprite})
                 )
-                #self.game.on_menu_item_clicked_event()
+                # self.game.on_menu_item_clicked_event()
 
         self.dirty = 1
 
@@ -447,6 +447,7 @@ class Bar(BitmappySprite):
 
 class TextSprite(BitmappySprite):
     log = LOG
+
     class TextBox(RootSprite):
         log = LOG
 
@@ -511,7 +512,8 @@ class TextSprite(BitmappySprite):
         #     self.active_background_color = self.background_hover_color
 
     def __init__(self, x, y, width, height, name=None, background_color=BLACKLUCENT,
-                 text_color=WHITE, alpha=0, text='Text', parent=None, groups=pygame.sprite.LayeredDirty()):
+                 text_color=WHITE, alpha=0, text='Text', parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
                          groups=groups)
         self.background_color = (255, 0, 255)
@@ -603,15 +605,14 @@ class ButtonSprite(BitmappySprite):
     """
     log = LOG
 
-    def __init__(self, x, y, width, height, name=None,
+    def __init__(self, x, y, width, height, name=None, parent=None,
                  groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name,
-                         focusable=True, parent=None, groups=groups)
+                         focusable=True, parent=parent, groups=groups)
         self.border_color = (255, 255, 255)
         self.active_color = (128, 128, 128)
         self.inactive_color = (0, 0, 0)
         self.background_color = self.inactive_color
-        self.parent = parent
 
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -704,7 +705,15 @@ class TextBoxSprite(BitmappySprite):
 
     def __init__(self, x, y, width, height, name=None, callbacks=None, parent=None,
                  groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=None, groups=groups)
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups
+        )
         self.value = None
         self.text = None
         self.background_color = (0, 0, 0)
@@ -763,8 +772,17 @@ class SliderSprite(BitmappySprite):
     class SliderKnobSprite(BitmappySprite):
         log = LOG
 
-        def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):
-            super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
+        def __init__(self, x, y, width, height, name=None, parent=None,
+                     groups=pygame.sprite.LayeredDirty()):
+            super().__init__(
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+                name=name,
+                parent=parent,
+                groups=groups
+            )
 
             self.value = 0
 
@@ -794,7 +812,15 @@ class SliderSprite(BitmappySprite):
 
     def __init__(self, x, y, width, height, name=None, parent=None,
                  groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width + 20, height=height, name=name, parent=parent, groups=groups)
+        super().__init__(
+            x=x,
+            y=y,
+            width=width + 20,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups
+        )
         self.text_sprite = TextBoxSprite(
             x=x + width,
             y=y,
@@ -909,20 +935,30 @@ class ColorWellSprite(BitmappySprite):
     log = LOG
 
     def __init__(self, x, y, width, height, name, parent=None, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups
+        )
         self.red = 0
         self.green = 0
         self.blue = 0
         self.rect.x = x
         self.rect.y = y
 
-        self.text_sprite = TextBoxSprite(x=self.rect.midleft[0] + width,
-                                         y=self.rect.centery - 10,
-                                         width=100,
-                                         height=20,
-                                         name=str(self.active_color),
-                                         parent=self,
-                                         groups=groups)
+        self.text_sprite = TextBoxSprite(
+            x=self.rect.midleft[0] + width,
+            y=self.rect.centery - 10,
+            width=100,
+            height=20,
+            name=str(self.active_color),
+            parent=self,
+            groups=groups
+        )
 
         self.text_sprite.border_width = 1
         # self.text_sprite.rect.midleft = self.rect.midright
