@@ -4,6 +4,7 @@ import logging
 
 import pygame
 
+from ghettogames.events import MouseEvents
 from ghettogames.pixels import rgb_triplet_generator
 
 LOG = logging.getLogger('game.sprites')
@@ -13,7 +14,7 @@ class SpriteInterface:
     def update_nested_sprites(self):
         pass
 
-class RootSprite(SpriteInterface, pygame.sprite.DirtySprite):
+class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
 
