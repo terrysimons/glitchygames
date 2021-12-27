@@ -992,3 +992,87 @@ class ColorWellSprite(BitmappySprite):
         self.text_sprite.value = str(self.active_color)
         self.text_sprite.text.text = self.hex_color
         self.text_sprite.dirty = 1
+
+
+class InputDialog(BitmappySprite):
+    log = LOG
+
+    def __init__(self, x, y, width, height, name=None, dialog_text='Would you like to do a thing?',
+                 confirm_text='Confirm', cancel_text='Cancel', callbacks=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+        self.background_color = (0, 0, 0)
+        self.border_width = 1
+        self.width = width
+        self.dialog_text_sprite = TextBoxSprite(
+            name=dialog_text,
+            x=0,
+            y=0,
+            width=self.width // 2,
+            height=20,
+            parent=self,
+            groups=groups
+        )
+        self.dialog_text_sprite.text.text = dialog_text
+        self.confirm_button = ButtonSprite(
+            name=confirm_text,
+            x=0,
+            y=0,
+            width=75,
+            height=20,
+            groups=groups
+        )
+        self.cancel_button = ButtonSprite(
+            name=cancel_text,
+            x=0,
+            y=0,
+            width=75,
+            height=20,
+            groups=groups
+        )
+        self._dirty = 1
+
+        self.rect = self.image.get_rect()
+
+        self.cancel_button.rect.bottomright = self.rect.bottomright
+        self.confirm_button.rect.right = self.cancel_button.rect.left
+
+    def update_nested_sprites(self):
+        self.cancel_button.dirty = self.dirty
+        self.confirm_button.dirty = self.dirty
+
+    def update(self):
+        # Draw the bounding box.
+        # pygame.draw.rect(
+        #     self.image,
+        #     (128, 128, 128),
+        #     Rect(0, 0, self.width, self.height),
+        #     self.border_width
+        # )
+
+        # self.dialog_text_sprite.text.rect.x = self.dialog_text_sprite.rect.x - 200
+        self.dialog_text_sprite.rect.center = self.rect.center
+        self.confirm_button.rect.bottomright = self.rect.bottomright
+        self.confirm_button.rect.x -= 20
+        self.confirm_button.rect.y -= 20
+        self.cancel_button.rect.bottomright = self.confirm_button.rect.bottomleft
+        self.cancel_button.rect.x -= 20
+
+        self.cancel_button.dirty = 1
+        self.confirm_button.dirty = 1
+
+        self.screen.blit(
+            self.dialog_text_sprite.image,
+            (self.dialog_text_sprite.rect.x, self.dialog_text_sprite.rect.y)
+        )
+        self.screen.blit(
+            self.cancel_button.image,
+            (self.cancel_button.rect.x, self.cancel_button.rect.y)
+        )
+        self.screen.blit(
+            self.confirm_button.image,
+            (self.confirm_button.rect.x, self.confirm_button.rect.y)
+        )
+
+        # Draw the buttons
+        # Draw the text input field
