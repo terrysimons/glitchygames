@@ -29,7 +29,7 @@ class BitmapPixelSprite(BitmappySprite):
     log = LOG
     PIXEL_CACHE = {}
 
-    def __init__(self, border_color=(96, 96, 96), color=(255, 0, 255), x=0, y=0, width=1, height=1, name=None, pixel_number=0, border_thickness=1, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, x=0, y=0, width=1, height=1, name=None, pixel_number=0, border_thickness=1, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=x, width=width, height=height, name=name, groups=groups)
         self.log.debug(f'BITMAP PIXEL SPRITE GROUPS: {groups}')
         self.pixel_number = pixel_number
@@ -38,8 +38,8 @@ class BitmapPixelSprite(BitmappySprite):
         self.border_thickness = border_thickness
         self.width = self.pixel_width
         self.height = self.pixel_height
-        self.color = border_color
-        self.pixel_color = color
+        self.color = (96, 96, 96)
+        self.pixel_color = (0, 0, 0)
         self.x = x
         self.y = y
 
@@ -149,7 +149,6 @@ class CanvasSprite(BitmappySprite):
 
         self.all_sprites.add(self)
 
-        # NB: This code is broken.
         # pixel_offset_x = 0
         # pixel_offset_y = 0
         # for pixel_number in range(self.pixels_across * self.pixels_tall):
@@ -181,26 +180,26 @@ class CanvasSprite(BitmappySprite):
                                               x=0,
                                               y=0,
                                               height=self.pixel_width,
-                                              width=self.pixel_height,
-                                              groups=self.all_sprites)
+                                              width=self.pixel_height)
                                               for i in range(self.pixels_across * self.pixels_tall)]
 
-        # for pixel_box in self.pixel_boxes:
-        #    self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
-        #    self.all_sprites.add(pixel_box)
+        for pixel_box in self.pixel_boxes:
+           self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
+           self.all_sprites.add(pixel_box)
 
-        # for i in range(self.pixels_across * self.pixels_tall):
-        #     self.pixel_boxes[i].pixel_color = self.pixels[i]
-            # self.pixel_boxes[i].add(self.all_sprites)
+        for i in range(self.pixels_across * self.pixels_tall):
+            self.pixel_boxes[i].pixel_color = self.pixels[i]
+            self.pixel_boxes[i].add(self.all_sprites)
+            self.pixel_boxes[i].add(groups)
 
-            # print(i)
+            print(i)
 
             # This allows us to update the mini map.
             # self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
 
             # This draws the map box.
-            # self.pixel_boxes[i].dirty = 1
-            # self.pixel_boxes[i].update()
+            self.pixel_boxes[i].dirty = 1
+            self.pixel_boxes[i].update()
 
         if has_mini_view:
             pixel_width, pixel_height = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
@@ -218,9 +217,6 @@ class CanvasSprite(BitmappySprite):
         # For some reason we have a double grid border, so let's wipe out the canvas.
         #self.image.fill((255, 255, 0), rect=self.rect)
 
-
-        self.set_default_state()
-
         self.update_anyway = False
 
     def on_pixel_update_event(self, event, trigger):
@@ -231,41 +227,10 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.on_pixel_update_event(event, trigger)
             self.mini_view.dirty = 1
 
-        # if self.pixel_boxes[trigger.pixel_number].dirty:
-        #     self.pixel_boxes[trigger.pixel_number].update()
+        if self.pixel_boxes[trigger.pixel_number].dirty:
+            self.pixel_boxes[trigger.pixel_number].update()
 
         self.dirty = 1
-
-    def set_default_state(self):
-        x = 0
-        y = 0
-        self.border_thickness = 0
-        self.border_margin = 0
-        for i, pixel_box in enumerate(self.pixel_boxes):
-            print(f'Pixel Box: {i}')
-            pixel_x = x * pixel_box.pixel_width
-
-            pixel_y = y * pixel_box.pixel_height
-            pixel_x = self.border_margin + self.border_thickness + (x * pixel_box.pixel_width) + (x * pixel_box.border_thickness)
-            pixel_y = self.border_margin + self.border_thickness + (y * pixel_box.pixel_height) + (y * pixel_box.border_thickness)
-
-            # Note: We might be able to do this up above, and make this method super efficient.
-            pixel_box.rect.x = pixel_x + self.rect.x
-            pixel_box.rect.y = pixel_y + self.rect.y
-
-            self.log.info(f'My X: {self.x}, My Y: {self.y}')
-            self.log.info(f'My Rect X: {self.rect.x}, My Rect Y: {self.rect.y}')
-            self.log.info(f'pixel_x: {pixel_x}, y: {pixel_y}')
-            self.log.info(f'Pixel box rect x: {pixel_box.rect.x}, Pixel box rect y: {pixel_box.rect.y}')
-            self.log.info(f'Pixel box x: {pixel_box.x}, Pixel box y: {pixel_box.y}')
-
-            self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
-
-            if (x + 1) % self.pixels_across == 0:
-               x = 0
-               y += 1
-            else:
-               x += 1
 
     def update_nested_sprites(self):
         if self.mini_view:
@@ -314,36 +279,35 @@ class CanvasSprite(BitmappySprite):
         #     self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
 
 
-        # x = 0
-        # y = 0
-        # self.border_thickness = 0
-        # self.border_margin = 0
-        # for i, pixel_box in enumerate(self.pixel_boxes):
-        #     print(f'Pixel Box: {i}')
-        #     pixel_x = x * pixel_box.pixel_width
+        x = 0
+        y = 0
+        self.border_thickness = 0
+        self.border_margin = 0
+        for i, pixel_box in enumerate(self.pixel_boxes):
+            print(f'Pixel Box: {i}')
+            pixel_x = x * pixel_box.pixel_width
 
-        #     pixel_y = y * pixel_box.pixel_height
-        #     pixel_x = self.border_margin + self.border_thickness + (x * pixel_box.pixel_width) + (x * pixel_box.border_thickness)
-        #     pixel_y = self.border_margin + self.border_thickness + (y * pixel_box.pixel_height) + (y * pixel_box.border_thickness)
+            pixel_y = y * pixel_box.pixel_height
+            pixel_x = self.border_margin + self.border_thickness + (x * pixel_box.pixel_width) + (x * pixel_box.border_thickness)
+            pixel_y = self.border_margin + self.border_thickness + (y * pixel_box.pixel_height) + (y * pixel_box.border_thickness)
 
-        #     # Note: We might be able to do this up above, and make this method super efficient.
-        #     pixel_box.rect.x = pixel_x + self.rect.x
-        #     pixel_box.rect.y = pixel_y + self.rect.y
+            # Note: We might be able to do this up above, and make this method super efficient.
+            pixel_box.rect.x = pixel_x + self.rect.x
+            pixel_box.rect.y = pixel_y + self.rect.y
 
-        #     self.log.info(f'My X: {self.x}, My Y: {self.y}')
-        #     self.log.info(f'My Rect X: {self.rect.x}, My Rect Y: {self.rect.y}')
-        #     self.log.info(f'pixel_x: {pixel_x}, y: {pixel_y}')
-        #     self.log.info(f'Pixel box rect x: {pixel_box.rect.x}, Pixel box rect y: {pixel_box.rect.y}')
-        #     self.log.info(f'Pixel box x: {pixel_box.x}, Pixel box y: {pixel_box.y}')
+            self.log.info(f'My X: {self.x}, My Y: {self.y}')
+            self.log.info(f'My Rect X: {self.rect.x}, My Rect Y: {self.rect.y}')
+            self.log.info(f'pixel_x: {pixel_x}, y: {pixel_y}')
+            self.log.info(f'Pixel box rect x: {pixel_box.rect.x}, Pixel box rect y: {pixel_box.rect.y}')
+            self.log.info(f'Pixel box x: {pixel_box.x}, Pixel box y: {pixel_box.y}')
 
-        #     self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
+            self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
 
-        #     if (x + 1) % self.pixels_across == 0:
-        #        x = 0
-        #        y += 1
-        #     else:
-        #        x += 1
-        pass
+            if (x + 1) % self.pixels_across == 0:
+               x = 0
+               y += 1
+            else:
+               x += 1
 
     def on_left_mouse_button_down_event(self, event):
         # Check for a sprite collision against the mouse pointer.
