@@ -10,18 +10,117 @@ import pygame.locals
 
 from ghettogames.color import WHITE, BLACKLUCENT
 from ghettogames.engine import GameEngine
+from ghettogames import events
 from ghettogames.pixels import pixels_from_data, pixels_from_path
 from ghettogames.pixels import image_from_pixels
 from ghettogames.pixels import rgb_triplet_generator
 from ghettogames.scenes import Scene
 from ghettogames.sprites import MousePointer, BitmappySprite
-from ghettogames.ui import SliderSprite, ColorWellSprite, MenuBar, MenuItem
+from ghettogames.ui import SliderSprite, ColorWellSprite, InputDialog, MenuBar, MenuItem
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
+
+
+class LoadDialogScene(Scene):
+    log = LOG
+
+    def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(options=options, groups=groups)
+        self.previous_scene = previous_scene
+
+
+        self.load_dialog = InputDialog(
+            name='Load Sprite',
+            dialog_text='Would you like to load a sprite?',
+            confirm_text='Load',
+            x=0,
+            y=0,
+            width=self.screen_width//2,
+            height=self.screen_height//2,
+            groups=self.all_sprites
+        )
+        self.load_dialog.rect.center = self.screen.get_rect().center
+
+        self.load_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
+        self.load_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
+
+        self.load_dialog.add(self.all_sprites)
+
+    def dismiss(self):
+        self.load_dialog.remove(self.all_sprites)
+        self.next = self.previous_scene
+        self.previous_scene.next = self.previous_scene
+        self.screen.blit(self.screenshot, (0, 0))
+        self.previous_scene.dirty = 1
+        self.previous_scene.update()
+
+    def on_cancel_event(self, event, trigger):
+        self.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.dismiss()
+
+
+    def on_confirm_event(self, event, trigger):
+        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas.on_load_file_event(event, trigger)
+        self.dismiss()
+
+
+class SaveDialogScene(Scene):
+    log = LOG
+
+    def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(options=options, groups=groups)
+        self.previous_scene = previous_scene
+        # self.all_sprites = groups
+        # self.screenshot = Screenshot(groups=self.all_sprites)
+
+        self.save_dialog = InputDialog(
+            name='Save Sprite',
+            dialog_text='Would you like to save your sprite?',
+            confirm_text='Save',
+            x=0,
+            y=0,
+            width=self.screen_width//2,
+            height=self.screen_height//2,
+            groups=self.all_sprites
+        )
+
+        self.save_dialog.rect.center = self.screen.get_rect().center
+
+        self.save_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
+        self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
+
+        self.all_sprites.clear(self.screen, self.background)
+
+    # @property
+    # def background(self):
+    #     self.background
+
+    # @background.setter
+    # def background(self, new_background):
+    #     pass
+
+    def dismiss(self):
+        self.save_dialog.remove(self.all_sprites)
+        self.next = self.previous_scene
+        self.previous_scene.next = self.previous_scene
+        self.screen.blit(self.screenshot, (0, 0))
+        self.previous_scene.dirty = 1
+        self.previous_scene.update()
+
+    def on_cancel_event(self, event, trigger):
+        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.dismiss()
+
+    def on_confirm_event(self, event, trigger):
+        self.log.info(f'Safe File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas.on_save_file_event(event, trigger)
+        self.dismiss()
+
 
 class BitmapPixelSprite(BitmappySprite):
     """
@@ -276,77 +375,77 @@ class CanvasSprite(BitmappySprite):
     def on_left_mouse_drag_event(self, event, trigger):
         self.on_left_mouse_button_down_event(event)
 
-    # def on_new_file_event(self, event, trigger):
-    #     for i, pixel in enumerate([(255, 0, 255)] * self.pixels_across * self.pixels_tall):
-    #         event = pygame.event.Event(GameEngine.GAMEEVENT, {'action':'on_load_file_event',
-    #                                                           'pixel_color': pixel,
-    #                                                           'pixel_number': i})
+    def on_new_file_event(self, event, trigger):
+        for i, pixel in enumerate([(255, 0, 255)] * self.pixels_across * self.pixels_tall):
+            event = pygame.event.Event(events.GAMEEVENT, {'action':'on_new_file_event',
+                                                          'pixel_color': pixel,
+                                                          'pixel_number': i})
 
-    #         # Create a pixel update event for the mini map.
-    #         self.on_pixel_update_event(event=event, trigger=event)
+            # Create a pixel update event for the mini map.
+            self.on_pixel_update_event(event=event, trigger=event)
 
-    #     self.dirty = 1
-    #     # self.update()
+        self.dirty = 1
+        # self.update()
 
-    # def on_save_file_event(self, event, trigger):
-    #     pixels = []
+    def on_save_file_event(self, event, trigger):
+        pixels = []
 
-    #     for pixel_box in self.pixel_boxes:
-    #         pixels.append(pixel_box.pixel_color)
+        for pixel_box in self.pixel_boxes:
+            pixels.append(pixel_box.pixel_color)
 
-    #     # Generate a new bitmappy sprite and tell it to save.
-    #     save_sprite = BitmappySprite(width=self.pixels_across,
-    #                                  height=self.pixels_tall,
-    #                                  name='Tiley McTile Face')
+        # Generate a new bitmappy sprite and tell it to save.
+        save_sprite = BitmappySprite(width=self.pixels_across,
+                                     height=self.pixels_tall,
+                                     name='Tiley McTile Face')
 
-    #     save_sprite.image = image_from_pixels(pixels=pixels,
-    #                                           width=save_sprite.width,
-    #                                           height=save_sprite.height)
+        save_sprite.image = image_from_pixels(pixels=pixels,
+                                              width=save_sprite.width,
+                                              height=save_sprite.height)
 
-    #     save_sprite.save(filename='savefile.cfg')
+        save_sprite.save(filename='savefile.cfg')
 
-    #     self.dirty = 1
+        self.dirty = 1
 
-    #     #self.save(filename='screenshot.cfg')
+        #self.save(filename='screenshot.cfg')
 
 
-    # def on_load_file_event(self, event, trigger):
-    #     load_sprite = BitmappySprite(filename='savefile.cfg',
-    #                                  width=self.pixels_across,
-    #                                  height=self.pixels_tall)
+    def on_load_file_event(self, event, trigger):
+        load_sprite = BitmappySprite(filename='savefile.cfg',
+                                     width=self.pixels_across,
+                                     height=self.pixels_tall)
 
-    #     pixel_data = pygame.image.tostring(load_sprite.image, 'RGB')
+        pixel_data = pygame.image.tostring(load_sprite.image, 'RGB')
 
-    #     pixels = pixels_from_data(pixel_data=pixel_data)
+        pixels = pixels_from_data(pixel_data=pixel_data)
 
-    #     print(pixels)
+        self.log.info(pixels)
 
-    #     # Update the canvas' pixels across and tall
-    #     self.pixels_across = load_sprite.width
-    #     self.pixels_tall = load_sprite.height
+        # Update the canvas' pixels across and tall
+        self.pixels_across = load_sprite.width
+        self.pixels_tall = load_sprite.height
 
-    #     #pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-    #     #pixels = [(255, 255, 255)] * len(pixels)
+        #pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
+        #pixels = [(255, 255, 255)] * len(pixels)
 
-    #     #print(pixels)
+        #print(pixels)
 
-    #     for i, pixel in enumerate(pixels):
-    #         trigger.pixel_number = i
-    #         trigger.pixel_color = (255, 255, 255)
+        for i, pixel in enumerate(pixels):
+            trigger.pixel_number = i
+            trigger.pixel_color = (255, 255, 255)
 
-    #         event = pygame.event.Event(GameEngine.GAMEEVENT, {'action':'on_load_file_event',
-    #                                                           'pixel_color': pixel,
-    #                                                           'pixel_number': i})
+            event = pygame.event.Event(events.GAMEEVENT, {'action':'on_load_file_event',
+                                                          'pixel_color': pixel,
+                                                          'pixel_number': i})
 
-    #         # Create a pixel update event for the mini map.
-    #         self.on_pixel_update_event(event=event, trigger=event)
+            # Create a pixel update event for the mini map.
+            self.on_pixel_update_event(event=event, trigger=event)
 
-    #     #for pixel_box in self.pixel_boxes:
-    #     #    pixel_box.dirty = 1
-    #     #    pixel_box.update()
+        #for pixel_box in self.pixel_boxes:
+        #    pixel_box.dirty = 1
+        #    pixel_box.update()
 
-    #     self.dirty = 1
-    #     # self.update()
+        self.dirty = 1
+        # self.update()
 
 
 class MiniView(CanvasSprite):
@@ -617,38 +716,47 @@ class BitmapEditorScene(Scene):
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
+        self.load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
+        self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
+
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
 
-    # def on_menu_item_event(self, event):
-    #     self.log.info(f'Scene got menu item event: {event}')
-    #     if not event.menu.name:
-    #         # This is for the system menu.
-    #         self.log.info('System Menu Clicked')
-    #     else:
-    #         if event.menu.name == 'Save':
-    #             self.on_save_dialog_event(event)
-    #         elif event.menu_item.name == 'Load':
-    #             self.on_load_dialog_event(event)
-    #         elif event.menu.name == 'Quit':
-    #             pygame.quit()
-    #         else:
-    #             raise Exception(f'Unhandled Menu Item: {event}')
-    #     self.dirty = 1
+    def on_menu_item_event(self, event):
+        self.log.info(f'Scene got menu item event: {event}')
+        if not event.menu.name:
+            # This is for the system menu.
+            self.log.info('System Menu Clicked')
+        else:
+            if event.menu.name == 'New':
+                self.on_new_file_event(event=event)
+            if event.menu.name == 'Save':
+                self.on_save_dialog_event(event)
+            elif event.menu_item.name == 'Load':
+                self.on_load_dialog_event(event)
+            elif event.menu.name == 'Quit':
+                self.log.info('User quit from menu item.')
+                self.scene_manager.quit()
+            else:
+                raise Exception(f'Unhandled Menu Item: {event}')
+        self.dirty = 1
 
-    # def on_new_file_event(self, event):
-    #     self.canvas.on_new_file_event(event)
-    #     self.dirty = 1
+    def on_new_file_event(self, event):
+        self.canvas.on_new_file_event(event=event, trigger=event)
+        self.dirty = 1
 
-    # def on_load_dialog_event(self, event):
-    #     self.next = LoadDialogScene(previous_scene=self)
-    #     self.dirty = 1
+    def on_load_dialog_event(self, event):
+        self.load_dialog_scene.all_sprites.clear(self.load_dialog_scene.screen, self.screenshot)
+        self.next_scene = self.load_dialog_scene
+        self.dirty = 1
 
-    # def on_save_dialog_event(self, event):
-    #     self.next = SaveDialogScene(previous_scene=self)
+    def on_save_dialog_event(self, event):
+        self.save_dialog_scene.all_sprites.clear(self.save_dialog_scene.screen, self.screenshot)
+        self.next_scene = self.save_dialog_scene
+        self.dirty = 1
 
-    # def on_color_well_event(self, event, trigger):
-    #     self.log.info('COLOR WELL EVENT')
+    def on_color_well_event(self, event, trigger):
+        self.log.info('COLOR WELL EVENT')
 
     def on_slider_event(self, event, trigger):
         value = trigger.value

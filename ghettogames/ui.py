@@ -998,7 +998,7 @@ class InputDialog(BitmappySprite):
     log = LOG
 
     def __init__(self, x, y, width, height, name=None, dialog_text='Would you like to do a thing?',
-                 confirm_text='Confirm', cancel_text='Cancel', callbacks=None, parent=None,
+                 confirm_text='Confirm', cancel_text='Cancel', callbacks=None,
                  groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.background_color = (0, 0, 0)

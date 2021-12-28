@@ -232,6 +232,13 @@ class Scene(SceneInterface, EventInterface):
         #        group.add(sprite)
 
     @property
+    def screenshot(self):
+        _screenshot = pygame.Surface((self.screen_width, self.screen_height))
+        _screenshot.convert()
+        _screenshot.blit(self.screen, (0, 0))
+        return _screenshot
+
+    @property
     def background_color(self):
         return self._background_color
 
