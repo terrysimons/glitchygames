@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+import os
 
 from pygame import Rect
 import pygame
@@ -537,8 +538,6 @@ class MiniView(CanvasSprite):
                 pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
                     # print(f'Updated pixel {i}')
 
-
-
             if (x + self.pixel_width) % (self.pixels_across * self.pixel_width) == 0:
                 x = 0
                 y += self.pixel_height
@@ -728,6 +727,14 @@ class BitmapEditorScene(Scene):
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
 
+    def load_resources(self):
+        self.pixel_snd = pygame.mixer.Sound(
+            os.path.join(
+                os.path.dirname(__file__),
+                'pixel.wav'
+            )
+        )
+
     def on_menu_item_event(self, event):
         self.log.info(f'Scene got menu item event: {event}')
         if not event.menu.name:
@@ -809,7 +816,13 @@ class BitmapEditorScene(Scene):
         sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in sprites:
-           sprite.on_left_mouse_button_down_event(event)
+
+            sprite.on_left_mouse_button_down_event(event)
+
+            if isinstance(sprite, BitmapPixelSprite):
+                self.pixel_snd.play()
+
+                pygame.time.wait(50)
 
     def on_left_mouse_button_up_event(self, event):
         sprites = self.sprites_at_position(pos=event.pos)
@@ -825,6 +838,12 @@ class BitmapEditorScene(Scene):
 
             for sprite in sprites:
                 sprite.on_left_mouse_drag_event(event, trigger)
+
+                if isinstance(sprite, BitmapPixelSprite):
+                    self.pixel_snd.play()
+
+                    pygame.time.wait(50)
+
         except AttributeError:
             pass
 
