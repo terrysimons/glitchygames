@@ -27,6 +27,8 @@ BitmappySprite.DEBUG = True
 
 class LoadDialogScene(Scene):
     log = LOG
+    NAME = "Load Sprite"
+    VERSION = ""
 
     def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)
@@ -56,7 +58,6 @@ class LoadDialogScene(Scene):
         self.previous_scene.next = self.previous_scene
         self.screen.blit(self.screenshot, (0, 0))
         self.previous_scene.dirty = 1
-        self.previous_scene.update()
 
     def on_cancel_event(self, event, trigger):
         self.info(f'Cancel: event: {event}, trigger: {trigger}')
@@ -71,6 +72,8 @@ class LoadDialogScene(Scene):
 
 class SaveDialogScene(Scene):
     log = LOG
+    NAME = "Save Sprite"
+    VERSION = ""
 
     def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)

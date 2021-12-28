@@ -74,9 +74,17 @@ class SceneManager(SceneInterface, EventManager):
             self.active_scene = next_scene
 
             if self.active_scene:
+                caption = ''
+
+                if self.active_scene.NAME:
+                    caption = f'{self.active_scene.NAME}'
+
+                if self.active_scene.VERSION:
+                    caption += f' v{self.active_scene.VERSION}'
+
                 pygame.display.set_caption(
-                    f'{self.active_scene.NAME} v{self.active_scene.VERSION}',
-                    f'{self.active_scene.NAME} v{self.active_scene.VERSION}'
+                    caption,
+                    caption
                 )
 
                 self.active_scene.load_resources()
