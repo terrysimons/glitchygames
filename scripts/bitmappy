@@ -54,13 +54,13 @@ class LoadDialogScene(Scene):
 
     def dismiss(self):
         self.load_dialog.remove(self.all_sprites)
-        self.next = self.previous_scene
-        self.previous_scene.next = self.previous_scene
+        self.next_scene = self.previous_scene
+        self.previous_scene.next_scene = self.previous_scene
         self.screen.blit(self.screenshot, (0, 0))
         self.previous_scene.dirty = 1
 
     def on_cancel_event(self, event, trigger):
-        self.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
 
 
@@ -109,11 +109,10 @@ class SaveDialogScene(Scene):
 
     def dismiss(self):
         self.save_dialog.remove(self.all_sprites)
-        self.next = self.previous_scene
-        self.previous_scene.next = self.previous_scene
+        self.next_scene = self.previous_scene
+        self.previous_scene.next_scene = self.previous_scene
         self.screen.blit(self.screenshot, (0, 0))
         self.previous_scene.dirty = 1
-        self.previous_scene.update()
 
     def on_cancel_event(self, event, trigger):
         self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
@@ -397,7 +396,9 @@ class CanvasSprite(BitmappySprite):
             pixels.append(pixel_box.pixel_color)
 
         # Generate a new bitmappy sprite and tell it to save.
-        save_sprite = BitmappySprite(width=self.pixels_across,
+        save_sprite = BitmappySprite(x=0,
+                                     y=0,
+                                     width=self.pixels_across,
                                      height=self.pixels_tall,
                                      name='Tiley McTile Face')
 
@@ -414,6 +415,8 @@ class CanvasSprite(BitmappySprite):
 
     def on_load_file_event(self, event, trigger):
         load_sprite = BitmappySprite(filename='savefile.cfg',
+                                     x=0,
+                                     y=0,
                                      width=self.pixels_across,
                                      height=self.pixels_tall)
 
@@ -421,14 +424,14 @@ class CanvasSprite(BitmappySprite):
 
         pixels = pixels_from_data(pixel_data=pixel_data)
 
-        self.log.info(pixels)
+        # self.log.info(pixels)
 
         # Update the canvas' pixels across and tall
         self.pixels_across = load_sprite.width
         self.pixels_tall = load_sprite.height
 
-        #pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-        #pixels = [(255, 255, 255)] * len(pixels)
+        # pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
+        # pixels = [(255, 255, 255)] * len(pixels)
 
         #print(pixels)
 
@@ -443,9 +446,9 @@ class CanvasSprite(BitmappySprite):
             # Create a pixel update event for the mini map.
             self.on_pixel_update_event(event=event, trigger=event)
 
-        #for pixel_box in self.pixel_boxes:
-        #    pixel_box.dirty = 1
-        #    pixel_box.update()
+        # for pixel_box in self.pixel_boxes:
+        #     pixel_box.dirty = 1
+        #     pixel_box.update()
 
         self.dirty = 1
         # self.update()
@@ -733,7 +736,7 @@ class BitmapEditorScene(Scene):
         else:
             if event.menu.name == 'New':
                 self.on_new_file_event(event=event)
-            if event.menu.name == 'Save':
+            elif event.menu.name == 'Save':
                 self.on_save_dialog_event(event)
             elif event.menu_item.name == 'Load':
                 self.on_load_dialog_event(event)

@@ -272,122 +272,122 @@ class Scene(SceneInterface, EventInterface):
 
         return pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
-    # def on_mouse_drag_event(self, event, trigger):
-    #     self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_mouse_drag_event(self, event, trigger):
+        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_mouse_drag_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_mouse_drag_event(event, trigger)
 
-    # def on_mouse_drop_event(self, event, trigger):
-    #     self.log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_mouse_drop_event(self, event, trigger):
+        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_mouse_drop_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_mouse_drop_event(event, trigger)
 
-    # def on_left_mouse_drag_event(self, event, trigger):
-    #     self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_left_mouse_drag_event(self, event, trigger):
+        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     if collided_sprites:
-    #         collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
+        if collided_sprites:
+            collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
 
-    #     # for sprite in collided_sprites:
-    #     #     sprite.on_left_mouse_drag_event(event, trigger)
+        # for sprite in collided_sprites:
+        #     sprite.on_left_mouse_drag_event(event, trigger)
 
-    # def on_left_mouse_drop_event(self, event, trigger):
-    #     self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_left_mouse_drop_event(self, event, trigger):
+        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_left_mouse_drop_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_left_mouse_drop_event(event, trigger)
 
-    # def on_middle_mouse_drag_event(self, event, trigger):
-    #     self.log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_middle_mouse_drag_event(self, event, trigger):
+        self.log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_middle_mouse_drag_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_drag_event(event, trigger)
 
-    # def on_middle_mouse_drop_event(self, event, trigger):
-    #     self.log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_middle_mouse_drop_event(self, event, trigger):
+        self.log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_middle_mouse_drop_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_drop_event(event, trigger)
 
-    # def on_right_mouse_drag_event(self, event, trigger):
-    #     self.log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_right_mouse_drag_event(self, event, trigger):
+        self.log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_right_mouse_drag_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_drag_event(event, trigger)
 
-    # def on_right_mouse_drop_event(self, event, trigger):
-    #     self.log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+    def on_right_mouse_drop_event(self, event, trigger):
+        self.log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_right_mouse_drop_event(event, trigger)
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_drop_event(event, trigger)
 
-    # def on_left_mouse_button_up_event(self, event):
-    #     # MOUSEBUTTONUP    pos, button
-    #     self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
+    def on_left_mouse_button_up_event(self, event):
+        # MOUSEBUTTONUP    pos, button
+        self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_left_mouse_button_up_event(event)
+        for sprite in collided_sprites:
+            sprite.on_left_mouse_button_up_event(event)
 
-    # def on_middle_mouse_button_up_event(self, event):
-    #     # MOUSEBUTTONUP    pos, button
-    #     self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+    def on_middle_mouse_button_up_event(self, event):
+        # MOUSEBUTTONUP    pos, button
+        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_middle_mouse_button_up_event(event)
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_button_up_event(event)
 
-    # def on_right_mouse_button_up_event(self, event):
-    #     # MOUSEBUTTONUP    pos, button
-    #     self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
+    def on_right_mouse_button_up_event(self, event):
+        # MOUSEBUTTONUP    pos, button
+        self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_right_mouse_button_up_event(event)
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_button_up_event(event)
 
-    # def on_left_mouse_button_down_event(self, event):
-    #     # MOUSEBUTTONDOWN  pos, button
-    #     self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event}')
+    def on_left_mouse_button_down_event(self, event):
+        # MOUSEBUTTONDOWN  pos, button
+        self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     self.log.info(f'ENGINE SPRITES: {collided_sprites}')
+        self.log.info(f'ENGINE SPRITES: {collided_sprites}')
 
-    #     # if collided_sprites:
-    #     #     collided_sprites[0].on_left_mouse_button_down_event(event)
-    #     for sprite in collided_sprites:
-    #         sprite.on_left_mouse_button_down_event(event)
+        # if collided_sprites:
+        #     collided_sprites[0].on_left_mouse_button_down_event(event)
+        for sprite in collided_sprites:
+            sprite.on_left_mouse_button_down_event(event)
 
-    # def on_middle_mouse_button_down_event(self, event):
-    #     # MOUSEBUTTONDOWN    pos, button
-    #     self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+    def on_middle_mouse_button_down_event(self, event):
+        # MOUSEBUTTONDOWN    pos, button
+        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_middle_mouse_button_down_event(event)
+        for sprite in collided_sprites:
+            sprite.on_middle_mouse_button_down_event(event)
 
-    # def on_right_mouse_button_down_event(self, event):
-    #     # MOUSEBUTTONDOWN  pos, button
-    #     self.log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
+    def on_right_mouse_button_down_event(self, event):
+        # MOUSEBUTTONDOWN  pos, button
+        self.log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
 
-    #     collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self.sprites_at_position(pos=event.pos)
 
-    #     for sprite in collided_sprites:
-    #         sprite.on_right_mouse_button_down_event(event)
+        for sprite in collided_sprites:
+            sprite.on_right_mouse_button_down_event(event)
 
     def on_key_up_event(self, event):
         # Wire up quit by default for escape and q.
