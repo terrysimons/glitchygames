@@ -100,12 +100,15 @@ class GameScene(Scene):
 
         button_width = self.screen_width // 2 // 2
         button_height = self.screen_height // 2 // 2
-        self.button = ButtonSprite(x=self.screen.get_rect().centerx - button_width // 2,
-                                   y=self.screen.get_rect().centery - button_height // 2,
+        self.button = ButtonSprite(x=(self.screen.get_rect().centerx - button_width) // 4,
+                                   y=(self.screen.get_rect().centery - button_height) // 4,
                                    width=button_width,
                                    height=button_height,
                                    name='Buttony McButtonface',
                                    groups=self.all_sprites)
+
+        self.button.x = self.screen.get_rect().centerx // 2
+        self.button.y = self.screen.get_rect().centery // 2
 
         # self.button.border_color = (0, 255, 0)
         # self.button.background_color = (255, 0, 255)

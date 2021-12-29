@@ -180,8 +180,8 @@ class MenuItem(BitmappySprite):
             self.text = TextSprite(
                 background_color=self.background_color,
                 text_color=(0, 0, 0),
-                x=self.rect.x,
-                y=self.rect.y,
+                x=self.x,
+                y=self.y,
                 width=self.width,
                 height=self.height,
                 text=self.name,
@@ -230,7 +230,7 @@ class MenuItem(BitmappySprite):
         self.menu_image.set_colorkey((255, 0, 255))
         self.menu_image.fill((255, 255, 255))
         self.menu_rect = self.menu_image.get_rect()
-        self.menu_rect.x = self.rect.x
+        self.menu_rect.x = self.x
         self.menu_rect.y = 21
 
         width = max([self.menu_items[menu_item].rect.width + 20
@@ -250,7 +250,7 @@ class MenuItem(BitmappySprite):
         self.menu_down_image = pygame.Surface((width, height))
         self.menu_down_image.set_colorkey((255, 0, 255))
         self.menu_down_rect = self.menu_down_image.get_rect()
-        self.menu_down_rect.x = self.rect.x
+        self.menu_down_rect.x = self.x
         self.menu_down_rect.y = self.rect.y
         self.menu_down_image.fill((255, 255, 255))
         self.rect.width = self.menu_down_rect.width
@@ -277,7 +277,7 @@ class MenuItem(BitmappySprite):
 
     def update(self):
         # self.log.debug(f'Menu Items: {self.menu_items.items()}')
-        self.screen.blit(self.image, (self.rect.x, self.rect.y))
+        self.screen.blit(self.image, (self.x, self.rect.y))
 
         if self.active:
             if self.menu_image and self.menu_rect:
@@ -431,20 +431,6 @@ class MenuItem(BitmappySprite):
         self.dirty = 1
 
 
-class Bar(BitmappySprite):
-    class BarBar(RootSprite):
-        def __init__(self, groups):
-            super().__init__(groups=groups)
-            self.font = FontManager(GameEngine).font()
-            (self.image, self.rect) = self.font.render("Success!", (255, 255, 0))
-
-    def __init__(self, y=0, width=32, height=32, groups=None):
-
-        super().__init__(x=0, y=y, width=width, height=height, groups=groups)
-
-        self.bar_bar = Bar.BarBar(groups=groups)
-
-
 class TextSprite(BitmappySprite):
     log = LOG
 
@@ -515,7 +501,7 @@ class TextSprite(BitmappySprite):
                  text_color=WHITE, alpha=0, text='Text', parent=None,
                  groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
-                         groups=groups)
+                         parent=parent, groups=groups)
         self.background_color = (255, 0, 255)
         self.active_color = self.background_color
         self.click_color = (0, 255, 128)
@@ -547,14 +533,10 @@ class TextSprite(BitmappySprite):
             self.image.set_alpha(self.alpha)
             self.image.convert_alpha()
 
-        self.rect = self.image.get_rect()
-        self.rect.x += self.x
-        self.rect.y += self.y
-
         self.text_box = TextSprite.TextBox(
             font=self.font_manager.font(),
-            x=self.rect.centerx,
-            y=self.rect.centery,
+            x=x,
+            y=x,
             text=self.text,
             text_color=text_color,
             parent=self,
@@ -565,6 +547,31 @@ class TextSprite(BitmappySprite):
         self.text_box.start_y = self.rect.centery
 
         self.proxies = [self.parent]
+
+    @property
+    def x(self):
+        return self.rect.x
+
+    @x.setter
+    def x(self, new_x):
+        self.rect.x = new_x
+        self.text_box.start_x = self.parent.rect.centerx if self.parent else new_x
+        # self.text_box.start_x = self.x
+        self.dirty = 1
+
+    @property
+    def y(self):
+        return self.rect.y
+
+    @y.setter
+    def y(self, new_y):
+        self.rect.y = new_y
+        self.text_box.start_y = self.parent.rect.centery if self.parent else new_y
+        # self.text_box.start_y = self.y
+        self.dirty = 1
+
+    def update_nested_sprites(self):
+        self.text_box.dirty = self.dirty
 
     def update(self):
         self.image.fill(self.active_color)
@@ -614,21 +621,17 @@ class ButtonSprite(BitmappySprite):
         self.inactive_color = (0, 0, 0)
         self.background_color = self.inactive_color
 
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
         self.text = TextSprite(
             background_color=self.background_color,
-            x=self.rect.x,
-            y=self.rect.y,
+            x=self.parent.rect.centerx if parent else self.x,
+            y=self.parent.rect.centery if parent else self.y,
             width=self.width,
             height=self.height,
             text=self.name,
-            parent=self.parent,
+            parent=self,
             groups=groups
         )
-        # self.text.rect.center = self.rect.center
+        self.text.rect.center = self.rect.center
 
         pygame.draw.rect(self.image, self.border_color, Rect(0, 0, self.width, self.height), 1)
 
@@ -649,6 +652,29 @@ class ButtonSprite(BitmappySprite):
     #                                          self.rect.centery,
     #                                          self.text.text_box.rect.width,
     #                                          self.text.text_box.rect.height))
+
+    @property
+    def x(self):
+        return self.rect.x
+
+    @x.setter
+    def x(self, new_x):
+        self.rect.x = new_x
+        self.text.x = self.parent.rect.centerx if self.parent else new_x
+        self.dirty = 1
+
+    @property
+    def y(self):
+        return self.rect.y
+
+    @y.setter
+    def y(self, new_y):
+        self.rect.y = new_y
+        self.text.y = self.parent.rect.centery if self.parent else new_y
+        self.dirty = 1
+
+    def update_nested_sprites(self):
+        self.text.dirty = self.dirty
 
     def on_left_mouse_button_down_event(self, event):
         self.background_color = self.active_color
@@ -686,9 +712,6 @@ class CheckboxSprite(ButtonSprite):
             pygame.draw.line(self.image, self.color, (0, 0), (self.width - 1, self.height - 1), 1)
             pygame.draw.line(self.image, self.color, (0, self.height - 1), (self.width - 1, 0), 1)
 
-        self.rect.x = self.x
-        self.rect.y = self.y
-
     def on_left_mouse_button_down_event(self, event):
         pass
 
@@ -715,36 +738,58 @@ class TextBoxSprite(BitmappySprite):
             groups=groups
         )
         self.value = None
-        self.text = None
         self.background_color = (0, 0, 0)
         self.border_width = 1
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-        self.parent = parent
 
         self.callbacks = callbacks
 
-        self.text = TextSprite(
+        self.text_box = TextSprite(
             background_color=self.background_color,
-            x=self.rect.x,
-            y=self.rect.y,
+            x=x,
+            y=y,
             width=self.width - self.border_width,
             height=self.height - self.border_width,
             text=self.value,
-            parent=self.parent,
+            parent=self,
             groups=groups
         )
 
+        self.x = x
+        self.y = y
+
+        self.text_box.x = self.x
+        self.text_box.y = self.y
+
         self.proxies = [self.parent]
 
-    def update(self):
-        if self.text:
-            self.text.background_color = self.background_color
-            self.text.dirty = 1
-            self.text.update()
+    @property
+    def x(self):
+        return self.rect.x
 
-            self.image.blit(self.text.image, (self.x, self.y, self.width, self.height))
+    @x.setter
+    def x(self, new_x):
+        self.rect.x = new_x
+        self.text_box.x = self.parent.x if self.parent else self.rect.x
+        self.dirty = 1
+
+    @property
+    def y(self):
+        return self.rect.y
+
+    @y.setter
+    def y(self, new_y):
+        self.rect.y = new_y
+        self.text_box.y = self.parent.y if self.parent else self.rect.y
+        self.dirty = 1
+
+    def update_nested_sprites(self):
+        self.text_box.dirty = self.dirty
+
+    def update(self):
+        if self.text_box:
+            self.text_box.background_color = self.background_color
+
+            self.image.blit(self.text_box.image, (self.x, self.y, self.width, self.height))
 
         # TODO: Update this to support hover/click/etc...
         if self.border_width:
@@ -756,14 +801,12 @@ class TextBoxSprite(BitmappySprite):
             )
 
     def on_left_mouse_button_down_event(self, event):
-        self.dirty = 1
         self.background_color = (128, 128, 128)
-        # self.update()
+        self.dirty = 1
 
     def on_left_mouse_button_up_event(self, event):
-        self.dirty = 1
         self.background_color = (0, 0, 0)
-        # self.update()
+        self.dirty = 1
 
 
 class SliderSprite(BitmappySprite):
@@ -786,14 +829,14 @@ class SliderSprite(BitmappySprite):
 
             self.value = 0
 
-            self.image.fill((0, 255, 0))
-            self.rect = Rect(0, 0, self.width - 2, self.height - 2)
-            self.rect.x = x
-            self.rect.y = y
+            self.image.fill((255, 255, 255))
+            self.rect = Rect(x, y, self.width, self.height)
+            self.x = x
+            self.y = y
 
         def on_left_mouse_button_down_event(self, event):
             self.dirty = 1
-            self.value = event.pos[0]
+            self.value = event.pos[0] - self.parent.x
 
             # Hack
             if self.value > 255:
@@ -801,7 +844,7 @@ class SliderSprite(BitmappySprite):
             elif self.value < 0:
                 self.value = 0
 
-            self.rect.x = self.value
+            self.rect.centerx = self.parent.x + self.value if self.parent else self.x + self.value
             super().on_left_mouse_button_down_event(event)
 
         def on_left_mouse_drag_event(self, event, trigger):
@@ -812,6 +855,10 @@ class SliderSprite(BitmappySprite):
 
     def __init__(self, x, y, width, height, name=None, parent=None,
                  groups=pygame.sprite.LayeredDirty()):
+        # TODO: If even, make the line 2x thick?
+        if height % 2 == 0:
+            height -= 1
+
         super().__init__(
             x=x,
             y=y,
@@ -821,39 +868,48 @@ class SliderSprite(BitmappySprite):
             parent=parent,
             groups=groups
         )
+
         self.text_sprite = TextBoxSprite(
-            x=x + width,
-            y=y,
+            x=257,
+            y=self.rect.y,
             width=40,
-            height=20,
+            height=16,
             name=str((0, 0, 0)),
             parent=self,
             groups=groups,
         )
 
-        self.text_sprite.border_width = 1
-
         self.slider_knob = SliderSprite.SliderKnobSprite(
-            x=0,
-            y=self.y,
-            width=height,
-            height=height * 1.5,
+            x=x,
+            y=y - 1,
+            width=self.height * 2 - 1,
+            height=self.height * 2 - 1,
             name=name,
             parent=self,
             groups=groups
         )
 
+        self.slider_knob.value = 0
+
+        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
+        self.slider_knob.rect.y = self.rect.centery - self.rect.height + 1
+        self.slider_knob.dirty = 1
+
+        self.text_sprite.border_width = 1
+        # self.text_sprite.x = self.rect.right
+        # self.text_sprite.y = self.rect.centery
+
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((self.width, self.height))
-        self.background = pygame.Surface((self.width, self.height))
-        self.image.fill((255, 255, 255))
         self.rect = self.image.get_rect()
+        self.background = pygame.Surface((self.width, self.height))
+        # self.image.fill((255, 255, 255))
+        self.x = x
+        self.y = y
+        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
+        self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
 
-        self.image.blit(self.text_sprite.image, (0, 0))
-        self.rect.x = self.x
-        self.rect.y = self.y
-        self.text_sprite.start_x = 0
-        self.text_sprite.start_y = 0
+        # self.image.blit(self.text_sprite.image, (0, 0))
 
     @property
     def value(self):
@@ -863,10 +919,44 @@ class SliderSprite(BitmappySprite):
     def value(self, value):
         self.slider_knob.value = value
 
+    @property
+    def x(self):
+        return self.rect.x
+
+    @x.setter
+    def x(self, new_x):
+        self.rect.x = new_x
+        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
+        self.text_sprite.x = self.x + 257
+        # self.text_sprite.text_box.x = self.parent.rect.centerx if self.parent else self.rect.centerx
+        self.dirty = 1
+
+    @property
+    def y(self):
+        return self.rect.y
+
+    @y.setter
+    def y(self, new_y):
+        self.rect.y = new_y
+        self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
+        # self.text_sprite.text_box.y = self.parent.rect.centery if self.parent else self.rect.centery
+
+        self.dirty = 1
+
     def update_nested_sprites(self):
+        self.slider_knob.dirty = self.dirty
         self.text_sprite.dirty = self.dirty
+        # self.text_sprite.text.dirty = self.dirty
 
     def update(self):
+
+        pygame.draw.rect(
+            self.image,
+            (255, 255, 0),
+            Rect(self.x, self.rect.y, self.rect.width, self.rect.height),
+            self.width
+        )
+
         pygame.draw.rect(
             self.image,
             (255, 0, 0),
@@ -874,7 +964,7 @@ class SliderSprite(BitmappySprite):
             1
         )
         self.text_sprite.value = self.slider_knob.value
-        self.text_sprite.text.text = self.slider_knob.value
+        self.text_sprite.text_box.text = self.slider_knob.value
 
         self.image.fill((0, 0, 0))
 
@@ -889,6 +979,7 @@ class SliderSprite(BitmappySprite):
                 color = (0, i, 0)
             elif self.name == 'B':
                 color = (0, 0, i)
+
 
             pygame.draw.line(
                 self.image,
@@ -914,13 +1005,10 @@ class SliderSprite(BitmappySprite):
                 1
             )
 
-        # Draw the knob
-        self.image.blit(self.slider_knob.image, (self.slider_knob.value, self.rect.height // 4))
-
     def on_left_mouse_button_down_event(self, event):
-        self.dirty = 1
         self.slider_knob.on_left_mouse_button_down_event(event)
         super().on_left_mouse_button_down_event(event)
+        self.dirty = 1
 
     def on_left_mouse_drag_event(self, event, trigger):
         self.on_left_mouse_button_down_event(event)
@@ -947,8 +1035,6 @@ class ColorWellSprite(BitmappySprite):
         self.red = 0
         self.green = 0
         self.blue = 0
-        self.rect.x = x
-        self.rect.y = y
 
         self.text_sprite = TextBoxSprite(
             x=self.rect.midleft[0] + width,
@@ -985,57 +1071,79 @@ class ColorWellSprite(BitmappySprite):
 
         return f'#{red}{green}{blue}'
 
+    def update_nested_sprites(self):
+        self.text_sprite.dirty = 1
+
     def update(self):
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
         pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
 
         self.text_sprite.value = str(self.active_color)
-        self.text_sprite.text.text = self.hex_color
+        self.text_sprite.text_box.text = self.hex_color
         self.text_sprite.dirty = 1
 
 
 class InputDialog(BitmappySprite):
+    """
+    """
     log = LOG
 
     def __init__(self, x, y, width, height, name=None, dialog_text='Would you like to do a thing?',
                  confirm_text='Confirm', cancel_text='Cancel', callbacks=None,
-                 groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+                 parent=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
         self.background_color = (0, 0, 0)
         self.border_width = 1
         self.width = width
+
         self.dialog_text_sprite = TextBoxSprite(
             name=dialog_text,
-            x=0,
-            y=0,
+            x=self.x,
+            y=self.y,
             width=self.width // 2,
             height=20,
             parent=self,
             groups=groups
         )
-        self.dialog_text_sprite.text.text = dialog_text
+        self.dialog_text_sprite.rect.center = self.rect.center
+        self.dialog_text_sprite.text_box.rect.center = self.dialog_text_sprite.rect.center
+        self.dialog_text_sprite.dirty = 1
+        self.dialog_text_sprite.text_box.dirty = 1
+
+        self.dialog_text_sprite.text_box.text = dialog_text
         self.confirm_button = ButtonSprite(
             name=confirm_text,
-            x=0,
-            y=0,
+            x=self.x,
+            y=self.y,
             width=75,
             height=20,
+            parent=self,
             groups=groups
         )
         self.cancel_button = ButtonSprite(
             name=cancel_text,
-            x=0,
-            y=0,
+            x=self.x,
+            y=self.y,
             width=75,
             height=20,
+            parent=self,
             groups=groups
         )
-        self._dirty = 1
 
-        self.rect = self.image.get_rect()
+        # self.dialog_text_sprite.rect.center = self.rect.center
+        # self.confirm_button.rect.bottomright = self.rect.bottomright
+        # self.confirm_button.rect.x -= 20
+        # self.confirm_button.rect.y -= 20
+        # self.cancel_button.rect.bottomright = self.confirm_button.rect.bottomleft
+        # self.cancel_button.rect.x -= 20
 
-        self.cancel_button.rect.bottomright = self.rect.bottomright
-        self.confirm_button.rect.right = self.cancel_button.rect.left
+        # self._dirty = 1
+
+        self.cancel_button.x = self.rect.bottomright[0] - self.cancel_button.width
+        self.cancel_button.y = self.rect.bottomright[1] - self.cancel_button.height
+        self.confirm_button.x = self.cancel_button.rect.left - self.cancel_button.width
+        self.confirm_button.y = self.cancel_button.rect.top
+        # self.confirm_button.update_nested_sprites()
 
     def update_nested_sprites(self):
         self.cancel_button.dirty = self.dirty
@@ -1043,21 +1151,14 @@ class InputDialog(BitmappySprite):
 
     def update(self):
         # Draw the bounding box.
-        # pygame.draw.rect(
-        #     self.image,
-        #     (128, 128, 128),
-        #     Rect(0, 0, self.width, self.height),
-        #     self.border_width
-        # )
+        pygame.draw.rect(
+            self.image,
+            (128, 128, 128),
+            Rect(0, 0, self.width, self.height),
+            self.border_width
+        )
 
-        # self.dialog_text_sprite.text.rect.x = self.dialog_text_sprite.rect.x - 200
-        self.dialog_text_sprite.rect.center = self.rect.center
-        self.confirm_button.rect.bottomright = self.rect.bottomright
-        self.confirm_button.rect.x -= 20
-        self.confirm_button.rect.y -= 20
-        self.cancel_button.rect.bottomright = self.confirm_button.rect.bottomleft
-        self.cancel_button.rect.x -= 20
-
+        self.dialog_text_sprite.dirty = 1
         self.cancel_button.dirty = 1
         self.confirm_button.dirty = 1
 

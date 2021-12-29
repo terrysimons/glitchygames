@@ -44,15 +44,19 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
+    def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
         super().__init__(groups)
+        # This is the stuff pygame really cares about.
+        self.image = pygame.Surface((width, height))
+        self.rect = self.image.get_rect()
 
-        self.x = x
-        self.y = y
+        self.rect.x = x
+        self.rect.y = y
+        self.rect.width = int(width)
+        self.rect.height = int(height)
 
-        self.width = int(width)
-        self.height = int(height)
         self.name = name
+        self.parent = parent
         self.proxies = [self]
 
         # For debugging sanity.
@@ -72,10 +76,6 @@ class Sprite(RootSprite):
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-
-        # This is the stuff pygame really cares about.
-        self.image = pygame.Surface((self.width, self.height))
-        self.rect = self.image.get_rect()
 
         groups.add(self)
 
@@ -104,6 +104,42 @@ class Sprite(RootSprite):
                     if str(type(self)) == sprite_type:
                         self.log.info('Break when sprite_type==<any>')
                         breakpoint()
+
+    @property
+    def x(self):
+        return self.rect.x
+
+    @x.setter
+    def x(self, new_x):
+        self.rect.x = new_x
+        self.dirty = 1
+
+    @property
+    def y(self):
+        return self.rect.y
+
+    @y.setter
+    def y(self, new_y):
+        self.rect.y = new_y
+        self.dirty = 1
+
+    @property
+    def width(self):
+        return self.rect.width
+
+    @width.setter
+    def width(self, new_width):
+        self.rect.width = new_width
+        self.dirty = 1
+
+    @property
+    def height(self):
+        return self.rect.height
+
+    @height.setter
+    def height(self, new_height):
+        self.rect.height = new_height
+        self.dirty = 1
 
     def update(self):
         pass
@@ -333,7 +369,7 @@ class BitmappySprite(Sprite):
         filename - optional, the BitmappySprite config to load.
 
         """
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
         self.filename = filename
         self.focusable = focusable
         # self.width = width
@@ -353,9 +389,9 @@ class BitmappySprite(Sprite):
             raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
 
         self.rect = self.image.get_rect()
+        self.parent = parent
         self.rect.x = x
         self.rect.y = y
-        self.parent = parent
         self.proxies = [self.parent]
 
     def load(self, filename):  # noqa: R0914
