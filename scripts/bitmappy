@@ -40,8 +40,8 @@ class LoadDialogScene(Scene):
             confirm_text='Load',
             x=self.screen.get_rect().center[0] // 2,
             y=self.screen.get_rect().center[1] // 2,
-            width=self.screen_width//2,
-            height=self.screen_height//2,
+            width=self.screen_width // 2,
+            height=self.screen_height // 2,
             groups=self.all_sprites
         )
 
@@ -81,22 +81,19 @@ class SaveDialogScene(Scene):
             name='Save Sprite',
             dialog_text='Would you like to save your sprite?',
             confirm_text='Save',
-            x=self.screen.get_rect().center[0] - self.screen_width // 2,
-            y=self.screen.get_rect().center[1] - self.screen_height // 2,
-            width=self.screen_width//2,
-            height=self.screen_height//2,
+            x=self.screen.get_rect().center[0] // 2,
+            y=self.screen.get_rect().center[1] // 2,
+            width=self.screen_width // 2,
+            height=self.screen_height // 2,
             groups=self.all_sprites
         )
 
     def setup(self):
-        self.save_dialog.rect.center = self.screen.get_rect().center
-
         self.save_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
         self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
 
         self.save_dialog.add(self.all_sprites)
 
-        # self.all_sprites.clear(self.previous_scene._screenshot, self.background)
 
     def cleanup(self):
         self.next_scene = self

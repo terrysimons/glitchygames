@@ -8,7 +8,7 @@ from ghettogames.engine import FontManager
 from ghettogames.engine import GameEngine
 from ghettogames import events
 from ghettogames.sprites import FocusableSingletonBitmappySprite
-from ghettogames.sprites import BitmappySprite, RootSprite
+from ghettogames.sprites import BitmappySprite, Sprite
 from ghettogames.sprites import MousePointer
 
 LOG = logging.getLogger('game.ui')
@@ -434,12 +434,12 @@ class MenuItem(BitmappySprite):
 class TextSprite(BitmappySprite):
     log = LOG
 
-    class TextBox(RootSprite):
+    class TextBox(Sprite):
         log = LOG
 
         def __init__(self, font, x, y, line_height=15, text='Text', text_color=WHITE, parent=None,
                      groups=pygame.sprite.LayeredDirty()):
-            super().__init__(groups=groups)
+            super().__init__(x=x, y=y, width=0, height=0, parent=parent, groups=groups)
             self.start_x = x
             self.start_y = y
             self.line_height = line_height
@@ -453,6 +453,7 @@ class TextSprite(BitmappySprite):
             self.active_background_color = self.background_color
             self.font = font
             self.name = text
+            self.parent = parent
             self.proxies = [parent]
             (self.image, self.rect) = self.font.render(text, fgcolor=self.active_text_color)
             # , bgcolor=self.active_background_color)
@@ -480,6 +481,37 @@ class TextSprite(BitmappySprite):
         def unindent(self):
             self.x -= 10
             self.dirty = 1
+
+        @property
+        def x(self):
+            return self.start_x
+
+        @x.setter
+        def x(self, new_x):
+            self.rect.x = self.parent.rect.centerx if self.parent else new_x
+            self.start_x = self.rect.x
+            # self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
+            # self.text_sprite.x = 240
+            # self.text_sprite.text_box.x = self.parent.rect.centerx if self.parent else self.rect.centerx
+            self.dirty = 1
+
+        @property
+        def y(self):
+            return self.start_y
+
+        @y.setter
+        def y(self, new_y):
+            self.rect.centery = self.parent.rect.centery if self.parent else new_y
+            self.start_y = self.rect.y
+            # self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
+            # self.text_sprite.text_box.y = self.parent.rect.centery if self.parent else self.rect.centery
+
+            self.dirty = 1
+
+        # def update_nested_sprites(self):
+        #     self.slider_knob.dirty = self.dirty
+        #     self.text.dirty = self.dirty
+        #     # self.text_sprite.text.dirty = self.dirty
 
         # def on_mouse_focus_event(self, event, focus):
         #     self.active_text_color = self.text_hover_color
@@ -869,7 +901,16 @@ class SliderSprite(BitmappySprite):
             groups=groups
         )
 
-        self.text_sprite = TextBoxSprite(
+        # self.text_sprite = TextBoxSprite(
+        #     x=257,
+        #     y=self.rect.y,
+        #     width=40,
+        #     height=16,
+        #     name=str((0, 0, 0)),
+        #     parent=self,
+        #     groups=groups,
+        # )
+        self.text_sprite = TextSprite(
             x=257,
             y=self.rect.y,
             width=40,
@@ -890,6 +931,8 @@ class SliderSprite(BitmappySprite):
         )
 
         self.slider_knob.value = 0
+
+        self.text_sprite.text = self.slider_knob.value
 
         self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
         self.slider_knob.rect.y = self.rect.centery - self.rect.height + 1
@@ -927,7 +970,7 @@ class SliderSprite(BitmappySprite):
     def x(self, new_x):
         self.rect.x = new_x
         self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
-        self.text_sprite.x = self.x + 257
+        self.text_sprite.x = 240
         # self.text_sprite.text_box.x = self.parent.rect.centerx if self.parent else self.rect.centerx
         self.dirty = 1
 
@@ -1105,7 +1148,7 @@ class InputDialog(BitmappySprite):
             parent=self,
             groups=groups
         )
-        self.dialog_text_sprite.rect.center = self.rect.center
+        self.dialog_text_sprite.rect.x = self.rect.x
         self.dialog_text_sprite.text_box.rect.center = self.dialog_text_sprite.rect.center
         self.dialog_text_sprite.dirty = 1
         self.dialog_text_sprite.text_box.dirty = 1
@@ -1117,7 +1160,6 @@ class InputDialog(BitmappySprite):
             y=self.y,
             width=75,
             height=20,
-            parent=self,
             groups=groups
         )
         self.cancel_button = ButtonSprite(
@@ -1126,7 +1168,6 @@ class InputDialog(BitmappySprite):
             y=self.y,
             width=75,
             height=20,
-            parent=self,
             groups=groups
         )
 
