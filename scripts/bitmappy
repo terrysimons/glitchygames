@@ -19,7 +19,7 @@ from ghettogames.sprites import MousePointer, BitmappySprite
 from ghettogames.ui import SliderSprite, ColorWellSprite, InputDialog, MenuBar, MenuItem
 
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.DEBUG)
+LOG.setLevel(logging.INFO)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -34,7 +34,6 @@ class LoadDialogScene(Scene):
         super().__init__(options=options, groups=groups)
         self.previous_scene = previous_scene
 
-
         self.load_dialog = InputDialog(
             name='Load Sprite',
             dialog_text='Would you like to load a sprite?',
@@ -45,24 +44,29 @@ class LoadDialogScene(Scene):
             height=self.screen_height//2,
             groups=self.all_sprites
         )
+
+    def setup(self):
         self.load_dialog.rect.center = self.screen.get_rect().center
 
         self.load_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
         self.load_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
 
+        # self.load_dialog.add(self.previous_scene._screenshot)
         self.load_dialog.add(self.all_sprites)
 
+        # self.all_sprites.clear(self.screen, self.previous_scene._screenshot)
+
+
+    def cleanup(self):
+        self.next_scene = self
+
     def dismiss(self):
-        self.load_dialog.remove(self.all_sprites)
-        self.next_scene = self.previous_scene
         self.previous_scene.next_scene = self.previous_scene
-        self.screen.blit(self.screenshot, (0, 0))
-        self.previous_scene.dirty = 1
+        self.next_scene = self.previous_scene
 
     def on_cancel_event(self, event, trigger):
         self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
-
 
     def on_confirm_event(self, event, trigger):
         self.log.info(f'Load File: event: {event}, trigger: {trigger}')
@@ -78,8 +82,6 @@ class SaveDialogScene(Scene):
     def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)
         self.previous_scene = previous_scene
-        # self.all_sprites = groups
-        # self.screenshot = Screenshot(groups=self.all_sprites)
 
         self.save_dialog = InputDialog(
             name='Save Sprite',
@@ -92,27 +94,22 @@ class SaveDialogScene(Scene):
             groups=self.all_sprites
         )
 
+    def setup(self):
         self.save_dialog.rect.center = self.screen.get_rect().center
 
         self.save_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
         self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
 
-        self.all_sprites.clear(self.screen, self.background)
+        self.save_dialog.add(self.all_sprites)
 
-    # @property
-    # def background(self):
-    #     self.background
+        # self.all_sprites.clear(self.previous_scene._screenshot, self.background)
 
-    # @background.setter
-    # def background(self, new_background):
-    #     pass
+    def cleanup(self):
+        self.next_scene = self
 
     def dismiss(self):
-        self.save_dialog.remove(self.all_sprites)
-        self.next_scene = self.previous_scene
         self.previous_scene.next_scene = self.previous_scene
-        self.screen.blit(self.screenshot, (0, 0))
-        self.previous_scene.dirty = 1
+        self.next_scene = self.previous_scene
 
     def on_cancel_event(self, event, trigger):
         self.log.info(f'Cancel: event: {event}, trigger: {trigger}')

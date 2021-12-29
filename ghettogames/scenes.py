@@ -71,9 +71,19 @@ class SceneManager(SceneInterface, EventManager):
                 f'from scene "{self.active_scene}"'
             )
 
+            if next_scene:
+                if self.active_scene:
+                    self.active_scene._screenshot = self.active_scene.screenshot
+                    self.log.info(f'Cleaning up active scene {self.active_scene}.')
+                    self.active_scene.cleanup()
+                self.log.info(f'Setting up new scene {next_scene}.')
+                next_scene.setup()
+
             self.active_scene = next_scene
 
             if self.active_scene:
+                self.active_scene.setup()
+
                 caption = ''
 
                 if self.active_scene.NAME:
@@ -101,6 +111,13 @@ class SceneManager(SceneInterface, EventManager):
 
                 # This controls how events are marshalled
                 self.proxies = [self, self.active_scene]
+
+                # Make all of the new scene's sprites dirty to force a redraw
+                for sprite in self.active_scene.all_sprites:
+                    sprite.dirty = 1
+
+                # Redraw the new scene's background to clear out any artifacts
+                self.screen.blit(self.active_scene.background, (0, 0))
 
                 # Per-scene FPS configurability
                 self.fps = self.active_scene.fps
@@ -214,6 +231,7 @@ class Scene(SceneInterface, EventInterface):
         # new scenes to care about the SceneManager when being
         # instantiated.
         self.fps = 0
+        self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
         self.name = type(self)
@@ -255,6 +273,12 @@ class Scene(SceneInterface, EventInterface):
         self._background_color = new_color
         self.background.fill(self.background_color)
         self.all_sprites.clear(self.screen, self.background)
+
+    def setup(self):
+        pass
+
+    def cleanup(self):
+        pass
 
     def update(self):
         # Hack to enable compound sprites to manage their own subsprites dirty states
