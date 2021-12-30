@@ -13,21 +13,21 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from ghettogames.color import PURPLE, VGA
-from ghettogames.events import ResourceManager, EventManager
-from ghettogames.events import FPSEVENT, GAMEEVENT, MENUEVENT
+from glitchygames.color import PURPLE, VGA
+from glitchygames.events import ResourceManager, EventManager
+from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
 
 
-from ghettogames.audio import AudioManager
-# from ghettogames.controllers import ControllerManager
-from ghettogames.fonts import FontManager
-from ghettogames.joysticks import JoystickManager
-from ghettogames.keyboard import KeyboardManager
-from ghettogames.midi import MidiManager
-from ghettogames.mouse import MouseManager
+from glitchygames.audio import AudioManager
+# from glitchygames.controllers import ControllerManager
+from glitchygames.fonts import FontManager
+from glitchygames.joysticks import JoystickManager
+from glitchygames.keyboard import KeyboardManager
+from glitchygames.midi import MidiManager
+from glitchygames.mouse import MouseManager
 
-from ghettogames.sprites import Sprite
-from ghettogames.scenes import SceneManager
+from glitchygames.sprites import Sprite
+from glitchygames.scenes import SceneManager
 
 LOG = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())

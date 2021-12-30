@@ -7,10 +7,10 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from ghettogames.engine import GameEngine
-from ghettogames.ui import ButtonSprite, MenuBar, MenuItem
-from ghettogames.sprites import BitmappySprite
-from ghettogames.scenes import Scene
+from glitchygames.engine import GameEngine
+from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
+from glitchygames.sprites import BitmappySprite
+from glitchygames.scenes import Scene
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)

@@ -2,8 +2,8 @@ import logging
 
 import pygame
 
-from ghettogames.events import FontEvents
-from ghettogames.events import ResourceManager
+from glitchygames.events import FontEvents
+from glitchygames.events import ResourceManager
 
 
 log = logging.getLogger('game.fonts')

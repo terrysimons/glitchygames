@@ -2,8 +2,8 @@ import logging
 
 import pygame
 
-from ghettogames.events import JoystickEvents
-from ghettogames.events import ResourceManager
+from glitchygames.events import JoystickEvents
+from glitchygames.events import ResourceManager
 
 
 log = logging.getLogger('game.joysticks')

@@ -6,9 +6,9 @@ import logging
 
 import pygame
 
-from ghettogames.engine import GameEngine
-from ghettogames.scenes import Scene
-from ghettogames.sprites import Sprite
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)

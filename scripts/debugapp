@@ -8,15 +8,15 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from ghettogames.color import WHITE, BLACKLUCENT
-from ghettogames.fonts import FontManager
-from ghettogames.engine import GameEngine
-from ghettogames.joysticks import JoystickManager
-from ghettogames.pixels import pixels_from_data, pixels_from_path
-from ghettogames.pixels import image_from_pixels
-from ghettogames.pixels import rgb_triplet_generator
-from ghettogames.sprites import BitmappySprite, SingletonBitmappySprite, MousePointer
-from ghettogames.scenes import Scene
+from glitchygames.color import WHITE, BLACKLUCENT
+from glitchygames.fonts import FontManager
+from glitchygames.engine import GameEngine
+from glitchygames.joysticks import JoystickManager
+from glitchygames.pixels import pixels_from_data, pixels_from_path
+from glitchygames.pixels import image_from_pixels
+from glitchygames.pixels import rgb_triplet_generator
+from glitchygames.sprites import BitmappySprite, SingletonBitmappySprite, MousePointer
+from glitchygames.scenes import Scene
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)

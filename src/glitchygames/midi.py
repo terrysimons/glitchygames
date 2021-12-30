@@ -1,6 +1,6 @@
 import logging
 
-from ghettogames.events import ResourceManager
+from glitchygames.events import ResourceManager
 
 
 log = logging.getLogger('game.midi')

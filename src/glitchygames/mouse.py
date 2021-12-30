@@ -2,9 +2,9 @@ import logging
 
 import pygame
 
-from ghettogames.events import MouseEvents
-from ghettogames.events import ResourceManager
-from ghettogames.sprites import collided_sprites
+from glitchygames.events import MouseEvents
+from glitchygames.events import ResourceManager
+from glitchygames.sprites import collided_sprites
 
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())

@@ -7,9 +7,9 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from ghettogames.engine import GameEngine
-from ghettogames.sprites import BitmappySprite
-from ghettogames.scenes import Scene
+from glitchygames.engine import GameEngine
+from glitchygames.sprites import BitmappySprite
+from glitchygames.scenes import Scene
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)

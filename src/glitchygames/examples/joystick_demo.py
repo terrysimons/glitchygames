@@ -9,13 +9,13 @@ import pygame.gfxdraw
 import pygame.locals
 from pygame import Rect
 
-from ghettogames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
-from ghettogames.color import PURPLE, WHITE
-from ghettogames.engine import GameEngine
-from ghettogames.fonts import FontManager
-from ghettogames.joysticks import JoystickManager
-from ghettogames.scenes import Scene
-from ghettogames.sprites import Sprite
+from glitchygames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
+from glitchygames.color import PURPLE, WHITE
+from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
+from glitchygames.joysticks import JoystickManager
+from glitchygames.scenes import Scene
+from glitchygames.sprites import Sprite
 
 
 LOG = logging.getLogger('game')

@@ -7,10 +7,10 @@ import struct
 
 import pygame
 
-from ghettogames.engine import GameEngine
-from ghettogames.pixels import rgb_triplet_generator, rgb_565_triplet_generator
-from ghettogames.sprites import Sprite
-from ghettogames.scenes import Scene
+from glitchygames.engine import GameEngine
+from glitchygames.pixels import rgb_triplet_generator, rgb_565_triplet_generator
+from glitchygames.sprites import Sprite
+from glitchygames.scenes import Scene
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.INFO)

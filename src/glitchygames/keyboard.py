@@ -2,8 +2,8 @@ import logging
 
 import pygame
 
-from ghettogames.events import KeyboardEvents
-from ghettogames.events import ResourceManager
+from glitchygames.events import KeyboardEvents
+from glitchygames.events import ResourceManager
 
 
 log = logging.getLogger('game.keyboard')

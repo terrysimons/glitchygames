@@ -3,11 +3,11 @@ import time
 
 import pygame
 
-from ghettogames.color import BLACK
-from ghettogames.events import EventInterface, EventManager
-from ghettogames.sprites import MousePointer
+from glitchygames.color import BLACK
+from glitchygames.events import EventInterface, EventManager
+from glitchygames.sprites import MousePointer
 
-from ghettogames.events import FPSEVENT
+from glitchygames.events import FPSEVENT
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())

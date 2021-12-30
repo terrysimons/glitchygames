@@ -3,13 +3,13 @@ import logging
 from pygame import Rect
 import pygame
 
-from ghettogames.color import WHITE, BLACKLUCENT
-from ghettogames.engine import FontManager
-from ghettogames.engine import GameEngine
-from ghettogames import events
-from ghettogames.sprites import FocusableSingletonBitmappySprite
-from ghettogames.sprites import BitmappySprite, Sprite
-from ghettogames.sprites import MousePointer
+from glitchygames.color import WHITE, BLACKLUCENT
+from glitchygames.engine import FontManager
+from glitchygames.engine import GameEngine
+from glitchygames import events
+from glitchygames.sprites import FocusableSingletonBitmappySprite
+from glitchygames.sprites import BitmappySprite, Sprite
+from glitchygames.sprites import MousePointer
 
 LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())

@@ -4,8 +4,8 @@ import logging
 
 import pygame
 
-from ghettogames.events import MouseEvents
-from ghettogames.pixels import rgb_triplet_generator
+from glitchygames.events import MouseEvents
+from glitchygames.pixels import rgb_triplet_generator
 
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())

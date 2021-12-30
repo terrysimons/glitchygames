@@ -4,8 +4,8 @@ import logging
 
 import pygame
 
-from ghettogames.engine import GameEngine
-from ghettogames.scenes import Scene
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
