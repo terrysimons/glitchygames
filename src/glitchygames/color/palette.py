@@ -1,4 +1,4 @@
-# GhettoGames
+# GlitchyGames
 # palette: Manages the custom color palette file format used by the engine
 #
 # A color palette is contained in a CFG file with each color having a section with the
@@ -52,7 +52,7 @@ class PaletteUtility:
 
         return colors
 
-    # Load a palette from a GhettoGames CFG file. Returns a list of PyGame Color objects
+    # Load a palette from a GlitchyGames CFG file. Returns a list of PyGame Color objects
     @staticmethod
     def load_palette_from_file(config_file_path):
         config = configparser.ConfigParser()
@@ -61,7 +61,7 @@ class PaletteUtility:
             config.read_file(file_obj)
         return PaletteUtility.load_palette_from_config(config)
 
-    # Write a GhettoGames palette to a file.  output_file extension should be .cfg
+    # Write a GlitchyGames palette to a file.  output_file extension should be .cfg
     @staticmethod
     def write_palette_to_file(config_data, output_file, mode='w'):
         with open(output_file, mode) as file_obj:
