@@ -10,6 +10,7 @@ import pygame
 LOG = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
+
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
@@ -26,6 +27,7 @@ def supported_events(like='.*'):
             LOG.error(f'Failed to init: {e}')
 
     return event_list
+
 
 # Pygame USEREVENTs
 FPSEVENT = pygame.USEREVENT + 1
@@ -126,13 +128,13 @@ class ResourceManager:
 
 # Mixin
 class AudioEvents:
- def on_audio_device_added_event(self, event):
-     # AUDIODEVICEADDED   which, iscapture
-     pass
+    def on_audio_device_added_event(self, event):
+        # AUDIODEVICEADDED   which, iscapture
+        pass
 
- def on_audio_device_removed_event(self, event):
-    # AUDIODEVICEREMOVED which, iscapture
-    pass
+    def on_audio_device_removed_event(self, event):
+        # AUDIODEVICEREMOVED which, iscapture
+        pass
 
 
 # Mixin
@@ -378,16 +380,14 @@ class WindowEvents:
 
 
 # Mixin for all events
-class EventInterface(
-        AudioEvents,
-        DropEvents,
-        FontEvents,
-        GameEvents,
-        JoystickEvents,
-        KeyboardEvents,
-        MouseEvents,
-        WindowEvents
-    ):
+class EventInterface(AudioEvents,
+                     DropEvents,
+                     FontEvents,
+                     GameEvents,
+                     JoystickEvents,
+                     KeyboardEvents,
+                     MouseEvents,
+                     WindowEvents):
     pass
 
 

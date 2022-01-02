@@ -5,7 +5,6 @@ import argparse
 import logging
 import multiprocessing
 import platform
-import re
 import time
 
 import pygame
@@ -35,8 +34,6 @@ LOG.addHandler(logging.NullHandler())
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
 vga_palette = VGA
-
-
 
 
 class GameManager(events.ResourceManager):
@@ -748,7 +745,8 @@ class GameEngine(events.EventManager):
 
     def process_unimplemented_event(self, event):
         if event.type not in self.UNIMPLEMENTED_EVENTS:
-            self.log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+            self.log.debug('(UNIMPLEMENTED) '
+                           f'{pygame.event.event_name(event.type).upper()}: {event}')
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
     def post_game_event(self, event_subtype, event_data):  # noqa: R0201

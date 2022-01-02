@@ -492,7 +492,8 @@ class TextSprite(BitmappySprite):
             self.start_x = self.rect.x
             # self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
             # self.text_sprite.x = 240
-            # self.text_sprite.text_box.x = self.parent.rect.centerx if self.parent else self.rect.centerx
+            # self.text_sprite.text_box.x = self.parent.rect.centerx \
+            #     if self.parent else self.rect.centerx
             self.dirty = 1
 
         @property
@@ -504,7 +505,8 @@ class TextSprite(BitmappySprite):
             self.rect.centery = self.parent.rect.centery if self.parent else new_y
             self.start_y = self.rect.y
             # self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
-            # self.text_sprite.text_box.y = self.parent.rect.centery if self.parent else self.rect.centery
+            # self.text_sprite.text_box.y = self.parent.rect.centery \
+            #     if self.parent else self.rect.centery
 
             self.dirty = 1
 
@@ -971,7 +973,8 @@ class SliderSprite(BitmappySprite):
         self.rect.x = new_x
         self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
         self.text_sprite.x = 240
-        # self.text_sprite.text_box.x = self.parent.rect.centerx if self.parent else self.rect.centerx
+        # self.text_sprite.text_box.x = self.parent.rect.centerx \
+        #     if self.parent else self.rect.centerx
         self.dirty = 1
 
     @property
@@ -982,7 +985,8 @@ class SliderSprite(BitmappySprite):
     def y(self, new_y):
         self.rect.y = new_y
         self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
-        # self.text_sprite.text_box.y = self.parent.rect.centery if self.parent else self.rect.centery
+        # self.text_sprite.text_box.y = self.parent.rect.centery \
+        #     if self.parent else self.rect.centery
 
         self.dirty = 1
 
@@ -1022,7 +1026,6 @@ class SliderSprite(BitmappySprite):
                 color = (0, i, 0)
             elif self.name == 'B':
                 color = (0, 0, i)
-
 
             pygame.draw.line(
                 self.image,
@@ -1134,7 +1137,8 @@ class InputDialog(BitmappySprite):
     def __init__(self, x, y, width, height, name=None, dialog_text='Would you like to do a thing?',
                  confirm_text='Confirm', cancel_text='Cancel', callbacks=None,
                  parent=None, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
+        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent,
+                         groups=groups)
         self.background_color = (0, 0, 0)
         self.border_width = 1
         self.width = width

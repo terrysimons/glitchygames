@@ -359,7 +359,15 @@ class BitmappySprite(Sprite):
         filename - optional, the BitmappySprite config to load.
 
         """
-        super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups)
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups
+        )
         self.filename = filename
         self.focusable = focusable
         # self.width = width

@@ -76,7 +76,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     self.active_scene.cleanup()
                 self.log.info(f'Setting up new scene {next_scene}.')
                 next_scene.setup()
-                self.log.info(f'Scene event block list: {pygame.event.get_blocked(events.GAME_EVENTS)}')
+                self.log.info('Scene event block list: '
+                              f'{pygame.event.get_blocked(events.GAME_EVENTS)}')
 
             self.active_scene = next_scene
 

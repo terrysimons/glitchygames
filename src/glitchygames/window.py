@@ -1,14 +1,14 @@
 import logging
 
-import pygame
-
 from glitchygames.events import ResourceManager
 from glitchygames.events import WindowEvents
 
 LOG = logging.getLogger('game.window')
 LOG.addHandler(logging.NullHandler())
 
+
 class WindowManager(ResourceManager):
+
     class WindowManagerProxy(WindowEvents, ResourceManager):
         def __init__(self, game=None):
             """

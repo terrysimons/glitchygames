@@ -1,7 +1,5 @@
 import logging
 
-import pygame
-
 from glitchygames.events import DropEvents
 from glitchygames.events import ResourceManager
 
@@ -40,7 +38,6 @@ class DropManager(ResourceManager):
 
         def on_drop_text_event(self, event):
             self.game.on_drop_text_event(event)
-
 
     def __init__(self, game=None):
         """
