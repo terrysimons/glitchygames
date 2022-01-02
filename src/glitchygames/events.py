@@ -35,7 +35,7 @@ GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
 
 AUDIO_EVENTS = supported_events(like='AUDIO.*?')
-# TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
+CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
 DROP_EVENTS = supported_events(like='DROP.*?')
 FINGER_EVENTS = supported_events(like='(FINGER|MULTI).*?')
 JOYSTICK_EVENTS = supported_events(like='JOY.*?')
@@ -134,6 +134,28 @@ class AudioEvents:
 
     def on_audio_device_removed_event(self, event):
         # AUDIODEVICEREMOVED which, iscapture
+        pass
+
+
+# Mixin
+class ControllerEvents:
+    def on_controller_axis_motion_event(self, event):
+        pass
+    def on_controller_button_down_event(self, event):
+        pass
+    def on_controller_button_up_event(self, event):
+        pass
+    def on_controller_device_added_event(self, event):
+        pass
+    def on_controller_device_remapped_event(self, event):
+        pass
+    def on_controller_device_removed_event(self, event):
+        pass
+    def on_controller_touchpad_down_event(self, event):
+        pass
+    def on_controller_touchpad_motion_event(self, event):
+        pass
+    def on_controller_touchpad_up_event(self, event):
         pass
 
 

@@ -10,14 +10,14 @@ log = logging.getLogger('game.joysticks')
 log.addHandler(logging.NullHandler())
 
 
-class JoystickManager(ResourceManager):
+class JoystickManager(JoystickEvents, ResourceManager):
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #
     # This isn't a ResourceManager like other proxies, because
     # there can be multiple joysticks, so having one instance
     # won't work.
-    class JoystickProxy(JoystickEvents):
+    class JoystickProxy(JoystickEvents, ResourceManager):
         def __init__(self, game=None, joystick_id=-1):
             """
             Pygame joystick event proxy.
@@ -167,25 +167,33 @@ class JoystickManager(ResourceManager):
     # we need to know which joystick the event is intended for.
     def on_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
-        log.debug(f'JOYAXISMOTION triggered: axis_motion_event({event})')
+        log.debug(f'JOYAXISMOTION triggered: on_axis_motion_event({event})')
         self.joysticks[event.joy].on_axis_motion_event(event)
 
     def on_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
-        log.debug(f'JOYBUTTONDOWN triggered: button_down_event({event})')
+        log.debug(f'JOYBUTTONDOWN triggered: on_button_down_event({event})')
         self.joysticks[event.joy].on_button_down_event(event)
 
     def on_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
-        log.debug(f'JOYBUTTONUP triggered: button_up_event({event})')
+        log.debug(f'JOYBUTTONUP triggered: on_button_up_event({event})')
         self.joysticks[event.joy].on_button_up_event(event)
 
     def on_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
-        log.debug(f'JOYHATMOTION triggered: hat_motion_event({event})')
+        log.debug(f'JOYHATMOTION triggered: on_hat_motion_event({event})')
         self.joysticks[event.joy].on_hat_motion_event(event)
 
     def on_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
-        log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
+        log.debug(f'JOYBALLMOTION triggered: on_ball_motion_event({event})')
         self.joysticks[event.joy].on_ball_motion_event(event)
+
+    def on_joy_device_added(self, event):
+        # JOYDEVICEADDED device_index, guid
+        log.info(f'JOYDEVICEADDED triggered: on_joy_device_added({event})')
+
+    def on_joy_device_removed(self, event):
+        # JOYDEVICEREMOVED device_index
+        log.info(f'JOYDEVICEREMOVED triggered: on_joy_device_removed({event})')
