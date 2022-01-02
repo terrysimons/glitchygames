@@ -36,7 +36,7 @@ class SpriteInterface:
     @rect.setter
     def rect(self, new_rect):
         self.__rect = new_rect
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     @property
     def image(self):
@@ -45,7 +45,7 @@ class SpriteInterface:
     @image.setter
     def image(self, new_image):
         self.__image = new_image
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     def update_nested_sprites(self):
         pass
@@ -152,7 +152,7 @@ class Sprite(RootSprite):
     @x.setter
     def x(self, new_x):
         self.rect.x = new_x
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     @property
     def y(self):
@@ -161,7 +161,7 @@ class Sprite(RootSprite):
     @y.setter
     def y(self, new_y):
         self.rect.y = new_y
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     @property
     def width(self):
@@ -170,7 +170,7 @@ class Sprite(RootSprite):
     @width.setter
     def width(self, new_width):
         self.rect.width = new_width
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     @property
     def height(self):
@@ -179,7 +179,7 @@ class Sprite(RootSprite):
     @height.setter
     def height(self, new_height):
         self.rect.height = new_height
-        self.dirty = 1
+        self.dirty = 1 if not self.dirty else self.dirty
 
     def update(self):
         pass

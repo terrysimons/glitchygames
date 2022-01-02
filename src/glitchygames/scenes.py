@@ -114,7 +114,7 @@ class SceneManager(SceneInterface, EventManager):
 
                 # Make all of the new scene's sprites dirty to force a redraw
                 for sprite in self.active_scene.all_sprites:
-                    sprite.dirty = 1
+                    sprite.dirty = 1 if not sprite.dirty else sprite.dirty
 
                 # Redraw the new scene's background to clear out any artifacts
                 self.screen.blit(self.active_scene.background, (0, 0))
