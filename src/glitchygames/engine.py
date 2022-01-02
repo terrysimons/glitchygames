@@ -14,9 +14,7 @@ import pygame.gfxdraw
 import pygame.locals
 
 from glitchygames.color import PURPLE, VGA
-from glitchygames.events import ResourceManager, EventManager
-from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
-
+import glitchygames.events as events
 
 from glitchygames.audio import AudioManager
 # from glitchygames.controllers import ControllerManager
@@ -39,28 +37,12 @@ logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=loggi
 vga_palette = VGA
 
 
-def supported_events(like='.*'):
-    # Get a list of all of the events
-    # by name, but ignore duplicates.
-    event_names = [*set(pygame.event.event_name(event_num)
-                        for event_num in range(0, pygame.NUMEVENTS))]
-    event_names = set(event_names) - set('Unknown')
-    event_list = []
-
-    for event_name in list(event_names):
-        try:
-            if re.match(like, event_name.upper()):
-                event_list.append(getattr(pygame, event_name.upper()))
-        except AttributeError as e:
-            LOG.error(f'Failed to init: {e}')
-
-    return event_list
 
 
-class GameManager(ResourceManager):
+class GameManager(events.ResourceManager):
     log = LOG
 
-    class GameProxy(ResourceManager):
+    class GameProxy(events.ResourceManager):
         log = LOG
 
         def __init__(self, **kwargs):
@@ -137,7 +119,7 @@ class GameManager(ResourceManager):
         return parser
 
 
-class GameEngine(EventManager):
+class GameEngine(events.EventManager):
     log = LOG
     game = None
 
@@ -148,34 +130,6 @@ class GameEngine(EventManager):
     LAST_EVENT_MISS = None
     MISSING_EVENTS = []
     UNIMPLEMENTED_EVENTS = []
-
-    AUDIO_EVENTS = supported_events(like='AUDIO.*?')
-    # TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
-    DROP_EVENTS = supported_events(like='DROP.*?')
-    FINGER_EVENTS = supported_events(like='(FINGER|MULTI).*?')
-    JOYSTICK_EVENTS = supported_events(like='JOY.*?')
-    KEYBOARD_EVENTS = supported_events(like='KEY.*?')
-    MIDI_EVENTS = supported_events(like='MIDI.*?')
-    MOUSE_EVENTS = supported_events(like='MOUSE.*?')
-    TEXT_EVENTS = supported_events(like='TEXT.*?')
-    WINDOW_EVENTS = supported_events(like='WINDOW.*?')
-    ALL_EVENTS = supported_events()
-    GAME_EVENTS = list(
-        set(ALL_EVENTS) -
-        set(AUDIO_EVENTS) -
-        set(DROP_EVENTS) -
-        set(FINGER_EVENTS) -
-        set(JOYSTICK_EVENTS) -
-        set(KEYBOARD_EVENTS) -
-        set(MIDI_EVENTS) -
-        set(MOUSE_EVENTS) -
-        set(TEXT_EVENTS) -
-        set(WINDOW_EVENTS)
-    )
-
-    GAME_EVENTS.append(FPSEVENT)
-    GAME_EVENTS.append(GAMEEVENT)
-    GAME_EVENTS.append(MENUEVENT)
 
     def __init__(self, game):
         """
@@ -580,27 +534,27 @@ class GameEngine(EventManager):
         # To use events in a different thread, use the fastevent package from pygame.
         # You can create your own new events with the pygame.event.Event() function.
         for event in pygame.fastevent.get():
-            if event.type in GameEngine.AUDIO_EVENTS:
+            if event.type in events.AUDIO_EVENTS:
                 self.process_audio_event(event)
-            # elif event.type in GameEngine.CONTROLLER_EVENTS:
+            # elif event.type in events.CONTROLLER_EVENTS:
             #     self.process_controller_event(event)
-            elif event.type in GameEngine.DROP_EVENTS:
+            elif event.type in events.DROP_EVENTS:
                 self.process_drop_event(event)
-            elif event.type in GameEngine.FINGER_EVENTS:
+            elif event.type in events.FINGER_EVENTS:
                 self.process_finger_event(event)
-            elif event.type in GameEngine.GAME_EVENTS:
+            elif event.type in events.GAME_EVENTS:
                 self.process_game_event(event)
-            elif event.type in GameEngine.JOYSTICK_EVENTS:
+            elif event.type in events.JOYSTICK_EVENTS:
                 self.process_joystick_event(event)
-            elif event.type in GameEngine.MIDI_EVENTS:
+            elif event.type in events.MIDI_EVENTS:
                 self.process_midi_event(event)
-            elif event.type in GameEngine.MOUSE_EVENTS:
+            elif event.type in events.MOUSE_EVENTS:
                 self.process_mouse_event(event)
-            elif event.type in GameEngine.KEYBOARD_EVENTS:
+            elif event.type in events.KEYBOARD_EVENTS:
                 self.process_keyboard_event(event)
-            elif event.type in GameEngine.TEXT_EVENTS:
+            elif event.type in events.TEXT_EVENTS:
                 self.process_text_event(event)
-            elif event.type in GameEngine.WINDOW_EVENTS:
+            elif event.type in events.WINDOW_EVENTS:
                 self.process_window_event(event)
             else:
                 # This will catch any unimplemented event types that we see.
@@ -762,13 +716,13 @@ class GameEngine(EventManager):
     def process_game_event(self, event):
         # Game events are listed in the order they're most
         # likely to occur in.
-        if event.type == FPSEVENT:
+        if event.type == events.FPSEVENT:
             # FPSEVENT is pygame.USEREVENT + 1
             self.game_manager.on_fps_event(event)
-        elif event.type == GAMEEVENT:
+        elif event.type == events.GAMEEVENT:
             # GAMEEVENT is pygame.USEREVENT + 2
             self.game_manager.on_game_event(event)
-        elif event.type == MENUEVENT:
+        elif event.type == events.MENUEVENT:
             # MENUEVENT is pygame.USEREVENT + 3
             self.game_manager.on_menu_item_event(event)
         elif event.type == pygame.ACTIVEEVENT:
@@ -801,7 +755,7 @@ class GameEngine(EventManager):
         event = event_data.copy()
         event['subtype'] = event_subtype
         pygame.event.post(
-            pygame.event.Event(GameEngine.GAMEEVENT, event)
+            pygame.event.Event(events.GAMEEVENT, event)
         )
         self.log.debug(f'Posted Event: {event}')
 

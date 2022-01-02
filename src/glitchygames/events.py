@@ -3,16 +3,62 @@
 
 import inspect
 import logging
+import re
 
 import pygame
 
 LOG = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
+def supported_events(like='.*'):
+    # Get a list of all of the events
+    # by name, but ignore duplicates.
+    event_names = [*set(pygame.event.event_name(event_num)
+                        for event_num in range(0, pygame.NUMEVENTS))]
+    event_names = set(event_names) - set('Unknown')
+    event_list = []
+
+    for event_name in list(event_names):
+        try:
+            if re.match(like, event_name.upper()):
+                event_list.append(getattr(pygame, event_name.upper()))
+        except AttributeError as e:
+            LOG.error(f'Failed to init: {e}')
+
+    return event_list
+
 # Pygame USEREVENTs
 FPSEVENT = pygame.USEREVENT + 1
 GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
+
+AUDIO_EVENTS = supported_events(like='AUDIO.*?')
+# TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
+DROP_EVENTS = supported_events(like='DROP.*?')
+FINGER_EVENTS = supported_events(like='(FINGER|MULTI).*?')
+JOYSTICK_EVENTS = supported_events(like='JOY.*?')
+KEYBOARD_EVENTS = supported_events(like='KEY.*?')
+MIDI_EVENTS = supported_events(like='MIDI.*?')
+MOUSE_EVENTS = supported_events(like='MOUSE.*?')
+TEXT_EVENTS = supported_events(like='TEXT.*?')
+WINDOW_EVENTS = supported_events(like='WINDOW.*?')
+ALL_EVENTS = supported_events()
+GAME_EVENTS = list(
+    set(ALL_EVENTS) -
+    set(AUDIO_EVENTS) -
+    set(DROP_EVENTS) -
+    set(FINGER_EVENTS) -
+    set(JOYSTICK_EVENTS) -
+    set(KEYBOARD_EVENTS) -
+    set(MIDI_EVENTS) -
+    set(MOUSE_EVENTS) -
+    set(TEXT_EVENTS) -
+    set(WINDOW_EVENTS)
+)
+
+GAME_EVENTS.append(FPSEVENT)
+GAME_EVENTS.append(GAMEEVENT)
+GAME_EVENTS.append(MENUEVENT)
 
 
 def unhandled_event(*args, **kwargs):
@@ -277,8 +323,7 @@ class MouseEvents:
         pass
 
     def on_mouse_wheel_event(self, event):
-        # MOUSEWHEEL         which, flipped, x, y, touch
-
+        # MOUSEWHEEL flipped, y, x, touch, window
         pass
 
 

@@ -4,10 +4,8 @@ import time
 import pygame
 
 from glitchygames.color import BLACK
-from glitchygames.events import EventInterface, EventManager
+import glitchygames.events as events
 from glitchygames.sprites import MousePointer, SpriteInterface
-
-from glitchygames.events import FPSEVENT
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
@@ -21,7 +19,7 @@ class SceneInterface:
         pass
 
 
-class SceneManager(SceneInterface, EventManager):
+class SceneManager(SceneInterface, events.EventManager):
     log = LOG
     OPTIONS = {}
 
@@ -78,6 +76,7 @@ class SceneManager(SceneInterface, EventManager):
                     self.active_scene.cleanup()
                 self.log.info(f'Setting up new scene {next_scene}.')
                 next_scene.setup()
+                self.log.info(f'Scene event block list: {pygame.event.get_blocked(events.GAME_EVENTS)}')
 
             self.active_scene = next_scene
 
@@ -139,7 +138,7 @@ class SceneManager(SceneInterface, EventManager):
 
             if (current_time - start_time) * 1000 >= self.OPTIONS['fps_refresh_rate']:
                 pygame.event.post(
-                    pygame.event.Event(FPSEVENT, {'fps': self.clock.get_fps()})
+                    pygame.event.Event(events.FPSEVENT, {'fps': self.clock.get_fps()})
                 )
 
                 start_time = current_time
@@ -207,7 +206,7 @@ class SceneManager(SceneInterface, EventManager):
             raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
 
 
-class Scene(SceneInterface, SpriteInterface, EventInterface):
+class Scene(SceneInterface, SpriteInterface, events.EventInterface):
     """
     Scene object base class.
 
