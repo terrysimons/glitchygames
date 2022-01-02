@@ -272,6 +272,9 @@ class MouseManager(ResourceManager):
         def on_mouse_scroll_up_event(self, event):
             self.game.on_mouse_scroll_up_event(event)
 
+        def on_mouse_wheel_event(self, event):
+            self.game.on_mouse_wheel_event(event)
+
     def __init__(self, game=None):
         """
         Mouse event manager.

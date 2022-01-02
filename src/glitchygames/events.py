@@ -276,6 +276,11 @@ class MouseEvents:
         # This is a synthesized event.
         pass
 
+    def on_mouse_wheel_event(self, event):
+        # MOUSEWHEEL         which, flipped, x, y, touch
+
+        pass
+
 
 class WindowEvents:
     def on_window_close_event(self, event):

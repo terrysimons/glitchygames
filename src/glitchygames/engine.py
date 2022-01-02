@@ -675,7 +675,7 @@ class GameEngine(EventManager):
             # MOUSEBUTTONDOWN  pos, button
             self.mouse_manager.on_mouse_button_down_event(event)
         elif event.type == pygame.MOUSEWHEEL:
-            self.process_unimplemented_event(event)
+            self.mouse_manager.on_mouse_wheel_event(event)
         else:
             self.process_unimplemented_event(event)
 
