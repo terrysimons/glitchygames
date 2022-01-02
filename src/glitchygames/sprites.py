@@ -50,6 +50,12 @@ class SpriteInterface:
     def update_nested_sprites(self):
         pass
 
+    def update(self):
+        pass
+
+    def render(self, screen):
+        pass
+
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):

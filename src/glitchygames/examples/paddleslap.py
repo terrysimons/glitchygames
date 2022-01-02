@@ -328,9 +328,6 @@ class Game(Scene):
         )
 
         self.all_sprites.clear(self.screen, self.background)
-        self.dirty = 1
-
-        self.next_scene = self
 
     @classmethod
     def args(cls, parser):

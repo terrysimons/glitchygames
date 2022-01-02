@@ -5,7 +5,7 @@ import pygame
 
 from glitchygames.color import BLACK
 from glitchygames.events import EventInterface, EventManager
-from glitchygames.sprites import MousePointer
+from glitchygames.sprites import MousePointer, SpriteInterface
 
 from glitchygames.events import FPSEVENT
 
@@ -112,9 +112,8 @@ class SceneManager(SceneInterface, EventManager):
                 # This controls how events are marshalled
                 self.proxies = [self, self.active_scene]
 
-                # Make all of the new scene's sprites dirty to force a redraw
-                for sprite in self.active_scene.all_sprites:
-                    sprite.dirty = 1 if not sprite.dirty else sprite.dirty
+                # Force a scene redraw
+                self.active_scene.dirty = 1
 
                 # Redraw the new scene's background to clear out any artifacts
                 self.screen.blit(self.active_scene.background, (0, 0))
@@ -208,7 +207,7 @@ class SceneManager(SceneInterface, EventManager):
             raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
 
 
-class Scene(SceneInterface, EventInterface):
+class Scene(SceneInterface, SpriteInterface, EventInterface):
     """
     Scene object base class.
 
@@ -252,6 +251,11 @@ class Scene(SceneInterface, EventInterface):
         self.background.convert()
         self.background_color = BLACK
 
+        # This allows us to be treated like a sprite
+        self.image = self.screen
+        self.rect = self.screen.get_rect()
+
+        self.dirty = 1
         # I don't think this will work since init() is called first.
         # for group in groups:
         #    for sprite in self.all_sprites:
@@ -287,6 +291,11 @@ class Scene(SceneInterface, EventInterface):
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
         [sprite.update() for sprite in self.all_sprites if sprite.dirty]
+
+        # Make all of the new scene's sprites dirty to force a redraw
+        if self.dirty:
+            for sprite in self.all_sprites:
+                sprite.dirty = 1 if not sprite.dirty else sprite.dirty
 
     def render(self, screen):  # noqa: W0613
         self.rects = self.all_sprites.draw(self.screen)
