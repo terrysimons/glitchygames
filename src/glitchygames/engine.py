@@ -145,6 +145,7 @@ class GameEngine(EventManager):
 
     LAST_EVENT_MISS = None
     MISSING_EVENTS = []
+    UNIMPLEMENTED_EVENTS = []
 
     AUDIO_EVENTS = supported_events(like='AUDIO.*?')
     # TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
@@ -762,7 +763,9 @@ class GameEngine(EventManager):
             self.game_manager.on_quit_event(event)
 
     def process_unimplemented_event(self, event):
-        self.log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+        if event.type not in self.UNIMPLEMENTED_EVENTS:
+            self.log.debug(f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}')
+            self.UNIMPLEMENTED_EVENTS.append(event.type)
 
     def post_game_event(self, event_subtype, event_data):  # noqa: R0201
         event = event_data.copy()
