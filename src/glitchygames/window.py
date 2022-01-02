@@ -88,3 +88,9 @@ class WindowManager(ResourceManager):
         """
         super().__init__(game=game)
         self.proxies = [WindowManager.WindowManagerProxy(game=game)]
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Window Options')  # noqa: W0612
+
+        return parser

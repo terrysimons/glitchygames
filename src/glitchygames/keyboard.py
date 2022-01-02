@@ -96,3 +96,9 @@ class KeyboardManager(ResourceManager):
         """
         super().__init__(game=game)
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Keyboard Options')  # noqa: W0612
+
+        return parser

@@ -285,3 +285,9 @@ class MouseManager(ResourceManager):
         """
         super().__init__(game=game)
         self.proxies = [MouseManager.MouseProxy(game=game)]
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Mouse Options')  # noqa: W0612
+
+        return parser

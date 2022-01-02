@@ -189,3 +189,9 @@ class JoystickManager(ResourceManager):
         # JOYBALLMOTION    joy, ball, rel
         log.debug(f'JOYBALLMOTION triggered: ball_motion_event({event})')
         self.joysticks[event.joy].on_ball_motion_event(event)
+
+    @classmethod
+    def args(cls, parser):
+        group = parser.add_argument_group('Joystick Options')  # noqa: W0612
+
+        return parser
