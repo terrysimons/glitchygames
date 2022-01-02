@@ -142,6 +142,29 @@ class KeyboardEvents:
 
 
 # Mixin
+class JoystickEvents:
+    def on_axis_motion_event(self, event):
+        # JOYAXISMOTION    joy, axis, value
+        pass
+
+    def on_button_down_event(self, event):
+        # JOYBUTTONDOWN    joy, button
+        pass
+
+    def on_button_up_event(self, event):
+        # JOYBUTTONUP      joy, button
+        pass
+
+    def on_hat_motion_event(self, event):
+        # JOYHATMOTION     joy, hat, value
+        pass
+
+    def on_ball_motion_event(self, event):
+        # JOYBALLMOTION    joy, ball, rel
+        pass
+
+
+# Mixin
 class MouseEvents:
     def on_mouse_motion_event(self, event):
         # MOUSEMOTION      pos, rel, buttons
@@ -228,26 +251,53 @@ class MouseEvents:
         pass
 
 
-# Mixin
-class JoystickEvents:
-    def on_axis_motion_event(self, event):
-        # JOYAXISMOTION    joy, axis, value
+class WindowEvents:
+    def on_window_close_event(self, event):
         pass
 
-    def on_button_down_event(self, event):
-        # JOYBUTTONDOWN    joy, button
+    def on_window_enter_event(self, event):
         pass
 
-    def on_button_up_event(self, event):
-        # JOYBUTTONUP      joy, button
+    def on_window_exposed_event(self, event):
         pass
 
-    def on_hat_motion_event(self, event):
-        # JOYHATMOTION     joy, hat, value
+    def on_window_focus_gained_event(self, event):
         pass
 
-    def on_ball_motion_event(self, event):
-        # JOYBALLMOTION    joy, ball, rel
+    def on_window_focus_lost_event(self, event):
+        pass
+
+    def on_window_hidden_event(self, event):
+        pass
+
+    def on_window_hit_test_event(self, event):
+        pass
+
+    def on_window_leave_event(self, event):
+        pass
+
+    def on_window_maximized_event(self, event):
+        pass
+
+    def on_window_minimized_event(self, event):
+        pass
+
+    def on_window_moved_event(self, event):
+        pass
+
+    def on_window_resized_event(self, event):
+        pass
+
+    def on_window_restored_event(self, event):
+        pass
+
+    def on_window_shown_event(self, event):
+        pass
+
+    def on_window_size_changed_event(self, event):
+        pass
+
+    def on_window_take_focus_event(self, event):
         pass
 
 
@@ -256,7 +306,8 @@ class EventInterface(MouseEvents,
                      KeyboardEvents,
                      JoystickEvents,
                      FontEvents,
-                     GameEvents):
+                     GameEvents,
+                     WindowEvents):
     pass
 
 

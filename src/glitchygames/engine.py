@@ -25,6 +25,7 @@ from glitchygames.joysticks import JoystickManager
 from glitchygames.keyboard import KeyboardManager
 from glitchygames.midi import MidiManager
 from glitchygames.mouse import MouseManager
+from glitchygames.window import WindowManager
 
 from glitchygames.sprites import Sprite
 from glitchygames.scenes import SceneManager
@@ -545,7 +546,7 @@ class GameEngine(EventManager):
             self.keyboard_manager = KeyboardManager(game=self.scene_manager)
             self.midi_manager = MidiManager(game=self.scene_manager)
             self.mouse_manager = MouseManager(game=self.scene_manager)
-            # TODO: self.window_manager = WindowManager(game=self.scene_manager)
+            self.window_manager = WindowManager(game=self.scene_manager)
 
             # TODO: Something similar for controllers?
             # self.controllers = []
@@ -608,6 +609,8 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
         elif event.type == pygame.AUDIODEVICEREMOVED:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_controller_event(self, event):
         if event.type == pygame.CONTROLLERAXISMOTION:
@@ -624,6 +627,8 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
         elif event.type == pygame.CONTROLLERDEVICEREMOVED:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_drop_event(self, event):
         if event.type == pygame.DROPBEGIN:
@@ -634,6 +639,8 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
         elif event.type == pygame.DROPTEXT:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_finger_event(self, event):
         if event.type == pygame.FINGERDOWN:
@@ -642,11 +649,15 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
         elif event.type == pygame.FINGERMOTION:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_midi_event(self, event):
         if event.type == pygame.MIDIIN:
             self.process_unimplemented_event(event)
         elif event.type == pygame.MIDIOUT:
+            self.process_unimplemented_event(event)
+        else:
             self.process_unimplemented_event(event)
 
     def process_mouse_event(self, event):
@@ -661,6 +672,8 @@ class GameEngine(EventManager):
             self.mouse_manager.on_mouse_button_down_event(event)
         elif event.type == pygame.MOUSEWHEEL:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_keyboard_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -669,6 +682,8 @@ class GameEngine(EventManager):
         elif event.type == pygame.KEYUP:
             # KEYUP            key, mod
             self.keyboard_manager.on_key_up_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_joystick_event(self, event):
         if event.type == pygame.JOYAXISMOTION:
@@ -690,45 +705,52 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
         elif event.type == pygame.JOYDEVICEREMOVED:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_text_event(self, event):
         if event.type == pygame.TEXTEDITING:
             self.process_unimplemented_event(event)
         elif event.type == pygame.TEXTINPUT:
             self.process_unimplemented_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_window_event(self, event):  # noqa: C901
+        self.log.info(f'WINDOW EVENT: {event}')
         if event.type == pygame.WINDOWSHOWN:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_shown_event(event)
         elif event.type == pygame.WINDOWLEAVE:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_leave_event(event)
         elif event.type == pygame.WINDOWSIZECHANGED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_size_changed_event(event)
         elif event.type == pygame.WINDOWENTER:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_enter_event(event)
         elif event.type == pygame.WINDOWFOCUSGAINED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_focus_gained_event(event)
         elif event.type == pygame.WINDOWRESTORED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_restored_event(event)
         elif event.type == pygame.WINDOWHITTEST:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_hit_test_event(event)
         elif event.type == pygame.WINDOWHIDDEN:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_hidden_event(event)
         elif event.type == pygame.WINDOWFOCUSLOST:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_focus_lost_event(event)
         elif event.type == pygame.WINDOWMINIMIZED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_minimized_event(event)
         elif event.type == pygame.WINDOWMAXIMIZED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_maximized_event(event)
         elif event.type == pygame.WINDOWCLOSE:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_close_event(event)
         elif event.type == pygame.WINDOWEXPOSED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_exposed_event(event)
         elif event.type == pygame.WINDOWTAKEFOCUS:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_take_focus_event(event)
         elif event.type == pygame.WINDOWMOVED:
-            self.process_unimplemented_event(event)
+            self.window_manager.on_window_moved_event(event)
         elif event.type == pygame.WINDOWRESIZED:
+            self.window_manager.on_window_resized_event(event)
+        else:
             self.process_unimplemented_event(event)
 
     def process_game_event(self, event):
@@ -761,6 +783,8 @@ class GameEngine(EventManager):
         elif event.type == pygame.QUIT:
             # QUIT             none
             self.game_manager.on_quit_event(event)
+        else:
+            self.process_unimplemented_event(event)
 
     def process_unimplemented_event(self, event):
         if event.type not in self.UNIMPLEMENTED_EVENTS:
