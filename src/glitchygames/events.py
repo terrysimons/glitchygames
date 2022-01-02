@@ -90,6 +90,21 @@ class AudioEvents:
 
 
 # Mixin
+class DropEvents:
+    def on_drop_begin_event(self, event):
+        pass
+
+    def on_drop_file_event(self, event):
+        pass
+
+    def on_drop_text_event(self, event):
+        pass
+
+    def on_drop_complete_event(self, event):
+        pass
+
+
+# Mixin
 class GameEvents:
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state
@@ -315,6 +330,7 @@ class WindowEvents:
 # Mixin for all events
 class EventInterface(
         AudioEvents,
+        DropEvents,
         FontEvents,
         GameEvents,
         JoystickEvents,

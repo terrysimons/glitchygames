@@ -20,6 +20,7 @@ from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
 
 from glitchygames.audio import AudioManager
 # from glitchygames.controllers import ControllerManager
+from glitchygames.drop_events import DropManager
 from glitchygames.fonts import FontManager
 from glitchygames.joysticks import JoystickManager
 from glitchygames.keyboard import KeyboardManager
@@ -538,6 +539,7 @@ class GameEngine(EventManager):
 
             self.registered_events = {}
             self.audio_manager = AudioManager(game=self.scene_manager)
+            self.drop_manager = DropManager(game=self.scene_manager)
             # TODO: self.controller_manager = ControllerManager(game=self.scene_manager)
             # TODO: self.finger_manager = FingerManager(game=self.scene_manager)
             self.font_manager = FontManager(game=self.scene_manager)
@@ -634,13 +636,13 @@ class GameEngine(EventManager):
 
     def process_drop_event(self, event):
         if event.type == pygame.DROPBEGIN:
-            self.process_unimplemented_event(event)
+            self.drop_manager.on_drop_begin_event(event)
         elif event.type == pygame.DROPCOMPLETE:
-            self.process_unimplemented_event(event)
+            self.drop_manager.on_drop_complete_event(event)
         elif event.type == pygame.DROPFILE:
-            self.process_unimplemented_event(event)
+            self.drop_manager.on_drop_file_event(event)
         elif event.type == pygame.DROPTEXT:
-            self.process_unimplemented_event(event)
+            self.drop_manager.on_drop_text_event(event)
         else:
             self.process_unimplemented_event(event)
 
