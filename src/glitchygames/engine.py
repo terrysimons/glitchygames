@@ -19,7 +19,7 @@ from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
 
 
 from glitchygames.audio import AudioManager
-# from glitchygames.controllers import ControllerManager
+from glitchygames.controllers import ControllerManager
 from glitchygames.fonts import FontManager
 from glitchygames.joysticks import JoystickManager
 from glitchygames.keyboard import KeyboardManager
@@ -149,7 +149,7 @@ class GameEngine(EventManager):
     UNIMPLEMENTED_EVENTS = []
 
     AUDIO_EVENTS = supported_events(like='AUDIO.*?')
-    # TODO: CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
+    CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
     DROP_EVENTS = supported_events(like='DROP.*?')
     FINGER_EVENTS = supported_events(like='(FINGER|MULTI).*?')
     JOYSTICK_EVENTS = supported_events(like='JOY.*?')
@@ -538,7 +538,7 @@ class GameEngine(EventManager):
 
             self.registered_events = {}
             self.audio_manager = AudioManager(game=self.scene_manager)
-            # TODO: self.controller_manager = ControllerManager(game=self.scene_manager)
+            self.controller_manager = ControllerManager(game=self.scene_manager)
             # TODO: self.finger_manager = FingerManager(game=self.scene_manager)
             self.font_manager = FontManager(game=self.scene_manager)
             self.game_manager = GameManager(game=self.scene_manager)
@@ -580,8 +580,8 @@ class GameEngine(EventManager):
         for event in pygame.fastevent.get():
             if event.type in GameEngine.AUDIO_EVENTS:
                 self.process_audio_event(event)
-            # elif event.type in GameEngine.CONTROLLER_EVENTS:
-            #     self.process_controller_event(event)
+            elif event.type in GameEngine.CONTROLLER_EVENTS:
+                self.process_controller_event(event)
             elif event.type in GameEngine.DROP_EVENTS:
                 self.process_drop_event(event)
             elif event.type in GameEngine.FINGER_EVENTS:
@@ -628,6 +628,12 @@ class GameEngine(EventManager):
         elif event.type == pygame.CONTROLLERDEVICEREMAPPED:
             self.process_unimplemented_event(event)
         elif event.type == pygame.CONTROLLERDEVICEREMOVED:
+            self.process_unimplemented_event(event)
+        elif event.type == pygame.CONTROLLERTOUCHPADDOWN:
+            self.process_unimplemented_event(event)
+        elif event.type == pygame.CONTROLLERTOUCHPADMOTION:
+            self.process_unimplemented_event(event)
+        elif event.type == pygame.CONTROLLERTOUCHPADUP:
             self.process_unimplemented_event(event)
         else:
             self.process_unimplemented_event(event)
@@ -719,7 +725,6 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
 
     def process_window_event(self, event):  # noqa: C901
-        self.log.info(f'WINDOW EVENT: {event}')
         if event.type == pygame.WINDOWSHOWN:
             self.window_manager.on_window_shown_event(event)
         elif event.type == pygame.WINDOWLEAVE:

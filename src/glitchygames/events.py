@@ -90,6 +90,11 @@ class AudioEvents:
 
 
 # Mixin
+class ControllerEvents:
+    pass
+
+
+# Mixin
 class GameEvents:
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state
