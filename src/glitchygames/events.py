@@ -79,6 +79,17 @@ class ResourceManager:
 
 
 # Mixin
+class AudioEvents:
+ def on_audio_device_added_event(self, event):
+     # AUDIODEVICEADDED   which, iscapture
+     pass
+
+ def on_audio_device_removed_event(self, event):
+    # AUDIODEVICEREMOVED which, iscapture
+    pass
+
+
+# Mixin
 class GameEvents:
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state
@@ -302,12 +313,15 @@ class WindowEvents:
 
 
 # Mixin for all events
-class EventInterface(MouseEvents,
-                     KeyboardEvents,
-                     JoystickEvents,
-                     FontEvents,
-                     GameEvents,
-                     WindowEvents):
+class EventInterface(
+        AudioEvents,
+        FontEvents,
+        GameEvents,
+        JoystickEvents,
+        KeyboardEvents,
+        MouseEvents,
+        WindowEvents
+    ):
     pass
 
 

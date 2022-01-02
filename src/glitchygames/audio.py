@@ -2,6 +2,7 @@ import logging
 
 import pygame
 
+from glitchygames.events import AudioEvents
 from glitchygames.events import ResourceManager
 
 
@@ -10,6 +11,30 @@ log.addHandler(logging.NullHandler())
 
 
 class AudioManager(ResourceManager):
+    class AudioProxy(AudioEvents, ResourceManager):
+        def __init__(self, game=None):
+            """
+            Pygame audio event proxy.
+
+            AudioProxy facilitates mouse handling by bridging AUDIO* events between
+            pygame and your game.
+
+            Args:
+            ----
+            game - The game instance.
+
+            """
+            super().__init__(game)
+
+            self.game = game
+            self.proxies = [self.game, pygame.mixer]
+
+        def on_audio_device_added_event(self, event):
+            self.game.on_audio_device_added_event(event)
+
+        def on_audio_device_removed_event(self, event):
+            self.game.on_audio_device_removed_event(event)
+
     def __init__(self, game=None):
         """
         Manage audio.
@@ -36,6 +61,8 @@ class AudioManager(ResourceManager):
             f'Format: {sound_format}, '
             f'Channels: {sound_channels}'
         )
+
+        self.proxies = [AudioManager.AudioProxy(game=game)]
 
     @classmethod
     def args(cls, parser):

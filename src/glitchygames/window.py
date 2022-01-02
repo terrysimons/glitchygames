@@ -25,7 +25,7 @@ class WindowManager(ResourceManager):
             super().__init__(game)
 
             self.game = game
-            self.proxies = [self.game, pygame.mouse]
+            self.proxies = [self.game]
 
         def on_window_close_event(self, event):
             self.game.on_window_close_event(event)

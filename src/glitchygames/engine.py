@@ -518,11 +518,11 @@ class GameEngine(EventManager):
                            default=None,
                            choices=default_videodriver)
 
-        # Init Font Options
-        parser = FontManager.args(parser=parser)
-
         # Init Sound Options
         parser = AudioManager.args(parser=parser)
+
+        # Init Font Options
+        parser = FontManager.args(parser=parser)
 
         # Init Music Options
         parser = MidiManager.args(parser=parser)
@@ -606,9 +606,11 @@ class GameEngine(EventManager):
 
     def process_audio_event(self, event):
         if event.type == pygame.AUDIODEVICEADDED:
-            self.process_unimplemented_event(event)
+            # AUDIODEVICEADDED which, iscapture
+            self.audio_manager.on_audio_device_added_event(event)
         elif event.type == pygame.AUDIODEVICEREMOVED:
-            self.process_unimplemented_event(event)
+            # AUDIODEVICEREMOVED which, iscapture
+            self.audio_manager.on_audio_device_removed_event(event)
         else:
             self.process_unimplemented_event(event)
 
@@ -723,6 +725,7 @@ class GameEngine(EventManager):
         elif event.type == pygame.WINDOWLEAVE:
             self.window_manager.on_window_leave_event(event)
         elif event.type == pygame.WINDOWSIZECHANGED:
+            # WINDOWSIZECHANGED x, y
             self.window_manager.on_window_size_changed_event(event)
         elif event.type == pygame.WINDOWENTER:
             self.window_manager.on_window_enter_event(event)
@@ -740,15 +743,17 @@ class GameEngine(EventManager):
             self.window_manager.on_window_minimized_event(event)
         elif event.type == pygame.WINDOWMAXIMIZED:
             self.window_manager.on_window_maximized_event(event)
+        elif event.type == pygame.WINDOWMOVED:
+            # WINDOWMOVED x, y
+            self.window_manager.on_window_moved_event(event)
         elif event.type == pygame.WINDOWCLOSE:
             self.window_manager.on_window_close_event(event)
         elif event.type == pygame.WINDOWEXPOSED:
             self.window_manager.on_window_exposed_event(event)
         elif event.type == pygame.WINDOWTAKEFOCUS:
             self.window_manager.on_window_take_focus_event(event)
-        elif event.type == pygame.WINDOWMOVED:
-            self.window_manager.on_window_moved_event(event)
         elif event.type == pygame.WINDOWRESIZED:
+            # WINDOWRESIZED x, y
             self.window_manager.on_window_resized_event(event)
         else:
             self.process_unimplemented_event(event)
