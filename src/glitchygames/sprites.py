@@ -12,41 +12,6 @@ LOG.addHandler(logging.NullHandler())
 
 
 class SpriteInterface:
-    @property
-    def all_sprites(self):
-        return self.__all_sprites
-
-    @all_sprites.setter
-    def all_sprites(self, new_sprites):
-        self.__all_sprites = new_sprites
-        self.dirty = 1
-
-    @property
-    def dirty(self):
-        return self.__dirty
-
-    @dirty.setter
-    def dirty(self, new_dirty):
-        self.__dirty = new_dirty
-
-    @property
-    def rect(self):
-        return self.__rect
-
-    @rect.setter
-    def rect(self, new_rect):
-        self.__rect = new_rect
-        self.dirty = 1 if not self.dirty else self.dirty
-
-    @property
-    def image(self):
-        return self.__image
-
-    @image.setter
-    def image(self, new_image):
-        self.__image = new_image
-        self.dirty = 1 if not self.dirty else self.dirty
-
     def update_nested_sprites(self):
         pass
 
@@ -60,10 +25,10 @@ class SpriteInterface:
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
-        self.__rect = pygame.Rect(0, 0, 0, 0)
-        self.__image = None
-        self.__dirty = True
-        self.__all_sprites = groups
+        self.rect = pygame.Rect(0, 0, 0, 0)
+        self.image = None
+        # self.__dirty = 1
+        # self.__all_sprites = groups
 
 
 class Sprite(RootSprite):
@@ -91,7 +56,6 @@ class Sprite(RootSprite):
 
     def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
         super().__init__(groups)
-
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
         self.rect = self.image.get_rect()
@@ -150,24 +114,6 @@ class Sprite(RootSprite):
                     if str(type(self)) == sprite_type:
                         self.log.info('Break when sprite_type==<any>')
                         breakpoint()
-
-    @property
-    def x(self):
-        return self.rect.x
-
-    @x.setter
-    def x(self, new_x):
-        self.rect.x = new_x
-        self.dirty = 1 if not self.dirty else self.dirty
-
-    @property
-    def y(self):
-        return self.rect.y
-
-    @y.setter
-    def y(self, new_y):
-        self.rect.y = new_y
-        self.dirty = 1 if not self.dirty else self.dirty
 
     @property
     def width(self):
@@ -619,8 +565,8 @@ class MousePointer(SingletonBitmappySprite):
     def __init__(self, x, y):
         super().__init__(x=x, y=y, width=1, height=1)
 
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.rect.x = x
+        self.rect.y = y
 
 
 def collided_sprites(scene, event, index=None):
