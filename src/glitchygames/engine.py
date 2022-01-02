@@ -473,11 +473,33 @@ class GameEngine(events.EventManager):
         # Init Sound Options
         parser = AudioManager.args(parser=parser)
 
+        # Init Drop Options
+        parser = DropManager.args(parser=parser)
+
+        # TODO: Init Controller Options
+        # parser = ControllerManager.args(parser=parser)
+
         # Init Font Options
         parser = FontManager.args(parser=parser)
 
-        # Init Music Options
+        # TODO: Name this something better Init Game Options
+        parser = GameManager.args(parser=parser)
+
+        # Init Joystick Options
+        parser = JoystickManager.args(parser=parser)
+
+        # Init Keyboard Options
+        parser = KeyboardManager.args(parser=parser)
+
+        # Init Midi Options
         parser = MidiManager.args(parser=parser)
+
+        # Init Mouse Options
+        parser = MouseManager.args(parser=parser)
+
+        # Init Window Options
+        parser = WindowManager.args(parser=parser)
+
 
         return parser
 
