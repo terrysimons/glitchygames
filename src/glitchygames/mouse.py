@@ -16,7 +16,7 @@ class MouseManager(ResourceManager):
             """
             Pygame mouse event proxy.
 
-            MouseProxy facilitates key handling by bridging mouse events between
+            MouseProxy facilitates mouse handling by bridging mouse events between
             pygame and your game.
 
             Args:

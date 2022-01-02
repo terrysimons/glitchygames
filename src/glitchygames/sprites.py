@@ -27,8 +27,6 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
         super().__init__(groups)
         self.rect = pygame.Rect(0, 0, 0, 0)
         self.image = None
-        # self.__dirty = 1
-        # self.__all_sprites = groups
 
 
 class Sprite(RootSprite):
