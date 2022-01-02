@@ -340,6 +340,9 @@ class Game(Scene):
                             help='the number of balls to start with',
                             default=1)
 
+    def setup(self):
+        pygame.key.set_repeat(5)
+
     def update(self):
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
@@ -364,25 +367,30 @@ class Game(Scene):
         # Handle ESC/q to quit
         super().on_key_up_event(event)
 
+        unpressed_keys = pygame.key.get_pressed()
+
         # KEYUP            key, mod
-        if event.key == pygame.K_UP:
+        if unpressed_keys[pygame.K_UP]:
             self.player1.stop()
-        if event.key == pygame.K_DOWN:
+        if unpressed_keys[pygame.K_DOWN]:
             self.player1.stop()
-        if event.key == pygame.K_w:
+        if unpressed_keys[pygame.K_w]:
             self.player2.stop()
-        if event.key == pygame.K_s:
+        if unpressed_keys[pygame.K_s]:
             self.player2.stop()
 
     def on_key_down_event(self, event):
         # KEYDOWN            key, mod
-        if event.key == pygame.K_UP:
+        # self.log.info(f'Key Down Event: {event}')
+        pressed_keys = pygame.key.get_pressed()
+
+        if pressed_keys[pygame.K_UP]:
             self.player1.move_up()
-        if event.key == pygame.K_DOWN:
+        if pressed_keys[pygame.K_DOWN]:
             self.player1.move_down()
-        if event.key == pygame.K_w:
+        if pressed_keys[pygame.K_w]:
             self.player2.move_up()
-        if event.key == pygame.K_s:
+        if pressed_keys[pygame.K_s]:
             self.player2.move_down()
 
 
