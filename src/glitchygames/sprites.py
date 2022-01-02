@@ -12,6 +12,41 @@ LOG.addHandler(logging.NullHandler())
 
 
 class SpriteInterface:
+    @property
+    def all_sprites(self):
+        return self.__all_sprites
+
+    @all_sprites.setter
+    def all_sprites(self, new_sprites):
+        self.__all_sprites = new_sprites
+        self.dirty = 1
+
+    @property
+    def dirty(self):
+        return self.__dirty
+
+    @dirty.setter
+    def dirty(self, new_dirty):
+        self.__dirty = new_dirty
+
+    @property
+    def rect(self):
+        return self.__rect
+
+    @rect.setter
+    def rect(self, new_rect):
+        self.__rect = new_rect
+        self.dirty = 1
+
+    @property
+    def image(self):
+        return self.__image
+
+    @image.setter
+    def image(self, new_image):
+        self.__image = new_image
+        self.dirty = 1
+
     def update_nested_sprites(self):
         pass
 
@@ -19,6 +54,10 @@ class SpriteInterface:
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(self, groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
+        self.__rect = pygame.Rect(0, 0, 0, 0)
+        self.__image = None
+        self.__dirty = True
+        self.__all_sprites = groups
 
 
 class Sprite(RootSprite):
@@ -46,6 +85,7 @@ class Sprite(RootSprite):
 
     def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
         super().__init__(groups)
+
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
         self.rect = self.image.get_rect()
