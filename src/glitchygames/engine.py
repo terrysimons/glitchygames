@@ -719,7 +719,6 @@ class GameEngine(EventManager):
             self.process_unimplemented_event(event)
 
     def process_window_event(self, event):  # noqa: C901
-        self.log.info(f'WINDOW EVENT: {event}')
         if event.type == pygame.WINDOWSHOWN:
             self.window_manager.on_window_shown_event(event)
         elif event.type == pygame.WINDOWLEAVE:
