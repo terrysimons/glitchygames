@@ -341,7 +341,7 @@ class Game(Scene):
                             default=1)
 
     def setup(self):
-        pygame.key.set_repeat(5)
+        pygame.key.set_repeat(1)
 
     def update(self):
         for ball in self.balls:
