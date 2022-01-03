@@ -203,7 +203,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             id = event.joy
 
         self.log.debug(f'JOYAXISMOTION triggered: on_joy_axis_motion_event({event})')
-        self.joysticks[id].on_axis_motion_event(event)
+        self.joysticks[id].on_joy_axis_motion_event(event)
 
     def on_joy_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
@@ -213,7 +213,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             id = event.joy
 
         self.log.debug(f'JOYBUTTONDOWN triggered: on_joy_button_down_event({event})')
-        self.joysticks[id].on_button_down_event(event)
+        self.joysticks[id].on_joy_button_down_event(event)
 
     def on_joy_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
@@ -223,7 +223,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             id = event.joy
 
         self.log.debug(f'JOYBUTTONUP triggered: on_joy_button_up_event({event})')
-        self.joysticks[id].on_button_up_event(event)
+        self.joysticks[id].on_joy_button_up_event(event)
 
     def on_joy_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
@@ -233,7 +233,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             id = event.joy
 
         self.log.debug(f'JOYHATMOTION triggered: on_joy_hat_motion_event({event})')
-        self.joysticks[id].on_hat_motion_event(event)
+        self.joysticks[id].on_joy_hat_motion_event(event)
 
     def on_joy_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
@@ -243,7 +243,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             id = event.joy
 
         self.log.debug(f'JOYBALLMOTION triggered: on_joy_ball_motion_event({event})')
-        self.joysticks[id].on_ball_motion_event(event)
+        self.joysticks[id].on_joy_ball_motion_event(event)
 
     def on_joy_device_added_event(self, event):
         # JOYDEVICEADDED device_index, guid

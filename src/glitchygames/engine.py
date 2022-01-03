@@ -569,7 +569,6 @@ class GameEngine(events.EventManager):
             self.process_unimplemented_event(event)
 
     def process_controller_event(self, event):
-        self.log.info(f'CONTROLLEREVENT: {event}')
         if event.type == pygame.CONTROLLERAXISMOTION:
             self.controller_manager.on_controller_axis_motion_event(event)
         elif event.type == pygame.CONTROLLERBUTTONDOWN:

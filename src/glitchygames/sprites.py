@@ -134,23 +134,23 @@ class Sprite(RootSprite):
     def update(self):
         pass
 
-    def on_axis_motion_event(self, event):
+    def on_joy_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_button_down_event(self, event):
+    def on_joy_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_button_up_event(self, event):
+    def on_joy_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_hat_motion_event(self, event):
+    def on_joy_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_ball_motion_event(self, event):
+    def on_joy_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
         self.log.debug(f'{type(self)}: {event}')
 

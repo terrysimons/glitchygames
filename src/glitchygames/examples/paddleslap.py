@@ -17,7 +17,7 @@ from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 
 class Speed:
@@ -341,6 +341,7 @@ class Game(Scene):
                             default=1)
 
     def setup(self):
+        self.fps = 60
         pygame.key.set_repeat(1)
 
     def update(self):
@@ -363,6 +364,47 @@ class Game(Scene):
 
         super().update()
 
+    def on_controller_button_down_event(self, event):
+        if event.instance_id == 0:
+            player = self.player1
+        elif event.instance_id == 1:
+            player = self.player2
+
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+            player.stop()
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+            player.stop()
+
+        self.log.info(f'GOT on_controller_button_down_event: {event}')
+
+    def on_controller_button_up_event(self, event):
+        if event.instance_id == 0:
+            player = self.player1
+        elif event.instance_id == 1:
+            player = self.player2
+
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+            player.move_up()
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+            player.move_down()
+
+        self.log.info(f'GOT on_controller_button_up_event: {event}')
+
+    def on_controller_axis_motion_event(self, event):
+        if event.instance_id == 0:
+            player = self.player1
+        elif event.instance_id == 1:
+            player = self.player2
+
+        if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
+            if event.value < 0:
+                player.move_up()
+            if event.value == 0:
+                player.stop()
+            if event.value > 0:
+                player.move_down()
+            self.log.info(f'GOT on_controller_axis_motion_event: {event}')
+
     def on_key_up_event(self, event):
         # Handle ESC/q to quit
         super().on_key_up_event(event)
@@ -384,13 +426,13 @@ class Game(Scene):
         # self.log.info(f'Key Down Event: {event}')
         pressed_keys = pygame.key.get_pressed()
 
-        if pressed_keys[pygame.K_UP]:
-            self.player1.move_up()
-        if pressed_keys[pygame.K_DOWN]:
-            self.player1.move_down()
         if pressed_keys[pygame.K_w]:
-            self.player2.move_up()
+            self.player1.move_up()
         if pressed_keys[pygame.K_s]:
+            self.player1.move_down()
+        if pressed_keys[pygame.K_UP]:
+            self.player2.move_up()
+        if pressed_keys[pygame.K_DOWN]:
             self.player2.move_down()
 
 

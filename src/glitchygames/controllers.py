@@ -140,10 +140,10 @@ class ControllerManager(ControllerEvents, ResourceManager):
         # and is safe to call more than once.
         pygame._sdl2.controller.init()
 
-        self.log.info(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
+        self.log.debug(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
 
         # Controller Setup
-        self.log.info(f'Controller Count: {pygame._sdl2.controller.get_count()}')
+        self.log.debug(f'Controller Count: {pygame._sdl2.controller.get_count()}')
 
         if pygame._sdl2.controller.get_count():
             controllers = [
@@ -160,7 +160,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 self.controllers.append(controller_proxy)
 
                 # The controller proxy overrides the controller object
-                self.log.info(controller_proxy)
+                self.log.debug(controller_proxy)
 
         self.proxies = [self.game]
 
@@ -171,15 +171,15 @@ class ControllerManager(ControllerEvents, ResourceManager):
         return parser
 
     def on_controller_axis_motion_event(self, event):
-        self.log.info(f'CONTROLLERAXISMOTION triggered: on_controller_axis_motion_event({event})')
+        self.log.debug(f'CONTROLLERAXISMOTION triggered: on_controller_axis_motion_event({event})')
         self.controllers[event.instance_id].on_controller_axis_motion_event(event)
 
     def on_controller_button_down_event(self, event):
-        self.log.info(f'CONTROLLERBUTTONDOWNEVENT triggered: on_controller_button_down_event({event})')
+        self.log.debug(f'CONTROLLERBUTTONDOWNEVENT triggered: on_controller_button_down_event({event})')
         self.controllers[event.instance_id].on_controller_button_down_event(event)
 
     def on_controller_button_up_event(self, event):
-        self.log.info(f'CONTROLLERBUTTONUPEVENT triggered: on_controller_button_up_event({event})')
+        self.log.debug(f'CONTROLLERBUTTONUPEVENT triggered: on_controller_button_up_event({event})')
         self.controllers[event.instance_id].on_controller_button_up_event(event)
 
     def on_controller_device_added_event(self, event):
@@ -195,31 +195,31 @@ class ControllerManager(ControllerEvents, ResourceManager):
         self.controllers[event.device_index] = controller_proxy
 
         # The controller proxy overrides the controller object
-        self.log.info(f'Added Controller #{event.device_index}: {controller_proxy}')
-        self.log.info(f'CONTROLLERDEVICEADDED triggered: on_controller_device_added_event({event})')
+        self.log.debug(f'Added Controller #{event.device_index}: {controller_proxy}')
+        self.log.debug(f'CONTROLLERDEVICEADDED triggered: on_controller_device_added_event({event})')
 
         # Need to notify the game after the controller exists
         self.controllers[event.device_index].on_controller_device_added_event(event)
 
     def on_controller_device_remapped_event(self, event):
-        self.log.info(f'CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event({event}')
+        self.log.debug(f'CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event({event}')
         self.controllers[event.device_index].on_controller_device_remapped_event(event)
 
     def on_controller_device_removed_event(self, event):
         # CONTROLLERDEVICEREMOVED instance_id
         self.controllers[event.instance_id].on_controller_device_removed_event(event)
         del self.controllers[event.instance_id]
-        self.log.info(f'Removed Controller #{event.instance_id}')
-        self.log.info(f'CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})')
+        self.log.debug(f'Removed Controller #{event.instance_id}')
+        self.log.debug(f'CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})')
 
     def on_controller_touchpad_down_event(self, event):
-        self.log.info(f'CONTROLLERTOUCHDPADDOWN triggered: on_controller_touchpad_down_event({event})')
+        self.log.debug(f'CONTROLLERTOUCHDPADDOWN triggered: on_controller_touchpad_down_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_down_event(event)
 
     def on_controller_touchpad_motion_event(self, event):
-        self.log.info(f'CONTROLLERTOUCHPADMOTION triggered: on_controller_touchpad_motion_event({event})')
+        self.log.debug(f'CONTROLLERTOUCHPADMOTION triggered: on_controller_touchpad_motion_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_motion_event(event)
 
     def on_controller_touchpad_up_event(self, event):
-        self.log.info(f'CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event({event})')
+        self.log.debug(f'CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_up_event(event)
