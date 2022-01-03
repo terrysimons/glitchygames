@@ -31,7 +31,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             game - The game instance.
 
             """
-            super().__init__()
+            super().__init__(game=game)
             self._id = joystick_id
             self.joystick = pygame.joystick.Joystick(self._id)
             self.joystick.init()
@@ -131,7 +131,8 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         """
         super().__init__(game=game)
-        self.joysticks = []
+        self.joysticks = {}
+        self.game = game
 
         # This must be called before other joystick methods,
         # and is safe to call more than once.
@@ -145,14 +146,20 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         for joystick in joysticks:
             joystick.init()
+
+            try:
+                joystick_id = joystick.get_instance_id()
+            except AttributeError:
+                joystick_id = joystick.get_id()
+
             joystick_proxy = JoystickManager.JoystickProxy(
-                joystick_id=joystick.get_id(),
-                game=game
+                joystick_id=joystick_id,
+                game=self.game
             )
-            self.joysticks.append(joystick_proxy)
+            self.joysticks[joystick_id] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
-            log.info(joystick_proxy)
+            log.info(f'Added Joystick: {joystick_proxy}')
 
     @classmethod
     def args(cls, parser):
@@ -192,8 +199,50 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
     def on_joy_device_added(self, event):
         # JOYDEVICEADDED device_index, guid
+        # Joystick Setup
+        # log.info(f'Joystick Count: {pygame.joystick.get_count()}')
+        # joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
+
+        # for joystick in joysticks:
+        #     joystick.init()
+        #     joystick_instance_id = joystick.get_instance_id()
+        #     joystick_proxy = JoystickManager.JoystickProxy(
+        #         joystick_id=joystick_instance_id,
+        #         game=self.game
+        #     )
+        #     self.joysticks[joystick_instance_id] = joystick_proxy
+
+        #     # The joystick proxy overrides the joystick object
+        #     log.info(f'Joystick: {joystick_proxy}')
+        # joystick_proxy = JoystickManager.JoystickProxy(
+        #         joystick_id=event.device_index,
+        #         game=self.game
+        # )
+        # self.joysticks[event.device_index] = joystick_proxy
+        # Joystick Setup
+        log.info(f'Joystick Count: {pygame.joystick.get_count()}')
+        joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
+
+        for joystick in joysticks:
+            joystick.init()
+
+            try:
+                joystick_id = joystick.get_instance_id()
+            except AttributeError:
+                joystick_id = joystick.get_id()
+
+            joystick_proxy = JoystickManager.JoystickProxy(
+                joystick_id=joystick_id,
+                game=self.game
+            )
+            self.joysticks[joystick_id] = joystick_proxy
+
+            # The joystick proxy overrides the joystick object
+            log.info(f'Added Joystick: {joystick_proxy}')
+
         log.info(f'JOYDEVICEADDED triggered: on_joy_device_added({event})')
 
     def on_joy_device_removed(self, event):
         # JOYDEVICEREMOVED device_index
+        del self.joysticks[event.instance_id]
         log.info(f'JOYDEVICEREMOVED triggered: on_joy_device_removed({event})')
