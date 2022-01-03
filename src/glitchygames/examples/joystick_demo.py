@@ -322,6 +322,8 @@ class JoystickScene(Scene):
     def on_recharge_event(self, event):  # noqa: R0201
         self.log.info(f'Recharge Event: {event}')
 
+    def on_controller_axis_motion_event(self, event):
+        self.log.info(f'controller Axis motion event')
 
 class Game(Scene):
     # Set your game name/version here.

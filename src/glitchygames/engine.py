@@ -508,12 +508,6 @@ class GameEngine(events.EventManager):
             self.mouse_manager = MouseManager(game=self.scene_manager)
             self.window_manager = WindowManager(game=self.scene_manager)
 
-            # # TODO: Something similar for controllers?
-            # self.controllers = []
-            # if self.controller_manager:
-            #     self.controllers = self.controller_manager.controllers
-            # self.controller_count = len(self.controllers)
-
             # Get count of joysticks
             self.joysticks = []
             if self.joystick_manager:
@@ -653,26 +647,25 @@ class GameEngine(events.EventManager):
             self.process_unimplemented_event(event)
 
     def process_joystick_event(self, event):
-        self.log.info(f'JOYEVENT: {event}')
         if event.type == pygame.JOYAXISMOTION:
             # JOYAXISMOTION    joy, axis, value
-            self.joystick_manager.on_axis_motion_event(event)
+            self.joystick_manager.on_joy_axis_motion_event(event)
         elif event.type == pygame.JOYBALLMOTION:
             # JOYBALLMOTION    joy, ball, rel
-            self.joystick_.on_ball_motion_event(event)
+            self.joystick_manager.on_joy_ball_motion_event(event)
         elif event.type == pygame.JOYBUTTONUP:
             # JOYBUTTONUP      joy, button
-            self.joystick_manager.on_button_up_event(event)
+            self.joystick_manager.on_joy_button_up_event(event)
         elif event.type == pygame.JOYBUTTONDOWN:
             # JOYBUTTONDOWN    joy, button
-            self.joystick_manager.on_button_down_event(event)
+            self.joystick_manager.on_joy_button_down_event(event)
         elif event.type == pygame.JOYHATMOTION:
             # JOYHATMOTION     joy, hat, value
-            self.joystick_manager.on_hat_motion_event(event)
+            self.joystick_manager.on_joy_hat_motion_event(event)
         elif event.type == pygame.JOYDEVICEADDED:
-            self.joystick_manager.on_joy_device_added(event)
+            self.joystick_manager.on_joy_device_added_event(event)
         elif event.type == pygame.JOYDEVICEREMOVED:
-            self.joystick_manager.on_joy_device_removed(event)
+            self.joystick_manager.on_joy_device_removed_event(event)
         else:
             self.process_unimplemented_event(event)
 

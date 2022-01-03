@@ -80,35 +80,48 @@ class ControllerManager(ControllerEvents, ResourceManager):
             self.proxies = [self.game, self.controller]
 
         def on_controller_axis_motion_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self._axes[event.axis] = event.value
+            self.game.on_controller_axis_motion_event(event)
+
         def on_controller_button_down_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self._buttons[event.button] = 1
+            self.game.on_controller_button_down_event(event)
+
         def on_controller_button_up_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self._buttons[event.button] = 0
+            self.game.on_controller_button_up_event(event)
+
         def on_controller_device_added_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            # CONTROLLERDEVICEADDED device_index, guid
+            self.game.on_controller_device_added_event(event)
+
         def on_controller_device_remapped_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self.game.on_controller_device_remapped_event(event)
+
         def on_controller_device_removed_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            # CONTROLLERDEVICEREMOVED instance_id
+            self.game.on_controller_device_removed_event(event)
+
         def on_controller_touchpad_down_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self.game.on_controller_touchpad_down_event(event)
+
         def on_controller_touchpad_motion_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self.game.on_controller_touchpad_motion_event(event)
+
         def on_controller_touchpad_up_event(self, event):
-            self.log.info(f'Controller Proxy Event: {event}')
+            self.game.on_controller_touchpad_up_event(event)
 
         def __str__(self):
-            joystick_info = []
-            joystick_info.append(f'Controller Name: {pygame._sdl2.controller.name_forindex(self._id)}')
-            joystick_info.append(f'\tController Id: {self._id}')
-            joystick_info.append(f'\tController Inited: {self.controller.get_init()}')
-            joystick_info.append(f'\tController Axis Count: {self._numaxes}')
-            joystick_info.append(f'\tController Button Count: {self._numbuttons}')
-            return '\n'.join(joystick_info)
+            controller_info = []
+            controller_info.append(f'Controller Name: {pygame._sdl2.controller.name_forindex(self._id)}')
+            controller_info.append(f'\tController Id: {self._id}')
+            controller_info.append(f'\tController Inited: {self.controller.get_init()}')
+            controller_info.append(f'\tController Axis Count: {self._numaxes}')
+            controller_info.append(f'\tController Button Count: {self._numbuttons}')
+            return '\n'.join(controller_info)
 
         def __repr__(self):
-            return repr(self.joystick)
+            return repr(self.controller)
 
     def __init__(self, game=None):
         """
@@ -121,8 +134,9 @@ class ControllerManager(ControllerEvents, ResourceManager):
         super().__init__(game=game)
         self.controllers = {}
         self.proxies = []
+        self.game = game
 
-        # This must be called before other joystick methods,
+        # This must be called before other controller methods,
         # and is safe to call more than once.
         pygame._sdl2.controller.init()
 
@@ -145,10 +159,10 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 )
                 self.controllers.append(controller_proxy)
 
-                # The controller proxy overrides the joystick object
+                # The controller proxy overrides the controller object
                 self.log.info(controller_proxy)
 
-            # self.proxies = [ControllerManager.ControllerProxy(game=game), pygame.controller]
+        self.proxies = [self.game]
 
     @classmethod
     def args(cls, parser):
@@ -157,35 +171,55 @@ class ControllerManager(ControllerEvents, ResourceManager):
         return parser
 
     def on_controller_axis_motion_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERAXISMOTION triggered: on_controller_axis_motion_event({event})')
+        self.controllers[event.instance_id].on_controller_axis_motion_event(event)
+
     def on_controller_button_down_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERBUTTONDOWNEVENT triggered: on_controller_button_down_event({event})')
+        self.controllers[event.instance_id].on_controller_button_down_event(event)
+
     def on_controller_button_up_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERBUTTONUPEVENT triggered: on_controller_button_up_event({event})')
+        self.controllers[event.instance_id].on_controller_button_up_event(event)
+
     def on_controller_device_added_event(self, event):
-        self.log.info(f'Controller Count: {pygame._sdl2.controller.get_count()}')
-        controllers = [pygame._sdl2.controller.Controller(x) for x in range(pygame._sdl2.controller.get_count())]
+        # CONTROLLERDEVICEADDED device_index, guid
 
-        for controller in controllers:
-            controller.init()
+        # Note: There is a bug in pygame where a reinitialized
+        # controller object due to hotplug ends up with an incorrect
+        # device_index.
+        controller_proxy = ControllerManager.ControllerProxy(
+            controller_id=event.device_index,
+            game=self.game
+        )
+        self.controllers[event.device_index] = controller_proxy
 
-            controller_proxy = ControllerManager.ControllerProxy(
-                controller_id=controller.id,
-                game=self.game
-            )
-            self.controllers[controller.id] = controller_proxy
+        # The controller proxy overrides the controller object
+        self.log.info(f'Added Controller #{event.device_index}: {controller_proxy}')
+        self.log.info(f'CONTROLLERDEVICEADDED triggered: on_controller_device_added_event({event})')
 
-            # The controller proxy overrides the joystick object
-            self.log.info(f'Added Controller: {controller_proxy}')
+        # Need to notify the game after the controller exists
+        self.controllers[event.device_index].on_controller_device_added_event(event)
 
-        self.log.info(f'CONTROLLERADDED triggered: on_controller_device_added({event})')
     def on_controller_device_remapped_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event({event}')
+        self.controllers[event.device_index].on_controller_device_remapped_event(event)
+
     def on_controller_device_removed_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        # CONTROLLERDEVICEREMOVED instance_id
+        self.controllers[event.instance_id].on_controller_device_removed_event(event)
+        del self.controllers[event.instance_id]
+        self.log.info(f'Removed Controller #{event.instance_id}')
+        self.log.info(f'CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})')
+
     def on_controller_touchpad_down_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERTOUCHDPADDOWN triggered: on_controller_touchpad_down_event({event})')
+        self.controllers[event.instance_id].on_controller_touchpad_down_event(event)
+
     def on_controller_touchpad_motion_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERTOUCHPADMOTION triggered: on_controller_touchpad_motion_event({event})')
+        self.controllers[event.instance_id].on_controller_touchpad_motion_event(event)
+
     def on_controller_touchpad_up_event(self, event):
-        self.log.info(f'Controller Manager Event: {event}')
+        self.log.info(f'CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event({event})')
+        self.controllers[event.instance_id].on_controller_touchpad_up_event(event)

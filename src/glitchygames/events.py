@@ -48,6 +48,7 @@ ALL_EVENTS = supported_events()
 GAME_EVENTS = list(
     set(ALL_EVENTS) -
     set(AUDIO_EVENTS) -
+    set(CONTROLLER_EVENTS) -
     set(DROP_EVENTS) -
     set(FINGER_EVENTS) -
     set(JOYSTICK_EVENTS) -
@@ -175,6 +176,11 @@ class DropEvents:
 
 
 # Mixin
+class FingerEvents:
+    pass
+
+
+# Mixin
 class GameEvents:
     def on_active_event(self, event):
         # ACTIVEEVENT      gain, state
@@ -239,25 +245,38 @@ class KeyboardEvents:
 
 # Mixin
 class JoystickEvents:
-    def on_axis_motion_event(self, event):
+    def on_joy_axis_motion_event(self, event):
         # JOYAXISMOTION    joy, axis, value
         pass
 
-    def on_button_down_event(self, event):
+    def on_joy_button_down_event(self, event):
         # JOYBUTTONDOWN    joy, button
         pass
 
-    def on_button_up_event(self, event):
+    def on_joy_button_up_event(self, event):
         # JOYBUTTONUP      joy, button
         pass
 
-    def on_hat_motion_event(self, event):
+    def on_joy_hat_motion_event(self, event):
         # JOYHATMOTION     joy, hat, value
         pass
 
-    def on_ball_motion_event(self, event):
+    def on_joy_ball_motion_event(self, event):
         # JOYBALLMOTION    joy, ball, rel
         pass
+
+    def on_joy_device_added_event(self, event):
+        # JOYDEVICEADDED device_index, guid
+        pass
+
+    def on_joy_device_removed_event(self, event):
+        # JOYDEVICEREMOVED device_index
+        pass
+
+
+# Mixin
+class MidiEvents:
+    pass
 
 
 # Mixin
@@ -351,6 +370,10 @@ class MouseEvents:
         pass
 
 
+class TextEvents:
+    pass
+
+
 class WindowEvents:
     def on_window_close_event(self, event):
         pass
@@ -403,12 +426,16 @@ class WindowEvents:
 
 # Mixin for all events
 class EventInterface(AudioEvents,
+                     ControllerEvents,
                      DropEvents,
+                     FingerEvents,
                      FontEvents,
                      GameEvents,
                      JoystickEvents,
                      KeyboardEvents,
+                     MidiEvents,
                      MouseEvents,
+                     TextEvents,
                      WindowEvents):
     pass
 
