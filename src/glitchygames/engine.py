@@ -15,15 +15,15 @@ import pygame.locals
 from glitchygames.color import PURPLE, VGA
 import glitchygames.events as events
 
-from glitchygames.audio import AudioManager
-from glitchygames.controllers import ControllerManager
-from glitchygames.drop_events import DropManager
+from glitchygames.events.audio import AudioManager
+from glitchygames.events.controller import ControllerManager
+from glitchygames.events.drop import DropManager
 from glitchygames.fonts import FontManager
-from glitchygames.joysticks import JoystickManager
-from glitchygames.keyboard import KeyboardManager
-from glitchygames.midi import MidiManager
-from glitchygames.mouse import MouseManager
-from glitchygames.window import WindowManager
+from glitchygames.events.joystick import JoystickManager
+from glitchygames.events.keyboard import KeyboardManager
+from glitchygames.events.midi import MidiManager
+from glitchygames.events.mouse import MouseManager
+from glitchygames.events.window import WindowManager
 
 from glitchygames.sprites import Sprite
 from glitchygames.scenes import SceneManager

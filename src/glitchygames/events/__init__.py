@@ -10,7 +10,6 @@ import pygame
 LOG = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
-
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
@@ -62,7 +61,6 @@ GAME_EVENTS = list(
 GAME_EVENTS.append(FPSEVENT)
 GAME_EVENTS.append(GAMEEVENT)
 GAME_EVENTS.append(MENUEVENT)
-
 
 def unhandled_event(*args, **kwargs):
     LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
