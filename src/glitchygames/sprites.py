@@ -58,6 +58,9 @@ class Sprite(RootSprite):
         self.image = pygame.Surface((width, height))
         self.rect = self.image.get_rect()
 
+        self.dt = 0
+        self.dt_timer = 0
+
         self.rect.x = x
         self.rect.y = y
         self.rect.width = int(width)
@@ -130,6 +133,10 @@ class Sprite(RootSprite):
     def height(self, new_height):
         self.rect.height = new_height
         self.dirty = 1 if not self.dirty else self.dirty
+
+    def dt_tick(self, dt):
+        self.dt = dt
+        self.dt_timer += self.dt
 
     def update(self):
         pass

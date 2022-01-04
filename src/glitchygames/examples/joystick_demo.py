@@ -13,7 +13,7 @@ from glitchygames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
 from glitchygames.color import PURPLE, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
-from glitchygames.joysticks import JoystickManager
+from glitchygames.events.joystick import JoystickManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 

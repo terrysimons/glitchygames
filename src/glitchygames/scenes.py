@@ -30,7 +30,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self.screen = pygame.display.get_surface()
         self.update_type = 'update'
         self.fps_refresh_rate = 1000
-        self.fps = 5
+        self.target_fps = 0
+        self.dt = 0
+        self.timer = 0
         self._game_engine = None
         self.active_scene = None
         self.next_scene = self.active_scene
@@ -50,10 +52,10 @@ class SceneManager(SceneInterface, events.EventManager):
             self.OPTIONS = self._game_engine.OPTIONS
             self.update_type = self.OPTIONS['update_type']
             self.fps_refresh_rate = self.OPTIONS['fps_refresh_rate']
-            self.fps = self.OPTIONS.get('fps', 1)
+            self.target_fps = self.OPTIONS.get('target_fps', 60)
             self.log.info(f'Screen update type: {self.update_type}')
             self.log.info(f'FPS Refresh Rate: {self.fps_refresh_rate}')
-            self.log.info(f'Per-scene FPS: {self.fps}')
+            self.log.info(f'Target FPS: {self.target_fps}')
 
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
@@ -64,16 +66,19 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def switch_to_scene(self, next_scene):
         if next_scene != self.active_scene:
+            self.dt = 0
+            self.timer = 0
             self.log.info(
                 f'Switching to scene "{next_scene}" '
                 f'from scene "{self.active_scene}"'
             )
 
+            if self.active_scene:
+                self.active_scene._screenshot = self.active_scene.screenshot
+                self.log.info(f'Cleaning up active scene {self.active_scene}.')
+                self.active_scene.cleanup()
+
             if next_scene:
-                if self.active_scene:
-                    self.active_scene._screenshot = self.active_scene.screenshot
-                    self.log.info(f'Cleaning up active scene {self.active_scene}.')
-                    self.active_scene.cleanup()
                 self.log.info(f'Setting up new scene {next_scene}.')
                 next_scene.setup()
                 self.log.info('Scene event block list: '
@@ -82,6 +87,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene = next_scene
 
             if self.active_scene:
+                self.active_scene.dt = self.dt
+                self.active_scene.timer = self.timer
                 self.active_scene.setup()
 
                 caption = ''
@@ -101,12 +108,12 @@ class SceneManager(SceneInterface, events.EventManager):
 
                 # Infinite refresh is the default; override it if FPS was configured
                 # on the command line, unless the active scene has specific FPS requirements
-                if self.fps > 0 and self.active_scene.fps == 0:
-                    self.active_scene.fps = self.fps
+                if self.target_fps > 0 and self.active_scene.target_fps == 0:
+                    self.active_scene.target_fps = self.target_fps
 
                 self.log.info(
                     f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-                    f' at {self.active_scene.fps} FPS'
+                    f' at {self.active_scene.target_fps} FPS'
                 )
 
                 # This controls how events are marshalled
@@ -119,34 +126,42 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.screen.blit(self.active_scene.background, (0, 0))
 
                 # Per-scene FPS configurability
-                self.fps = self.active_scene.fps
+                self.target_fps = self.active_scene.target_fps
 
     def start(self):
-        start_time = time.perf_counter()
-        current_time = start_time
+        previous_time = time.perf_counter()
+        previous_fps_time = previous_time
+        current_time = previous_time
 
         while self.active_scene is not None and self.quit_requested is False:
+            self.clock.tick(self.target_fps)
+
+            now = time.perf_counter()
+            self.dt = (now - previous_time) * 10
+            previous_time = current_time
+
+            self.active_scene.dt_tick(self.dt)
+
+            self.game_engine.process_events()
+
             self.active_scene.update()
 
             self.active_scene.render(self.screen)
-
-            self.clock.tick(self.fps)
 
             if self.update_type == 'update':
                 pygame.display.update(self.active_scene.rects)
             elif self.update_type == 'flip':
                 pygame.display.flip()
 
-            if (current_time - start_time) * 1000 >= self.OPTIONS['fps_refresh_rate']:
+            if (current_time - previous_fps_time) * 1000 >= self.OPTIONS['fps_refresh_rate']:
                 pygame.event.post(
                     pygame.event.Event(events.FPSEVENT, {'fps': self.clock.get_fps()})
                 )
 
-                start_time = current_time
+                previous_fps_time = current_time
 
             self.switch_to_scene(self.active_scene.next_scene)
 
-            self.game_engine.process_events()
 
             current_time = time.perf_counter()
 
@@ -229,7 +244,10 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         # This helps us keep the upper layers clean by not requiring
         # new scenes to care about the SceneManager when being
         # instantiated.
+        self.target_fps = 0
         self.fps = 0
+        self.dt = 0
+        self.dt_timer = 0
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
@@ -283,6 +301,10 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
 
     def cleanup(self):
         pass
+
+    def dt_tick(self, dt):
+        self.dt = dt
+        self.dt_timer += self.dt
 
     def update(self):
         # Hack to enable compound sprites to manage their own subsprites dirty states
@@ -437,6 +459,7 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
     def on_fps_event(self, event):  # noqa: W0613
         # FPSEVENT is pygame.USEREVENT + 1
         self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
+        self.fps = event.fps
 
     def load_resources(self):  # noqa: R0201
         self.log.debug(f'Implement load_resource() in {type(self)}.')

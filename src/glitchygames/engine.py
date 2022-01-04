@@ -417,7 +417,7 @@ class GameEngine(events.EventManager):
     def args(cls, parser):
         group = parser.add_argument_group('Graphics Options')
 
-        group.add_argument('-f', '--fps',
+        group.add_argument('-f', '--target-fps',
                            help='cap the framerate (default: infinite)',
                            type=float,
                            default=0.0)

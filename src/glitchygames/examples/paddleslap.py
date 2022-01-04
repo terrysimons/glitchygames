@@ -12,7 +12,7 @@ import pygame.locals
 from glitchygames.color import WHITE, BLACKLUCENT
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
-from glitchygames.joysticks import JoystickManager
+from glitchygames.events.joystick import JoystickManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -343,6 +343,13 @@ class Game(Scene):
     def setup(self):
         self.fps = 60
         pygame.key.set_repeat(1)
+
+    def dt_tick(self, dt):
+        self.dt = dt
+        self.dt_timer += self.dt
+
+        for sprite in self.all_sprites:
+            sprite.dt_tick(dt)
 
     def update(self):
         for ball in self.balls:
