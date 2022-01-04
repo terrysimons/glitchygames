@@ -591,7 +591,7 @@ class BitmapEditorScene(Scene):
         self.new_menu_item = MenuItem(
             name='New',
             x=self.menu_icon.rect.topright[0],
-            y=self.menu_icon.y,
+            y=self.menu_icon.rect.y,
             width=40,
             height=self.menu_bar.height,
             parent=self,
@@ -600,7 +600,7 @@ class BitmapEditorScene(Scene):
         self.save_menu_item = MenuItem(
             name='Save',
             x=self.new_menu_item.rect.topright[0],
-            y=self.new_menu_item.y,
+            y=self.new_menu_item.rect.y,
             width=40,
             height=self.menu_bar.height,
             parent=self,
@@ -609,7 +609,7 @@ class BitmapEditorScene(Scene):
         self.load_menu_item = MenuItem(
             name='Load',
             x=self.save_menu_item.rect.midright[0],
-            y=self.save_menu_item.y,
+            y=self.save_menu_item.rect.y,
             width=40,
             height=self.menu_bar.height,
             parent=self,
@@ -618,7 +618,7 @@ class BitmapEditorScene(Scene):
         self.quit_menu_item = MenuItem(
             name='Quit',
             x=self.load_menu_item.rect.midright[0],
-            y=self.load_menu_item.y,
+            y=self.load_menu_item.rect.y,
             width=40,
             height=self.menu_bar.height,
             parent=self,

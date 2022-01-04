@@ -180,8 +180,8 @@ class MenuItem(BitmappySprite):
             self.text = TextSprite(
                 background_color=self.background_color,
                 text_color=(0, 0, 0),
-                x=self.x,
-                y=self.y,
+                x=self.rect.x,
+                y=self.rect.y,
                 width=self.width,
                 height=self.height,
                 text=self.name,
@@ -277,7 +277,7 @@ class MenuItem(BitmappySprite):
 
     def update(self):
         # self.log.debug(f'Menu Items: {self.menu_items.items()}')
-        self.screen.blit(self.image, (self.x, self.rect.y))
+        self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
         if self.active:
             if self.menu_image and self.menu_rect:
@@ -384,7 +384,7 @@ class MenuItem(BitmappySprite):
                     f'{type(self)} Clicked Menu Item: Name: {sprite.name}, '
                     f'Width: {sprite.rect.width},'
                     f'Height: {sprite.rect.height}, '
-                    f'Clicked X: {mouse.x}, Clicked Y: {mouse.y},'
+                    f'Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},'
                     f'my X: {sprite.rect.x}, '
                     f'my Y: {sprite.rect.y}'
                 )
@@ -796,26 +796,6 @@ class TextBoxSprite(BitmappySprite):
 
         self.proxies = [self.parent]
 
-    @property
-    def x(self):
-        return self.rect.x
-
-    @x.setter
-    def x(self, new_x):
-        self.rect.x = new_x
-        self.text_box.x = self.parent.x if self.parent else self.rect.x
-        self.dirty = 1
-
-    @property
-    def y(self):
-        return self.rect.y
-
-    @y.setter
-    def y(self, new_y):
-        self.rect.y = new_y
-        self.text_box.y = self.parent.y if self.parent else self.rect.y
-        self.dirty = 1
-
     def update_nested_sprites(self):
         self.text_box.dirty = self.dirty
 
@@ -1145,8 +1125,8 @@ class InputDialog(BitmappySprite):
 
         self.dialog_text_sprite = TextBoxSprite(
             name=dialog_text,
-            x=self.x,
-            y=self.y,
+            x=self.rect.x,
+            y=self.rect.y,
             width=self.width // 2,
             height=20,
             parent=self,
@@ -1160,16 +1140,16 @@ class InputDialog(BitmappySprite):
         self.dialog_text_sprite.text_box.text = dialog_text
         self.confirm_button = ButtonSprite(
             name=confirm_text,
-            x=self.x,
-            y=self.y,
+            x=self.rect.x,
+            y=self.rect.y,
             width=75,
             height=20,
             groups=groups
         )
         self.cancel_button = ButtonSprite(
             name=cancel_text,
-            x=self.x,
-            y=self.y,
+            x=self.rect.x,
+            y=self.rect.y,
             width=75,
             height=20,
             groups=groups

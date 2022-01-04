@@ -574,6 +574,14 @@ class MousePointer(SingletonBitmappySprite):
         self.rect.x = x
         self.rect.y = y
 
+    @property
+    def x(self):
+        return self.rect.x
+
+    @property
+    def y(self):
+        return self.rect.y
+
 
 def collided_sprites(scene, event, index=None):
     mouse = MousePointer(x=event.pos[0], y=event.pos[1])
