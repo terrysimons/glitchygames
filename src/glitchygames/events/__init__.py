@@ -10,6 +10,7 @@ import pygame
 LOG = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
+
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
@@ -61,6 +62,7 @@ GAME_EVENTS = list(
 GAME_EVENTS.append(FPSEVENT)
 GAME_EVENTS.append(GAMEEVENT)
 GAME_EVENTS.append(MENUEVENT)
+
 
 def unhandled_event(*args, **kwargs):
     LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
@@ -140,20 +142,28 @@ class AudioEvents:
 class ControllerEvents:
     def on_controller_axis_motion_event(self, event):
         pass
+
     def on_controller_button_down_event(self, event):
         pass
+
     def on_controller_button_up_event(self, event):
         pass
+
     def on_controller_device_added_event(self, event):
         pass
+
     def on_controller_device_remapped_event(self, event):
         pass
+
     def on_controller_device_removed_event(self, event):
         pass
+
     def on_controller_touchpad_down_event(self, event):
         pass
+
     def on_controller_touchpad_motion_event(self, event):
         pass
+
     def on_controller_touchpad_up_event(self, event):
         pass
 

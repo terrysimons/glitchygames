@@ -18,6 +18,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
     # This isn't a ResourceManager like other proxies, because
     # there can be multiple joysticks, so having one instance
     # won't work.
+
     class JoystickProxy(JoystickEvents, ResourceManager):
         log = LOG
 
@@ -180,7 +181,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             self.joysticks[joystick_id] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
-            log.info(f'Added Joystick: {joystick_proxy}')
+            self.log.info(f'Added Joystick: {joystick_proxy}')
 
         self.proxies = [self.game]
 
