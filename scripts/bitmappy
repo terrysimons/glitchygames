@@ -307,8 +307,10 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.on_pixel_update_event(event, trigger)
             self.mini_view.dirty = 1
 
-        if self.pixel_boxes[trigger.pixel_number].dirty:
-            self.pixel_boxes[trigger.pixel_number].update()
+        self.pixel_boxes[trigger.pixel_number].pixel_color = trigger.pixel_color
+
+        # if self.pixel_boxes[trigger.pixel_number].dirty:
+        #     self.pixel_boxes[trigger.pixel_number].update()
 
         self.dirty = 1
 
@@ -425,7 +427,7 @@ class CanvasSprite(BitmappySprite):
 
         for i, pixel in enumerate(pixels):
             trigger.pixel_number = i
-            trigger.pixel_color = (255, 255, 255)
+            trigger.pixel_color = pixel
 
             event = pygame.event.Event(events.GAMEEVENT, {'action':'on_load_file_event',
                                                           'pixel_color': pixel,
