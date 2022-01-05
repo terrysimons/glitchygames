@@ -1,4 +1,5 @@
 import logging
+import time
 
 from pygame import Rect
 import pygame
@@ -753,6 +754,96 @@ class CheckboxSprite(ButtonSprite):
         self.checked = not self.checked
         # self.update()
         self.dirty = 1
+
+
+class InputBox(Sprite):
+    def __init__(self, x, y, width, height, color=(233, 248, 215), text='', name=None,
+                 parent=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+        pygame.font.init()
+        self.rect = pygame.Rect(x, y, width, height)
+        self.color = color
+        self.font = pygame.font.SysFont('Times', 14)
+        self.text = text
+        self.text_image = self.font.render(self.text, True, self.color)
+        self.active = True
+        self.image = pygame.Surface((self.width, self.height))
+        self.image.convert()
+        self.parent = parent
+
+        self.cursor_rect = self.text_image.get_rect()
+
+        self.cursor = pygame.Rect(
+            self.cursor_rect.topright,
+            (3, self.cursor_rect.height)
+        )
+
+        self.dirty = 2
+
+    def activate(self):
+        self.active = True
+        self.dirty = 2
+
+    def deactivate(self):
+        self.active = False
+        self.dirty = 0
+
+    def on_input_box_submit_event(self):
+        if self.parent:
+            try:
+                self.parent.on_input_box_submit_event(self)
+            except AttributeError:
+                self.log.info(f'{self.name}: Submitted "{self.text}" but no parent is configured.')
+
+    def update(self):
+        self.image.fill((0, 0, 0))
+        self.image.blit(self.text_image, (4, 4))
+
+        pygame.draw.rect(self.image, self.color, (0, 0, self.rect.width, self.rect.height), 1)
+
+        # Blit the  cursor
+        if time.time() % 1 > 0.5 and self.active:
+            self.cursor_rect = self.text_image.get_rect(topleft=(5, 2))
+
+            self.cursor.midleft = self.cursor_rect.midright
+
+            pygame.draw.rect(self.image, self.color, self.cursor)
+
+    def render(self):
+        self.text_image = self.font.render(self.text, True, (255, 255, 255))
+
+    def on_mouse_up_event(self, event):
+        self.activate()
+
+    def on_key_up_event(self, event):
+        if self.active:
+            pygame.key.set_repeat(200)
+
+            if event.key == pygame.K_TAB or event.key == pygame.K_ESCAPE:
+                self.deactivate()
+
+    def on_key_down_event(self, event):
+        if self.active:
+            if event.key == pygame.K_TAB:
+                pass
+            elif event.key == pygame.K_ESCAPE:
+                pass
+            elif event.key == pygame.K_RETURN:
+                self.log.debug(f'Text Submitted: {self.name}: {self.text}')
+                self.on_input_box_submit_event()
+                self.text = ''
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            else:
+                self.text += event.unicode
+
+                self.cursor_rect.size = self.text_image.get_size()
+                self.cursor.topleft = self.cursor_rect.topright
+
+                # Limit characters           -20 for border width
+                if self.text_image.get_width() > self.rect.width - 15:
+                    self.text = self.text[:-1]
+            self.log.debug(f'{self.name}: {self.text}')
 
 
 class TextBoxSprite(BitmappySprite):
