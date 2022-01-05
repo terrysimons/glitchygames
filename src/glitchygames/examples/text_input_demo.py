@@ -21,12 +21,13 @@ class InputBox(Sprite):
         pygame.font.init()
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
-        self.font = pygame.font.SysFont('Tahoma', 12)
+        self.font = pygame.font.SysFont('Times', 14)
         self.text = text
         self.text_image = self.font.render(self.text, True, self.color)
         self.active = True
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
+        self.parent = parent
 
         self.cursor_rect = self.text_image.get_rect()
 
@@ -44,6 +45,13 @@ class InputBox(Sprite):
     def deactivate(self):
         self.active = False
         self.dirty = 0
+
+    def on_input_box_submit_event(self):
+        if self.parent:
+            try:
+                self.parent.on_input_box_submit_event(self)
+            except AttributeError:
+                self.log.info(f'{self.name}: Submitted "{self.text}" but no parent is configured.')
 
     def update(self):
         self.image.fill((0, 0, 0))
@@ -79,7 +87,8 @@ class InputBox(Sprite):
             elif event.key == pygame.K_ESCAPE:
                 pass
             elif event.key == pygame.K_RETURN:
-                print(self.text)
+                self.log.debug(f'Text Submitted: {self.name}: {self.text}')
+                self.on_input_box_submit_event()
                 self.text = ''
             elif event.key == pygame.K_BACKSPACE:
                 self.text = self.text[:-1]
@@ -130,6 +139,9 @@ class Game(Scene):
         self.input_box.render()
         self.input_box.update()
         self.screen.blit(self.input_box.image, (320, 240))
+
+    def on_input_box_submit_event(self, control):
+        self.log.info(f'Got text input from: {control.name}: {control.text}')
 
     def on_mouse_button_up_event(self, event):
         self.input_box.activate()
