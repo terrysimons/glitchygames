@@ -42,6 +42,7 @@ class LoadDialogScene(Scene):
             y=self.screen.get_rect().center[1] // 2,
             width=self.screen_width // 2,
             height=self.screen_height // 2,
+            parent=self,
             groups=self.all_sprites
         )
 
@@ -67,6 +68,28 @@ class LoadDialogScene(Scene):
         self.previous_scene.canvas.on_load_file_event(event, trigger)
         self.dismiss()
 
+    def on_input_box_submit_event(self, event):
+        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
+
+    def on_mouse_button_up_event(self, event):
+        self.load_dialog.input_box.activate()
+
+    def on_key_up_event(self, event):
+        if self.load_dialog.input_box.active:
+            self.load_dialog.on_key_up_event(event)
+        else:
+            if event.key == pygame.K_TAB:
+                self.load_dialog.input_box.activate()
+            else:
+                super().on_key_up_event(event)
+
+    def on_key_down_event(self, event):
+        if self.load_dialog.input_box.active:
+            self.load_dialog.on_key_down_event(event)
+        else:
+            super().on_key_up_event(event)
+
+
 
 class SaveDialogScene(Scene):
     log = LOG
@@ -85,6 +108,7 @@ class SaveDialogScene(Scene):
             y=self.screen.get_rect().center[1] // 2,
             width=self.screen_width // 2,
             height=self.screen_height // 2,
+            parent=self,
             groups=self.all_sprites
         )
 
@@ -93,7 +117,6 @@ class SaveDialogScene(Scene):
         self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
 
         self.save_dialog.add(self.all_sprites)
-
 
     def cleanup(self):
         self.next_scene = self
@@ -111,6 +134,26 @@ class SaveDialogScene(Scene):
         self.previous_scene.canvas.on_save_file_event(event, trigger)
         self.dismiss()
 
+    def on_input_box_submit_event(self, control):
+        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+
+    def on_mouse_button_up_event(self, event):
+        self.save_dialog.input_box.activate()
+
+    def on_key_up_event(self, event):
+        if self.save_dialog.input_box.active:
+            self.save_dialog.on_key_up_event(event)
+        else:
+            if event.key == pygame.K_TAB:
+                self.save_dialog.input_box.activate()
+            else:
+                super().on_key_up_event(event)
+
+    def on_key_down_event(self, event):
+        if self.save_dialog.input_box.active:
+            self.save_dialog.on_key_down_event(event)
+        else:
+            super().on_key_up_event(event)
 
 class BitmapPixelSprite(BitmappySprite):
     """
@@ -396,7 +439,8 @@ class CanvasSprite(BitmappySprite):
                                               width=save_sprite.width,
                                               height=save_sprite.height)
 
-        save_sprite.save(filename='savefile.cfg')
+        self.log.info(f'Saving file as: {event.text}')
+        save_sprite.save(filename=event.text)
 
         self.dirty = 1
 
@@ -404,7 +448,9 @@ class CanvasSprite(BitmappySprite):
 
 
     def on_load_file_event(self, event, trigger):
-        load_sprite = BitmappySprite(filename='savefile.cfg',
+        self.log.info(f'Loading file: {event.text}')
+
+        load_sprite = BitmappySprite(filename=event.text,
                                      x=0,
                                      y=0,
                                      width=self.pixels_across,

@@ -761,12 +761,16 @@ class InputBox(Sprite):
                  parent=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         pygame.font.init()
+        self.offset_x = self.parent.x if self.parent else 0
+        self.offset_y = self.parent.y if self.parent else 0
+        self.rect.x = x + self.offset_x
+        self.rect.y = y + self.offset_y
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
         self.font = pygame.font.SysFont('Times', 14)
         self.text = text
         self.text_image = self.font.render(self.text, True, self.color)
-        self.active = True
+        self.active = False
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
         self.parent = parent
@@ -788,10 +792,10 @@ class InputBox(Sprite):
         self.active = False
         self.dirty = 0
 
-    def on_input_box_submit_event(self):
+    def on_input_box_submit_event(self, event):
         if self.parent:
             try:
-                self.parent.on_input_box_submit_event(self)
+                self.parent.on_input_box_submit_event(event=self)
             except AttributeError:
                 self.log.info(f'{self.name}: Submitted "{self.text}" but no parent is configured.')
 
@@ -816,6 +820,7 @@ class InputBox(Sprite):
         self.activate()
 
     def on_key_up_event(self, event):
+        self.log.info(f'INPUT BOX EVENT: {event}')
         if self.active:
             pygame.key.set_repeat(200)
 
@@ -830,7 +835,7 @@ class InputBox(Sprite):
                 pass
             elif event.key == pygame.K_RETURN:
                 self.log.debug(f'Text Submitted: {self.name}: {self.text}')
-                self.on_input_box_submit_event()
+                self.on_input_box_submit_event(event=self)
                 self.text = ''
             elif event.key == pygame.K_BACKSPACE:
                 self.text = self.text[:-1]
@@ -840,7 +845,6 @@ class InputBox(Sprite):
                 self.cursor_rect.size = self.text_image.get_size()
                 self.cursor.topleft = self.cursor_rect.topright
 
-                # Limit characters           -20 for border width
                 if self.text_image.get_width() > self.rect.width - 15:
                     self.text = self.text[:-1]
             self.log.debug(f'{self.name}: {self.text}')
@@ -1213,6 +1217,8 @@ class InputDialog(BitmappySprite):
         self.background_color = (0, 0, 0)
         self.border_width = 1
         self.width = width
+        self.rect.x = x
+        self.rect.y = y
 
         self.dialog_text_sprite = TextBoxSprite(
             name=dialog_text,
@@ -1246,6 +1252,20 @@ class InputDialog(BitmappySprite):
             groups=groups
         )
 
+        self.input_box = InputBox(
+            x=self.rect.x + self.rect.width // 2,
+            y=self.rect.y + self.rect.height // 2,
+            width=200,
+            height=20,
+            text='',
+            parent=self,
+            groups=groups
+        )
+
+        self.input_box.rect.x -= self.input_box.width // 2
+
+        self.input_box.activate()
+
         # self.dialog_text_sprite.rect.center = self.rect.center
         # self.confirm_button.rect.bottomright = self.rect.bottomright
         # self.confirm_button.rect.x -= 20
@@ -1259,6 +1279,8 @@ class InputDialog(BitmappySprite):
         self.cancel_button.y = self.rect.bottomright[1] - self.cancel_button.height
         self.confirm_button.x = self.cancel_button.rect.left - self.cancel_button.width
         self.confirm_button.y = self.cancel_button.rect.top
+        # self.input_box.x = self.input_box.width // 2
+        # self.input_box.y = self.input_box.rect.y
         # self.confirm_button.update_nested_sprites()
 
     def update_nested_sprites(self):
@@ -1290,6 +1312,50 @@ class InputDialog(BitmappySprite):
             self.confirm_button.image,
             (self.confirm_button.rect.x, self.confirm_button.rect.y)
         )
+        self.log.info(f'INPUT BOX: {(self.input_box.rect.x, self.input_box.rect.y)}')
+        self.input_box.render()
+        self.input_box.update()
+        self.screen.blit(
+            self.input_box.image,
+            (self.input_box.rect.x, self.input_box.rect.y)
+        )
+
+    def on_confirm_event(self, event, trigger):
+        if self.parent:
+            self.parent.on_confirm_event(event=event, trigger=trigger)
+        self.log.info(f'{self.name}: Got confirm event!')
+
+    def on_cancel_event(self, event, trigger):
+        if self.parent:
+            self.parent.on_cancel_event(event=event, trigger=trigger)
+        self.log.info(f'{self.name}: Got cancel event!')
+
+    def on_input_box_cancel_event(self, control):
+        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        self.on_cancel_event(event=control, trigger=control)
+
+    def on_input_box_submit_event(self, event):
+        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
+        self.on_confirm_event(event=event, trigger=event)
+
+    def on_mouse_button_up_event(self, event):
+        self.input_box.activate()
+
+    def on_key_up_event(self, event):
+        self.log.info(f'Got Event: {event} from {self.parent}')
+        if self.input_box.active:
+            self.input_box.on_key_up_event(event)
+        else:
+            if event.key == pygame.K_TAB:
+                self.input_box.activate()
+            else:
+                super().on_key_up_event(event)
+
+    def on_key_down_event(self, event):
+        if self.input_box.active:
+            self.input_box.on_key_down_event(event)
+        else:
+            super().on_key_up_event(event)
 
         # Draw the buttons
         # Draw the text input field
