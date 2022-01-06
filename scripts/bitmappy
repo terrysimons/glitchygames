@@ -24,20 +24,22 @@ LOG.setLevel(logging.INFO)
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
 
-
-class LoadDialogScene(Scene):
+class InputConfirmationDialogScene(Scene):
     log = LOG
-    NAME = "Load Sprite"
-    VERSION = ""
+    NAME = 'InputConfirmationDialog'
+    DIALOG_TEXT = 'Would you like to do a thing?'
+    CONFIRMATION_TEXT = 'Confirm'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
 
-    def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)
         self.previous_scene = previous_scene
 
-        self.load_dialog = InputDialog(
-            name='Load Sprite',
-            dialog_text='Would you like to load a sprite?',
-            confirm_text='Load',
+        self.dialog = InputDialog(
+            name=self.NAME,
+            dialog_text=self.DIALOG_TEXT,
+            confirm_text=self.CONFIRMATION_TEXT,
             x=self.screen.get_rect().center[0] // 2,
             y=self.screen.get_rect().center[1] // 2,
             width=self.screen_width // 2,
@@ -47,10 +49,10 @@ class LoadDialogScene(Scene):
         )
 
     def setup(self):
-        self.load_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
-        self.load_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
+        self.dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
+        self.dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
 
-        self.load_dialog.add(self.all_sprites)
+        self.dialog.add(self.all_sprites)
 
     def cleanup(self):
         self.next_scene = self
@@ -64,96 +66,68 @@ class LoadDialogScene(Scene):
         self.dismiss()
 
     def on_confirm_event(self, event, trigger):
-        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
-        self.previous_scene.canvas.on_load_file_event(event, trigger)
-        self.dismiss()
-
-    def on_input_box_submit_event(self, event):
-        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
-
-    def on_mouse_button_up_event(self, event):
-        self.load_dialog.input_box.activate()
-
-    def on_key_up_event(self, event):
-        if self.load_dialog.input_box.active:
-            self.load_dialog.on_key_up_event(event)
-        else:
-            if event.key == pygame.K_TAB:
-                self.load_dialog.input_box.activate()
-            else:
-                super().on_key_up_event(event)
-
-    def on_key_down_event(self, event):
-        if self.load_dialog.input_box.active:
-            self.load_dialog.on_key_down_event(event)
-        else:
-            super().on_key_up_event(event)
-
-
-
-class SaveDialogScene(Scene):
-    log = LOG
-    NAME = "Save Sprite"
-    VERSION = ""
-
-    def __init__(self, previous_scene=None, options=None, groups=pygame.sprite.LayeredDirty()):
-        super().__init__(options=options, groups=groups)
-        self.previous_scene = previous_scene
-
-        self.save_dialog = InputDialog(
-            name='Save Sprite',
-            dialog_text='Would you like to save your sprite?',
-            confirm_text='Save',
-            x=self.screen.get_rect().center[0] // 2,
-            y=self.screen.get_rect().center[1] // 2,
-            width=self.screen_width // 2,
-            height=self.screen_height // 2,
-            parent=self,
-            groups=self.all_sprites
-        )
-
-    def setup(self):
-        self.save_dialog.cancel_button.callbacks = {'on_left_mouse_button_up_event': self.on_cancel_event}
-        self.save_dialog.confirm_button.callbacks = {'on_left_mouse_button_up_event': self.on_confirm_event}
-
-        self.save_dialog.add(self.all_sprites)
-
-    def cleanup(self):
-        self.next_scene = self
-
-    def dismiss(self):
-        self.previous_scene.next_scene = self.previous_scene
-        self.next_scene = self.previous_scene
-
-    def on_cancel_event(self, event, trigger):
-        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
-        self.dismiss()
-
-    def on_confirm_event(self, event, trigger):
-        self.log.info(f'Safe File: event: {event}, trigger: {trigger}')
-        self.previous_scene.canvas.on_save_file_event(event, trigger)
+        self.log.info(f'{type(self)}on_confirm_event: event: {event}, trigger: {trigger}')
         self.dismiss()
 
     def on_input_box_submit_event(self, control):
         self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
 
     def on_mouse_button_up_event(self, event):
-        self.save_dialog.input_box.activate()
+        self.dialog.input_box.activate()
 
     def on_key_up_event(self, event):
-        if self.save_dialog.input_box.active:
-            self.save_dialog.on_key_up_event(event)
+        if self.dialog.input_box.active:
+            self.dialog.on_key_up_event(event)
         else:
             if event.key == pygame.K_TAB:
-                self.save_dialog.input_box.activate()
+                self.dialog.input_box.activate()
             else:
                 super().on_key_up_event(event)
 
     def on_key_down_event(self, event):
-        if self.save_dialog.input_box.active:
-            self.save_dialog.on_key_down_event(event)
+        if self.dialog.input_box.active:
+            self.dialog.on_key_down_event(event)
         else:
             super().on_key_up_event(event)
+
+class LoadDialogScene(InputConfirmationDialogScene):
+    log = LOG
+    NAME = 'Load Sprite'
+    DIALOG_TEXT = 'Would you like to load a sprite?'
+    CONFIRMATION_TEXT = 'Load'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
+
+    def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
+       super().__init__(previous_scene, options=None, groups=pygame.sprite.LayeredDirty())
+
+    def on_confirm_event(self, event, trigger):
+        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas.on_load_file_event(
+            self.dialog.input_box,
+            self.dialog.input_box
+        )
+        self.dismiss()
+
+
+class SaveDialogScene(InputConfirmationDialogScene):
+    log = LOG
+    NAME = "Save Sprite"
+    DIALOG_TEXT = 'Would you like to save your sprite?'
+    CONFIRMATION_TEXT = 'Save'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
+
+    def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
+       super().__init__(previous_scene, options=None, groups=pygame.sprite.LayeredDirty())
+
+    def on_confirm_event(self, event, trigger):
+        self.log.info(f'Save File: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas.on_save_file_event(
+            self.dialog.input_box,
+            self.dialog.input_box
+        )
+        self.dismiss()
 
 class BitmapPixelSprite(BitmappySprite):
     """

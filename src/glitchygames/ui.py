@@ -5,7 +5,7 @@ from pygame import Rect
 import pygame
 
 from glitchygames.color import WHITE, BLACKLUCENT
-from glitchygames.engine import FontManager
+from glitchygames.fonts import FontManager
 from glitchygames.engine import GameEngine
 from glitchygames import events
 from glitchygames.sprites import FocusableSingletonBitmappySprite
@@ -847,6 +847,7 @@ class InputBox(Sprite):
 
                 if self.text_image.get_width() > self.rect.width - 15:
                     self.text = self.text[:-1]
+            self.render()
             self.log.debug(f'{self.name}: {self.text}')
 
 
@@ -1312,9 +1313,7 @@ class InputDialog(BitmappySprite):
             self.confirm_button.image,
             (self.confirm_button.rect.x, self.confirm_button.rect.y)
         )
-        self.log.info(f'INPUT BOX: {(self.input_box.rect.x, self.input_box.rect.y)}')
-        self.input_box.render()
-        self.input_box.update()
+
         self.screen.blit(
             self.input_box.image,
             (self.input_box.rect.x, self.input_box.rect.y)

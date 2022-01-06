@@ -162,7 +162,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
             self.switch_to_scene(self.active_scene.next_scene)
 
-
             current_time = time.perf_counter()
 
         self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, '

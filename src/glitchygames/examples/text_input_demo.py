@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import time
 
 import pygame
 
@@ -12,6 +11,7 @@ from glitchygames.ui import InputBox
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
+
 
 class Game(Scene):
     log = LOG
@@ -45,12 +45,11 @@ class Game(Scene):
         pygame.key.set_repeat(350)
 
     def update(self):
-        self.input_box.render()
         self.input_box.update()
         self.screen.blit(self.input_box.image, (320, 240))
 
     def on_input_box_submit_event(self, control):
-        self.log.info(f'Got text input from: {control.name}: {control.text}')
+        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
 
     def on_mouse_button_up_event(self, event):
         self.input_box.activate()
