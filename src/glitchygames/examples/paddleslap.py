@@ -9,7 +9,7 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import WHITE, BLACKLUCENT
+from glitchygames.color.palette import Custom
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
@@ -18,6 +18,8 @@ from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
+# Define color palette for game
+COLOR = Custom()
 
 
 class Speed:
@@ -62,7 +64,7 @@ class PaddleSprite(Sprite):
                 'resources/snd/slap8.wav'
             )
         )
-
+        self.slap_snd.set_volume(.25)
         self.name = name
         self.screen = pygame.display.get_surface()
         self.screen_rect = self.screen.get_rect()
@@ -74,7 +76,7 @@ class PaddleSprite(Sprite):
         self.image.convert()
         self.rect = self.image.get_rect()
 
-        pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 0)
+        pygame.draw.rect(self.image, COLOR.WHITE, (0, 0, self.width, self.height), 0)
         self.rect.x = x
         self.rect.y = y
         self.moving = False
@@ -111,8 +113,11 @@ class PaddleSprite(Sprite):
 
 
 class BallSprite(Sprite):
+
     def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty()):
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)
+        self.x = x
+        self.y = y
         self.use_gfxdraw = True
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -123,8 +128,8 @@ class BallSprite(Sprite):
         self.image.convert()
         self.image.set_colorkey(0)
         self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
+        self.rect.x = self.x
+        self.rect.y = self.y
         self.direction = 0
         self.speed = Speed(4, 2)
         self.rally = Rally(5, self.speed.speed_up)
@@ -134,7 +139,7 @@ class BallSprite(Sprite):
                 'resources/snd/sfx_menu_move1.wav'
             )
         )
-        self.color = WHITE
+        self.color = COLOR.WHITE
 
         self.reset()
 
@@ -215,9 +220,9 @@ class BallSprite(Sprite):
 
 
 class TextSprite(Sprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0,
+    def __init__(self, background_color=COLOR.BLACKLUCENT, alpha=0, x=0, y=0,
                  groups=pygame.sprite.LayeredDirty()):
-        super().__init__(groups=groups)
+        super().__init__(x, y, 0, 0, groups=groups)
         self.background_color = background_color
         self.alpha = alpha
         self.x = x
@@ -256,12 +261,11 @@ class TextSprite(Sprite):
         self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
-        # Interiting from object is default in Python 3.
+        # Inheriting from object is default in Python 3.
         # Linters complain if you do it.
         class TextBox(Sprite):
-            def __init__(self, font_controller, pos, line_height=15,
-                         groups=pygame.sprite.LayeredDirty()):
-                super().__init__(groups=groups)
+            def __init__(self, font_controller, pos, line_height=15, groups=pygame.sprite.LayeredDirty()):
+                super().__init__(pos[0], pos[1], 0, 0, groups=groups)
                 self.image = None
                 self.start_pos = pos
                 self.rect = pygame.Rect(pos, (640, 480))
@@ -272,7 +276,7 @@ class TextSprite(Sprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, WHITE)
+                (self.image, self.rect) = self.font.render(string, COLOR.WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
@@ -372,24 +376,16 @@ class Game(Scene):
         super().update()
 
     def on_controller_button_down_event(self, event):
-        if event.instance_id == 0:
-            player = self.player1
-        elif event.instance_id == 1:
-            player = self.player2
 
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            player.stop()
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+        if event.button in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
+            player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 
         self.log.info(f'GOT on_controller_button_down_event: {event}')
 
     def on_controller_button_up_event(self, event):
-        if event.instance_id == 0:
-            player = self.player1
-        elif event.instance_id == 1:
-            player = self.player2
 
+        player = self.player1 if event.instance_id == 0 else self.player2
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             player.move_up()
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
@@ -398,11 +394,8 @@ class Game(Scene):
         self.log.info(f'GOT on_controller_button_up_event: {event}')
 
     def on_controller_axis_motion_event(self, event):
-        if event.instance_id == 0:
-            player = self.player1
-        elif event.instance_id == 1:
-            player = self.player2
 
+        player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
             if event.value < 0:
                 player.move_up()
