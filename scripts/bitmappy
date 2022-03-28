@@ -8,12 +8,10 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import WHITE, BLACKLUCENT
 from glitchygames.engine import GameEngine
 from glitchygames import events
-from glitchygames.pixels import pixels_from_data, pixels_from_path
+from glitchygames.pixels import pixels_from_data
 from glitchygames.pixels import image_from_pixels
-from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import MousePointer, BitmappySprite
 from glitchygames.ui import SliderSprite, ColorWellSprite, InputDialog, MenuBar, MenuItem
@@ -23,6 +21,7 @@ LOG.setLevel(logging.INFO)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
+
 
 class InputConfirmationDialogScene(Scene):
     log = LOG

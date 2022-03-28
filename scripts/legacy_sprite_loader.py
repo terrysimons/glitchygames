@@ -8,7 +8,7 @@ import struct
 import pygame
 
 from glitchygames.engine import GameEngine
-from glitchygames.engine import vga_palette
+from glitchygames.color.palette import Vga
 from glitchygames.pixels import indexed_rgb_triplet_generator
 from glitchygames.sprites import Sprite
 from glitchygames.scenes import Scene
@@ -194,7 +194,7 @@ class Game(Scene):
     def __init__(self, options):
         super().__init__(options=options)
         self.filename = options.get('filename')
-        self.palette = vga_palette
+        self.palette = Vga()
 
         self.next_scene = GameScene()
 

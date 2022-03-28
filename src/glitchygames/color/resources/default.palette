@@ -1,4 +1,6 @@
-[palette]
+[default]
+name = Glitchy Games Default Colors
+description = Glitchy Games example colors
 colors = 9
 
 [0]

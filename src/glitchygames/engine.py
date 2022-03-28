@@ -12,7 +12,7 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import PURPLE, VGA
+from glitchygames.color import PURPLE
 import glitchygames.events as events
 
 from glitchygames.events.audio import AudioManager
@@ -32,8 +32,6 @@ LOG = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
-
-vga_palette = VGA
 
 
 class GameManager(events.ResourceManager):

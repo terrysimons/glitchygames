@@ -1,4 +1,6 @@
-[palette]
+[default]
+name = System
+description = The default set of System colors
 colors = 16
 
 [0]
