@@ -274,7 +274,7 @@ class TextSprite(Sprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, COLOR.WHITE)
+                (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
