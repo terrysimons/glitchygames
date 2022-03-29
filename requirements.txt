@@ -1,3 +1,4 @@
 pylama
 pylama-pylint
 pygame
+cookiecutter==1.7.3
