@@ -565,7 +565,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
         super().__init__(
-            x=x,y=y, width=width, height=height, #  noqa: E231
+            x=x, y=y, width=width, height=height,  # noqa: E231
             name=name, focusable=True, groups=groups
         )
 

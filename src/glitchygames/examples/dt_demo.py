@@ -1,13 +1,11 @@
-# import pygame, time
-
 import pygame
-
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 
 # Adapted from:
 # https://github.com/ChristianD37/YoutubeTutorials/tree/master/Framerate%20Independence
+
 
 class Game(Scene):
     # Set your game name/version here.
@@ -56,22 +54,26 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render("Time: " + str(round(self.dt_timer / 100, 5)), False, (255, 255, 255))
-        fps_text = self.font.render("FPS: " + str(round(self.fps, 2)), False, (255, 255, 255))
-        self.screen.blit(countdown, (0,0))
+        fps_text = self.font.render(
+            f"FPS: {str(round(self.fps, 2))}", False, (255, 255, 255)
+        )
+
+        self.screen.blit(countdown, (0, 0))
         self.screen.blit(fps_text, (0, 50))
 
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
-            record_text = self.font.render("Time: " + str(round(self.record, 5)), False, (255,255,255))
-            self.screen.blit(record_text, (self.screen_width /4, self.screen_height /2))
+            record_text = self.font.render(
+                f"Time: {str(round(self.record, 5))}", False, (255, 255, 255)
+            )
 
+            self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
     def on_key_down_event(self, event):
         pressed_keys = pygame.key.get_pressed()
 
         if pressed_keys[pygame.K_SPACE]:
             self.start = True
-
 
 
 def main():
