@@ -1,7 +1,7 @@
 {
-    "directory_name": "slappy",
-    "file_name": "slappy",
-    "name": "Slappy",
+    "directory_name": "glitchy_pong",
+    "file_name": "glitchy_pong",
+    "name": "Glitchy Pong",
     "version": ".1",
     "player1_name": "Player 1",
     "player1_color": "RED",
