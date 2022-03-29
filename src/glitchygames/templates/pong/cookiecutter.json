@@ -1,0 +1,11 @@
+{
+    "directory_name": "slappy",
+    "file_name": "slappy",
+    "name": "Slappy",
+    "version": ".1",
+    "player1_name": "Player 1",
+    "player1_color": "RED",
+    "player2_name": "Player 2",
+    "player2_color": "BLUE",
+    "background": "BLACKLUCENT"
+}
