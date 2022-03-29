@@ -112,7 +112,7 @@ class ResourceManager:
 
         return cls.__instances__[cls]
 
-    def __init__(self):  # noqa: W0613
+    def __init__(self, game):  # noqa: W0613
         super().__init__()
         self.proxies = []
 
@@ -480,7 +480,7 @@ class EventManager(ResourceManager):
             # will not have this.
             self.event_source = event_source
 
-        def unhandled_event(self, **kwargs):  # noqa: W0613
+        def unhandled_event(self, *args, **kwargs):  # noqa: W0613
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
             event_handler = inspect.stack()[1].function
 
@@ -496,7 +496,7 @@ class EventManager(ResourceManager):
         def __getattr__(self, attr):
             return self.unhandled_event
 
-    def __init__(self):
+    def __init__(self, game=None):
         """
         Root ResourceManager for other managers.
 
@@ -513,5 +513,5 @@ class EventManager(ResourceManager):
         game - The game instance.
 
         """
-        super().__init__()
+        super().__init__(game)
         self.proxies = [EventManager.EventProxy(event_source=self)]
