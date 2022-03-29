@@ -8,7 +8,11 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import {{cookiecutter.player1_color}}, {{cookiecutter.player2_color}}, {{cookiecutter.background}}
+from glitchygames.color import (
+    {{cookiecutter.player1_color|upper}},
+    {{cookiecutter.player2_color|upper}},
+    {{cookiecutter.background|upper}}
+)
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
@@ -51,7 +55,7 @@ class Rally:
 
 class PaddleSprite(Sprite):
     def __init__(self, x=0, y=320, width=20, height=80,
-                 name='{{cookiecutter.player1_name}}', groups=pygame.sprite.LayeredDirty(), color={{cookiecutter.player1_color}}):
+                 name='{{cookiecutter.player1_name}}', groups=pygame.sprite.LayeredDirty(), color={{cookiecutter.player1_color|upper}}):
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.use_gfxdraw = True
         # Adding some slap to the paddle
@@ -133,7 +137,7 @@ class BallSprite(Sprite):
                 'resources/snd/sfx_menu_move1.wav'
             )
         )
-        self.color = {{cookiecutter.player1_color}}
+        self.color = {{cookiecutter.player1_color|upper}}
 
         self.reset()
 
@@ -214,7 +218,7 @@ class BallSprite(Sprite):
 
 
 class TextSprite(Sprite):
-    def __init__(self, background_color={{cookiecutter.background}}, alpha=0, x=0, y=0,
+    def __init__(self, background_color={{cookiecutter.background|upper}}, alpha=0, x=0, y=0,
                  groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups=groups)
         self.background_color = background_color
@@ -271,7 +275,7 @@ class TextSprite(Sprite):
                                                     size=font_controller.font_size)
 
             def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, {{cookiecutter.player1_color}})
+                (self.image, self.rect) = self.font.render(string, {{cookiecutter.player1_color|upper}})
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
@@ -305,8 +309,8 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)
         self.fps = 0
 
-        self.player1 = PaddleSprite(name="{{cookiecutter.player1_name}}", color={{cookiecutter.player1_color}})
-        self.player2 = PaddleSprite(name="{{cookiecutter.player2_name}}", color={{cookiecutter.player2_color}})
+        self.player1 = PaddleSprite(name="{{cookiecutter.player1_name}}", color={{cookiecutter.player1_color|upper}})
+        self.player2 = PaddleSprite(name="{{cookiecutter.player2_name}}", color={{cookiecutter.player2_color|upper}})
         self.balls = [BallSprite() for _ in range(self.options.get('balls', 1))]
 
         for ball in self.balls:
