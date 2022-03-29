@@ -526,7 +526,7 @@ class GameEngine(events.EventManager):
             pygame.event.Event(pygame.QUIT, {})
         )
 
-    def process_events(self): #  noqa: C901
+    def process_events(self):  # noqa: C901
         # To use events in a different thread, use the fastevent package from pygame.
         # You can create your own new events with the pygame.event.Event() function.
         for event in pygame.fastevent.get():
