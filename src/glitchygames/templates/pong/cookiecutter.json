@@ -1,0 +1,11 @@
+{
+    "directory_name": "glitchy_pong",
+    "file_name": "glitchy_pong",
+    "name": "Glitchy Pong",
+    "version": ".1",
+    "player1_name": "Player 1",
+    "player1_color": "RED",
+    "player2_name": "Player 2",
+    "player2_color": "BLUE",
+    "background": "BLACKLUCENT"
+}
