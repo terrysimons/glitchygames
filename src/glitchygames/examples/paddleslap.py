@@ -9,7 +9,7 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color.palette import Custom
+from glitchygames.color import WHITE, BLACKLUCENT
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
@@ -18,8 +18,6 @@ from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
-# Define color palette for game
-COLOR = Custom()
 
 
 class Speed:
@@ -76,7 +74,7 @@ class PaddleSprite(Sprite):
         self.image.convert()
         self.rect = self.image.get_rect()
 
-        pygame.draw.rect(self.image, COLOR.WHITE, (0, 0, self.width, self.height), 0)
+        pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 0)
         self.rect.x = x
         self.rect.y = y
         self.moving = False
@@ -139,7 +137,7 @@ class BallSprite(Sprite):
                 'resources/snd/sfx_menu_move1.wav'
             )
         )
-        self.color = COLOR.WHITE
+        self.color = WHITE
 
         self.reset()
 
@@ -220,7 +218,7 @@ class BallSprite(Sprite):
 
 
 class TextSprite(Sprite):
-    def __init__(self, background_color=COLOR.BLACKLUCENT, alpha=0, x=0, y=0,
+    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0,
                  groups=pygame.sprite.LayeredDirty()):
         super().__init__(x, y, 0, 0, groups=groups)
         self.background_color = background_color
