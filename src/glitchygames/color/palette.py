@@ -1,30 +1,43 @@
 # GlitchyGames
 # palette: Manages the custom color palette file format used by the engine
-#
-# A color palette is contained in a CFG file with each color having a section with the
-# R,G,B,A values.  This is designed for learning purposes.  Palette files are stored in
-# the resources folder.
-from collections import deque
+
 import configparser
 import os.path
+import sys
+
 from pygame import Color
+
+VGA = 'vga'
+SYSTEM = 'system'
+NES = 'nes'
 
 
 class ColorPalette:
 
-    def __init__(self, colors):
-        self._colors = deque(colors)
-        self._size = len(colors)
+    _BUILTIN_PALETTE_LOCATION = os.path.join(os.path.dirname(__file__), 'resources')
+    _DEFAULT_EXTENSION = 'palette'
 
-    # Shift colors in palette by number of slots
-    def rotate(self, slots=1):
-        self._colors.rotate(slots)
+    def __init__(self, colors=None, filename=None):
+        if colors:
+            self._colors = colors
+        elif filename:
+            script_path = os.path.dirname(sys.argv[0])
+            paths = [self._BUILTIN_PALETTE_LOCATION,
+                     script_path,
+                     os.path.join(script_path, 'resources')
+                     ]
+            for path in paths:
+                file_path = os.path.join(path, f'{filename}.{self._DEFAULT_EXTENSION}')
+                if os.path.exists(file_path):
+                    self._colors = PaletteUtility.load_palette_from_file(file_path)
+                    break
+        else:
+            self._colors = []
+        self._size = len(self._colors) - 1
 
     # Return PyGame Color object at palette index
     def get_color(self, palette_index):
-        if palette_index < self._size:
-            return self._colors[palette_index]
-        return None
+        return self._colors[palette_index] if palette_index <= self._size else None
 
     # Replace color at palette index with a new PyGame color object
     def set_color(self, palette_index, new_color):
@@ -40,7 +53,7 @@ class PaletteUtility:
     @staticmethod
     def load_palette_from_config(config):
         colors = []
-        for color_index in range(int(config['palette']['colors'])):
+        for color_index in range(int(config['default']['colors'])):
             color_index = str(color_index)
             tmp_color = Color(
                 config[color_index].getint('red'),
@@ -61,10 +74,10 @@ class PaletteUtility:
             config.read_file(file_obj)
         return PaletteUtility.load_palette_from_config(config)
 
-    # Write a GlitchyGames palette to a file.  output_file extension should be .cfg
+    # Write a GlitchyGames palette to a file
     @staticmethod
-    def write_palette_to_file(config_data, output_file, mode='w'):
-        with open(output_file, mode) as file_obj:
+    def write_palette_to_file(config_data, output_file):
+        with open(output_file, 'w') as file_obj:
             config_data.write(file_obj)
 
     # Read RGB data from a file, 1 per line. No blank lines. Use RGBA to specify transparency.
@@ -85,9 +98,9 @@ class PaletteUtility:
     @staticmethod
     def create_palette_data(colors):
         palette_data = configparser.ConfigParser()
-        palette_data['palette'] = {"colors": str(len(colors))}
+        palette_data['default'] = {"colors": str(len(colors))}
         for count, color in enumerate(colors):
-            palette_data[count] = {
+            palette_data[str(count)] = {
                 "red": color.r,
                 "green": color.g,
                 "blue": color.b,
@@ -96,32 +109,11 @@ class PaletteUtility:
         return palette_data
 
 
-# Nintendo Entertainment System color palette
-class NES(ColorPalette):
-
-    def __init__(self):
-        super().__init__(
-            PaletteUtility.load_palette_from_file(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'resources/NES.cfg'
-                )
-            )
-        )
-
-
 # A Custom Color palette with named colors
-class Custom(ColorPalette):
+class Default(ColorPalette):
 
     def __init__(self):
-        super().__init__(
-            PaletteUtility.load_palette_from_file(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'resources/custom.cfg'
-                )
-            )
-        )
+        super().__init__(filename='default')
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)
@@ -136,14 +128,7 @@ class Custom(ColorPalette):
 # A palette representing the 16 default system colors
 class System(ColorPalette):
     def __init__(self):
-        super().__init__(
-            PaletteUtility.load_palette_from_file(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'resources/system.cfg'
-                )
-            )
-        )
+        super().__init__(filename=SYSTEM)
         self.BLACK = self.get_color(0)
         self.MAROON = self.get_color(1)
         self.GREEN = self.get_color(2)
@@ -163,13 +148,6 @@ class System(ColorPalette):
 
 
 # The 256 VGA color palette
-class VGA(ColorPalette):
+class Vga(ColorPalette):
     def __init__(self):
-        super().__init__(
-            PaletteUtility.load_palette_from_file(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'resources/vga.cfg'
-                )
-            )
-        )
+        super().__init__(filename=VGA)

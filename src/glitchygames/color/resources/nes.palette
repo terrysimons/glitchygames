@@ -1,6 +1,6 @@
-[palette]
+[default]
 name = Nintendo Entertainment System (NES)
-info = The NES system had 56 total colors across 4 palettes with some duplication.  The system limitations kept games
+description = The NES system had 56 total colors across 4 palettes with some duplication.  The system limitations kept games
     from accessing all colors.  There were 3 shader bits that would control global dimming of all colors so there were
     about 140 different shades that could be used.
 colors = 55

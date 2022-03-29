@@ -2,20 +2,14 @@
 # -*- coding: utf-8 -*-
 import logging
 
-from pygame import Rect
+
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import WHITE, BLACKLUCENT
-from glitchygames.fonts import FontManager
 from glitchygames.engine import GameEngine
-from glitchygames.joysticks import JoystickManager
-from glitchygames.pixels import pixels_from_data, pixels_from_path
-from glitchygames.pixels import image_from_pixels
-from glitchygames.pixels import rgb_triplet_generator
-from glitchygames.sprites import BitmappySprite, SingletonBitmappySprite, MousePointer
+from glitchygames.sprites import BitmappySprite
 from glitchygames.scenes import Scene
 
 LOG = logging.getLogger('game')

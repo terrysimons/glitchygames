@@ -1,5 +1,6 @@
-[palette]
+[default]
 name = Video Graphics Array (VGA)
+description = Standard 256 color palette
 colors = 256
 
 [0]
