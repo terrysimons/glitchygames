@@ -13,6 +13,7 @@ from glitchygames.color import WHITE, BLACKLUCENT
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
+from glitchygames.movement import Vertical
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -79,35 +80,13 @@ class PaddleSprite(Sprite):
         self.rect.y = y
         self.moving = False
         self.speed = Speed()
-
+        self.move = Vertical(self, 10)
         self.dirty = 1
 
     def update(self):
         # This prevents us from having the paddle bounce
         # at the edges.
-        if self.rect.bottom + self.speed.y > self.screen_rect.bottom:
-            self.rect.y = self.screen_rect.bottom - self.height
-            self.stop()
-        elif self.rect.top + self.speed.y < self.screen_rect.top:
-            self.rect.y = 0
-            self.stop()
-        else:
-            self.rect.y += self.speed.y
-
-        self.dirty = 1
-
-    def move_down(self):
-        self.speed.y = 10
-        self.dirty = 1
-
-    def move_up(self):
-        self.speed.y = -10
-        self.dirty = 1
-
-    def stop(self):
-        self.speed.x = 0
-        self.speed.y = 0
-        self.dirty = 1
+        self.move.detect_edge()
 
 
 class BallSprite(Sprite):
@@ -377,7 +356,7 @@ class Game(Scene):
 
         if event.button in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
             player = self.player1 if event.instance_id == 0 else self.player2
-            player.stop()
+            player.move.stop()
 
         self.log.info(f'GOT on_controller_button_down_event: {event}')
 
@@ -385,9 +364,9 @@ class Game(Scene):
 
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            player.move_up()
+            player.move.up()
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            player.move_down()
+            player.move.down()
 
         self.log.info(f'GOT on_controller_button_up_event: {event}')
 
@@ -396,11 +375,11 @@ class Game(Scene):
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
             if event.value < 0:
-                player.move_up()
+                player.move.up()
             if event.value == 0:
-                player.stop()
+                player.move.stop()
             if event.value > 0:
-                player.move_down()
+                player.move.down()
             self.log.info(f'GOT on_controller_axis_motion_event: {event}')
 
     def on_key_up_event(self, event):
@@ -411,13 +390,13 @@ class Game(Scene):
 
         # KEYUP            key, mod
         if unpressed_keys[pygame.K_UP]:
-            self.player1.stop()
+            self.player1.move.stop()
         if unpressed_keys[pygame.K_DOWN]:
-            self.player1.stop()
+            self.player1.move.stop()
         if unpressed_keys[pygame.K_w]:
-            self.player2.stop()
+            self.player2.move.stop()
         if unpressed_keys[pygame.K_s]:
-            self.player2.stop()
+            self.player2.move.stop()
 
     def on_key_down_event(self, event):
         # KEYDOWN            key, mod
@@ -425,13 +404,13 @@ class Game(Scene):
         pressed_keys = pygame.key.get_pressed()
 
         if pressed_keys[pygame.K_w]:
-            self.player1.move_up()
+            self.player1.move.up()
         if pressed_keys[pygame.K_s]:
-            self.player1.move_down()
+            self.player1.move.down()
         if pressed_keys[pygame.K_UP]:
-            self.player2.move_up()
+            self.player2.move.up()
         if pressed_keys[pygame.K_DOWN]:
-            self.player2.move_down()
+            self.player2.move.down()
 
 
 def main():
