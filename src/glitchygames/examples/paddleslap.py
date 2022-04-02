@@ -13,7 +13,7 @@ from glitchygames.color import WHITE, BLACKLUCENT
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
-from glitchygames.movement import Vertical, Horizontal
+from glitchygames.movement import Vertical
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -80,7 +80,7 @@ class PaddleSprite(Sprite):
         self.rect.y = y
         self.moving = False
         self.speed = Speed()
-        self.move = Horizontal(self, 10)
+        self.move = Vertical(self, 10)
         self.dirty = 1
 
     def update(self):
