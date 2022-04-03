@@ -134,7 +134,7 @@ class Game(Scene):
         self.fps = 0
 
         v_center = self.screen_height/2
-        self.player1 = VerticalPaddle('Player 1', (20, 80), (0,v_center - 40), WHITE, Speed(y=10, increment=1), collision_sound=SFX.SLAP)
+        self.player1 = VerticalPaddle('Player 1', (20, 80), (0, v_center - 40), WHITE, Speed(y=10, increment=1), collision_sound=SFX.SLAP)
         self.player2 = VerticalPaddle('Player 2', (20, 80), (self.screen_width - 20, v_center - 40), WHITE, Speed(y=10, increment=1), collision_sound=SFX.SLAP)
         self.balls = [BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get('balls', 1))]
 
