@@ -38,10 +38,10 @@ class BasePaddle(Sprite):
         return self.rect.top + self._move.current_speed < 0
 
     def is_at_left_of_screen(self):
-        return self.rect.left + self._move.current_speed < self.screen.left
+        return self.rect.left + self._move.current_speed < 0
 
     def is_at_right_of_screen(self):
-        return self.rect.right + self._move.current_speed > self.screen.right
+        return self.rect.right + self._move.current_speed > self.screen_width
 
 
 class HorizontalPaddle(BasePaddle):

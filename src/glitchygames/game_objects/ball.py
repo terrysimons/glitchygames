@@ -8,7 +8,7 @@ from glitchygames.sprites import Sprite
 
 class BallSprite(Sprite):
 
-    def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty(), collision_sound=None):
+    def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty(), collision_sound=None, edge_bounce_list=None):
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.use_gfxdraw = True
         self.image.convert()
@@ -18,7 +18,7 @@ class BallSprite(Sprite):
         if collision_sound:
             self.snd = game_objects.load_sound(collision_sound)
         self.color = WHITE
-
+        self.bounce_on_edges = edge_bounce_list
         self.reset()
 
         # The ball always needs refreshing.
@@ -41,13 +41,21 @@ class BallSprite(Sprite):
         )
 
     def _do_bounce(self):
-        if self.rect.y <= 0:
+        if 'top' in self.bounce_on_edges and self.rect.y <= 0:
             self.snd.play()
             self.rect.y = 0
             self.speed.y *= -1
-        if self.rect.y + self.height >= self.screen_height:
+        if 'bottom' in self.bounce_on_edges and self.rect.y + self.height >= self.screen_height:
             self.snd.play()
             self.rect.y = self.screen_height - self.height
+            self.speed.y *= -1
+        if 'left' in self.bounce_on_edges and self.rect.x <= 0:
+            self.snd.play()
+            self.rect.x = 0
+            self.speed.y *= -1
+        if 'right' in self.bounce_on_edges and self.rect.x + self.width >= self.screen_width:
+            self.snd.play()
+            self.rect.x = self.screen_width - self.width
             self.speed.y *= -1
 
     def reset(self):
@@ -67,19 +75,12 @@ class BallSprite(Sprite):
         self.rect.x = self.x
         self.rect.y = self.y
 
-    # This function will bounce the ball off a horizontal surface (not a vertical one)
-    def bounce(self, diff):
-        self.direction = (180 - self.direction) % 360
-        self.direction -= diff
-
-        # Speed the ball up
-        self.speed *= 1.1
-
     def update(self):
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x
 
-        self._do_bounce()
+        if self.bounce_on_edges:
+            self._do_bounce()
 
         if self.rect.x > self.screen_width or self.rect.x < 0:
             self.reset()
