@@ -28,7 +28,7 @@ jobs:
     steps:
       - checkout
 
-      - run: "choco install python3 --version=3.10.8"
+      - run: "choco install -y python3 --version=3.10.8"
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
