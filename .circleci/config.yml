@@ -32,6 +32,9 @@ jobs:
       # with Xcode 12.5.1 installed
       - run: git clone https://github.com/pyenv/pyenv.git ~/.pyenv
       - run: cd ~/.pyenv && src/configure && make -C src
+      - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+      - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+      - run: echo 'eval "$(pyenv init -)"' >> ~/.bashrc
       - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
       - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
       - run: echo 'eval "$(pyenv init -)"' >> ~/.zshrc
