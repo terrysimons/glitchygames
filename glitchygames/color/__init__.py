@@ -5,7 +5,7 @@ from .palette import (
     SYSTEM
 )
 
-_default_colors = Default()
+_default_colors: Default = Default()
 YELLOW = _default_colors.YELLOW
 PURPLE = _default_colors.PURPLE
 BLUE = _default_colors.BLUE
