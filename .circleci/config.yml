@@ -47,7 +47,7 @@ workflows:
   build-and-test:
     jobs:
       - build-and-test-linux
-      # - build-and-test-macos
+      - build-and-test-macos
       - build-and-test-windows
 
 
