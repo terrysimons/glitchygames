@@ -425,11 +425,15 @@ class BitmappySprite(Sprite):
         #
         while not width:
             index += 1
-            width = len(pixels[index])
-            height = len(pixels[index:])
+
+            # Width of the first row.  Each row is expected to be identical.
+            width = len(pixels[0])
+
+            # The total # of rows is our height
+            height = len(pixels)
 
         # Trim any dead whitespace.
-        # We're off by one since we increment the
+        # We're off by one since we increment the index above
         pixels = pixels[index:]
 
         color_map = {}
