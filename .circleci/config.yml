@@ -2,6 +2,9 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
+orbs:
+  windows: circleci/windows@5.0.0
+
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
@@ -14,9 +17,26 @@ jobs:
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
+
       - run:
           name: "Say hello"
           command: "echo Hello, World!"
+
+  build-and-test-windows:
+    executor:
+      name: win/default
+
+    steps:
+      - checkout
+
+      - run:
+          name: "Say hello"
+          command: "echo Hello, World!"
+
+      - run:
+          name: "Install Python"
+          command: "choco install python3 --version=3.10.8"
+
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
@@ -25,5 +45,5 @@ workflows:
     jobs:
       - build-and-test-linux
       # - build-and-test-macos
-      # - build-and-test-windows
+      - build-and-test-windows
 
