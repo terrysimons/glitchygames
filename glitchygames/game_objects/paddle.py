@@ -47,7 +47,9 @@ class BasePaddle(Sprite):
 class HorizontalPaddle(BasePaddle):
 
     def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None):
-        super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1], groups, collision_sound)
+        super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1],
+                         groups,
+                         collision_sound)
 
     def update(self):
         if self.is_at_left_of_screen():
@@ -78,7 +80,9 @@ class HorizontalPaddle(BasePaddle):
 class VerticalPaddle(BasePaddle):
 
     def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None):
-        super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1], groups, collision_sound)
+        super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1],
+                         groups,
+                         collision_sound)
 
     def update(self):
         if self.is_at_top_of_screen():
