@@ -87,7 +87,8 @@ class TextSprite(Sprite):
         # Inheriting from object is default in Python 3.
         # Linters complain if you do it.
         class TextBox(Sprite):
-            def __init__(self, font_controller, pos, line_height=15, groups=pygame.sprite.LayeredDirty()):
+            def __init__(self, font_controller, pos, line_height=15,
+                         groups=pygame.sprite.LayeredDirty()):
                 super().__init__(pos[0], pos[1], 0, 0, groups=groups)
                 self.image = None
                 self.start_pos = pos
@@ -133,10 +134,26 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)
         self.fps = 0
 
-        v_center = self.screen_height/2
-        self.player1 = VerticalPaddle('Player 1', (20, 80), (0, v_center - 40), WHITE, Speed(y=10, increment=1), collision_sound=SFX.SLAP)
-        self.player2 = VerticalPaddle('Player 2', (20, 80), (self.screen_width - 20, v_center - 40), WHITE, Speed(y=10, increment=1), collision_sound=SFX.SLAP)
-        self.balls = [BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get('balls', 1))]
+        v_center = self.screen_height / 2
+        self.player1 = VerticalPaddle(
+            'Player 1',
+            (20, 80),
+            (0, v_center - 40),
+            WHITE,
+            Speed(y=10, increment=1),
+            collision_sound=SFX.SLAP
+        )
+        self.player2 = VerticalPaddle(
+            'Player 2',
+            (20, 80),
+            (self.screen_width - 20, v_center - 40),
+            WHITE,
+            Speed(y=10, increment=1),
+            collision_sound=SFX.SLAP
+        )
+        self.balls = [
+            BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get('balls', 1))
+        ]
 
         for ball in self.balls:
             red = random.randint(0, 255)

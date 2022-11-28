@@ -53,7 +53,11 @@ class Game(Scene):
             self.record = self.dt_timer / 100
             self.passed = True
 
-        countdown = self.font.render("Time: " + str(round(self.dt_timer / 100, 5)), False, (255, 255, 255))
+        countdown = self.font.render(
+            "Time: " + str(round(self.dt_timer / 100, 5)),
+            False,
+            (255, 255, 255)
+        )
         fps_text = self.font.render(
             f"FPS: {str(round(self.fps, 2))}", False, (255, 255, 255)
         )

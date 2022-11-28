@@ -95,7 +95,11 @@ class PaletteUtility:
 
     @staticmethod
     def create_palette_data(colors):
-        """Create a ConfigParser object containing palette data from a list of PyGame Colors.  Returns a ConfigParser"""
+        """Create a ConfigParser object containing palette data from a list of PyGame Colors.
+
+        Returns a ConfigParser
+
+        """
 
         palette_data = configparser.ConfigParser()
         palette_data['default'] = {"colors": str(len(colors))}

@@ -1,7 +1,75 @@
-[build-system]
-requires = [
-    "setuptools>=60",
-    "wheel"
+[tool.poetry]
+name = "glitchygames"
+version = "1.0.0"
+description = "Glitchy Games and Tools for Pygame and Python 3"
+authors = [
+    "Terry Simons <terry.simons@gmail.com>",
+    "Rich Saupe <sabadam32@gmail.com>",
+]
+maintainers = [
+    "Terry Simons <terry.simons@gmail.com>",
+    "Rich Saupe <sabadam32@gmail.com>",
+]
+readme = "README.md"
+license = "BSD-3-Clause"
+classifiers = [
+    "Programming Language :: Python :: 3.8",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent"
 ]
 
-build-backend = "setuptools.build_meta"
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
+"homepage" = "https://glitchygames.ai/"
+"documentation" = "https://glitchygames.ai/documentation/"
+
+[tool.poetry.dependencies]
+python = ">= 3.8, < 3.11"
+pygame = "^2.1.2"
+toml = "^0.10.2"
+
+[tool.poetry.group.dev.dependencies]
+nox = "^2022.11.21"
+nox-poetry = "^1.0.2"
+pytest = "^7.2.0"
+pylama = {extras = ["all"], version = "^8.4.1"}
+
+[tool.pylama]
+linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
+skip = ".nox/*"
+
+# pydocstyle
+# Options that shouldn't be turned off:
+#
+# C0103: Variable name "<var>" doesn't conform to snake_case naming style. [pylint]
+# D203: 1 blank line required before class docstring [pydocstyle, pep257]
+# D212 Multi-line docstring summary should start at the first line [pydocstyle]
+# R0902: Too many instance attributes [pylint]
+# R0903: Too few public methods [pylint]
+# R0904: Too many public methods [pylint]
+# E1121: Too many positional arguments for lambda call [pylint]
+  # https://github.com/PyCQA/pylint/issues/2144
+# W1202 - W1202 Use % formatting in logging functions and pass the % parameters as arguments [pylint]
+# W1203 - W1203 Use % formatting in logging functions and pass the % parameters as arguments [pylint]
+  # https://github.com/PyCQA/pylint/issues/2395
+
+# C0111 - Docstrings.
+# D100 - Docstrings.
+# D101 - Docstrings.
+# D102 - Docstrings.
+# D103 - Docstrings.
+# D104 - Docstrings.
+# D105 - Docstrings.
+# D106 - Docstrings
+# D107 - Docstrings.
+ignore = "C0103,C0111,D203,D212,E1121,R0902,R0903,R0904,W1202,W1203,D100,D101,D102,D103,D104,D105,D106,D107,D417,D204,D400,W0611,D415,D401,D210,D202,D213,D205,D413,D411,D200"
+max_line_length = "104"
+
+# [tool.pylama.linter.pylint]
+# ignored_modules = "pygame"
+
+[tool.pylama.pydocstyle]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
