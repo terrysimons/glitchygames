@@ -16,6 +16,9 @@ jobs:
       - image: cimg/base:stable
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+
+    resource_class: large
+
     steps:
       - checkout
 
@@ -46,8 +49,7 @@ jobs:
   build-and-test-windows:
     executor:
       name: win/default
-
-    resource_class: large
+      size: large
 
     steps:
       - checkout
