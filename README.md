@@ -2,7 +2,7 @@
 
 ## Development
 
-It's recommended to use a venv for development.
+It's recommended to use pyenv or a venv for development.
 
 To set up a local development environment:
 
@@ -25,6 +25,5 @@ venv/Scripts/activate
 Once you have an environment created, link the local source tree with pip.
 
 ```
-pip install -r requirements.txt
 pip install -e .
 ```
