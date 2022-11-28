@@ -117,6 +117,7 @@ class GameManager(events.ResourceManager):
 class GameEngine(events.EventManager):
     log = LOG
     game = None
+    icon = None
 
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
@@ -126,7 +127,7 @@ class GameEngine(events.EventManager):
     MISSING_EVENTS = []
     UNIMPLEMENTED_EVENTS = []
 
-    def __init__(self, game):
+    def __init__(self, game, icon=None):
         """
         Set up pygame and handle events.
 
@@ -398,8 +399,10 @@ class GameEngine(events.EventManager):
         # Set the window icon.
         #
         # Always call this before you call set_mode()
-        icon = pygame.Surface((32, 32))
-        icon.fill(PURPLE)
+        icon = GameEngine.icon
+        if self.icon is None:
+            icon = pygame.Surface((32, 32))
+            icon.fill(PURPLE)
         pygame.display.set_icon(icon)
 
         # Set the display caption.

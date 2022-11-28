@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+import os
 
 from pygame import Rect
 import pygame
@@ -588,7 +589,6 @@ class BitmapEditorScene(Scene):
         CanvasSprite.WIDTH = int(width)
         CanvasSprite.HEIGHT = int(height)
 
-
         self.menu_bar = MenuBar(
             name='Menu Bar',
             x=0,
@@ -855,7 +855,10 @@ class BitmapEditorScene(Scene):
 
 
 def main():
-    GameEngine(game=BitmapEditorScene).start()
+    os.path.join(os.path.dirname( __file__ ), 'bitmappy.png')
+    icon: pygame.Surface = pygame.image.load('bitmappy.png')
+    GameEngine.icon = icon
+    GameEngine(game=BitmapEditorScene, icon=icon).start()
 
 
 if __name__ == '__main__':
