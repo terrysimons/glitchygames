@@ -90,6 +90,24 @@ class InputConfirmationDialogScene(Scene):
         else:
             super().on_key_up_event(event)
 
+class NewCanvasDialogScene(InputConfirmationDialogScene):
+    log = LOG
+    NAME = 'New Canvas'
+    DIALOG_TEXT = 'Are you sure you want to clear the canvas?'
+    CONFIRMATION_TEXT = 'Clear'
+    CANCEL_TEXT = 'Cancel'
+
+    def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
+       super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
+
+    def on_confirm_event(self, event, trigger):
+        self.log.info(f'New Canvas: event: {event}, trigger: {trigger}')
+        self.previous_scene.canvas.on_load_file_event(
+            self.dialog.input_box,
+            self.dialog.input_box
+        )
+        self.dismiss()
+
 class LoadDialogScene(InputConfirmationDialogScene):
     log = LOG
     NAME = 'Load Sprite'
@@ -99,7 +117,7 @@ class LoadDialogScene(InputConfirmationDialogScene):
     VERSION = ''
 
     def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
-       super().__init__(previous_scene, options=None, groups=pygame.sprite.LayeredDirty())
+       super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
 
     def on_confirm_event(self, event, trigger):
         self.log.info(f'Load File: event: {event}, trigger: {trigger}')
@@ -119,7 +137,7 @@ class SaveDialogScene(InputConfirmationDialogScene):
     VERSION = ''
 
     def __init__(self, previous_scene, options=None, groups=pygame.sprite.LayeredDirty()):
-       super().__init__(previous_scene, options=None, groups=pygame.sprite.LayeredDirty())
+       super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
 
     def on_confirm_event(self, event, trigger):
         self.log.info(f'Save File: event: {event}, trigger: {trigger}')
@@ -425,10 +443,10 @@ class CanvasSprite(BitmappySprite):
         self.log.info(f'Loading file: {event.text}')
 
         load_sprite = BitmappySprite(filename=event.text,
-                                     x=0,
-                                     y=0,
-                                     width=self.pixels_across,
-                                     height=self.pixels_tall)
+                                                     x=0,
+                                                     y=0,
+                                                     width=self.pixels_across,
+                                                     height=self.pixels_tall)
 
         pixel_data = pygame.image.tostring(load_sprite.image, 'RGB')
 
@@ -738,6 +756,7 @@ class BitmapEditorScene(Scene):
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
+        self.new_canvas_dialog_scene = NewCanvasDialogScene(options=self.options, previous_scene=self)
         self.load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
         self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
 
@@ -751,11 +770,11 @@ class BitmapEditorScene(Scene):
             self.log.info('System Menu Clicked')
         else:
             if event.menu.name == 'New':
-                self.on_new_file_event(event=event)
+                self.on_new_canvas_dialog_event(event=event)
             elif event.menu.name == 'Save':
-                self.on_save_dialog_event(event)
+                self.on_save_dialog_event(event=event)
             elif event.menu_item.name == 'Load':
-                self.on_load_dialog_event(event)
+                self.on_load_dialog_event(event=event)
             elif event.menu.name == 'Quit':
                 self.log.info('User quit from menu item.')
                 self.scene_manager.quit()
@@ -763,8 +782,21 @@ class BitmapEditorScene(Scene):
                 raise Exception(f'Unhandled Menu Item: {event}')
         self.dirty = 1
 
+    # NB: Keepings this around causes GG-7 not to manifest... curious.
+    # This function is extraneous now that on_new_canvas_dialog_event exists.
+    #
+    # There is also some dialog drawing goofiness when keeping this which
+    # goes away when we remove it.
+    #
+    # Keeping as a workaround for GG-7 for now.
     def on_new_file_event(self, event):
+        self.new_canvas_dialog_scene.all_sprites.clear(self.new_canvas_dialog_scene.screen, self.screenshot)
         self.canvas.on_new_file_event(event=event, trigger=event)
+        self.dirty = 1
+
+    def on_new_canvas_dialog_event(self, event):
+        self.new_canvas_dialog_scene.all_sprites.clear(self.new_canvas_dialog_scene.screen, self.screenshot)
+        self.next_scene = self.new_canvas_dialog_scene
         self.dirty = 1
 
     def on_load_dialog_event(self, event):
