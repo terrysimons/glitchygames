@@ -30,6 +30,12 @@ jobs:
     steps:
       # Commands will execute in macOS container
       # with Xcode 12.5.1 installed
+      - run: git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+      - run: cd ~/.pyenv && src/configure && make -C src
+      - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+      - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+      - run: echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+      - run: source ~/.zshrc
       - run: pyenv install 3.10.8
       - run: pyenv global 3.10.8 3.10.8 3.10.8
 
