@@ -18,6 +18,8 @@ class ColorPalette:
     _DEFAULT_EXTENSION = 'palette'
 
     def __init__(self, colors=None, filename=None):
+        self._colors = None
+
         if colors:
             self._colors = colors
         elif filename:
@@ -33,11 +35,18 @@ class ColorPalette:
                     break
         else:
             self._colors = []
-        self._size = len(self._colors) - 1
+
+        self._size = 0
+        if self._colors:
+            self._size = len(self._colors) - 1
 
     def get_color(self, palette_index):
         """Returns PyGame Color at index"""
-        return self._colors[palette_index] if palette_index <= self._size else None
+        if self._size:
+            return self._colors[palette_index] if palette_index <= self._size else None
+
+        # Return Magenta if our palette isn't set
+        return (255, 0, 255)
 
     def set_color(self, palette_index, new_color):
         """Sets the indexed color to the new PyGame Color"""
