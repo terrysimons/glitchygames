@@ -1,4 +1,5 @@
 import logging
+import pathlib
 
 import pygame
 
@@ -116,5 +117,18 @@ class FontManager(ResourceManager):
         if not font_config:
             font_config = FontManager.OPTIONS
 
-        return pygame.freetype.SysFont(name=font_config['font_name'],
-                                       size=font_config['font_size'])
+        try:
+            log.info(f'Loading Font: {font_config["font_name"]}')
+            log.info(f'Font Size: {font_config["font_size"]}')
+
+            return pygame.freetype.SysFont(name=font_config['font_name'],
+                                            size=font_config['font_size'])
+        except Exception:
+            # Note: Not sure why but pygame.freetype.SysFont doesn't
+            # seem to work with pyinstaller packaged games.
+            log.info(f'Loading Font: {font_config["font_name"]}')
+            log.info(f'Font Size: {font_config["font_size"]}')
+
+            return pygame.freetype.Font(file=font_config['font_name'],
+                                        size=font_config['font_size'])
+
