@@ -16,7 +16,7 @@ log.setLevel(logging.DEBUG)
 
 class BitmappySprite(Sprite):
     def __init__(self, filename, *args, **kwargs):
-        super().__init__(*args, width=0, height=0, **kwargs)
+        super().__init__(*args, x=0, y=0, width=0, height=0, **kwargs)
         self.image = None
         self.rect = None
         self.name = None
@@ -206,7 +206,7 @@ class Game(Scene):
         super().__init__(options=options)
         self.filename = options.get('filename')
 
-        self.next_scene = GameScene()
+        self.next_scene = GameScene(filename=self.filename)
 
     @classmethod
     def args(cls, parser):
