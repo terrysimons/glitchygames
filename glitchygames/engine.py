@@ -414,6 +414,7 @@ class GameEngine(events.EventManager):
         if icon is None:
             icon = pygame.Surface((32, 32))
             icon.fill(PURPLE)
+
         pygame.display.set_icon(icon)
 
         # Set the display caption.
