@@ -139,6 +139,9 @@ class GameEngine(events.EventManager):
         options - the configuration options passed via the command line.
 
         """
+        super().__init__()
+        GameEngine.icon = icon
+
         parser = argparse.ArgumentParser(f"{game.NAME} version {game.VERSION}")
 
         parser = GameEngine.args(parser)
@@ -399,8 +402,8 @@ class GameEngine(events.EventManager):
         # Set the window icon.
         #
         # Always call this before you call set_mode()
-        icon = GameEngine.icon
-        if self.icon is None:
+        icon = GameEngine.icon or self.game.icon
+        if icon is None:
             icon = pygame.Surface((32, 32))
             icon.fill(PURPLE)
         pygame.display.set_icon(icon)
