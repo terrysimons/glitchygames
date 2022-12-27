@@ -402,7 +402,9 @@ class GameEngine(events.EventManager):
         # Set the window icon.
         #
         # Always call this before you call set_mode()
-        icon = GameEngine.icon or self.game.icon
+
+        icon = getattr(self.game, 'icon', GameEngine.icon)
+
         if icon is None:
             icon = pygame.Surface((32, 32))
             icon.fill(PURPLE)
