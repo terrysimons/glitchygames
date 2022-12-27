@@ -4,6 +4,7 @@
 import argparse
 import logging
 import multiprocessing
+import os
 import platform
 import time
 
@@ -33,6 +34,7 @@ LOG.addHandler(logging.NullHandler())
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
+PACKAGE_PATH = os.path.dirname(__file__)
 
 class GameManager(events.ResourceManager):
     log = LOG
@@ -117,7 +119,9 @@ class GameManager(events.ResourceManager):
 class GameEngine(events.EventManager):
     log = LOG
     game = None
-    icon = None
+    icon: pygame.Surface = pygame.image.load(
+        os.path.join(PACKAGE_PATH, 'assets', 'glitch.png')
+    )
 
     NAME = "Boilerplate Adventures"
     VERSION = "1.0"
@@ -140,7 +144,9 @@ class GameEngine(events.EventManager):
 
         """
         super().__init__()
-        GameEngine.icon = icon
+
+        if icon:
+            GameEngine.icon = icon
 
         parser = argparse.ArgumentParser(f"{game.NAME} version {game.VERSION}")
 
@@ -404,9 +410,11 @@ class GameEngine(events.EventManager):
         # Always call this before you call set_mode()
 
         icon = getattr(self.game, 'icon', GameEngine.icon)
+
         if icon is None:
             icon = pygame.Surface((32, 32))
             icon.fill(PURPLE)
+
         pygame.display.set_icon(icon)
 
         # Set the display caption.
