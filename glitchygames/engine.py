@@ -404,7 +404,6 @@ class GameEngine(events.EventManager):
         # Always call this before you call set_mode()
 
         icon = getattr(self.game, 'icon', GameEngine.icon)
-
         if icon is None:
             icon = pygame.Surface((32, 32))
             icon.fill(PURPLE)
