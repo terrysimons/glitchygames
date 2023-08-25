@@ -1,9 +1,12 @@
 import random
+
 import pygame
+
 from glitchygames.color import WHITE
-from .. import game_objects
 from glitchygames.movement import Speed
 from glitchygames.sprites import Sprite
+
+from .. import game_objects
 
 
 class BallSprite(Sprite):

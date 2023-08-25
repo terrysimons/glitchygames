@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import logging
 
@@ -17,8 +16,8 @@ class Game(Scene):
     log = LOG
 
     # Set your game name/version here.
-    NAME = "Input Demo"
-    VERSION = "1.0"
+    NAME = 'Input Demo'
+    VERSION = '1.0'
 
     def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)

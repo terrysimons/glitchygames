@@ -3,9 +3,7 @@ import logging
 import pygame
 import pygame._sdl2.controller
 
-from glitchygames.events import ControllerEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import ControllerEvents, ResourceManager
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
 pygame.controller = pygame._sdl2.controller
@@ -167,7 +165,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Controller Options')  # noqa: W0612
+        group = parser.add_argument_group('Controller Options')  # noqa: W0612, F841
 
         return parser
 

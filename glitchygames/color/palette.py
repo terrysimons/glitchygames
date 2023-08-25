@@ -111,13 +111,13 @@ class PaletteUtility:
         """
 
         palette_data = configparser.ConfigParser()
-        palette_data['default'] = {"colors": str(len(colors))}
+        palette_data['default'] = {'colors': str(len(colors))}
         for count, color in enumerate(colors):
             palette_data[str(count)] = {
-                "red": color.r,
-                "green": color.g,
-                "blue": color.b,
-                "alpha": color.a
+                'red': color.r,
+                'green': color.g,
+                'blue': color.b,
+                'alpha': color.a
             }
         return palette_data
 

@@ -1,11 +1,8 @@
 import logging
-import pathlib
 
 import pygame
 
-from glitchygames.events import FontEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import FontEvents, ResourceManager
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())
@@ -122,8 +119,9 @@ class FontManager(ResourceManager):
             log.info(f'Font Size: {font_config["font_size"]}')
 
             return pygame.freetype.SysFont(name=font_config['font_name'],
-                                            size=font_config['font_size'])
-        except Exception:
+                                           size=font_config['font_size'])
+        # HACK: remove noqa pragma and use proper exceptions
+        except Exception:  # noqa: BLE001
             # Note: Not sure why but pygame.freetype.SysFont doesn't
             # seem to work with pyinstaller packaged games.
             log.info(f'Loading Font: {font_config["font_name"]}')
@@ -131,4 +129,3 @@ class FontManager(ResourceManager):
 
             return pygame.freetype.Font(file=font_config['font_name'],
                                         size=font_config['font_size'])
-

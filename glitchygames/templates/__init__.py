@@ -1,5 +1,6 @@
-from cookiecutter.main import cookiecutter
 import os.path
+
+from cookiecutter.main import cookiecutter
 
 path = os.path.dirname(__file__)
 
@@ -15,7 +16,7 @@ def build(template):
 
     try:
         # The templates can be from remote repositories also.  Use a .repo file to name the repo
-        template_loc = open(os.path.join(path, template, '.repo'), 'r').readline()
+        template_loc = open(os.path.join(path, template, '.repo')).readline()
     except FileNotFoundError:
         template_loc = os.path.join(path, template)
     cookiecutter(template_loc)

@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from collections import OrderedDict
 import configparser
 import logging
+from collections import OrderedDict
 
 import pygame
-
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
@@ -16,7 +15,7 @@ log.setLevel(logging.DEBUG)
 
 class BitmappySprite(Sprite):
     def __init__(self, filename, *args, **kwargs):
-        super().__init__(*args, x=0, y=0, width=0, height=0, **kwargs)
+        super().__init__(*args, pos=(0,0), size=(0, 0), **kwargs)
         self.image = None
         self.rect = None
         self.name = None
@@ -30,7 +29,8 @@ class BitmappySprite(Sprite):
 
         config.read(filename, encoding='utf-8')
 
-        # [sprite]
+        # Example config:
+        # [sprite]  # noqa: ERA001
         # name = <name>
         name = config.get(section='sprite', option='name')
 
@@ -122,7 +122,7 @@ class BitmappySprite(Sprite):
         # We need a list here becasue we'll use set() to pull out the
         # unique values, but we also need to consume the list again
         # down below, so we can't solely use a generator.
-        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]
+        raw_pixels = list(raw_pixels)
 
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
@@ -192,15 +192,15 @@ class GameScene(Scene):
 
         self.sprite = BitmappySprite(filename=self.filename)
 
-        self.all_sprites = pygame.sprite.LayeredDirty((self.sprite))
+        self.all_sprites = pygame.sprite.LayeredDirty(tuple(self.sprite))
 
         self.all_sprites.clear(self.screen, self.background)
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Sprite Loader"
-    VERSION = "1.0"
+    NAME = 'Sprite Loader'
+    VERSION = '1.0'
 
     def __init__(self, options):
         super().__init__(options=options)

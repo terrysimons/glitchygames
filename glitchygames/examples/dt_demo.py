@@ -1,4 +1,5 @@
 import pygame
+
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -9,8 +10,8 @@ from glitchygames.scenes import Scene
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Delta Time Demo"
-    VERSION = "1.0"
+    NAME = 'Delta Time Demo'
+    VERSION = '1.0'
 
     def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)
@@ -54,12 +55,12 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            "Time: " + str(round(self.dt_timer / 100, 5)),
+            'Time: ' + str(round(self.dt_timer / 100, 5)),
             False,
             (255, 255, 255)
         )
         fps_text = self.font.render(
-            f"FPS: {str(round(self.fps, 2))}", False, (255, 255, 255)
+            f'FPS: {str(round(self.fps, 2))}', False, (255, 255, 255)
         )
 
         self.screen.blit(countdown, (0, 0))
@@ -68,7 +69,7 @@ class Game(Scene):
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
             record_text = self.font.render(
-                f"Time: {str(round(self.record, 5))}", False, (255, 255, 255)
+                f'Time: {str(round(self.record, 5))}', False, (255, 255, 255)
             )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))

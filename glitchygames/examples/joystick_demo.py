@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 import glob
 import logging
 import multiprocessing
@@ -9,14 +8,12 @@ import pygame.gfxdraw
 import pygame.locals
 from pygame import Rect
 
-from glitchygames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
-from glitchygames.color import PURPLE, WHITE
+from glitchygames.color import BLACK, BLACKLUCENT, BLUE, GREEN, PURPLE, WHITE, YELLOW
 from glitchygames.engine import GameEngine
-from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
+from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
-
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
@@ -222,7 +219,7 @@ class TextSprite(Sprite):
 
         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count))
+        self.text_box.print(self.image, f'Number of joysticks: {self.joystick_count}')
         if self.joystick_count:
             for i, joystick in enumerate(self.joystick_manager.joysticks):
                 self.text_box.print(self.image, f'Joystick {i}')
@@ -238,8 +235,7 @@ class TextSprite(Sprite):
 
                 self.text_box.indent()
                 for j in range(axes):
-                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'
-                                        .format(j, joystick.get_axis(j)))
+                    self.text_box.print(self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}')
                 self.text_box.unindent()
 
                 buttons = joystick.get_numbuttons()
@@ -247,8 +243,9 @@ class TextSprite(Sprite):
 
                 self.text_box.indent()
                 for j in range(buttons):
-                    self.text_box.print(self.image, 'Button {:>2} value: {}'
-                                        .format(j, joystick.get_button(i)))
+                    self.text_box.print(
+                        self.image, f'Button {j:>2} value: {joystick.get_button(i)}'
+                    )
                 self.text_box.unindent()
 
                 # Hat switch. All or nothing for direction, not like joysticks.
@@ -273,9 +270,7 @@ class JoystickScene(Scene):
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
-            (
-                self.shapes_sprite
-            )
+            tuple(self.shapes_sprite)
         )
 
         self.all_sprites.clear(self.screen, self.background)
@@ -328,8 +323,8 @@ class JoystickScene(Scene):
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Joystick and Font Demo"
-    VERSION = "0.0"
+    NAME = 'Joystick and Font Demo'
+    VERSION = '0.0'
 
     def __init__(self, options):
         super().__init__(options=options)

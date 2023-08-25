@@ -1,11 +1,10 @@
-from pygame.sprite import LayeredDirty
 from pygame import draw
-from . import load_sound
+from pygame.sprite import LayeredDirty
+
+from glitchygames.movement import Horizontal, Vertical
 from glitchygames.sprites import Sprite
-from glitchygames.movement import (
-    Horizontal,
-    Vertical
-)
+
+from . import load_sound
 
 
 class BasePaddle(Sprite):
@@ -23,11 +22,11 @@ class BasePaddle(Sprite):
         self._move = axis(speed)
         self.dirty = 1
 
-    def move_horizontal(self):
+    def move_horizontal(self) -> None:
         self.rect.x += self._move.current_speed
         self.dirty = 1
 
-    def move_vertical(self):
+    def move_vertical(self) -> None:
         self.rect.y += self._move.current_speed
         self.dirty = 1
 
@@ -46,12 +45,12 @@ class BasePaddle(Sprite):
 
 class HorizontalPaddle(BasePaddle):
 
-    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None):
+    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None) -> None:  # noqa: E501
         super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)
 
-    def update(self):
+    def update(self) -> None:
         if self.is_at_left_of_screen():
             self.rect.x = 0
             self.stop()
@@ -79,7 +78,7 @@ class HorizontalPaddle(BasePaddle):
 
 class VerticalPaddle(BasePaddle):
 
-    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None):
+    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(), collision_sound=None):#  noqa: E501
         super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)

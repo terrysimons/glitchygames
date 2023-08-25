@@ -1,9 +1,9 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 import inspect
 import logging
 import re
+
 import pygame
 
 LOG = logging.getLogger('game.events')
@@ -13,9 +13,11 @@ LOG.addHandler(logging.NullHandler())
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
-    event_names = [*set(pygame.event.event_name(event_num)
-                        for event_num in range(0, pygame.NUMEVENTS))]
-    event_names = set(event_names) - set('Unknown')
+    event_names = set(
+        pygame.event.event_name(event_num) for event_num in range(0, pygame.NUMEVENTS)
+    )
+    event_names: set[str] = set(event_names) - set('Unknown')
+
     event_list = []
 
     for event_name in list(event_names):

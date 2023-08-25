@@ -1,6 +1,6 @@
 import os.path
+
 import pygame.mixer
-from .ball import BallSprite
 
 
 # Load sound files

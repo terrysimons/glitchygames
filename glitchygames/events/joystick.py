@@ -2,9 +2,7 @@ import logging
 
 import pygame
 
-from glitchygames.events import JoystickEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import JoystickEvents, ResourceManager
 
 LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
@@ -187,7 +185,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Joystick Options')  # noqa: W0612
+        group = parser.add_argument_group('Joystick Options')  # noqa: W0612, F841
 
         return parser
 

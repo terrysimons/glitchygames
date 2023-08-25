@@ -1,7 +1,6 @@
 import logging
 
-from glitchygames.events import ResourceManager
-from glitchygames.events import WindowEvents
+from glitchygames.events import ResourceManager, WindowEvents
 
 LOG = logging.getLogger('game.window')
 LOG.addHandler(logging.NullHandler())
@@ -91,6 +90,6 @@ class WindowManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Window Options')  # noqa: W0612
+        group = parser.add_argument_group('Window Options')  # noqa: W0612, F841
 
         return parser

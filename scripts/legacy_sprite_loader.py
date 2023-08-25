@@ -1,17 +1,16 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from collections import OrderedDict
 import configparser
 import logging
 import struct
+from collections import OrderedDict
 
 import pygame
-
-from glitchygames.engine import GameEngine
 from glitchygames.color.palette import Vga
+from glitchygames.engine import GameEngine
 from glitchygames.pixels import indexed_rgb_triplet_generator
-from glitchygames.sprites import Sprite
 from glitchygames.scenes import Scene
+from glitchygames.sprites import Sprite
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.INFO)
@@ -38,7 +37,6 @@ class BitmappyLegacySprite(Sprite):
         """
         """
         # We need to load an 8-bit palette for color conversion.
-        palette = palette
         image = None
         rect = None
         data = []
@@ -54,10 +52,13 @@ class BitmappyLegacySprite(Sprite):
 
         pixels = indexed_rgb_triplet_generator(data=indexed_rgb_data)
 
-        pixels = [pixel for pixel in pixels]
+        pixels = list(pixels)
 
-        for pixel in pixels[0:width * height]:
-            rgb_pixels.append(palette[pixel])
+        # NOTE: This code replaces the below for loop but hasn't been tested.
+        rgb_pixels.extend([palette[pixel] for pixel in pixels[0:width * height]])
+
+        # for pixel in pixels[0:width * height]:
+        #     rgb_pixels.append(palette[pixel])
 
         (image, rect) = self.inflate(width=width,
                                      height=height,
@@ -109,7 +110,7 @@ class BitmappyLegacySprite(Sprite):
         # We need a list here becasue we'll use set() to pull out the
         # unique values, but we also need to consume the list again
         # down below, so we can't solely use a generator.
-        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]
+        raw_pixels = list(raw_pixels)
 
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
@@ -158,8 +159,9 @@ class BitmappyLegacySprite(Sprite):
         return config
 
     def __str__(self):
-        description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
-            '\nColor Key: {self.color_key}\n'
+        description = f'Name: {self.name}\n"' \
+                           f'Dimensions: {self.width}x{self.height}' \
+                           f'\nColor Key: {self.color_key}\n'
 
         for y, row in enumerate(self.pixels):
             for x, pixel in enumerate(row):
@@ -181,15 +183,15 @@ class GameScene(Scene):
         # Load the legacy sprite file.
         self.sprite = BitmappyLegacySprite(filename=self.filename, palette=self.palette)
 
-        self.all_sprites = pygame.sprite.LayeredDirty((self.sprite))
+        self.all_sprites = pygame.sprite.LayeredDirty(tuple(self.sprite))
 
         self.all_sprites.clear(self.screen, self.background)
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Sprite Loader"
-    VERSION = "1.0"
+    NAME = 'Sprite Loader'
+    VERSION = '1.0'
 
     def __init__(self, options):
         super().__init__(options=options)

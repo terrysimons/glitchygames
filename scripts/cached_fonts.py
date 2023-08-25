@@ -1,15 +1,13 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 import logging
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames.engine import GameEngine
-from glitchygames.sprites import BitmappySprite
 from glitchygames.scenes import Scene
+from glitchygames.sprites import BitmappySprite
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
@@ -35,8 +33,8 @@ class GameScene(Scene):
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Cached Font Demo"
-    VERSION = "1.0"
+    NAME = 'Cached Font Demo'
+    VERSION = '1.0'
 
     def __init__(self, options):
         super().__init__(options=options)

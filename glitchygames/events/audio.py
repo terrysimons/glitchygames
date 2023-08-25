@@ -2,9 +2,7 @@ import logging
 
 import pygame
 
-from glitchygames.events import AudioEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import AudioEvents, ResourceManager
 
 log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
@@ -66,6 +64,6 @@ class AudioManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Sound Mixer Options')  # noqa: W0612
+        group = parser.add_argument_group('Sound Mixer Options')  # noqa: W0612, F841
 
         return parser

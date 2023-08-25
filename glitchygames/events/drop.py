@@ -1,8 +1,6 @@
 import logging
 
-from glitchygames.events import DropEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import DropEvents, ResourceManager
 
 log = logging.getLogger('game.events.drop_events')
 log.addHandler(logging.NullHandler())
@@ -56,6 +54,6 @@ class DropManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Drop Options')  # noqa: W0612
+        group = parser.add_argument_group('Drop Options')  # noqa: W0612, F841
 
         return parser

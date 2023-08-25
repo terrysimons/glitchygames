@@ -24,8 +24,8 @@ classifiers = [
 "documentation" = "https://glitchygames.ai/documentation/"
 
 [tool.poetry.dependencies]
-python = ">= 3.8, < 3.11"
-pygame = "^2.1.2"
+python = ">= 3.11, < 3.12"
+pygame = "^2.1.3"
 toml = "^0.10.2"
 
 [tool.poetry.group.dev.dependencies]
@@ -33,6 +33,112 @@ nox = "^2022.11.21"
 nox-poetry = "^1.0.2"
 pytest = "^7.2.0"
 pylama = {extras = ["all"], version = "^8.4.1"}
+ruff = "^0.0.286"
+
+[project]
+# Support Python 3.9+.
+requires-python = ">=3.9"
+
+[tool.ruff]
+line-length = 100
+format = "grouped"
+ignore-init-module-imports = true
+src = ["glitchygames", "tests", "scripts"]
+task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
+extend-include = []
+select = [
+  "E",
+  "F",
+  "W"
+]
+extend-select = [
+  "C90",
+  "I",
+  "N",
+  "UP",
+  "YTT",
+  "S",
+  "BLE",
+  "COM",
+  "CPY",
+  "C4",
+  "DTZ",
+  "T10",
+  "DJ",
+  "EM",
+  "EXE",
+  "FA",
+  "ISC",
+  "ICN",
+  "G",
+  "INP",
+  "PIE",
+  "T20",
+  "PYI",
+  "PT",
+  "Q",
+  "RSE",
+  "RET",
+  "SLF",
+  "SLOT",
+  "SIM",
+  "TID",
+  "TCH",
+  "INT",
+  "ARG",
+  "PTH",
+  "TD",
+  "FIX",
+  "ERA",
+  "PD",
+  "PGH",
+  "PL",
+  "TRY",
+  "FLY",
+  "NPY",
+  "AIR",
+  "PERF",
+  "RUF"
+]
+ignore = [
+  #"ASYN",
+
+
+
+]
+extend-ignore = [
+  "D",
+  "ANN",
+  "FBT",
+  "B",
+  "A",
+  "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+  "COM812", # Trailing comma missing
+  "G004", # Logging statement uses f-string
+  "ISC002", # Use of implicit string concatenation
+  "PTH118", # `os.path.join()` should be replaced by `Path` with `/` operator
+  "PTH123", # `open()` should be replaced by `Path.open()`
+  "ERA001", # Found commented-out code
+  "RUF100", # Unused `noqa` directive
+]
+# exclude = []
+# extend-exclude = []
+fixable = [
+  "I001",
+  "Q000"
+]
+unfixable = []
+target-version = "py39"
+
+[tool.ruff.flake8-annotations]
+allow-star-arg-any = true
+ignore-fully-untyped = true
+
+[tool.ruff.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "single"
+multiline-quotes = "double"
 
 [tool.pylama]
 linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
@@ -62,7 +168,7 @@ skip = ".nox/*"
 # D105 - Docstrings.
 # D106 - Docstrings
 # D107 - Docstrings.
-ignore = "C0103,C0111,D203,D212,E1121,R0902,R0903,R0904,W1202,W1203,D100,D101,D102,D103,D104,D105,D106,D107,D417,D204,D400,W0611,D415,D401,D210,D202,D213,D205,D413,D411,D200"
+# ignore = "C0103,C0111,D203,D212,E1121,R0902,R0903,R0904,W1202,W1203,D100,D101,D102,D103,D104,D105,D106,D107,D417,D204,D400,W0611,D415,D401,D210,D202,D213,D205,D413,D411,D200"
 max_line_length = "104"
 
 # [tool.pylama.linter.pylint]

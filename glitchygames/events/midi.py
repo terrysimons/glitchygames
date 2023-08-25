@@ -2,7 +2,6 @@ import logging
 
 from glitchygames.events import ResourceManager
 
-
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
 
@@ -23,6 +22,6 @@ class MidiManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Midi Options')  # noqa: W0612
+        group = parser.add_argument_group('Midi Options')  # noqa: W0612, F841
 
         return parser

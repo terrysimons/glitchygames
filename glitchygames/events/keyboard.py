@@ -2,9 +2,7 @@ import logging
 
 import pygame
 
-from glitchygames.events import KeyboardEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import KeyboardEvents, ResourceManager
 
 log = logging.getLogger('game.keyboard')
 log.addHandler(logging.NullHandler())
@@ -99,6 +97,6 @@ class KeyboardManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Keyboard Options')  # noqa: W0612
+        group = parser.add_argument_group('Keyboard Options')  # noqa: W0612, F841
 
         return parser

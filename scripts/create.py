@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Create Glitchy Games template game.
 """
 import argparse
+
 from glitchygames import templates
 
 
@@ -24,7 +25,7 @@ def main():
     args = get_args()
 
     if args.list:
-        [print(x) for x in templates.get_templates()]
+        [print(x) for x in templates.get_templates()]  # noqa: T201
     elif args.template == 'pong':
         templates.build('pong')
 

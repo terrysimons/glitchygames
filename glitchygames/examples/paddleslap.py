@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 import logging
 import random
 
@@ -8,10 +7,10 @@ import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 
-from glitchygames.color import WHITE, BLACKLUCENT
+from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
-from glitchygames.fonts import FontManager
 from glitchygames.events.joystick import JoystickManager
+from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
@@ -127,8 +126,8 @@ class TextSprite(Sprite):
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Paddle Slap"
-    VERSION = "1.1"
+    NAME = 'Paddle Slap'
+    VERSION = '1.1'
 
     def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
         super().__init__(options=options, groups=groups)

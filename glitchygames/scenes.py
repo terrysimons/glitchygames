@@ -3,8 +3,8 @@ import time
 
 import pygame
 
-from glitchygames.color import BLACK
 import glitchygames.events as events
+from glitchygames.color import BLACK
 from glitchygames.sprites import MousePointer, SpriteInterface
 
 LOG = logging.getLogger('game.scenes')
@@ -322,7 +322,7 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         self.rects = self.all_sprites.draw(self.screen)
 
     def sprites_at_position(self, pos):
-        mouse = MousePointer(x=pos[0], y=pos[1])
+        mouse = MousePointer(pos=pos)
 
         return pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 

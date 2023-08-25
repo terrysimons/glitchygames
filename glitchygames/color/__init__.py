@@ -1,8 +1,8 @@
 from .palette import (
+    NES,  # noqa: F401
+    SYSTEM,  # noqa: F401
+    VGA,  # noqa: F401
     Default,
-    VGA,
-    NES,
-    SYSTEM
 )
 
 _default_colors: Default = Default()
