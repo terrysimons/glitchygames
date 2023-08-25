@@ -69,7 +69,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
     def on_mouse_enter_event(self, event):
         self.log.debug(f'{type(self)} ENTER MENU {self.name}')
         # Figure out which item was entered.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -89,7 +89,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def on_mouse_exit_event(self, event):
         # Figure out which item was entered.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -109,7 +109,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         # Figure out which item was clicked.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -128,7 +128,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.dirty = 1
 
     def on_left_mouse_button_up_event(self, event):
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -287,7 +287,7 @@ class MenuItem(BitmappySprite):
                                                   (self.menu_rect.x, self.menu_rect.y))
 
     def on_mouse_motion_event(self, event):
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -314,7 +314,7 @@ class MenuItem(BitmappySprite):
     def on_mouse_enter_event(self, event):
         self.log.debug(f'{type(self)} ENTER MENU {self.name}')
         # Figure out which item was entered.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -337,7 +337,7 @@ class MenuItem(BitmappySprite):
 
     def on_mouse_exit_event(self, event):
         # Figure out which item was entered.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
@@ -367,7 +367,7 @@ class MenuItem(BitmappySprite):
         self.update()
 
         # Figure out which item was clicked.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         self.log.debug(f'Process MOUSE UP {event} at {mouse}')
 
@@ -414,7 +414,7 @@ class MenuItem(BitmappySprite):
         self.update()
 
         # Figure out which item was clicked.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 

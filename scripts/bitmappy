@@ -386,7 +386,7 @@ class CanvasSprite(BitmappySprite):
         # Check for a sprite collision against the mouse pointer.
         #
         # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MousePointer(x=event.pos[0], y=event.pos[1])
+        mouse = MousePointer(pos=event.pos)
 
         collided_sprites = pygame.sprite.spritecollide(mouse, self.all_sprites, False)
 
