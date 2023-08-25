@@ -110,6 +110,16 @@ docs = ["furo (>=2023.5.20)", "sphinx (>=7.0.1)", "sphinx-autodoc-typehints (>=1
 testing = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "diff-cover (>=7.5)", "pytest (>=7.3.1)", "pytest-cov (>=4.1)", "pytest-mock (>=3.10)", "pytest-timeout (>=2.1)"]
 
 [[package]]
+name = "future"
+version = "0.18.3"
+description = "Clean single-source support for Python 3 and 2"
+optional = false
+python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
+files = [
+    {file = "future-0.18.3.tar.gz", hash = "sha256:34a17436ed1e96697a86f9de3d15a3b0be01d8bc8de9c1dffd59fb8234ed5307"},
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.0.0"
 description = "brain-dead simple config-ini parsing"
@@ -742,4 +752,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">= 3.11, < 3.12"
-content-hash = "70aa7286c05c7bb8a64ffc55ab509455da2aab863227781c3105883342ffa063"
+content-hash = "f5c0feebf13c920b020b21c339715d078bbd6ad2c2c4d810f7b03bdfe48a3fb3"
