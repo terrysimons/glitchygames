@@ -62,8 +62,8 @@ class PaletteUtility:
     def load_palette_from_config(config):
         """Load a palette from a ConfigParser object. Returns a list of PyGame Colors"""
         colors = []
-        for color_index in range(int(config['default']['colors'])):
-            color_index = str(color_index)
+        for index in range(int(config['default']['colors'])):
+            color_index = str(index)
             tmp_color = Color(
                 config[color_index].getint('red'),
                 config[color_index].getint('green'),
@@ -165,4 +165,5 @@ class Vga(ColorPalette):
 
     def __init__(self):
         super().__init__(filename=VGA)
-        # TODO: Set Color Names (See rich.color for list of names to poach)
+        # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)
+        # https://glitchy-games.atlassian.net/browse/GG-21

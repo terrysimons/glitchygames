@@ -104,7 +104,7 @@ extend-select = [
 ]
 ignore = [
   #"ASYN",
-
+  "FIX002", # Line contains TODO, consider resolving the issue
 
 
 ]
@@ -129,7 +129,8 @@ extend-ignore = [
 # extend-exclude = []
 fixable = [
   "I001",
-  "Q000"
+  "Q000",
+  "EXE001"
 ]
 unfixable = []
 target-version = "py39"

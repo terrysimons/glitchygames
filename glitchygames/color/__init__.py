@@ -5,6 +5,8 @@ from .palette import (
     Default,
 )
 
+__all__ = ['NES', 'SYSTEM', 'VGA', 'Default']
+
 _default_colors: Default = Default()
 YELLOW = _default_colors.YELLOW
 PURPLE = _default_colors.PURPLE

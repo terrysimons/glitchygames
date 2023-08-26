@@ -48,7 +48,7 @@ class BitmappyLegacySprite(Sprite):
         pixels = list(pixels)
 
         for pixel in pixels:
-            print(pixel)  # noqa: T201
+            LOG.info(pixel)  # noqa: T201
 
         (image, rect) = self.inflate(width=width,
                                      height=height,

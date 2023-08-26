@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import logging
 
 from glitchygames.events import DropEvents, ResourceManager

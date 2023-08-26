@@ -1,16 +1,15 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+
 import logging
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames.engine import GameEngine
-from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
-from glitchygames.sprites import BitmappySprite
 from glitchygames.scenes import Scene
+from glitchygames.sprites import BitmappySprite
+from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
@@ -124,13 +123,13 @@ class GameScene(Scene):
     # def switch_to_scene(self, next_scene):
     #     super().switch_to_scene(next_scene)
     def on_mouse_up_event(self, event):
-        log.info('fdasfdsafdsafdsa')
+        log.info(f'Mouse Up Event: {event}')
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Compound Sprite Demo"
-    VERSION = "1.0"
+    NAME = 'Compound Sprite Demo'
+    VERSION = '1.0'
 
     def __init__(self, options):
         super().__init__(options=options)

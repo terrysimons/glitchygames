@@ -1,16 +1,21 @@
+#!/usr/bin/env python3
+
 import logging
 import time
 
-from pygame import Rect
 import pygame
+from pygame import Rect
 
-from glitchygames.color import WHITE, BLACKLUCENT
-from glitchygames.fonts import FontManager
-from glitchygames.engine import GameEngine
 from glitchygames import events
-from glitchygames.sprites import FocusableSingletonBitmappySprite
-from glitchygames.sprites import BitmappySprite, Sprite
-from glitchygames.sprites import MousePointer
+from glitchygames.color import BLACKLUCENT, WHITE
+from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
+from glitchygames.sprites import (
+    BitmappySprite,
+    FocusableSingletonBitmappySprite,
+    MousePointer,
+    Sprite,
+)
 
 LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())
