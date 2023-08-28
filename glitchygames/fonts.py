@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import os
 from typing import ClassVar
 
 import pygame
@@ -139,4 +140,5 @@ class FontManager(ResourceManager):
             # File "pygame/sysfont.py", line 462, in SysFont
             # File "pygame/freetype.py", line 73, in constructor
             # TypeError: not a file object
-            return pygame.freetype.SysFont(name=pygame.freetype.get_default_font(), size=12)
+            font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'bitstream_vera', 'Vera.ttf')
+            return pygame.freetype.Font(file=font_path, size=12)
