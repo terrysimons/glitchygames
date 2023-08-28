@@ -140,5 +140,10 @@ class FontManager(ResourceManager):
             # File "pygame/sysfont.py", line 462, in SysFont
             # File "pygame/freetype.py", line 73, in constructor
             # TypeError: not a file object
-            font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'bitstream_vera', 'Vera.ttf')
+            font_path = os.path.join(
+                os.path.dirname(__file__),
+                'fonts',
+                'bitstream_vera',
+                'Vera.ttf'
+            )
             return pygame.freetype.Font(file=font_path, size=12)
