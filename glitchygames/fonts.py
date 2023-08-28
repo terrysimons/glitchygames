@@ -139,4 +139,4 @@ class FontManager(ResourceManager):
             # File "pygame/sysfont.py", line 462, in SysFont
             # File "pygame/freetype.py", line 73, in constructor
             # TypeError: not a file object
-            return pygame.freetype.SysFont(name=None, size=12)
+            return pygame.freetype.SysFont(name=pygame.freetype.get_default_font(), size=12)
