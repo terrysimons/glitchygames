@@ -9,11 +9,11 @@ from pygame import Rect
 from glitchygames import events
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
+from glitchygames.events.mouse import MousePointer
 from glitchygames.fonts import FontManager
 from glitchygames.sprites import (
     BitmappySprite,
     FocusableSingletonBitmappySprite,
-    MousePointer,
     Sprite,
 )
 

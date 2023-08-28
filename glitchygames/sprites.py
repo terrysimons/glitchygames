@@ -8,21 +8,11 @@ from typing import ClassVar
 import pygame
 
 from glitchygames.events import MouseEvents
+from glitchygames.interfaces import SpriteInterface
 from glitchygames.pixels import rgb_triplet_generator
 
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
-
-
-class SpriteInterface:
-    def update_nested_sprites(self):
-        pass
-
-    def update(self):
-        pass
-
-    def render(self, screen):
-        pass
 
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
@@ -55,7 +45,8 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: E501, W0613
+    def __init__(self, x, y, width, height, name=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
@@ -363,6 +354,12 @@ class Sprite(RootSprite):
 class BitmappySprite(Sprite):
     DEBUG = False
 
+    DEFAULT_SURFACE_W = 42
+    DEFAULT_SURFACE_H = 42
+    DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
+
+
+
     def __init__(self, x, y, width, height, name=None, filename=None,
                  focusable=False, parent=None, groups=pygame.sprite.LayeredDirty()):
         """
@@ -415,10 +412,18 @@ class BitmappySprite(Sprite):
 
         # [sprite]
         # name = <name>
-        name = config.get(section='sprite', option='name')
+        try:
+            name = config.get(section='sprite', option='name')
+        except configparser.NoSectionError:
+            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
 
         # pixels = <pixels>
-        pixels = config.get(section='sprite', option='pixels').split('\n')
+        try:
+            pixels = config.get(section='sprite', option='pixels').split('\n')
+        except configparser.NoSectionError:
+            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
+        except configparser.NoOptionError:
+            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Option')
 
         # Set our sprite's length and width.
         width = 0
@@ -589,44 +594,3 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             name=name, focusable=True, groups=groups
         )
 
-
-# We're making this a singleton class becasue
-# pygame doesn't understand multiple cursors
-# and so there is only ever 1 x/y coordinate sprite
-# for the mouse at any given time.
-class MousePointer:
-    def __init__(self, pos, size=(1, 1)):
-        super().__init__()
-
-        self.pos = pos
-        self.size = size
-        self.rect = pygame.Rect(self.pos, self.size)
-
-    @property
-    def x(self) -> int:
-        return self.pos[0]
-
-    @x.setter
-    def x(self, new_x: int) -> None:
-        self.pos[0] = new_x
-
-    @property
-    def y(self) -> int:
-        return self.pos[1]
-
-    @y.setter
-    def y(self, new_y: int) -> None:
-        self.pos[1] = new_y
-
-def collided_sprites(scene, event, index=None):
-    mouse = MousePointer(pos=event.pos)
-
-    sprites = pygame.sprite.spritecollide(mouse, scene.all_sprites, False)
-
-    if sprites:
-        if index is None:
-            return sprites
-
-        return [sprites[index]]
-
-    return None

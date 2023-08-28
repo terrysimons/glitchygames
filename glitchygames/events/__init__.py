@@ -10,7 +10,6 @@ import pygame
 LOG = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
-
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
@@ -19,14 +18,41 @@ def supported_events(like='.*'):
     )
     event_names: set[str] = set(event_names) - set('Unknown')
 
+    # Pygame 2.5.1 and maybe others have a bug where the event name lookup
+    # is wrong.
+    #
+    # The error is:
+    #
+    # AttributeError: module 'pygame' has no attribute 'CONTROLLERDEVICEMAPPED'.
+    # Did you mean: 'CONTROLLERDEVICEREMAPPED'?  # noqa: E501
+    #
+    # This is a workaround for that.
+    #
+    # The controller documentation also indicates that it should be CONTROLLERDEVICEREMAPPED
+    patched_event_names = {
+        'APPDIDENTERBACKGROUND': 'APP_DIDENTERBACKGROUND',
+        'APPDIDENTERFOREGROUND': 'APP_DIDENTERFOREGROUND',
+        'APPLOWMEMORY': 'APP_LOWMEMORY',
+        'APPWILLENTERBACKGROUND': 'APP_WILLENTERBACKGROUND',
+        'APPWILLENTERFOREGROUND': 'APP_WILLENTERFOREGROUND',
+        'APPTERMINATING': 'APP_TERMINATING',
+        'CONTROLLERDEVICEMAPPED': 'CONTROLLERDEVICEREMAPPED',
+        'RENDERDEVICERESET': 'RENDER_DEVICE_RESET',
+        'RENDERTARGETSRESET': 'RENDER_TARGETS_RESET',
+        'UNKNOWN': 'K_UNKNOWN'
+    }
+
     event_list = []
 
     for event_name in list(event_names):
-        try:
-            if re.match(like, event_name.upper()):
-                event_list.append(getattr(pygame, event_name.upper()))
-        except AttributeError:
-            LOG.exception('Failed to init.')
+        # If there's a patched event name, use it, otherwise use event_name
+        #
+        # This works around a pygame bug for CONTROLLERDEVICEREMAPPED
+        patched_event_name = patched_event_names.get(event_name.upper(), event_name)
+        LOG.info(f'Adding Event: {patched_event_name}')
+
+        if re.match(like, patched_event_name.upper()):
+            event_list.append(getattr(pygame, patched_event_name.upper()))
 
     return event_list
 
@@ -120,12 +146,12 @@ class ResourceManager:
 
     def __getattr__(self, attr):
         # Try each proxy in turn
-        for proxy in self.proxies:
-            try:
-                return getattr(proxy, attr)
-            except AttributeError:
-                self.log.exception(f'No proxies for {type(self)}.{attr}')
-                raise
+        try:
+            for proxy in self.proxies:
+                    return getattr(proxy, attr)
+        except AttributeError:
+            self.log.exception(f'No proxies for {type(self)}.{attr}')
+            raise
 
         raise AttributeError(f'No proxies for {type(self)}.{attr}')
 

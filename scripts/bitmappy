@@ -10,11 +10,12 @@ import pygame.gfxdraw
 import pygame.locals
 
 from glitchygames.engine import GameEngine
+from glitchygames.events.mouse import MousePointer
 from glitchygames import events
 from glitchygames.pixels import pixels_from_data
 from glitchygames.pixels import image_from_pixels
 from glitchygames.scenes import Scene
-from glitchygames.sprites import MousePointer, BitmappySprite
+from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import SliderSprite, ColorWellSprite, InputDialog, MenuBar, MenuItem
 
 LOG = logging.getLogger('game')
@@ -888,7 +889,12 @@ class BitmapEditorScene(Scene):
 
 def main():
     os.path.join(os.path.dirname( __file__ ), 'bitmappy.png')
-    icon: pygame.Surface = pygame.image.load('bitmappy.png')
+
+    try:
+        icon: pygame.Surface = pygame.image.load('bitmappy.png')
+    except FileNotFoundError:
+        icon = None
+
     GameEngine.icon = icon
     GameEngine(game=BitmapEditorScene, icon=icon).start()
 

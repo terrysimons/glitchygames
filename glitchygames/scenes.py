@@ -7,18 +7,14 @@ import pygame
 
 from glitchygames import events
 from glitchygames.color import BLACK
-from glitchygames.sprites import MousePointer, SpriteInterface
+from glitchygames.events.mouse import MousePointer
+from glitchygames.interfaces import SceneInterface, SpriteInterface
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 
-class SceneInterface:
-    def switch_to_scene(self, next_scene):
-        pass
 
-    def terminate(self):
-        pass
 
 
 class SceneManager(SceneInterface, events.EventManager):
@@ -78,7 +74,7 @@ class SceneManager(SceneInterface, events.EventManager):
             )
 
             if self.active_scene:
-                self.active_scene._screenshot = self.active_scene.screenshot  # SLF001
+                self.active_scene._screenshot = self.active_scene.screenshot  # noqa:   SLF001
                 self.log.info(f'Cleaning up active scene {self.active_scene}.')
                 self.active_scene.cleanup()
 
@@ -310,7 +306,7 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         self.dt_timer += self.dt
 
     def update(self):
-        # Hack to enable compound sprites to manage their own subsprites dirty states
+        # Tweak to enable compound sprites to manage their own subsprites dirty states
         #
         # Ideally we'd just make dirty a property with a setter and getter on each
         # sprite object, but that doesn't work for some reason.

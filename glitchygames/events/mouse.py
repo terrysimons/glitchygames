@@ -5,7 +5,8 @@ import logging
 import pygame
 
 from glitchygames.events import MouseEvents, ResourceManager
-from glitchygames.sprites import collided_sprites
+
+# from glitchygames.sprites import collided_sprites
 
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
@@ -302,3 +303,46 @@ class MouseManager(ResourceManager):
         group = parser.add_argument_group('Mouse Options')  # noqa: W0612, F841
 
         return parser
+
+
+# We're making this a singleton class becasue
+# pygame doesn't understand multiple cursors
+# and so there is only ever 1 x/y coordinate sprite
+# for the mouse at any given time.
+class MousePointer:
+    def __init__(self, pos, size=(1, 1)):
+        super().__init__()
+
+        self.pos = pos
+        self.size = size
+        self.rect = pygame.Rect(self.pos, self.size)
+
+    @property
+    def x(self) -> int:
+        return self.pos[0]
+
+    @x.setter
+    def x(self, new_x: int) -> None:
+        self.pos[0] = new_x
+
+    @property
+    def y(self) -> int:
+        return self.pos[1]
+
+    @y.setter
+    def y(self, new_y: int) -> None:
+        self.pos[1] = new_y
+
+
+def collided_sprites(scene, event, index=None):
+    mouse = MousePointer(pos=event.pos)
+
+    sprites = pygame.sprite.spritecollide(mouse, scene.all_sprites, False)
+
+    if sprites:
+        if index is None:
+            return sprites
+
+        return [sprites[index]]
+
+    return None

@@ -116,18 +116,27 @@ class FontManager(ResourceManager):
         if not font_config:
             font_config = FontManager.OPTIONS
 
-        try:
-            log.info(f'Loading Font: {font_config["font_name"]}')
-            log.info(f'Font Size: {font_config["font_size"]}')
+        # try:
+        log.info(f'Loading Font: {font_config["font_name"]}')
+        log.info(f'Font Size: {font_config["font_size"]}')
 
+        try:
             return pygame.freetype.SysFont(name=font_config['font_name'],
-                                           size=font_config['font_size'])
-        # HACK: remove noqa pragma and use proper exceptions
-        except Exception:  # noqa: BLE001
+                                            size=font_config['font_size'])
+        except (TypeError, FileNotFoundError):
             # Note: Not sure why but pygame.freetype.SysFont doesn't
             # seem to work with pyinstaller packaged games.
-            log.info(f'Loading Font: {font_config["font_name"]}')
-            log.info(f'Font Size: {font_config["font_size"]}')
+            log.info('Loading Font: Built-In')
 
-            return pygame.freetype.Font(file=font_config['font_name'],
-                                        size=font_config['font_size'])
+            # BUG: pygame's documentation claims that passing None
+            # as the font name will load the default font.  However,
+            # this emits an error:
+            #
+            # File "glitchygames/fonts.py", line 131, in font
+            #     return pygame.freetype.SysFont(name=None, size=12)
+            #         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            # File "pygame/freetype.py", line 78, in SysFont
+            # File "pygame/sysfont.py", line 462, in SysFont
+            # File "pygame/freetype.py", line 73, in constructor
+            # TypeError: not a file object
+            return pygame.freetype.SysFont(name=None, size=12)

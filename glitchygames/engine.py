@@ -124,9 +124,13 @@ class GameManager(events.ResourceManager):
 class GameEngine(events.EventManager):
     log: logging.Logger = LOG
     game: Scene = None
-    icon: pygame.Surface = pygame.image.load(
-        os.path.join(ASSET_PATH, 'glitch.png')
-    )
+
+    try:
+        icon: pygame.Surface = pygame.image.load(
+            os.path.join(ASSET_PATH, 'glitch.png')
+        )
+    except FileNotFoundError:
+        icon = None
 
     NAME: Literal['Boilerplate Adventures'] = 'Boilerplate Adventures'
     VERSION: Literal['1.0'] = '1.0'
