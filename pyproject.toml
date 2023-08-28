@@ -17,6 +17,7 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent"
 ]
+include = ['glitchygames/assets/*', 'glitchygames/resources/*']
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
