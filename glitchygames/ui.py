@@ -61,8 +61,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.dirty = 1
 
     def update(self):
-        for menu_item_name, menu_item in self.menu_items.items():
-            menu_item = self.menu_items[menu_item_name]
+        for menu_item in self.menu_items.values():
+            # menu_item = self.menu_items[menu_item_name]
             self.image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))
 
         if self.has_focus:
@@ -285,11 +285,10 @@ class MenuItem(BitmappySprite):
         # self.log.debug(f'Menu Items: {self.menu_items.items()}')
         self.screen.blit(self.image, (self.rect.x, self.rect.y))
 
-        if self.active:
-            if self.menu_image and self.menu_rect:
-                self.log.debug('Trying to draw the menu')
-                pygame.display.get_surface().blit(self.menu_image,
-                                                  (self.menu_rect.x, self.menu_rect.y))
+        if self.active and self.menu_image and self.menu_rect:
+            self.log.debug('Trying to draw the menu')
+            pygame.display.get_surface().blit(self.menu_image,
+                                                (self.menu_rect.x, self.menu_rect.y))
 
     def on_mouse_motion_event(self, event):
         mouse = MousePointer(pos=event.pos)
@@ -559,7 +558,7 @@ class TextSprite(BitmappySprite):
             # key will let you hide the background
             # but things that are blited otherwise will
             # be translucent.  This can be an easy
-            # hack to get a translucent image which
+            # way to get a translucent image which
             # does not have a border, but it causes issues
             # with edge-bleed.
             #
@@ -811,7 +810,7 @@ class InputBox(Sprite):
         pygame.draw.rect(self.image, self.color, (0, 0, self.rect.width, self.rect.height), 1)
 
         # Blit the  cursor
-        if time.time() % 1 > 0.5 and self.active:
+        if time.time() % 1 > 0.5 and self.active:  # noqa: PLR2004
             self.cursor_rect = self.text_image.get_rect(topleft=(5, 2))
 
             self.cursor.midleft = self.cursor_rect.midright
@@ -829,14 +828,12 @@ class InputBox(Sprite):
         if self.active:
             pygame.key.set_repeat(200)
 
-            if event.key == pygame.K_TAB or event.key == pygame.K_ESCAPE:
+            if event.key in (pygame.K_TAB, pygame.K_ESCAPE):
                 self.deactivate()
 
     def on_key_down_event(self, event):
         if self.active:
-            if event.key == pygame.K_TAB:
-                pass
-            elif event.key == pygame.K_ESCAPE:
+            if event.key in (pygame.K_TAB, pygame.K_ESCAPE):
                 pass
             elif event.key == pygame.K_RETURN:
                 self.log.debug(f'Text Submitted: {self.name}: {self.text}')
@@ -953,8 +950,8 @@ class SliderSprite(BitmappySprite):
             self.dirty = 1
             self.value = event.pos[0] - self.parent.x
 
-            # Hack
-            if self.value > 255:
+            # Clamp to 8-bit
+            if self.value > 255:  # noqa: PLR2004
                 self.value = 255
             elif self.value < 0:
                 self.value = 0
@@ -1343,17 +1340,18 @@ class InputDialog(BitmappySprite):
         self.on_confirm_event(event=event, trigger=event)
 
     def on_mouse_button_up_event(self, event):
+        self.log.debug(f'{self.name} Got mouse button up event: {event}')
         self.input_box.activate()
 
     def on_key_up_event(self, event):
         self.log.info(f'Got Event: {event} from {self.parent}')
+
         if self.input_box.active:
             self.input_box.on_key_up_event(event)
+        elif event.key == pygame.K_TAB:
+            self.input_box.activate()
         else:
-            if event.key == pygame.K_TAB:
-                self.input_box.activate()
-            else:
-                super().on_key_up_event(event)
+            super().on_key_up_event(event)
 
     def on_key_down_event(self, event):
         if self.input_box.active:

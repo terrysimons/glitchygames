@@ -61,7 +61,7 @@ def rgb_555_triplet_generator(pixel_data):
             LOG.info(f'Green: {green}')
             LOG.info(f'Blue: {blue}')
 
-            yield tuple([red, green, blue])
+            yield tuple(red, green, blue)
     except StopIteration:
         pass
 
@@ -108,7 +108,7 @@ def rgb_565_triplet_generator(pixel_data):
             LOG.info(f'Green: {green}')
             LOG.info(f'Blue: {blue}')
 
-            yield tuple([red, green, blue])
+            yield tuple(red, green, blue)
     except StopIteration:
         pass
 
@@ -120,7 +120,7 @@ def rgb_triplet_generator(pixel_data):
     try:
         while True:
             # range(3) gives us 3 at a time, so r, g, b.
-            yield tuple([next(iterator) for i in range(3)])
+            yield tuple(next(iterator) for i in range(3))
     except StopIteration:
         pass
 
@@ -151,9 +151,7 @@ def pixels_from_data(pixel_data):
     # We are converting the data from a generator to
     # a list of data so that it can be referenced
     # multiple times.
-    pixels = [pixel for pixel in pixels]  # noqa: R1721
-
-    return pixels
+    return list(pixels)
 
 
 def pixels_from_path(path):
@@ -161,8 +159,6 @@ def pixels_from_path(path):
     with open(path, 'rb') as fh:
         pixel_data = fh.read()
 
-    pixels = pixels_from_data(
+    return pixels_from_data(
         pixel_data=pixel_data
     )
-
-    return pixels

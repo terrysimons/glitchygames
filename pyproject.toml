@@ -124,6 +124,14 @@ extend-ignore = [
   "PTH123", # `open()` should be replaced by `Path.open()`
   "ERA001", # Found commented-out code
   "RUF100", # Unused `noqa` directive
+  "PLR0911", # Too many return statements
+  "C901", # Function is too complex
+  "EM102", # Exception must not use an f-string literal, assign to variable first
+  "TRY003", # Avoid specifying long messages outside the exception class
+  "ARG002", # Unused method argument: `args`
+  "TD003", # Missing issue link on the line following this TODO
+  "PLR0913", # Too many arguments to function call
+  "TD002", # Missing author in TODO
 ]
 # exclude = []
 # extend-exclude = []

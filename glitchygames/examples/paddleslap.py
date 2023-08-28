@@ -62,7 +62,7 @@ class TextSprite(Sprite):
             # key will let you hide the background
             # but things that are blited otherwise will
             # be translucent.  This can be an easy
-            # hack to get a translucent image which
+            # way to get a translucent image which
             # does not have a border, but it causes issues
             # with edge-bleed.
             #

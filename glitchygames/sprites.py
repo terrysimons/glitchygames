@@ -3,6 +3,7 @@
 import collections
 import configparser
 import logging
+from typing import ClassVar
 
 import pygame
 
@@ -34,10 +35,10 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
 class Sprite(RootSprite):
     """A convenience class for handling all of the common sprite behaviors."""
     log = LOG
-    USE_GFXDRAW = False
-    PROXIES = [pygame.sprite]
-    SPRITE_BREAKPOINTS = None  # None means no breakpoints.  Empty list means all.
-    SPRITE_COUNTERS = collections.OrderedDict()
+    USE_GFXDRAW: ClassVar = False
+    PROXIES: ClassVar = [pygame.sprite]
+    SPRITE_BREAKPOINTS: ClassVar = None  # None means no breakpoints.  Empty list means all.
+    SPRITE_COUNTERS: ClassVar = collections.OrderedDict()
     SPRITE_COUNT = 0
 
     @classmethod
@@ -54,7 +55,7 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613
+    def __init__(self, x, y, width, height, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: E501, W0613
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
@@ -109,14 +110,18 @@ class Sprite(RootSprite):
         if self.SPRITE_BREAKPOINTS is not None:
             # Empty list means all.
             if len(self.SPRITE_BREAKPOINTS) == 0:
-                self.log.info(f'Break when sprite_type=={str(type(self))}')
-                breakpoint()
+                self.log.info(f'Break when sprite_type=={type(self)}')
+                # This breakpoint is intentional
+                breakpoint()  # noqa: T100
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
-                    breakpoint()
+                    # This breakpoint is intentional
+                    breakpoint()  # noqa: T100
                     if str(type(self)) == sprite_type:
                         self.log.info('Break when sprite_type==<any>')
-                        breakpoint()
+
+                        # This breakpoint is intentional
+                        breakpoint()  # noqa: T100
 
     @property
     def width(self):
@@ -352,7 +357,7 @@ class Sprite(RootSprite):
     #            log.error(f'No proxies for {type(self)}.{attr}')
 
     def __str__(self):
-        return f'{type(self)} "{self.name}" ({repr(self)})'
+        return f'{type(self)} "{self.name}" ({self!r})'
 
 
 class BitmappySprite(Sprite):
@@ -393,7 +398,7 @@ class BitmappySprite(Sprite):
             self.image = pygame.Surface((self.width, self.height))
             self.image.convert()
         else:
-            raise Exception(f"Can't create Surface(({self.width}, {self.height})).")
+            raise Exception(f"Can't create Surface(({self.width}, {self.height})).")  # noqa: TRY002
 
         self.rect = self.image.get_rect()
         self.parent = parent
@@ -492,7 +497,7 @@ class BitmappySprite(Sprite):
         # We need a list here becasue we'll use set() to pull out the
         # unique values, but we also need to consume the list again
         # down below, so we can't solely use a generator.
-        raw_pixels = [raw_pixel for raw_pixel in raw_pixels]  # noqa: R1721
+        raw_pixels = list(raw_pixels)
 
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
@@ -589,7 +594,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 # pygame doesn't understand multiple cursors
 # and so there is only ever 1 x/y coordinate sprite
 # for the mouse at any given time.
-class MousePointer():
+class MousePointer:
     def __init__(self, pos, size=(1, 1)):
         super().__init__()
 
@@ -623,3 +628,5 @@ def collided_sprites(scene, event, index=None):
             return sprites
 
         return [sprites[index]]
+
+    return None

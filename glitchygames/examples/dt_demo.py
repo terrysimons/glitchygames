@@ -60,7 +60,7 @@ class Game(Scene):
             (255, 255, 255)
         )
         fps_text = self.font.render(
-            f'FPS: {str(round(self.fps, 2))}', False, (255, 255, 255)
+            f'FPS: {round(self.fps, 2)}', False, (255, 255, 255)
         )
 
         self.screen.blit(countdown, (0, 0))
@@ -69,7 +69,7 @@ class Game(Scene):
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
             record_text = self.font.render(
-                f'Time: {str(round(self.record, 5))}', False, (255, 255, 255)
+                f'Time: {round(self.record, 5)}', False, (255, 255, 255)
             )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))

@@ -10,6 +10,13 @@ from glitchygames.sprites import collided_sprites
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
 
+# TODO @<terry.simons@gmail.com>: Add pygame 2 MOUSEWHEEL event handling.
+# TODO: No better pygame names?
+MOUSE_BUTTON_LEFT = 1
+MOUSE_BUTTON_WHEEL = 2
+MOUSE_BUTTON_RIGHT = 3
+MOUSE_WHEEL_SCROLL_UP = 4
+MOUSE_WHEEL_SCROLL_DOWN = 5
 
 class MouseManager(ResourceManager):
     class MouseProxy(MouseEvents, ResourceManager):
@@ -86,16 +93,16 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_mouse_drag_event(event, trigger)
 
-            if trigger.button == 1:
+            if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drag_event(event, trigger)
-            if trigger.button == 2:
+            if trigger.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_drag_event(event, trigger)
-            if trigger.button == 3:
+            if trigger.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_drag_event(event, trigger)
-            if trigger.button == 4:
+            if trigger.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if trigger.button == 5:
+            if trigger.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
@@ -110,16 +117,16 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_mouse_drop_event(event, trigger)
 
-            if trigger.button == 1:
+            if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drop_event(event, trigger)
-            if trigger.button == 2:
+            if trigger.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_drop_event(event, trigger)
-            if trigger.button == 3:
+            if trigger.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_drop_event(event, trigger)
-            if trigger.button == 4:
+            if trigger.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if trigger.button == 5:
+            if trigger.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
@@ -207,16 +214,16 @@ class MouseManager(ResourceManager):
             self.mouse_state[event.button] = event
             self.game.on_mouse_button_up_event(event)
 
-            if event.button == 1:
+            if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_up_event(event)
-            if event.button == 2:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_up_event(event)
-            if event.button == 3:
+            if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_up_event(event)
-            if event.button == 4:
+            if event.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if event.button == 5:
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
@@ -245,15 +252,15 @@ class MouseManager(ResourceManager):
             #     # TODO: Fix - Disabling for debugging.
             #     self.focus_locked = False
 
-            if event.button == 1:
+            if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_down_event(event)
-            if event.button == 2:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_down_event(event)
-            if event.button == 3:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_right_mouse_button_down_event(event)
-            if event.button == 4:
+            if event.button == MOUSE_WHEEL_SCROLL_UP:
                 self.on_mouse_scroll_down_event(event)
-            if event.button == 5:
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
 
             self.game.on_mouse_button_down_event(event)

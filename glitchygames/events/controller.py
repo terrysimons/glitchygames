@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import logging
+from typing import ClassVar
 
 import pygame
-import pygame._sdl2.controller
+import pygame._sdl2.controller  # noqa: SLF001
 
 from glitchygames.events import ControllerEvents, ResourceManager
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
-pygame.controller = pygame._sdl2.controller
+pygame.controller = pygame._sdl2.controller  # noqa: SLF001
 
 LOG = logging.getLogger('game.controllers')
 LOG.addHandler(logging.NullHandler())
@@ -19,7 +20,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
     class ControllerProxy(ControllerEvents, ResourceManager):
         log = LOG
 
-        AXIS = [
+        AXIS: ClassVar = [
             pygame.CONTROLLER_AXIS_LEFTX,
             pygame.CONTROLLER_AXIS_LEFTY,
             pygame.CONTROLLER_AXIS_RIGHTX,
@@ -28,7 +29,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             pygame.CONTROLLER_AXIS_TRIGGERRIGHT
         ]
 
-        BUTTONS = [
+        BUTTONS: ClassVar = [
             pygame.CONTROLLER_BUTTON_A,
             pygame.CONTROLLER_BUTTON_B,
             pygame.CONTROLLER_BUTTON_X,
@@ -58,9 +59,9 @@ class ControllerManager(ControllerEvents, ResourceManager):
             super().__init__(game)
 
             self._id = controller_id
-            self.controller = pygame._sdl2.controller.Controller(self._id)
+            self.controller = pygame._sdl2.controller.Controller(self._id)  # noqa: SLF001
             self.controller.init()
-            self._name = pygame._sdl2.controller.name_forindex(self._id)
+            self._name = pygame._sdl2.controller.name_forindex(self._id)  # noqa: SLF001
             self._init = self.controller.get_init()
             self._attached = self.controller.attached()
 
@@ -113,7 +114,8 @@ class ControllerManager(ControllerEvents, ResourceManager):
         def __str__(self):
             controller_info = []
             controller_info.append('Controller Name: '
-                                   f'{pygame._sdl2.controller.name_forindex(self._id)}')
+                f'{pygame._sdl2.controller.name_forindex(self._id)}'  # noqa: SLF001
+            )
             controller_info.append(f'\tController Id: {self._id}')
             controller_info.append(f'\tController Inited: {self.controller.get_init()}')
             controller_info.append(f'\tController Axis Count: {self._numaxes}')
@@ -138,17 +140,19 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         # This must be called before other controller methods,
         # and is safe to call more than once.
-        pygame._sdl2.controller.init()
+        pygame._sdl2.controller.init()  # noqa: SLF001
 
-        self.log.debug(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
+        self.log.debug(
+            f'Controller Module Inited: {pygame._sdl2.controller.get_init()}'  # noqa: SLF001
+        )
 
         # Controller Setup
-        self.log.debug(f'Controller Count: {pygame._sdl2.controller.get_count()}')
+        self.log.debug(f'Controller Count: {pygame._sdl2.controller.get_count()}')  # noqa: SLF001
 
-        if pygame._sdl2.controller.get_count():
+        if pygame._sdl2.controller.get_count():  # noqa: SLF001
             controllers = [
-                pygame._sdl2.controller.Controller(x)
-                for x in range(pygame._sdl2.controller.get_count())
+                pygame._sdl2.controller.Controller(x)  # noqa: SLF001
+                for x in range(pygame._sdl2.controller.get_count())  # noqa: SLF001
             ]
 
             for controller in controllers:

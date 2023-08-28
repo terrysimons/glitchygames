@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from typing import ClassVar
 
 import pygame
 
@@ -10,8 +11,8 @@ log.addHandler(logging.NullHandler())
 
 
 class FontManager(ResourceManager):
-    OPTIONS = {}
-    RENDER_CACHE = {}
+    OPTIONS: ClassVar = {}
+    RENDER_CACHE: ClassVar = {}
 
     class FontProxy(FontEvents, ResourceManager):
         def __init__(self, game=None):

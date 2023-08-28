@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import logging
 import time
+from typing import ClassVar
 
 import pygame
 
-import glitchygames.events as events
+from glitchygames import events
 from glitchygames.color import BLACK
 from glitchygames.sprites import MousePointer, SpriteInterface
 
@@ -21,8 +22,8 @@ class SceneInterface:
 
 
 class SceneManager(SceneInterface, events.EventManager):
-    log = LOG
-    OPTIONS = {}
+    log: ClassVar = LOG
+    OPTIONS: ClassVar = {}
 
     def __init__(self):
         super().__init__()
@@ -61,9 +62,11 @@ class SceneManager(SceneInterface, events.EventManager):
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
     @property
-    def all_sprites(self):
+    def all_sprites(self) -> pygame.sprite.LayeredDirty or None:
         if self.active_scene:
             return self.active_scene.all_sprites
+
+        return None
 
     def switch_to_scene(self, next_scene):
         if next_scene != self.active_scene:
@@ -75,7 +78,7 @@ class SceneManager(SceneInterface, events.EventManager):
             )
 
             if self.active_scene:
-                self.active_scene._screenshot = self.active_scene.screenshot
+                self.active_scene._screenshot = self.active_scene.screenshot  # SLF001
                 self.log.info(f'Cleaning up active scene {self.active_scene}.')
                 self.active_scene.cleanup()
 
@@ -194,7 +197,7 @@ class SceneManager(SceneInterface, events.EventManager):
         try:
             self.game_engine.registered_events[event.subtype](event)
         except KeyError:
-            self.log.error(
+            self.log.exception(
                 f'Unregistered Event: {event} '
                 '(call self.register_game_event(<event subtype>, <event data>))'
             )
@@ -449,7 +452,7 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         #
         # If a game implements on_key_up_event themselves
         # they'll have to map their quit keys or call super().on_key_up_event()
-        if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+        if event.key in (pygame.K_q, pygame.K_ESCAPE):
             self.scene_manager.quit()
 
     def on_quit_event(self, event):

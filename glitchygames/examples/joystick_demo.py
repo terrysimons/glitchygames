@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-import glob
+import contextlib
 import logging
-import multiprocessing
+from pathlib import Path
 
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 from pygame import Rect
 
-from glitchygames.color import BLACK, BLACKLUCENT, BLUE, GREEN, PURPLE, WHITE, YELLOW
+from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
 from glitchygames.engine import GameEngine
-from glitchygames.events.joystick import JoystickManager
-from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -126,138 +124,140 @@ class ShapesSprite(Sprite):
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
 
+# TODO: Refactor this into ui.py and/or remove it
+# class TextSprite(Sprite):
+#     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
+#         self.background_color = background_color
+#         self.alpha = alpha
+#         self.x = x
+#         self.y = y
+#         self.text_box = None
+#         super().__init__()
 
-class TextSprite(Sprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
-        self.background_color = background_color
-        self.alpha = alpha
-        self.x = x
-        self.y = y
-        self.text_box = None
-        super().__init__()
+#         # Quick and dirty, for now.
+#         self.image = pygame.Surface((200, 200))
+#         self.screen = pygame.display.get_surface()
 
-        # Quick and dirty, for now.
-        self.image = pygame.Surface((200, 200))
-        self.screen = pygame.display.get_surface()
+#         if not alpha:
+#             self.image.set_colorkey(self.background_color)
+#             self.image.convert()
+#         else:
+#             # Enabling set_alpha() and also setting a color
+#             # key will let you hide the background
+#             # but things that are blited otherwise will
+#             # be translucent.  This can be an easy
+#             # way to get a translucent image which
+#             # does not have a border, but it causes issues
+#             # with edge-bleed.
+#             #
+#             # What if we blitted the translucent background
+#             # to the screen, then copied it and used the copy
+#             # to write the text on top of when translucency
+#             # is set?  That would allow us to also control
+#             # whether the text is opaque or translucent, and
+#             # it would also allow a different translucency level
+#             # on the text than the window.
+#             self.image.convert_alpha()
+#             self.image.set_alpha(self.alpha)
 
-        if not alpha:
-            self.image.set_colorkey(self.background_color)
-            self.image.convert()
-        else:
-            # Enabling set_alpha() and also setting a color
-            # key will let you hide the background
-            # but things that are blited otherwise will
-            # be translucent.  This can be an easy
-            # hack to get a translucent image which
-            # does not have a border, but it causes issues
-            # with edge-bleed.
-            #
-            # What if we blitted the translucent background
-            # to the screen, then copied it and used the copy
-            # to write the text on top of when translucency
-            # is set?  That would allow us to also control
-            # whether the text is opaque or translucent, and
-            # it would also allow a different translucency level
-            # on the text than the window.
-            self.image.convert_alpha()
-            self.image.set_alpha(self.alpha)
+#         self.rect = self.image.get_rect()
+#         self.rect.x += x
+#         self.rect.y += y
+#         self.font_manager = FontManager()
+#         self.joystick_manager = JoystickManager()
+#         self.joystick_count = len(self.joystick_manager.joysticks)
 
-        self.rect = self.image.get_rect()
-        self.rect.x += x
-        self.rect.y += y
-        self.font_manager = FontManager()
-        self.joystick_manager = JoystickManager()
-        self.joystick_count = len(self.joystick_manager.joysticks)
+#         # Interiting from object is default in Python 3.
+#         # Linters complain if you do it.
+#         class TextBox:
+#             def __init__(self, font_controller, x, y, line_height=15):
+#                 super().__init__()
+#                 self.image = None
+#                 self.rect = None
+#                 self.start_x = x
+#                 self.start_y = y
+#                 self.x = self.start_x
+#                 self.y = self.start_y
+#                 self.line_height = line_height
 
-        # Interiting from object is default in Python 3.
-        # Linters complain if you do it.
-        class TextBox:
-            def __init__(self, font_controller, x, y, line_height=15):
-                super().__init__()
-                self.image = None
-                self.rect = None
-                self.start_x = x
-                self.start_y = y
-                self.x = self.start_x
-                self.y = self.start_y
-                self.line_height = line_height
+#                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
+#                 self.font = pygame.freetype.SysFont(name=font_controller.font,
+#                                                     size=font_controller.font_size)
 
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)
-                self.font = pygame.freetype.SysFont(name=font_controller.font,
-                                                    size=font_controller.font_size)
+#             def print(self, surface, string):
+#                 (self.image, self.rect) = self.font.render(string, WHITE)
+#                 surface.blit(self.image, (self.x, self.y))
+#                 self.rect.x = self.x
+#                 self.rect.y = self.y
+#                 self.y += self.line_height
 
-            def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, WHITE)
-                surface.blit(self.image, (self.x, self.y))
-                self.rect.x = self.x
-                self.rect.y = self.y
-                self.y += self.line_height
+#             def reset(self):
+#                 self.x = self.start_x
+#                 self.y = self.start_y
 
-            def reset(self):
-                self.x = self.start_x
-                self.y = self.start_y
+#             def indent(self):
+#                 self.x += 10
 
-            def indent(self):
-                self.x += 10
+#             def unindent(self):
+#                 self.x -= 10
 
-            def unindent(self):
-                self.x -= 10
+#         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
-        self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
+#         self.dirty = 2
 
-        self.dirty = 2
+#     def update(self):
+#         self.image.fill(self.background_color)
 
-    def update(self):
-        self.image.fill(self.background_color)
+#         pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
 
-        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
+#         self.text_box.reset()
+#         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
 
-        self.text_box.reset()
-        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
+#         self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
 
-        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
+#         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
+#         self.text_box.print(self.image, f'Number of joysticks: {self.joystick_count}')
+#         if self.joystick_count:
+#             for i, joystick in enumerate(self.joystick_manager.joysticks):
+#                 self.text_box.print(self.image, f'Joystick {i}')
 
-        self.text_box.print(self.image, f'Number of joysticks: {self.joystick_count}')
-        if self.joystick_count:
-            for i, joystick in enumerate(self.joystick_manager.joysticks):
-                self.text_box.print(self.image, f'Joystick {i}')
+#                 # Get the name from the OS for the controller/joystick
+#                 self.text_box.indent()
+#                 self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
 
-                # Get the name from the OS for the controller/joystick
-                self.text_box.indent()
-                self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
+#                 # Usually axis run in pairs, up/down for one, and left/right for
+#                 # the other.
+#                 axes = joystick.get_numaxes()
+#                 self.text_box.print(self.image, f'Number of axes: {axes}')
 
-                # Usually axis run in pairs, up/down for one, and left/right for
-                # the other.
-                axes = joystick.get_numaxes()
-                self.text_box.print(self.image, f'Number of axes: {axes}')
+#                 self.text_box.indent()
+#                 for j in range(axes):
+                    # self.text_box.print(
+                    #     self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
+                    # )
+#                 self.text_box.unindent()
 
-                self.text_box.indent()
-                for j in range(axes):
-                    self.text_box.print(self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}')
-                self.text_box.unindent()
+#                 buttons = joystick.get_numbuttons()
+#                 self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
 
-                buttons = joystick.get_numbuttons()
-                self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
+#                 self.text_box.indent()
+#                 for j in range(buttons):
+#                     self.text_box.print(
+#                         self.image, f'Button {j:>2} value: {joystick.get_button(i)}'
+#                     )
+#                 self.text_box.unindent()
 
-                self.text_box.indent()
-                for j in range(buttons):
-                    self.text_box.print(
-                        self.image, f'Button {j:>2} value: {joystick.get_button(i)}'
-                    )
-                self.text_box.unindent()
+#                 # Hat switch. All or nothing for direction, not like joysticks.
+#                 # Value comes back in an array.
+#                 hats = 0
+#                 self.text_box.print(self.image, f'Number of hats: {hats}')
 
-                # Hat switch. All or nothing for direction, not like joysticks.
-                # Value comes back in an array.
-                hats = 0
-                self.text_box.print(self.image, f'Number of hats: {hats}')
-
-                self.text_box.indent()
-                for j in range(hats):
-                    self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
-                    self.text_box.unindent()
-                self.text_box.unindent()
+#                 self.text_box.indent()
+#                 for j in range(hats):
+#                     self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
+#                     self.text_box.unindent()
+#                 self.text_box.unindent()
 
 
 class JoystickScene(Scene):
@@ -278,14 +278,10 @@ class JoystickScene(Scene):
 
     def load_resources(self):  # noqa: R0201
         # Load tiles.
-        for resource in glob.iglob('resources/*', recursive=True):
-            try:
+        for resource in Path('resources').glob('*'):
+            with contextlib.suppress(IsADirectoryError):
                 self.log.info(f'Load Resource: {resource}')
-            except IsADirectoryError:
-                pass
-        #         self.tiles.append(load_graphic(resource))
-        #     except IsADirectoryError:
-        #         pass
+                self.tiles.append(self.load_graphic(resource))
 
     def render(self, screen):
         super().render(screen)

@@ -56,11 +56,10 @@ class Game(Scene):
     def on_key_up_event(self, event):
         if self.input_box.active:
             self.input_box.on_key_up_event(event)
+        elif event.key == pygame.K_TAB:
+            self.input_box.activate()
         else:
-            if event.key == pygame.K_TAB:
-                self.input_box.activate()
-            else:
-                super().on_key_up_event(event)
+            super().on_key_up_event(event)
 
     def on_key_down_event(self, event):
         if self.input_box.active:

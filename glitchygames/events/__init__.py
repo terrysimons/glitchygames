@@ -3,6 +3,7 @@
 import inspect
 import logging
 import re
+from typing import ClassVar
 
 import pygame
 
@@ -13,8 +14,8 @@ LOG.addHandler(logging.NullHandler())
 def supported_events(like='.*'):
     # Get a list of all of the events
     # by name, but ignore duplicates.
-    event_names = set(
-        pygame.event.event_name(event_num) for event_num in range(0, pygame.NUMEVENTS)
+    event_names = (
+        pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
     )
     event_names: set[str] = set(event_names) - set('Unknown')
 
@@ -24,8 +25,8 @@ def supported_events(like='.*'):
         try:
             if re.match(like, event_name.upper()):
                 event_list.append(getattr(pygame, event_name.upper()))
-        except AttributeError as e:
-            LOG.error(f'Failed to init: {e}')
+        except AttributeError:
+            LOG.exception('Failed to init.')
 
     return event_list
 
@@ -63,7 +64,6 @@ GAME_EVENTS = list(
 GAME_EVENTS.append(FPSEVENT)
 GAME_EVENTS.append(GAMEEVENT)
 GAME_EVENTS.append(MENUEVENT)
-
 
 def unhandled_event(*args, **kwargs):
     LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
@@ -103,7 +103,7 @@ class ResourceManager:
     """
     log = LOG
 
-    __instances__ = {}
+    __instances__: ClassVar = {}
 
     def __new__(cls, *args, **kwargs):
         if cls not in cls.__instances__:
@@ -124,8 +124,10 @@ class ResourceManager:
             try:
                 return getattr(proxy, attr)
             except AttributeError:
-                self.log.error(f'No proxies for {type(self)}.{attr}')
+                self.log.exception(f'No proxies for {type(self)}.{attr}')
                 raise
+
+        raise AttributeError(f'No proxies for {type(self)}.{attr}')
 
 
 # Mixin
