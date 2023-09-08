@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import configparser
 import logging
 import struct
 from collections import OrderedDict
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 from glitchygames.color.palette import Vga
@@ -34,7 +38,8 @@ class BitmappyLegacySprite(Sprite):
 
         self.save(filename + '.cfg')
 
-    def load(self: Self, filename: str, palette: list, width: int, height: int) -> tuple:
+    def load(self: Self, filename: str, palette: list, width: int,
+             height: int) -> tuple[pygame.Surface, pygame.Rect, str]:
         """
         """
         # We need to load an 8-bit palette for color conversion.
@@ -67,7 +72,8 @@ class BitmappyLegacySprite(Sprite):
 
         return (image, rect, filename)
 
-    def inflate(self, width, height, pixels):
+    def inflate(self: Self, width: int, height: int,
+                pixels: list) -> tuple[pygame.Surface, pygame.Rect]:
         """
         """
         image = pygame.Surface((width, height))
@@ -88,7 +94,7 @@ class BitmappyLegacySprite(Sprite):
 
         return (image, image.get_rect())
 
-    def save(self, filename):
+    def save(self: Self, filename: str) -> None:
         """
         """
         config = self.deflate()
@@ -96,7 +102,7 @@ class BitmappyLegacySprite(Sprite):
         with open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
-    def deflate(self):
+    def deflate(self: Self) -> configparser.ConfigParser:
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
@@ -202,7 +208,7 @@ class Game(Scene):
         self.next_scene = GameScene()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -212,7 +218,7 @@ class Game(Scene):
                             required=True)
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

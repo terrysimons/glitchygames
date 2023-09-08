@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -109,22 +114,22 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         # We can't make these properties, because then they
         # wouldn't be callable as functions.
-        def get_name(self):
+        def get_name(self: Self) -> str:
             return self._name
 
-        def get_init(self):
+        def get_init(self: Self) -> bool:
             return self._init
 
-        def get_numaxes(self):
+        def get_numaxes(self: Self) -> int:
             return self._numaxes
 
-        def get_numballs(self):
+        def get_numballs(self: Self) -> int:
             return self._numballs
 
-        def get_numbuttons(self):
+        def get_numbuttons(self: Self) -> int:
             return self._numbuttons
 
-        def get_numhats(self):
+        def get_numhats(self: Self) -> int:
             return self._numhats
 
         def __str__(self: Self) -> str:
@@ -186,7 +191,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         self.proxies = [self.game]
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Joystick Options')  # noqa: F841
 
         return parser

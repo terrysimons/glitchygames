@@ -1,5 +1,8 @@
-# GlitchyGames
-# palette: Manages the custom color palette file format used by the engine
+#!/usr/bin/env python
+"""
+GlitchyGames palette module.
+palette: Manages the custom color palette file format used by the engine.
+"""
 
 from __future__ import annotations
 
@@ -44,7 +47,7 @@ class ColorPalette:
         if self._colors:
             self._size = len(self._colors) - 1
 
-    def get_color(self, palette_index):
+    def get_color(self: Self, palette_index: int) -> tuple[int, int, int]:
         """Returns PyGame Color at index"""
         if self._size:
             return self._colors[palette_index] if palette_index <= self._size else None
@@ -52,7 +55,7 @@ class ColorPalette:
         # Return Magenta if our palette isn't set
         return (255, 0, 255)
 
-    def set_color(self, palette_index, new_color):
+    def set_color(self: Self, palette_index: int, new_color: tuple) -> None:
         """Sets the indexed color to the new PyGame Color"""
         if palette_index < self._size:
             self._colors[palette_index] = new_color
@@ -63,7 +66,7 @@ class ColorPalette:
 class PaletteUtility:
 
     @staticmethod
-    def load_palette_from_config(config):
+    def load_palette_from_config(config: dict) -> list:
         """Load a palette from a ConfigParser object. Returns a list of PyGame Colors"""
         colors = []
         for index in range(int(config['default']['colors'])):
@@ -79,7 +82,7 @@ class PaletteUtility:
         return colors
 
     @staticmethod
-    def load_palette_from_file(config_file_path):
+    def load_palette_from_file(config_file_path: str) -> list:
         """Load a palette from a GlitchyGames palette file. Returns a list of PyGame Colors"""
         config = configparser.ConfigParser()
         # Read contents of file and close after
@@ -88,13 +91,15 @@ class PaletteUtility:
         return PaletteUtility.load_palette_from_config(config)
 
     @staticmethod
-    def write_palette_to_file(config_data, output_file):
+    def write_palette_to_file(config_data: dict, output_file: str) -> None:
         """ Write a GlitchyGames palette to a file"""
         with open(output_file, 'w') as file_obj:
+            # MTS: This looks backwards?  Should it be config_data.write(file_obj)?
+            # seems like it should be file_obj.write(config_data)
             config_data.write(file_obj)
 
     @staticmethod
-    def parse_rgb_data_in_file(rgb_data_file):
+    def parse_rgb_data_in_file(rgb_data_file: str) -> list:
         """Read RGB data from a file. Returns a list of PyGame Colors"""
         # Read input RGBA Values from file.  No duplicates
         colors = []
@@ -107,7 +112,7 @@ class PaletteUtility:
         return colors
 
     @staticmethod
-    def create_palette_data(colors):
+    def create_palette_data(colors: list) -> configparser.ConfigParser:
         """Create a ConfigParser object containing palette data from a list of PyGame Colors.
 
         Returns a ConfigParser

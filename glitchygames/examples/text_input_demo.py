@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
 from typing import Self
 
@@ -68,7 +70,7 @@ class Game(Scene):
             super().on_key_up_event(event)
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

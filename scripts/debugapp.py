@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame.freetype
@@ -42,13 +47,13 @@ class Game(Scene):
         self.next_scene = IntroScene()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

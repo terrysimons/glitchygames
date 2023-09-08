@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
-from typing import ClassVar, LiteralString, Self
+from typing import TYPE_CHECKING, ClassVar, LiteralString, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame._sdl2.controller
@@ -169,7 +174,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
         self.proxies = [self.game]
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Controller Options')  # noqa: F841
 
         return parser

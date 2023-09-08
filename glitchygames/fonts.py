@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import ClassVar, Self
+from typing import TYPE_CHECKING, ClassVar, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -92,7 +95,7 @@ class FontManager(ResourceManager):
         # self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Font Options')
 
         group.add_argument('--font-name',

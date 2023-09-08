@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -311,7 +314,7 @@ class MouseManager(ResourceManager):
         self.proxies = [MouseManager.MouseProxy(game=game)]
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Mouse Options')  # noqa: F841
 
         return parser

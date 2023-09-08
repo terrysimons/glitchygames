@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-import logging
-from typing import Self
+from __future__ import annotations
 
-import pygame
+import logging
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
+
+    import pygame
 
 from glitchygames.events import DropEvents, ResourceManager
 
@@ -57,7 +62,7 @@ class DropManager(ResourceManager):
         self.proxies = [DropManager.DropProxy(game=game)]
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Drop Options')  # noqa: F841
 
         return parser

@@ -7,7 +7,7 @@ import argparse
 from glitchygames import templates
 
 
-def get_args():
+def get_args() -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', '--list',
@@ -21,7 +21,7 @@ def get_args():
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = get_args()
 
     if args.list:

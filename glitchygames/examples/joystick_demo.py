@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import contextlib
 import logging
 from pathlib import Path
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame.freetype
 import pygame.gfxdraw
@@ -277,14 +282,14 @@ class JoystickScene(Scene):
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
 
-    def load_resources(self):
+    def load_resources(self: Self) -> None:
         # Load tiles.
         for resource in Path('resources').glob('*'):
             with contextlib.suppress(IsADirectoryError):
                 self.log.info(f'Load Resource: {resource}')
                 self.tiles.append(self.load_graphic(resource))
 
-    def render(self, screen):
+    def render(self: Self, screen: pygame.Surface) -> None:
         super().render(screen)
 
         x = 0
@@ -299,22 +304,22 @@ class JoystickScene(Scene):
             else:
                 x += 32
 
-    def on_mouse_motion_event(self, event):
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_up(self, event):
+    def on_left_mouse_button_up(self: Self, event: pygame.event.Event) -> None:
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
-    def on_left_mouse_button_down(self, event):
+    def on_left_mouse_button_down(self: Self, event: pygame.event.Event) -> None:
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
-    def on_pew_pew_event(self, event):
+    def on_pew_pew_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info(f'PEW PEW Event: {event}')
 
-    def on_recharge_event(self, event):
+    def on_recharge_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info(f'Recharge Event: {event}')
 
-    def on_controller_axis_motion_event(self, event):
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info('controller Axis motion event')
 
 
@@ -368,7 +373,7 @@ class Game(Scene):
         # super().update_cursor()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--time',
                             type=int,
                             help='time in seconds to wait before quitting',
@@ -378,7 +383,7 @@ class Game(Scene):
                             help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

@@ -3,7 +3,7 @@ from nox_poetry import session
 
 
 @session(python=['3.9', '3.10', '3.11'], reuse_venv=True)
-def lint_and_test(session):
+def lint_and_test(session: session.Session) -> None:
 
     # What's this?
     session.install('.[dev]')

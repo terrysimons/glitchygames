@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import inspect
 import logging
@@ -525,7 +526,7 @@ class EventManager(ResourceManager):
                 f'{self.event_source}->{event} Event Trigger: {event_trigger}'
             )
 
-        def __getattr__(self, attr):
+        def __getattr__(self: Self, attr: str) -> Callable:
             return self.unhandled_event
 
     def __init__(self: Self, game: object = None) -> None:

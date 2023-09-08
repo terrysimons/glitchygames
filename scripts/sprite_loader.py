@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import configparser
 import logging
 from collections import OrderedDict
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 from glitchygames.engine import GameEngine
@@ -23,7 +27,7 @@ class BitmappySprite(Sprite):
 
         (self.image, self.rect, self.name) = self.load(filename=filename)
 
-    def load(self, filename):
+    def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """
         """
         config = configparser.ConfigParser(dict_type=OrderedDict)
@@ -75,7 +79,8 @@ class BitmappySprite(Sprite):
 
         return (image, rect, name)
 
-    def rgb_triplet_generator(self, buffer):
+    def rgb_triplet_generator(self: Self, buffer: list) -> iter[tuple[int, int, int]]:
+        """Yield (R, G, B) tuples for the provided pixel data."""
         iterator = iter(buffer)
 
         try:
@@ -85,7 +90,8 @@ class BitmappySprite(Sprite):
         except StopIteration:
             pass
 
-    def inflate(self, width, height, pixels, color_map):
+    def inflate(self: Self, width: int, height: int, pixels: list,
+                color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
         """
         """
         image = pygame.Surface((width, height))
@@ -100,7 +106,7 @@ class BitmappySprite(Sprite):
 
         return (image, image.get_rect())
 
-    def save(self, filename):
+    def save(self: Self, filename: str) -> None:
         """
         """
         config = self.deflate()
@@ -108,7 +114,7 @@ class BitmappySprite(Sprite):
         with open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
-    def deflate(self):
+    def deflate(self: Self) -> configparser.ConfigParser:
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
@@ -210,7 +216,7 @@ class Game(Scene):
         self.next_scene = GameScene(filename=self.filename)
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -220,7 +226,7 @@ class Game(Scene):
                             required=True)
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

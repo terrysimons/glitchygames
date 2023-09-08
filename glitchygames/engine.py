@@ -511,7 +511,7 @@ class GameEngine(events.EventManager):
         self.log.info(f'Icon Title: {icontitle}')
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group = parser.add_argument_group('Graphics Options')
 
         group.add_argument('-f', '--target-fps',

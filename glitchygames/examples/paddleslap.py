@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
 import random
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame.freetype
@@ -154,7 +159,7 @@ class Game(Scene):
         self.all_sprites.clear(self.screen, self.background)
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -164,18 +169,18 @@ class Game(Scene):
                             help='the number of balls to start with',
                             default=1)
 
-    def setup(self):
+    def setup(self: Self) -> None:
         self.fps = 60
         pygame.key.set_repeat(1)
 
-    def dt_tick(self, dt):
+    def dt_tick(self: Self, dt: float) -> None:
         self.dt = dt
         self.dt_timer += self.dt
 
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
 
-    def update(self):
+    def update(self: Self) -> None:
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
                 # ball.rally.hit()
@@ -195,7 +200,7 @@ class Game(Scene):
 
         super().update()
 
-    def on_controller_button_down_event(self, event):
+    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
 
         if event.button in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
             player = self.player1 if event.instance_id == 0 else self.player2
@@ -203,7 +208,7 @@ class Game(Scene):
 
         self.log.info(f'GOT on_controller_button_down_event: {event}')
 
-    def on_controller_button_up_event(self, event):
+    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
 
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
@@ -213,7 +218,7 @@ class Game(Scene):
 
         self.log.info(f'GOT on_controller_button_up_event: {event}')
 
-    def on_controller_axis_motion_event(self, event):
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
 
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
@@ -225,7 +230,7 @@ class Game(Scene):
                 player.down()
             self.log.info(f'GOT on_controller_axis_motion_event: {event}')
 
-    def on_key_up_event(self, event):
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         # Handle ESC/q to quit
         super().on_key_up_event(event)
 
@@ -241,7 +246,7 @@ class Game(Scene):
         if unpressed_keys[pygame.K_s]:
             self.player2.stop()
 
-    def on_key_down_event(self, event):
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         # KEYDOWN            key, mod
         # self.log.info(f'Key Down Event: {event}')
         pressed_keys = pygame.key.get_pressed()
@@ -256,7 +261,7 @@ class Game(Scene):
             self.player2.down()
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

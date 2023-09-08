@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-from typing import Self
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -26,7 +31,7 @@ class Game(Scene):
         self.start = False
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -39,7 +44,7 @@ class Game(Scene):
     # def setup(self):
     #     self.target_fps = 30
 
-    def dt_tick(self, dt):
+    def dt_tick(self: Self, dt: float) -> None:
         # self.dt = dt
         # self.dt_timer += self.dt
 
@@ -50,7 +55,7 @@ class Game(Scene):
             self.dt_timer += dt
             self.rect_pos += self.velocity * dt
 
-    def update(self):
+    def update(self: Self) -> None:
         self.screen.fill((0, 0, 0))
 
         if self.rect_pos > self.screen_width and not self.passed:
@@ -77,14 +82,14 @@ class Game(Scene):
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
-    def on_key_down_event(self, event):
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         pressed_keys = pygame.key.get_pressed()
 
         if pressed_keys[pygame.K_SPACE]:
             self.start = True
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

@@ -1,7 +1,11 @@
 #!/usr/bin/env python
+from __future__ import annotations
 
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame.freetype
@@ -123,7 +127,7 @@ class GameScene(Scene):
 
     # def switch_to_scene(self, next_scene):
     #     super().switch_to_scene(next_scene)
-    def on_mouse_up_event(self, event):
+    def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
         log.info(f'Mouse Up Event: {event}')
 
 
@@ -141,13 +145,13 @@ class Game(Scene):
         self.next_scene = GameScene()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import logging
 
@@ -8,7 +9,7 @@ LOG = logging.getLogger('game.pixels')
 LOG.addHandler(logging.NullHandler())
 
 
-def indexed_rgb_triplet_generator(pixel_data):
+def indexed_rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
     """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
     try:
         for datum in pixel_data:
@@ -17,7 +18,7 @@ def indexed_rgb_triplet_generator(pixel_data):
         pass
 
 
-def rgb_555_triplet_generator(pixel_data):
+def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
     """Yield (R, G, B) pixel tuples for 555 formated color data."""
     try:
         # Construct RGB triplets.
@@ -66,7 +67,7 @@ def rgb_555_triplet_generator(pixel_data):
         pass
 
 
-def rgb_565_triplet_generator(pixel_data):
+def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
     """Yield (R, G, B) tuples for 565 formatted color data."""
     try:
         # Construct RGB triplets.
@@ -113,7 +114,7 @@ def rgb_565_triplet_generator(pixel_data):
         pass
 
 
-def rgb_triplet_generator(pixel_data):
+def rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
     """Yield (R, G, B) tuples for the provided pixel data."""
     iterator = iter(pixel_data)
 
@@ -125,7 +126,7 @@ def rgb_triplet_generator(pixel_data):
         pass
 
 
-def image_from_pixels(pixels, width, height):
+def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:
     """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data."""
     image = pygame.Surface((width, height))
     y = 0
@@ -142,7 +143,7 @@ def image_from_pixels(pixels, width, height):
     return image
 
 
-def pixels_from_data(pixel_data):
+def pixels_from_data(pixel_data: list) -> list:
     """Expand raw pixel data into [(R, G, B), ...] triplets."""
     pixels = rgb_triplet_generator(
         pixel_data=pixel_data,
@@ -154,7 +155,7 @@ def pixels_from_data(pixel_data):
     return list(pixels)
 
 
-def pixels_from_path(path):
+def pixels_from_path(path: str) -> list:
     """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
     with open(path, 'rb') as fh:
         pixel_data = fh.read()

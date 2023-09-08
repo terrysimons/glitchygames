@@ -34,11 +34,11 @@ class BallSprite(Sprite):
         self.dirty = 2
 
     @property
-    def color(self):
+    def color(self: Self) -> tuple[int, int, int]:
         return self._color
 
     @color.setter
-    def color(self, new_color):
+    def color(self: Self, new_color: tuple) -> None:
         self._color = new_color
         pygame.draw.circle(
             self.image,
@@ -48,7 +48,7 @@ class BallSprite(Sprite):
             0
         )
 
-    def _do_bounce(self):
+    def _do_bounce(self: Self) -> None:
         if self.rect.y <= 0:
             self.snd.play()
             self.rect.y = 0
@@ -58,7 +58,7 @@ class BallSprite(Sprite):
             self.rect.y = self.screen_height - self.height
             self.speed.y *= -1
 
-    def reset(self):
+    def reset(self: Self) -> None:
         self.x = random.randrange(50, 750)
         self.y = random.randrange(25, 400)
 
@@ -76,14 +76,14 @@ class BallSprite(Sprite):
         self.rect.y = self.y
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
-    def bounce(self, diff):
+    def bounce(self: Self, diff: int) -> None:
         self.direction = (180 - self.direction) % 360
         self.direction -= diff
 
         # Speed the ball up
         self.speed *= 1.1
 
-    def update(self):
+    def update(self: Self) -> None:
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x
 
