@@ -20,8 +20,11 @@ LOG.addHandler(logging.NullHandler())
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     def __init__(
             self: Self,
-            groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()
+            groups: pygame.sprite.LayeredDirty | None = None
         ) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(groups)
         self.rect = pygame.Rect(0, 0, 0, 0)
         self.image = None
@@ -52,7 +55,10 @@ class Sprite(RootSprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
@@ -373,7 +379,7 @@ class BitmappySprite(Sprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  filename: str | None = None, focusable: bool = False, parent: object = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """
         Subclass to load sprite files.
 
@@ -382,6 +388,9 @@ class BitmappySprite(Sprite):
         filename - optional, the BitmappySprite config to load.
 
         """
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(
             x=x,
             y=y,
@@ -586,7 +595,10 @@ class SingletonBitmappySprite(BitmappySprite):
         return cast(SingletonBitmappySprite, cls.__instance__)
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
 
@@ -603,7 +615,10 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         return cast(FocusableSingletonBitmappySprite, cls.__instance__)
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(
             x=x, y=y, width=width, height=height,
             name=name, focusable=True, groups=groups

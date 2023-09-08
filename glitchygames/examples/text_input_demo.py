@@ -21,7 +21,10 @@ class Game(Scene):
     NAME = 'Input Demo'
     VERSION = '1.0'
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
+    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(options=options, groups=groups)
 
         self.input_box = InputBox(

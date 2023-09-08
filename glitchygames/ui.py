@@ -27,7 +27,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
     log = LOG
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.all_sprites = groups
         self.background_color = (0, 255, 0)
@@ -164,7 +167,10 @@ class MenuItem(BitmappySprite):
 
     def __init__(self: Self, x: int = 0, y: int = 0, width: int = 1, height: int = 1,
                  name: str | None = None, filename: str | None = None, parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
                          filename=filename, groups=groups)
         self.all_sprites = groups
@@ -219,7 +225,7 @@ class MenuItem(BitmappySprite):
         # There's something funky with MRO and pygame
         # doing things this way avoids dirtier tricks.
         try:
-            text = getattr(self, 'text')
+            text = getattr(self, 'text')  # noqa: B009
             text.add(*groups)
         except AttributeError:
             pass
@@ -465,7 +471,10 @@ class TextSprite(BitmappySprite):
 
         def __init__(self: Self, font: str, x: int, y: int, line_height: int = 15,
                      text: str = 'Text', text_color: tuple = WHITE, parent: object = None,
-                     groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                     groups: pygame.sprite.LayeredDirty | None = None) -> None:
+            if groups is None:
+                groups = pygame.sprite.LayeredDirty()
+
             super().__init__(x=x, y=y, width=0, height=0, parent=parent, groups=groups)
             self.start_x = x
             self.start_y = y
@@ -561,7 +570,10 @@ class TextSprite(BitmappySprite):
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  background_color: tuple = BLACKLUCENT, text_color: tuple = WHITE,
                  alpha: int = 0, text: str = 'Text', parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
                          parent=parent, groups=groups)
         self.background_color = (255, 0, 255)
@@ -647,7 +659,7 @@ class TextSprite(BitmappySprite):
         # There's something funky with MRO and pygame
         # doing things this way avoids dirtier tricks.
         try:
-            text_box = getattr(self, 'text_box')
+            text_box = getattr(self, 'text_box')  # noqa: B009
             text_box.add(*groups)
         except AttributeError:
             pass
@@ -676,7 +688,10 @@ class ButtonSprite(BitmappySprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name,
                          focusable=True, parent=parent, groups=groups)
         self.border_color = (255, 255, 255)
@@ -759,7 +774,10 @@ class CheckboxSprite(ButtonSprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  callbacks: Callable | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name,
                          groups=groups)
 
@@ -788,7 +806,10 @@ class CheckboxSprite(ButtonSprite):
 class InputBox(Sprite):
     def __init__(self: Self, x: int, y: int, width: int, height: int, color: tuple=(233, 248, 215),
                  text: str = '', name: str | None = None, parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty=pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         pygame.font.init()
         self.offset_x = self.parent.x if self.parent else 0
@@ -886,7 +907,10 @@ class TextBoxSprite(BitmappySprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  callbacks: Callable | None = None, parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(
             x=x,
             y=y,
@@ -956,7 +980,10 @@ class SliderSprite(BitmappySprite):
 
         def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                      parent: object | None = None,
-                     groups: pygame.sprite.LayeredDirty=pygame.sprite.LayeredDirty()) -> None:
+                     groups: pygame.sprite.LayeredDirty | None = None) -> None:
+            if groups is None:
+                groups = pygame.sprite.LayeredDirty()
+
             super().__init__(
                 x=x,
                 y=y,
@@ -996,7 +1023,10 @@ class SliderSprite(BitmappySprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         # TODO: If even, make the line 2x thick?
         if height % 2 == 0:
             height -= 1
@@ -1178,7 +1208,10 @@ class ColorWellSprite(BitmappySprite):
 
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str,
                  parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(
             x=x,
             y=y,
@@ -1248,7 +1281,10 @@ class InputDialog(BitmappySprite):
                  dialog_text: str = 'Would you like to do a thing?',
                  confirm_text: str = 'Confirm', cancel_text: str = 'Cancel',
                  callbacks: Callable | None = None, parent: object = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent,
                          groups=groups)
         self.background_color = (0, 0, 0)

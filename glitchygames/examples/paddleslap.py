@@ -31,7 +31,11 @@ log.setLevel(logging.INFO)
 class TextSprite(Sprite):
     def __init__(self: Self, background_color: tuple = BLACKLUCENT, alpha: int = 0,
                  x: int = 0, y: int = 0,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x, y, 0, 0, groups=groups)
         self.background_color = background_color
         self.alpha = alpha
@@ -75,7 +79,11 @@ class TextSprite(Sprite):
         # Linters complain if you do it.
         class TextBox(Sprite):
             def __init__(self: Self, font_controller: FontManager, pos: tuple,
-                         line_height: int = 15, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
+                         line_height: int = 15, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+
+                if groups is None:
+                    groups = pygame.sprite.LayeredDirty()
+
                 super().__init__(pos[0], pos[1], 0, 0, groups=groups)
                 self.image = None
                 self.start_pos = pos
@@ -117,7 +125,11 @@ class Game(Scene):
     NAME = 'Paddle Slap'
     VERSION = '1.1'
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
+    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(options=options, groups=groups)
         self.fps = 0
 

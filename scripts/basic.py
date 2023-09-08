@@ -23,7 +23,10 @@ class Game(Scene):
     log: logging.Logger = LOG
 
     def __init__(self: Self, options: dict,
-                 groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.Group | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.Group()
+
         super().__init__(options=options, groups=groups)
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')

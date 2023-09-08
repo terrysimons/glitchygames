@@ -73,7 +73,7 @@ class BitmappyLegacySprite(Sprite):
 
         x = 0
         y = 0
-        for i, color in enumerate(pixels):
+        for color in pixels:
             pygame.draw.rect(image, color, (y, x, 0, 0))
 
             if x and x % width == 0:
@@ -116,7 +116,7 @@ class BitmappyLegacySprite(Sprite):
 
         # Generate the color key
         color_key = chr(47)
-        for i, color in enumerate(colors):
+        for color in colors:
             # Characters above doublequote.
             color_key = chr(ord(color_key) + 1)
             config.add_section(color_key)
@@ -158,8 +158,8 @@ class BitmappyLegacySprite(Sprite):
         description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
             '\nColor Key: {self.color_key}\n'
 
-        for y, row in enumerate(self.pixels):
-            for x, pixel in enumerate(row):
+        for row in self.pixels:
+            for pixel in row:
                 description += pixel
             description += '\n'
 
