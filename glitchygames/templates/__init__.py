@@ -3,7 +3,7 @@ from pathlib import Path
 
 from cookiecutter.main import cookiecutter
 
-path = Path.parent(__file__)
+path = Path(__file__).parent
 
 
 def get_templates() -> list:

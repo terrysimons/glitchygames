@@ -34,8 +34,8 @@ LOG.addHandler(logging.NullHandler())
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
-PACKAGE_PATH: str = Path.dirname(__file__)
-ASSET_PATH: str = Path.parent(__file__) / 'assets'
+PACKAGE_PATH: str = Path(__file__).parent
+ASSET_PATH: str = Path(__file__).parent / 'assets'
 
 
 class GameManager(events.ResourceManager):

@@ -20,7 +20,7 @@ NES = 'nes'
 
 class ColorPalette:
 
-    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(Path.parent(__file__), 'resources')
+    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / 'resources'
     _DEFAULT_EXTENSION: ClassVar = 'palette'
 
     def __init__(self: Self, colors: Optional(list | None) = None,
@@ -30,7 +30,7 @@ class ColorPalette:
         if colors:
             self._colors = colors
         elif filename:
-            script_path = Path.parent(sys.argv[0])
+            script_path = Path(sys.argv[0]).parent
             paths = [
                 self._BUILTIN_PALETTE_LOCATION,
                 script_path,
