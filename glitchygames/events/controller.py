@@ -1,26 +1,31 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, ClassVar, LiteralString, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame._sdl2.controller
 
-from glitchygames.events import ControllerEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import ControllerEvents, ResourceManager
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
 pygame.controller = pygame._sdl2.controller
 
-LOG = logging.getLogger('game.controllers')
+LOG: logging.Logger = logging.getLogger('game.controllers')
 LOG.addHandler(logging.NullHandler())
 
 
 class ControllerManager(ControllerEvents, ResourceManager):
-    log = LOG
+    log: logging.Logger = LOG
 
     class ControllerProxy(ControllerEvents, ResourceManager):
-        log = LOG
+        log: logging.Logger = LOG
 
-        AXIS = [
+        AXIS: ClassVar = [
             pygame.CONTROLLER_AXIS_LEFTX,
             pygame.CONTROLLER_AXIS_LEFTY,
             pygame.CONTROLLER_AXIS_RIGHTX,
@@ -29,7 +34,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             pygame.CONTROLLER_AXIS_TRIGGERRIGHT
         ]
 
-        BUTTONS = [
+        BUTTONS: ClassVar = [
             pygame.CONTROLLER_BUTTON_A,
             pygame.CONTROLLER_BUTTON_B,
             pygame.CONTROLLER_BUTTON_X,
@@ -47,7 +52,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             pygame.CONTROLLER_BUTTON_START
         ]
 
-        def __init__(self, game=None, controller_id=-1):
+        def __init__(self: Self, game: object = None, controller_id: int = -1) -> None:
             """
             Pygame controller event proxy.
             ControllerProxy facilitates mouse handling by bridging CONTROLLER* events between
@@ -79,52 +84,53 @@ class ControllerManager(ControllerEvents, ResourceManager):
             self.game = game
             self.proxies = [self.game, self.controller]
 
-        def on_controller_axis_motion_event(self, event):
+        def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
             self._axes[event.axis] = event.value
             self.game.on_controller_axis_motion_event(event)
 
-        def on_controller_button_down_event(self, event):
+        def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self._buttons[event.button] = 1
             self.game.on_controller_button_down_event(event)
 
-        def on_controller_button_up_event(self, event):
+        def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
             self._buttons[event.button] = 0
             self.game.on_controller_button_up_event(event)
 
-        def on_controller_device_added_event(self, event):
+        def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
             # CONTROLLERDEVICEADDED device_index, guid
             self.game.on_controller_device_added_event(event)
 
-        def on_controller_device_remapped_event(self, event):
+        def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_controller_device_remapped_event(event)
 
-        def on_controller_device_removed_event(self, event):
+        def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
             # CONTROLLERDEVICEREMOVED instance_id
             self.game.on_controller_device_removed_event(event)
 
-        def on_controller_touchpad_down_event(self, event):
+        def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_controller_touchpad_down_event(event)
 
-        def on_controller_touchpad_motion_event(self, event):
+        def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_controller_touchpad_motion_event(event)
 
-        def on_controller_touchpad_up_event(self, event):
+        def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_controller_touchpad_up_event(event)
 
-        def __str__(self):
+        def __str__(self: Self) -> LiteralString:
             controller_info = []
             controller_info.append('Controller Name: '
-                                   f'{pygame._sdl2.controller.name_forindex(self._id)}')
+                f'{pygame._sdl2.controller.name_forindex(self._id)}'
+            )
             controller_info.append(f'\tController Id: {self._id}')
             controller_info.append(f'\tController Inited: {self.controller.get_init()}')
             controller_info.append(f'\tController Axis Count: {self._numaxes}')
             controller_info.append(f'\tController Button Count: {self._numbuttons}')
             return '\n'.join(controller_info)
 
-        def __repr__(self):
+        def __repr__(self: Self) -> str:
             return repr(self.controller)
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Manage controllers.
         ConrollerManager manages controller events.
@@ -141,7 +147,9 @@ class ControllerManager(ControllerEvents, ResourceManager):
         # and is safe to call more than once.
         pygame._sdl2.controller.init()
 
-        self.log.debug(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
+        self.log.debug(
+            f'Controller Module Inited: {pygame._sdl2.controller.get_init()}'
+        )
 
         # Controller Setup
         self.log.debug(f'Controller Count: {pygame._sdl2.controller.get_count()}')
@@ -166,27 +174,27 @@ class ControllerManager(ControllerEvents, ResourceManager):
         self.proxies = [self.game]
 
     @classmethod
-    def args(cls, parser):
-        group = parser.add_argument_group('Controller Options')  # noqa: W0612
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        group = parser.add_argument_group('Controller Options')  # noqa: F841
 
         return parser
 
-    def on_controller_axis_motion_event(self, event):
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERAXISMOTION triggered: '
                        f'on_controller_axis_motion_event({event})')
         self.controllers[event.instance_id].on_controller_axis_motion_event(event)
 
-    def on_controller_button_down_event(self, event):
+    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERBUTTONDOWNEVENT triggered: '
                        f'on_controller_button_down_event({event})')
         self.controllers[event.instance_id].on_controller_button_down_event(event)
 
-    def on_controller_button_up_event(self, event):
+    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERBUTTONUPEVENT triggered: '
                        f'on_controller_button_up_event({event})')
         self.controllers[event.instance_id].on_controller_button_up_event(event)
 
-    def on_controller_device_added_event(self, event):
+    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
         # CONTROLLERDEVICEADDED device_index, guid
 
         # Note: There is a bug in pygame where a reinitialized
@@ -206,12 +214,12 @@ class ControllerManager(ControllerEvents, ResourceManager):
         # Need to notify the game after the controller exists
         self.controllers[event.device_index].on_controller_device_added_event(event)
 
-    def on_controller_device_remapped_event(self, event):
+    def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERDEVICEREMAPPED triggered: '
                        f'on_controller_device_remapped_event({event}')
         self.controllers[event.device_index].on_controller_device_remapped_event(event)
 
-    def on_controller_device_removed_event(self, event):
+    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         # CONTROLLERDEVICEREMOVED instance_id
         self.controllers[event.instance_id].on_controller_device_removed_event(event)
         del self.controllers[event.instance_id]
@@ -219,17 +227,17 @@ class ControllerManager(ControllerEvents, ResourceManager):
         self.log.debug('CONTROLLERDEVICEREMOVED triggered: '
                        f'on_controller_device_removed({event})')
 
-    def on_controller_touchpad_down_event(self, event):
+    def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERTOUCHDPADDOWN triggered: '
                        f'on_controller_touchpad_down_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_down_event(event)
 
-    def on_controller_touchpad_motion_event(self, event):
+    def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERTOUCHPADMOTION triggered: '
                        f'on_controller_touchpad_motion_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_motion_event(event)
 
-    def on_controller_touchpad_up_event(self, event):
+    def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug('CONTROLLERTOUCHPADUP triggered: '
                        f'on_controller_touchpad_up_event({event})')
         self.controllers[event.instance_id].on_controller_touchpad_up_event(event)

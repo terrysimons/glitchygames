@@ -1,16 +1,20 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames.engine import GameEngine
-from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
-from glitchygames.sprites import BitmappySprite
 from glitchygames.scenes import Scene
+from glitchygames.sprites import BitmappySprite
+from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
 log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
@@ -20,7 +24,7 @@ BitmappySprite.DEBUG = True
 
 
 class GameScene(Scene):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(groups=groups)
         self.all_sprites = groups
         self.screen = pygame.display.get_surface()
@@ -123,16 +127,16 @@ class GameScene(Scene):
 
     # def switch_to_scene(self, next_scene):
     #     super().switch_to_scene(next_scene)
-    def on_mouse_up_event(self, event):
-        log.info('fdasfdsafdsafdsa')
+    def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
+        log.info(f'Mouse Up Event: {event}')
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Compound Sprite Demo"
-    VERSION = "1.0"
+    NAME = 'Compound Sprite Demo'
+    VERSION = '1.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
@@ -141,13 +145,13 @@ class Game(Scene):
         self.next_scene = GameScene()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

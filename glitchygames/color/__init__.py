@@ -1,9 +1,15 @@
+"""Color constants and palette helpers.
+
+This module contains color constants and palette helpers.
+"""
 from .palette import (
-    Default,
-    VGA,
     NES,
-    SYSTEM
+    SYSTEM,
+    VGA,
+    Default,
 )
+
+__all__ = ['NES', 'SYSTEM', 'VGA', 'Default']
 
 _default_colors: Default = Default()
 YELLOW = _default_colors.YELLOW

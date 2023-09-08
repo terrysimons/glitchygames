@@ -1,18 +1,32 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
-from glitchygames.events import MouseEvents
-from glitchygames.events import ResourceManager
-from glitchygames.sprites import collided_sprites
+from glitchygames.events import MouseEvents, ResourceManager
+
+# from glitchygames.sprites import collided_sprites
 
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
 
+# TODO @<terry.simons@gmail.com>: Add pygame 2 MOUSEWHEEL event handling.
+# TODO: No better pygame names?
+MOUSE_BUTTON_LEFT = 1
+MOUSE_BUTTON_WHEEL = 2
+MOUSE_BUTTON_RIGHT = 3
+MOUSE_WHEEL_SCROLL_UP = 4
+MOUSE_WHEEL_SCROLL_DOWN = 5
 
 class MouseManager(ResourceManager):
     class MouseProxy(MouseEvents, ResourceManager):
-        def __init__(self, game=None):
+        def __init__(self: Self, game: object = None) -> None:
             """
             Pygame mouse event proxy.
 
@@ -35,7 +49,7 @@ class MouseManager(ResourceManager):
             self.game = game
             self.proxies = [self.game, pygame.mouse]
 
-        def on_mouse_motion_event(self, event):
+        def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
             self.mouse_state[event.type] = event
             self.game.on_mouse_motion_event(event)
 
@@ -75,7 +89,8 @@ class MouseManager(ResourceManager):
                     self.on_mouse_drag_event(event, trigger)
                     self.mouse_dragging = True
 
-        def on_mouse_drag_event(self, event, trigger):
+        def on_mouse_drag_event(self: Self, event: pygame.event.Event,
+                                trigger: pygame.event.Event) -> None:
             self.log.debug(f'{type(self)}: Mouse Drag: {event}')
             self.game.on_mouse_drag_event(event, trigger)
 
@@ -85,20 +100,21 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_mouse_drag_event(event, trigger)
 
-            if trigger.button == 1:
+            if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drag_event(event, trigger)
-            if trigger.button == 2:
+            if trigger.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_drag_event(event, trigger)
-            if trigger.button == 3:
+            if trigger.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_drag_event(event, trigger)
-            if trigger.button == 4:
+            if trigger.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if trigger.button == 5:
+            if trigger.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
-        def on_mouse_drop_event(self, event, trigger):
+        def on_mouse_drop_event(self: Self, event: pygame.event.Event,
+                                trigger: pygame.event.Event) -> None:
             self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
@@ -109,22 +125,23 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_mouse_drop_event(event, trigger)
 
-            if trigger.button == 1:
+            if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drop_event(event, trigger)
-            if trigger.button == 2:
+            if trigger.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_drop_event(event, trigger)
-            if trigger.button == 3:
+            if trigger.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_drop_event(event, trigger)
-            if trigger.button == 4:
+            if trigger.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if trigger.button == 5:
+            if trigger.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
             self.mouse_dropping = False
 
-        def on_left_mouse_drag_event(self, event, trigger):
+        def on_left_mouse_drag_event(self: Self, event: pygame.event.Event,
+                                     trigger: pygame.event.Event) -> None:
             self.game.on_left_mouse_drag_event(event, trigger)
 
             # if self.focus_locked:
@@ -133,7 +150,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_left_mouse_drag_event(event, trigger)
 
-        def on_left_mouse_drop_event(self, event, trigger):
+        def on_left_mouse_drop_event(self: Self, event: pygame.event.Event,
+                                     trigger: pygame.event.Event) -> None:
             self.game.on_left_mouse_drag_up_event(event, trigger)
 
             # if self.focus_locked:
@@ -142,7 +160,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_left_mouse_drop_event(event, trigger)
 
-        def on_middle_mouse_drag_event(self, event, trigger):
+        def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event,
+                                       trigger: pygame.event.Event) -> None:
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
             # if self.focus_locked:
@@ -151,7 +170,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_middle_mouse_drag_event(event, trigger)
 
-        def on_middle_mouse_drop_event(self, event, trigger):
+        def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event,
+                                       trigger: pygame.event.Event) -> None:
             self.game.on_middle_mouse_drag_up_event(event, trigger)
 
             # if self.focus_locked:
@@ -160,7 +180,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_middle_mouse_drop_event(event, trigger)
 
-        def on_right_mouse_drag_event(self, event, trigger):
+        def on_right_mouse_drag_event(self: Self, event: pygame.event.Event,
+                                      trigger: pygame.event.Event) -> None:
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
             # if self.focus_locked:
@@ -169,7 +190,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_right_mouse_drag_event(event, trigger)
 
-        def on_right_mouse_drop_event(self, event, trigger):
+        def on_right_mouse_drop_event(self: Self, event: pygame.event.Event,
+                                      trigger: pygame.event.Event) -> None:
             self.game.on_right_mouse_drag_up_event(event, trigger)
 
             # if self.focus_locked:
@@ -178,7 +200,8 @@ class MouseManager(ResourceManager):
             #     elif self.previous_focus:
             #         self.previous_focus.on_right_mouse_drop_event(event, trigger)
 
-        def on_mouse_focus_event(self, event, entering_focus):
+        def on_mouse_focus_event(self: Self, event: pygame.event.Event,
+                                 entering_focus: object) -> None:
             # Send a leave focus event for the old focus.
             # if not self.focus_locked:
             self.on_mouse_unfocus_event(event, self.current_focus)
@@ -193,7 +216,8 @@ class MouseManager(ResourceManager):
             # else:
             #     self.log.info(f'Focus Locked: {self.previous_focus}')
 
-        def on_mouse_unfocus_event(self, event, leaving_focus):
+        def on_mouse_unfocus_event(self: Self, event: pygame.event.Event,
+                                   leaving_focus: object) -> None:
             self.previous_focus = leaving_focus
 
             if leaving_focus:
@@ -202,20 +226,20 @@ class MouseManager(ResourceManager):
 
                 self.log.info(f'Left Focus: {self.previous_focus}')
 
-        def on_mouse_button_up_event(self, event):
+        def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             self.mouse_state[event.button] = event
             self.game.on_mouse_button_up_event(event)
 
-            if event.button == 1:
+            if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_up_event(event)
-            if event.button == 2:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_up_event(event)
-            if event.button == 3:
+            if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_up_event(event)
-            if event.button == 4:
+            if event.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
-            if event.button == 5:
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 # This doesn't really make sense.
                 pass
 
@@ -227,16 +251,16 @@ class MouseManager(ResourceManager):
             # Whatever was locked gets unlocked.
             # self.focus_locked = False
 
-        def on_left_mouse_button_up_event(self, event):
+        def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_left_mouse_button_up_event(event)
 
-        def on_middle_mouse_button_up_event(self, event):
+        def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_middle_mouse_button_up_event(event)
 
-        def on_right_mouse_button_up_event(self, event):
+        def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_right_mouse_button_up_event(event)
 
-        def on_mouse_button_down_event(self, event):
+        def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self.mouse_state[event.button] = event
 
             # Whatever was clicked on gets lock.
@@ -244,38 +268,38 @@ class MouseManager(ResourceManager):
             #     # TODO: Fix - Disabling for debugging.
             #     self.focus_locked = False
 
-            if event.button == 1:
+            if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_down_event(event)
-            if event.button == 2:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_down_event(event)
-            if event.button == 3:
+            if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_right_mouse_button_down_event(event)
-            if event.button == 4:
+            if event.button == MOUSE_WHEEL_SCROLL_UP:
                 self.on_mouse_scroll_down_event(event)
-            if event.button == 5:
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
 
             self.game.on_mouse_button_down_event(event)
 
-        def on_left_mouse_button_down_event(self, event):
+        def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_left_mouse_button_down_event(event)
 
-        def on_middle_mouse_button_down_event(self, event):
+        def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_middle_mouse_button_down_event(event)
 
-        def on_right_mouse_button_down_event(self, event):
+        def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_right_mouse_button_down_event(event)
 
-        def on_mouse_scroll_down_event(self, event):
+        def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_mouse_scroll_down_event(event)
 
-        def on_mouse_scroll_up_event(self, event):
+        def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_mouse_scroll_up_event(event)
 
-        def on_mouse_wheel_event(self, event):
+        def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_mouse_wheel_event(event)
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Mouse event manager.
 
@@ -290,7 +314,50 @@ class MouseManager(ResourceManager):
         self.proxies = [MouseManager.MouseProxy(game=game)]
 
     @classmethod
-    def args(cls, parser):
-        group = parser.add_argument_group('Mouse Options')  # noqa: W0612
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        group = parser.add_argument_group('Mouse Options')  # noqa: F841
 
         return parser
+
+
+# We're making this a singleton class becasue
+# pygame doesn't understand multiple cursors
+# and so there is only ever 1 x/y coordinate sprite
+# for the mouse at any given time.
+class MousePointer:
+    def __init__(self: Self, pos: tuple, size: tuple = (1, 1)) -> None:
+        super().__init__()
+
+        self.pos = pos
+        self.size = size
+        self.rect = pygame.Rect(self.pos, self.size)
+
+    @property
+    def x(self: Self) -> int:
+        return self.pos[0]
+
+    @x.setter
+    def x(self: Self, new_x: int) -> None:
+        self.pos[0] = new_x
+
+    @property
+    def y(self: Self) -> int:
+        return self.pos[1]
+
+    @y.setter
+    def y(self: Self, new_y: int) -> None:
+        self.pos[1] = new_y
+
+
+def collided_sprites(scene: object, event: pygame.event.Event, index: int | None = None) -> list:
+    mouse = MousePointer(pos=event.pos)
+
+    sprites = pygame.sprite.spritecollide(sprite=mouse, group=scene.all_sprites, dokill=False)
+
+    if sprites:
+        if index is None:
+            return sprites
+
+        return [sprites[index]]
+
+    return []

@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
+import argparse
 import logging
+from typing import Self
 
 import pygame
 
-from glitchygames.events import AudioEvents
-from glitchygames.events import ResourceManager
-
+from glitchygames.events import AudioEvents, ResourceManager
 
 log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
@@ -12,7 +13,7 @@ log.addHandler(logging.NullHandler())
 
 class AudioManager(ResourceManager):
     class AudioProxy(AudioEvents, ResourceManager):
-        def __init__(self, game=None):
+        def __init__(self: Self, game: object = None) -> None:
             """
             Pygame audio event proxy.
 
@@ -29,13 +30,13 @@ class AudioManager(ResourceManager):
             self.game = game
             self.proxies = [self.game, pygame.mixer]
 
-        def on_audio_device_added_event(self, event):
+        def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_audio_device_added_event(event)
 
-        def on_audio_device_removed_event(self, event):
+        def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
             self.game.on_audio_device_removed_event(event)
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Manage audio.
 
@@ -65,7 +66,9 @@ class AudioManager(ResourceManager):
         self.proxies = [AudioManager.AudioProxy(game=game)]
 
     @classmethod
-    def args(cls, parser):
-        group = parser.add_argument_group('Sound Mixer Options')  # noqa: W0612
+    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        group: argparse._ArgumentGroup = parser.add_argument_group(  # noqa: F841
+            'Sound Mixer Options'
+        )
 
         return parser

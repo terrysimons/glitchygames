@@ -1,4 +1,13 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
+
 import pygame
+
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -9,10 +18,10 @@ from glitchygames.scenes import Scene
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Delta Time Demo"
-    VERSION = "1.0"
+    NAME = 'Delta Time Demo'
+    VERSION = '1.0'
 
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
         super().__init__(options=options, groups=groups)
         self.font = pygame.font.SysFont('Calibri', 40)
         self.rect_pos = 0
@@ -22,7 +31,7 @@ class Game(Scene):
         self.start = False
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -35,7 +44,7 @@ class Game(Scene):
     # def setup(self):
     #     self.target_fps = 30
 
-    def dt_tick(self, dt):
+    def dt_tick(self: Self, dt: float) -> None:
         # self.dt = dt
         # self.dt_timer += self.dt
 
@@ -46,7 +55,7 @@ class Game(Scene):
             self.dt_timer += dt
             self.rect_pos += self.velocity * dt
 
-    def update(self):
+    def update(self: Self) -> None:
         self.screen.fill((0, 0, 0))
 
         if self.rect_pos > self.screen_width and not self.passed:
@@ -54,12 +63,12 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            "Time: " + str(round(self.dt_timer / 100, 5)),
-            False,
-            (255, 255, 255)
+            text='Time: ' + str(round(self.dt_timer / 100, 5)),
+            antialias=False,
+            color=(255, 255, 255)
         )
         fps_text = self.font.render(
-            f"FPS: {str(round(self.fps, 2))}", False, (255, 255, 255)
+            text=f'FPS: {round(self.fps, 2)}', antialias=False, color=(255, 255, 255)
         )
 
         self.screen.blit(countdown, (0, 0))
@@ -68,19 +77,19 @@ class Game(Scene):
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
             record_text = self.font.render(
-                f"Time: {str(round(self.record, 5))}", False, (255, 255, 255)
+                text=f'Time: {round(self.record, 5)}', antialias=False, color=(255, 255, 255)
             )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
-    def on_key_down_event(self, event):
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         pressed_keys = pygame.key.get_pressed()
 
         if pressed_keys[pygame.K_SPACE]:
             self.start = True
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

@@ -1,15 +1,22 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import random
+from typing import Self
+
 import pygame
+
+from glitchygames import game_objects
 from glitchygames.color import WHITE
-from .. import game_objects
 from glitchygames.movement import Speed
 from glitchygames.sprites import Sprite
 
 
 class BallSprite(Sprite):
 
-    def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty(),
-                 collision_sound=None):
+    def __init__(self: Self, x: int = 0, y: int = 0, width: int = 20, height: int = 20,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty(),
+                 collision_sound: str | None = None) -> None:
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.use_gfxdraw = True
         self.image.convert()
@@ -27,11 +34,11 @@ class BallSprite(Sprite):
         self.dirty = 2
 
     @property
-    def color(self):
+    def color(self: Self) -> tuple[int, int, int]:
         return self._color
 
     @color.setter
-    def color(self, new_color):
+    def color(self: Self, new_color: tuple) -> None:
         self._color = new_color
         pygame.draw.circle(
             self.image,
@@ -41,7 +48,7 @@ class BallSprite(Sprite):
             0
         )
 
-    def _do_bounce(self):
+    def _do_bounce(self: Self) -> None:
         if self.rect.y <= 0:
             self.snd.play()
             self.rect.y = 0
@@ -51,7 +58,7 @@ class BallSprite(Sprite):
             self.rect.y = self.screen_height - self.height
             self.speed.y *= -1
 
-    def reset(self):
+    def reset(self: Self) -> None:
         self.x = random.randrange(50, 750)
         self.y = random.randrange(25, 400)
 
@@ -69,14 +76,14 @@ class BallSprite(Sprite):
         self.rect.y = self.y
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
-    def bounce(self, diff):
+    def bounce(self: Self, diff: int) -> None:
         self.direction = (180 - self.direction) % 360
         self.direction -= diff
 
         # Speed the ball up
         self.speed *= 1.1
 
-    def update(self):
+    def update(self: Self) -> None:
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x
 

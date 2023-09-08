@@ -1,29 +1,30 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-import glob
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import contextlib
 import logging
-import multiprocessing
+from pathlib import Path
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
 from pygame import Rect
 
-from glitchygames.color import BLACKLUCENT, BLACK, YELLOW, GREEN, BLUE
-from glitchygames.color import PURPLE, WHITE
+from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
 from glitchygames.engine import GameEngine
-from glitchygames.fonts import FontManager
-from glitchygames.events.joystick import JoystickManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
-
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
 
 
 class ShapesSprite(Sprite):
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
 
@@ -46,26 +47,26 @@ class ShapesSprite(Sprite):
 
         self.dirty = 1
 
-    def move(self, pos):
+    def move(self: Self, pos: tuple) -> None:
         self.rect.center = pos
         self.dirty = 1
 
-    def update(self):
+    def update(self: Self) -> None:
         self._draw_point()
         self._draw_circle()
         self._draw_rectangle()
         self._draw_triangle()
         self.dirty = 1
 
-    def _draw_point(self):
+    def _draw_point(self: Self) -> None:
         # Draw a yellow point.
         # There's no point API, so we'll fake
         # it with the line API.
         if self.use_gfxdraw:
-            pygame.gfxdraw.pixel(self.screen,  # noqa: I1101
+            pygame.gfxdraw.pixel(self.screen,
                                  self.screen_width // 2,
                                  self.screen_height // 2,
-                                 YELLOW)  # noqa: I1101
+                                 YELLOW)
 
             self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
@@ -74,10 +75,10 @@ class ShapesSprite(Sprite):
                                           (self.screen_width // 2, self.screen_height // 2),
                                           (self.screen_width // 2, self.screen_height // 2))
 
-    def _draw_circle(self):
+    def _draw_circle(self: Self) -> None:
         # Draw a blue circle.
         if self.use_gfxdraw:
-            pygame.gfxdraw.circle(self.screen,  # noqa: I1101
+            pygame.gfxdraw.circle(self.screen,
                                   self.screen_width // 2,
                                   self.screen_height // 2,
                                   self.screen_height // 2,
@@ -88,7 +89,7 @@ class ShapesSprite(Sprite):
                                (self.screen_width // 2, self.screen_height // 2),
                                self.screen_height // 2, 1)
 
-    def _draw_triangle(self):
+    def _draw_triangle(self: Self) -> None:
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
         x1 = self.screen_width // 2
@@ -104,7 +105,7 @@ class ShapesSprite(Sprite):
         pointlist = (top_point, left_point, right_point)
 
         if self.use_gfxdraw:
-            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)  # noqa: I1101
+            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)
 
             # You could also use:
             # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, GREEN)
@@ -114,157 +115,159 @@ class ShapesSprite(Sprite):
             self.triangle = pygame.draw.polygon(self.screen, GREEN, pointlist, 1)
 
     @property
-    def rectangle(self):
+    def rectangle(self: Self) -> pygame.rect.Rect:
         rect = Rect(0, 0, self.screen_height, self.screen_height)
         rect.center = (self.screen_width / 2, self.screen_height / 2)
 
         return rect
 
-    def _draw_rectangle(self):
+    def _draw_rectangle(self: Self) -> None:
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
         if self.use_gfxdraw:
-            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)  # noqa: I1101
+            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
 
+# TODO: Refactor this into ui.py and/or remove it
+# class TextSprite(Sprite):
+#     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
+#         self.background_color = background_color
+#         self.alpha = alpha
+#         self.x = x
+#         self.y = y
+#         self.text_box = None
+#         super().__init__()
 
-class TextSprite(Sprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
-        self.background_color = background_color
-        self.alpha = alpha
-        self.x = x
-        self.y = y
-        self.text_box = None
-        super().__init__()
+#         # Quick and dirty, for now.
+#         self.image = pygame.Surface((200, 200))
+#         self.screen = pygame.display.get_surface()
 
-        # Quick and dirty, for now.
-        self.image = pygame.Surface((200, 200))
-        self.screen = pygame.display.get_surface()
+#         if not alpha:
+#             self.image.set_colorkey(self.background_color)
+#             self.image.convert()
+#         else:
+#             # Enabling set_alpha() and also setting a color
+#             # key will let you hide the background
+#             # but things that are blited otherwise will
+#             # be translucent.  This can be an easy
+#             # way to get a translucent image which
+#             # does not have a border, but it causes issues
+#             # with edge-bleed.
+#             #
+#             # What if we blitted the translucent background
+#             # to the screen, then copied it and used the copy
+#             # to write the text on top of when translucency
+#             # is set?  That would allow us to also control
+#             # whether the text is opaque or translucent, and
+#             # it would also allow a different translucency level
+#             # on the text than the window.
+#             self.image.convert_alpha()
+#             self.image.set_alpha(self.alpha)
 
-        if not alpha:
-            self.image.set_colorkey(self.background_color)
-            self.image.convert()
-        else:
-            # Enabling set_alpha() and also setting a color
-            # key will let you hide the background
-            # but things that are blited otherwise will
-            # be translucent.  This can be an easy
-            # hack to get a translucent image which
-            # does not have a border, but it causes issues
-            # with edge-bleed.
-            #
-            # What if we blitted the translucent background
-            # to the screen, then copied it and used the copy
-            # to write the text on top of when translucency
-            # is set?  That would allow us to also control
-            # whether the text is opaque or translucent, and
-            # it would also allow a different translucency level
-            # on the text than the window.
-            self.image.convert_alpha()
-            self.image.set_alpha(self.alpha)
+#         self.rect = self.image.get_rect()
+#         self.rect.x += x
+#         self.rect.y += y
+#         self.font_manager = FontManager()
+#         self.joystick_manager = JoystickManager()
+#         self.joystick_count = len(self.joystick_manager.joysticks)
 
-        self.rect = self.image.get_rect()
-        self.rect.x += x
-        self.rect.y += y
-        self.font_manager = FontManager()
-        self.joystick_manager = JoystickManager()
-        self.joystick_count = len(self.joystick_manager.joysticks)
+#         # Interiting from object is default in Python 3.
+#         # Linters complain if you do it.
+#         class TextBox:
+#             def __init__(self, font_controller, x, y, line_height=15):
+#                 super().__init__()
+#                 self.image = None
+#                 self.rect = None
+#                 self.start_x = x
+#                 self.start_y = y
+#                 self.x = self.start_x
+#                 self.y = self.start_y
+#                 self.line_height = line_height
 
-        # Interiting from object is default in Python 3.
-        # Linters complain if you do it.
-        class TextBox:
-            def __init__(self, font_controller, x, y, line_height=15):
-                super().__init__()
-                self.image = None
-                self.rect = None
-                self.start_x = x
-                self.start_y = y
-                self.x = self.start_x
-                self.y = self.start_y
-                self.line_height = line_height
+#                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
+#                 self.font = pygame.freetype.SysFont(name=font_controller.font,
+#                                                     size=font_controller.font_size)
 
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)
-                self.font = pygame.freetype.SysFont(name=font_controller.font,
-                                                    size=font_controller.font_size)
+#             def print(self, surface, string):
+#                 (self.image, self.rect) = self.font.render(string, WHITE)
+#                 surface.blit(self.image, (self.x, self.y))
+#                 self.rect.x = self.x
+#                 self.rect.y = self.y
+#                 self.y += self.line_height
 
-            def print(self, surface, string):
-                (self.image, self.rect) = self.font.render(string, WHITE)
-                surface.blit(self.image, (self.x, self.y))
-                self.rect.x = self.x
-                self.rect.y = self.y
-                self.y += self.line_height
+#             def reset(self):
+#                 self.x = self.start_x
+#                 self.y = self.start_y
 
-            def reset(self):
-                self.x = self.start_x
-                self.y = self.start_y
+#             def indent(self):
+#                 self.x += 10
 
-            def indent(self):
-                self.x += 10
+#             def unindent(self):
+#                 self.x -= 10
 
-            def unindent(self):
-                self.x -= 10
+#         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
 
-        self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
+#         self.dirty = 2
 
-        self.dirty = 2
+#     def update(self):
+#         self.image.fill(self.background_color)
 
-    def update(self):
-        self.image.fill(self.background_color)
+#         pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
 
-        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
+#         self.text_box.reset()
+#         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
 
-        self.text_box.reset()
-        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
+#         self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
 
-        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
+#         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
+#         self.text_box.print(self.image, f'Number of joysticks: {self.joystick_count}')
+#         if self.joystick_count:
+#             for i, joystick in enumerate(self.joystick_manager.joysticks):
+#                 self.text_box.print(self.image, f'Joystick {i}')
 
-        self.text_box.print(self.image, "Number of joysticks: {}".format(self.joystick_count))
-        if self.joystick_count:
-            for i, joystick in enumerate(self.joystick_manager.joysticks):
-                self.text_box.print(self.image, f'Joystick {i}')
+#                 # Get the name from the OS for the controller/joystick
+#                 self.text_box.indent()
+#                 self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
 
-                # Get the name from the OS for the controller/joystick
-                self.text_box.indent()
-                self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
+#                 # Usually axis run in pairs, up/down for one, and left/right for
+#                 # the other.
+#                 axes = joystick.get_numaxes()
+#                 self.text_box.print(self.image, f'Number of axes: {axes}')
 
-                # Usually axis run in pairs, up/down for one, and left/right for
-                # the other.
-                axes = joystick.get_numaxes()
-                self.text_box.print(self.image, f'Number of axes: {axes}')
+#                 self.text_box.indent()
+#                 for j in range(axes):
+                    # self.text_box.print(
+                    #     self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
+                    # )
+#                 self.text_box.unindent()
 
-                self.text_box.indent()
-                for j in range(axes):
-                    self.text_box.print(self.image, 'Axis {} value: {:>6.3f}'
-                                        .format(j, joystick.get_axis(j)))
-                self.text_box.unindent()
+#                 buttons = joystick.get_numbuttons()
+#                 self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
 
-                buttons = joystick.get_numbuttons()
-                self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
+#                 self.text_box.indent()
+#                 for j in range(buttons):
+#                     self.text_box.print(
+#                         self.image, f'Button {j:>2} value: {joystick.get_button(i)}'
+#                     )
+#                 self.text_box.unindent()
 
-                self.text_box.indent()
-                for j in range(buttons):
-                    self.text_box.print(self.image, 'Button {:>2} value: {}'
-                                        .format(j, joystick.get_button(i)))
-                self.text_box.unindent()
+#                 # Hat switch. All or nothing for direction, not like joysticks.
+#                 # Value comes back in an array.
+#                 hats = 0
+#                 self.text_box.print(self.image, f'Number of hats: {hats}')
 
-                # Hat switch. All or nothing for direction, not like joysticks.
-                # Value comes back in an array.
-                hats = 0
-                self.text_box.print(self.image, f'Number of hats: {hats}')
-
-                self.text_box.indent()
-                for j in range(hats):
-                    self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
-                    self.text_box.unindent()
-                self.text_box.unindent()
+#                 self.text_box.indent()
+#                 for j in range(hats):
+#                     self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
+#                     self.text_box.unindent()
+#                 self.text_box.unindent()
 
 
 class JoystickScene(Scene):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
         super().__init__(groups=groups)
         self.tiles = []
 
@@ -273,26 +276,20 @@ class JoystickScene(Scene):
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(
-            (
-                self.shapes_sprite
-            )
+            tuple(self.shapes_sprite)
         )
 
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
 
-    def load_resources(self):  # noqa: R0201
+    def load_resources(self: Self) -> None:
         # Load tiles.
-        for resource in glob.iglob('resources/*', recursive=True):
-            try:
+        for resource in Path('resources').glob('*'):
+            with contextlib.suppress(IsADirectoryError):
                 self.log.info(f'Load Resource: {resource}')
-            except IsADirectoryError:
-                pass
-        #         self.tiles.append(load_graphic(resource))
-        #     except IsADirectoryError:
-        #         pass
+                self.tiles.append(self.load_graphic(resource))
 
-    def render(self, screen):
+    def render(self: Self, screen: pygame.Surface) -> None:
         super().render(screen)
 
         x = 0
@@ -307,31 +304,31 @@ class JoystickScene(Scene):
             else:
                 x += 32
 
-    def on_mouse_motion_event(self, event):
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_up(self, event):  # noqa: W0613
+    def on_left_mouse_button_up(self: Self, event: pygame.event.Event) -> None:
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
-    def on_left_mouse_button_down(self, event):  # noqa: W0613
+    def on_left_mouse_button_down(self: Self, event: pygame.event.Event) -> None:
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
-    def on_pew_pew_event(self, event):  # noqa: R0201
+    def on_pew_pew_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info(f'PEW PEW Event: {event}')
 
-    def on_recharge_event(self, event):  # noqa: R0201
+    def on_recharge_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info(f'Recharge Event: {event}')
 
-    def on_controller_axis_motion_event(self, event):
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info('controller Axis motion event')
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Joystick and Font Demo"
-    VERSION = "0.0"
+    NAME = 'Joystick and Font Demo'
+    VERSION = '0.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         self.time = options.get('time')
         self.next_scene = JoystickScene()
@@ -376,7 +373,7 @@ class Game(Scene):
         # super().update_cursor()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--time',
                             type=int,
                             help='time in seconds to wait before quitting',
@@ -386,7 +383,7 @@ class Game(Scene):
                             help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 

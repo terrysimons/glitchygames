@@ -1,16 +1,19 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-import logging
+#!/usr/bin/env python3
+from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames.engine import GameEngine
-from glitchygames.sprites import BitmappySprite
 from glitchygames.scenes import Scene
+from glitchygames.sprites import BitmappySprite
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
@@ -20,7 +23,7 @@ BitmappySprite.DEBUG = True
 
 
 class IntroScene(Scene):
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -32,11 +35,11 @@ class IntroScene(Scene):
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = "Debug App"
-    VERSION = "1.0"
+    NAME = 'Debug App'
+    VERSION = '1.0'
     log = LOG
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
@@ -44,13 +47,13 @@ class Game(Scene):
         self.next_scene = IntroScene()
 
     @classmethod
-    def args(cls, parser):
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
 
-def main():
+def main() -> None:
     GameEngine(game=Game).start()
 
 
