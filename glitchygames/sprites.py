@@ -5,7 +5,7 @@ from __future__ import annotations
 import collections
 import configparser
 import logging
-from typing import ClassVar, Self, cast, type
+from typing import ClassVar, Self, cast
 
 import pygame
 
