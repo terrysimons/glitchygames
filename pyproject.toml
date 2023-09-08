@@ -111,6 +111,7 @@ extend-select = [
   "RUF",
   "FBT",
   "B",
+  "A",
 
 ]
 ignore = [
@@ -121,7 +122,6 @@ ignore = [
 ]
 extend-ignore = [
   "D",
-  "A",
   "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
   "COM812", # Trailing comma missing
   "G004", # Logging statement uses f-string

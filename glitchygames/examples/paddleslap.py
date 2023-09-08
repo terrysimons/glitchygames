@@ -94,7 +94,7 @@ class TextSprite(Sprite):
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
 
-            def print(self: Self, surface: pygame.surface.Surface, string: str) -> None:
+            def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
@@ -117,7 +117,7 @@ class TextSprite(Sprite):
         self.image.fill(self.background_color)
 
         self.text_box.reset()
-        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
+        self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
 
 
 class Game(Scene):
