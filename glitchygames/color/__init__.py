@@ -1,7 +1,11 @@
+"""Color constants and palette helpers.
+
+This module contains color constants and palette helpers.
+"""
 from .palette import (
-    NES,  # noqa: F401
-    SYSTEM,  # noqa: F401
-    VGA,  # noqa: F401
+    NES,
+    SYSTEM,
+    VGA,
     Default,
 )
 

@@ -1,9 +1,12 @@
 # GlitchyGames
 # palette: Manages the custom color palette file format used by the engine
 
+from __future__ import annotations
+
 import configparser
 import os.path
 import sys
+from typing import ClassVar, Optional, Self
 
 from pygame import Color
 
@@ -14,10 +17,11 @@ NES = 'nes'
 
 class ColorPalette:
 
-    _BUILTIN_PALETTE_LOCATION = os.path.join(os.path.dirname(__file__), 'resources')
-    _DEFAULT_EXTENSION = 'palette'
+    _BUILTIN_PALETTE_LOCATION: ClassVar = os.path.join(os.path.dirname(__file__), 'resources')
+    _DEFAULT_EXTENSION: ClassVar = 'palette'
 
-    def __init__(self, colors=None, filename=None):
+    def __init__(self: Self, colors: Optional(list | None) = None,
+                 filename: Optional(str, None) = None) -> None:
         self._colors = None
 
         if colors:
@@ -125,7 +129,7 @@ class PaletteUtility:
 # A Custom Color palette with named colors
 class Default(ColorPalette):
     """A default set of colors used for Glitchy Games Examples"""
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__(filename='default')
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
@@ -140,7 +144,7 @@ class Default(ColorPalette):
 
 class System(ColorPalette):
     """A palette representing the 16 default system colors"""
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__(filename=SYSTEM)
         self.BLACK = self.get_color(0)
         self.MAROON = self.get_color(1)
@@ -163,7 +167,7 @@ class System(ColorPalette):
 class Vga(ColorPalette):
     """The 256 VGA color palette"""
 
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__(filename=VGA)
         # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)
         # https://glitchy-games.atlassian.net/browse/GG-21

@@ -4,6 +4,7 @@ import configparser
 import logging
 import struct
 from collections import OrderedDict
+from typing import Self
 
 import pygame
 from glitchygames.color.palette import Vga
@@ -19,7 +20,7 @@ LOG.setLevel(logging.INFO)
 class BitmappyLegacySprite(Sprite):
     log = LOG
 
-    def __init__(self, filename, palette, *args, **kwargs):
+    def __init__(self: Self, filename: str, palette: list, *args, **kwargs) -> None:
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
         self.rect = None
@@ -33,7 +34,7 @@ class BitmappyLegacySprite(Sprite):
 
         self.save(filename + '.cfg')
 
-    def load(self, filename, palette, width, height):
+    def load(self: Self, filename: str, palette: list, width: int, height: int) -> tuple:
         """
         """
         # We need to load an 8-bit palette for color conversion.
@@ -158,7 +159,7 @@ class BitmappyLegacySprite(Sprite):
 
         return config
 
-    def __str__(self):
+    def __str__(self: Self) -> str:
         description = f'Name: {self.name}\n"' \
                            f'Dimensions: {self.width}x{self.height}' \
                            f'\nColor Key: {self.color_key}\n'
@@ -172,7 +173,7 @@ class BitmappyLegacySprite(Sprite):
 
 
 class GameScene(Scene):
-    def __init__(self, filename, palette):
+    def __init__(self: Self, filename: str, palette: list) -> None:
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -193,7 +194,7 @@ class Game(Scene):
     NAME = 'Sprite Loader'
     VERSION = '1.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         self.filename = options.get('filename')
         self.palette = Vga()

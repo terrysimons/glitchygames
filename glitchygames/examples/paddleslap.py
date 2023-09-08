@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
 import random
+from typing import Self
 
 import pygame
 import pygame.freetype
@@ -22,28 +23,10 @@ log = logging.getLogger('game')
 log.setLevel(logging.INFO)
 
 
-class Rally:
-    def __init__(self, trigger_value, action):
-        self._trigger_value = trigger_value
-        self._action = action
-        self._count = 0
-
-    def hit(self):
-        self._count += 1
-
-    def reset(self):
-        self._count = 0
-
-    def do_rally(self):
-        if self._trigger_value == self._count:
-            self._action()
-            return True
-        return False
-
-
 class TextSprite(Sprite):
-    def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0,
-                 groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, background_color: tuple = BLACKLUCENT, alpha: int = 0,
+                 x: int = 0, y: int = 0,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x, y, 0, 0, groups=groups)
         self.background_color = background_color
         self.alpha = alpha
@@ -86,8 +69,8 @@ class TextSprite(Sprite):
         # Inheriting from object is default in Python 3.
         # Linters complain if you do it.
         class TextBox(Sprite):
-            def __init__(self, font_controller, pos, line_height=15,
-                         groups=pygame.sprite.LayeredDirty()):
+            def __init__(self: Self, font_controller: FontManager, pos: tuple,
+                         line_height: int = 15, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
                 super().__init__(pos[0], pos[1], 0, 0, groups=groups)
                 self.image = None
                 self.start_pos = pos
@@ -98,26 +81,26 @@ class TextSprite(Sprite):
                 self.font = pygame.freetype.SysFont(name=font_controller.font,
                                                     size=font_controller.font_size)
 
-            def print(self, surface, string):
+            def print(self: Self, surface: pygame.surface.Surface, string: str) -> None:
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
                 self.rect.y += self.line_height
 
-            def reset(self):
+            def reset(self: Self) -> None:
                 self.rect.center = self.start_pos
 
-            def indent(self):
+            def indent(self: Self) -> None:
                 self.rect.x += 10
 
-            def unindent(self):
+            def unindent(self: Self) -> None:
                 self.rect.x -= 10
 
         self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
         self.dirty = 2
 
-    def update(self):
+    def update(self: Self) -> None:
         self.image.fill(self.background_color)
 
         self.text_box.reset()
@@ -129,7 +112,7 @@ class Game(Scene):
     NAME = 'Paddle Slap'
     VERSION = '1.1'
 
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
         super().__init__(options=options, groups=groups)
         self.fps = 0
 

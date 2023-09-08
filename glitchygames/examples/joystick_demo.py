@@ -2,6 +2,7 @@
 import contextlib
 import logging
 from pathlib import Path
+from typing import Self
 
 import pygame.freetype
 import pygame.gfxdraw
@@ -18,7 +19,7 @@ LOG.setLevel(logging.DEBUG)
 
 
 class ShapesSprite(Sprite):
-    def __init__(self, *args, **kwargs):
+    def __init__(self: Self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
 
@@ -41,26 +42,26 @@ class ShapesSprite(Sprite):
 
         self.dirty = 1
 
-    def move(self, pos):
+    def move(self: Self, pos: tuple) -> None:
         self.rect.center = pos
         self.dirty = 1
 
-    def update(self):
+    def update(self: Self) -> None:
         self._draw_point()
         self._draw_circle()
         self._draw_rectangle()
         self._draw_triangle()
         self.dirty = 1
 
-    def _draw_point(self):
+    def _draw_point(self: Self) -> None:
         # Draw a yellow point.
         # There's no point API, so we'll fake
         # it with the line API.
         if self.use_gfxdraw:
-            pygame.gfxdraw.pixel(self.screen,  # noqa: I1101
+            pygame.gfxdraw.pixel(self.screen,
                                  self.screen_width // 2,
                                  self.screen_height // 2,
-                                 YELLOW)  # noqa: I1101
+                                 YELLOW)
 
             self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
@@ -69,10 +70,10 @@ class ShapesSprite(Sprite):
                                           (self.screen_width // 2, self.screen_height // 2),
                                           (self.screen_width // 2, self.screen_height // 2))
 
-    def _draw_circle(self):
+    def _draw_circle(self: Self) -> None:
         # Draw a blue circle.
         if self.use_gfxdraw:
-            pygame.gfxdraw.circle(self.screen,  # noqa: I1101
+            pygame.gfxdraw.circle(self.screen,
                                   self.screen_width // 2,
                                   self.screen_height // 2,
                                   self.screen_height // 2,
@@ -83,7 +84,7 @@ class ShapesSprite(Sprite):
                                (self.screen_width // 2, self.screen_height // 2),
                                self.screen_height // 2, 1)
 
-    def _draw_triangle(self):
+    def _draw_triangle(self: Self) -> None:
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
         x1 = self.screen_width // 2
@@ -99,7 +100,7 @@ class ShapesSprite(Sprite):
         pointlist = (top_point, left_point, right_point)
 
         if self.use_gfxdraw:
-            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)  # noqa: I1101
+            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)
 
             # You could also use:
             # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, GREEN)
@@ -109,18 +110,18 @@ class ShapesSprite(Sprite):
             self.triangle = pygame.draw.polygon(self.screen, GREEN, pointlist, 1)
 
     @property
-    def rectangle(self):
+    def rectangle(self: Self) -> pygame.rect.Rect:
         rect = Rect(0, 0, self.screen_height, self.screen_height)
         rect.center = (self.screen_width / 2, self.screen_height / 2)
 
         return rect
 
-    def _draw_rectangle(self):
+    def _draw_rectangle(self: Self) -> None:
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
         if self.use_gfxdraw:
-            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)  # noqa: I1101
+            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
 
@@ -261,7 +262,7 @@ class ShapesSprite(Sprite):
 
 
 class JoystickScene(Scene):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
         super().__init__(groups=groups)
         self.tiles = []
 
@@ -276,7 +277,7 @@ class JoystickScene(Scene):
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
 
-    def load_resources(self):  # noqa: R0201
+    def load_resources(self):
         # Load tiles.
         for resource in Path('resources').glob('*'):
             with contextlib.suppress(IsADirectoryError):
@@ -301,16 +302,16 @@ class JoystickScene(Scene):
     def on_mouse_motion_event(self, event):
         self.shapes_sprite.move(event.pos)
 
-    def on_left_mouse_button_up(self, event):  # noqa: W0613
+    def on_left_mouse_button_up(self, event):
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
-    def on_left_mouse_button_down(self, event):  # noqa: W0613
+    def on_left_mouse_button_down(self, event):
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
-    def on_pew_pew_event(self, event):  # noqa: R0201
+    def on_pew_pew_event(self, event):
         self.log.info(f'PEW PEW Event: {event}')
 
-    def on_recharge_event(self, event):  # noqa: R0201
+    def on_recharge_event(self, event):
         self.log.info(f'Recharge Event: {event}')
 
     def on_controller_axis_motion_event(self, event):
@@ -322,7 +323,7 @@ class Game(Scene):
     NAME = 'Joystick and Font Demo'
     VERSION = '0.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         self.time = options.get('time')
         self.next_scene = JoystickScene()

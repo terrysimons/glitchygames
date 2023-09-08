@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
 import time
-from typing import ClassVar
+from typing import ClassVar, Self
 
 import pygame
 
@@ -13,15 +15,11 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
-
-
-
-
 class SceneManager(SceneInterface, events.EventManager):
     log: ClassVar = LOG
     OPTIONS: ClassVar = {}
 
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
@@ -40,11 +38,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.clock = pygame.time.Clock()
 
     @property
-    def game_engine(self):
+    def game_engine(self: Self) -> object:
         return self._game_engine
 
     @game_engine.setter
-    def game_engine(self, new_engine):
+    def game_engine(self: Self, new_engine: object) -> None:
         self._game_engine = new_engine
         if self._game_engine:
             self.OPTIONS = self._game_engine.OPTIONS
@@ -58,13 +56,13 @@ class SceneManager(SceneInterface, events.EventManager):
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
     @property
-    def all_sprites(self) -> pygame.sprite.LayeredDirty or None:
+    def all_sprites(self: Self) -> pygame.sprite.LayeredDirty | None:
         if self.active_scene:
             return self.active_scene.all_sprites
 
         return None
 
-    def switch_to_scene(self, next_scene):
+    def switch_to_scene(self: Self, next_scene: Scene) -> None:
         if next_scene != self.active_scene:
             self.dt = 0
             self.timer = 0
@@ -74,7 +72,7 @@ class SceneManager(SceneInterface, events.EventManager):
             )
 
             if self.active_scene:
-                self.active_scene._screenshot = self.active_scene.screenshot  # noqa:   SLF001
+                self.active_scene._screenshot = self.active_scene.screenshot
                 self.log.info(f'Cleaning up active scene {self.active_scene}.')
                 self.active_scene.cleanup()
 
@@ -128,7 +126,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 # Per-scene FPS configurability
                 self.target_fps = self.active_scene.target_fps
 
-    def start(self):
+    def start(self: Self) -> None:
         previous_time = time.perf_counter()
         previous_fps_time = previous_time
         current_time = previous_time
@@ -168,17 +166,17 @@ class SceneManager(SceneInterface, events.EventManager):
                       f'Quit Requested: {self.quit_requested}')
         self.terminate()
 
-    def terminate(self):
+    def terminate(self: Self) -> None:
         self.switch_to_scene(None)
 
-    def quit(self):  # noqa: R0201
+    def quit(self: Self) -> None:
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(
             pygame.event.Event(pygame.QUIT, {})
         )
 
-    def on_quit_event(self, event):
+    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         # QUIT             none
         self.quit_requested = True
 
@@ -232,7 +230,8 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
     NAME = 'Unnamed Scene'
     VERSION = '0.0'
 
-    def __init__(self, options=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, options: dict | None = None,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__()
 
         # Since SceneManager is a singleton, this will ensure that
@@ -318,13 +317,13 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             for sprite in self.all_sprites:
                 sprite.dirty = 1 if not sprite.dirty else sprite.dirty
 
-    def render(self, screen):  # noqa: W0613
+    def render(self, screen):
         self.rects = self.all_sprites.draw(self.screen)
 
     def sprites_at_position(self, pos):
         mouse = MousePointer(pos=pos)
 
-        return pygame.sprite.spritecollide(mouse, self.all_sprites, False)
+        return pygame.sprite.spritecollide(sprite=mouse, group=self.all_sprites, dokill=False)
 
     def on_mouse_drag_event(self, event, trigger):
         self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
@@ -455,10 +454,10 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_fps_event(self, event):  # noqa: W0613
+    def on_fps_event(self, event):
         # FPSEVENT is pygame.USEREVENT + 1
         self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
         self.fps = event.fps
 
-    def load_resources(self):  # noqa: R0201
+    def load_resources(self):
         self.log.debug(f'Implement load_resource() in {type(self)}.')

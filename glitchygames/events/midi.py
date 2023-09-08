@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from typing import Self
 
 from glitchygames.events import ResourceManager
 
@@ -8,7 +9,7 @@ log.addHandler(logging.NullHandler())
 
 
 class MidiManager(ResourceManager):
-    def __init__(self, game=None):  # noqa: W0235
+    def __init__(self: Self, game: object = None) -> None:
         """
         Manage music.
 
@@ -23,6 +24,6 @@ class MidiManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Midi Options')  # noqa: W0612, F841
+        group = parser.add_argument_group('Midi Options')  # noqa: F841
 
         return parser

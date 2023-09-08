@@ -3,6 +3,7 @@
 import configparser
 import logging
 from collections import OrderedDict
+from typing import Self
 
 import pygame
 from glitchygames.engine import GameEngine
@@ -14,7 +15,7 @@ log.setLevel(logging.DEBUG)
 
 
 class BitmappySprite(Sprite):
-    def __init__(self, filename, *args, **kwargs):
+    def __init__(self: Self, filename: str, *args, **kwargs) -> None:
         super().__init__(*args, pos=(0,0), size=(0, 0), **kwargs)
         self.image = None
         self.rect = None
@@ -30,7 +31,7 @@ class BitmappySprite(Sprite):
         config.read(filename, encoding='utf-8')
 
         # Example config:
-        # [sprite]  # noqa: ERA001
+        # [sprite]
         # name = <name>
         name = config.get(section='sprite', option='name')
 
@@ -170,7 +171,7 @@ class BitmappySprite(Sprite):
 
         return config
 
-    def __str__(self):
+    def __str__(self: Self) -> str:
         description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
             '\nColor Key: {self.color_key}\n'
 
@@ -183,7 +184,7 @@ class BitmappySprite(Sprite):
 
 
 class GameScene(Scene):
-    def __init__(self, filename):
+    def __init__(self: Self, filename: str) -> None:
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -202,7 +203,7 @@ class Game(Scene):
     NAME = 'Sprite Loader'
     VERSION = '1.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         self.filename = options.get('filename')
 

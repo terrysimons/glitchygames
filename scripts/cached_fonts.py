@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from typing import Self
 
 import pygame
 import pygame.freetype
@@ -19,7 +20,7 @@ BitmappySprite.DEBUG = True
 class GameScene(Scene):
     log = LOG
 
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(groups=groups)
         self.all_sprites = groups
         self.screen = pygame.display.get_surface()
@@ -36,7 +37,7 @@ class Game(Scene):
     NAME = 'Cached Font Demo'
     VERSION = '1.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.

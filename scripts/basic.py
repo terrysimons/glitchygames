@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+import typing
+from typing import Literal, Self
+
+if typing.TYPE_CHECKING:
+    import argparse
 
 import pygame
 from glitchygames.engine import GameEngine
@@ -18,7 +22,8 @@ class Game(Scene):
     VERSION: Literal['1.0'] = '1.0'
     log: logging.Logger = LOG
 
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()) -> None:
+    def __init__(self: Self, options: dict,
+                 groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(options=options, groups=groups)
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
@@ -29,16 +34,16 @@ class Game(Scene):
         self.next_scene = self
 
     @classmethod
-    def args(cls, parser) -> None:
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
 
-    def update(self) -> None:
+    def update(self: Self) -> None:
         # Do your updates here
         super().update()
 
-    def on_left_mouse_button_up_event(self, event) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         self.log.info(f'Left Mouse Up: {event}')
 
 

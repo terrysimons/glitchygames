@@ -3,14 +3,14 @@
 import inspect
 import logging
 import re
-from typing import ClassVar
+from typing import Callable, ClassVar, NoReturn, Self
 
 import pygame
 
-LOG = logging.getLogger('game.events')
+LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
-def supported_events(like='.*'):
+def supported_events(like: str = '.*') -> list:
     # Get a list of all of the events
     # by name, but ignore duplicates.
     event_names = (
@@ -24,7 +24,7 @@ def supported_events(like='.*'):
     # The error is:
     #
     # AttributeError: module 'pygame' has no attribute 'CONTROLLERDEVICEMAPPED'.
-    # Did you mean: 'CONTROLLERDEVICEREMAPPED'?  # noqa: E501
+    # Did you mean: 'CONTROLLERDEVICEREMAPPED'?
     #
     # This is a workaround for that.
     #
@@ -91,7 +91,7 @@ GAME_EVENTS.append(FPSEVENT)
 GAME_EVENTS.append(GAMEEVENT)
 GAME_EVENTS.append(MENUEVENT)
 
-def unhandled_event(*args, **kwargs):
+def unhandled_event(*args, **kwargs) -> NoReturn:
     LOG.error(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
     raise AttributeError(f'Unhandled Event: args: {args}, kwargs: {kwargs}')
 
@@ -127,11 +127,11 @@ class ResourceManager:
     a subclass of EventManager, it too is a ResourceManager
     which can be gotten to from anywhere, since it's a singleton.
     """
-    log = LOG
+    log: logging.Logger = LOG
 
     __instances__: ClassVar = {}
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls: Self, *args, **kwargs) -> object:
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
             LOG.debug(f'Created Resource Manager: {cls}')
@@ -140,11 +140,11 @@ class ResourceManager:
 
         return cls.__instances__[cls]
 
-    def __init__(self, game):  # noqa: W0613
+    def __init__(self: Self, game: object) -> None:
         super().__init__()
         self.proxies = []
 
-    def __getattr__(self, attr):
+    def __getattr__(self: Self, attr: str) -> Callable:
         # Try each proxy in turn
         try:
             for proxy in self.proxies:
@@ -158,57 +158,57 @@ class ResourceManager:
 
 # Mixin
 class AudioEvents:
-    def on_audio_device_added_event(self, event):
+    def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
         # AUDIODEVICEADDED   which, iscapture
         pass
 
-    def on_audio_device_removed_event(self, event):
+    def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         # AUDIODEVICEREMOVED which, iscapture
         pass
 
 
 # Mixin
 class ControllerEvents:
-    def on_controller_axis_motion_event(self, event):
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_button_down_event(self, event):
+    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_button_up_event(self, event):
+    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_device_added_event(self, event):
+    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_device_remapped_event(self, event):
+    def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_device_removed_event(self, event):
+    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_touchpad_down_event(self, event):
+    def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_touchpad_motion_event(self, event):
+    def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_controller_touchpad_up_event(self, event):
+    def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
 
 # Mixin
 class DropEvents:
-    def on_drop_begin_event(self, event):
+    def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_drop_file_event(self, event):
+    def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_drop_text_event(self, event):
+    def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_drop_complete_event(self, event):
+    def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
 
@@ -219,39 +219,39 @@ class FingerEvents:
 
 # Mixin
 class GameEvents:
-    def on_active_event(self, event):
+    def on_active_event(self: Self, event: pygame.event.Event) -> None:
         # ACTIVEEVENT      gain, state
         pass
 
-    def on_fps_event(self, event):
+    def on_fps_event(self: Self, event: pygame.event.Event) -> None:
         # FPSEVENT is pygame.USEREVENT + 1
         pass
 
-    def on_game_event(self, event):
+    def on_game_event(self: Self, event: pygame.event.Event) -> None:
         # GAMEEVENT is pygame.USEREVENT + 2
         pass
 
-    def on_menu_item_event(self, event):
+    def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
         # MENUEVENT is pygame.USEREVENT + 3
         pass
 
-    def on_sys_wm_event(self, event):
+    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
         # SYSWMEVENT
         pass
 
-    def on_user_event(self, event):
+    def on_user_event(self: Self, event: pygame.event.Event) -> None:
         # USEREVENT        code
         pass
 
-    def on_video_expose_event(self, event):
+    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
         # VIDEOEXPOSE      none
         pass
 
-    def on_video_resize_event(self, event):
+    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
         # VIDEORESIZE      size, w, h
         pass
 
-    def on_quit_event(self, event):
+    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         # QUIT             none
         pass
 
@@ -263,50 +263,50 @@ class FontEvents:
 
 # Mixin
 class KeyboardEvents:
-    def on_key_down_event(self, event):
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         # KEYDOWN          unicode, key, mod
         pass
 
-    def on_key_up_event(self, event):
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         # KEYUP            key, mod
         pass
 
-    def on_key_chord_up_event(self, event, keys):
+    def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
         # Synthesized event.
         pass
 
-    def on_key_chord_down_event(self, event, keys):
+    def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
         # Synthesized event.
         pass
 
 
 # Mixin
 class JoystickEvents:
-    def on_joy_axis_motion_event(self, event):
+    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYAXISMOTION    joy, axis, value
         pass
 
-    def on_joy_button_down_event(self, event):
+    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONDOWN    joy, button
         pass
 
-    def on_joy_button_up_event(self, event):
+    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONUP      joy, button
         pass
 
-    def on_joy_hat_motion_event(self, event):
+    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYHATMOTION     joy, hat, value
         pass
 
-    def on_joy_ball_motion_event(self, event):
+    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBALLMOTION    joy, ball, rel
         pass
 
-    def on_joy_device_added_event(self, event):
+    def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
         # JOYDEVICEADDED device_index, guid
         pass
 
-    def on_joy_device_removed_event(self, event):
+    def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         # JOYDEVICEREMOVED device_index
         pass
 
@@ -318,91 +318,93 @@ class MidiEvents:
 
 # Mixin
 class MouseEvents:
-    def on_mouse_motion_event(self, event):
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEMOTION      pos, rel, buttons
         pass
 
-    def on_mouse_drag_event(self, event, trigger):
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_mouse_drop_event(self, event, trigger):
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_left_mouse_drag_event(self, event, trigger):
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_left_mouse_drop_event(self, event, trigger):
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_middle_mouse_drag_event(self, event, trigger):
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_middle_mouse_drop_event(self, event, trigger):
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_right_mouse_drag_event(self, event, trigger):
+    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_right_mouse_drop_event(self, event, trigger):
+    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         # Synthesized event.
         pass
 
-    def on_mouse_focus_event(self, event, entering_focus):
+    def on_mouse_focus_event(self: Self, event: pygame.event.Event,
+                             entering_focus: object) -> None:
         # Synthesized event.
         pass
 
-    def on_mouse_unfocus_event(self, event, leaving_focus):
+    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event,
+                               leaving_focus: object) -> None:
         # Synthesized event.
         pass
 
-    def on_mouse_button_up_event(self, event):
+    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONUP    pos, button
         pass
 
-    def on_left_mouse_button_up_event(self, event):
+    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # Left Mouse Button Up pos, button
         pass
 
-    def on_middle_mouse_button_up_event(self, event):
+    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # Middle Mouse Button Up pos, button
         pass
 
-    def on_right_mouse_button_up_event(self, event):
+    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # Right Mouse Button Up pos, button
         pass
 
-    def on_mouse_button_down_event(self, event):
+    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         pass
 
-    def on_left_mouse_button_down_event(self, event):
+    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # Left Mouse Button Down pos, button
         pass
 
-    def on_middle_mouse_button_down_event(self, event):
+    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # Middle Mouse Button Down pos, button
         pass
 
-    def on_right_mouse_button_down_event(self, event):
+    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # Right Mouse Button Down pos, button
         pass
 
-    def on_mouse_scroll_down_event(self, event):
+    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
         # This is a synthesized event.
         pass
 
-    def on_mouse_scroll_up_event(self, event):
+    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
         # This is a synthesized event.
         pass
 
-    def on_mouse_wheel_event(self, event):
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEWHEEL flipped, y, x, touch, window
         pass
 
@@ -412,52 +414,52 @@ class TextEvents:
 
 
 class WindowEvents:
-    def on_window_close_event(self, event):
+    def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_enter_event(self, event):
+    def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_exposed_event(self, event):
+    def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_focus_gained_event(self, event):
+    def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_focus_lost_event(self, event):
+    def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_hidden_event(self, event):
+    def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_hit_test_event(self, event):
+    def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_leave_event(self, event):
+    def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_maximized_event(self, event):
+    def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_minimized_event(self, event):
+    def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_moved_event(self, event):
+    def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_resized_event(self, event):
+    def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_restored_event(self, event):
+    def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_shown_event(self, event):
+    def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_size_changed_event(self, event):
+    def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
-    def on_window_take_focus_event(self, event):
+    def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
         pass
 
 
@@ -478,7 +480,7 @@ class EventInterface(AudioEvents,
 
 
 class EventManager(ResourceManager):
-    log = LOG
+    log: logging.Logger = LOG
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #
@@ -486,9 +488,9 @@ class EventManager(ResourceManager):
     # it's the fallthrough event object, so we don't have a proxy.
 
     class EventProxy:
-        log = LOG
+        log: logging.Logger = LOG
 
-        def __init__(self, event_source):  # noqa: W0613
+        def __init__(self: Self, event_source: object) -> None:
             """
             Catch-all event sink for unhandled game events across all ResourceManagers.
 
@@ -510,7 +512,7 @@ class EventManager(ResourceManager):
             # will not have this.
             self.event_source = event_source
 
-        def unhandled_event(self, *args, **kwargs):  # noqa: W0613
+        def unhandled_event(self: Self, *args, **kwargs) -> None:
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
             event_handler = inspect.stack()[1].function
 
@@ -526,7 +528,7 @@ class EventManager(ResourceManager):
         def __getattr__(self, attr):
             return self.unhandled_event
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Root ResourceManager for other managers.
 
@@ -535,7 +537,7 @@ class EventManager(ResourceManager):
         which enables us to catch unhandled events.
 
         New event handling classes should inherit from this
-        and add their on_*_event(self, event) handlers to
+        and add their on_*_event(self: Self, event: pygame.event.Event) handlers to
         the EventProxy class contained herein.
 
         Args:

@@ -4,6 +4,7 @@ import configparser
 import logging
 import struct
 from collections import OrderedDict
+from typing import Self
 
 import pygame
 from glitchygames.engine import GameEngine
@@ -18,7 +19,7 @@ LOG.setLevel(logging.INFO)
 class BitmappyLegacySprite(Sprite):
     log = LOG
 
-    def __init__(self, filename, *args, **kwargs):
+    def __init__(self: Self, filename: str, *args, **kwargs) -> None:
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
         self.rect = None
@@ -28,7 +29,7 @@ class BitmappyLegacySprite(Sprite):
 
         self.save(filename + '.cfg')
 
-    def load(self, filename, width, height):
+    def load(self: Self, filename: str, width: int, height: int) -> tuple:
         """
         """
         image = None
@@ -48,7 +49,7 @@ class BitmappyLegacySprite(Sprite):
         pixels = list(pixels)
 
         for pixel in pixels:
-            LOG.info(pixel)  # noqa: T201
+            LOG.info(pixel)
 
         (image, rect) = self.inflate(width=width,
                                      height=height,
@@ -56,7 +57,7 @@ class BitmappyLegacySprite(Sprite):
 
         return (image, rect, filename)
 
-    def inflate(self, width, height, pixels):
+    def inflate(self: Self, width: int, height: int, pixels: list) -> tuple:
         """
         """
         image = pygame.Surface((width, height))
@@ -77,7 +78,7 @@ class BitmappyLegacySprite(Sprite):
 
         return (image, image.get_rect())
 
-    def save(self, filename):
+    def save(self: Self, filename: str) -> None:
         """
         """
         config = self.deflate()
@@ -85,7 +86,7 @@ class BitmappyLegacySprite(Sprite):
         with open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
-    def deflate(self):
+    def deflate(self: Self) -> configparser.ConfigParser:
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
@@ -147,7 +148,7 @@ class BitmappyLegacySprite(Sprite):
 
         return config
 
-    def __str__(self):
+    def __str__(self: Self) -> str:
         description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
             '\nColor Key: {self.color_key}\n'
 
@@ -160,7 +161,7 @@ class BitmappyLegacySprite(Sprite):
 
 
 class GameScene(Scene):
-    def __init__(self, filename):
+    def __init__(self: Self, filename: str) -> None:
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -180,7 +181,7 @@ class Game(Scene):
     NAME = 'Raw Sprite Loader'
     VERSION = '1.0'
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         self.filename = options.get('filename')
 

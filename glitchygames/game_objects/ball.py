@@ -1,4 +1,8 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
 import random
+from typing import Self
 
 import pygame
 
@@ -10,8 +14,9 @@ from glitchygames.sprites import Sprite
 
 class BallSprite(Sprite):
 
-    def __init__(self, x=0, y=0, width=20, height=20, groups=pygame.sprite.LayeredDirty(),
-                 collision_sound=None):
+    def __init__(self: Self, x: int = 0, y: int = 0, width: int = 20, height: int = 20,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty(),
+                 collision_sound: str | None = None) -> None:
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.use_gfxdraw = True
         self.image.convert()

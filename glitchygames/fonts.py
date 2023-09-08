@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import logging
 import os
-from typing import ClassVar
+from typing import ClassVar, Self
 
 import pygame
 
@@ -16,14 +18,14 @@ class FontManager(ResourceManager):
     RENDER_CACHE: ClassVar = {}
 
     class FontProxy(FontEvents, ResourceManager):
-        def __init__(self, game=None):
+        def __init__(self: Self, game: object = None) -> None:
             """
             """
             super().__init__(game=game)
             self.game = game
             self.proxies = [self.game, pygame.freetype]
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Manage fonts.
 
@@ -113,7 +115,11 @@ class FontManager(ResourceManager):
 
         return parser
 
-    def font(self, font_config=None):  # noqa: R0201
+    # TODO: Make it so that we can run pyinstaller compiled games
+    # with a system font by passing an explicit path.
+    #
+    # We can also use a config file to specify the font path.
+    def font(self: Self, font_config: dict | None = None) -> pygame.freetype.Font | pygame.freetype.SysFont:  # noqa: E501
         if not font_config:
             font_config = FontManager.OPTIONS
 
@@ -131,7 +137,8 @@ class FontManager(ResourceManager):
 
             # BUG: pygame's documentation claims that passing None
             # as the font name will load the default font.  However,
-            # this emits an error:
+            # this emits an error when running a pyinstaller packaged
+            # pygame game.
             #
             # File "glitchygames/fonts.py", line 131, in font
             #     return pygame.freetype.SysFont(name=None, size=12)

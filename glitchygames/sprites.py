@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# ruff: noqa: FBT001, FBT002
+from __future__ import annotations
 
 import collections
 import configparser
 import logging
-from typing import ClassVar
+from typing import ClassVar, Self
 
 import pygame
 
@@ -16,7 +18,10 @@ LOG.addHandler(logging.NullHandler())
 
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
-    def __init__(self, groups=pygame.sprite.LayeredDirty()):
+    def __init__(
+            self: Self,
+            groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()
+        ) -> None:
         super().__init__(groups)
         self.rect = pygame.Rect(0, 0, 0, 0)
         self.image = None
@@ -45,8 +50,9 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(self, x, y, width, height, name=None, parent=None,
-                 groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
+                 parent: object | None = None,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
@@ -115,51 +121,51 @@ class Sprite(RootSprite):
                         breakpoint()  # noqa: T100
 
     @property
-    def width(self):
+    def width(self: Self) -> int:
         return self.rect.width
 
     @width.setter
-    def width(self, new_width):
+    def width(self: Self, new_width: int) -> None:
         self.rect.width = new_width
         self.dirty = 1 if not self.dirty else self.dirty
 
     @property
-    def height(self):
+    def height(self: Self) -> int:
         return self.rect.height
 
     @height.setter
-    def height(self, new_height):
+    def height(self: Self, new_height: int) -> None:
         self.rect.height = new_height
         self.dirty = 1 if not self.dirty else self.dirty
 
-    def dt_tick(self, dt):
+    def dt_tick(self: Self, dt: float) -> None:
         self.dt = dt
         self.dt_timer += self.dt
 
-    def update(self):
+    def update(self: Self) -> None:
         pass
 
-    def on_joy_axis_motion_event(self, event):
+    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYAXISMOTION    joy, axis, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_button_down_event(self, event):
+    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_button_up_event(self, event):
+    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONUP      joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_hat_motion_event(self, event):
+    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYHATMOTION     joy, hat, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_ball_motion_event(self, event):
+    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBALLMOTION    joy, ball, rel
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_mouse_motion_event(self, event):
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEMOTION      pos, rel, buttons
         self.log.debug(f'Mouse Motion Event: {type(self)}: {event}')
 
@@ -167,15 +173,15 @@ class Sprite(RootSprite):
         # Custom Event
         self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}')
 
-    def on_mouse_unfocus_event(self, event):
+    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event) -> None:
         # Custom Event
         self.log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
 
-    def on_mouse_enter_event(self, event):
+    def on_mouse_enter_event(self: Self, event: pygame.event.Event) -> None:
         # Custom Event
         self.log.debug(f'Mouse Enter Event: {type(self)}: {event}')
 
-    def on_mouse_exit_event(self, event):
+    def on_mouse_exit_event(self: Self, event: pygame.event.Event) -> None:
         # Custom Event
         self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
 
@@ -218,14 +224,14 @@ class Sprite(RootSprite):
             f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_mouse_drag_up_event(self, event):
+    def on_mouse_drag_up_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
 
-    def on_mouse_button_up_event(self, event):
+    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_left_mouse_button_up_event(self, event):
+    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONUP    pos, button
 
         if self.callbacks:
@@ -238,11 +244,11 @@ class Sprite(RootSprite):
                 f'Left Mouse Button Up Event: {event} @ {self}'
             )
 
-    def on_middle_mouse_button_up_event(self, event):
+    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
-    def on_right_mouse_button_up_event(self, event):
+    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONUP    pos, button
         if self.callbacks:
             callback = self.callbacks.get('on_right_mouse_button_up_event', None)
@@ -254,11 +260,11 @@ class Sprite(RootSprite):
                 f'Right Mouse Button Up Event: {event} @ {self}'
             )
 
-    def on_mouse_button_down_event(self, event):
+    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: {event} @ {self}')
 
-    def on_left_mouse_button_down_event(self, event):
+    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         callback = 'on_left_mouse_button_down_event'
 
@@ -269,11 +275,11 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
 
-    def on_middle_mouse_button_down_event(self, event):
+    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
-    def on_right_mouse_button_down_event(self, event):
+    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         if self.callbacks:
             callback = self.callbacks.get('on_right_mouse_button_down_event', None)
@@ -282,25 +288,25 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
 
-    def on_mouse_scroll_down_event(self, event):
+    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
 
-    def on_mouse_scroll_up_event(self, event):
+    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
 
-    def on_mouse_chord_up_event(self, event):
+    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
 
-    def on_mouse_chord_down_event(self, event):
+    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event) -> None:
         self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
 
-    def on_key_down_event(self, event):
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         # KEYDOWN          unicode, key, mod
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_key_up_event(self, event):
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         # KEYUP            key, mod
         self.log.debug(f'{type(self)}: {event}')
 
@@ -310,28 +316,28 @@ class Sprite(RootSprite):
     def on_key_chord_up_event(self, event, keys):
         self.log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
 
-    def on_quit_event(self, event):
+    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
         self.terminate()
 
-    def on_active_event(self, event):
+    def on_active_event(self: Self, event: pygame.event.Event) -> None:
         # ACTIVEEVENT      gain, state
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_video_resize_event(self, event):
+    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
         # VIDEORESIZE      size, w, h
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_video_expose_event(self, event):
+    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
         # VIDEOEXPOSE      none
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_sys_wm_event(self, event):
+    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
         # SYSWMEVENT
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_user_event(self, event):
+    def on_user_event(self: Self, event: pygame.event.Event) -> None:
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
 
@@ -347,7 +353,7 @@ class Sprite(RootSprite):
     #        except AttributeError:
     #            log.error(f'No proxies for {type(self)}.{attr}')
 
-    def __str__(self):
+    def __str__(self: Self) -> str:
         return f'{type(self)} "{self.name}" ({self!r})'
 
 
@@ -358,10 +364,9 @@ class BitmappySprite(Sprite):
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
 
-
-
-    def __init__(self, x, y, width, height, name=None, filename=None,
-                 focusable=False, parent=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
+                 filename: str | None = None, focusable: bool = False, parent: object = None,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         """
         Subclass to load sprite files.
 
@@ -395,7 +400,7 @@ class BitmappySprite(Sprite):
             self.image = pygame.Surface((self.width, self.height))
             self.image.convert()
         else:
-            raise Exception(f"Can't create Surface(({self.width}, {self.height})).")  # noqa: TRY002
+            raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
 
         self.rect = self.image.get_rect()
         self.parent = parent
@@ -403,7 +408,7 @@ class BitmappySprite(Sprite):
         self.rect.y = y
         self.proxies = [self.parent]
 
-    def load(self, filename):  # noqa: R0914
+    def load(self, filename):
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,
                                            empty_lines_in_values=True,
                                            strict=True)
@@ -466,7 +471,7 @@ class BitmappySprite(Sprite):
 
         return (image, rect, name)
 
-    def inflate(self, width, height, pixels, color_map):  # noqa: R0201
+    def inflate(self, width, height, pixels, color_map):
         image = pygame.Surface((width, height))
         image.convert()
 
@@ -485,7 +490,7 @@ class BitmappySprite(Sprite):
         with open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
-    def deflate(self):
+    def deflate(self: Self) -> dict:
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,
                                            empty_lines_in_values=True,
                                            strict=True)
@@ -572,7 +577,8 @@ class SingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cls.__instance__
 
-    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
 
 
@@ -588,9 +594,10 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cls.__instance__
 
-    def __init__(self, x, y, width, height, name=None, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
+                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(
-            x=x, y=y, width=width, height=height,  # noqa: E231
+            x=x, y=y, width=width, height=height,
             name=name, focusable=True, groups=groups
         )
 

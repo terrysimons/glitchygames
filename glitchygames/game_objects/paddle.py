@@ -1,15 +1,25 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import logging
+from typing import Self
+
+import pygame
 from pygame import draw
 from pygame.sprite import LayeredDirty
 
+from glitchygames.game_objects import load_sound
 from glitchygames.movement import Horizontal, Vertical
 from glitchygames.sprites import Sprite
 
-from . import load_sound
-
+log = logging.getLogger('game.paddle')
+log.setLevel(logging.INFO)
 
 class BasePaddle(Sprite):
 
-    def __init__(self, axis, speed, name, color, x, y, width, height, groups, collision_sound):
+    def __init__(self: Self, axis: Horizontal | Vertical, speed: int, name: str, color: tuple,
+                 x: int, y: int, width: int, height: int, groups: pygame.sprite.LayeredDirty,
+                 collision_sound: str) -> None:
         super().__init__(name=name, x=x, y=y, width=width, height=height, groups=groups)
 
         self.use_gfxdraw = True
@@ -22,36 +32,37 @@ class BasePaddle(Sprite):
         self._move = axis(speed)
         self.dirty = 1
 
-    def move_horizontal(self) -> None:
+    def move_horizontal(self: Self) -> None:
         self.rect.x += self._move.current_speed
         self.dirty = 1
 
-    def move_vertical(self) -> None:
+    def move_vertical(self: Self) -> None:
         self.rect.y += self._move.current_speed
         self.dirty = 1
 
-    def is_at_bottom_of_screen(self):
+    def is_at_bottom_of_screen(self: Self) -> bool:
         return self.rect.bottom + self._move.current_speed > self.screen_height
 
-    def is_at_top_of_screen(self):
+    def is_at_top_of_screen(self: Self) -> bool:
         return self.rect.top + self._move.current_speed < 0
 
-    def is_at_left_of_screen(self):
+    def is_at_left_of_screen(self: Self) -> bool:
         return self.rect.left + self._move.current_speed < self.screen.left
 
-    def is_at_right_of_screen(self):
+    def is_at_right_of_screen(self: Self) -> bool:
         return self.rect.right + self._move.current_speed > self.screen.right
 
 
 class HorizontalPaddle(BasePaddle):
 
-    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(),
-                 collision_sound=None) -> None:
+    def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
+                 speed: int, groups: pygame.sprite.LayeredDirty = LayeredDirty(),
+                 collision_sound: str | None = None) -> None:
         super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)
 
-    def update(self) -> None:
+    def update(self: Self) -> None:
         if self.is_at_left_of_screen():
             self.rect.x = 0
             self.stop()
@@ -61,31 +72,32 @@ class HorizontalPaddle(BasePaddle):
         else:
             self.move_horizontal()
 
-    def left(self):
+    def left(self: Self) -> None:
         self._move.left()
         self.dirty = 1
 
-    def right(self):
+    def right(self: Self) -> None:
         self._move.right()
         self.dirty = 1
 
-    def stop(self):
+    def stop(self: Self) -> None:
         self._move.stop()
         self.dirty = 1
 
-    def speed_up(self):
+    def speed_up(self: Self) -> None:
         self._move.speed.speed_up_horizontal()
 
 
 class VerticalPaddle(BasePaddle):
 
-    def __init__(self, name, size, position, color, speed, groups=LayeredDirty(),
-                 collision_sound=None):
+    def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
+                 speed: int, groups: pygame.sprite.LayeredDirty = LayeredDirty(),
+                 collision_sound: str | None = None) -> None:
         super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)
 
-    def update(self):
+    def update(self: Self) -> None:
         if self.is_at_top_of_screen():
             self.rect.y = 0
             self.stop()
@@ -95,17 +107,17 @@ class VerticalPaddle(BasePaddle):
         else:
             self.move_vertical()
 
-    def up(self):
+    def up(self: Self) -> None:
         self._move.up()
         self.dirty = 1
 
-    def down(self):
+    def down(self: Self) -> None:
         self._move.down()
         self.dirty = 1
 
-    def stop(self):
+    def stop(self: Self) -> None:
         self._move.stop()
         self.dirty = 1
 
-    def speed_up(self):
+    def speed_up(self: Self) -> None:
         self._move.speed.speed_up_vertical()

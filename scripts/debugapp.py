@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from typing import Self
 
 import pygame
 import pygame.freetype
@@ -17,7 +18,7 @@ BitmappySprite.DEBUG = True
 
 
 class IntroScene(Scene):
-    def __init__(self):
+    def __init__(self: Self) -> None:
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -33,7 +34,7 @@ class Game(Scene):
     VERSION = '1.0'
     log = LOG
 
-    def __init__(self, options):
+    def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')

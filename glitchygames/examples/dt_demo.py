@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+from typing import Self
+
 import pygame
 
 from glitchygames.color import WHITE
@@ -13,7 +16,7 @@ class Game(Scene):
     NAME = 'Delta Time Demo'
     VERSION = '1.0'
 
-    def __init__(self, options, groups=pygame.sprite.LayeredDirty()):
+    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
         super().__init__(options=options, groups=groups)
         self.font = pygame.font.SysFont('Calibri', 40)
         self.rect_pos = 0
@@ -55,12 +58,12 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            'Time: ' + str(round(self.dt_timer / 100, 5)),
-            False,
-            (255, 255, 255)
+            text='Time: ' + str(round(self.dt_timer / 100, 5)),
+            antialias=False,
+            color=(255, 255, 255)
         )
         fps_text = self.font.render(
-            f'FPS: {round(self.fps, 2)}', False, (255, 255, 255)
+            text=f'FPS: {round(self.fps, 2)}', antialias=False, color=(255, 255, 255)
         )
 
         self.screen.blit(countdown, (0, 0))
@@ -69,7 +72,7 @@ class Game(Scene):
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
             record_text = self.font.render(
-                f'Time: {round(self.record, 5)}', False, (255, 255, 255)
+                text=f'Time: {round(self.record, 5)}', antialias=False, color=(255, 255, 255)
             )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from typing import Self
 
 import pygame
 
@@ -11,7 +12,7 @@ log.addHandler(logging.NullHandler())
 
 class KeyboardManager(ResourceManager):
     class KeyboardProxy(KeyboardEvents, ResourceManager):
-        def __init__(self, game=None):
+        def __init__(self: Self, game: object = None) -> None:
             """
             Pygame keyboard event proxy.
 
@@ -28,7 +29,7 @@ class KeyboardManager(ResourceManager):
             self.game = game
             self.proxies = [self.game, pygame.key]
 
-        def on_key_down_event(self, event):
+        def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
             # The KEYUP and KEYDOWN events are
             # different.  KEYDOWN contains an extra
             # key in its dictionary (unicode), which
@@ -53,7 +54,7 @@ class KeyboardManager(ResourceManager):
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
 
-        def on_key_up_event(self, event):
+        def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
@@ -68,21 +69,21 @@ class KeyboardManager(ResourceManager):
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
 
-        def on_key_chord_down_event(self, event):
+        def on_key_chord_down_event(self: Self, event: pygame.event.Event) -> None:
             keys_down = [self.keys[key]
                          for key in self.keys
                          if self.keys[key].type == pygame.KEYDOWN]
 
             self.game.on_key_chord_down_event(event, keys_down)
 
-        def on_key_chord_up_event(self, event):
+        def on_key_chord_up_event(self: Self, event: pygame.event.Event) -> None:
             keys_down = [self.keys[key]
                          for key in self.keys
                          if self.keys[key].type == pygame.KEYDOWN]
 
             self.game.on_key_chord_up_event(event, keys_down)
 
-    def __init__(self, game=None):
+    def __init__(self: Self, game: object = None) -> None:
         """
         Keyboard event manager.
 
@@ -98,6 +99,6 @@ class KeyboardManager(ResourceManager):
 
     @classmethod
     def args(cls, parser):
-        group = parser.add_argument_group('Keyboard Options')  # noqa: W0612, F841
+        group = parser.add_argument_group('Keyboard Options')  # noqa: F841
 
         return parser
