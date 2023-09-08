@@ -494,7 +494,7 @@ class TextSprite(BitmappySprite):
             (self.image, self.rect) = self.font.render(text, fgcolor=self.active_text_color)
             # , bgcolor=self.active_background_color)
 
-        def print(self: Self, surface: pygame.surface.Surface, string: str) -> None:
+        def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
             (self.image, self.rect) = self.font.render(string, fgcolor=self.active_text_color)
             # , bgcolor=self.active_background_color)
             self.image.set_colorkey((255, 0, 255))
@@ -651,7 +651,7 @@ class TextSprite(BitmappySprite):
         self.image.fill(self.active_color)
 
         self.text_box.reset()
-        self.text_box.print(self.image, f'{self.text}')
+        self.text_box.print_text(self.image, f'{self.text}')
 
     def add(self: Self, *groups: pygame.sprite.LayeredDirty) -> None:
         super().add(*groups)

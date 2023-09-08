@@ -196,7 +196,7 @@ class GameEngine(events.EventManager):
         self._active_scene: Scene = None
 
         # Pygame stuff.
-        pygame.register_quit(self.quit)
+        pygame.register_quit(self.quit_game)
         self.fps: float = options.get('fps', 0.0)
         self.update_type = options.get('update_type')
         self.use_gfxdraw = options.get('use_gfxdraw')
@@ -623,7 +623,7 @@ class GameEngine(events.EventManager):
             pygame.display.quit()
             pygame.quit()
 
-    def quit(self: Self) -> None:
+    def quit_game(self: Self) -> None:
         # put a quit event in the event queue.
         pygame.event.post(
             pygame.event.Event(pygame.QUIT, {})

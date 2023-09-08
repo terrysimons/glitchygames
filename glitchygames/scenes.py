@@ -169,7 +169,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def terminate(self: Self) -> None:
         self.switch_to_scene(None)
 
-    def quit(self: Self) -> None:
+    def quit_game(self: Self) -> None:
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(
@@ -455,7 +455,7 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         # If a game implements on_key_up_event themselves
         # they'll have to map their quit keys or call super().on_key_up_event()
         if event.key in (pygame.K_q, pygame.K_ESCAPE):
-            self.scene_manager.quit()
+            self.scene_manager.quit_game()
 
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         # QUIT             none

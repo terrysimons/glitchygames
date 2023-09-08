@@ -204,52 +204,52 @@ class JoystickManager(JoystickEvents, ResourceManager):
     def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYAXISMOTION    joy, axis, value
         try:
-            id = event.instance_id
+            joystick_id = event.instance_id
         except AttributeError:
-            id = event.joy
+            joystick_id = event.joy
 
         self.log.debug(f'JOYAXISMOTION triggered: on_joy_axis_motion_event({event})')
-        self.joysticks[id].on_joy_axis_motion_event(event)
+        self.joysticks[joystick_id].on_joy_axis_motion_event(event)
 
     def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONDOWN    joy, button
         try:
-            id = event.instance_id
+            joystick_id = event.instance_id
         except AttributeError:
-            id = event.joy
+            joystick_id = event.joy
 
         self.log.debug(f'JOYBUTTONDOWN triggered: on_joy_button_down_event({event})')
-        self.joysticks[id].on_joy_button_down_event(event)
+        self.joysticks[joystick_id].on_joy_button_down_event(event)
 
     def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBUTTONUP      joy, button
         try:
-            id = event.instance_id
+            joystick_id = event.instance_id
         except AttributeError:
-            id = event.joy
+            joystick_id = event.joy
 
         self.log.debug(f'JOYBUTTONUP triggered: on_joy_button_up_event({event})')
-        self.joysticks[id].on_joy_button_up_event(event)
+        self.joysticks[joystick_id].on_joy_button_up_event(event)
 
     def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYHATMOTION     joy, hat, value
         try:
-            id = event.instance_id
+            joystick_id = event.instance_id
         except AttributeError:
-            id = event.joy
+            joystick_id = event.joy
 
         self.log.debug(f'JOYHATMOTION triggered: on_joy_hat_motion_event({event})')
-        self.joysticks[id].on_joy_hat_motion_event(event)
+        self.joysticks[joystick_id].on_joy_hat_motion_event(event)
 
     def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
         # JOYBALLMOTION    joy, ball, rel
         try:
-            id = event.instance_id
+            joystick_id = event.instance_id
         except AttributeError:
-            id = event.joy
+            joystick_id = event.joy
 
         self.log.debug(f'JOYBALLMOTION triggered: on_joy_ball_motion_event({event})')
-        self.joysticks[id].on_joy_ball_motion_event(event)
+        self.joysticks[joystick_id].on_joy_ball_motion_event(event)
 
     def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
         # JOYDEVICEADDED device_index, guid
