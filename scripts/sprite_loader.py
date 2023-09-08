@@ -4,6 +4,7 @@ from __future__ import annotations
 import configparser
 import logging
 from collections import OrderedDict
+from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -111,7 +112,7 @@ class BitmappySprite(Sprite):
         """
         config = self.deflate()
 
-        with open(filename, 'w') as deflated_sprite:
+        with Path.open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pygame
 
@@ -157,7 +158,7 @@ def pixels_from_data(pixel_data: list) -> list:
 
 def pixels_from_path(path: str) -> list:
     """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
-    with open(path, 'rb') as fh:
+    with Path.open(path, 'rb') as fh:
         pixel_data = fh.read()
 
     return pixels_from_data(

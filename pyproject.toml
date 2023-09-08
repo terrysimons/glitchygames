@@ -126,10 +126,6 @@ extend-ignore = [
   "COM812", # Trailing comma missing
   "G004", # Logging statement uses f-string
   "ISC002", # Use of implicit string concatenation
-  "PTH118", # `os.path.join()` should be replaced by `Path` with `/` operator
-  "PTH120", # `os.path.dirname()` should be replaced by `Path` with `/` operator
-  "PTH110", # `os.path.exists()` should be replaced by `Path.exists()`
-  "PTH123", # `open()` should be replaced by `Path.open()`
   "ERA001", # Found commented-out code
   "RUF100", # Unused `noqa` directive
   "PLR0911", # Too many return statements
