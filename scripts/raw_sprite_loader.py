@@ -5,6 +5,7 @@ import configparser
 import logging
 import struct
 from collections import OrderedDict
+from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ class BitmappyLegacySprite(Sprite):
         data = []
 
         # Load the raw bits in.
-        with open(filename, 'rb') as fh:
+        with Path.open(filename, 'rb') as fh:
             data = fh.read()
 
         # Unpack the bytes into 565 triplets.
@@ -89,7 +90,7 @@ class BitmappyLegacySprite(Sprite):
         """
         config = self.deflate()
 
-        with open(filename, 'w') as deflated_sprite:
+        with Path.open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:

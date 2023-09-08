@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import logging
 import multiprocessing
-import os
 import platform
 import time
+from pathlib import Path
 from typing import Any, Callable, ClassVar, Literal, Self
 
 import pygame
@@ -34,11 +34,8 @@ LOG.addHandler(logging.NullHandler())
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
-PACKAGE_PATH: str = os.path.dirname(__file__)
-ASSET_PATH: str = os.path.join(
-    os.path.dirname(__file__),
-    'assets'
-)
+PACKAGE_PATH: str = Path(__file__).parent
+ASSET_PATH: str = Path(__file__).parent / 'assets'
 
 
 class GameManager(events.ResourceManager):
@@ -126,9 +123,7 @@ class GameEngine(events.EventManager):
     game: object = None
 
     try:
-        icon: pygame.Surface = pygame.image.load(
-            os.path.join(ASSET_PATH, 'glitch.png')
-        )
+        icon: pygame.Surface = pygame.image.load(Path(ASSET_PATH) / 'glitch.png')
     except FileNotFoundError:
         icon = None
 

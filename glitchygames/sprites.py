@@ -5,6 +5,7 @@ from __future__ import annotations
 import collections
 import configparser
 import logging
+from pathlib import Path
 from typing import ClassVar, Self, cast
 
 import pygame
@@ -504,7 +505,7 @@ class BitmappySprite(Sprite):
     def save(self: Self, filename: str) -> None:
         config = self.deflate()
 
-        with open(filename, 'w') as deflated_sprite:
+        with Path.open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> dict:
