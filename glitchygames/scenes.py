@@ -232,7 +232,13 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
     VERSION = '0.0'
 
     def __init__(self: Self, options: dict | None = None,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if options is None:
+            options = {}
+
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__()
 
         # Since SceneManager is a singleton, this will ensure that

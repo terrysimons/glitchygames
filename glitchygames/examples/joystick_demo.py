@@ -267,7 +267,11 @@ class ShapesSprite(Sprite):
 
 
 class JoystickScene(Scene):
-    def __init__(self: Self, groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:  # noqa: E501
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(groups=groups)
         self.tiles = []
 

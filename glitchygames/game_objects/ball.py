@@ -15,8 +15,11 @@ from glitchygames.sprites import Sprite
 class BallSprite(Sprite):
 
     def __init__(self: Self, x: int = 0, y: int = 0, width: int = 20, height: int = 20,
-                 groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty(),
+                 groups: pygame.sprite.LayeredDirty | None = None,
                  collision_sound: str | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.use_gfxdraw = True
         self.image.convert()

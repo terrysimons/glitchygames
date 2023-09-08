@@ -6,7 +6,6 @@ from typing import Self
 
 import pygame
 from pygame import draw
-from pygame.sprite import LayeredDirty
 
 from glitchygames.game_objects import load_sound
 from glitchygames.movement import Horizontal, Vertical
@@ -18,8 +17,12 @@ log.setLevel(logging.INFO)
 class BasePaddle(Sprite):
 
     def __init__(self: Self, axis: Horizontal | Vertical, speed: int, name: str, color: tuple,
-                 x: int, y: int, width: int, height: int, groups: pygame.sprite.LayeredDirty,
-                 collision_sound: str) -> None:
+                 x: int, y: int, width: int, height: int,
+                 groups: pygame.sprite.LayeredDirty | None = None,
+                 collision_sound: str | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(name=name, x=x, y=y, width=width, height=height, groups=groups)
 
         self.use_gfxdraw = True
@@ -56,8 +59,10 @@ class BasePaddle(Sprite):
 class HorizontalPaddle(BasePaddle):
 
     def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
-                 speed: int, groups: pygame.sprite.LayeredDirty = LayeredDirty(),
+                 speed: int, groups: pygame.sprite.LayeredDirty | None = None,
                  collision_sound: str | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
         super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)
@@ -91,8 +96,11 @@ class HorizontalPaddle(BasePaddle):
 class VerticalPaddle(BasePaddle):
 
     def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
-                 speed: int, groups: pygame.sprite.LayeredDirty = LayeredDirty(),
+                 speed: int, groups: pygame.sprite.LayeredDirty | None = None,
                  collision_sound: str | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1],
                          groups,
                          collision_sound)

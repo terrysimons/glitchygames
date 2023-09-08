@@ -26,7 +26,10 @@ BitmappySprite.DEBUG = True
 class GameScene(Scene):
     log = LOG
 
-    def __init__(self: Self, groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
         super().__init__(groups=groups)
         self.all_sprites = groups
         self.screen = pygame.display.get_surface()
