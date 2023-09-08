@@ -23,9 +23,42 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
             groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()
         ) -> None:
         super().__init__(groups)
-        self.rect = pygame.Rect(0, 0, 0, 0)
-        self.image = None
+        self.__rect__: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.__image__: pygame.Surface = pygame.Surface((0, 0))
+        # self.rect = pygame.Rect(0, 0, 0, 0)
+        # self.image = None
 
+    @property
+    def rect(self):
+        return self.__rect__
+
+    @rect.setter
+    def rect(self, new_rect):
+        self.__rect__ = new_rect
+
+    @property
+    def x(self):
+        return self.__rect__.x
+
+    @x.setter
+    def x(self, new_x):
+        self.__rect__.x = new_x
+
+    @property
+    def y(self):
+        return self.__rect__.y
+
+    @y.setter
+    def y(self, new_y):
+        self.__rect__.y = new_y
+
+    @property
+    def image(self):
+        return self.__image__
+
+    @image.setter
+    def image(self, new_image):
+        self.__image__ = new_image
 
 class Sprite(RootSprite):
     """A convenience class for handling all of the common sprite behaviors."""
@@ -50,21 +83,28 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, pos, size, name=None, parent=None, groups=pygame.sprite.LayeredDirty()):  # noqa: W0613, E501
+>>>>>>> Stashed changes
         super().__init__(groups)
+        self.pos = pos
         # This is the stuff pygame really cares about.
-        self.image = pygame.Surface((width, height))
-        self.rect = self.image.get_rect()
+        self.image = pygame.Surface(size)
+        self.size = self.image.get_size()
+        # self._rect: None = None
 
         self.dt = 0
         self.dt_timer = 0
 
-        self.rect.x = x
-        self.rect.y = y
-        self.rect.width = int(width)
-        self.rect.height = int(height)
+        self.rect = self.image.get_rect()
+        self.rect.x = pos[0]
+        self.rect.y = pos[1]
+        self.rect.width = size[0]
+        self.rect.height = size[1]
 
         self.name = name
         self.parent = parent
@@ -145,7 +185,20 @@ class Sprite(RootSprite):
     def update(self: Self) -> None:
         pass
 
+<<<<<<< Updated upstream
     def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+=======
+    @property
+    def pos(self):
+        return (self.rect.x, self.rect.y)
+
+    @pos.setter
+    def pos(self, new_pos):
+        self.rect.x = new_pos[0]
+        self.rect.y = new_pos[1]
+
+    def on_joy_axis_motion_event(self, event):
+>>>>>>> Stashed changes
         # JOYAXISMOTION    joy, axis, value
         self.log.debug(f'{type(self)}: {event}')
 
@@ -367,6 +420,7 @@ class Sprite(RootSprite):
 class BitmappySprite(Sprite):
     DEBUG = False
 
+<<<<<<< Updated upstream
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
@@ -374,6 +428,10 @@ class BitmappySprite(Sprite):
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  filename: str | None = None, focusable: bool = False, parent: object = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, pos, size, name=None, filename=None,
+                 focusable=False, parent=None, groups=pygame.sprite.LayeredDirty()):
+>>>>>>> Stashed changes
         """
         Subclass to load sprite files.
 
@@ -383,10 +441,8 @@ class BitmappySprite(Sprite):
 
         """
         super().__init__(
-            x=x,
-            y=y,
-            width=width,
-            height=height,
+            pos=pos,
+            size=size,
             name=name,
             parent=parent,
             groups=groups
@@ -409,16 +465,25 @@ class BitmappySprite(Sprite):
         else:
             raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
 
-        self.rect = self.image.get_rect()
+        # self.rect = self.image.get_rect()
         self.parent = parent
-        self.rect.x = x
-        self.rect.y = y
+        # self.rect.x = x
+        # self.rect.y = y
         self.proxies = [self.parent]
 
+<<<<<<< Updated upstream
     def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         config = configparser.ConfigParser(dict_type=collections.OrderedDict,
                                            empty_lines_in_values=True,
                                            strict=True)
+=======
+    def load(self, filename):  # noqa: R0914
+        config = configparser.ConfigParser(
+            dict_type=collections.OrderedDict,
+            empty_lines_in_values=True,
+            strict=True
+        )
+>>>>>>> Stashed changes
 
         config.read(filename)
 
@@ -471,16 +536,22 @@ class BitmappySprite(Sprite):
 
                 color_map[section] = (red, green, blue)
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=pixels,
-                                     color_map=color_map)
+        (image, rect) = self.inflate(
+            size=(width, height),
+            pixels=pixels,
+            color_map=color_map
+        )
 
         return (image, rect, name)
 
+<<<<<<< Updated upstream
     def inflate(self: Self, width: int, height: int, pixels: list,
                 color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
         image = pygame.Surface((width, height))
+=======
+    def inflate(self, size, pixels, color_map) -> tuple[pygame.Surface, pygame.Rect]:  # noqa: R0201
+        image: pygame.Surface = pygame.Surface(tuple(size))
+>>>>>>> Stashed changes
         image.convert()
 
         raw_pixels = []
@@ -585,9 +656,14 @@ class SingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cast(SingletonBitmappySprite, cls.__instance__)
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+=======
+    def __init__(self, pos, size, name=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos=pos, size=size, name=name, groups=groups)
+>>>>>>> Stashed changes
 
 
 # This is a root class for focusable sprites that should be singletons, like
@@ -602,6 +678,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cast(FocusableSingletonBitmappySprite, cls.__instance__)
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(
@@ -609,3 +686,36 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             name=name, focusable=True, groups=groups
         )
 
+=======
+    def __init__(self, pos, size, name=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(
+            pos=pos, size=size,  # noqa: E231
+            name=name, focusable=True, groups=groups
+        )
+
+
+# We're making this a singleton class becasue
+# pygame doesn't understand multiple cursors
+# and so there is only ever 1 x/y coordinate sprite
+# for the mouse at any given time.
+class MousePointer(SingletonBitmappySprite):
+    def __init__(self, pos):
+        super().__init__(pos=pos, size=(1, 1))
+
+        self.pos = pos
+
+    @y.setter
+    def y(self, new_y: int) -> None:
+        self.pos[1] = new_y
+
+def collided_sprites(scene, event, index=None):
+    mouse = MousePointer(pos=(event.pos[0], event.pos[1]))
+
+    sprites = pygame.sprite.spritecollide(mouse, scene.all_sprites, False)
+
+    if sprites:
+        if index is None:
+            return sprites
+
+        return [sprites[index]]
+>>>>>>> Stashed changes

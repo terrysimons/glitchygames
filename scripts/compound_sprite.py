@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 #!/usr/bin/env python
 from __future__ import annotations
 
@@ -6,17 +7,24 @@ from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import argparse
+=======
+#!/usr/bin/env python3
+from __future__ import annotations
+import logging
+import os
+from typing import Literal
+>>>>>>> Stashed changes
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-from glitchygames.engine import GameEngine
+from glitchygames.engine import ASSET_PATH, GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
-log = logging.getLogger('game')
+log: logging.Logger = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
@@ -24,29 +32,32 @@ BitmappySprite.DEBUG = True
 
 
 class GameScene(Scene):
+<<<<<<< Updated upstream
     def __init__(self: Self, groups: pygame.sprite.Group = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, groups=pygame.sprite.LayeredDirty()) -> None:
+>>>>>>> Stashed changes
         super().__init__(groups=groups)
-        self.all_sprites = groups
-        self.screen = pygame.display.get_surface()
+        self.all_sprites: pygame.LayeredDirty = groups
+        self.screen: pygame.Surface = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
         self.screen.fill((255, 255, 0))
 
-        self.menu_bar = MenuBar(name='Menu Bar',
-                                x=0,
-                                y=0,
-                                width=self.screen_width,
-                                height=20,
-                                groups=self.all_sprites)
+        self.menu_bar: MenuBar = MenuBar(
+            name='Menu Bar',
+            pos=(0, 0),
+            size=(self.screen_width, 20),
+            groups=self.all_sprites
+        )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
-        self.menu_icon = MenuItem(name=None,
-                                  filename='raspberry.cfg',
-                                  x=0,
-                                  y=0,
-                                  width=16,
-                                  height=self.menu_bar.height)
+        self.menu_icon: MenuItem = MenuItem(name=None,
+                                  filename=os.path.join(ASSET_PATH, 'raspberry.cfg'),
+                                  pos=(0, 0),
+                                  size=(16, self.menu_bar.height)
+        )
 
         # When we load the sprite, we set a name.
         # but the menu code needs to know that we're
@@ -73,25 +84,27 @@ class GameScene(Scene):
         #                          width=32,
         #                          height=16,
         #                          groups=self.all_sprites)
-        self.save_menu_item = MenuItem(name='Save',
-                                       x=self.menu_icon.width + 5,
-                                       y=self.menu_icon.y,
-                                       width=40,
-                                       height=self.menu_bar.height,
-                                       groups=self.all_sprites)
-        self.load_menu_item = MenuItem(name='Load',
-                                       x=self.menu_icon.width + self.save_menu_item.width + 5,
-                                       y=self.menu_icon.y,
-                                       width=40,
-                                       height=self.menu_bar.height,
-                                       groups=self.all_sprites)
-        self.quit_menu_item = MenuItem(name='Quit',
-                                       x=self.menu_icon.width + self.save_menu_item.width +
-                                       self.load_menu_item.width + 5,
-                                       y=self.menu_icon.y,
-                                       width=40,
-                                       height=self.menu_bar.height,
-                                       groups=self.all_sprites)
+        self.save_menu_item: MenuItem = MenuItem(
+            name='Save',
+            pos=(self.menu_icon.width + 5, self.menu_icon.y),
+            size=(40, self.menu_bar.height),
+            groups=self.all_sprites
+        )
+        self.load_menu_item: MenuItem = MenuItem(
+            name='Load',
+            pos=(self.menu_icon.width + self.save_menu_item.width + 5, self.menu_icon.y),
+            size=(40, self.menu_bar.height),
+            groups=self.all_sprites
+        )
+        self.quit_menu_item: MenuItem = MenuItem(
+            name='Quit',
+            pos=(self.menu_icon.width +
+                 self.save_menu_item.width +
+                 self.load_menu_item.width + 5,
+                 self.menu_icon.y),
+            size=(40, self.menu_bar.height),
+            groups=self.all_sprites
+        )
 
         # Add the menu icon as a root level menu item.
         # self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
@@ -102,14 +115,15 @@ class GameScene(Scene):
         # self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
         # self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
 
-        button_width = self.screen_width // 2 // 2
-        button_height = self.screen_height // 2 // 2
-        self.button = ButtonSprite(x=(self.screen.get_rect().centerx - button_width) // 4,
-                                   y=(self.screen.get_rect().centery - button_height) // 4,
-                                   width=button_width,
-                                   height=button_height,
-                                   name='Buttony McButtonface',
-                                   groups=self.all_sprites)
+        button_width: int = self.screen_width // 2 // 2
+        button_height: int = self.screen_height // 2 // 2
+        self.button: ButtonSprite = ButtonSprite(
+            pos=((self.screen.get_rect().centerx - button_width) // 4,
+                 (self.screen.get_rect().centery - button_height) // 4),
+            size=(button_width, button_height),
+            name='Buttony McButtonface',
+            groups=self.all_sprites
+        )
 
         self.button.x = self.screen.get_rect().centerx // 2
         self.button.y = self.screen.get_rect().centery // 2
@@ -127,14 +141,19 @@ class GameScene(Scene):
 
     # def switch_to_scene(self, next_scene):
     #     super().switch_to_scene(next_scene)
+<<<<<<< Updated upstream
     def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
         log.info(f'Mouse Up Event: {event}')
+=======
+    def on_mouse_up_event(self, event) -> None:
+        log.info(f'Got an event in GameScene: {event}')
+>>>>>>> Stashed changes
 
 
 class Game(Scene):
     # Set your game name/version here.
-    NAME = 'Compound Sprite Demo'
-    VERSION = '1.0'
+    NAME: Literal['Compound Sprite Demo'] = 'Compound Sprite Demo'
+    VERSION: Literal['1.0'] = '1.0'
 
     def __init__(self: Self, options: dict) -> None:
         super().__init__(options=options)

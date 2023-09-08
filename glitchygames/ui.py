@@ -26,17 +26,23 @@ LOG.addHandler(logging.NullHandler())
 class MenuBar(FocusableSingletonBitmappySprite):
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+=======
+    def __init__(self, pos, size, name=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos, size, name=name, groups=groups)
+>>>>>>> Stashed changes
         self.all_sprites = groups
         self.background_color = (0, 255, 0)
         self.border_width = 2
         self.menu_items = {}
         self.menu_offset_x = self.border_width
         self.menu_offset_y = self.border_width
-        self.width = width
-        self.height = height
+        # self.width = width
+        # self.height = height
+        # self.pos = pos
         self.has_focus = False
         self.log.debug(f'MENUBAR GROUPS: {groups}')
 
@@ -162,10 +168,16 @@ class MenuBar(FocusableSingletonBitmappySprite):
 class MenuItem(BitmappySprite):
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int = 0, y: int = 0, width: int = 1, height: int = 1,
                  name: str | None = None, filename: str | None = None, parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
+=======
+    def __init__(self, pos=(0, 0), size=(1, 1), name=None, filename=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos, size, name=name, focusable=True,
+>>>>>>> Stashed changes
                          filename=filename, groups=groups)
         self.all_sprites = groups
 
@@ -193,10 +205,8 @@ class MenuItem(BitmappySprite):
             self.text = TextSprite(
                 background_color=self.background_color,
                 text_color=(0, 0, 0),
-                x=self.rect.x,
-                y=self.rect.y,
-                width=self.width,
-                height=self.height,
+                pos=pos,
+                size=size,
                 text=self.name,
                 parent=parent,
                 groups=groups
@@ -463,12 +473,20 @@ class TextSprite(BitmappySprite):
     class TextBox(Sprite):
         log = LOG
 
+<<<<<<< Updated upstream
         def __init__(self: Self, font: str, x: int, y: int, line_height: int = 15,
                      text: str = 'Text', text_color: tuple = WHITE, parent: object = None,
                      groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
             super().__init__(x=x, y=y, width=0, height=0, parent=parent, groups=groups)
             self.start_x = x
             self.start_y = y
+=======
+        def __init__(self, font, pos=(0, 0), line_height=15, text='Text', text_color=WHITE,
+                     parent=None, groups=pygame.sprite.LayeredDirty()):
+            super().__init__(pos=pos, size=(1, 1), parent=parent, groups=groups)
+            self.start_x = pos[0]
+            self.start_y = pos[1]
+>>>>>>> Stashed changes
             self.line_height = line_height
             self.text_color = text_color
             self.text_hover_color = (255, 255, 255)
@@ -558,11 +576,18 @@ class TextSprite(BitmappySprite):
         #     self.active_text_color = self.text_hover_color
         #     self.active_background_color = self.background_hover_color
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  background_color: tuple = BLACKLUCENT, text_color: tuple = WHITE,
                  alpha: int = 0, text: str = 'Text', parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, focusable=True,
+=======
+    def __init__(self, pos, size, name=None, background_color=BLACKLUCENT,
+                 text_color=WHITE, alpha=0, text='Text', parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos=(0, 0), size=(1, 1), name=name, focusable=True,
+>>>>>>> Stashed changes
                          parent=parent, groups=groups)
         self.background_color = (255, 0, 255)
         self.active_color = self.background_color
@@ -597,8 +622,7 @@ class TextSprite(BitmappySprite):
 
         self.text_box = TextSprite.TextBox(
             font=self.font_manager.font(),
-            x=x,
-            y=x,
+            pos=(self.x, self.y),
             text=self.text,
             text_color=text_color,
             parent=self,
@@ -674,10 +698,16 @@ class ButtonSprite(BitmappySprite):
     """
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name,
+=======
+    def __init__(self, pos, size, name=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos, size, name=name,
+>>>>>>> Stashed changes
                          focusable=True, parent=parent, groups=groups)
         self.border_color = (255, 255, 255)
         self.active_color = (128, 128, 128)
@@ -686,10 +716,8 @@ class ButtonSprite(BitmappySprite):
 
         self.text = TextSprite(
             background_color=self.background_color,
-            x=self.parent.rect.centerx if parent else self.x,
-            y=self.parent.rect.centery if parent else self.y,
-            width=self.width,
-            height=self.height,
+            pos=(self.parent.rect.centerx if parent else self.x, self.parent.rect.centery if parent else self.y),  # noqa: E501
+            size=size,
             text=self.name,
             parent=self,
             groups=groups
@@ -786,16 +814,22 @@ class CheckboxSprite(ButtonSprite):
 
 
 class InputBox(Sprite):
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, color: tuple=(233, 248, 215),
                  text: str = '', name: str | None = None, parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty=pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
+=======
+    def __init__(self, pos, size, color=(233, 248, 215), text='', name=None,
+                 parent=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos, size, name=name, groups=groups)
+>>>>>>> Stashed changes
         pygame.font.init()
         self.offset_x = self.parent.x if self.parent else 0
         self.offset_y = self.parent.y if self.parent else 0
-        self.rect.x = x + self.offset_x
-        self.rect.y = y + self.offset_y
-        self.rect = pygame.Rect(x, y, width, height)
+        self.rect.x = pos[0] + self.offset_x
+        self.rect.y = pos[1] + self.offset_y
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.color = color
         self.font = pygame.font.SysFont('Times', 14)
         self.text = text
@@ -884,14 +918,17 @@ class TextBoxSprite(BitmappySprite):
     """
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  callbacks: Callable | None = None, parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, pos, size, name=None, callbacks=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+>>>>>>> Stashed changes
         super().__init__(
-            x=x,
-            y=y,
-            width=width,
-            height=height,
+            pos=pos,
+            size=size,
             name=name,
             parent=parent,
             groups=groups
@@ -904,17 +941,15 @@ class TextBoxSprite(BitmappySprite):
 
         self.text_box = TextSprite(
             background_color=self.background_color,
-            x=x,
-            y=y,
-            width=self.width - self.border_width,
-            height=self.height - self.border_width,
+            pos=pos,
+            size=(self.width - self.border_width, self.height - self.border_width),
             text=self.value,
             parent=self,
             groups=groups
         )
 
-        self.x = x
-        self.y = y
+        # self.x = x
+        # self.y = y
 
         self.text_box.x = self.x
         self.text_box.y = self.y
@@ -954,14 +989,17 @@ class SliderSprite(BitmappySprite):
     class SliderKnobSprite(BitmappySprite):
         log = LOG
 
+<<<<<<< Updated upstream
         def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                      parent: object | None = None,
                      groups: pygame.sprite.LayeredDirty=pygame.sprite.LayeredDirty()) -> None:
+=======
+        def __init__(self, pos, size, name=None, parent=None,
+                     groups=pygame.sprite.LayeredDirty()):
+>>>>>>> Stashed changes
             super().__init__(
-                x=x,
-                y=y,
-                width=width,
-                height=height,
+                pos=pos,
+                size=size,
                 name=name,
                 parent=parent,
                 groups=groups
@@ -970,9 +1008,9 @@ class SliderSprite(BitmappySprite):
             self.value = 0
 
             self.image.fill((255, 255, 255))
-            self.rect = Rect(x, y, self.width, self.height)
-            self.x = x
-            self.y = y
+            # self.rect = Rect(x, y, self.width, self.height)
+            # self.x = x
+            # self.y = y
 
         def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             self.dirty = 1
@@ -994,18 +1032,23 @@ class SliderSprite(BitmappySprite):
             self.on_left_mouse_button_down_event(event)
             self.dirty = 1
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, pos, size, name=None, parent=None,
+                 groups=pygame.sprite.LayeredDirty()):
+
+>>>>>>> Stashed changes
         # TODO: If even, make the line 2x thick?
-        if height % 2 == 0:
-            height -= 1
+        # size[1] == height
+        if size[1] % 2 == 0:
+            size[1] -= 1
 
         super().__init__(
-            x=x,
-            y=y,
-            width=width + 20,
-            height=height,
+            pos=pos,
+            size=(size[0] + 20, size[1]),
             name=name,
             parent=parent,
             groups=groups
@@ -1021,20 +1064,16 @@ class SliderSprite(BitmappySprite):
         #     groups=groups,
         # )
         self.text_sprite = TextSprite(
-            x=257,
-            y=self.rect.y,
-            width=40,
-            height=16,
+            pos=(257, self.rect.y),
+            size=(40, 16),
             name=str((0, 0, 0)),
             parent=self,
             groups=groups,
         )
 
         self.slider_knob = SliderSprite.SliderKnobSprite(
-            x=x,
-            y=y - 1,
-            width=self.height * 2 - 1,
-            height=self.height * 2 - 1,
+            pos=(pos[0], pos[1] - 1),
+            size=(size[1] * 2 - 1, size[1] * 2 - 1),
             name=name,
             parent=self,
             groups=groups
@@ -1057,8 +1096,8 @@ class SliderSprite(BitmappySprite):
         self.rect = self.image.get_rect()
         self.background = pygame.Surface((self.width, self.height))
         # self.image.fill((255, 255, 255))
-        self.x = x
-        self.y = y
+        # self.x = x
+        # self.y = y
         self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
         self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
 
@@ -1176,14 +1215,16 @@ class SliderSprite(BitmappySprite):
 class ColorWellSprite(BitmappySprite):
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str,
                  parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
+=======
+    def __init__(self, pos, size, name, parent=None, groups=pygame.sprite.LayeredDirty()):
+>>>>>>> Stashed changes
         super().__init__(
-            x=x,
-            y=y,
-            width=width,
-            height=height,
+            pos=pos,
+            size=size,
             name=name,
             parent=parent,
             groups=groups
@@ -1193,10 +1234,8 @@ class ColorWellSprite(BitmappySprite):
         self.blue = 0
 
         self.text_sprite = TextBoxSprite(
-            x=self.rect.midleft[0] + width,
-            y=self.rect.centery - 10,
-            width=100,
-            height=20,
+            pos=(self.rect.midleft[0] + self.width, self.rect.centery - 10),
+            size=(100, 20),
             name=str(self.active_color),
             parent=self,
             groups=groups
@@ -1244,25 +1283,30 @@ class InputDialog(BitmappySprite):
     """
     log = LOG
 
+<<<<<<< Updated upstream
     def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None =None,
                  dialog_text: str = 'Would you like to do a thing?',
                  confirm_text: str = 'Confirm', cancel_text: str = 'Cancel',
                  callbacks: Callable | None = None, parent: object = None,
                  groups: pygame.sprite.LayeredDirty = pygame.sprite.LayeredDirty()) -> None:
         super().__init__(x=x, y=y, width=width, height=height, name=name, parent=parent,
+=======
+    def __init__(self, pos, size, name=None, dialog_text='Would you like to do a thing?',
+                 confirm_text='Confirm', cancel_text='Cancel', callbacks=None,
+                 parent=None, groups=pygame.sprite.LayeredDirty()):
+        super().__init__(pos=pos, size=size, name=name, parent=parent,
+>>>>>>> Stashed changes
                          groups=groups)
         self.background_color = (0, 0, 0)
         self.border_width = 1
-        self.width = width
-        self.rect.x = x
-        self.rect.y = y
+        # self.width = width
+        # self.rect.x = x
+        # self.rect.y = y
 
         self.dialog_text_sprite = TextBoxSprite(
             name=dialog_text,
-            x=self.rect.x,
-            y=self.rect.y,
-            width=self.width // 2,
-            height=20,
+            pos=pos,
+            size=(self.width // 2, 20),
             parent=self,
             groups=groups
         )
@@ -1274,26 +1318,20 @@ class InputDialog(BitmappySprite):
         self.dialog_text_sprite.text_box.text = dialog_text
         self.confirm_button = ButtonSprite(
             name=confirm_text,
-            x=self.rect.x,
-            y=self.rect.y,
-            width=75,
-            height=20,
+            pos=pos,
+            size=(75, 20),
             groups=groups
         )
         self.cancel_button = ButtonSprite(
             name=cancel_text,
-            x=self.rect.x,
-            y=self.rect.y,
-            width=75,
-            height=20,
+            pos=pos,
+            size=(75, 20),
             groups=groups
         )
 
         self.input_box = InputBox(
-            x=self.rect.x + self.rect.width // 2,
-            y=self.rect.y + self.rect.height // 2,
-            width=200,
-            height=20,
+            pos=(self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2),
+            size=(200, 20),
             text='',
             parent=self,
             groups=groups
