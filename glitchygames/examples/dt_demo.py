@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Delta Time Demo."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
@@ -17,12 +18,22 @@ from glitchygames.scenes import Scene
 
 
 class Game(Scene):
+    """The main game class."""
+
     # Set your game name/version here.
     NAME = 'Delta Time Demo'
     VERSION = '1.0'
 
     def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+        """Initialize the Game.
 
+        Args:
+            options (dict): The options passed to the game.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -36,6 +47,16 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add game-specific arguments to the gloal parser.
+
+        This class method will get called automatically by the GameEngine class.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -49,6 +70,16 @@ class Game(Scene):
     #     self.target_fps = 30
 
     def dt_tick(self: Self, dt: float) -> None:
+        """Update the scene.
+
+        This method will get called automatically by the GameEngine class.
+
+        Args:
+            dt: The delta time (float).
+
+        Returns:
+            None
+        """
         # self.dt = dt
         # self.dt_timer += self.dt
 
@@ -60,6 +91,16 @@ class Game(Scene):
             self.rect_pos += self.velocity * dt
 
     def update(self: Self) -> None:
+        """Update the scene.
+
+        This method will get called automatically by the GameEngine class.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.screen.fill((0, 0, 0))
 
         if self.rect_pos > self.screen_width and not self.passed:
@@ -87,6 +128,14 @@ class Game(Scene):
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         pressed_keys = pygame.key.get_pressed()
 
         if pressed_keys[pygame.K_SPACE]:
@@ -94,6 +143,7 @@ class Game(Scene):
 
 
 def main() -> None:
+    """The main entry point for the game."""
     GameEngine(game=Game).start()
 
 

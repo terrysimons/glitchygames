@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Audio.
+
+This is a simple audio manager that can be used to manage audio.
+"""
 import argparse
 import logging
 from typing import Self
@@ -12,18 +16,18 @@ log.addHandler(logging.NullHandler())
 
 
 class AudioManager(ResourceManager):
-    class AudioProxy(AudioEvents, ResourceManager):
-        def __init__(self: Self, game: object = None) -> None:
-            """
-            Pygame audio event proxy.
+    """Manage pygame audio events."""
 
-            AudioProxy facilitates mouse handling by bridging AUDIO* events between
-            pygame and your game.
+    class AudioProxy(AudioEvents, ResourceManager):
+        """Pygame audio event proxy."""
+        def __init__(self: Self, game: object = None) -> None:
+            """Initialize the audio proxy.
 
             Args:
-            ----
-            game - The game instance.
+                game: The game instance.
 
+            Returns:
+                None
             """
             super().__init__(game)
 
@@ -31,21 +35,35 @@ class AudioManager(ResourceManager):
             self.proxies = [self.game, pygame.mixer]
 
         def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle audio device added event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_audio_device_added_event(event)
 
         def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle audio device removed event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_audio_device_removed_event(event)
 
     def __init__(self: Self, game: object = None) -> None:
-        """
-        Manage audio.
-
-        AudioManager manages audio.
+        """Initialize the audio manager.
 
         Args:
-        ----
-        game -
+            game: The game instance.
 
+        Returns:
+            None
         """
         super().__init__(game=game)
 
@@ -67,6 +85,14 @@ class AudioManager(ResourceManager):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser: The argument parser.
+
+        Returns:
+            The argument parser.
+        """
         group: argparse._ArgumentGroup = parser.add_argument_group(  # noqa: F841
             'Sound Mixer Options'
         )

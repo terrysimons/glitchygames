@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""A simple sprite loader for Glitchy Games."""
 from __future__ import annotations
 
 import configparser
@@ -20,7 +21,19 @@ log.setLevel(logging.DEBUG)
 
 
 class BitmappySprite(Sprite):
+    """A sprite class for loading bitmappy sprites."""
+
     def __init__(self: Self, filename: str, *args, **kwargs) -> None:
+        """Initialize a BitmappySprite.
+
+        Args:
+            *args: Arguments to pass to the parent class.
+            filename (str): The filename to load.
+            **kwargs: Keyword arguments to pass to the parent class.
+
+        Returns:
+            Self
+        """
         super().__init__(*args, pos=(0,0), size=(0, 0), **kwargs)
         self.image = None
         self.rect = None
@@ -29,7 +42,13 @@ class BitmappySprite(Sprite):
         (self.image, self.rect, self.name) = self.load(filename=filename)
 
     def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """
+        """Load a sprite from a config file.
+
+        Args:
+            filename (str): The filename to load.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The image, rect, and name.
         """
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
@@ -81,7 +100,14 @@ class BitmappySprite(Sprite):
         return (image, rect, name)
 
     def rgb_triplet_generator(self: Self, buffer: list) -> iter[tuple[int, int, int]]:
-        """Yield (R, G, B) tuples for the provided pixel data."""
+        """Yield (R, G, B) tuples for the provided pixel data.
+
+        Args:
+            buffer (list): The buffer to read from.
+
+        Returns:
+            iter[tuple[int, int, int]]: An iterator of RGB triplets.
+        """
         iterator = iter(buffer)
 
         try:
@@ -93,7 +119,16 @@ class BitmappySprite(Sprite):
 
     def inflate(self: Self, width: int, height: int, pixels: list,
                 color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
-        """
+        """Inflate a sprite from a list of pixels.
+
+        Args:
+            width (int): The width of the sprite.
+            height (int): The height of the sprite.
+            pixels (list): The list of pixels.
+            color_map (dict): The color map.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect]: The image and rect.
         """
         image = pygame.Surface((width, height))
         image.convert()
@@ -108,7 +143,13 @@ class BitmappySprite(Sprite):
         return (image, image.get_rect())
 
     def save(self: Self, filename: str) -> None:
-        """
+        """Save the sprite to a file.
+
+        Args:
+            filename (str): The filename to save to.
+
+        Returns:
+            None
         """
         config = self.deflate()
 
@@ -116,6 +157,14 @@ class BitmappySprite(Sprite):
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:
+        """Deflate the sprite into a config file.
+
+        Args:
+            None
+
+        Returns:
+            configparser.ConfigParser: The config parser.
+        """
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
@@ -179,6 +228,14 @@ class BitmappySprite(Sprite):
         return config
 
     def __str__(self: Self) -> str:
+        """Return a string representation of the sprite.
+
+        Args:
+            None
+
+        Returns:
+            str: The string representation of the sprite.
+        """
         description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
             '\nColor Key: {self.color_key}\n'
 
@@ -191,7 +248,16 @@ class BitmappySprite(Sprite):
 
 
 class GameScene(Scene):
+    """The main game scene.  This is where the magic happens."""
     def __init__(self: Self, filename: str) -> None:
+        """Initialize the GameScene.
+
+        Args:
+            filename (str): The filename to load.
+
+        Returns:
+            None
+        """
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -206,11 +272,21 @@ class GameScene(Scene):
 
 
 class Game(Scene):
+    """The main game class."""
+
     # Set your game name/version here.
     NAME = 'Sprite Loader'
     VERSION = '1.0'
 
     def __init__(self: Self, options: dict) -> None:
+        """Initialize the Game.
+
+        Args:
+            options (dict): The options passed to the game.
+
+        Returns:
+            None
+        """
         super().__init__(options=options)
         self.filename = options.get('filename')
 
@@ -218,6 +294,14 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -228,6 +312,7 @@ class Game(Scene):
 
 
 def main() -> None:
+    """The main entry point for the game."""
     GameEngine(game=Game).start()
 
 

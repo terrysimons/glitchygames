@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""
-Create Glitchy Games template game.
-"""
+"""Create Glitchy Games template game."""
 import argparse
 
 from glitchygames import templates
 
 
 def get_args() -> argparse.Namespace:
-    """Parse command line arguments"""
+    """Parse command line arguments.
+
+    Args:
+        None
+
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', '--list',
                         action='store_true',
@@ -22,6 +27,7 @@ def get_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the main application."""
     args = get_args()
 
     if args.list:

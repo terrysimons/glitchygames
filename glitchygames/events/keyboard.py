@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Keyboard Event Manager."""
 from __future__ import annotations
 
 import logging
@@ -16,18 +17,19 @@ log.addHandler(logging.NullHandler())
 
 
 class KeyboardManager(ResourceManager):
-    class KeyboardProxy(KeyboardEvents, ResourceManager):
-        def __init__(self: Self, game: object = None) -> None:
-            """
-            Pygame keyboard event proxy.
+    """Manage keyboard events."""
 
-            KeyboardProxy facilitates key handling by bridging keyboard events between
-            pygame and your game.
+    class KeyboardProxy(KeyboardEvents, ResourceManager):
+        """Keyboard event proxy."""
+
+        def __init__(self: Self, game: object = None) -> None:
+            """Initialize the keyboard event proxy.
 
             Args:
-            ----
-            game - The game instance.
+                game (object): The game object.
 
+            Returns:
+                None
             """
             super().__init__(game=game)
             self.keys = {}
@@ -35,6 +37,14 @@ class KeyboardManager(ResourceManager):
             self.proxies = [self.game, pygame.key]
 
         def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle key down events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
             # The KEYUP and KEYDOWN events are
             # different.  KEYDOWN contains an extra
             # key in its dictionary (unicode), which
@@ -60,6 +70,14 @@ class KeyboardManager(ResourceManager):
             self.on_key_chord_down_event(event)
 
         def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle key up events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
@@ -75,6 +93,14 @@ class KeyboardManager(ResourceManager):
             self.on_key_chord_up_event(event)
 
         def on_key_chord_down_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle key chord down events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
             keys_down = [self.keys[key]
                          for key in self.keys
                          if self.keys[key].type == pygame.KEYDOWN]
@@ -82,6 +108,14 @@ class KeyboardManager(ResourceManager):
             self.game.on_key_chord_down_event(event, keys_down)
 
         def on_key_chord_up_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle key chord up events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
             keys_down = [self.keys[key]
                          for key in self.keys
                          if self.keys[key].type == pygame.KEYDOWN]
@@ -89,21 +123,29 @@ class KeyboardManager(ResourceManager):
             self.game.on_key_chord_up_event(event, keys_down)
 
     def __init__(self: Self, game: object = None) -> None:
-        """
-        Keyboard event manager.
-
-        KeyboardManager interfaces GameEngine with KeyboardManager.KeyboardManagerProxy.
+        """Initialize the keyboard event manager.
 
         Args:
-        ----
-        game - The game instance.
+            game (object): The game object.
 
+        Returns:
+            None
         """
         super().__init__(game=game)
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add keyboard-specific arguments to the global parser.
+
+        This class method will get called automatically by the GameEngine class.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            argparse.ArgumentParser
+        """
         group = parser.add_argument_group('Keyboard Options')  # noqa: F841
 
         return parser

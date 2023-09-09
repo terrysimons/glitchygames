@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+"""Compound Sprite Demo."""
 from __future__ import annotations
 
 import logging
@@ -24,7 +25,23 @@ BitmappySprite.DEBUG = True
 
 
 class GameScene(Scene):
+    """The intro scene.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     def __init__(self: Self, groups: pygame.sprite.Group | None = None) -> None:
+        """Initialize the intro scene.
+
+        Args:
+            groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.Group()
 
@@ -131,15 +148,33 @@ class GameScene(Scene):
     # def switch_to_scene(self, next_scene):
     #     super().switch_to_scene(next_scene)
     def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         log.info(f'Mouse Up Event: {event}')
 
 
 class Game(Scene):
+    """The main game class.  This is where the magic happens."""
+
     # Set your game name/version here.
     NAME = 'Compound Sprite Demo'
     VERSION = '1.0'
 
     def __init__(self: Self, options: dict) -> None:
+        """Initialize the game.
+
+        Args:
+            options (dict): The options passed to the game.
+
+        Returns:
+            None
+        """
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
@@ -149,12 +184,21 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
 
 
 def main() -> None:
+    """The main entry point for the game."""
     GameEngine(game=Game).start()
 
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Drop Events.
+
+This is a simple drop event class that can be used to handle drag & drop events.
+"""
 from __future__ import annotations
 
 import logging
@@ -16,18 +20,18 @@ log.addHandler(logging.NullHandler())
 
 
 class DropManager(ResourceManager):
+    """Manage drop events."""
     class DropProxy(DropEvents, ResourceManager):
-        def __init__(self: Self, game: object = None) -> None:
-            """
-            Pygame drop event proxy.
+        """Proxy class for drop events."""
 
-            DropProxy facilitates mouse handling by bridging DROP* events between
-            pygame and your game.
+        def __init__(self: Self, game: object = None) -> None:
+            """Initialize the drop proxy.
 
             Args:
-            ----
-            game - The game instance.
+                game: The game instance.
 
+            Returns:
+                None
             """
             super().__init__(game)
 
@@ -35,27 +39,57 @@ class DropManager(ResourceManager):
             self.proxies = [self.game]
 
         def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle drop begin event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_drop_begin_event(event)
 
         def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle drop complete event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_drop_complete_event(event)
 
         def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle drop file event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_drop_file_event(event)
 
         def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle drop text event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+            """
             self.game.on_drop_text_event(event)
 
     def __init__(self: Self, game: object = None) -> None:
-        """
-        Manage controllers.
-
-        DropManager manages drop events.
+        """Initialize the drop manager.
 
         Args:
-        ----
-        game -
+            game: The game instance.
 
+        Returns:
+            None
         """
         super().__init__(game=game)
 
@@ -63,6 +97,14 @@ class DropManager(ResourceManager):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser: The argument parser.
+
+        Returns:
+            The argument parser.
+        """
         group = parser.add_argument_group('Drop Options')  # noqa: F841
 
         return parser

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Glitchy Games Engine scenes module."""
 from __future__ import annotations
 
 import logging
@@ -16,10 +17,23 @@ LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 class SceneManager(SceneInterface, events.EventManager):
+    """Glitchy Games Scene Manager.
+
+    The scene manager is responsible for managing the active scene,
+    and for processing events.
+    """
     log: ClassVar = LOG
     OPTIONS: ClassVar = {}
 
     def __init__(self: Self) -> None:
+        """Initialize the scene manager.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
@@ -39,6 +53,14 @@ class SceneManager(SceneInterface, events.EventManager):
 
     @property
     def game_engine(self: Self) -> object:
+        """Return the game engine.
+
+        Args:
+            None
+
+        Returns:
+            object: The game engine.
+        """
         return self._game_engine
 
     @game_engine.setter
@@ -57,12 +79,28 @@ class SceneManager(SceneInterface, events.EventManager):
     # not a scene, but is the entry point for event proxies.
     @property
     def all_sprites(self: Self) -> pygame.sprite.LayeredDirty | None:
+        """Return the active scene's sprite group.
+
+        Args:
+            None
+
+        Returns:
+            pygame.sprite.LayeredDirty | None: The active scene's sprite group.
+        """
         if self.active_scene:
             return self.active_scene.all_sprites
 
         return None
 
     def switch_to_scene(self: Self, next_scene: Scene) -> None:
+        """Switch to the next scene.
+
+        Args:
+            next_scene (Scene): The next scene to switch to.
+
+        Returns:
+            None
+        """
         if next_scene != self.active_scene:
             self.dt = 0
             self.timer = 0
@@ -127,6 +165,14 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.target_fps = self.active_scene.target_fps
 
     def start(self: Self) -> None:
+        """Start the scene manager.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         previous_time = time.perf_counter()
         previous_fps_time = previous_time
         current_time = previous_time
@@ -167,9 +213,25 @@ class SceneManager(SceneInterface, events.EventManager):
         self.terminate()
 
     def terminate(self: Self) -> None:
+        """Terminate the scene manager.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.switch_to_scene(None)
 
     def quit_game(self: Self) -> None:
+        """Quit the game.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(
@@ -177,15 +239,39 @@ class SceneManager(SceneInterface, events.EventManager):
         )
 
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle quit events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # QUIT             none
         self.quit_requested = True
 
     def on_fps_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle FPS events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # FPSEVENT is pygame.USEREVENT + 1
         if self.active_scene:
             self.active_scene.on_fps_event(event)
 
     def on_game_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle game events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # GAMEEVENT is pygame.USEREVENT + 2
         # Call the event callback if it's registered.
         try:
@@ -198,6 +284,15 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def register_game_event(self: Self, event_type: pygame.event.EventType,
                             callback: Callable) -> None:
+        """Register a game event.
+
+        Args:
+            event_type (pygame.event.EventType): The event type to register.
+            callback (Callable): The callback to call when the event is triggered.
+
+        Returns:
+            None
+        """
         self.game_engine.register_game_event(event_type=event_type, callback=callback)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
@@ -208,6 +303,14 @@ class SceneManager(SceneInterface, events.EventManager):
     # This allows maximum flexibility of event processing, with low overhead
     # at the expense of a slight layer violation.
     def __getattr__(self: Self, attr: str) -> Callable:
+        """Proxy calls to the active scene.
+
+        Args:
+            attr (str): The attribute to proxy.
+
+        Returns:
+            Callable: The callable object.
+        """
         # Attempt to proxy the call to the active scene.
         if (attr.startswith('on_') and attr.endswith('_event')):
             try:
@@ -221,8 +324,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
 
 class Scene(SceneInterface, SpriteInterface, events.EventInterface):
-    """
-    Scene object base class.
+    """Scene object base class.
 
     Subclass this to properly receive on_*_event() messages automatically.
     """
@@ -233,6 +335,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
 
     def __init__(self: Self, options: dict | None = None,
                  groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        """Initialize the scene.
+
+        Args:
+            options (dict | None): The options passed to the game.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if options is None:
             options = {}
 
@@ -286,6 +397,14 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
 
     @property
     def screenshot(self: Self) -> pygame.Surface:
+        """Return a screenshot of the scene.
+
+        Args:
+            None
+
+        Returns:
+            pygame.Surface: The scene screenshot.
+        """
         _screenshot = pygame.Surface((self.screen_width, self.screen_height))
         _screenshot.convert()
         _screenshot.blit(self.screen, (0, 0))
@@ -293,25 +412,70 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
 
     @property
     def background_color(self: Self) -> pygame.Color:
+        """Return the background color.
+
+        Args:
+            None
+
+        Returns:
+            pygame.Color: The background color.
+        """
         return self._background_color
 
     @background_color.setter
     def background_color(self: Self, new_color: tuple) -> None:
+        """Set the background color.
+
+        Args:
+            new_color (tuple): The new background color.
+
+        Returns:
+            None
+        """
         self._background_color = new_color
         self.background.fill(self.background_color)
         self.all_sprites.clear(self.screen, self.background)
 
     def setup(self: Self) -> None:
-        pass
+        """Setup the scene.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
 
     def cleanup(self: Self) -> None:
-        pass
+        """Cleanup the scene.
 
+        Args:
+            None
+
+        Returns:
+            None
+        """
     def dt_tick(self: Self, dt: float) -> None:
+        """Update the scene's delta time.
+
+        Args:
+            dt (float): The delta time to update.
+
+        Returns:
+            None
+        """
         self.dt = dt
         self.dt_timer += self.dt
 
     def update(self: Self) -> None:
+        """Update the active scene.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Tweak to enable compound sprites to manage their own subsprites dirty states
         #
         # Ideally we'd just make dirty a property with a setter and getter on each
@@ -325,14 +489,39 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
                 sprite.dirty = 1 if not sprite.dirty else sprite.dirty
 
     def render(self: Self, screen: pygame.Surface) -> None:
+        """Render the active scene.
+
+        Args:
+            screen (pygame.Surface): The screen to render to.
+
+        Returns:
+            None
+        """
         self.rects = self.all_sprites.draw(self.screen)
 
     def sprites_at_position(self: Self, pos: tuple) -> list[pygame.sprite.Sprite] | None:
+        """Return the sprites at a given position.
+
+        Args:
+            pos (tuple): The position to check.
+
+        Returns:
+            list[pygame.sprite.Sprite] | None: The sprites at the given position.
+        """
         mouse = MousePointer(pos=pos)
 
         return pygame.sprite.spritecollide(sprite=mouse, group=self.all_sprites, dokill=False)
 
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -340,6 +529,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_mouse_drag_event(event, trigger)
 
     def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -347,6 +545,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_mouse_drop_event(event, trigger)
 
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle left mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -357,6 +564,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         #     sprite.on_left_mouse_drag_event(event, trigger)
 
     def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle left mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -364,6 +580,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_left_mouse_drop_event(event, trigger)
 
     def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle middle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -371,6 +596,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_middle_mouse_drag_event(event, trigger)
 
     def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle middle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -378,6 +612,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_middle_mouse_drop_event(event, trigger)
 
     def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle right mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -385,6 +628,15 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_right_mouse_drag_event(event, trigger)
 
     def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle right mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+        """
         self.log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
@@ -392,6 +644,14 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_right_mouse_drop_event(event, trigger)
 
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
 
@@ -401,6 +661,14 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_left_mouse_button_up_event(event)
 
     def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
@@ -410,6 +678,17 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_middle_mouse_button_up_event(event)
 
     def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # MOUSEBUTTONUP    pos, button
         self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
 
@@ -419,6 +698,17 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_right_mouse_button_up_event(event)
 
     def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event}')
 
@@ -432,6 +722,17 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_left_mouse_button_down_event(event)
 
     def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # MOUSEBUTTONDOWN    pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
@@ -441,6 +742,17 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_middle_mouse_button_down_event(event)
 
     def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # MOUSEBUTTONDOWN  pos, button
         self.log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
 
@@ -450,6 +762,17 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             sprite.on_right_mouse_button_down_event(event)
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # Wire up quit by default for escape and q.
         #
         # If a game implements on_key_up_event themselves
@@ -458,13 +781,43 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             self.scene_manager.quit_game()
 
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle quit events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
 
     def on_fps_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle FPS events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         # FPSEVENT is pygame.USEREVENT + 1
         self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
         self.fps = event.fps
 
     def load_resources(self: Self) -> None:
+        """Load the scene's resources.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.log.debug(f'Implement load_resource() in {type(self)}.')

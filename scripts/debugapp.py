@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Debug App."""
 from __future__ import annotations
 
 import logging
@@ -23,7 +24,17 @@ BitmappySprite.DEBUG = True
 
 
 class IntroScene(Scene):
-    def __init__(self: Self) -> None:
+    """The intro scene."""
+
+    def __init__(self: Self) -> Self:
+        """Initialize the intro scene.
+
+        Args:
+            None
+
+        Returns:
+            Self
+        """
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -34,12 +45,22 @@ class IntroScene(Scene):
 
 
 class Game(Scene):
+    """The main game class."""
+
     # Set your game name/version here.
     NAME = 'Debug App'
     VERSION = '1.0'
     log = LOG
 
-    def __init__(self: Self, options: dict) -> None:
+    def __init__(self: Self, options: dict) -> Self:
+        """Initialize the Game.
+
+        Args:
+            options (dict): The options passed to the game.
+
+        Returns:
+            Self
+        """
         super().__init__(options=options)
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
@@ -48,12 +69,21 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                            action='store_true',
                            help='print the game version and exit')
 
 
 def main() -> None:
+    """Run the game."""
     GameEngine(game=Game).start()
 
 
