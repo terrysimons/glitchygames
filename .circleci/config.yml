@@ -43,6 +43,7 @@ jobs:
       - run:
           name:
           command: |
+            rm -rf ~/.pyenv
             git clone https://github.com/pyenv/pyenv.git ~/.pyenv
             cd ~/.pyenv && src/configure && make -C src
             echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
