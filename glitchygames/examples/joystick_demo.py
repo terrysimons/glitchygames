@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Joystick Demo."""
 from __future__ import annotations
 
 import contextlib
@@ -24,7 +25,18 @@ LOG.setLevel(logging.DEBUG)
 
 
 class ShapesSprite(Sprite):
+    """A sprite class for drawing shapes."""
+
     def __init__(self: Self, *args, **kwargs) -> None:
+        """Initialize a ShapesSprite.
+
+        Args:
+            *args: Arguments to pass to the parent class.
+            **kwargs: Keyword arguments to pass to the parent class.
+
+        Returns:
+            Self
+        """
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
 
@@ -48,10 +60,26 @@ class ShapesSprite(Sprite):
         self.dirty = 1
 
     def move(self: Self, pos: tuple) -> None:
+        """Move the sprite to a new position.
+
+        Args:
+            pos (tuple): The new position.
+
+        Returns:
+            None
+        """
         self.rect.center = pos
         self.dirty = 1
 
     def update(self: Self) -> None:
+        """Update the sprite.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self._draw_point()
         self._draw_circle()
         self._draw_rectangle()
@@ -59,6 +87,14 @@ class ShapesSprite(Sprite):
         self.dirty = 1
 
     def _draw_point(self: Self) -> None:
+        """Draw a yellow point.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Draw a yellow point.
         # There's no point API, so we'll fake
         # it with the line API.
@@ -76,6 +112,14 @@ class ShapesSprite(Sprite):
                                           (self.screen_width // 2, self.screen_height // 2))
 
     def _draw_circle(self: Self) -> None:
+        """Draw a blue circle.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Draw a blue circle.
         if self.use_gfxdraw:
             pygame.gfxdraw.circle(self.screen,
@@ -90,6 +134,14 @@ class ShapesSprite(Sprite):
                                self.screen_height // 2, 1)
 
     def _draw_triangle(self: Self) -> None:
+        """Draw a green triangle.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
         x1 = self.screen_width // 2
@@ -116,12 +168,28 @@ class ShapesSprite(Sprite):
 
     @property
     def rectangle(self: Self) -> pygame.rect.Rect:
+        """Get the rectangle.
+
+        Args:
+            None
+
+        Returns:
+            pygame.rect.Rect: The rectangle.
+        """
         rect = Rect(0, 0, self.screen_height, self.screen_height)
         rect.center = (self.screen_width / 2, self.screen_height / 2)
 
         return rect
 
     def _draw_rectangle(self: Self) -> None:
+        """Draw a purple rectangle.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
@@ -267,8 +335,17 @@ class ShapesSprite(Sprite):
 
 
 class JoystickScene(Scene):
-    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+    """A scene for testing joysticks."""
 
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+        """Initialize the JoystickScene.
+
+        Args:
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -279,14 +356,22 @@ class JoystickScene(Scene):
         self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480)
         # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(
-            tuple(self.shapes_sprite)
-        )
+        # self.all_sprites = pygame.sprite.LayeredDirty(
+        #     tuple(self.shapes_sprite)
+        # )
 
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
 
     def load_resources(self: Self) -> None:
+        """Load the resources.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # Load tiles.
         for resource in Path('resources').glob('*'):
             with contextlib.suppress(IsADirectoryError):
@@ -294,6 +379,14 @@ class JoystickScene(Scene):
                 self.tiles.append(self.load_graphic(resource))
 
     def render(self: Self, screen: pygame.Surface) -> None:
+        """Render the scene.
+
+        Args:
+            screen (pygame.Surface): The screen to render to.
+
+        Returns:
+            None
+        """
         super().render(screen)
 
         x = 0
@@ -309,30 +402,88 @@ class JoystickScene(Scene):
                 x += 32
 
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.shapes_sprite.move(event.pos)
 
     def on_left_mouse_button_up(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
 
     def on_left_mouse_button_down(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.post_game_event('pew pew', {'bullet': 'big boomies'})
 
     def on_pew_pew_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle pew pew events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.log.info(f'PEW PEW Event: {event}')
 
     def on_recharge_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle recharge events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.log.info(f'Recharge Event: {event}')
 
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller axis motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         self.log.info('controller Axis motion event')
 
 
 class Game(Scene):
+    """The main game class.  This is where the magic happens."""
+
     # Set your game name/version here.
     NAME = 'Joystick and Font Demo'
     VERSION = '0.0'
 
     def __init__(self: Self, options: dict) -> None:
+        """Initialize the game.
+
+        Args:
+            options (dict): The options passed to the game.
+
+        Returns:
+            None
+        """
         super().__init__(options=options)
         self.time = options.get('time')
         self.next_scene = JoystickScene()
@@ -378,6 +529,14 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('--time',
                             type=int,
                             help='time in seconds to wait before quitting',
@@ -388,6 +547,14 @@ class Game(Scene):
 
 
 def main() -> None:
+    """The main function.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     GameEngine(game=Game).start()
 
 

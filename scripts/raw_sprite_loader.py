@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""A simple legacy bitmappy sprite loader."""
 from __future__ import annotations
 
 import configparser
@@ -22,9 +23,20 @@ LOG.setLevel(logging.INFO)
 
 
 class BitmappyLegacySprite(Sprite):
+    """A sprite class for loading legacy bitmappy sprites."""
     log = LOG
 
     def __init__(self: Self, filename: str, *args, **kwargs) -> None:
+        """Initialize a BitmappySprite.
+
+        Args:
+            *args: Arguments to pass to the parent class.
+            filename (str): The filename to load.
+            **kwargs: Keyword arguments to pass to the parent class.
+
+        Returns:
+            Self
+        """
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
         self.rect = None
@@ -36,7 +48,15 @@ class BitmappyLegacySprite(Sprite):
 
     def load(self: Self, filename: str, width: int,
              height: int) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """
+        """Load a sprite from a config file.
+
+        Args:
+            filename (str): The filename to load.
+            width (int): The width of the sprite.
+            height (int): The height of the sprite.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The image, rect, and name.
         """
         image = None
         rect = None
@@ -65,7 +85,15 @@ class BitmappyLegacySprite(Sprite):
 
     def inflate(self: Self, width: int, height: int,
                 pixels: list) -> tuple[pygame.Surface, pygame.Rect]:
-        """
+        """Inflate the sprite.
+
+        Args:
+            width (int): The width of the sprite.
+            height (int): The height of the sprite.
+            pixels (list): The list of pixels.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect]: The image and rect.
         """
         image = pygame.Surface((width, height))
         image.fill((0, 255, 0))
@@ -86,7 +114,13 @@ class BitmappyLegacySprite(Sprite):
         return (image, image.get_rect())
 
     def save(self: Self, filename: str) -> None:
-        """
+        """Save the sprite to a file.
+
+        Args:
+            filename (str): The filename to save to.
+
+        Returns:
+            None
         """
         config = self.deflate()
 
@@ -94,6 +128,14 @@ class BitmappyLegacySprite(Sprite):
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:
+        """Deflate the sprite into a config file.
+
+        Args:
+            None
+
+        Returns:
+            configparser.ConfigParser: The config parser.
+        """
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
@@ -156,6 +198,14 @@ class BitmappyLegacySprite(Sprite):
         return config
 
     def __str__(self: Self) -> str:
+        """Return a string representation of the sprite.
+
+        Args:
+            None
+
+        Returns:
+            str: A string representation of the sprite.
+        """
         description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
             '\nColor Key: {self.color_key}\n'
 
@@ -168,7 +218,18 @@ class BitmappyLegacySprite(Sprite):
 
 
 class GameScene(Scene):
+    """The main game scene."""
+    log = LOG
+
     def __init__(self: Self, filename: str) -> None:
+        """Initialize the GameScene.
+
+        Args:
+            filename (str): The filename to load.
+
+        Returns:
+            None
+        """
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -184,16 +245,34 @@ class GameScene(Scene):
 
 
 class Game(Scene):
+    """The main game class."""
+
     # Set your game name/version here.
     NAME = 'Raw Sprite Loader'
     VERSION = '1.0'
 
     def __init__(self: Self, options: dict) -> None:
+        """Initialize the Game.
+
+        Args:
+            options (dict): The options passed to the game.
+
+        Returns:
+            None
+        """
         super().__init__(options=options)
         self.filename = options.get('filename')
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -204,6 +283,7 @@ class Game(Scene):
 
 
 def main() -> None:
+    """The main entry point for the game."""
     GameEngine(game=Game).start()
 
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Paddle Slap.
+
+This is a simple game where you try to keep the ball from hitting your side of the screen.
+"""
 from __future__ import annotations
 
 import logging
@@ -29,10 +33,23 @@ log.setLevel(logging.INFO)
 
 
 class TextSprite(Sprite):
+    """A sprite class for displaying text."""
+
     def __init__(self: Self, background_color: tuple = BLACKLUCENT, alpha: int = 0,
                  x: int = 0, y: int = 0,
                  groups: pygame.sprite.LayeredDirty | None = None) -> None:
+        """Initialize the text sprite.
 
+        Args:
+            background_color (tuple): The background color of the text.
+            alpha (int): The alpha value of the text.
+            x (int): The x position of the text.
+            y (int): The y position of the text.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -78,9 +95,21 @@ class TextSprite(Sprite):
         # Inheriting from object is default in Python 3.
         # Linters complain if you do it.
         class TextBox(Sprite):
+            """A sprite class for displaying text."""
+
             def __init__(self: Self, font_controller: FontManager, pos: tuple,
                          line_height: int = 15, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+                """Initialize the text sprite.
 
+                Args:
+                    font_controller (FontManager): The font controller to use.
+                    pos (tuple): The position of the text.
+                    line_height (int): The line height of the text.
+                    groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+                Returns:
+                    None
+                """  # noqa: E501
                 if groups is None:
                     groups = pygame.sprite.LayeredDirty()
 
@@ -95,6 +124,15 @@ class TextSprite(Sprite):
                                                     size=font_controller.font_size)
 
             def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
+                """Print text to the screen.
+
+                Args:
+                    surface (pygame.surface.Surface): The surface to print to.
+                    string (str): The string to print.
+
+                Returns:
+                    None
+                """
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
@@ -102,6 +140,14 @@ class TextSprite(Sprite):
                 self.rect.y += self.line_height
 
             def reset(self: Self) -> None:
+                """Reset the text box.
+
+                Args:
+                    None
+
+                Returns:
+                    None
+                """
                 self.rect.center = self.start_pos
 
             def indent(self: Self) -> None:
@@ -114,6 +160,14 @@ class TextSprite(Sprite):
         self.dirty = 2
 
     def update(self: Self) -> None:
+        """Update the text sprite.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.image.fill(self.background_color)
 
         self.text_box.reset()
@@ -121,12 +175,21 @@ class TextSprite(Sprite):
 
 
 class Game(Scene):
+    """The main game class.  This is where the magic happens."""
     # Set your game name/version here.
     NAME = 'Paddle Slap'
     VERSION = '1.1'
 
     def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+        """Initialize the Game.
 
+        Args:
+            options (dict): The options passed to the game.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -172,6 +235,14 @@ class Game(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
         parser.add_argument('-v', '--version',
                             action='store_true',
                             help='print the game version and exit')
@@ -182,10 +253,26 @@ class Game(Scene):
                             default=1)
 
     def setup(self: Self) -> None:
+        """Set up the game.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.fps = 60
         pygame.key.set_repeat(1)
 
     def dt_tick(self: Self, dt: float) -> None:
+        """Update the game.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+        """
         self.dt = dt
         self.dt_timer += self.dt
 
@@ -193,6 +280,14 @@ class Game(Scene):
             sprite.dt_tick(dt)
 
     def update(self: Self) -> None:
+        """Update the game.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
                 # ball.rally.hit()
@@ -213,7 +308,14 @@ class Game(Scene):
         super().update()
 
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller button down events.
 
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         if event.button in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
@@ -221,7 +323,14 @@ class Game(Scene):
         self.log.info(f'GOT on_controller_button_down_event: {event}')
 
     def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller button up events.
 
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             player.up()
@@ -231,7 +340,14 @@ class Game(Scene):
         self.log.info(f'GOT on_controller_button_up_event: {event}')
 
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller axis motion events.
 
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
             if event.value < 0:
@@ -243,6 +359,14 @@ class Game(Scene):
             self.log.info(f'GOT on_controller_axis_motion_event: {event}')
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # Handle ESC/q to quit
         super().on_key_up_event(event)
 
@@ -259,6 +383,14 @@ class Game(Scene):
             self.player2.stop()
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
         # KEYDOWN            key, mod
         # self.log.info(f'Key Down Event: {event}')
         pressed_keys = pygame.key.get_pressed()
@@ -274,6 +406,14 @@ class Game(Scene):
 
 
 def main() -> None:
+    """The main function.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     GameEngine(game=Game).start()
 
 

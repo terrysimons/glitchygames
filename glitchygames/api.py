@@ -1,0 +1,1 @@
+"""Glitchygames plugin API."""

@@ -42,10 +42,6 @@ pytest = "^7.2.0"
 pylama = {extras = ["all"], version = "^8.4.1"}
 ruff = "^0.0.287"
 
-[project]
-# Support Python 3.9+.
-requires-python = ">=3.9"
-
 [tool.ruff]
 line-length = 100
 format = "grouped"
@@ -112,22 +108,17 @@ extend-select = [
   "FBT",
   "B",
   "A",
-
+  "D",
 ]
 ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
-
-]
-extend-ignore = [
-  "D",
   "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
   "COM812", # Trailing comma missing
   "G004", # Logging statement uses f-string
   "ISC002", # Use of implicit string concatenation
   "ERA001", # Found commented-out code
-  "RUF100", # Unused `noqa` directive
   "PLR0911", # Too many return statements
   "C901", # Function is too complex
   "EM102", # Exception must not use an f-string literal, assign to variable first
@@ -138,7 +129,6 @@ extend-ignore = [
   "TD002", # Missing author in TODO
   "ANN002", # Missing type annotation for `*args`
   "ANN003", # Missing type annotation for `**kwargs`
-  "RUF100", # Unused `noqa` directive
 ]
 # exclude = []
 # extend-exclude = []
@@ -159,6 +149,9 @@ ignore-fully-untyped = false
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
+
+[tool.ruff.pydocstyle]
+convention = "google"
 
 [tool.pylama]
 linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
@@ -194,7 +187,7 @@ max_line_length = "100"
 # [tool.pylama.linter.pylint]
 # ignored_modules = "pygame"
 
-[tool.pylama.pydocstyle]
+# [tool.pylama.pydocstyle]
 
 [build-system]
 requires = ["poetry-core"]

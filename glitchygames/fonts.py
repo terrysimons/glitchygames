@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""Fonts.
+
+This is a simple font manager that can be used to load fonts.
+"""
 from __future__ import annotations
 
 import logging
@@ -17,32 +21,35 @@ log.addHandler(logging.NullHandler())
 
 
 class FontManager(ResourceManager):
+    """A font manager."""
+
     OPTIONS: ClassVar = {}
     RENDER_CACHE: ClassVar = {}
 
     class FontProxy(FontEvents, ResourceManager):
+        """A font proxy."""
+
         def __init__(self: Self, game: object = None) -> None:
-            """
+            """Initialize the font proxy.
+
+            Args:
+                game (object): The game object.
+
+            Returns:
+                None
             """
             super().__init__(game=game)
             self.game = game
             self.proxies = [self.game, pygame.freetype]
 
     def __init__(self: Self, game: object = None) -> None:
-        """
-        Manage fonts.
-
-        FontManager manages fonts.
+        """Initialize the font manager.
 
         Args:
-        ----
-        font - The name of the font to use.  Default: pygame.freetype.get_default_font()
-        font_size - The size of the font to use. Default: 12
-        font_bold - True for bold.  Default: False
-        font_italic - True for italic. Default: False
-        font_antialias - True for antialiased. Default: False
-        font_dpi - Font DPI.  Default: 72
+            game (object): The game object.
 
+        Returns:
+            None
         """
         super().__init__(game=game)
 
@@ -96,6 +103,14 @@ class FontManager(ResourceManager):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add font options to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            argparse.ArgumentParser
+        """
         group = parser.add_argument_group('Font Options')
 
         group.add_argument('--font-name',
@@ -123,6 +138,22 @@ class FontManager(ResourceManager):
     #
     # We can also use a config file to specify the font path.
     def font(self: Self, font_config: dict | None = None) -> pygame.freetype.Font | pygame.freetype.SysFont:  # noqa: E501
+        """Return a font object.
+
+        If the font requested can't be found then bitstream_vera will be loaded instead.
+
+        Note that if you are trying to package your game with pyinstaller, you'll need to bundle
+        your game's fonts with the pyinstaller invocation.  Make sure you have distribution
+        rights to the fonts you're including with your game.
+
+        bitstream_vera is a permissively licensed font that can be used with your game.
+
+        Args:
+            font_config (dict | None): The font configuration.
+
+        Returns:
+            pygame.freetype.Font | pygame.freetype.SysFont
+        """
         if not font_config:
             font_config = FontManager.OPTIONS
 

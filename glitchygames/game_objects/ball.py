@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Ball."""
 from __future__ import annotations
 
 import random
@@ -13,10 +14,24 @@ from glitchygames.sprites import Sprite
 
 
 class BallSprite(Sprite):
+    """Ball Sprite."""
 
     def __init__(self: Self, x: int = 0, y: int = 0, width: int = 20, height: int = 20,
                  groups: pygame.sprite.LayeredDirty | None = None,
                  collision_sound: str | None = None) -> None:
+        """Initialize the ball sprite.
+
+        Args:
+            x (int): The x position of the ball.
+            y (int): The y position of the ball.
+            width (int): The width of the ball.
+            height (int): The height of the ball.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+            collision_sound (str | None): The sound to play on collision.
+
+        Returns:
+            None
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -38,10 +53,26 @@ class BallSprite(Sprite):
 
     @property
     def color(self: Self) -> tuple[int, int, int]:
+        """Get the color of the ball.
+
+        Args:
+            None
+
+        Returns:
+            tuple[int, int, int]: The color of the ball.
+        """
         return self._color
 
     @color.setter
     def color(self: Self, new_color: tuple) -> None:
+        """Set the color of the ball.
+
+        Args:
+            new_color (tuple): The new color of the ball.
+
+        Returns:
+            None
+        """
         self._color = new_color
         pygame.draw.circle(
             self.image,
@@ -52,6 +83,14 @@ class BallSprite(Sprite):
         )
 
     def _do_bounce(self: Self) -> None:
+        """Bounce the ball.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         if self.rect.y <= 0:
             self.snd.play()
             self.rect.y = 0
@@ -62,6 +101,14 @@ class BallSprite(Sprite):
             self.speed.y *= -1
 
     def reset(self: Self) -> None:
+        """Reset the ball.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.x = random.randrange(50, 750)
         self.y = random.randrange(25, 400)
 
@@ -80,6 +127,14 @@ class BallSprite(Sprite):
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self: Self, diff: int) -> None:
+        """Bounce the ball.
+
+        Args:
+            diff (int): The difference.
+
+        Returns:
+            None
+        """
         self.direction = (180 - self.direction) % 360
         self.direction -= diff
 
@@ -87,6 +142,14 @@ class BallSprite(Sprite):
         self.speed *= 1.1
 
     def update(self: Self) -> None:
+        """Update the ball.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x
 
