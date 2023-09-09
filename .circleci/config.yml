@@ -51,6 +51,8 @@ jobs:
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             source ~/.bashrc && PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.11.5 && pyenv global 3.11.5 3.11.5
             python --version
+            pyenv versions
+            pip install ruff
       # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
       # - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
       # - run: echo 'eval "$(pyenv init -)"' >> ~/.zshrc
