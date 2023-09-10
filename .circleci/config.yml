@@ -37,6 +37,7 @@ jobs:
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             source ~/.bashrc
 
+            echo "Path: $PATH"
             echo "Pyenv: "
             echo $(which pyenv)
             echo "Building Python 3.11.5, 3.10.13, 3.9.18"
