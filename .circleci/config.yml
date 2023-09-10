@@ -92,7 +92,7 @@ jobs:
 
       - run:
           name: "Build and Test Windows"
-          commands: |
+          command: |
             choco install -y python3 --version=3.11.5
             call RefreshEnv.cmd
             pip install nox nox-poetry ruff
