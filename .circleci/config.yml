@@ -94,7 +94,7 @@ jobs:
           name: "Build and Test Windows"
           command: |
             choco install -y python3 --version=3.11.5
-            call RefreshEnv.cmd
+            (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             pip install nox nox-poetry ruff
             nox
 
