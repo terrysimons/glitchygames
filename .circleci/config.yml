@@ -45,7 +45,10 @@ jobs:
             echo $(which pyenv)
             echo "Building Python 3.11.5, 3.10.13, 3.9.18"
 
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18
+            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            pyenv global 3.11.5 3.11.5
+
             python --version
             pyenv versions
             pip install nox nox-poetry ruff
@@ -74,7 +77,11 @@ jobs:
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             source ~/.bashrc
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
+            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            pyenv global 3.11.5 3.11.5
+
             python --version
             pyenv versions
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
@@ -105,8 +112,9 @@ jobs:
             choco install pyenv-win --force -y
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
-            pyenv install -f 3.11.5 3.10.13 3.9.18
-            pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            # pyenv install -f 3.11.5 3.10.13 3.9.18
+            pyenv install -f 3.11.5
+            pyenv global 3.11.5 3.11.5
             pyenv versions
             # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
