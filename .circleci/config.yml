@@ -46,7 +46,7 @@ jobs:
             python --version
             pyenv versions
             pip install nox nox-poetry ruff
-            cd ~/project
+            cd ~/project/glichygames
             nox
 
   build-and-test-macos:
@@ -74,7 +74,7 @@ jobs:
             python --version
             pyenv versions
             pip install nox nox-poetry ruff
-            cd ~/project
+            cd ~/project/glitchygames
             nox
 
       # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
@@ -96,7 +96,7 @@ jobs:
             choco install -y python3 --version=3.11.5
             call RefreshEnv.cmd
             pip install nox nox-poetry ruff
-            cd project
+            cd glitchygames
             nox
 
 
