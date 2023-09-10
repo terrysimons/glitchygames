@@ -29,13 +29,13 @@ jobs:
       - run:
           name: "Build and Test Linux"
           command: |
-            rm -rf ~/.pyenv
-            git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-            cd ~/.pyenv && src/configure && make -C src
-            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            source ~/.bashrc
+            # rm -rf ~/.pyenv
+            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # cd ~/.pyenv && src/configure && make -C src
+            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            # source ~/.bashrc
 
             echo "Path: $PATH"
             echo "Pyenv: "
