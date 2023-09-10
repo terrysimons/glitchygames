@@ -93,11 +93,15 @@ jobs:
       - run:
           name: "Build and Test Windows"
           command: |
-            choco install -y python3 --version=3.11.5 --allow-multiple-versions
-            choco install -y python3 --version=3.10.13 --allow-multiple-versions
-            choco install -y python3 --version=3.9.18 --allow-multiple-versions
-            Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
-            (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+            # choco install -y python3 --version=3.11.5 --allow-multiple-versions
+            # choco install -y python3 --version=3.10.13 --allow-multiple-versions
+            # choco install -y python3 --version=3.9.18 --allow-multiple-versions
+            choco install pyenv-win --force
+            refreshenv
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18
+            pyenv versions
+            # Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+            # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
             pip install nox nox-poetry poetry ruff
