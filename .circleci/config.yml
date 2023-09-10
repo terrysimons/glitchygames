@@ -98,7 +98,7 @@ jobs:
             (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
-            pip install nox nox-poetry ruff
+            pip install nox nox-poetry poetry ruff
             nox
 
 
