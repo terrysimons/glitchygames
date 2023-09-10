@@ -27,8 +27,18 @@ jobs:
       - checkout
 
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: "Build and Test Linux"
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
+            python3.11 --version
+            python3.11 -m venv venv
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install nox nox-poetry ruff
+            cd ~/project
+            nox
+
 
   build-and-test-macos:
     macos:
@@ -41,7 +51,7 @@ jobs:
       # with Xcode 14.3.1 installed
       - checkout
       - run:
-          name:
+          name: "Build and Test macOS"
           command: |
             rm -rf ~/.pyenv
             git clone https://github.com/pyenv/pyenv.git ~/.pyenv
