@@ -94,6 +94,8 @@ jobs:
           name: "Build and Test Windows"
           command: |
             choco install -y python3 --version=3.11.5
+            choco install -y python3 --version=3.10.13
+            choco install -y python3 --version=3.9.18
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
