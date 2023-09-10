@@ -90,7 +90,15 @@ jobs:
     steps:
       - checkout
 
-      - run: "choco install -y python3 --version=3.11.5"
+      - run:
+          name: "Build and Test Windows"
+          commands: |
+            choco install -y python3 --version=3.11.5
+            call RefreshEnv.cmd
+            pip install nox nox-poetry ruff
+            cd c:\projects\project
+            nox
+
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
