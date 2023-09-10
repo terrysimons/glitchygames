@@ -7,5 +7,5 @@ repos:
       language: python
       entry: poetry run nox
       types: [python]
-      stages: [push]
+      # stages: [pre-commit, push]
       pass_filenames: false
