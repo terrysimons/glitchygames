@@ -70,7 +70,7 @@ jobs:
             source ~/.bashrc
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             echo $(which pyenv)
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install --force 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
             python --version
             pyenv versions
             pip install nox nox-poetry ruff
