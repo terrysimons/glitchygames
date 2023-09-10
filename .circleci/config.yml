@@ -94,8 +94,9 @@ jobs:
           name: "Build and Test Windows"
           command: |
             choco install -y python3 --version=3.11.5
-            refreshenv
+            Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+            set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
             pip install nox nox-poetry ruff
             nox
