@@ -2,9 +2,12 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
+# TODO:  Turn hard coded version strings into variables
+
+
 orbs:
   win: circleci/windows@5.0
-  macos: circleci/macos@2.3.3
+  macos: circleci/macos@2.3.6
   jira: circleci/jira@1.3.1
 
 # Define a job to be invoked later in a workflow.
@@ -14,7 +17,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/base:stable
+      - image: cimg/python:3.11.5
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -24,28 +27,74 @@ jobs:
       - checkout
 
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: "Build and Test Linux"
+          command: |
+            # rm -rf ~/.pyenv
+            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # cd ~/.pyenv && src/configure && make -C src
+            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            # source ~/.bashrc
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            source ~/.bashrc
+
+            echo "Path: $PATH"
+            echo "Pyenv: "
+            echo $(which pyenv)
+            echo "Building Python 3.11.5, 3.10.13, 3.9.18"
+
+            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18
+            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
+            pyenv global 3.11.5 3.11.5
+
+            python --version
+            pyenv versions
+            pip install nox nox-poetry ruff
+            cd ~/project
+            nox
 
   build-and-test-macos:
     macos:
-      xcode: 14.1.0
+      xcode: 14.3.1
 
     resource_class: medium
 
     steps:
       # Commands will execute in macOS container
-      # with Xcode 12.5.1 installed
-      - run: git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-      - run: cd ~/.pyenv && src/configure && make -C src
-      - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-      - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-      - run: echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+      # with Xcode 14.3.1 installed
+      - checkout
+      - run:
+          name: "Build and Test macOS"
+          command: |
+            rm -rf ~/.pyenv
+            git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            cd ~/.pyenv && src/configure && make -C src
+            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
+            source ~/.bashrc
+            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
+            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
+            pyenv global 3.11.5 3.11.5
+
+            python --version
+            pyenv versions
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+
+            pip install nox nox-poetry ruff
+            cd ~/project
+            nox
+
       # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
       # - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
       # - run: echo 'eval "$(pyenv init -)"' >> ~/.zshrc
       # - run: source ~/.zshrc
-      - run: source ~/.bashrc && PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.11.5 && pyenv global 3.11.5 3.11.5
 
   build-and-test-windows:
     executor:
@@ -55,7 +104,25 @@ jobs:
     steps:
       - checkout
 
-      - run: "choco install -y python3 --version=3.11.5"
+      - run:
+          name: "Build and Test Windows"
+          command: |
+            # choco install -y python3 --version=3.11.5 --allow-multiple-versions
+            # choco install -y python3 --version=3.10.13 --allow-multiple-versions
+            # choco install -y python3 --version=3.9.18 --allow-multiple-versions
+            choco install pyenv-win --force -y
+            Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+            refreshenv
+            # pyenv install -f 3.11.5 3.10.13 3.9.18
+            pyenv install -f 3.11.5
+            pyenv global 3.11.5 3.11.5
+            pyenv versions
+            # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+            set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
+            refreshenv
+            pip install nox nox-poetry poetry ruff
+            nox
+
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows

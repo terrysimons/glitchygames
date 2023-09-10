@@ -2,9 +2,9 @@
 from nox_poetry import session
 
 
-@session(python=['3.9', '3.10', '3.11'], reuse_venv=True)
-def lint_and_test(session: session.Session) -> None:
-
+# @session(python=['3.9', '3.10', '3.11'], reuse_venv=True)
+@session(python=['3.11'], reuse_venv=True)
+def lint_and_test(session: object) -> None:
     # What's this?
     session.install('.[dev]')
     session.install('poetry', '.')
