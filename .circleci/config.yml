@@ -67,17 +67,18 @@ jobs:
           command: |
             rm -rf ~/.pyenv
             git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
             echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
             cd ~/.pyenv && src/configure && make -C src
             echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
             echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            source ~/.bashrc
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            echo $(which pyenv)
+            echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
+            source ~/.bashrc
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
             python --version
             pyenv versions
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+
             pip install nox nox-poetry ruff
             cd ~/project
             nox
