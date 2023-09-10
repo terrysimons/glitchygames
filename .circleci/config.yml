@@ -36,6 +36,9 @@ jobs:
             # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
             # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             # source ~/.bashrc
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            source ~/.bashrc
 
             echo "Path: $PATH"
             echo "Pyenv: "
@@ -64,6 +67,8 @@ jobs:
           command: |
             rm -rf ~/.pyenv
             git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
             cd ~/.pyenv && src/configure && make -C src
             echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
             echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
@@ -100,6 +105,7 @@ jobs:
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
             pyenv install -f 3.11.5 3.10.13 3.9.18
+            pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
             pyenv versions
             # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
