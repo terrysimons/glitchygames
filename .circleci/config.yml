@@ -33,7 +33,7 @@ jobs:
             git clone https://github.com/pyenv/pyenv.git ~/.pyenv
             cd ~/.pyenv && src/configure && make -C src
             echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            echo 'PATH="${PYENV_ROOT}/bin:$PATH" >> ~/.bashrc'
+            echo 'PATH="${PYENV_ROOT}/bin:$PATH"'' >> ~/.bashrc
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 
