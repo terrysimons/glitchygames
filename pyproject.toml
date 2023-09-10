@@ -41,6 +41,7 @@ nox-poetry = "^1.0.2"
 pytest = "^7.2.0"
 pylama = {extras = ["all"], version = "^8.4.1"}
 ruff = "^0.0.287"
+pre-commit = "^3.4.0"
 
 [tool.ruff]
 line-length = 100
