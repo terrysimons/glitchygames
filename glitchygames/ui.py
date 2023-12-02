@@ -1400,7 +1400,7 @@ class InputBox(Sprite):
         Returns:
             None
         """
-        self.text_image = self.font.render(text=self.text, antialias=True, color=(255, 255, 255))
+        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # noqa: FBT003
 
     def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse up events.

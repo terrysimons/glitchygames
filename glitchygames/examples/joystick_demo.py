@@ -337,7 +337,7 @@ class ShapesSprite(Sprite):
 class JoystickScene(Scene):
     """A scene for testing joysticks."""
 
-    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize the JoystickScene.
 
         Args:

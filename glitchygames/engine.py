@@ -37,7 +37,7 @@ logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=loggi
 
 PACKAGE_PATH: str = Path(__file__).parent
 ASSET_PATH: str = Path(__file__).parent / 'assets'
-
+TEST_MODE = False
 
 class GameManager(events.ResourceManager):
     """Game event manager."""
