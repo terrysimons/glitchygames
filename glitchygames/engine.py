@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Contains GameEngine and helper classes for building a game."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,7 +9,7 @@ import multiprocessing
 import platform
 import time
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import pygame
 import pygame.freetype
@@ -29,6 +30,9 @@ from glitchygames.events.window import WindowManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
