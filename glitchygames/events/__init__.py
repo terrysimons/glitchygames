@@ -15,9 +15,12 @@ from __future__ import annotations
 import inspect
 import logging
 import re
-from typing import Callable, ClassVar, NoReturn, Self
+from typing import TYPE_CHECKING, ClassVar, NoReturn, Self
 
 import pygame
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, ClassVar, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 import pygame
 
@@ -12,6 +12,9 @@ from glitchygames import events
 from glitchygames.color import BLACK
 from glitchygames.events.mouse import MousePointer
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())

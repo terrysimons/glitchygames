@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, Self
+from typing import TYPE_CHECKING, Self
 
 import pygame
 from pygame import Rect
@@ -19,6 +19,9 @@ from glitchygames.sprites import (
     FocusableSingletonBitmappySprite,
     Sprite,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())

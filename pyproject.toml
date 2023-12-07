@@ -34,20 +34,19 @@ include = [
 bitmappy = "glitchygames.tools.bitmappy:main"
 
 [tool.poetry.dependencies]
-python = ">= 3.9, < 3.13"
-pygame = "^2.1.3"
+python = ">= 3.12, < 4.0"
 toml = "^0.10.2"
+pygame = "^2.1.3"
 future = "^0.18.3"
 cookiecutter = "^2.3.0"
-sphinx = "^7.2.5"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"
 nox-poetry = "*"
 pytest = "*"
-pylama = {extras = ["all"], version = "^8.4.1"}
 ruff = "*"
 pre-commit = "*"
+sphinx = "*"
 
 [tool.ruff]
 line-length = 100
@@ -146,7 +145,7 @@ fixable = [
   "ANN"
 ]
 unfixable = []
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.flake8-annotations]
 allow-star-arg-any = true
@@ -160,9 +159,9 @@ multiline-quotes = "double"
 [tool.ruff.pydocstyle]
 convention = "google"
 
-[tool.pylama]
-linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
-skip = ".nox/*"
+# [tool.pylama]
+# linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
+# skip = ".nox/*"
 
 # pydocstyle
 # Options that shouldn't be turned off:
@@ -189,7 +188,7 @@ skip = ".nox/*"
 # D106 - Docstrings
 # D107 - Docstrings.
 # ignore = "C0103,C0111,D203,D212,E1121,R0902,R0903,R0904,W1202,W1203,D100,D101,D102,D103,D104,D105,D106,D107,D417,D204,D400,W0611,D415,D401,D210,D202,D213,D205,D413,D411,D200"
-max_line_length = "100"
+# max_line_length = "100"
 
 # [tool.pylama.linter.pylint]
 # ignored_modules = "pygame"

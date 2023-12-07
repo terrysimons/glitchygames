@@ -5,7 +5,7 @@ repos:
       name: nox
       files: ^.*\.py$
       language: python
-      entry: poetry run nox
+      entry: nox
       types: [python]
       # stages: [pre-commit, push]
       pass_filenames: false
