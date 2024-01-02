@@ -24,7 +24,6 @@ from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite
 
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.INFO)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -390,7 +389,7 @@ class BitmapPixelSprite(BitmappySprite):
 
     def __init__(self: Self, x: int = 0, y: int = 0, width: int = 1, height: int = 1,
                  name: str | None = None, pixel_number: int = 0, border_thickness: int = 1,
-                 groups: pygame.sprite.LayeredDirty | None  = None) -> None:
+                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize the Bitmap Pixel Sprite.
 
         Args:
@@ -606,11 +605,11 @@ class CanvasSprite(BitmappySprite):
         self.name = 'Bitmap Canvas'
 
         if self.pixels_across >= self.pixels_tall:
-            self.pixel_width = self.width//self.pixels_across - self.border_thickness * 2
-            self.pixel_height = self.width//self.pixels_across - self.border_thickness * 2
+            self.pixel_width = self.width // self.pixels_across - self.border_thickness * 2
+            self.pixel_height = self.width // self.pixels_across - self.border_thickness * 2
         else:
-            self.pixel_width = self.height//self.pixels_tall - self.border_thickness * 2
-            self.pixel_height = self.height//self.pixels_tall - self.border_thickness * 2
+            self.pixel_width = self.height // self.pixels_tall - self.border_thickness * 2
+            self.pixel_height = self.height // self.pixels_tall - self.border_thickness * 2
         self.log.info(f'Pixels Across: {self.pixels_across}')
         self.log.info(f'Pixels Tall: {self.pixels_tall}')
         self.log.info('')
@@ -685,8 +684,8 @@ class CanvasSprite(BitmappySprite):
                                               for i in range(self.pixels_across * self.pixels_tall)]
 
         for pixel_box in self.pixel_boxes:
-           self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
-           self.all_sprites.add(pixel_box)
+            self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
+            self.all_sprites.add(pixel_box)
 
         for i in range(self.pixels_across * self.pixels_tall):
             self.pixel_boxes[i].pixel_color = self.pixels[i]
@@ -860,7 +859,7 @@ class CanvasSprite(BitmappySprite):
             None
         """
         for i, pixel in enumerate([(255, 0, 255)] * self.pixels_across * self.pixels_tall):
-            event = pygame.event.Event(events.GAMEEVENT, {'action':'on_new_file_event',
+            event = pygame.event.Event(events.GAMEEVENT, {'action': 'on_new_file_event',
                                                           'pixel_color': pixel,
                                                           'pixel_number': i})
 
@@ -901,7 +900,7 @@ class CanvasSprite(BitmappySprite):
 
         self.dirty = 1
 
-        #self.save(filename='screenshot.cfg')
+        # self.save(filename='screenshot.cfg')
 
 
     def on_load_file_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -938,13 +937,13 @@ class CanvasSprite(BitmappySprite):
         # pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
         # pixels = [(255, 255, 255)] * len(pixels)
 
-        #print(pixels)
+        # print(pixels)
 
         for i, pixel in enumerate(pixels):
             trigger.pixel_number = i
             trigger.pixel_color = pixel
 
-            event = pygame.event.Event(events.GAMEEVENT, {'action':'on_load_file_event',
+            event = pygame.event.Event(events.GAMEEVENT, {'action': 'on_load_file_event',
                                                           'pixel_color': pixel,
                                                           'pixel_number': i})
 
@@ -1616,7 +1615,7 @@ class BitmapEditorScene(Scene):
         sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in sprites:
-           sprite.on_left_mouse_button_down_event(event)
+            sprite.on_left_mouse_button_down_event(event)
 
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the left mouse button up event.
@@ -1633,7 +1632,7 @@ class BitmapEditorScene(Scene):
         sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in sprites:
-           sprite.on_left_mouse_button_up_event(event)
+            sprite.on_left_mouse_button_up_event(event)
 
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle the left mouse drag event.

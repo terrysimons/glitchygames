@@ -767,6 +767,115 @@ class Sprite(RootSprite):
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
 
+
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a left mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a middle mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a right mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a left mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a middle mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a right mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse wheel event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
+
     # def __getattr__(self, attr):
     #    import pdb; pdb.set_trace()
 
@@ -922,7 +1031,8 @@ class BitmappySprite(Sprite):
 
         return (image, rect, name)
 
-    def inflate(self: Self, width: int, height: int, pixels: list,
+    @classmethod
+    def inflate(cls: Self, width: int, height: int, pixels: list,
                 color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
@@ -1042,6 +1152,138 @@ class BitmappySprite(Sprite):
         self.log.debug(f'Deflated Sprite: {config}')
 
         return config
+
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a left mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a middle mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a right mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a left mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a middle mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+        """Handle a right mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse drag event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse drop event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+        """Handle a mouse wheel event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object | None): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
+
+    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+        """Handle a mouse chord down event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            keys (list): The keys that were pressed.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}')
+
+    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+        """Handle a mouse chord up event.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            keys (list): The keys that were pressed.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
 
 class Singleton:
     """A generic singleton class."""

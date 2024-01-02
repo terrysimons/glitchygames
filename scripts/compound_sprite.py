@@ -156,7 +156,7 @@ class GameScene(Scene):
         Returns:
             None
         """
-        log.info(f'Mouse Up Event: {event}')
+        self.log.info(f'Mouse Up Event: {event}')
 
 
 class Game(Scene):

@@ -326,7 +326,7 @@ class SceneManager(SceneInterface, events.EventManager):
             raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
 
 
-class Scene(SceneInterface, SpriteInterface, events.EventInterface):
+class Scene(SceneInterface, SpriteInterface, events.AllEvents):
     """Scene object base class.
 
     Subclass this to properly receive on_*_event() messages automatically.
@@ -515,6 +515,442 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
 
         return pygame.sprite.spritecollide(sprite=mouse, group=self.all_sprites, dokill=False)
 
+    def on_active_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle active events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # ACTIVEEVENT      gain, state
+        self.log.debug(f'{type(self)}: On Active Event {event}')
+
+    def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle audio device added events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # AUDIODEVICEADDED which, iscapture
+        self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
+
+    def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle audio device removed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # AUDIODEVICEREMOVED which, iscapture
+        self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
+
+    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller axis motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # CONTROLLERAXISMOTION which, axis, value
+        self.log.debug(f'{type(self)}: On Controller Axis Motion Event {event}')
+
+    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # CONTROLLERBUTTONDOWN which, button
+        self.log.debug(f'{type(self)}: On Controller Button Down Event {event}')
+
+    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # CONTROLLERBUTTONUP which, button
+        self.log.debug(f'{type(self)}: On Controller Button Up Event {event}')
+
+    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller device added events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # CONTROLLERDEVICEADDED which
+        self.log.debug(f'{type(self)}: On Controller Device Added Event {event}')
+
+    def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller device remapped events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # CONTROLLERDEVICEREMAPPED which
+        self.log.debug(f'{type(self)}: On Controller Device Remapped Event {event}')
+
+    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller device removed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # CONTROLLERDEVICEREMOVED which
+        self.log.debug(f'{type(self)}: On Controller Device Removed Event {event}')
+
+    def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller touchpad down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # CONTROLLERTOUCHPADDOWN which, touchpad
+        self.log.debug(f'{type(self)}: On Controller Touchpad Down Event {event}')
+
+    def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller touchpad motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+
+    def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller touchpad up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # CONTROLLERTOUCHPADUP which, touchpad
+        self.log.debug(f'{type(self)}: On Controller Touchpad Up Event {event}')
+
+    def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle drop begin events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Drop Begin Event {event}')
+
+    def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle drop complete events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Drop Complete Event {event}')
+
+    def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle drop file events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Drop File Event {event}')
+
+    def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle drop text events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Drop Text Event {event}')
+
+    def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle font changed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+
+    def on_game_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle game events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # GAMEEVENT is pygame.USEREVENT + 2
+        self.log.debug(f'{type(self)}: On Game Event {event}')
+
+    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy axis motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYAXISMOTION    joy, axis, value
+        self.log.debug(f'{type(self)}: On Joy Axis Motion Event {event}')
+
+    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy ball motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # JOYBALLMOTION    joy, ball, rel
+        self.log.debug(f'{type(self)}: On Joy Ball Motion Event {event}')
+
+    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYBUTTONDOWN    joy, button
+        self.log.debug(f'{type(self)}: On Joy Button Down Event {event}')
+
+    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYBUTTONUP      joy, button
+        self.log.debug(f'{type(self)}: On Joy Button Up Event {event}')
+
+    def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy device added events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYDEVICEADDED   which
+        self.log.debug(f'{type(self)}: On Joy Device Added Event {event}')
+
+    def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy device removed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYDEVICEREMOVED which
+        self.log.debug(f'{type(self)}: On Joy Device Removed Event {event}')
+
+    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joy hat motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        # JOYHATMOTION     joy, hat, value
+        self.log.debug(f'{type(self)}: On Joy Hat Motion Event {event}')
+
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Key Down Event {event}')
+
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Key Up Event {event}')
+
+        # Wire up quit by default for escape and q.
+        #
+        # If a game implements on_key_up_event themselves
+        # they'll have to map their quit keys or call super().on_key_up_event()
+        if event.key in {pygame.K_q, pygame.K_ESCAPE}:
+            self.scene_manager.quit_game()
+
+    def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys_down: list) -> None:
+        """Handle key chord down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            keys_down (list): The keys that are currently down.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Key Chord Down Event {event}')
+
+    def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys_up: list) -> None:
+        """Handle key chord up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            keys_up (list): The keys that are currently up.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Key Chord Up Event {event}')
+
+    def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle menu item events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # MENUITEM         menu, item
+        self.log.debug(f'{type(self)}: On Menu Item Event {event}')
+
+    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Mouse Button Down Event {event}')
+
+    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: On Mouse Button Up Event {event}')
+
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
@@ -547,6 +983,21 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         for sprite in collided_sprites:
             sprite.on_mouse_drop_event(event, trigger)
 
+    def on_mouse_focus_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse focus events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The event trigger.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Focus Event: {event} {trigger}')
+
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drag events.
 
@@ -558,13 +1009,10 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
             None
         """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
-        collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites: list | None = self.sprites_at_position(pos=event.pos)
 
         if collided_sprites:
             collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
-
-        # for sprite in collided_sprites:
-        #     sprite.on_left_mouse_drag_event(event, trigger)
 
     def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drop events.
@@ -764,8 +1212,24 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         for sprite in collided_sprites:
             sprite.on_right_mouse_button_down_event(event)
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle key up events.
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Motion Event: {event}')
+
+        # collided_sprites = self.sprites_at_position(pos=event.pos)
+
+        # for sprite in collided_sprites:
+        #     sprite.on_mouse_motion_event(event)
+
+    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse scroll down events.
 
         Args:
             event (pygame.event.Event): The event to handle.
@@ -776,12 +1240,387 @@ class Scene(SceneInterface, SpriteInterface, events.EventInterface):
         Raises:
             None
         """
-        # Wire up quit by default for escape and q.
-        #
-        # If a game implements on_key_up_event themselves
-        # they'll have to map their quit keys or call super().on_key_up_event()
-        if event.key in (pygame.K_q, pygame.K_ESCAPE):
-            self.scene_manager.quit_game()
+        self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
+
+    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse scroll up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
+
+    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse unfocus events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Unfocus Event: {event}')
+
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event}')
+
+    def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle multi touch down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Multi Touch Down Event: {event}')
+
+    def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle multi touch motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Multi Touch Motion Event: {event}')
+
+    def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle multi touch up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Multi Touch Up Event: {event}')
+
+    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle sys wm events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self.log.debug(f'{type(self)}: Sys WM Event: {event}')
+
+
+    def on_text_editing_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle text editing events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Text Editing Event: {event}')
+
+
+    def on_text_input_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle text input events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)}: Text Input Event: {event}')
+
+    def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle touch down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # TOUCHBUTTONDOWN  touch, pos, button
+        self.log.debug(f'{type(self)}: Touch Down Event: {event}')
+
+    def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle touch motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # TOUCHMOTION      touch, pos
+        self.log.debug(f'{type(self)}: Touch Motion Event: {event}')
+
+    def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle touch up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # TOUCHBUTTONUP    touch, pos
+        self.log.debug(f'{type(self)}: Touch Up Event: {event}')
+
+    def on_user_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle user events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # USEREVENT        code
+        self.log.debug(f'{type(self)}: User Event: {event}')
+
+    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle video expose events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # VIDEOEXPOSE      none
+        self.log.debug(f'{type(self)}: Video Expose Event: {event}')
+
+    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle video resize events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # VIDEORESIZE      size, w, h
+        self.log.debug(f'{type(self)}: Video Resize Event: {event}')
+
+    def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window close events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWCLOSE      none
+        self.log.debug(f'{type(self)}: Window Close Event: {event}')
+
+    def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window enter events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWENTER      none
+        self.log.debug(f'{type(self)}: Window Enter Event: {event}')
+
+    def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window exposed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWEXPOSED    none
+        self.log.debug(f'{type(self)}: Window Exposed Event: {event}')
+
+    def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window focus gained events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWFOCUSGAINED none
+        self.log.debug(f'{type(self)}: Window Focus Gained Event: {event}')
+
+    def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window focus lost events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWFOCUSLOST  none
+        self.log.debug(f'{type(self)}: Window Focus Lost Event: {event}')
+
+    def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window hidden events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWHIDDEN     none
+        self.log.debug(f'{type(self)}: Window Hidden Event: {event}')
+
+    def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window hit test events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWHITTEST    pos
+        self.log.debug(f'{type(self)}: Window Hit Test Event: {event}')
+
+    def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window leave events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWLEAVE      none
+        self.log.debug(f'{type(self)}: Window Leave Event: {event}')
+
+    def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window maximized events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWMAXIMIZED  none
+        self.log.debug(f'{type(self)}: Window Maximized Event: {event}')
+
+    def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window minimized events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWMINIMIZED  none
+        self.log.debug(f'{type(self)}: Window Minimized Event: {event}')
+
+    def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window moved events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWMOVED      pos
+        self.log.debug(f'{type(self)}: Window Moved Event: {event}')
+
+    def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window resized events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWRESIZED    size, w, h
+        self.log.debug(f'{type(self)}: Window Resized Event: {event}')
+
+    def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window restored events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWRESTORED   none
+        self.log.debug(f'{type(self)}: Window Restored Event: {event}')
+
+    def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window shown events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWSHOWN      none
+        self.log.debug(f'{type(self)}: Window Shown Event: {event}')
+
+    def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window size changed events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWSIZECHANGED size, w, h
+        self.log.debug(f'{type(self)}: Window Size Changed Event: {event}')
+
+    def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle window take focus events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # WINDOWTAKEFOCUS  none
+        self.log.debug(f'{type(self)}: Window Take Focus Event: {event}')
 
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         """Handle quit events.

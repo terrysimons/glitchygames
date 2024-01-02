@@ -247,14 +247,16 @@ class JoystickManager(JoystickEvents, ResourceManager):
             Returns:
                 str: The joystick info.
             """
-            joystick_info = []
-            joystick_info.append(f'Joystick Name: {self.get_name()}')
-            joystick_info.append(f'\tJoystick Id: {self._id}')
-            joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
-            joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
-            joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
-            joystick_info.append(f'\tJoystick Button Count: {self.get_numbuttons()}')
-            joystick_info.append(f'\tJoystick Hat Count: {self.get_numhats()}')
+            joystick_info = [
+                f'Joystick Name: {self.get_name()}',
+                f'\tJoystick Id: {self._id}',
+                f'\tJoystick Inited: {self.get_init()}',
+                f'\tJoystick Axis Count: {self.get_numaxes()}',
+                f'\tJoystick Trackball Count: {self.get_numballs()}',
+                f'\tJoystick Button Count: {self.get_numbuttons()}',
+                f'\tJoystick Hat Count: {self.get_numhats()}'
+            ]
+
             return '\n'.join(joystick_info)
 
         def __repr__(self: Self) -> str:

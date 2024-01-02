@@ -27,45 +27,78 @@ class TouchManager(ResourceManager):
                 None
             """
             super().__init__(game=game)
-            self.fingers: dict= {}
+            self.fingers: dict = {}
             self.game: object = game
             try:
                 self.proxies: list = [self.game, pygame._sdl2.touch]
             except AttributeError:
                 self.proxies: list = [self.game]
 
-    def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle finger down events.
+        def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle finger down events.
 
-        Args:
-            event (pygame.event.Event): The event to handle.
+            Args:
+                event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-        """
-        self.game.on_touch_down_event(event)
+            Returns:
+                None
+            """
+            self.game.on_touch_down_event(event)
 
-    def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle finger motion events.
+        def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle finger motion events.
 
-        Args:
-            event (pygame.event.Event): The event to handle.
+            Args:
+                event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-        """
-        self.game.on_touch_motion_event(event)
+            Returns:
+                None
+            """
+            self.game.on_touch_motion_event(event)
 
-    def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle finger up events.
+        def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle finger up events.
 
-        Args:
-            event (pygame.event.Event): The event to handle.
+            Args:
+                event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-        """
-        self.game.on_touch_up_event(event)
+            Returns:
+                None
+            """
+            self.game.on_touch_up_event(event)
+
+        def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle multi-touch down events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
+            self.game.on_multi_touch_down_event(event)
+
+        def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle multi-touch motion events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
+            self.game.on_multi_touch_motion_event(event)
+
+        def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle multi-touch up events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+            """
+            self.game.on_multi_touch_up_event(event)
 
     def __init__(self: Self, game: object = None) -> None:
         """Initialize the touch event manager.

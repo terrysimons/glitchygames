@@ -119,6 +119,75 @@ class MenuBar(FocusableSingletonBitmappySprite):
         if self.has_focus:
             pygame.draw.rect(self.image, (255, 255, 0), self.rect, 1)
 
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle left mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {event} @ {self} for {trigger}')
+
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+            trigger (object): The object that triggered the event.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
 
@@ -245,6 +314,38 @@ class MenuBar(FocusableSingletonBitmappySprite):
                 for menu_item in sprite.menu_items:
                     sprite.menu_items[menu_item].on_left_mouse_button_up_event(event)
 
+    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
 
 class MenuItem(BitmappySprite):
     """A menu item class.
@@ -445,6 +546,72 @@ class MenuItem(BitmappySprite):
             pygame.display.get_surface().blit(self.menu_image,
                                                 (self.menu_rect.x, self.menu_rect.y))
 
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
 
@@ -643,6 +810,40 @@ class MenuItem(BitmappySprite):
                     f'{collided_sprite.name} at {mouse.rect}'
                 )
                 collided_sprite.on_left_mouse_button_down_event(event)
+
+
+    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+
+    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse drop events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+
+    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
 
 
 class TextSprite(BitmappySprite):
@@ -1286,8 +1487,9 @@ class CheckboxSprite(ButtonSprite):
 class InputBox(Sprite):
     """An input box class."""
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, color: tuple=(233, 248, 215),
-                 text: str = '', name: str | None = None, parent: object | None = None,
+    def __init__(self: Self, x: int, y: int, width: int, height: int,
+                 color: tuple = (233, 248, 215), text: str = '',
+                 name: str | None = None, parent: object | None = None,
                  groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize an InputBox.
 
@@ -1318,7 +1520,7 @@ class InputBox(Sprite):
         self.color = color
         self.font = pygame.font.SysFont('Times', 14)
         self.text = text
-        self.text_image = self.font.render(self.text, True, self.color) # noqa: FBT003
+        self.text_image = self.font.render(self.text, True, self.color)  # noqa: FBT003
         self.active = False
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
@@ -1429,7 +1631,7 @@ class InputBox(Sprite):
         if self.active:
             pygame.key.set_repeat(200)
 
-            if event.key in (pygame.K_TAB, pygame.K_ESCAPE):
+            if event.key in {pygame.K_TAB, pygame.K_ESCAPE}:
                 self.deactivate()
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
@@ -1442,7 +1644,7 @@ class InputBox(Sprite):
             None
         """
         if self.active:
-            if event.key in (pygame.K_TAB, pygame.K_ESCAPE):
+            if event.key in {pygame.K_TAB, pygame.K_ESCAPE}:
                 pass
             elif event.key == pygame.K_RETURN:
                 self.log.debug(f'Text Submitted: {self.name}: {self.text}')
@@ -2069,7 +2271,7 @@ class InputDialog(BitmappySprite):
 
     log = LOG
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None =None,
+    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
                  dialog_text: str = 'Would you like to do a thing?',
                  confirm_text: str = 'Confirm', cancel_text: str = 'Cancel',
                  callbacks: Callable | None = None, parent: object = None,

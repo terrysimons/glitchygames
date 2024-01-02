@@ -97,6 +97,7 @@ class KeyboardManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
+                keys_down (list): The keys that are currently down.
 
             Returns:
                 None

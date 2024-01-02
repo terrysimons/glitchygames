@@ -57,7 +57,13 @@ class Game(Scene):
 
         self.all_sprites.clear(self.screen, self.background)
 
-    def setup(self: Self) -> None:
+    # Note: This could be a static method, a class method
+    # or an instance method. It's up to you.
+    #
+    # Since I'm not using self in this method, I'm making it
+    # a class method to appease the linter
+    @classmethod
+    def setup(cls: Self) -> None:
         """Set up the game.
 
         Args:

@@ -83,7 +83,8 @@ class BitmappyLegacySprite(Sprite):
 
         return (image, rect, filename)
 
-    def inflate(self: Self, width: int, height: int,
+    @classmethod
+    def inflate(cls: Self, width: int, height: int,
                 pixels: list) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate the sprite.
 

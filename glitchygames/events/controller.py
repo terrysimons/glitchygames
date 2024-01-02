@@ -206,14 +206,15 @@ class ControllerManager(ControllerEvents, ResourceManager):
             Returns:
                 str: A string representation of the controller.
             """
-            controller_info = []
-            controller_info.append('Controller Name: '
-                f'{pygame._sdl2.controller.name_forindex(self._id)}'
-            )
-            controller_info.append(f'\tController Id: {self._id}')
-            controller_info.append(f'\tController Inited: {self.controller.get_init()}')
-            controller_info.append(f'\tController Axis Count: {self._numaxes}')
-            controller_info.append(f'\tController Button Count: {self._numbuttons}')
+            controller_info = [
+                'Controller Name: '
+                f'{pygame._sdl2.controller.name_forindex(self._id)}',
+                f'\tController Id: {self._id}',
+                f'\tController Inited: {self.controller.get_init()}',
+                f'\tController Axis Count: {self._numaxes}',
+                f'\tController Button Count: {self._numbuttons}'
+            ]
+
             return '\n'.join(controller_info)
 
         def __repr__(self: Self) -> str:

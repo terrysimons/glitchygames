@@ -12,6 +12,7 @@ followed by a mouse button up event.
 """
 from __future__ import annotations
 
+import abc
 import inspect
 import logging
 import re
@@ -122,9 +123,13 @@ GAME_EVENTS = list(
     set(WINDOW_EVENTS)
 )
 
-GAME_EVENTS.append(FPSEVENT)
-GAME_EVENTS.append(GAMEEVENT)
-GAME_EVENTS.append(MENUEVENT)
+GAME_EVENTS.extend(
+    [
+        FPSEVENT,
+        GAMEEVENT,
+        MENUEVENT
+    ]
+)
 
 def unhandled_event(*args, **kwargs) -> NoReturn:
     """Handle unhandled events.
@@ -237,18 +242,52 @@ class ResourceManager:
         # Try each proxy in turn
         try:
             for proxy in self.proxies:
-                    return getattr(proxy, attr)
+                return getattr(proxy, attr)
         except AttributeError:
             self.log.exception(f'No proxies for {type(self)}.{attr}')
             raise
 
         raise AttributeError(f'No proxies for {type(self)}.{attr}')
 
+# We intentionally don't implement any methods here.
+class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
+    """Abstract base class for event interfaces."""
+
+    @classmethod
+    def __subclasshook__(cls: Self, subclass: object) -> bool:
+        """Override the default __subclasshook__ to create an interface."""
+        # Note: This accounts for under/dunder methods in addition to regular methods.
+        interface_attributes = set(cls.__abstractmethods__)
+        subclass_attributes = set(subclass.__abstractmethods__)
+
+        interface_is_implemented = False
+        methods = []
+        for attribute in sorted(interface_attributes):
+            if hasattr(subclass, attribute) and attribute not in subclass_attributes:
+                if callable(getattr(subclass, attribute)):
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
+                else:
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
+                methods.append(True)
+            else:
+                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
+                methods.append(False)
+
+        # all([]) returns True, so mask it
+        #
+        # This protects against an empty attribute list
+        # which would be a misconfiguration of the interface
+        if len(methods) and all(methods):
+            interface_is_implemented = all(methods)
+
+        return interface_is_implemented
+
 
 # Mixin
-class AudioEvents:
+class AudioEvents(EventInterface):
     """Mixin for audio events."""
 
+    @abc.abstractmethod
     def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
         """Handle audio device added events.
 
@@ -260,6 +299,7 @@ class AudioEvents:
         """
         # AUDIODEVICEADDED   which, iscapture
 
+    @abc.abstractmethod
     def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle audio device removed events.
 
@@ -273,9 +313,9 @@ class AudioEvents:
 
 
 # Mixin
-class ControllerEvents:
+class ControllerEvents(EventInterface):
     """Mixin for controller events."""
-
+    @abc.abstractmethod
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
 
@@ -287,6 +327,7 @@ class ControllerEvents:
         """
         # CONTROLLERAXISMOTION joy, axis, value
 
+    @abc.abstractmethod
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button down events.
 
@@ -298,6 +339,7 @@ class ControllerEvents:
         """
         # CONTROLLERBUTTONDOWN joy, button
 
+    @abc.abstractmethod
     def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
 
@@ -309,6 +351,7 @@ class ControllerEvents:
         """
         # CONTROLLERBUTTONUP   joy, button
 
+    @abc.abstractmethod
     def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller device added events.
 
@@ -320,6 +363,7 @@ class ControllerEvents:
         """
         # CONTROLLERDEVICEADDED device_index, guid
 
+    @abc.abstractmethod
     def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller device remapped events.
 
@@ -331,6 +375,7 @@ class ControllerEvents:
         """
         # CONTROLLERDEVICEREMAPPED device_index
 
+    @abc.abstractmethod
     def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller device removed events.
 
@@ -342,6 +387,7 @@ class ControllerEvents:
         """
         # CONTROLLERDEVICEREMOVED device_index
 
+    @abc.abstractmethod
     def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad down events.
 
@@ -353,6 +399,7 @@ class ControllerEvents:
         """
         # CONTROLLERTOUCHPADDOWN joy, touchpad
 
+    @abc.abstractmethod
     def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad motion events.
 
@@ -364,6 +411,7 @@ class ControllerEvents:
         """
         # CONTROLLERTOUCHPADMOTION joy, touchpad
 
+    @abc.abstractmethod
     def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad up events.
 
@@ -377,9 +425,10 @@ class ControllerEvents:
 
 
 # Mixin
-class DropEvents:
+class DropEvents(EventInterface):
     """Mixin for drop events."""
 
+    @abc.abstractmethod
     def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
         """Handle drop begin event.
 
@@ -391,6 +440,7 @@ class DropEvents:
         """
         # DROPBEGIN        none
 
+    @abc.abstractmethod
     def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
         """Handle drop file event.
 
@@ -402,6 +452,7 @@ class DropEvents:
         """
         # DROPFILE         file
 
+    @abc.abstractmethod
     def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
         """Handle drop text event.
 
@@ -413,6 +464,7 @@ class DropEvents:
         """
         # DROPTEXT         text
 
+    @abc.abstractmethod
     def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
         """Handle drop complete event.
 
@@ -426,9 +478,10 @@ class DropEvents:
 
 
 # Mixin
-class TouchEvents:
+class TouchEvents(EventInterface):
     """Mixin for touch events."""
 
+    @abc.abstractmethod
     def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle finger down event.
 
@@ -440,6 +493,7 @@ class TouchEvents:
         """
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
 
+    @abc.abstractmethod
     def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle finger motion event.
 
@@ -451,6 +505,7 @@ class TouchEvents:
         """
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
 
+    @abc.abstractmethod
     def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle finger up event.
 
@@ -462,6 +517,7 @@ class TouchEvents:
         """
         # FINGERUP         finger_id, x, y, dx, dy, pressure
 
+    @abc.abstractmethod
     def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle multi finger down event.
 
@@ -473,6 +529,7 @@ class TouchEvents:
         """
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
 
+    @abc.abstractmethod
     def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle multi finger motion event.
 
@@ -484,6 +541,7 @@ class TouchEvents:
         """
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
 
+    @abc.abstractmethod
     def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle multi finger up event.
 
@@ -500,7 +558,7 @@ class TouchEvents:
 # TODO: Add a glitchy games event index to allow
 # games to easily extend pygame further without impacting
 # the core engine.
-class GameEvents:
+class GameEvents(EventInterface):
     """Mixin for glitchy game events.
 
     This includes built-ins like QUIT, and synthesized
@@ -510,6 +568,7 @@ class GameEvents:
     a good home otherwise.
     """
 
+    @abc.abstractmethod
     def on_active_event(self: Self, event: pygame.event.Event) -> None:
         """Handle active events.
 
@@ -521,6 +580,7 @@ class GameEvents:
         """
         # ACTIVEEVENT      gain, state
 
+    @abc.abstractmethod
     def on_fps_event(self: Self, event: pygame.event.Event) -> None:
         """Handle FPS events.
 
@@ -532,6 +592,7 @@ class GameEvents:
         """
         # FPSEVENT is pygame.USEREVENT + 1
 
+    @abc.abstractmethod
     def on_game_event(self: Self, event: pygame.event.Event) -> None:
         """Handle game events.
 
@@ -543,6 +604,7 @@ class GameEvents:
         """
         # GAMEEVENT is pygame.USEREVENT + 2
 
+    @abc.abstractmethod
     def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
         """Handle menu item events.
 
@@ -554,6 +616,7 @@ class GameEvents:
         """
         # MENUEVENT is pygame.USEREVENT + 3
 
+    @abc.abstractmethod
     def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
         """Handle sys wm events.
 
@@ -565,6 +628,7 @@ class GameEvents:
         """
         # SYSWMEVENT
 
+    @abc.abstractmethod
     def on_user_event(self: Self, event: pygame.event.Event) -> None:
         """Handle user events.
 
@@ -576,6 +640,7 @@ class GameEvents:
         """
         # USEREVENT        code
 
+    @abc.abstractmethod
     def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
         """Handle video expose events.
 
@@ -587,6 +652,7 @@ class GameEvents:
         """
         # VIDEOEXPOSE      none
 
+    @abc.abstractmethod
     def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
         """Handle video resize events.
 
@@ -598,6 +664,7 @@ class GameEvents:
         """
         # VIDEORESIZE      size, w, h
 
+    @abc.abstractmethod
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         """Handle quit events.
 
@@ -611,9 +678,10 @@ class GameEvents:
 
 
 # Mixin
-class FontEvents:
+class FontEvents(EventInterface):
     """Mixin for font events."""
 
+    @abc.abstractmethod
     def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle font changed events.
 
@@ -626,9 +694,10 @@ class FontEvents:
         # FONTS_CHANGED
 
 # Mixin
-class KeyboardEvents:
+class KeyboardEvents(EventInterface):
     """Mixin for keyboard events."""
 
+    @abc.abstractmethod
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events.
 
@@ -640,6 +709,7 @@ class KeyboardEvents:
         """
         # KEYDOWN          unicode, key, mod
 
+    @abc.abstractmethod
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key up events.
 
@@ -651,6 +721,7 @@ class KeyboardEvents:
         """
         # KEYUP            key, mod
 
+    @abc.abstractmethod
     def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
         """Handle key chord up events.
 
@@ -663,6 +734,7 @@ class KeyboardEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
         """Handle key chord down events.
 
@@ -676,9 +748,10 @@ class KeyboardEvents:
         # Synthesized event.
 
 # Mixin
-class JoystickEvents:
+class JoystickEvents(EventInterface):
     """Mixin for joystick events."""
 
+    @abc.abstractmethod
     def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick axis motion events.
 
@@ -690,6 +763,7 @@ class JoystickEvents:
         """
         # JOYAXISMOTION    joy, axis, value
 
+    @abc.abstractmethod
     def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick button down events.
 
@@ -701,6 +775,7 @@ class JoystickEvents:
         """
         # JOYBUTTONDOWN    joy, button
 
+    @abc.abstractmethod
     def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick button up events.
 
@@ -712,6 +787,7 @@ class JoystickEvents:
         """
         # JOYBUTTONUP      joy, button
 
+    @abc.abstractmethod
     def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick hat motion events.
 
@@ -723,6 +799,7 @@ class JoystickEvents:
         """
         # JOYHATMOTION     joy, hat, value
 
+    @abc.abstractmethod
     def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick ball motion events.
 
@@ -734,6 +811,7 @@ class JoystickEvents:
         """
         # JOYBALLMOTION    joy, ball, rel
 
+    @abc.abstractmethod
     def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick device added events.
 
@@ -745,6 +823,7 @@ class JoystickEvents:
         """
         # JOYDEVICEADDED device_index, guid
 
+    @abc.abstractmethod
     def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick device removed events.
 
@@ -758,14 +837,15 @@ class JoystickEvents:
 
 
 # Mixin
-class MidiEvents:
+class MidiEvents(EventInterface):
     """Mixin for midi events."""
 
 
 # Mixin
-class MouseEvents:
+class MouseEvents(EventInterface):
     """Mixin for mouse events."""
 
+    @abc.abstractmethod
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
 
@@ -777,6 +857,7 @@ class MouseEvents:
         """
         # MOUSEMOTION      pos, rel, buttons
 
+    @abc.abstractmethod
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
@@ -789,6 +870,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drop events.
 
@@ -801,6 +883,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drag events.
 
@@ -813,6 +896,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drop events.
 
@@ -825,6 +909,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drag events.
 
@@ -837,6 +922,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drop events.
 
@@ -849,6 +935,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle right mouse drag events.
 
@@ -861,6 +948,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle right mouse drop events.
 
@@ -873,6 +961,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_focus_event(self: Self, event: pygame.event.Event,
                              entering_focus: object) -> None:
         """Handle mouse focus events.
@@ -886,6 +975,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_unfocus_event(self: Self, event: pygame.event.Event,
                                leaving_focus: object) -> None:
         """Handle mouse unfocus events.
@@ -899,6 +989,7 @@ class MouseEvents:
         """
         # Synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse button up events.
 
@@ -910,6 +1001,7 @@ class MouseEvents:
         """
         # MOUSEBUTTONUP    pos, button
 
+    @abc.abstractmethod
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle left mouse button up events.
 
@@ -921,6 +1013,7 @@ class MouseEvents:
         """
         # Left Mouse Button Up pos, button
 
+    @abc.abstractmethod
     def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle middle mouse button up events.
 
@@ -932,6 +1025,7 @@ class MouseEvents:
         """
         # Middle Mouse Button Up pos, button
 
+    @abc.abstractmethod
     def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle right mouse button up events.
 
@@ -943,6 +1037,7 @@ class MouseEvents:
         """
         # Right Mouse Button Up pos, button
 
+    @abc.abstractmethod
     def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse button down events.
 
@@ -954,6 +1049,7 @@ class MouseEvents:
         """
         # MOUSEBUTTONDOWN  pos, button
 
+    @abc.abstractmethod
     def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle left mouse button down events.
 
@@ -965,6 +1061,7 @@ class MouseEvents:
         """
         # Left Mouse Button Down pos, button
 
+    @abc.abstractmethod
     def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle middle mouse button down events.
 
@@ -976,6 +1073,7 @@ class MouseEvents:
         """
         # Middle Mouse Button Down pos, button
 
+    @abc.abstractmethod
     def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle right mouse button down events.
 
@@ -987,6 +1085,7 @@ class MouseEvents:
         """
         # Right Mouse Button Down pos, button
 
+    @abc.abstractmethod
     def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse scroll down events.
 
@@ -998,6 +1097,7 @@ class MouseEvents:
         """
         # This is a synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse scroll up events.
 
@@ -1009,6 +1109,7 @@ class MouseEvents:
         """
         # This is a synthesized event.
 
+    @abc.abstractmethod
     def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse wheel events.
 
@@ -1022,9 +1123,10 @@ class MouseEvents:
         # MOUSEWHEEL flipped, y, x, touch, window
 
 
-class TextEvents:
+class TextEvents(EventInterface):
     """Mixin for text events."""
 
+    @abc.abstractmethod
     def on_text_editing_event(self: Self, event: pygame.event.Event) -> None:
         """Handle text editing events.
 
@@ -1036,6 +1138,7 @@ class TextEvents:
         """
         # TEXTEDITING      text, start, length
 
+    @abc.abstractmethod
     def on_text_input_event(self: Self, event: pygame.event.Event) -> None:
         """Handle text input events.
 
@@ -1047,9 +1150,10 @@ class TextEvents:
         """
         # TEXTINPUT        text
 
-class WindowEvents:
+class WindowEvents(EventInterface):
     """Mixin for window events."""
 
+    @abc.abstractmethod
     def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window close events.
 
@@ -1061,6 +1165,7 @@ class WindowEvents:
         """
         # WINDOWCLOSE      none
 
+    @abc.abstractmethod
     def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window enter events.
 
@@ -1072,6 +1177,7 @@ class WindowEvents:
         """
         # WINDOWENTER      none
 
+    @abc.abstractmethod
     def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window exposed events.
 
@@ -1083,6 +1189,7 @@ class WindowEvents:
         """
         # WINDOWEXPOSED    none
 
+    @abc.abstractmethod
     def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window focus gained events.
 
@@ -1094,6 +1201,7 @@ class WindowEvents:
         """
         # WINDOWFOCUSGAINED none
 
+    @abc.abstractmethod
     def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window focus lost events.
 
@@ -1105,6 +1213,7 @@ class WindowEvents:
         """
         # WINDOWFOCUSLOST  none
 
+    @abc.abstractmethod
     def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window hidden events.
 
@@ -1116,6 +1225,7 @@ class WindowEvents:
         """
         # WINDOWHIDDEN     none
 
+    @abc.abstractmethod
     def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window hit test events.
 
@@ -1127,6 +1237,7 @@ class WindowEvents:
         """
         # WINDOWHITTEST    none
 
+    @abc.abstractmethod
     def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window leave events.
 
@@ -1138,6 +1249,7 @@ class WindowEvents:
         """
         # WINDOWLEAVE      none
 
+    @abc.abstractmethod
     def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window maximized events.
 
@@ -1149,6 +1261,7 @@ class WindowEvents:
         """
         # WINDOWMAXIMIZED  none
 
+    @abc.abstractmethod
     def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window minimized events.
 
@@ -1160,6 +1273,7 @@ class WindowEvents:
         """
         # WINDOWMINIMIZED  none
 
+    @abc.abstractmethod
     def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window moved events.
 
@@ -1171,6 +1285,7 @@ class WindowEvents:
         """
         # WINDOWMOVED      none
 
+    @abc.abstractmethod
     def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window resized events.
 
@@ -1182,6 +1297,7 @@ class WindowEvents:
         """
         # WINDOWRESIZED    size, w, h
 
+    @abc.abstractmethod
     def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window restored events.
 
@@ -1193,6 +1309,7 @@ class WindowEvents:
         """
         # WINDOWRESTORED   none
 
+    @abc.abstractmethod
     def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window shown events.
 
@@ -1204,6 +1321,7 @@ class WindowEvents:
         """
         # WINDOWSHOWN      none
 
+    @abc.abstractmethod
     def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window size changed events.
 
@@ -1215,6 +1333,7 @@ class WindowEvents:
         """
         # WINDOWSIZECHANGED size, w, h
 
+    @abc.abstractmethod
     def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
         """Handle window take focus events.
 
@@ -1228,18 +1347,18 @@ class WindowEvents:
 
 
 # Mixin for all events
-class EventInterface(AudioEvents,
-                     ControllerEvents,
-                     DropEvents,
-                     TouchEvents,
-                     FontEvents,
-                     GameEvents,
-                     JoystickEvents,
-                     KeyboardEvents,
-                     MidiEvents,
-                     MouseEvents,
-                     TextEvents,
-                     WindowEvents):
+class AllEvents(AudioEvents,
+                ControllerEvents,
+                DropEvents,
+                TouchEvents,
+                FontEvents,
+                GameEvents,
+                JoystickEvents,
+                KeyboardEvents,
+                MidiEvents,
+                MouseEvents,
+                TextEvents,
+                WindowEvents):
     """Mixin for all events."""
 
 

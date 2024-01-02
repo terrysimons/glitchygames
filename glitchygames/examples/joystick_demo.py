@@ -307,9 +307,9 @@ class ShapesSprite(Sprite):
 
 #                 self.text_box.indent()
 #                 for j in range(axes):
-                    # self.text_box.print(
-                    #     self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
-                    # )
+#                        self.text_box.print(
+#                            self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
+#                        )
 #                 self.text_box.unindent()
 
 #                 buttons = joystick.get_numbuttons()

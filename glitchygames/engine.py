@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
 
-logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+# logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 PACKAGE_PATH: str = Path(__file__).parent
 ASSET_PATH: str = Path(__file__).parent / 'assets'
@@ -196,7 +196,11 @@ class GameManager(events.ResourceManager):
         Returns:
             None
         """
-        group = parser.add_argument_group('Game Options')  # noqa: F841
+        group = parser.add_argument_group('Game Options')
+        group.add_argument('-l', '--log-level',
+                           help='set the logging level',
+                           choices=['debug', 'info', 'warning', 'error', 'critical'],
+                           default='info')
 
         return parser
 
@@ -273,6 +277,11 @@ class GameEngine(events.EventManager):
             )
 
         args: argparse.ArgumentParser = parser.parse_args()
+
+        # Set the logging level
+        logging.basicConfig(
+            format='%(name)s - %(levelname)s - %(message)s', level=args.log_level.upper()
+        )
 
         GameEngine.OPTIONS: dict[str, Any] = vars(args)
         options: dict[str, Any] = GameEngine.OPTIONS
@@ -629,7 +638,8 @@ class GameEngine(events.EventManager):
 
         return (int(desired_width), int(desired_height))
 
-    def set_cursor(self: Self, cursor: list[str], cursor_black: str = '.', cursor_white: str = 'X',
+    @classmethod
+    def set_cursor(cls: Self, cursor: list[str], cursor_black: str = '.', cursor_white: str = 'X',
                    cursor_xor: str = 'o') -> list[str]:
         """Set the cursor.
 
@@ -864,7 +874,8 @@ class GameEngine(events.EventManager):
             pygame.display.quit()
             pygame.quit()
 
-    def quit_game(self: Self) -> None:
+    @classmethod
+    def quit_game(cls: Self) -> None:
         """Quit the game.
 
         Emits a pygame.event.Event(pygame.QUIT, {}) event.
@@ -908,6 +919,7 @@ class GameEngine(events.EventManager):
             # as an uinimplemented event
             if not event_was_handled:
                 self.process_unimplemented_event(event)
+                return False
 
         return event_was_handled
 
@@ -1039,13 +1051,13 @@ class GameEngine(events.EventManager):
         Returns:
             bool: True if the event was handled, False otherwise.
         """
-        # if event.type == pygame.MIDIIN:
-        #     self.process_unimplemented_event(event)
-        #     return True
+        if event.type == pygame.MIDIIN:
+            self.log.info(f'MIDIIN: {event} NOT IMPLEMENTED')
+            return True
 
-        # if event.type == pygame.MIDIOUT:
-        #     self.process_unimplemented_event(event)
-        #     return True
+        if event.type == pygame.MIDIOUT:
+            self.log.info(f'MIDIOUT: {event} NOT IMPLEMENTED')
+            return True
 
         return False
 
@@ -1198,7 +1210,7 @@ class GameEngine(events.EventManager):
 
         return False
 
-    def process_window_event(self: Self, event: pygame.event.Event) -> None:
+    def process_window_event(self: Self, event: pygame.event.Event) -> None:  # noqa: PLR0912
         """Process a window event.
 
         Args:
@@ -1221,14 +1233,17 @@ class GameEngine(events.EventManager):
             return True
 
         if event.type == pygame.WINDOWHIDDEN:
+            # WINDOWHIDDEN x, y
             self.window_manager.on_window_hidden_event(event)
             return True
 
         if event.type == pygame.WINDOWMINIMIZED:
+            # WINDOWMINIMIZED x, y
             self.window_manager.on_window_minimized_event(event)
             return True
 
         if event.type == pygame.WINDOWMAXIMIZED:
+            # WINDOWMAXIMIZED x, y
             self.window_manager.on_window_maximized_event(event)
             return True
 
@@ -1238,6 +1253,7 @@ class GameEngine(events.EventManager):
             return True
 
         if event.type == pygame.WINDOWCLOSE:
+            # WINDOWCLOSE
             self.window_manager.on_window_close_event(event)
             return True
 
@@ -1245,9 +1261,34 @@ class GameEngine(events.EventManager):
             self.window_manager.on_window_exposed_event(event)
             return True
 
+        if event.type == pygame.WINDOWFOCUSLOST:
+            # WINDOWFOCUSLOST
+            self.window_manager.on_window_focus_lost_event(event)
+            return True
+
+        if event.type == pygame.WINDOWFOCUSGAINED:
+            # WINDOWFOCUSGAINED
+            self.window_manager.on_window_focus_gained_event(event)
+            return True
+
         if event.type == pygame.WINDOWRESIZED:
             # WINDOWRESIZED x, y
             self.window_manager.on_window_resized_event(event)
+            return True
+
+        if event.type == pygame.WINDOWLEAVE:
+            # WINDOWLEAVE
+            self.window_manager.on_window_leave_event(event)
+            return True
+
+        if event.type == pygame.WINDOWENTER:
+            # WINDOWENTER
+            self.window_manager.on_window_enter_event(event)
+            return True
+
+        if event.type == pygame.WINDOWSHOWN:
+            # WINDOWSHOWN
+            self.window_manager.on_window_shown_event(event)
             return True
 
         return False
@@ -1263,50 +1304,51 @@ class GameEngine(events.EventManager):
         """
         # Game events are listed in the order they're most
         # likely to occur in.
-        if event.type == events.FPSEVENT:
-            # FPSEVENT is pygame.USEREVENT + 1
-            self.game_manager.on_fps_event(event)
-            return True
+        match event.type:
+            case events.FPSEVENT:
+                # FPSEVENT is pygame.USEREVENT + 1
+                self.game_manager.on_fps_event(event)
+                return True
 
-        if event.type == events.GAMEEVENT:
-            # GAMEEVENT is pygame.USEREVENT + 2
-            self.game_manager.on_game_event(event)
-            return True
+            case events.GAMEEVENT:
+                # GAMEEVENT is pygame.USEREVENT + 2
+                self.game_manager.on_game_event(event)
+                return True
 
-        if event.type == events.MENUEVENT:
-            # MENUEVENT is pygame.USEREVENT + 3
-            self.game_manager.on_menu_item_event(event)
-            return True
+            case events.MENUEVENT:
+                # MENUEVENT is pygame.USEREVENT + 3
+                self.game_manager.on_menu_item_event(event)
+                return True
 
-        if event.type == pygame.ACTIVEEVENT:
-            # ACTIVEEVENT      gain, state
-            self.game_manager.on_active_event(event)
-            return True
+            case pygame.ACTIVEEVENT:
+                # ACTIVEEVENT      gain, state
+                self.game_manager.on_active_event(event)
+                return True
 
-        if event.type == pygame.USEREVENT:
-            # USEREVENT        code
-            self.game_manager.on_user_event(event)
-            return True
+            case pygame.USEREVENT:
+                # USEREVENT        code
+                self.game_manager.on_user_event(event)
+                return True
 
-        if event.type == pygame.VIDEORESIZE:
-            # VIDEORESIZE      size, w, h
-            self.game_manager.on_video_resize_event(event)
-            return True
+            case pygame.VIDEORESIZE:
+                # VIDEORESIZE      size, w, h
+                self.game_manager.on_video_resize_event(event)
+                return True
 
-        if event.type == pygame.VIDEOEXPOSE:
-            # VIDEOEXPOSE      none
-            self.game_manager.on_video_expose_event(event)
-            return True
+            case pygame.VIDEOEXPOSE:
+                # VIDEOEXPOSE      none
+                self.game_manager.on_video_expose_event(event)
+                return True
 
-        if event.type == pygame.SYSWMEVENT:
-            # SYSWMEVENT
-            self.game_manager.on_sys_wm_event(event)
-            return True
+            case pygame.SYSWMEVENT:
+                # SYSWMEVENT
+                self.game_manager.on_sys_wm_event(event)
+                return True
 
-        if event.type == pygame.QUIT:
-            # QUIT             none
-            self.game_manager.on_quit_event(event)
-            return True
+            case pygame.QUIT:
+                # QUIT             none
+                self.game_manager.on_quit_event(event)
+                return True
 
         return False
 
@@ -1417,7 +1459,7 @@ class GameEngine(events.EventManager):
             Callable: The callable object.
         """
         if attr.startswith('on_') and attr.endswith('_event'):
-            self.LAST_EVENT_MISS = attr
+            self.LAST_EVENT_MISS: str = attr
 
             return self.missing_event
 

@@ -137,7 +137,8 @@ class FontManager(ResourceManager):
     # with a system font by passing an explicit path.
     #
     # We can also use a config file to specify the font path.
-    def font(self: Self, font_config: dict | None = None) -> pygame.freetype.Font | pygame.freetype.SysFont:  # noqa: E501
+    @classmethod
+    def font(cls: Self, font_config: dict | None = None) -> pygame.freetype.Font | pygame.freetype.SysFont:  # noqa: E501
         """Return a font object.
 
         If the font requested can't be found then bitstream_vera will be loaded instead.

@@ -34,7 +34,7 @@ class BitmappySprite(Sprite):
         Returns:
             Self
         """
-        super().__init__(*args, pos=(0,0), size=(0, 0), **kwargs)
+        super().__init__(*args, pos=(0, 0), size=(0, 0), **kwargs)
         self.image = None
         self.rect = None
         self.name = None
@@ -99,7 +99,8 @@ class BitmappySprite(Sprite):
 
         return (image, rect, name)
 
-    def rgb_triplet_generator(self: Self, buffer: list) -> iter[tuple[int, int, int]]:
+    @classmethod
+    def rgb_triplet_generator(cls: Self, buffer: list) -> iter[tuple[int, int, int]]:
         """Yield (R, G, B) tuples for the provided pixel data.
 
         Args:
@@ -117,7 +118,8 @@ class BitmappySprite(Sprite):
         except StopIteration:
             pass
 
-    def inflate(self: Self, width: int, height: int, pixels: list,
+    @classmethod
+    def inflate(cls: Self, width: int, height: int, pixels: list,
                 color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 

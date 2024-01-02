@@ -316,7 +316,7 @@ class Game(Scene):
         Returns:
             None
         """
-        if event.button in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
+        if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 

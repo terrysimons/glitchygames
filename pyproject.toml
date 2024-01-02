@@ -46,6 +46,7 @@ nox-poetry = "*"
 pytest = "*"
 ruff = "*"
 pre-commit = "*"
+poetry-plugin-export = "*"
 sphinx = "*"
 
 [tool.ruff]
@@ -57,20 +58,23 @@ task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
 select = [
-  "E",
   "F",
-  "W"
-]
-extend-select = [
-  "RUF100", # Unused `noqa` directive
-  "ANN",
+  "E",
+  "W",
   "C90",
   "I",
   "N",
+  "D",
   "UP",
   "YTT",
+  "ANN",
+  "ASYNC",
+  "TRIO",
   "S",
   "BLE",
+  "FBT",
+  "B",
+  "A",
   "COM",
   "CPY",
   "C4",
@@ -110,11 +114,9 @@ extend-select = [
   "NPY",
   "AIR",
   "PERF",
+  "FURB",
+  "LOG",
   "RUF",
-  "FBT",
-  "B",
-  "A",
-  "D",
 ]
 ignore = [
   #"ASYN",
@@ -135,6 +137,10 @@ ignore = [
   "TD002", # Missing author in TODO
   "ANN002", # Missing type annotation for `*args`
   "ANN003", # Missing type annotation for `**kwargs`
+  "S101",
+  "PLR0917", # Too many positional arguments
+  "PLR0904", # Too many public methods
+  "CPY001", # Missing copyright notice at top of file
 ]
 # exclude = []
 # extend-exclude = []
