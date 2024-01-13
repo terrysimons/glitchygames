@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>GlitchGames Engine &#8212; GlitchyGames Engine 1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/classic.css?v=9bab98cc" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
+    
+    <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">GlitchyGames Engine 1.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">GlitchGames Engine</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="module-glitchygames.engine">
+<span id="glitchgames-engine"></span><h1>GlitchGames Engine<a class="headerlink" href="#module-glitchygames.engine" title="Link to this heading">¶</a></h1>
+<p>Contains GameEngine and helper classes for building a game.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">glitchygames.engine.</span></span><span class="sig-name descname"><span class="pre">GameEngine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#glitchygames.engine.GameEngine" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EventManager</span></code></p>
+<p>Glitchy Games’ Game engine.</p>
+<p>The game engine is responsible for initializing pygame and
+handling events.  It also provides a number of helper methods
+for common tasks such as setting the screen resolution and
+setting the cursor.</p>
+<p>Every Glitchy Game game inherits the GameEngine command line
+options, so you can add your own command line options by
+implementing the args() class method in your Scene class.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.EVENT_HANDLERS">
+<span class="sig-name descname"><span class="pre">EVENT_HANDLERS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.EVENT_HANDLERS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.LAST_EVENT_MISS">
+<span class="sig-name descname"><span class="pre">LAST_EVENT_MISS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.LAST_EVENT_MISS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.MISSING_EVENTS">
+<span class="sig-name descname"><span class="pre">MISSING_EVENTS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.MISSING_EVENTS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.NAME">
+<span class="sig-name descname"><span class="pre">NAME</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'Boilerplate</span> <span class="pre">Adventures'</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Boilerplate</span> <span class="pre">Adventures'</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.NAME" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.OPTIONS">
+<span class="sig-name descname"><span class="pre">OPTIONS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.OPTIONS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.UNIMPLEMENTED_EVENTS">
+<span class="sig-name descname"><span class="pre">UNIMPLEMENTED_EVENTS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.UNIMPLEMENTED_EVENTS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.USE_FASTEVENTS">
+<span class="sig-name descname"><span class="pre">USE_FASTEVENTS</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.USE_FASTEVENTS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.VERSION">
+<span class="sig-name descname"><span class="pre">VERSION</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'1.0'</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'1.0'</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.VERSION" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArgumentParser</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ArgumentParser</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.args" title="Link to this definition">¶</a></dt>
+<dd><p>Add Glitchy Games arguments to the argument parser.</p>
+<p>All Glitchy Games will inherit these arguments.</p>
+<dl class="simple">
+<dt>Supported Arguments:</dt><dd><p>-f, –target-fps
+–fps-refresh-rate
+-w, –windowed
+-r, –resolution
+–use-gfxdraw
+–update-type
+–video-driver</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>parser</strong> (<em>argparse.ArgumentParser</em>) – The argument parser.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.game">
+<span class="sig-name descname"><span class="pre">game</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">object</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.game" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.icon">
+<span class="sig-name descname"><span class="pre">icon</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Surface</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Surface(1024x1024x24</span> <span class="pre">SW)&gt;</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.icon" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.initialize_display">
+<span class="sig-name descname"><span class="pre">initialize_display</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.initialize_display" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize the display.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.initialize_event_handlers">
+<span class="sig-name descname"><span class="pre">initialize_event_handlers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.initialize_event_handlers" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize event handlers.</p>
+<p>The engine calls this on your behalf.</p>
+<p>Event subsystem bootstrapping</p>
+<p>This gives us much faster event processing than
+doing a lookup every time an event comes in since
+we can just call the processing function directly.</p>
+<p>It’s not as fast as a raw pygame event loop,
+but since we layer richer event types on top of
+the pygame raw events, this gives us a nice balance
+of extensibility with performance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.initialize_input_event_handlers">
+<span class="sig-name descname"><span class="pre">initialize_input_event_handlers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.initialize_input_event_handlers" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize input event handlers.</p>
+<p>The engine calls this on your behalf.</p>
+<p>This initializes the input event handlers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.initialize_system_icons">
+<span class="sig-name descname"><span class="pre">initialize_system_icons</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.initialize_system_icons" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize system icons.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.log">
+<span class="sig-name descname"><span class="pre">log</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Logger</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">game.engine</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.log" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.missing_event">
+<span class="sig-name descname"><span class="pre">missing_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.missing_event" title="Link to this definition">¶</a></dt>
+<dd><p>Suppress unhandled on_*_event methods.</p>
+<p>We only want to log this once per event type.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong> – The args.</p></li>
+<li><p><strong>**kwargs</strong> – The kwargs.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.post_game_event">
+<span class="sig-name descname"><span class="pre">post_game_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_subtype</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.post_game_event" title="Link to this definition">¶</a></dt>
+<dd><p>Post a game event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_subtype</strong> (<em>pygame.event.EventType</em>) – The event subtype.</p></li>
+<li><p><strong>event_data</strong> (<em>dict</em>) – The event data.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.print_game_info">
+<span class="sig-name descname"><span class="pre">print_game_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.print_game_info" title="Link to this definition">¶</a></dt>
+<dd><p>Print game information.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.print_system_info">
+<span class="sig-name descname"><span class="pre">print_system_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.print_system_info" title="Link to this definition">¶</a></dt>
+<dd><p>Print system information.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_audio_event">
+<span class="sig-name descname"><span class="pre">process_audio_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_audio_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process an audio event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_controller_event">
+<span class="sig-name descname"><span class="pre">process_controller_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_controller_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a controller event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_drop_event">
+<span class="sig-name descname"><span class="pre">process_drop_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_drop_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a drop event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_events">
+<span class="sig-name descname"><span class="pre">process_events</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_events" title="Link to this definition">¶</a></dt>
+<dd><p>Process events.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_game_event">
+<span class="sig-name descname"><span class="pre">process_game_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_game_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a game event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_joystick_event">
+<span class="sig-name descname"><span class="pre">process_joystick_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_joystick_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a joystick event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_keyboard_event">
+<span class="sig-name descname"><span class="pre">process_keyboard_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_keyboard_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a keyboard event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_midi_event">
+<span class="sig-name descname"><span class="pre">process_midi_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_midi_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a midi event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_mouse_event">
+<span class="sig-name descname"><span class="pre">process_mouse_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_mouse_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a mouse event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_text_event">
+<span class="sig-name descname"><span class="pre">process_text_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_text_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a text event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_touch_event">
+<span class="sig-name descname"><span class="pre">process_touch_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_touch_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a touch event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_unimplemented_event">
+<span class="sig-name descname"><span class="pre">process_unimplemented_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_unimplemented_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process an unimplemented event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_window_event">
+<span class="sig-name descname"><span class="pre">process_window_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_window_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a window event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.process_window_focus_event">
+<span class="sig-name descname"><span class="pre">process_window_focus_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.process_window_focus_event" title="Link to this definition">¶</a></dt>
+<dd><p>Process a window focus event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> (<em>pygame.event.Event</em>) – The event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the event was handled, False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.quit_game">
+<span class="sig-name descname"><span class="pre">quit_game</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.quit_game" title="Link to this definition">¶</a></dt>
+<dd><p>Quit the game.</p>
+<p>Emits a pygame.event.Event(pygame.QUIT, {}) event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.register_game_event">
+<span class="sig-name descname"><span class="pre">register_game_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">callback</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.register_game_event" title="Link to this definition">¶</a></dt>
+<dd><p>Register a game event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_type</strong> (<em>pygame.event.EventType</em>) – The event type.</p></li>
+<li><p><strong>callback</strong> (<em>Callable</em>) – The callback.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.screen_height">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">screen_height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.screen_height" title="Link to this definition">¶</a></dt>
+<dd><p>Get the screen height.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The screen height.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.screen_width">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">screen_width</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#glitchygames.engine.GameEngine.screen_width" title="Link to this definition">¶</a></dt>
+<dd><p>Get the screen width.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The screen width.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.set_cursor">
+<span class="sig-name descname"><span class="pre">set_cursor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cursor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cursor_black</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cursor_white</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'X'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cursor_xor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'o'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.set_cursor" title="Link to this definition">¶</a></dt>
+<dd><p>Set the cursor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cursor</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – The cursor.</p></li>
+<li><p><strong>cursor_black</strong> (<em>str</em>) – The black cursor.</p></li>
+<li><p><strong>cursor_white</strong> (<em>str</em>) – The white cursor.</p></li>
+<li><p><strong>cursor_xor</strong> (<em>str</em>) – The xor cursor.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The cursor.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[str]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.start" title="Link to this definition">¶</a></dt>
+<dd><p>Start the game engine.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.suggested_resolution">
+<span class="sig-name descname"><span class="pre">suggested_resolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">desired_width</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">desired_height</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.suggested_resolution" title="Link to this definition">¶</a></dt>
+<dd><p>Suggest a resolution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>desired_width</strong> (<em>int</em>) – The desired width.</p></li>
+<li><p><strong>desired_height</strong> (<em>int</em>) – The desired height.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The suggested resolution.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple[int, int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameEngine.suppress_event">
+<span class="sig-name descname"><span class="pre">suppress_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameEngine.suppress_event" title="Link to this definition">¶</a></dt>
+<dd><p>Suppress an event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong> – The args.</p></li>
+<li><p><strong>attr</strong> (<em>str</em>) – The attribute.</p></li>
+<li><p><strong>**kwargs</strong> – The kwargs.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">glitchygames.engine.</span></span><span class="sig-name descname"><span class="pre">GameManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#glitchygames.engine.GameManager" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ResourceManager</span></code></p>
+<p>Game event manager.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">GameProxy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ResourceManager</span></code></p>
+<p>Game event proxy.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.log">
+<span class="sig-name descname"><span class="pre">log</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Logger</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">game.engine</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.log" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_active_event">
+<span class="sig-name descname"><span class="pre">on_active_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_active_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle active event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_fps_event">
+<span class="sig-name descname"><span class="pre">on_fps_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_fps_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle fps event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_game_event">
+<span class="sig-name descname"><span class="pre">on_game_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_game_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle game event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_menu_item_event">
+<span class="sig-name descname"><span class="pre">on_menu_item_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_menu_item_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle menu item event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_quit_event">
+<span class="sig-name descname"><span class="pre">on_quit_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_quit_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle quit event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_sys_wm_event">
+<span class="sig-name descname"><span class="pre">on_sys_wm_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_sys_wm_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle sys wm event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_user_event">
+<span class="sig-name descname"><span class="pre">on_user_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_user_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle user event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_video_expose_event">
+<span class="sig-name descname"><span class="pre">on_video_expose_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_video_expose_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle video expose event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.GameProxy.on_video_resize_event">
+<span class="sig-name descname"><span class="pre">on_video_resize_event</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.GameProxy.on_video_resize_event" title="Link to this definition">¶</a></dt>
+<dd><p>Handle video resize event.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>event</strong> – The pygame event.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArgumentParser</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ArgumentParser</span></span></span><a class="headerlink" href="#glitchygames.engine.GameManager.args" title="Link to this definition">¶</a></dt>
+<dd><p>Add arguments to the argument parser.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>parser</strong> (<em>argparse.ArgumentParser</em>) – The argument parser.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="glitchygames.engine.GameManager.log">
+<span class="sig-name descname"><span class="pre">log</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Logger</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;Logger</span> <span class="pre">game.engine</span> <span class="pre">(DEBUG)&gt;</span></em><a class="headerlink" href="#glitchygames.engine.GameManager.log" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="../index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">GlitchGames Engine</a><ul>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine"><code class="docutils literal notranslate"><span class="pre">GameEngine</span></code></a><ul>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.EVENT_HANDLERS"><code class="docutils literal notranslate"><span class="pre">GameEngine.EVENT_HANDLERS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.LAST_EVENT_MISS"><code class="docutils literal notranslate"><span class="pre">GameEngine.LAST_EVENT_MISS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.MISSING_EVENTS"><code class="docutils literal notranslate"><span class="pre">GameEngine.MISSING_EVENTS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.NAME"><code class="docutils literal notranslate"><span class="pre">GameEngine.NAME</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.OPTIONS"><code class="docutils literal notranslate"><span class="pre">GameEngine.OPTIONS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.UNIMPLEMENTED_EVENTS"><code class="docutils literal notranslate"><span class="pre">GameEngine.UNIMPLEMENTED_EVENTS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.USE_FASTEVENTS"><code class="docutils literal notranslate"><span class="pre">GameEngine.USE_FASTEVENTS</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.VERSION"><code class="docutils literal notranslate"><span class="pre">GameEngine.VERSION</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.args"><code class="docutils literal notranslate"><span class="pre">GameEngine.args()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.game"><code class="docutils literal notranslate"><span class="pre">GameEngine.game</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.icon"><code class="docutils literal notranslate"><span class="pre">GameEngine.icon</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.initialize_display"><code class="docutils literal notranslate"><span class="pre">GameEngine.initialize_display()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.initialize_event_handlers"><code class="docutils literal notranslate"><span class="pre">GameEngine.initialize_event_handlers()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.initialize_input_event_handlers"><code class="docutils literal notranslate"><span class="pre">GameEngine.initialize_input_event_handlers()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.initialize_system_icons"><code class="docutils literal notranslate"><span class="pre">GameEngine.initialize_system_icons()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.log"><code class="docutils literal notranslate"><span class="pre">GameEngine.log</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.missing_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.missing_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.post_game_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.post_game_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.print_game_info"><code class="docutils literal notranslate"><span class="pre">GameEngine.print_game_info()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.print_system_info"><code class="docutils literal notranslate"><span class="pre">GameEngine.print_system_info()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_audio_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_audio_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_controller_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_controller_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_drop_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_drop_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_events"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_events()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_game_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_game_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_joystick_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_joystick_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_keyboard_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_keyboard_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_midi_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_midi_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_mouse_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_mouse_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_text_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_text_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_touch_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_touch_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_unimplemented_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_unimplemented_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_window_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_window_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.process_window_focus_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.process_window_focus_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.quit_game"><code class="docutils literal notranslate"><span class="pre">GameEngine.quit_game()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.register_game_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.register_game_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.screen_height"><code class="docutils literal notranslate"><span class="pre">GameEngine.screen_height</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.screen_width"><code class="docutils literal notranslate"><span class="pre">GameEngine.screen_width</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.set_cursor"><code class="docutils literal notranslate"><span class="pre">GameEngine.set_cursor()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.start"><code class="docutils literal notranslate"><span class="pre">GameEngine.start()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.suggested_resolution"><code class="docutils literal notranslate"><span class="pre">GameEngine.suggested_resolution()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameEngine.suppress_event"><code class="docutils literal notranslate"><span class="pre">GameEngine.suppress_event()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager"><code class="docutils literal notranslate"><span class="pre">GameManager</span></code></a><ul>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy</span></code></a><ul>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.log"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.log</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_active_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_active_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_fps_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_fps_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_game_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_game_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_menu_item_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_menu_item_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_quit_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_quit_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_sys_wm_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_sys_wm_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_user_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_user_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_video_expose_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_video_expose_event()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.GameProxy.on_video_resize_event"><code class="docutils literal notranslate"><span class="pre">GameManager.GameProxy.on_video_resize_event()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.args"><code class="docutils literal notranslate"><span class="pre">GameManager.args()</span></code></a></li>
+<li><a class="reference internal" href="#glitchygames.engine.GameManager.log"><code class="docutils literal notranslate"><span class="pre">GameManager.log</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/glitchygames/engine.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">GlitchyGames Engine 1.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">GlitchGames Engine</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2023, Terry Simons &lt;terry.simons@gmail.com&gt;, Rich Saupe &lt;sabadam32@gmail.com&gt;.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.2.5.
+    </div>
+  </body>
+</html>
