@@ -2,102 +2,102 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://glitchygames.github.io/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/about/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/api/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/SUMMARY/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/color/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/engine/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/events/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/api/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/examples/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/color/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/fonts/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/engine/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/game_objects/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/events/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/interfaces/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/examples/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/movement/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/fonts/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/pixels/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/game_objects/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/scenes/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/movement/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/sprites/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/pixels/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/templates/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/scenes/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/tools/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/sprites/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/glitchygames/ui/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/templates/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/reference.old/SUMMARY/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/tools/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/reference.old/glitchygames/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://glitchygames.github.io/reference/glitchygames/ui/</loc>
-         <lastmod>2024-01-13</lastmod>
+         <loc>https://glitchygames.github.io/reference.old/glitchygames/</loc>
+         <lastmod>2024-01-27</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/glitchygames/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>glitchygames API Reference - GlitchyGames</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "glitchygames API Reference";
+        var mkdocs_page_input_path = "glitchygames/index.md";
+        var mkdocs_page_url = "/glitchygames/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              
+                  <ul><li class="current">
+                      <a href="./" style="padding: 0; font-size: inherit; line-height: inherit">
+              
+                      <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+              
+                      </a>
+                  </li></ul>
+              
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">glitchygames API Reference</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="glitchygames-api-reference">glitchygames API Reference</h1>
+<p><a href="color/">glitchygames.color</a></p>
+<p>glitchygames.color provides color utilities like palettes, helpers to do color conversion, etc...</p>
+<p><a href="engine/">glitchygames.engine</a></p>
+<p>The glitchygame.engine module handles game initialization, event routing, minimal event loop that calls into the active scene's update method.</p>
+<p>To start your game, pass your main Scene class to the engine.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/usr/bin/env python3</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="sd">&quot;&quot;&quot;Bitrot Adventures.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">import</span> <span class="nn">argparse</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">import</span> <span class="nn">logging</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="kn">import</span> <span class="nn">pathlib</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="kn">import</span> <span class="nn">pygame</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kn">from</span> <span class="nn">glitchygames.engine</span> <span class="kn">import</span> <span class="n">GameEngine</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kn">from</span> <span class="nn">glitchygames.scenes</span> <span class="kn">import</span> <span class="n">Scene</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Instantiate a logger called &quot;game&quot; to enable glitchygames</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># logging module. This is optional, but recommended.</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">LOG</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;game&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># Think of a scene as an encapsulated pygame screen.</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1">#</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Each scene can handle its own events, update its own</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># state, and draw its own graphics.</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1">#</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># The engine will handle switching between scenes</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="c1"># and passing events to the current scene.</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1">#</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="c1"># The engine will also handle drawing the current</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="c1"># scene to the screen.</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="k">class</span> <span class="nc">BitrotAdventures</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Draws a pixel to the screen&quot;&quot;&quot;</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">&#39;Bitrot Adventures&#39;</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">&#39;0.0.0&#39;</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>    <span class="c1"># This is called by glitchygames.GameEngine before</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>    <span class="c1"># the class is instantiated.</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>    <span class="c1">#</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>    <span class="c1"># Note that GameEngine defines a few command line</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>    <span class="c1"># options that are intended to be common across all</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>    <span class="c1"># games, so it&#39;s worth checking your game with --help</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>    <span class="c1"># before adding new options to ensure that you haven&#39;t</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>    <span class="c1"># clobbered an existing option.</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">):</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Game specific command line arguments.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-s&#39;</span><span class="p">,</span> <span class="s1">&#39;--some-game-specific-option&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>                            <span class="n">help</span><span class="o">=</span><span class="s1">&#39;foo help&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>        <span class="k">return</span> <span class="n">parser</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>    <span class="c1"># Note that the Scene (BitrotAdventures) is</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>    <span class="c1"># passed in uninitialized - the engine</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>    <span class="c1"># will initialize it for you.</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>    <span class="n">GameEngine</span><span class="p">(</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>        <span class="n">game</span><span class="o">=</span><span class="n">BitrotAdventures</span><span class="p">,</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>        <span class="n">icon</span><span class="o">=</span><span class="s1">&#39;/path/to/icon&#39;</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>    <span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+<p>When we run <code>./bitrotadventures.py</code> with the <code>-h</code> flag, we can see our command line option, along with options the engine and scene manager provide to us:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span>./bitrotadventures.py<span class="w"> </span>-h
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pygame<span class="w"> </span><span class="m">2</span>.5.2<span class="w"> </span><span class="o">(</span>SDL<span class="w"> </span><span class="m">2</span>.28.3,<span class="w"> </span>Python<span class="w"> </span><span class="m">3</span>.12.1<span class="o">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Hello<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>pygame<span class="w"> </span>community.<span class="w"> </span>https://www.pygame.org/contribute.html
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>usage:<span class="w"> </span>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.0.0<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">[</span>-f<span class="w"> </span>TARGET_FPS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--fps-refresh-rate<span class="w"> </span>FPS_REFRESH_RATE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="o">]</span><span class="w"> </span><span class="o">[</span>-r<span class="w"> </span>RESOLUTION<span class="o">]</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">                                       </span><span class="o">[</span>--use-gfxdraw<span class="o">]</span><span class="w"> </span><span class="o">[</span>--update-type<span class="w"> </span><span class="o">{</span>update,flip<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--video-driver<span class="w"> </span><span class="o">{}]</span><span class="w"> </span><span class="o">[</span>--font-name<span class="w"> </span>FONT_NAME<span class="o">]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">                                       </span><span class="o">[</span>--font-size<span class="w"> </span>FONT_SIZE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-bold<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-italic<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-antialias<span class="o">]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">                                       </span><span class="o">[</span>--font-dpi<span class="w"> </span>FONT_DPI<span class="o">]</span><span class="w"> </span><span class="o">[</span>-l<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--no-unhandled-events<span class="o">]</span><span class="w"> </span><span class="o">[</span>-p<span class="o">]</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">                                       </span><span class="o">[</span>-s<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION<span class="o">]</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>options:
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>Graphics<span class="w"> </span>Options:
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>-f<span class="w"> </span>TARGET_FPS,<span class="w"> </span>--target-fps<span class="w"> </span>TARGET_FPS
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">                        </span>cap<span class="w"> </span>the<span class="w"> </span>framerate<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>infinite<span class="o">)</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span>--fps-refresh-rate<span class="w"> </span>FPS_REFRESH_RATE
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">                        </span>how<span class="w"> </span>often<span class="w"> </span>to<span class="w"> </span>update<span class="w"> </span>the<span class="w"> </span>FPS<span class="w"> </span>counter<span class="w"> </span><span class="k">in</span><span class="w"> </span>ms<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span><span class="m">1000</span><span class="o">)</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span>-w,<span class="w"> </span>--windowed<span class="w">        </span>run<span class="w"> </span>the<span class="w"> </span>program<span class="w"> </span><span class="k">in</span><span class="w"> </span>windowed<span class="w"> </span>mode
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span>-r<span class="w"> </span>RESOLUTION,<span class="w"> </span>--resolution<span class="w"> </span>RESOLUTION
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">                        </span>the<span class="w"> </span>resolution<span class="w"> </span>to<span class="w"> </span>use<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>1024x768<span class="o">)</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span>--use-gfxdraw
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span>--update-type<span class="w"> </span><span class="o">{</span>update,flip<span class="o">}</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">                        </span>update<span class="w"> </span>or<span class="w"> </span>flip<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>update<span class="o">)</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">  </span>--video-driver<span class="w"> </span><span class="o">{}</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>Font<span class="w"> </span>Options:
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">  </span>--font-name<span class="w"> </span>FONT_NAME
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">  </span>--font-size<span class="w"> </span>FONT_SIZE
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">  </span>--font-bold
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">  </span>--font-italic
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">  </span>--font-antialias
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">  </span>--font-dpi<span class="w"> </span>FONT_DPI
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>Game<span class="w"> </span>Options:
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">  </span>-l<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}</span>,<span class="w"> </span>--log-level<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">                        </span><span class="nb">set</span><span class="w"> </span>the<span class="w"> </span>logging<span class="w"> </span>level
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">  </span>--no-unhandled-events
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">                        </span>fail<span class="w"> </span>on<span class="w"> </span>unhandled<span class="w"> </span>events
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="w">  </span>-p,<span class="w"> </span>--profile<span class="w">         </span><span class="nb">enable</span><span class="w"> </span>profiling
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>v0.0.0<span class="w"> </span>Options:
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">  </span>-s<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION,<span class="w"> </span>--some-game-specific-option<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">                        </span>foo<span class="w"> </span><span class="nb">help</span>
+</code></pre></div>
+<p><a href="events/">glitchygames.events</a></p>
+<p>The glitchygames.events module extends the pygame event subsystem by giving you on_*_event callbacks.  Note that you can use the normal pygame raw event mode by simply implementing a "process_events" method in your Scene.</p>
+<p>This can be especially useful for porting games to glitchygames, but there are some advantages to using glitchygames' event subsystem.</p>
+<p>The glitchygames.events subsystem dynamically detects events that your game does not handle and can suppress them automatically.  This helps mitigate the overhead introduced by processing pygame events into on_*_event handlers.</p>
+<p>Note that if you bypass the glitchygames game engine event processing, you'll lose some functionality like <code>esc</code> and <code>q</code> to quit, along with  on_*_event handler support.</p>
+<p>It is recommended that you use the glitchygames event subsystem.</p>
+<p>TODO: Add some benchmark data comparing the two methods in various user scenarios to highlight the performance implications.</p>
+<p><a href="fonts/">glitchygames.fonts</a></p>
+<p>The glitchygames.fonts module is a module that extends pygame's font mechanisms.</p>
+<p><a href="interfaces/">glitchygames.interfaces</a></p>
+<p>The glitchygames.interfaces module implements various interfaces, notably the Sprite and Scene interfaces, which provide an API contract for subclasses.</p>
+<p>Note: Migrating to these interfaces is a work in progress.  More to come.</p>
+<p><a href="movement/">glitchygames.movement</a></p>
+<p>The glitchygames.movement module defines some common movement schemes.</p>
+<p><a href="pixels/">glitchygames.pixels</a></p>
+<p>The glitchygames.pixels module provides common pixel manipulation operations such as 565 conversion.</p>
+<p><a href="sprites/">glitchygames.sprites</a></p>
+<p>The glitchygames.sprites module provides extended subclasses for sprite handling that will enable glitchygames to provide common tools and file formats that are human readible and templatable in addition to common sprite sheet formats and other goodies.</p>
+<p><a href="ui/">glitchygames.ui</a></p>
+<p>The glichtchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...</p>
+<!-- ::: glitchygames
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true -->
+
+<!-- ## glitchygames.api
+
+::: glitchygames.api
+    name: "glitchygames.api"
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true -->
+<!--
+## glitchygames.color
+
+::: glitchygames.color
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true
+
+## glitchygames.engine
+
+::: glitchygames.engine
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true
+
+## glitchygames.events
+
+::: glitchygames.events
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true
+
+## glitchygames.examples
+
+::: glitchygames.examples
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: true
+ -->
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="GlitchyGames Getting Started"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="color/" class="btn btn-neutral float-right" title="glitchygames.color">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="color/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
