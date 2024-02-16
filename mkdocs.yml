@@ -23,13 +23,6 @@ nav:
     - glitchygames.tools: "glitchygames/tools/index.md"
     - glitchygames.ui: "glitchygames/ui/index.md"
 
-# nav:
-  # rest of the navigation...
-  # defer to gen-files + literate-nav
-  # - index: 'index.md'
-  # - Code Reference: reference/
-  # rest of the navigation...
-
 validation:
   omitted_files: warn
   not_found: warn
@@ -92,28 +85,12 @@ plugins:
   - macros
   - search
   - section-index
-  # - gen-files:
-  #     scripts:
-  #     - scripts/gen_ref_pages.py
-  # - literate-nav:
-  #     nav_file: reference/SUMMARY.md
-  - mkdocstrings
-          # options:
-          #   members:
-          #     - "!AudioManager"
-          #     - "!glitchygames.events.AudioManager"
-          #   filters:
-          #     - "!AudioManager"
-          #     - "!glitchygames.events.AudioManager"
-
-          # selection:
-          #   filters:
-          #     - "!glitchygames.events"
-      # handlers:
-      #   python:
-      #     paths: [glitchygames]
-      #     rendering:
-      #       show_source: true
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [glitchygames]
+          rendering:
+            show_source: true
           # options:
           #   allow_inspection: no
           #   show_bases: yes
