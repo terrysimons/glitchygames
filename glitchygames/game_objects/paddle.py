@@ -6,11 +6,10 @@ import logging
 from typing import Self
 
 import pygame
-from pygame import draw
-
 from glitchygames.game_objects import load_sound
 from glitchygames.movement import Horizontal, Vertical
 from glitchygames.sprites import Sprite
+from pygame import draw
 
 log = logging.getLogger('game.paddle')
 log.setLevel(logging.INFO)

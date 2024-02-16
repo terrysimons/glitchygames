@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import FontEvents, ResourceManager
 
 log = logging.getLogger('game.fonts')

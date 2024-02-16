@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import cProfile
 import logging
 import multiprocessing
 import platform
@@ -15,9 +16,9 @@ import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames import events
 from glitchygames.color import PURPLE
+from glitchygames.events import HashableEvent
 from glitchygames.events.audio import AudioManager
 from glitchygames.events.controller import ControllerManager
 from glitchygames.events.drop import DropManager
@@ -53,7 +54,7 @@ class GameManager(events.ResourceManager):
 
         log: logging.Logger = LOG
 
-        def __init__(self: Self, **kwargs) -> None:
+        def __init__(self: Self, **kwargs: dict) -> None:
             """Initialize the game proxy.
 
             Args:
@@ -201,6 +202,14 @@ class GameManager(events.ResourceManager):
                            help='set the logging level',
                            choices=['debug', 'info', 'warning', 'error', 'critical'],
                            default='info')
+        group.add_argument('--no-unhandled-events',
+                           help='fail on unhandled events',
+                           action='store_true',
+                           default=False)
+        group.add_argument('-p', '--profile',
+                           help='enable profiling',
+                           action='store_true',
+                           default=False)
 
         return parser
 
@@ -244,21 +253,38 @@ class GameEngine(events.EventManager):
     EVENT_HANDLERS: ClassVar = {
     }
 
-    def __init__(self: Self, game: object, icon: pygame.Surface = None) -> None:
-        """Initialize the game engine.
+    @classmethod
+    def initialize_icon(cls: Self, icon: pygame.Surface | Path | str | None = None) -> None:
+        """Initialize the game icon.
 
         Args:
-            game: The game instance.
-            icon: The game icon.
+            cls: the GlitchyGames GameEngine class.
+            icon: a pygame.Surface, Path, str path, or None.
 
         Returns:
             None
         """
-        super().__init__()
+        # If it's not a pygame.Surface, assume it's a path
+        if icon and not isinstance(icon, pygame.Surface):
+                icon_path: Path = Path(icon)
 
-        if icon:
-            GameEngine.icon = icon
+                try:
+                    icon: pygame.Surface = pygame.image.load(icon_path)
+                except FileNotFoundError:
+                    icon = None
 
+        GameEngine.icon = icon
+
+    @classmethod
+    def initialize_arguments(cls: Self, game: Scene) -> None:
+        """Initialize the game arguments.
+
+        Args:
+            game: The game instance.
+
+        Returns:
+            None
+        """
         parser: argparse.ArgumentParser = argparse.ArgumentParser(
             f'{game.NAME} version {game.VERSION}'
         )
@@ -271,7 +297,7 @@ class GameEngine(events.EventManager):
         try:
             game.args(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
         except AttributeError:
-            self.log.info(
+            cls.log.info(
                 'Game does not implement arguments.  '
                 'Add a def args(parser) class method.'
             )
@@ -284,7 +310,35 @@ class GameEngine(events.EventManager):
         )
 
         GameEngine.OPTIONS: dict[str, Any] = vars(args)
+
+        # Some optimizations to reduce the number of lookups
+        if GameEngine.OPTIONS['log_level'] in ['DEBUG', 'CRITICAL', 'ERROR']:
+            GameEngine.OPTIONS['debug_events'] = True
+        else:
+            GameEngine.OPTIONS['debug_events'] = False
+
         options: dict[str, Any] = GameEngine.OPTIONS
+
+        # Back propagate the options
+        game.options = options
+
+        return options
+
+    def __init__(self: Self, game: object, icon: pygame.Surface | Path | str | None = None) -> None:
+        """Initialize the game engine.
+
+        Args:
+            game: The game instance.
+            icon: The game icon.
+
+        Returns:
+            None
+        """
+        super().__init__()
+
+        self.initialize_icon(icon=icon)
+
+        options = self.initialize_arguments(game=game)
 
         # TODO @<terry.simons@gmail.com>: Decouple game from event manager
         # so we can have clean separation for unhandled events
@@ -363,9 +417,6 @@ class GameEngine(events.EventManager):
     def initialize_display(self: Self) -> None:
         """Initialize the display.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -415,9 +466,6 @@ class GameEngine(events.EventManager):
         the pygame raw events, this gives us a nice balance
         of extensibility with performance.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -441,9 +489,6 @@ class GameEngine(events.EventManager):
         The engine calls this on your behalf.
 
         This initializes the input event handlers.
-
-        Args:
-            None
 
         Returns:
             None
@@ -472,9 +517,6 @@ class GameEngine(events.EventManager):
     def __del__(self: Self) -> None:
         """Delete the game engine.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -491,9 +533,6 @@ class GameEngine(events.EventManager):
     def screen_width(self: Self) -> int:
         """Get the screen width.
 
-        Args:
-            None
-
         Returns:
             int: The screen width.
         """
@@ -503,9 +542,6 @@ class GameEngine(events.EventManager):
     def screen_height(self: Self) -> int:
         """Get the screen height.
 
-        Args:
-            None
-
         Returns:
             int: The screen height.
         """
@@ -513,9 +549,6 @@ class GameEngine(events.EventManager):
 
     def print_system_info(self: Self) -> None:
         """Print system information.
-
-        Args:
-            None
 
         Returns:
             None
@@ -588,9 +621,6 @@ class GameEngine(events.EventManager):
 
     def print_game_info(self: Self) -> None:
         """Print game information.
-
-        Args:
-            None
 
         Returns:
             None
@@ -706,9 +736,6 @@ class GameEngine(events.EventManager):
 
     def initialize_system_icons(self: Self) -> None:
         """Initialize system icons.
-
-        Args:
-            None
 
         Returns:
             None
@@ -833,13 +860,19 @@ class GameEngine(events.EventManager):
     def start(self: Self) -> None:
         """Start the game engine.
 
-        Args:
-            None
-
         Returns:
             None
         """
+        if self.game is None:
+            raise RuntimeError(
+                'Game not initialized.  Pass a game class to the GameEngine constructor.'
+            )
+
         try:
+            if GameEngine.OPTIONS['profile']:
+                profiler = cProfile.Profile()
+                profiler.enable()
+
             # Initialize the game instance
             self.game = self.game(options=GameEngine.OPTIONS)
 
@@ -849,7 +882,6 @@ class GameEngine(events.EventManager):
             self.audio_manager = AudioManager(game=self.scene_manager)
             self.drop_manager = DropManager(game=self.scene_manager)
             self.controller_manager = ControllerManager(game=self.scene_manager)
-            # TODO @<terry.simons@gmail.com>: Implement touch finger manager
             self.touch_manager = TouchManager(game=self.scene_manager)
             # https://glitchy-games.atlassian.net/browse/GG-23
             self.font_manager = FontManager(game=self.scene_manager)
@@ -874,14 +906,15 @@ class GameEngine(events.EventManager):
             pygame.display.quit()
             pygame.quit()
 
+            if GameEngine.OPTIONS['profile']:
+                profiler.disable()
+                profiler.print_stats()
+
     @classmethod
     def quit_game(cls: Self) -> None:
         """Quit the game.
 
         Emits a pygame.event.Event(pygame.QUIT, {}) event.
-
-        Args:
-            None
 
         Returns:
             None
@@ -893,9 +926,6 @@ class GameEngine(events.EventManager):
 
     def process_events(self: Self) -> bool:
         """Process events.
-
-        Args:
-            None
 
         Returns:
             bool: True if the event was handled, False otherwise.
@@ -910,7 +940,16 @@ class GameEngine(events.EventManager):
         if self.USE_FASTEVENTS:
             pump_events = pygame.fastevent.get
 
-        for event in pump_events():
+        for raw_event in pump_events():
+            # Support scenes processing pygame raw events, bypassing
+            # the glitchygames.engine event processing altogether
+            if hasattr(self._active_scene, 'process_event'):
+                self._active_scene.process_event(raw_event)
+                return True
+
+            event = HashableEvent(type=raw_event.type)
+            event.__dict__.update(raw_event.dict)
+
             if event.type in GameEngine.EVENT_HANDLERS:
                 event_was_handled = GameEngine.EVENT_HANDLERS[event.type](event)
 
@@ -1384,7 +1423,7 @@ class GameEngine(events.EventManager):
         )
         self.log.debug(f'Posted Event: {event}')
 
-    def suppress_event(self: Self, *args, attr: str, **kwargs) -> None:
+    def suppress_event(self: Self, *args: list, attr: str, **kwargs: dict) -> None:
         """Suppress an event.
 
         Args:
@@ -1412,7 +1451,7 @@ class GameEngine(events.EventManager):
         self.log.info(f'Registering event type "{event_type}" for {callback}')
         self.registered_events[event_type] = callback
 
-    def missing_event(self: Self, *args, **kwargs) -> None:
+    def missing_event(self: Self, *args: list, **kwargs: dict) -> None:
         """Suppress unhandled on_*_event methods.
 
         We only want to log this once per event type.

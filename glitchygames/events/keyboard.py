@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import KeyboardEvents, ResourceManager
 
 log = logging.getLogger('game.keyboard')
@@ -97,14 +96,15 @@ class KeyboardManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-                keys_down (list): The keys that are currently down.
 
             Returns:
                 None
             """
-            keys_down = [self.keys[key]
-                         for key in self.keys
-                         if self.keys[key].type == pygame.KEYDOWN]
+            keys_down: tuple = (self.keys[key]
+                                for key in self.keys
+                                if self.keys[key].type == pygame.KEYDOWN)
+
+            event['keys_down'] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
@@ -117,9 +117,9 @@ class KeyboardManager(ResourceManager):
             Returns:
                 None
             """
-            keys_down = [self.keys[key]
-                         for key in self.keys
-                         if self.keys[key].type == pygame.KEYDOWN]
+            keys_down: tuple = (self.keys[key]
+                                for key in self.keys
+                                if self.keys[key].type == pygame.KEYDOWN)
 
             self.game.on_key_chord_up_event(event, keys_down)
 

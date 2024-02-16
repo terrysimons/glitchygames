@@ -13,12 +13,11 @@ if TYPE_CHECKING:
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-from pygame import Rect
-
 from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
+from pygame import Rect
 
 LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)

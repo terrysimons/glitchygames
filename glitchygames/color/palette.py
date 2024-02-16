@@ -193,9 +193,6 @@ class Default(ColorPalette):
     def __init__(self: Self) -> None:
         """Create a default color palette object.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -216,9 +213,6 @@ class System(ColorPalette):
 
     def __init__(self: Self) -> None:
         """Create a system color palette object.
-
-        Args:
-            None
 
         Returns:
             None
@@ -247,9 +241,6 @@ class Vga(ColorPalette):
 
     def __init__(self: Self) -> None:
         """Create a VGA color palette object.
-
-        Args:
-            None
 
         Returns:
             None

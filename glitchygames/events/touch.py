@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Self
 
 import pygame
-
 from glitchygames.events import ResourceManager, TouchEvents
 
 

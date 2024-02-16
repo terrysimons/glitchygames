@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Interfaces for the game."""
 from __future__ import annotations
 
@@ -54,6 +55,26 @@ class SceneInterface:
 
     def terminate(self: Self) -> None:
         """Terminate the scene.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+
+    def play(self: Self) -> None:
+        """Play the scene.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+
+    def pause(self: Self) -> None:
+        """Pause the scene.
 
         Args:
             None

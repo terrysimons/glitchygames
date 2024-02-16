@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene

@@ -14,7 +14,6 @@ import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-
 from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.events.mouse import MousePointer
@@ -684,7 +683,7 @@ class CanvasSprite(BitmappySprite):
                                               for i in range(self.pixels_across * self.pixels_tall)]
 
         for pixel_box in self.pixel_boxes:
-            self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
+            # self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
             self.all_sprites.add(pixel_box)
 
         for i in range(self.pixels_across * self.pixels_tall):
@@ -1690,15 +1689,9 @@ def main() -> None:
     Raises:
         None
     """
-    icon_path = Path(__file__).parent / 'resources' / 'bitmappy.png'
+    icon_path =Path(__file__).parent / 'resources' / 'bitmappy.png'
 
-    try:
-        icon: pygame.Surface = pygame.image.load(icon_path)
-    except FileNotFoundError:
-        icon = None
-
-    GameEngine.icon = icon
-    GameEngine(game=BitmapEditorScene, icon=icon).start()
+    GameEngine(game=BitmapEditorScene, icon=icon_path).start()
 
 
 if __name__ == '__main__':

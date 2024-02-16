@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import ClassVar, Self, cast
 
 import pygame
-
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface
 from glitchygames.pixels import rgb_triplet_generator

@@ -7,8 +7,6 @@ import time
 from typing import TYPE_CHECKING, Self
 
 import pygame
-from pygame import Rect
-
 from glitchygames import events
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
@@ -19,6 +17,7 @@ from glitchygames.sprites import (
     FocusableSingletonBitmappySprite,
     Sprite,
 )
+from pygame import Rect
 
 if TYPE_CHECKING:
     from collections.abc import Callable

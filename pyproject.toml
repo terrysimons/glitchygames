@@ -35,10 +35,15 @@ bitmappy = "glitchygames.tools.bitmappy:main"
 
 [tool.poetry.dependencies]
 python = ">= 3.12, < 4.0"
-toml = "^0.10.2"
-pygame = "^2.1.3"
-future = "^0.18.3"
-cookiecutter = "^2.3.0"
+toml = "*"
+pygame = "*"
+future = "*"
+cookiecutter = "*"
+mkdocs-macros-plugin = "*"
+pymdown-extensions = "*"
+mkdocs-autorefs = "*"
+mkdocs-section-index = "*"
+mkdocstrings-python = "*"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"
@@ -47,7 +52,12 @@ pytest = "*"
 ruff = "*"
 pre-commit = "*"
 poetry-plugin-export = "*"
-sphinx = "*"
+mkdocs = "*"
+mkdocstrings = {extras = ["crystal", "python"], version = "*"}
+mkdocs-material = "*"
+mkdocs-gen-files = "*"
+mkdocs-literate-nav = "*"
+mkdocs-section-index = "*"
 
 [tool.ruff]
 line-length = 100
@@ -141,6 +151,8 @@ ignore = [
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
   "CPY001", # Missing copyright notice at top of file
+  "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
+  "EM101", # Exception must not use a string literal, assign to variable first
 ]
 # exclude = []
 # extend-exclude = []

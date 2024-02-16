@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import JoystickEvents, ResourceManager
 
 LOG = logging.getLogger('game.joysticks')
@@ -175,9 +174,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_name(self: Self) -> str:
             """Get the joystick name.
 
-            Args:
-                None
-
             Returns:
                 str: The joystick name.
             """
@@ -185,9 +181,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def get_init(self: Self) -> bool:
             """Get the joystick init status.
-
-            Args:
-                None
 
             Returns:
                 bool: The joystick init status.
@@ -197,9 +190,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_numaxes(self: Self) -> int:
             """Get the number of axes.
 
-            Args:
-                None
-
             Returns:
                 int: The number of axes.
             """
@@ -207,9 +197,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def get_numballs(self: Self) -> int:
             """Get the number of trackballs.
-
-            Args:
-                None
 
             Returns:
                 int: The number of trackballs.
@@ -219,9 +206,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_numbuttons(self: Self) -> int:
             """Get the number of buttons.
 
-            Args:
-                None
-
             Returns:
                 int: The number of buttons.
             """
@@ -230,9 +214,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_numhats(self: Self) -> int:
             """Get the number of hats.
 
-            Args:
-                None
-
             Returns:
                 int: The number of hats.
             """
@@ -240,9 +221,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def __str__(self: Self) -> str:
             """Get the joystick info.
-
-            Args:
-                None
 
             Returns:
                 str: The joystick info.
@@ -261,9 +239,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def __repr__(self: Self) -> str:
             """Get the joystick representation.
-
-            Args:
-                None
 
             Returns:
                 str: The joystick representation.

@@ -52,8 +52,10 @@ jobs:
 
             python --version
             pyenv versions
-            pip install nox nox-poetry ruff
+
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
             cd ~/project
+            mkdocs build --strict
             nox
 
   build-and-test-macos:

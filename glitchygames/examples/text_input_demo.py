@@ -6,7 +6,6 @@ import logging
 from typing import Self
 
 import pygame
-
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox

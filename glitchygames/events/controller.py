@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 
 import pygame
 import pygame._sdl2.controller
-
 from glitchygames.events import ControllerEvents, ResourceManager
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
@@ -200,9 +199,6 @@ class ControllerManager(ControllerEvents, ResourceManager):
         def __str__(self: Self) -> LiteralString:
             """Return a string representation of the controller.
 
-            Args:
-                None
-
             Returns:
                 str: A string representation of the controller.
             """
@@ -219,9 +215,6 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         def __repr__(self: Self) -> str:
             """Return a string representation of the controller object.
-
-            Args:
-                None
 
             Returns:
                 str: A string representation of the controller object.

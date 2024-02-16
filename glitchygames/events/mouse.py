@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
@@ -562,9 +561,6 @@ class MousePointer:
     @property
     def y(self: Self) -> int:
         """Get the y coordinate of the mouse pointer.
-
-        Args:
-            None
 
         Returns:
             int

@@ -6,7 +6,6 @@ import random
 from typing import Self
 
 import pygame
-
 from glitchygames import game_objects
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
