@@ -43,12 +43,10 @@ jobs:
             echo "Path: $PATH"
             echo "Pyenv: "
             echo $(which pyenv)
-            echo "Building Python 3.11.5, 3.10.13, 3.9.18"
+            echo "Building Python 3.12.2"
 
-            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18
-            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
-            pyenv global 3.11.5 3.11.5
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.12.2
+            pyenv global 3.12.2 3.12.2
 
             python --version
             pyenv versions
