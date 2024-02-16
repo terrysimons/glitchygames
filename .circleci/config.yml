@@ -78,17 +78,16 @@ jobs:
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             source ~/.bashrc
-            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
-            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            pyenv global 3.11.5 3.11.5
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.12.2
+            pyenv global 3.12.2 3.12.2
 
             python --version
             pyenv versions
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
-            pip install nox nox-poetry ruff
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
             cd ~/project
+            mkdocs build --strict
             nox
 
       # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
@@ -113,14 +112,14 @@ jobs:
             choco install pyenv-win --force -y
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
-            # pyenv install -f 3.11.5 3.10.13 3.9.18
-            pyenv install -f 3.11.5
-            pyenv global 3.11.5 3.11.5
+            pyenv install -f 3.12.2
+            pyenv global 3.12.2 3.12.2
             pyenv versions
             # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
-            pip install nox nox-poetry poetry ruff
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index
+            mkdocs build --strict
             nox
 
 
