@@ -52,7 +52,7 @@ jobs:
             python --version
             pyenv versions
 
-            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
             cd ~/project
             mkdocs build --strict
             nox
@@ -86,7 +86,7 @@ jobs:
             pyenv versions
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
-            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
             cd ~/project
             mkdocs build --strict
             nox
@@ -119,7 +119,7 @@ jobs:
             # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
-            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin
+            pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
             mkdocs build --strict
             nox
 
