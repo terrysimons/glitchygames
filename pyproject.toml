@@ -39,11 +39,6 @@ toml = "*"
 pygame = "*"
 future = "*"
 cookiecutter = "*"
-pymdown-extensions = "*"
-mkdocs-autorefs = "*"
-mkdocs-macros-plugin = "*"
-mkdocs-section-index = "*"
-mkdocstrings-python = "*"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"
@@ -52,12 +47,22 @@ pytest = "*"
 ruff = "*"
 pre-commit = "*"
 poetry-plugin-export = "*"
+
+[tool.poetry.group.docs.dependencies]
 mkdocs = "*"
 mkdocstrings = {extras = ["crystal", "python"], version = "*"}
 mkdocs-material = "*"
 mkdocs-gen-files = "*"
 mkdocs-literate-nav = "*"
 mkdocs-section-index = "*"
+pymdown-extensions = "*"
+mkdocs-autorefs = "*"
+mkdocs-macros-plugin = "*"
+mkdocstrings-python = "*"
+
+[tool.poetry.extras]
+docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
+dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "poetry-plugin-export"]
 
 [tool.ruff]
 line-length = 100
