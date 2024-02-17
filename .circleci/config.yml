@@ -80,23 +80,32 @@ jobs:
       - run:
           name: "Build and Test macOS"
           command: |
-            rm -rf ~/.pyenv
-            git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # rm -rf ~/.pyenv
+            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            # cd ~/.pyenv && src/configure && make -C src
+            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            # echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
+            # source ~/.bashrc
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
             echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            cd ~/.pyenv && src/configure && make -C src
-            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             source ~/.bashrc
+            cd /home/circleci/.pyenv/plugins/python-build/../.. && git pull && cd -
 
-            # pyenv update
+            echo "Path: $PATH"
+            echo "Pyenv: "
+            echo $(which pyenv)
+            echo "Building Python ${PYTHON_LATEST_VERSION}"
+
+            pyenv update
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
             pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
             python --version
             pyenv versions
-            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+            # curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
             pip install -e .
             pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
