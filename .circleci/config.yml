@@ -61,8 +61,8 @@ jobs:
             pyenv versions
 
             pip install -e .
-            pip install -e '.[dev]'
-            pip install -e '.[docs]'
+            pip install -e "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install -e "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
             cd ~/project
             nox
 
@@ -96,8 +96,8 @@ jobs:
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
             pip install -e .
-            pip install -e '.[dev]'
-            pip install -e '.[docs]'
+            pip install -e "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install -e "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
             cd ~/project
             nox
 
@@ -131,8 +131,8 @@ jobs:
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
             pip install -e .
-            pip install -e '.[dev]'
-            pip install -e '.[docs]'
+            pip install -e "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install -e "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
             nox
 
 
