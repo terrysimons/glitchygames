@@ -60,9 +60,9 @@ jobs:
             python --version
             pyenv versions
 
-            # pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
+            pip install -e .
+            pip install -e '.[dev]'
             cd ~/project
-            # mkdocs build --strict
             nox
 
   build-and-test-macos:
@@ -94,9 +94,9 @@ jobs:
             pyenv versions
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
-            # pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
+            pip install -e .
+            pip install -e '.[dev]'
             cd ~/project
-            # mkdocs build --strict
             nox
 
       # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
@@ -128,7 +128,8 @@ jobs:
             # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
-            # pip install nox nox-poetry ruff mkdocs mkdocstrings mkdocs-material mkdocs-gen-files mkdocs-literate-nav mkdocs-section-index mkdocs-macros-plugin mkdocstrings-python griffe
+            pip install -e .
+            pip install -e '.[dev]'
             nox
 
 
