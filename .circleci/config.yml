@@ -11,7 +11,7 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.12.1"
+    default: "3.12.2"
 
 orbs:
   win: circleci/windows@5.0
@@ -54,6 +54,7 @@ jobs:
             echo $(which pyenv)
             echo "Building Python ${PYTHON_LATEST_VERSION}"
 
+            pyenv update
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
             pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
@@ -88,6 +89,8 @@ jobs:
             echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             source ~/.bashrc
+
+            pyenv update
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
             pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
