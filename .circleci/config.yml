@@ -99,7 +99,7 @@ jobs:
             echo $(which pyenv)
             echo "Building Python ${PYTHON_LATEST_VERSION}"
 
-            pyenv update
+            # pyenv update
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
             pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 

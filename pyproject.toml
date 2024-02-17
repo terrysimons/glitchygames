@@ -48,17 +48,17 @@ ruff = "*"
 pre-commit = "*"
 poetry-plugin-export = "*"
 
-[tool.poetry.group.docs.dependencies]
-mkdocs = "*"
-mkdocstrings = {extras = ["crystal", "python"], version = "*"}
-mkdocs-material = "*"
-mkdocs-gen-files = "*"
-mkdocs-literate-nav = "*"
-mkdocs-section-index = "*"
-pymdown-extensions = "*"
-mkdocs-autorefs = "*"
-mkdocs-macros-plugin = "*"
-mkdocstrings-python = "*"
+# [tool.poetry.group.docs.dependencies]
+# mkdocs = "*"
+# mkdocstrings = {extras = ["crystal", "python"], version = "*"}
+# mkdocs-material = "*"
+# mkdocs-gen-files = "*"
+# mkdocs-literate-nav = "*"
+# mkdocs-section-index = "*"
+# pymdown-extensions = "*"
+# mkdocs-autorefs = "*"
+# mkdocs-macros-plugin = "*"
+# mkdocstrings-python = "*"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
