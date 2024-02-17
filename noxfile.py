@@ -16,5 +16,6 @@ def lint_and_test(session: object) -> None:
     session.run('ruff', 'noxfile.py', external=True)
     session.run('ruff', 'glitchygames', external=True)
     session.run('ruff', 'scripts', external=True)
+    session.run('mkdocs', 'build', '--strict', external=True)
     # griffe check -a <branch> glitchygames
     # or without the -a flag if tags exist
