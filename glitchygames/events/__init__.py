@@ -17,6 +17,7 @@ import functools
 import inspect
 import logging
 import re
+import sys
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self
 
 import pygame
@@ -166,13 +167,26 @@ def unhandled_event(game: Scene, event: pygame.event.Event, *args: list, **kwarg
     Raises:
         AttributeError: If the event is not handled.
     """
-    if game.options['debug_events']:
+    debug_events: bool | None  = game.options.get('debug_events', None)
+    no_unhandled_events: bool | None = game.options.get('no_unhandled_events', None)
+
+    if debug_events:
         LOG.error(
             f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
         )
-    elif game.options['no_unhandled_events']:
-        raise AttributeError(
+    elif debug_events is None:
+        LOG.error("Error: debug_events is missing from the game options. "
+                  "This shouldn't be possible.")
+
+    if no_unhandled_events:
+        LOG.error(
             f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
+        )
+        sys.exit(-1)
+    elif no_unhandled_events is None:
+        LOG.error(
+            "Error: no_unhandled_events is missing from the game options. "
+            "This shouldn't be possible."
         )
 
 
