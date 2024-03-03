@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A simple sprite loader for Glitchy Games."""
+
 from __future__ import annotations
 
 import configparser
@@ -92,10 +93,7 @@ class BitmappySprite(Sprite):
 
                 color_map[section] = (red, green, blue)
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=pixels,
-                                     color_map=color_map)
+        (image, rect) = self.inflate(width=width, height=height, pixels=pixels, color_map=color_map)
 
         return (image, rect, name)
 
@@ -119,8 +117,9 @@ class BitmappySprite(Sprite):
             pass
 
     @classmethod
-    def inflate(cls: Self, width: int, height: int, pixels: list,
-                color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
+    def inflate(
+        cls: Self, width: int, height: int, pixels: list, color_map: dict
+    ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
         Args:
@@ -173,9 +172,7 @@ class BitmappySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = self.rgb_triplet_generator(
-            pygame.image.tostring(self.image, 'RGB')
-        )
+        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, 'RGB'))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -238,8 +235,10 @@ class BitmappySprite(Sprite):
         Returns:
             str: The string representation of the sprite.
         """
-        description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
+        description = (
+            f'Name: {self.name}\nDimensions: {self.width}x{self.height}'
             '\nColor Key: {self.color_key}\n'
+        )
 
         for row in self.pixels:
             for pixel in row:
@@ -251,6 +250,7 @@ class BitmappySprite(Sprite):
 
 class GameScene(Scene):
     """The main game scene.  This is where the magic happens."""
+
     def __init__(self: Self, filename: str) -> None:
         """Initialize the GameScene.
 
@@ -304,13 +304,11 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
-        parser.add_argument('--filename',
-                            help='the file to load',
-                            required=True)
+        parser.add_argument('--filename', help='the file to load', required=True)
 
 
 def main() -> None:

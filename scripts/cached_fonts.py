@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Cached Font Demo."""
+
 from __future__ import annotations
 
 import logging
@@ -54,6 +55,7 @@ class GameScene(Scene):
 
 class Game(Scene):
     """The main game class."""
+
     # Set your game name/version here.
     NAME = 'Cached Font Demo'
     VERSION = '1.0'
@@ -84,9 +86,9 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
 
 def main() -> None:

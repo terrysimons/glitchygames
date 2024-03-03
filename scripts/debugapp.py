@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Debug App."""
+
 from __future__ import annotations
 
 import logging
@@ -77,9 +78,9 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                           action='store_true',
-                           help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
 
 def main() -> None:
@@ -89,5 +90,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
-

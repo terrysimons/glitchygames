@@ -3,6 +3,7 @@
 
 This is a simple audio manager that can be used to manage audio.
 """
+
 import argparse
 import logging
 from typing import Self
@@ -19,6 +20,7 @@ class AudioManager(ResourceManager):
 
     class AudioProxy(AudioEvents, ResourceManager):
         """Pygame audio event proxy."""
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the audio proxy.
 

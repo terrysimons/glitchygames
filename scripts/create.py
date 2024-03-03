@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create Glitchy Games template game."""
+
 import argparse
 
 from glitchygames import templates
@@ -15,14 +16,12 @@ def get_args() -> argparse.Namespace:
         argparse.Namespace: The parsed arguments.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--list',
-                        action='store_true',
-                        required=False,
-                        help='list available templates')
-    parser.add_argument('-t', 'template',
-                        choices=templates.get_templates(),
-                        nargs='?',
-                        help='The template to use')
+    parser.add_argument(
+        '-l', '--list', action='store_true', required=False, help='list available templates'
+    )
+    parser.add_argument(
+        '-t', 'template', choices=templates.get_templates(), nargs='?', help='The template to use'
+    )
     return parser.parse_args()
 
 

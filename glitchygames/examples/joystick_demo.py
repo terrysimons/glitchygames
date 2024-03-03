@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick Demo."""
+
 from __future__ import annotations
 
 import contextlib
@@ -98,17 +99,18 @@ class ShapesSprite(Sprite):
         # There's no point API, so we'll fake
         # it with the line API.
         if self.use_gfxdraw:
-            pygame.gfxdraw.pixel(self.screen,
-                                 self.screen_width // 2,
-                                 self.screen_height // 2,
-                                 YELLOW)
+            pygame.gfxdraw.pixel(
+                self.screen, self.screen_width // 2, self.screen_height // 2, YELLOW
+            )
 
             self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
-            self.point = pygame.draw.line(self.screen,
-                                          YELLOW,
-                                          (self.screen_width // 2, self.screen_height // 2),
-                                          (self.screen_width // 2, self.screen_height // 2))
+            self.point = pygame.draw.line(
+                self.screen,
+                YELLOW,
+                (self.screen_width // 2, self.screen_height // 2),
+                (self.screen_width // 2, self.screen_height // 2),
+            )
 
     def _draw_circle(self: Self) -> None:
         """Draw a blue circle.
@@ -121,16 +123,21 @@ class ShapesSprite(Sprite):
         """
         # Draw a blue circle.
         if self.use_gfxdraw:
-            pygame.gfxdraw.circle(self.screen,
-                                  self.screen_width // 2,
-                                  self.screen_height // 2,
-                                  self.screen_height // 2,
-                                  BLUE)
+            pygame.gfxdraw.circle(
+                self.screen,
+                self.screen_width // 2,
+                self.screen_height // 2,
+                self.screen_height // 2,
+                BLUE,
+            )
         else:
-            pygame.draw.circle(self.screen,
-                               BLUE,
-                               (self.screen_width // 2, self.screen_height // 2),
-                               self.screen_height // 2, 1)
+            pygame.draw.circle(
+                self.screen,
+                BLUE,
+                (self.screen_width // 2, self.screen_height // 2),
+                self.screen_height // 2,
+                1,
+            )
 
     def _draw_triangle(self: Self) -> None:
         """Draw a green triangle.
@@ -196,6 +203,7 @@ class ShapesSprite(Sprite):
             pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
         else:
             self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
+
 
 # TODO: Refactor this into ui.py and/or remove it
 # class TextSprite(Sprite):
@@ -513,18 +521,18 @@ class Game(Scene):
         # self.register_game_event('recharge', self.on_recharge_event)
 
     # def update_cursor(self):
-        # For giggles, we can draw two cursors.
-        # This can cause extra flicker on the cursor.
-        #
-        # We need to re-configure the various cursor attributes once we do this.
+    # For giggles, we can draw two cursors.
+    # This can cause extra flicker on the cursor.
+    #
+    # We need to re-configure the various cursor attributes once we do this.
     #    self.cursor = [cursor_row for cursor_row in self.cursor]
     #    self.cursor_width = len(self.cursor[0])
     #    self.cursor_height = len(self.cursor)
 
-        # log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
+    # log.info(f'Custom cursor width: {self.cursor_width}, height: {self.cursor_height}')
 
-        # Now call the GameEngine update_cursor method to compile and set the cursor.
-        # super().update_cursor()
+    # Now call the GameEngine update_cursor method to compile and set the cursor.
+    # super().update_cursor()
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> None:
@@ -536,13 +544,12 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('--time',
-                            type=int,
-                            help='time in seconds to wait before quitting',
-                            default=10)
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '--time', type=int, help='time in seconds to wait before quitting', default=10
+        )
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
 
 def main() -> None:

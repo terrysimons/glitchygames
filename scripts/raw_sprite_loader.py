@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A simple legacy bitmappy sprite loader."""
+
 from __future__ import annotations
 
 import configparser
@@ -24,6 +25,7 @@ LOG.setLevel(logging.INFO)
 
 class BitmappyLegacySprite(Sprite):
     """A sprite class for loading legacy bitmappy sprites."""
+
     log = LOG
 
     def __init__(self: Self, filename: str, *args, **kwargs) -> None:
@@ -46,8 +48,9 @@ class BitmappyLegacySprite(Sprite):
 
         self.save(filename + '.cfg')
 
-    def load(self: Self, filename: str, width: int,
-             height: int) -> tuple[pygame.Surface, pygame.Rect, str]:
+    def load(
+        self: Self, filename: str, width: int, height: int
+    ) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a sprite from a config file.
 
         Args:
@@ -77,15 +80,14 @@ class BitmappyLegacySprite(Sprite):
         for pixel in pixels:
             LOG.info(pixel)
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=pixels)
+        (image, rect) = self.inflate(width=width, height=height, pixels=pixels)
 
         return (image, rect, filename)
 
     @classmethod
-    def inflate(cls: Self, width: int, height: int,
-                pixels: list) -> tuple[pygame.Surface, pygame.Rect]:
+    def inflate(
+        cls: Self, width: int, height: int, pixels: list
+    ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate the sprite.
 
         Args:
@@ -143,9 +145,7 @@ class BitmappyLegacySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = rgb_triplet_generator(
-            pygame.image.tostring(self.image, 'RGB')
-        )
+        raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, 'RGB'))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -207,8 +207,10 @@ class BitmappyLegacySprite(Sprite):
         Returns:
             str: A string representation of the sprite.
         """
-        description = f'Name: {self.name}\nDimensions: {self.width}x{self.height}' \
+        description = (
+            f'Name: {self.name}\nDimensions: {self.width}x{self.height}'
             '\nColor Key: {self.color_key}\n'
+        )
 
         for row in self.pixels:
             for pixel in row:
@@ -220,6 +222,7 @@ class BitmappyLegacySprite(Sprite):
 
 class GameScene(Scene):
     """The main game scene."""
+
     log = LOG
 
     def __init__(self: Self, filename: str) -> None:
@@ -274,13 +277,11 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
-        parser.add_argument('--filename',
-                            help='the file to load',
-                            required=True)
+        parser.add_argument('--filename', help='the file to load', required=True)
 
 
 def main() -> None:

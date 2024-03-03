@@ -44,6 +44,7 @@ PACKAGE_PATH: str = Path(__file__).parent
 ASSET_PATH: str = Path(__file__).parent / 'assets'
 TEST_MODE = False
 
+
 class GameManager(events.ResourceManager):
     """Game event manager."""
 
@@ -198,18 +199,22 @@ class GameManager(events.ResourceManager):
             None
         """
         group = parser.add_argument_group('Game Options')
-        group.add_argument('-l', '--log-level',
-                           help='set the logging level',
-                           choices=['debug', 'info', 'warning', 'error', 'critical'],
-                           default='info')
-        group.add_argument('--no-unhandled-events',
-                           help='fail on unhandled events',
-                           action='store_true',
-                           default=False)
-        group.add_argument('-p', '--profile',
-                           help='enable profiling',
-                           action='store_true',
-                           default=False)
+        group.add_argument(
+            '-l',
+            '--log-level',
+            help='set the logging level',
+            choices=['debug', 'info', 'warning', 'error', 'critical'],
+            default='info',
+        )
+        group.add_argument(
+            '--no-unhandled-events',
+            help='fail on unhandled events',
+            action='store_true',
+            default=False,
+        )
+        group.add_argument(
+            '-p', '--profile', help='enable profiling', action='store_true', default=False
+        )
 
         return parser
 
@@ -250,8 +255,7 @@ class GameEngine(events.EventManager):
     # if they're not already handled
     #
     # These are wired up at the end of __init__()
-    EVENT_HANDLERS: ClassVar = {
-    }
+    EVENT_HANDLERS: ClassVar = {}
 
     @classmethod
     def initialize_icon(cls: Self, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -266,12 +270,12 @@ class GameEngine(events.EventManager):
         """
         # If it's not a pygame.Surface, assume it's a path
         if icon and not isinstance(icon, pygame.Surface):
-                icon_path: Path = Path(icon)
+            icon_path: Path = Path(icon)
 
-                try:
-                    icon: pygame.Surface = pygame.image.load(icon_path)
-                except FileNotFoundError:
-                    icon = None
+            try:
+                icon: pygame.Surface = pygame.image.load(icon_path)
+            except FileNotFoundError:
+                icon = None
 
         GameEngine.icon = icon
 
@@ -298,8 +302,7 @@ class GameEngine(events.EventManager):
             game.args(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
         except AttributeError:
             cls.log.info(
-                'Game does not implement arguments.  '
-                'Add a def args(parser) class method.'
+                'Game does not implement arguments.  ' 'Add a def args(parser) class method.'
             )
 
         args: argparse.ArgumentParser = parser.parse_args()
@@ -397,8 +400,7 @@ class GameEngine(events.EventManager):
             self.mode_flags = pygame.FULLSCREEN
 
         self.desired_resolution: tuple[int, int] = self.suggested_resolution(
-            desired_width,
-            desired_height
+            desired_width, desired_height
         )
 
         # window icon and system tray/dock icon
@@ -426,8 +428,10 @@ class GameEngine(events.EventManager):
         # that make it undesirable in a lot of cases, so we'll just use
         # software.
         self.display_info = pygame.display.Info()
-        self.initial_resolution: tuple[int, int] = (self.display_info.current_w,
-                                   self.display_info.current_h)
+        self.initial_resolution: tuple[int, int] = (
+            self.display_info.current_w,
+            self.display_info.current_h,
+        )
 
         self.cursor: list[str] = self.set_cursor(cursor=None)
 
@@ -443,8 +447,7 @@ class GameEngine(events.EventManager):
         #
         # Note that you can also get the screen with pygame.display.get_surface()
         self.screen: pygame.Surface = pygame.display.set_mode(
-            self.desired_resolution,
-            self.mode_flags
+            self.desired_resolution, self.mode_flags
         )
 
     def initialize_event_handlers(self: Self) -> None:
@@ -560,7 +563,6 @@ class GameEngine(events.EventManager):
         self.log.info(f'Processor: {platform.processor()}')
         self.log.info(f'Release: {platform.release()}')
 
-
         # Set up a display mode.
         # Note: pygame.display.init() isn't necessary here
         # because we've already called pygame.init() which
@@ -574,47 +576,20 @@ class GameEngine(events.EventManager):
         self.log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
 
         # Dump a bit more info about the configured mode.
-        self.log.info(
-            'Display Driver: '
-            f'{pygame.display.get_driver()}'
-        )
-        self.log.info(
-            'Display Info: '
-            f'{self.display_info}'
-        )
-        self.log.info(
-            'Initial Resolution: '
-            f'{self.initial_resolution}'
-        )
-        self.log.info(
-            '8-bit Modes: '
-            f'{pygame.display.list_modes(8)}'
-        )
-        self.log.info(
-            '16-bit Modes: '
-            f'{pygame.display.list_modes(16)}'
-        )
-        self.log.info(
-            '24-bit Modes: '
-            f'{pygame.display.list_modes(24)}'
-        )
-        self.log.info(
-            '32-bit Modes: '
-            f'{pygame.display.list_modes(32)}'
-        )
+        self.log.info('Display Driver: ' f'{pygame.display.get_driver()}')
+        self.log.info('Display Info: ' f'{self.display_info}')
+        self.log.info('Initial Resolution: ' f'{self.initial_resolution}')
+        self.log.info('8-bit Modes: ' f'{pygame.display.list_modes(8)}')
+        self.log.info('16-bit Modes: ' f'{pygame.display.list_modes(16)}')
+        self.log.info('24-bit Modes: ' f'{pygame.display.list_modes(24)}')
+        self.log.info('32-bit Modes: ' f'{pygame.display.list_modes(32)}')
         self.log.info(
             'Best Color Depth: '
             f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
             f' ({self.mode_flags})'
         )
-        self.log.info(
-            'Window Manager Info: '
-            f'{pygame.display.get_wm_info()}'
-        )
-        self.log.info(
-            'Platform Timer Resolution: '
-            f'{pygame.TIMER_RESOLUTION}'
-        )
+        self.log.info('Window Manager Info: ' f'{pygame.display.get_wm_info()}')
+        self.log.info('Platform Timer Resolution: ' f'{pygame.TIMER_RESOLUTION}')
 
     def print_game_info(self: Self) -> None:
         """Print game information.
@@ -627,19 +602,11 @@ class GameEngine(events.EventManager):
             f'and failed loading {self.init_fail} modules.'
         )
 
-        self.log.info(
-            'Game Title: '
-            f'{type(self).NAME}'
-        )
-        self.log.info(
-            'Game Version: '
-            f'{type(self).VERSION}'
-        )
+        self.log.info('Game Title: ' f'{type(self).NAME}')
+        self.log.info('Game Version: ' f'{type(self).VERSION}')
 
     def suggested_resolution(
-            self: Self,
-            desired_width: int = 0,
-            desired_height: int = 0
+        self: Self, desired_width: int = 0, desired_height: int = 0
     ) -> tuple[int, int]:
         """Suggest a resolution.
 
@@ -666,8 +633,13 @@ class GameEngine(events.EventManager):
         return (int(desired_width), int(desired_height))
 
     @classmethod
-    def set_cursor(cls: Self, cursor: list[str], cursor_black: str = '.', cursor_white: str = 'X',
-                   cursor_xor: str = 'o') -> list[str]:
+    def set_cursor(
+        cls: Self,
+        cursor: list[str],
+        cursor_black: str = '.',
+        cursor_white: str = 'X',
+        cursor_xor: str = 'o',
+    ) -> list[str]:
         """Set the cursor.
 
         Args:
@@ -706,7 +678,8 @@ class GameEngine(events.EventManager):
                 '       XX               ',
                 '                        ',
                 '                        ',
-                '                        ']
+                '                        ',
+            ]
 
         cursor_width: int = len(cursor[0])
         cursor_height: int = len(cursor)
@@ -715,19 +688,11 @@ class GameEngine(events.EventManager):
 
         # Compile our cursor so we can draw it to the screen.
         cursor_data, cursor_mask = pygame.cursors.compile(
-            cursor,
-            black=cursor_black,
-            white=cursor_white,
-            xor=cursor_xor
+            cursor, black=cursor_black, white=cursor_white, xor=cursor_xor
         )
 
         # Now set the cursor as the active cursor.
-        pygame.mouse.set_cursor(
-            (cursor_width, cursor_height),
-            (0, 0),
-            cursor_data,
-            cursor_mask
-        )
+        pygame.mouse.set_cursor((cursor_width, cursor_height), (0, 0), cursor_data, cursor_mask)
 
         return cursor
 
@@ -750,8 +715,9 @@ class GameEngine(events.EventManager):
         pygame.display.set_icon(icon)
 
         # Set the display caption.
-        pygame.display.set_caption(f'{type(self).NAME} v{self.VERSION}',
-                                   f'{type(self).NAME} v{self.VERSION}')
+        pygame.display.set_caption(
+            f'{type(self).NAME} v{self.VERSION}', f'{type(self).NAME} v{self.VERSION}'
+        )
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
@@ -781,27 +747,38 @@ class GameEngine(events.EventManager):
         """
         group = parser.add_argument_group('Graphics Options')
 
-        group.add_argument('-f', '--target-fps',
-                           help='cap the framerate (default: infinite)',
-                           type=float,
-                           default=0.0)
-        group.add_argument('--fps-refresh-rate',
-                           help='how often to update the FPS counter in ms (default: 1000)',
-                           default=1000)
-        group.add_argument('-w', '--windowed',
-                           help='run the program in windowed mode',
-                           action='store_true',
-                           default=True)
-        group.add_argument('-r', '--resolution',
-                           help='the resolution to use (default: 1024x768)',
-                           default='800x480')
-        group.add_argument('--use-gfxdraw',
-                           action='store_true',
-                           default=False)
-        group.add_argument('--update-type',
-                           help='update or flip (default: update)',
-                           choices=['update', 'flip'],
-                           default='update')
+        group.add_argument(
+            '-f',
+            '--target-fps',
+            help='cap the framerate (default: infinite)',
+            type=float,
+            default=0.0,
+        )
+        group.add_argument(
+            '--fps-refresh-rate',
+            help='how often to update the FPS counter in ms (default: 1000)',
+            default=1000,
+        )
+        group.add_argument(
+            '-w',
+            '--windowed',
+            help='run the program in windowed mode',
+            action='store_true',
+            default=True,
+        )
+        group.add_argument(
+            '-r',
+            '--resolution',
+            help='the resolution to use (default: 1024x768)',
+            default='800x480',
+        )
+        group.add_argument('--use-gfxdraw', action='store_true', default=False)
+        group.add_argument(
+            '--update-type',
+            help='update or flip (default: update)',
+            choices=['update', 'flip'],
+            default='update',
+        )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         default_videodriver = []
@@ -814,7 +791,7 @@ class GameEngine(events.EventManager):
                 'ggi',
                 'vgl',
                 'svgalib',
-                'aalib'
+                'aalib',
             ]
 
             LOG.debug(f'Linux Video Driver Choices: {linux_videodriver_choices}')
@@ -832,9 +809,7 @@ class GameEngine(events.EventManager):
             LOG.debug(f'Windows Video Driver Choices: {windows_videodriver_choices}')
             default_videodriver = windows_videodriver_choices
 
-        group.add_argument('--video-driver',
-                           default=None,
-                           choices=default_videodriver)
+        group.add_argument('--video-driver', default=None, choices=default_videodriver)
 
         event_managers = (
             AudioManager,
@@ -846,7 +821,7 @@ class GameEngine(events.EventManager):
             KeyboardManager,
             MidiManager,
             MouseManager,
-            WindowManager
+            WindowManager,
         )
 
         for event_manager in event_managers:
@@ -917,9 +892,7 @@ class GameEngine(events.EventManager):
             None
         """
         # put a quit event in the event queue.
-        pygame.event.post(
-            pygame.event.Event(pygame.QUIT, {})
-        )
+        pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
     def process_events(self: Self) -> bool:
         """Process events.
@@ -1398,12 +1371,14 @@ class GameEngine(events.EventManager):
             None
         """
         if event.type not in self.UNIMPLEMENTED_EVENTS:
-            self.log.debug('(UNIMPLEMENTED) '
-                           f'{pygame.event.event_name(event.type).upper()}: {event}')
+            self.log.debug(
+                '(UNIMPLEMENTED) ' f'{pygame.event.event_name(event.type).upper()}: {event}'
+            )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
-    def post_game_event(self: Self, event_subtype: pygame.event.EventType,
-                        event_data: dict) -> None:
+    def post_game_event(
+        self: Self, event_subtype: pygame.event.EventType, event_data: dict
+    ) -> None:
         """Post a game event.
 
         Args:
@@ -1415,9 +1390,7 @@ class GameEngine(events.EventManager):
         """
         event: pygame.event.Event = event_data.copy()
         event['subtype'] = event_subtype
-        pygame.event.post(
-            pygame.event.Event(events.GAMEEVENT, event)
-        )
+        pygame.event.post(pygame.event.Event(events.GAMEEVENT, event))
         self.log.debug(f'Posted Event: {event}')
 
     def suppress_event(self: Self, *args: list, attr: str, **kwargs: dict) -> None:
@@ -1433,8 +1406,9 @@ class GameEngine(events.EventManager):
         """
         self.log.debug(f'Suppressing event: {attr}({args}, {kwargs})')
 
-    def register_game_event(self: Self, event_type: pygame.event.EventType,
-                            callback: Callable) -> None:
+    def register_game_event(
+        self: Self, event_type: pygame.event.EventType, callback: Callable
+    ) -> None:
         """Register a game event.
 
         Args:
@@ -1466,11 +1440,7 @@ class GameEngine(events.EventManager):
             self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
 
             self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
-            self.suppress_event(
-                *args,
-                attr=self.LAST_EVENT_MISS,
-                **kwargs
-            )
+            self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
         time.sleep(0)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Keyboard Event Manager."""
+
 from __future__ import annotations
 
 import logging
@@ -57,13 +58,7 @@ class KeyboardManager(ResourceManager):
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
-            self.keys[
-                tuple(
-                    sorted(
-                        frozenset(keyboard_key.items())
-                    )
-                )
-            ] = event
+            self.keys[tuple(sorted(frozenset(keyboard_key.items())))] = event
 
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
@@ -80,13 +75,7 @@ class KeyboardManager(ResourceManager):
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
-            self.keys[
-                tuple(
-                    sorted(
-                        frozenset(event.dict.items())
-                    )
-                )
-            ] = event
+            self.keys[tuple(sorted(frozenset(event.dict.items())))] = event
 
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
@@ -100,9 +89,9 @@ class KeyboardManager(ResourceManager):
             Returns:
                 None
             """
-            keys_down: tuple = (self.keys[key]
-                                for key in self.keys
-                                if self.keys[key].type == pygame.KEYDOWN)
+            keys_down: tuple = (
+                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
+            )
 
             event['keys_down'] = keys_down
 
@@ -117,9 +106,9 @@ class KeyboardManager(ResourceManager):
             Returns:
                 None
             """
-            keys_down: tuple = (self.keys[key]
-                                for key in self.keys
-                                if self.keys[key].type == pygame.KEYDOWN)
+            keys_down: tuple = (
+                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
+            )
 
             self.game.on_key_chord_up_event(event, keys_down)
 

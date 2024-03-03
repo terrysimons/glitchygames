@@ -10,6 +10,7 @@ a synthesized event that is triggered by a mouse
 button down event followed by a mouse motion event
 followed by a mouse button up event.
 """
+
 from __future__ import annotations
 
 import abc
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
+
 
 def supported_events(like: str = '.*') -> list:
     """Return a list of supported events.
@@ -54,9 +56,7 @@ def supported_events(like: str = '.*') -> list:
     """
     # Get a list of all of the events
     # by name, but ignore duplicates.
-    event_names = (
-        pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
-    )
+    event_names = (pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS))
     event_names: set[str] = set(event_names) - set('Unknown')
 
     # Pygame 2.5.1 and maybe others have a bug where the event name lookup
@@ -80,7 +80,7 @@ def supported_events(like: str = '.*') -> list:
         'CONTROLLERDEVICEMAPPED': 'CONTROLLERDEVICEREMAPPED',
         'RENDERDEVICERESET': 'RENDER_DEVICE_RESET',
         'RENDERTARGETSRESET': 'RENDER_TARGETS_RESET',
-        'UNKNOWN': 'K_UNKNOWN'
+        'UNKNOWN': 'K_UNKNOWN',
     }
 
     event_list = []
@@ -115,38 +115,38 @@ TEXT_EVENTS = supported_events(like='TEXT.*?')
 WINDOW_EVENTS = supported_events(like='WINDOW.*?')
 ALL_EVENTS = supported_events()
 GAME_EVENTS = list(
-    set(ALL_EVENTS) -
-    set(AUDIO_EVENTS) -
-    set(CONTROLLER_EVENTS) -
-    set(DROP_EVENTS) -
-    set(TOUCH_EVENTS) -
-    set(JOYSTICK_EVENTS) -
-    set(KEYBOARD_EVENTS) -
-    set(MIDI_EVENTS) -
-    set(MOUSE_EVENTS) -
-    set(TEXT_EVENTS) -
-    set(WINDOW_EVENTS)
+    set(ALL_EVENTS)
+    - set(AUDIO_EVENTS)
+    - set(CONTROLLER_EVENTS)
+    - set(DROP_EVENTS)
+    - set(TOUCH_EVENTS)
+    - set(JOYSTICK_EVENTS)
+    - set(KEYBOARD_EVENTS)
+    - set(MIDI_EVENTS)
+    - set(MOUSE_EVENTS)
+    - set(TEXT_EVENTS)
+    - set(WINDOW_EVENTS)
 )
 
-GAME_EVENTS.extend(
-    [
-        FPSEVENT,
-        GAMEEVENT,
-        MENUEVENT
-    ]
-)
+GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
+
 
 def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[..., None]:  # noqa: ARG001
     """Dump the cache info for a function."""
+
     def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
         cache_info: Any = func.cache_info()
         LOG.debug(f'Cache Info: {func.__name__} {cache_info}')
         func(game, *args, **kwargs)
+
     return wrapper
+
 
 @dump_cache_info
 @functools.cache
-def unhandled_event(game: Scene, event: pygame.event.Event, *args: list, **kwargs: dict) -> NoReturn:  # noqa: E501
+def unhandled_event(
+    game: Scene, event: pygame.event.Event, *args: list, **kwargs: dict
+) -> NoReturn:
     """Handle unhandled events.
 
     This method is called when an event is not handled by
@@ -167,7 +167,7 @@ def unhandled_event(game: Scene, event: pygame.event.Event, *args: list, **kwarg
     Raises:
         AttributeError: If the event is not handled.
     """
-    debug_events: bool | None  = game.options.get('debug_events', None)
+    debug_events: bool | None = game.options.get('debug_events', None)
     no_unhandled_events: bool | None = game.options.get('no_unhandled_events', None)
 
     if debug_events:
@@ -175,8 +175,9 @@ def unhandled_event(game: Scene, event: pygame.event.Event, *args: list, **kwarg
             f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
         )
     elif debug_events is None:
-        LOG.error("Error: debug_events is missing from the game options. "
-                  "This shouldn't be possible.")
+        LOG.error(
+            'Error: debug_events is missing from the game options. ' "This shouldn't be possible."
+        )
 
     if no_unhandled_events:
         LOG.error(
@@ -185,7 +186,7 @@ def unhandled_event(game: Scene, event: pygame.event.Event, *args: list, **kwarg
         sys.exit(-1)
     elif no_unhandled_events is None:
         LOG.error(
-            "Error: no_unhandled_events is missing from the game options. "
+            'Error: no_unhandled_events is missing from the game options. '
             "This shouldn't be possible."
         )
 
@@ -285,6 +286,7 @@ class ResourceManager:
 
         raise AttributeError(f'No proxies for {type(self)}.{attr}')
 
+
 # Note, we can't subclass pygame.event.Event because it's a C type.
 class HashableEvent(dict):
     """Hashable event class.
@@ -300,6 +302,7 @@ class HashableEvent(dict):
     This also allows us to insert metadata into the pygame events
     which allows us to extend them with additional information.
     """
+
     def __init__(self: Self, type: pygame.event, *args: list, **attributes: dict) -> Self:  # noqa: A002
         """Create a hashable event.
 
@@ -365,10 +368,7 @@ class HashableEvent(dict):
 
     def __eq__(self: Self, other: Self) -> bool:
         """Return True if the objects are equal."""
-        return (
-            self.type == other.type and
-            self.__dict__ == other.__dict__
-        )
+        return self.type == other.type and self.__dict__ == other.__dict__
 
     def __ne__(self: Self, other: Self) -> bool:
         """Return the opposite of __eq__."""
@@ -398,6 +398,7 @@ class HashableEvent(dict):
         """Set the state of the object."""
         self.__dict__.update(state)
         self.__hash = hash((self.type, self.__dict__))
+
 
 # We intentionally don't implement any methods here.
 class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
@@ -432,6 +433,7 @@ class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
 
         return interface_is_implemented
 
+
 # Mixin
 class AudioEvents(EventInterface):
     """Mixin for audio events."""
@@ -459,6 +461,7 @@ class AudioEvents(EventInterface):
             None
         """
         # AUDIODEVICEREMOVED which, iscapture
+
 
 # Mixin
 class AudioEventStubs(AudioEvents):
@@ -490,9 +493,11 @@ class AudioEventStubs(AudioEvents):
         # AUDIODEVICEREMOVED which, iscapture
         return unhandled_event(self, event)
 
+
 # Mixin
 class ControllerEvents(EventInterface):
     """Mixin for controller events."""
+
     @abc.abstractmethod
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
@@ -601,8 +606,10 @@ class ControllerEvents(EventInterface):
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
 
+
 class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
+
     @functools.cache
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
@@ -773,6 +780,7 @@ class DropEvents(EventInterface):
         """
         # DROPCOMPLETE     none
 
+
 # Mixin
 class DropEventStubs(EventInterface):
     """Mixin for drop events."""
@@ -828,6 +836,7 @@ class DropEventStubs(EventInterface):
         """
         # DROPCOMPLETE     none
         unhandled_event(self, event)
+
 
 # Mixin
 class TouchEvents(EventInterface):
@@ -904,6 +913,7 @@ class TouchEvents(EventInterface):
             None
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
+
 
 # Mixin
 class TouchEventStubs(EventInterface):
@@ -986,7 +996,6 @@ class TouchEventStubs(EventInterface):
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
-
 
 
 # Mixin
@@ -1111,6 +1120,7 @@ class GameEvents(EventInterface):
         """
         # QUIT             none
 
+
 class GameEventStubs(EventInterface):
     """Mixin for glitchy game events.
 
@@ -1120,6 +1130,7 @@ class GameEventStubs(EventInterface):
     It's sort of a catch-all for event types that didn't have
     a good home otherwise.
     """
+
     @functools.cache
     def on_active_event(self: Self, event: pygame.event.Event) -> None:
         """Handle active events.
@@ -1238,7 +1249,6 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
 
-
 # Mixin
 class FontEvents(EventInterface):
     """Mixin for font events."""
@@ -1254,6 +1264,7 @@ class FontEvents(EventInterface):
             None
         """
         # FONTS_CHANGED
+
 
 # Mixin
 class FontEventStubs(EventInterface):
@@ -1271,6 +1282,7 @@ class FontEventStubs(EventInterface):
         """
         # FONTS_CHANGED
         unhandled_event(self, event)
+
 
 # Mixin
 class KeyboardEvents(EventInterface):
@@ -1384,6 +1396,7 @@ class KeyboardEventStubs(EventInterface):
         """
         # Synthesized event.
         unhandled_event(self, event, keys)
+
 
 # Mixin
 class JoystickEvents(EventInterface):
@@ -1701,8 +1714,7 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event,
-                             entering_focus: object) -> None:
+    def on_mouse_focus_event(self: Self, event: pygame.event.Event, entering_focus: object) -> None:
         """Handle mouse focus events.
 
         Args:
@@ -1715,8 +1727,9 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event,
-                               leaving_focus: object) -> None:
+    def on_mouse_unfocus_event(
+        self: Self, event: pygame.event.Event, leaving_focus: object
+    ) -> None:
         """Handle mouse unfocus events.
 
         Args:
@@ -1992,8 +2005,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event,
-                             entering_focus: object) -> None:
+    def on_mouse_focus_event(self: Self, event: pygame.event.Event, entering_focus: object) -> None:
         """Handle mouse focus events.
 
         Args:
@@ -2007,8 +2019,9 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, entering_focus)
 
     @functools.cache
-    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event,
-                               leaving_focus: object) -> None:
+    def on_mouse_unfocus_event(
+        self: Self, event: pygame.event.Event, leaving_focus: object
+    ) -> None:
         """Handle mouse unfocus events.
 
         Args:
@@ -2192,6 +2205,7 @@ class TextEvents(EventInterface):
             None
         """
         # TEXTINPUT        text
+
 
 class TextEventStubs(EventInterface):
     """Mixin for text events."""
@@ -2630,34 +2644,41 @@ class WindowEventStubs(EventInterface):
         # WINDOWTAKEFOCUS  none
         unhandled_event(self, event)
 
+
 # Mixin for all events
-class AllEvents(AudioEvents,
-                ControllerEvents,
-                DropEvents,
-                TouchEvents,
-                FontEvents,
-                GameEvents,
-                JoystickEvents,
-                KeyboardEvents,
-                MidiEvents,
-                MouseEvents,
-                TextEvents,
-                WindowEvents):
+class AllEvents(
+    AudioEvents,
+    ControllerEvents,
+    DropEvents,
+    TouchEvents,
+    FontEvents,
+    GameEvents,
+    JoystickEvents,
+    KeyboardEvents,
+    MidiEvents,
+    MouseEvents,
+    TextEvents,
+    WindowEvents,
+):
     """Mixin for all events."""
 
-class AllEventStubs(AudioEventStubs,
-                    ControllerEventStubs,
-                    DropEventStubs,
-                    TouchEventStubs,
-                    FontEventStubs,
-                    GameEventStubs,
-                    JoystickEventStubs,
-                    KeyboardEventStubs,
-                    MidiEventStubs,
-                    MouseEventStubs,
-                    TextEventStubs,
-                    WindowEventStubs):
+
+class AllEventStubs(
+    AudioEventStubs,
+    ControllerEventStubs,
+    DropEventStubs,
+    TouchEventStubs,
+    FontEventStubs,
+    GameEventStubs,
+    JoystickEventStubs,
+    KeyboardEventStubs,
+    MidiEventStubs,
+    MouseEventStubs,
+    TextEventStubs,
+    WindowEventStubs,
+):
     """Mixin for all event stubs."""
+
 
 class EventManager(ResourceManager):
     """Root event manager."""

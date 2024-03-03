@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Paddle."""
+
 from __future__ import annotations
 
 import logging
@@ -14,13 +15,23 @@ from pygame import draw
 log = logging.getLogger('game.paddle')
 log.setLevel(logging.INFO)
 
+
 class BasePaddle(Sprite):
     """Base Paddle class."""
 
-    def __init__(self: Self, axis: Horizontal | Vertical, speed: int, name: str, color: tuple,
-                 x: int, y: int, width: int, height: int,
-                 groups: pygame.sprite.LayeredDirty | None = None,
-                 collision_sound: str | None = None) -> None:
+    def __init__(
+        self: Self,
+        axis: Horizontal | Vertical,
+        speed: int,
+        name: str,
+        color: tuple,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        groups: pygame.sprite.LayeredDirty | None = None,
+        collision_sound: str | None = None,
+    ) -> None:
         """Initialize the paddle.
 
         Args:
@@ -125,9 +136,16 @@ class BasePaddle(Sprite):
 class HorizontalPaddle(BasePaddle):
     """Horizontal Paddle."""
 
-    def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
-                 speed: int, groups: pygame.sprite.LayeredDirty | None = None,
-                 collision_sound: str | None = None) -> None:
+    def __init__(
+        self: Self,
+        name: str,
+        size: tuple,
+        position: tuple,
+        color: tuple,
+        speed: int,
+        groups: pygame.sprite.LayeredDirty | None = None,
+        collision_sound: str | None = None,
+    ) -> None:
         """Initialize the horizontal paddle.
 
         Args:
@@ -144,9 +162,18 @@ class HorizontalPaddle(BasePaddle):
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
-        super().__init__(Horizontal, speed, name, color, position[0], position[1], size[0], size[1],
-                         groups,
-                         collision_sound)
+        super().__init__(
+            Horizontal,
+            speed,
+            name,
+            color,
+            position[0],
+            position[1],
+            size[0],
+            size[1],
+            groups,
+            collision_sound,
+        )
 
     def update(self: Self) -> None:
         """Update the paddle.
@@ -217,9 +244,16 @@ class HorizontalPaddle(BasePaddle):
 class VerticalPaddle(BasePaddle):
     """Vertical Paddle."""
 
-    def __init__(self: Self, name: str, size: tuple, position: tuple, color: tuple,
-                 speed: int, groups: pygame.sprite.LayeredDirty | None = None,
-                 collision_sound: str | None = None) -> None:
+    def __init__(
+        self: Self,
+        name: str,
+        size: tuple,
+        position: tuple,
+        color: tuple,
+        speed: int,
+        groups: pygame.sprite.LayeredDirty | None = None,
+        collision_sound: str | None = None,
+    ) -> None:
         """Initialize the vertical paddle.
 
         Args:
@@ -237,9 +271,18 @@ class VerticalPaddle(BasePaddle):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(Vertical, speed, name, color, position[0], position[1], size[0], size[1],
-                         groups,
-                         collision_sound)
+        super().__init__(
+            Vertical,
+            speed,
+            name,
+            color,
+            position[0],
+            position[1],
+            size[0],
+            size[1],
+            groups,
+            collision_sound,
+        )
 
     def update(self: Self) -> None:
         """Update the paddle.

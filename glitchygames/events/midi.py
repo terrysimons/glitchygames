@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Midi Event Manager."""
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +17,7 @@ log.addHandler(logging.NullHandler())
 
 class MidiManager(ResourceManager):
     """Manage midi events."""
+
     def __init__(self: Self, game: object = None) -> None:
         """Initialize the midi event manager.
 

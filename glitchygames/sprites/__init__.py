@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # ruff: noqa: FBT001, FBT002
 """Glitchy Games Engine sprite module."""
+
 from __future__ import annotations
 
 import collections
@@ -21,10 +22,7 @@ LOG.addHandler(logging.NullHandler())
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
 
-    def __init__(
-            self: Self,
-            groups: pygame.sprite.LayeredDirty | None = None
-        ) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize a RootSprite.
 
         Args:
@@ -74,9 +72,16 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 parent: object | None = None,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        parent: object | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Initialize a Sprite.
 
         Args:
@@ -136,8 +141,9 @@ class Sprite(RootSprite):
 
         if my_type in self.SPRITE_COUNTERS:
             self.SPRITE_COUNTERS[my_type]['count'] += 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = \
+            self.SPRITE_COUNTERS[my_type]['pixels'] = (
                 self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
+            )
         else:
             self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
             self.SPRITE_COUNTERS[my_type]['count'] = 1
@@ -345,8 +351,9 @@ class Sprite(RootSprite):
         # Custom Event
         self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
 
-    def on_mouse_drag_down_event(self: Self, event: pygame.event.Event,
-                                 trigger: object | None) -> None:
+    def on_mouse_drag_down_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a mouse drag down event.
 
         Args:
@@ -358,8 +365,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
-    def on_left_mouse_drag_down_event(self: Self, event: pygame.event.Event,
-                                      trigger: object | None) -> None:
+    def on_left_mouse_drag_down_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drag down event.
 
         Args:
@@ -370,12 +378,12 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Left Mouse Drag Down Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Left Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_left_mouse_drag_up_event(self: Self, event: pygame.event.Event,
-                                    trigger: object | None) -> None:
+    def on_left_mouse_drag_up_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drag up event.
 
         Args:
@@ -386,12 +394,12 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Left Mouse Drag Up Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Left Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_middle_mouse_drag_down_event(self: Self, event: pygame.event.Event,
-                                        trigger: object | None) -> None:
+    def on_middle_mouse_drag_down_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drag down event.
 
         Args:
@@ -402,12 +410,12 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Middle Mouse Drag Down Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Middle Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_middle_mouse_drag_up_event(self: Self, event: pygame.event.Event,
-                                      trigger: object | None) -> None:
+    def on_middle_mouse_drag_up_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drag up event.
 
         Args:
@@ -418,12 +426,12 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Middle Mouse Drag Up Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Middle Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_right_mouse_drag_down_event(self: Self, event: pygame.event.Event,
-                                       trigger: object | None) -> None:
+    def on_right_mouse_drag_down_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drag down event.
 
         Args:
@@ -434,12 +442,12 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Right Mouse Drag Down Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Right Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_right_mouse_drag_up_event(self: Self, event: pygame.event.Event,
-                                     trigger: object | None) -> None:
+    def on_right_mouse_drag_up_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drag up event.
 
         Args:
@@ -450,8 +458,7 @@ class Sprite(RootSprite):
             None
         """
         self.log.debug(
-            'Right Mouse Drag Up Event: '
-            f'{type(self)}: event: {event}, trigger: {trigger}'
+            'Right Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
         )
 
     def on_mouse_drag_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -493,10 +500,7 @@ class Sprite(RootSprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(
-                f'{type(self)}: '
-                f'Left Mouse Button Up Event: {event} @ {self}'
-            )
+            self.log.debug(f'{type(self)}: ' f'Left Mouse Button Up Event: {event} @ {self}')
 
     def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle a middle mouse button up event.
@@ -525,10 +529,7 @@ class Sprite(RootSprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(
-                f'{type(self)}: '
-                f'Right Mouse Button Up Event: {event} @ {self}'
-            )
+            self.log.debug(f'{type(self)}: ' f'Right Mouse Button Up Event: {event} @ {self}')
 
     def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle a mouse button down event.
@@ -757,8 +758,9 @@ class Sprite(RootSprite):
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
 
-
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_left_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drag event.
 
         Args:
@@ -770,7 +772,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_middle_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drag event.
 
         Args:
@@ -782,7 +786,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_right_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drag event.
 
         Args:
@@ -794,7 +800,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_left_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drop event.
 
         Args:
@@ -806,7 +814,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_middle_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drop event.
 
         Args:
@@ -818,7 +828,9 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_right_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drop event.
 
         Args:
@@ -885,15 +897,25 @@ class Sprite(RootSprite):
 
 class BitmappySprite(Sprite):
     """A sprite that loads from a Bitmappy config file."""
+
     DEBUG = False
 
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 filename: str | None = None, focusable: bool = False, parent: object = None,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        filename: str | None = None,
+        focusable: bool = False,
+        parent: object = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Subclass to load sprite files.
 
         Args:
@@ -914,13 +936,7 @@ class BitmappySprite(Sprite):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(
-            x=x,
-            y=y,
-            width=width,
-            height=height,
-            name=name,
-            parent=parent,
-            groups=groups
+            x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
         )
         self.filename = filename
         self.focusable = focusable
@@ -959,9 +975,9 @@ class BitmappySprite(Sprite):
             configparser.NoSectionError: if the config file is missing a section.
             configparser.NoOptionError: if the config file is missing an option.
         """
-        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
-                                           empty_lines_in_values=True,
-                                           strict=True)
+        config = configparser.ConfigParser(
+            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+        )
 
         config.read(filename)
 
@@ -1014,16 +1030,14 @@ class BitmappySprite(Sprite):
 
                 color_map[section] = (red, green, blue)
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=pixels,
-                                     color_map=color_map)
+        (image, rect) = self.inflate(width=width, height=height, pixels=pixels, color_map=color_map)
 
         return (image, rect, name)
 
     @classmethod
-    def inflate(cls: Self, width: int, height: int, pixels: list,
-                color_map: dict) -> tuple[pygame.Surface, pygame.Rect]:
+    def inflate(
+        cls: Self, width: int, height: int, pixels: list, color_map: dict
+    ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
         Args:
@@ -1079,17 +1093,15 @@ class BitmappySprite(Sprite):
         Raises:
             None
         """
-        config = configparser.ConfigParser(dict_type=collections.OrderedDict,
-                                           empty_lines_in_values=True,
-                                           strict=True)
+        config = configparser.ConfigParser(
+            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+        )
 
         # Get the set of distinct pixels.
         color_map = {}
         pixels = []
 
-        raw_pixels = rgb_triplet_generator(
-            pixel_data=pygame.image.tostring(self.image, 'RGB')
-        )
+        raw_pixels = rgb_triplet_generator(pixel_data=pygame.image.tostring(self.image, 'RGB'))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -1143,7 +1155,9 @@ class BitmappySprite(Sprite):
 
         return config
 
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_left_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drag event.
 
         Args:
@@ -1155,7 +1169,9 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_middle_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drag event.
 
         Args:
@@ -1167,7 +1183,9 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_right_mouse_drag_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drag event.
 
         Args:
@@ -1179,7 +1197,9 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_left_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a left mouse drop event.
 
         Args:
@@ -1191,7 +1211,9 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_middle_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a middle mouse drop event.
 
         Args:
@@ -1203,7 +1225,9 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:  # noqa: E501
+    def on_right_mouse_drop_event(
+        self: Self, event: pygame.event.Event, trigger: object | None
+    ) -> None:
         """Handle a right mouse drop event.
 
         Args:
@@ -1275,8 +1299,10 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
 
+
 class Singleton:
     """A generic singleton class."""
+
     __instance__ = None
 
     def __new__(cls: Self, *args, **kwargs) -> Self:
@@ -1294,6 +1320,7 @@ class Singleton:
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
         return cast(Singleton, cls.__instance__)
+
 
 # This is a root class for sprites that should be singletons, like
 #  MousePointer class.
@@ -1318,8 +1345,15 @@ class SingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cast(SingletonBitmappySprite, cls.__instance__)
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Initialize the SingletonBitmappySprite.
 
         Args:
@@ -1362,8 +1396,15 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         cls.__instance__.kwargs = kwargs
         return cast(FocusableSingletonBitmappySprite, cls.__instance__)
 
-    def __init__(self: Self, x: int, y: int, width: int, height: int, name: str | None = None,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Initialize the FocusableSingletonBitmappySprite.
 
         Args:
@@ -1381,7 +1422,5 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(
-            x=x, y=y, width=width, height=height,
-            name=name, focusable=True, groups=groups
+            x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups
         )
-

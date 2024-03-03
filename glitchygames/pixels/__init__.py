@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Pixel data handling."""
+
 from __future__ import annotations
 
 import logging
@@ -162,6 +163,4 @@ def pixels_from_path(path: str) -> list:
     with Path.open(path, 'rb') as fh:
         pixel_data = fh.read()
 
-    return pixels_from_data(
-        pixel_data=pixel_data
-    )
+    return pixels_from_data(pixel_data=pixel_data)

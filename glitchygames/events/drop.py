@@ -3,6 +3,7 @@
 
 This is a simple drop event class that can be used to handle drag & drop events.
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,6 +22,7 @@ log.addHandler(logging.NullHandler())
 
 class DropManager(ResourceManager):
     """Manage drop events."""
+
     class DropProxy(DropEvents, ResourceManager):
         """Proxy class for drop events."""
 

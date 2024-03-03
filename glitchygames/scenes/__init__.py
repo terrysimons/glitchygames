@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Glitchy Games Engine scenes module."""
+
 from __future__ import annotations
 
 import logging
@@ -18,12 +19,14 @@ if TYPE_CHECKING:
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
+
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
 
     The scene manager is responsible for managing the active scene,
     and for processing events.
     """
+
     log: ClassVar = LOG
     OPTIONS: ClassVar = {}
 
@@ -97,10 +100,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if next_scene != self.active_scene:
             self.dt = 0
             self.timer = 0
-            self.log.info(
-                f'Switching to scene "{next_scene}" '
-                f'from scene "{self.active_scene}"'
-            )
+            self.log.info(f'Switching to scene "{next_scene}" ' f'from scene "{self.active_scene}"')
 
             if self.active_scene:
                 self.active_scene._screenshot = self.active_scene.screenshot
@@ -111,16 +111,12 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.log.info(f'Setting up new scene {next_scene}.')
                 next_scene.setup()
 
-                self.log.info(
-                    f'Scene {next_scene.name} event block list: '
-                )
+                self.log.info(f'Scene {next_scene.name} event block list: ')
 
                 blocked_events = []
 
                 [
-                    blocked_events.append(event)
-                    if pygame.event.get_blocked(event)
-                    else None
+                    blocked_events.append(event) if pygame.event.get_blocked(event) else None
                     for event in events.ALL_EVENTS
                 ]
 
@@ -129,7 +125,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
                 for event in blocked_events:
                     self.log.info(f'{pygame.event.event_name(event)}: Blocked')
-
 
             self.active_scene = next_scene
 
@@ -146,10 +141,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 if self.active_scene.VERSION:
                     caption += f' v{self.active_scene.VERSION}'
 
-                pygame.display.set_caption(
-                    caption,
-                    caption
-                )
+                pygame.display.set_caption(caption, caption)
 
                 self.active_scene.load_resources()
 
@@ -220,8 +212,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
             current_time = time.perf_counter()
 
-        self.log.info(f'Game Quitting: Active Scene: {self.active_scene}, '
-                      f'Quit Requested: {self.quit_requested}')
+        self.log.info(
+            f'Game Quitting: Active Scene: {self.active_scene}, '
+            f'Quit Requested: {self.quit_requested}'
+        )
         return self.terminate()
 
     def stop(self: Self) -> None:
@@ -252,9 +246,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
-        pygame.event.post(
-            pygame.event.Event(pygame.QUIT, {})
-        )
+        pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
     def on_quit_event(self: Self, event: pygame.event.Event) -> None:
         """Handle quit events.
@@ -300,8 +292,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 '(call self.register_game_event(<event subtype>, <event data>))'
             )
 
-    def register_game_event(self: Self, event_type: pygame.event.EventType,
-                            callback: Callable) -> None:
+    def register_game_event(
+        self: Self, event_type: pygame.event.EventType, callback: Callable
+    ) -> None:
         """Register a game event.
 
         Args:
@@ -330,7 +323,7 @@ class SceneManager(SceneInterface, events.EventManager):
             Callable: The callable object.
         """
         # Attempt to proxy the call to the active scene.
-        if (attr.startswith('on_') and attr.endswith('_event')):
+        if attr.startswith('on_') and attr.endswith('_event'):
             try:
                 # Pass it to the active scene for handling
                 return getattr(self.active_scene, attr)
@@ -346,13 +339,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     Subclass this to properly receive on_*_event() messages automatically.
     """
+
     log = LOG
     FPS = 0
     NAME = 'Unnamed Scene'
     VERSION = '0.0'
 
-    def __init__(self: Self, options: dict | None = None,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self, options: dict | None = None, groups: pygame.sprite.LayeredDirty | None = None
+    ) -> None:
         """Initialize the scene.
 
         Args:
@@ -464,6 +459,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Returns:
             None
         """
+
     def dt_tick(self: Self, dt: float) -> None:
         """Update the scene's delta time.
 
@@ -1156,10 +1152,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #     """
     #     self.log.debug(f'{type(self)}: Mouse Motion Event: {event}')
 
-        # collided_sprites = self.sprites_at_position(pos=event.pos)
+    # collided_sprites = self.sprites_at_position(pos=event.pos)
 
-        # for sprite in collided_sprites:
-        #     sprite.on_mouse_motion_event(event)
+    # for sprite in collided_sprites:
+    #     sprite.on_mouse_motion_event(event)
 
     # def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
     #     """Handle mouse scroll down events.
@@ -1249,7 +1245,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug(f'{type(self)}: Sys WM Event: {event}')
 
-
     def on_text_editing_event(self: Self, event: pygame.event.Event) -> None:
         """Handle text editing events.
 
@@ -1260,7 +1255,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             None
         """
         self.log.debug(f'{type(self)}: Text Editing Event: {event}')
-
 
     def on_text_input_event(self: Self, event: pygame.event.Event) -> None:
         """Handle text input events.

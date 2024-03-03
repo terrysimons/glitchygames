@@ -24,8 +24,9 @@ class ColorPalette:
     _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / 'resources'
     _DEFAULT_EXTENSION: ClassVar = 'palette'
 
-    def __init__(self: Self, colors: Optional(list | None) = None,
-                 filename: Optional(str, None) = None) -> None:
+    def __init__(
+        self: Self, colors: Optional(list | None) = None, filename: Optional(str, None) = None
+    ) -> None:
         """Create a color palette object.
 
         Args:
@@ -38,11 +39,7 @@ class ColorPalette:
             self._colors = colors
         elif filename:
             script_path = Path(sys.argv[0]).parent
-            paths = [
-                self._BUILTIN_PALETTE_LOCATION,
-                script_path,
-                Path(script_path) / 'resources'
-            ]
+            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / 'resources']
             for path in paths:
                 file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
@@ -106,7 +103,7 @@ class PaletteUtility:
                 config[color_index].getint('red'),
                 config[color_index].getint('green'),
                 config[color_index].getint('blue'),
-                config[color_index].getint('alpha', 255)
+                config[color_index].getint('alpha', 255),
             )
             colors.append(tmp_color)
 
@@ -181,7 +178,7 @@ class PaletteUtility:
                 'red': color.r,
                 'green': color.g,
                 'blue': color.b,
-                'alpha': color.a
+                'alpha': color.a,
             }
         return palette_data
 

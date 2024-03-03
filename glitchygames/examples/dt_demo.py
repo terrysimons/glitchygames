@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Delta Time Demo."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
@@ -23,7 +24,9 @@ class Game(Scene):
     NAME = 'Delta Time Demo'
     VERSION = '1.0'
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+    def __init__(
+        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+    ) -> None:
         """Initialize the Game.
 
         Args:
@@ -56,14 +59,13 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
-        parser.add_argument('-b', '--balls',
-                            type=int,
-                            help='the number of balls to start with',
-                            default=1)
+        parser.add_argument(
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+        )
 
     # def setup(self):
     #     self.target_fps = 30
@@ -109,7 +111,7 @@ class Game(Scene):
         countdown = self.font.render(
             text='Time: ' + str(round(self.dt_timer / 100, 5)),
             antialias=False,
-            color=(255, 255, 255)
+            color=(255, 255, 255),
         )
         fps_text = self.font.render(
             text=f'FPS: {round(self.fps, 2)}', antialias=False, color=(255, 255, 255)

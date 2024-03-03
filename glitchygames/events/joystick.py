@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick Event Manager."""
+
 from __future__ import annotations
 
 import logging
@@ -64,17 +65,13 @@ class JoystickManager(JoystickEvents, ResourceManager):
             self._numhats = self.joystick.get_numhats()
 
             # Initialize button state.
-            self._axes = [self.joystick.get_axis(i)
-                          for i in range(self.get_numaxes())]
+            self._axes = [self.joystick.get_axis(i) for i in range(self.get_numaxes())]
 
-            self._balls = [self.joystick.get_ball(i)
-                           for i in range(self.get_numballs())]
+            self._balls = [self.joystick.get_ball(i) for i in range(self.get_numballs())]
 
-            self._buttons = [self.joystick.get_button(i)
-                             for i in range(self.get_numbuttons())]
+            self._buttons = [self.joystick.get_button(i) for i in range(self.get_numbuttons())]
 
-            self._hats = [self.joystick.get_hat(i)
-                          for i in range(self.get_numhats())]
+            self._hats = [self.joystick.get_hat(i) for i in range(self.get_numhats())]
 
             self.game = game
             self.proxies = [self.game, self.joystick]
@@ -232,7 +229,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
                 f'\tJoystick Axis Count: {self.get_numaxes()}',
                 f'\tJoystick Trackball Count: {self.get_numballs()}',
                 f'\tJoystick Button Count: {self.get_numbuttons()}',
-                f'\tJoystick Hat Count: {self.get_numhats()}'
+                f'\tJoystick Hat Count: {self.get_numhats()}',
             ]
 
             return '\n'.join(joystick_info)
@@ -276,10 +273,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             except AttributeError:
                 joystick_id = joystick.get_id()
 
-            joystick_proxy = JoystickManager.JoystickProxy(
-                joystick_id=joystick_id,
-                game=self.game
-            )
+            joystick_proxy = JoystickManager.JoystickProxy(joystick_id=joystick_id, game=self.game)
             self.joysticks[joystick_id] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
@@ -413,8 +407,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         # controller object due to hotplug ends up with an incorrect
         # device_index.
         joystick_proxy = JoystickManager.JoystickProxy(
-            joystick_id=event.device_index,
-            game=self.game
+            joystick_id=event.device_index, game=self.game
         )
         self.joysticks[event.device_index] = joystick_proxy
 

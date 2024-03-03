@@ -1,5 +1,6 @@
 #!usr/bin/env python3
 """Window."""
+
 from __future__ import annotations
 
 import logging
@@ -21,6 +22,7 @@ class WindowManager(ResourceManager):
 
     class WindowManagerProxy(WindowEvents, ResourceManager):
         """Window manager event proxy."""
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the window manager proxy.
 

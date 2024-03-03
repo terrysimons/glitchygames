@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Interfaces for the game."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import pygame
+
 
 class SpriteInterface:
     """Sprite interface."""
@@ -33,6 +35,7 @@ class SpriteInterface:
         Returns:
             None
         """
+
 
 class SceneInterface:
     """Scene interface."""

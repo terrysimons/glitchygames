@@ -158,6 +158,7 @@ lint.ignore = [
   "CPY001", # Missing copyright notice at top of file
   "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
   "EM101", # Exception must not use a string literal, assign to variable first
+  "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
 ]
 # exclude = []
 # extend-exclude = []
@@ -169,6 +170,10 @@ lint.fixable = [
 ]
 lint.unfixable = []
 target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = true
 
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true

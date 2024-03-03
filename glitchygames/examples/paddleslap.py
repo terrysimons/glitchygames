@@ -3,6 +3,7 @@
 
 This is a simple game where you try to keep the ball from hitting your side of the screen.
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,9 +35,14 @@ log.setLevel(logging.INFO)
 class TextSprite(Sprite):
     """A sprite class for displaying text."""
 
-    def __init__(self: Self, background_color: tuple = BLACKLUCENT, alpha: int = 0,
-                 x: int = 0, y: int = 0,
-                 groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self,
+        background_color: tuple = BLACKLUCENT,
+        alpha: int = 0,
+        x: int = 0,
+        y: int = 0,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Initialize the text sprite.
 
         Args:
@@ -96,8 +102,13 @@ class TextSprite(Sprite):
         class TextBox(Sprite):
             """A sprite class for displaying text."""
 
-            def __init__(self: Self, font_controller: FontManager, pos: tuple,
-                         line_height: int = 15, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+            def __init__(
+                self: Self,
+                font_controller: FontManager,
+                pos: tuple,
+                line_height: int = 15,
+                groups: pygame.sprite.LayeredDirty | None = None,
+            ) -> None:
                 """Initialize the text sprite.
 
                 Args:
@@ -119,8 +130,9 @@ class TextSprite(Sprite):
                 self.line_height = line_height
 
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
-                self.font = pygame.freetype.SysFont(name=font_controller.font,
-                                                    size=font_controller.font_size)
+                self.font = pygame.freetype.SysFont(
+                    name=font_controller.font, size=font_controller.font_size
+                )
 
             def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
                 """Print text to the screen.
@@ -175,11 +187,14 @@ class TextSprite(Sprite):
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
+
     # Set your game name/version here.
     NAME = 'Paddle Slap'
     VERSION = '1.1'
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+    def __init__(
+        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+    ) -> None:
         """Initialize the Game.
 
         Args:
@@ -202,7 +217,7 @@ class Game(Scene):
             (0, v_center - 40),
             WHITE,
             Speed(y=10, increment=1),
-            collision_sound=SFX.SLAP
+            collision_sound=SFX.SLAP,
         )
         self.player2 = VerticalPaddle(
             'Player 2',
@@ -210,7 +225,7 @@ class Game(Scene):
             (self.screen_width - 20, v_center - 40),
             WHITE,
             Speed(y=10, increment=1),
-            collision_sound=SFX.SLAP
+            collision_sound=SFX.SLAP,
         )
         self.balls = [
             BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get('balls', 1))
@@ -222,13 +237,7 @@ class Game(Scene):
             blue = random.randint(0, 255)
             ball.color = (red, green, blue)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(
-            (
-                self.player1,
-                self.player2,
-                *self.balls
-            )
-        )
+        self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -242,14 +251,13 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
-        parser.add_argument('-b', '--balls',
-                            type=int,
-                            help='the number of balls to start with',
-                            default=1)
+        parser.add_argument(
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+        )
 
     def setup(self: Self) -> None:
         """Set up the game.

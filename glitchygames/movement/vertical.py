@@ -3,6 +3,7 @@
 
 This is a simple vertical movement class that can be used to move sprites up and down.
 """
+
 from __future__ import annotations
 
 from typing import Self
