@@ -276,14 +276,14 @@ class GameEngine(events.EventManager):
         GameEngine.icon = icon
 
     @classmethod
-    def initialize_arguments(cls: Self, game: Scene) -> None:
+    def initialize_arguments(cls: Self, game: Scene) -> dict[str, Any]:
         """Initialize the game arguments.
 
         Args:
             game: The game instance.
 
         Returns:
-            None
+            options (dict[str, Any]): The game arguments.
         """
         parser: argparse.ArgumentParser = argparse.ArgumentParser(
             f'{game.NAME} version {game.VERSION}'
@@ -324,15 +324,12 @@ class GameEngine(events.EventManager):
 
         return options
 
-    def __init__(self: Self, game: object, icon: pygame.Surface | Path | str | None = None) -> None:
+    def __init__(self: Self, game: object, icon: pygame.Surface | Path | str | None = None) -> Self:
         """Initialize the game engine.
 
         Args:
             game: The game instance.
             icon: The game icon.
-
-        Returns:
-            None
         """
         super().__init__()
 

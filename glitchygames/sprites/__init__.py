@@ -57,7 +57,7 @@ class Sprite(RootSprite):
 
         Args:
             sprite_type (object | None): The sprite type to break on.
-            None means break on any sprite.
+                None means break on any sprite.
 
         Returns:
             None
@@ -165,9 +165,6 @@ class Sprite(RootSprite):
     def width(self: Self) -> int:
         """Return the width of the sprite.
 
-        Args:
-            None
-
         Returns:
             int: The width of the sprite.
         """
@@ -189,9 +186,6 @@ class Sprite(RootSprite):
     @property
     def height(self: Self) -> int:
         """Return the height of the sprite.
-
-        Args:
-            None
 
         Returns:
             int: The height of the sprite.
@@ -225,9 +219,6 @@ class Sprite(RootSprite):
 
     def update(self: Self) -> None:
         """Update the sprite.
-
-        Args:
-            None
 
         Returns:
             None

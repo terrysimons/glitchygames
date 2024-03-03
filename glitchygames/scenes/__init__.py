@@ -30,9 +30,6 @@ class SceneManager(SceneInterface, events.EventManager):
     def __init__(self: Self) -> None:
         """Initialize the scene manager.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -57,9 +54,6 @@ class SceneManager(SceneInterface, events.EventManager):
     def game_engine(self: Self) -> object:
         """Return the game engine.
 
-        Args:
-            None
-
         Returns:
             object: The game engine.
         """
@@ -82,9 +76,6 @@ class SceneManager(SceneInterface, events.EventManager):
     @property
     def all_sprites(self: Self) -> pygame.sprite.LayeredDirty | None:
         """Return the active scene's sprite group.
-
-        Args:
-            None
 
         Returns:
             pygame.sprite.LayeredDirty | None: The active scene's sprite group.
@@ -190,9 +181,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def start(self: Self) -> None:
         """Start the scene manager.
-
-        Args:
-            None
 
         Returns:
             None
@@ -432,9 +420,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def screenshot(self: Self) -> pygame.Surface:
         """Return a screenshot of the scene.
 
-        Args:
-            None
-
         Returns:
             pygame.Surface: The scene screenshot.
         """
@@ -446,9 +431,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     @property
     def background_color(self: Self) -> pygame.Color:
         """Return the background color.
-
-        Args:
-            None
 
         Returns:
             pygame.Color: The background color.
@@ -472,18 +454,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def setup(self: Self) -> None:
         """Setup the scene.
 
-        Args:
-            None
-
         Returns:
             None
         """
 
     def cleanup(self: Self) -> None:
         """Cleanup the scene.
-
-        Args:
-            None
 
         Returns:
             None
@@ -502,9 +478,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def update(self: Self) -> None:
         """Update the active scene.
-
-        Args:
-            None
 
         Returns:
             None
@@ -576,9 +549,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # AUDIODEVICEREMOVED which, iscapture
@@ -652,9 +622,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     # CONTROLLERDEVICEREMOVED which
     #     self.log.debug(f'{type(self)}: On Controller Device Removed Event {event}')
@@ -666,9 +633,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # CONTROLLERTOUCHPADDOWN which, touchpad
@@ -682,9 +646,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Controller Touchpad Motion Event {event}')
 
@@ -695,9 +656,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # CONTROLLERTOUCHPADUP which, touchpad
@@ -711,9 +669,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Drop Begin Event {event}')
 
@@ -724,9 +679,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Drop Complete Event {event}')
@@ -739,9 +691,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Drop File Event {event}')
 
@@ -752,9 +701,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Drop Text Event {event}')
@@ -767,9 +713,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Font Changed Event {event}')
 
@@ -780,9 +723,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # GAMEEVENT is pygame.USEREVENT + 2
@@ -795,9 +735,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # JOYAXISMOTION    joy, axis, value
@@ -823,9 +760,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f'{type(self)}: On Joy Button Down Event {event}')
@@ -837,9 +771,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         Returns:
-            None
-
-        Raises:
             None
         """
         # JOYBUTTONUP      joy, button
@@ -853,9 +784,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     # JOYDEVICEADDED   which
     #     self.log.debug(f'{type(self)}: On Joy Device Added Event {event}')
@@ -867,9 +795,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     # JOYDEVICEREMOVED which
@@ -883,9 +808,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     # JOYHATMOTION     joy, hat, value
     #     self.log.debug(f'{type(self)}: On Joy Hat Motion Event {event}')
@@ -898,9 +820,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: On Key Down Event {event}')
 
@@ -911,9 +830,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         Returns:
-            None
-
-        Raises:
             None
         """
         self.log.debug(f'{type(self)}: On Key Up Event {event}')
@@ -1023,9 +939,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         trigger (object): The event trigger.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     self.log.debug(f'{type(self)}: Mouse Focus Event: {event} {trigger}')
@@ -1168,9 +1081,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         # MOUSEBUTTONUP    pos, button
         self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
@@ -1187,9 +1097,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         Returns:
-            None
-
-        Raises:
             None
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -1212,9 +1119,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         # MOUSEBUTTONDOWN    pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
@@ -1231,9 +1135,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         Returns:
-            None
-
-        Raises:
             None
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -1268,9 +1169,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
 
@@ -1282,9 +1180,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
 
@@ -1295,9 +1190,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #         event (pygame.event.Event): The event to handle.
 
     #     Returns:
-    #         None
-
-    #     Raises:
     #         None
     #     """
     #     self.log.debug(f'{type(self)}: Mouse Unfocus Event: {event}')
@@ -1321,9 +1213,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: Multi Touch Down Event: {event}')
 
@@ -1346,9 +1235,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     #     Returns:
     #         None
-
-    #     Raises:
-    #         None
     #     """
     #     self.log.debug(f'{type(self)}: Multi Touch Up Event: {event}')
 
@@ -1359,9 +1245,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         Returns:
-            None
-
-        Raises:
             None
         """
         self.log.debug(f'{type(self)}: Sys WM Event: {event}')
@@ -1662,9 +1545,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
@@ -1677,9 +1557,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         # FPSEVENT is pygame.USEREVENT + 1
         self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
@@ -1687,9 +1564,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def load_resources(self: Self) -> None:
         """Load the scene's resources.
-
-        Args:
-            None
 
         Returns:
             None

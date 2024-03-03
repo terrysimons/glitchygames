@@ -67,12 +67,12 @@ dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "poetry-plugin-expor
 [tool.ruff]
 line-length = 100
 output-format = "grouped"
-ignore-init-module-imports = true
+lint.ignore-init-module-imports = true
 src = ["glitchygames", "tests", "scripts"]
-task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
-select = [
+lint.select = [
   "F",
   "E",
   "W",
@@ -133,7 +133,7 @@ select = [
   "LOG",
   "RUF",
 ]
-ignore = [
+lint.ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
@@ -161,25 +161,25 @@ ignore = [
 ]
 # exclude = []
 # extend-exclude = []
-fixable = [
+lint.fixable = [
   "I001",
   "Q000",
   "EXE001",
   "ANN"
 ]
-unfixable = []
+lint.unfixable = []
 target-version = "py312"
 
-[tool.ruff.flake8-annotations]
+[tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.ruff.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 # [tool.pylama]

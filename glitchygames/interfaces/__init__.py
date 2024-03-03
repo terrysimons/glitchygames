@@ -13,18 +13,12 @@ class SpriteInterface:
     def update_nested_sprites(self: Self) -> None:
         """Update the nested sprites.
 
-        Args:
-            None
-
         Returns:
             None
         """
 
     def update(self: Self) -> None:
         """Update the sprite.
-
-        Args:
-            None
 
         Returns:
             None
@@ -56,9 +50,6 @@ class SceneInterface:
     def terminate(self: Self) -> None:
         """Terminate the scene.
 
-        Args:
-            None
-
         Returns:
             None
         """
@@ -66,18 +57,12 @@ class SceneInterface:
     def play(self: Self) -> None:
         """Play the scene.
 
-        Args:
-            None
-
         Returns:
             None
         """
 
     def pause(self: Self) -> None:
         """Pause the scene.
-
-        Args:
-            None
 
         Returns:
             None

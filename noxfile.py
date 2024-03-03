@@ -11,11 +11,10 @@ def lint_and_test(session: object) -> None:
     # session.install('pylama', '.')
     session.run('poetry', 'build', external=True)
     session.run('poetry', 'install', external=True)
-    # # session.run("pylama", "-o", "pyproject.toml", external=True)
     # session.run('ruff', 'tests', external=True)
-    session.run('ruff', 'noxfile.py', external=True)
-    session.run('ruff', 'glitchygames', external=True)
-    session.run('ruff', 'scripts', external=True)
+    session.run('ruff', 'check', 'noxfile.py', external=True)
+    session.run('ruff', 'check', 'glitchygames', external=True)
+    session.run('ruff', 'check', 'scripts', external=True)
     session.run('mkdocs', 'build', '--strict', external=True)
     # griffe check -a <branch> glitchygames
     # or without the -a flag if tags exist
