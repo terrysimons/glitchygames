@@ -12,12 +12,23 @@ def lint_and_test(session: object) -> None:
     session.run('poetry', 'build', external=True)
     session.run('poetry', 'install', external=True)
     # session.run('ruff', 'tests', external=True)
+
+    # Sort imports (not supported by ruff format yet)
+    session.run('ruff', 'check', '--select', 'I', '--fix', 'noxfile.py', external=True)
+    session.run('ruff', 'check', '--select', 'I', '--fix', 'glitchygames', external=True)
+    session.run('ruff', 'check', '--select', 'I', '--fix', 'scripts', external=True)
+
+    # Format code (ruff format is mostly black style)
     session.run('ruff', 'format', 'noxfile.py', external=True)
     session.run('ruff', 'format', 'glitchygames', external=True)
     session.run('ruff', 'format', 'scripts', external=True)
+
+    # Lint code
     session.run('ruff', 'check', 'noxfile.py', external=True)
     session.run('ruff', 'check', 'glitchygames', external=True)
     session.run('ruff', 'check', 'scripts', external=True)
+
+    # Lint docs
     session.run('mkdocs', 'build', '--strict', external=True)
     # griffe check -a <branch> glitchygames
     # or without the -a flag if tags exist
