@@ -47,6 +47,7 @@ pytest = "*"
 ruff = "*"
 pre-commit = "*"
 poetry-plugin-export = "*"
+pyright = "*"
 
 # [tool.poetry.group.docs.dependencies]
 # mkdocs = "*"
@@ -62,7 +63,7 @@ poetry-plugin-export = "*"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "poetry-plugin-export"]
+dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
 
 [tool.ruff]
 line-length = 100
@@ -159,14 +160,15 @@ lint.ignore = [
   "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
   "EM101", # Exception must not use a string literal, assign to variable first
   "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
+  "ANN102", # Missing type annotation for `cls` in classmethod
 ]
-# exclude = []
-# extend-exclude = []
+lint.exclude = []
 lint.fixable = [
   "I001",
   "Q000",
   "EXE001",
-  "ANN"
+  "ANN",
+  "ANN101"
 ]
 lint.unfixable = []
 target-version = "py312"
@@ -187,41 +189,44 @@ multiline-quotes = "double"
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-# [tool.pylama]
-# linters = "eradicate,mccabe,mypy,pycodestyle,pydocstyle,pyflakes,pylint,isort"
-# skip = ".nox/*"
+[tool.pyright]
+include = ["glitchygames", "tests", "scripts"]
+exclude = [
+    "**/__pycache__",
+]
+ignore = []
+defineConstant = { DEBUG = true }
+# stubPath = "src/stubs"
 
-# pydocstyle
-# Options that shouldn't be turned off:
-#
-# C0103: Variable name "<var>" doesn't conform to snake_case naming style. [pylint]
-# D203: 1 blank line required before class docstring [pydocstyle, pep257]
-# D212 Multi-line docstring summary should start at the first line [pydocstyle]
-# R0902: Too many instance attributes [pylint]
-# R0903: Too few public methods [pylint]
-# R0904: Too many public methods [pylint]
-# E1121: Too many positional arguments for lambda call [pylint]
-  # https://github.com/PyCQA/pylint/issues/2144
-# W1202 - W1202 Use % formatting in logging functions and pass the % parameters as arguments [pylint]
-# W1203 - W1203 Use % formatting in logging functions and pass the % parameters as arguments [pylint]
-  # https://github.com/PyCQA/pylint/issues/2395
+pythonVersion = "3.12"
+pythonPlatform = "All"
 
-# C0111 - Docstrings.
-# D100 - Docstrings.
-# D101 - Docstrings.
-# D102 - Docstrings.
-# D103 - Docstrings.
-# D104 - Docstrings.
-# D105 - Docstrings.
-# D106 - Docstrings
-# D107 - Docstrings.
-# ignore = "C0103,C0111,D203,D212,E1121,R0902,R0903,R0904,W1202,W1203,D100,D101,D102,D103,D104,D105,D106,D107,D417,D204,D400,W0611,D415,D401,D210,D202,D213,D205,D413,D411,D200"
-# max_line_length = "100"
-
-# [tool.pylama.linter.pylint]
-# ignored_modules = "pygame"
-
-# [tool.pylama.pydocstyle]
+executionEnvironments = [
+  # { root = "src/web", pythonVersion = "3.5", pythonPlatform = "Windows", extraPaths = [ "src/service_libs" ] },
+  # { root = "src/sdk", pythonVersion = "3.0", extraPaths = [ "src/backend" ] },
+  # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
+  { root = "glitchygames", extraPaths = [ "scripts", "tests" ]}
+]
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportAttributeAccessIssue = false
+reportIncompatibleMethodOverride = false
+reportReturnType = false
+reportArgumentType = false
+reportAbstractUsage = false
+reportGeneralTypeIssues = false
+reportOptionalMemberAccess = false
+reportCallIssue = false
+reportOptionalIterable = false
+reportIncompatibleVariableOverride = false
+reportOptionalSubscript = false
+reportIndexIssue = false
+reportAssignmentType = false
+reportOperatorIssue = false
+reportFunctionMemberAccess = false
+reportPossiblyUnboundVariable = false
+reportRedeclaration = false
+reportPrivateImportUsage = false
 
 [build-system]
 requires = ["poetry-core"]

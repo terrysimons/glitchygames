@@ -1031,7 +1031,7 @@ class TextSprite(BitmappySprite):
         #     self.text.dirty = self.dirty
         #     # self.text_sprite.text.dirty = self.dirty
 
-        # def on_mouse_focus_event(self, event, focus):
+        # def on_mouse_focus_event(self: Self, event, focus):
         #     self.active_text_color = self.text_hover_color
         #     self.active_background_color = self.background_hover_color
 

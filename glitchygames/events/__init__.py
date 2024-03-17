@@ -144,9 +144,7 @@ def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[...
 
 @dump_cache_info
 @functools.cache
-def unhandled_event(
-    game: Scene, event: pygame.event.Event, *args: list, **kwargs: dict
-) -> NoReturn:
+def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: dict) -> NoReturn:
     """Handle unhandled events.
 
     This method is called when an event is not handled by
@@ -226,7 +224,7 @@ class ResourceManager:
 
     __instances__: ClassVar = {}
 
-    def __new__(cls: Self, *args: list, **kwargs: dict) -> object:
+    def __new__(cls: Any, *args: list, **kwargs: dict) -> object:
         """Create a new instance of the class.
 
         This method is called when a new instance of the class
@@ -287,7 +285,7 @@ class ResourceManager:
         raise AttributeError(f'No proxies for {type(self)}.{attr}')
 
 
-# Note, we can't subclass pygame.event.Event because it's a C type.
+# Note, we can't subclass HashableEvent because it's a C type.
 class HashableEvent(dict):
     """Hashable event class.
 
@@ -405,7 +403,7 @@ class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
     """Abstract base class for event interfaces."""
 
     @classmethod
-    def __subclasshook__(cls: Self, subclass: object) -> bool:
+    def __subclasshook__(cls, subclass: object) -> bool:
         """Override the default __subclasshook__ to create an interface."""
         # Note: This accounts for under/dunder methods in addition to regular methods.
         interface_attributes = set(cls.__abstractmethods__)
@@ -439,11 +437,11 @@ class AudioEvents(EventInterface):
     """Mixin for audio events."""
 
     @abc.abstractmethod
-    def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle audio device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -451,11 +449,11 @@ class AudioEvents(EventInterface):
         # AUDIODEVICEADDED   which, iscapture
 
     @abc.abstractmethod
-    def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle audio device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -468,11 +466,11 @@ class AudioEventStubs(AudioEvents):
     """Mixin for audio events."""
 
     @functools.cache
-    def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle audio device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -481,11 +479,11 @@ class AudioEventStubs(AudioEvents):
         return unhandled_event(self, event)
 
     @functools.cache
-    def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle audio device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -499,11 +497,11 @@ class ControllerEvents(EventInterface):
     """Mixin for controller events."""
 
     @abc.abstractmethod
-    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -511,11 +509,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERAXISMOTION joy, axis, value
 
     @abc.abstractmethod
-    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -523,11 +521,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERBUTTONDOWN joy, button
 
     @abc.abstractmethod
-    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -535,11 +533,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERBUTTONUP   joy, button
 
     @abc.abstractmethod
-    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -547,11 +545,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERDEVICEADDED device_index, guid
 
     @abc.abstractmethod
-    def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device remapped events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -559,11 +557,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERDEVICEREMAPPED device_index
 
     @abc.abstractmethod
-    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -571,11 +569,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERDEVICEREMOVED device_index
 
     @abc.abstractmethod
-    def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -583,11 +581,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERTOUCHPADDOWN joy, touchpad
 
     @abc.abstractmethod
-    def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -595,11 +593,11 @@ class ControllerEvents(EventInterface):
         # CONTROLLERTOUCHPADMOTION joy, touchpad
 
     @abc.abstractmethod
-    def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -611,11 +609,11 @@ class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
 
     @functools.cache
-    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -624,11 +622,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -637,11 +635,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -650,11 +648,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -663,11 +661,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device remapped events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -676,11 +674,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle controller device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -689,11 +687,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -702,11 +700,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -715,11 +713,11 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:
         """Handle controller touchpad up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -733,7 +731,7 @@ class DropEvents(EventInterface):
     """Mixin for drop events."""
 
     @abc.abstractmethod
-    def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
         """Handle drop begin event.
 
         Args:
@@ -745,7 +743,7 @@ class DropEvents(EventInterface):
         # DROPBEGIN        none
 
     @abc.abstractmethod
-    def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_file_event(self: Self, event: HashableEvent) -> None:
         """Handle drop file event.
 
         Args:
@@ -757,7 +755,7 @@ class DropEvents(EventInterface):
         # DROPFILE         file
 
     @abc.abstractmethod
-    def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_text_event(self: Self, event: HashableEvent) -> None:
         """Handle drop text event.
 
         Args:
@@ -769,7 +767,7 @@ class DropEvents(EventInterface):
         # DROPTEXT         text
 
     @abc.abstractmethod
-    def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
         """Handle drop complete event.
 
         Args:
@@ -786,7 +784,7 @@ class DropEventStubs(EventInterface):
     """Mixin for drop events."""
 
     @functools.cache
-    def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
         """Handle drop begin event.
 
         Args:
@@ -799,7 +797,7 @@ class DropEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_file_event(self: Self, event: HashableEvent) -> None:
         """Handle drop file event.
 
         Args:
@@ -812,7 +810,7 @@ class DropEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_text_event(self: Self, event: HashableEvent) -> None:
         """Handle drop text event.
 
         Args:
@@ -825,7 +823,7 @@ class DropEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+    def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
         """Handle drop complete event.
 
         Args:
@@ -843,7 +841,7 @@ class TouchEvents(EventInterface):
     """Mixin for touch events."""
 
     @abc.abstractmethod
-    def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle finger down event.
 
         Args:
@@ -855,7 +853,7 @@ class TouchEvents(EventInterface):
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
 
     @abc.abstractmethod
-    def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle finger motion event.
 
         Args:
@@ -867,7 +865,7 @@ class TouchEvents(EventInterface):
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
 
     @abc.abstractmethod
-    def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle finger up event.
 
         Args:
@@ -879,7 +877,7 @@ class TouchEvents(EventInterface):
         # FINGERUP         finger_id, x, y, dx, dy, pressure
 
     @abc.abstractmethod
-    def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger down event.
 
         Args:
@@ -891,7 +889,7 @@ class TouchEvents(EventInterface):
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
 
     @abc.abstractmethod
-    def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger motion event.
 
         Args:
@@ -903,7 +901,7 @@ class TouchEvents(EventInterface):
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
 
     @abc.abstractmethod
-    def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger up event.
 
         Args:
@@ -920,7 +918,7 @@ class TouchEventStubs(EventInterface):
     """Mixin for touch events."""
 
     @functools.cache
-    def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle finger down event.
 
         Args:
@@ -933,7 +931,7 @@ class TouchEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle finger motion event.
 
         Args:
@@ -946,7 +944,7 @@ class TouchEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle finger up event.
 
         Args:
@@ -959,7 +957,7 @@ class TouchEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger down event.
 
         Args:
@@ -972,7 +970,7 @@ class TouchEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger motion event.
 
         Args:
@@ -985,7 +983,7 @@ class TouchEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_multi_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger up event.
 
         Args:
@@ -1013,11 +1011,11 @@ class GameEvents(EventInterface):
     """
 
     @abc.abstractmethod
-    def on_active_event(self: Self, event: pygame.event.Event) -> None:
+    def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1025,11 +1023,11 @@ class GameEvents(EventInterface):
         # ACTIVEEVENT      gain, state
 
     @abc.abstractmethod
-    def on_fps_event(self: Self, event: pygame.event.Event) -> None:
+    def on_fps_event(self: Self, event: HashableEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1037,11 +1035,11 @@ class GameEvents(EventInterface):
         # FPSEVENT is pygame.USEREVENT + 1
 
     @abc.abstractmethod
-    def on_game_event(self: Self, event: pygame.event.Event) -> None:
+    def on_game_event(self: Self, event: HashableEvent) -> None:
         """Handle game events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1049,11 +1047,11 @@ class GameEvents(EventInterface):
         # GAMEEVENT is pygame.USEREVENT + 2
 
     @abc.abstractmethod
-    def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
+    def on_menu_item_event(self: Self, event: HashableEvent) -> None:
         """Handle menu item events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1061,11 +1059,11 @@ class GameEvents(EventInterface):
         # MENUEVENT is pygame.USEREVENT + 3
 
     @abc.abstractmethod
-    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
+    def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle sys wm events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1073,11 +1071,11 @@ class GameEvents(EventInterface):
         # SYSWMEVENT
 
     @abc.abstractmethod
-    def on_user_event(self: Self, event: pygame.event.Event) -> None:
+    def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle user events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1085,11 +1083,11 @@ class GameEvents(EventInterface):
         # USEREVENT        code
 
     @abc.abstractmethod
-    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle video expose events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1097,11 +1095,11 @@ class GameEvents(EventInterface):
         # VIDEOEXPOSE      none
 
     @abc.abstractmethod
-    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1109,11 +1107,11 @@ class GameEvents(EventInterface):
         # VIDEORESIZE      size, w, h
 
     @abc.abstractmethod
-    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
+    def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle quit events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1132,11 +1130,11 @@ class GameEventStubs(EventInterface):
     """
 
     @functools.cache
-    def on_active_event(self: Self, event: pygame.event.Event) -> None:
+    def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1145,11 +1143,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_fps_event(self: Self, event: pygame.event.Event) -> None:
+    def on_fps_event(self: Self, event: HashableEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1158,11 +1156,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_game_event(self: Self, event: pygame.event.Event) -> None:
+    def on_game_event(self: Self, event: HashableEvent) -> None:
         """Handle game events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1171,11 +1169,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
+    def on_menu_item_event(self: Self, event: HashableEvent) -> None:
         """Handle menu item events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1184,11 +1182,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
+    def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle sys wm events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1197,11 +1195,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_user_event(self: Self, event: pygame.event.Event) -> None:
+    def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle user events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1210,11 +1208,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle video expose events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1223,11 +1221,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1236,11 +1234,11 @@ class GameEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
+    def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle quit events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1254,11 +1252,11 @@ class FontEvents(EventInterface):
     """Mixin for font events."""
 
     @abc.abstractmethod
-    def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_font_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle font changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1271,11 +1269,11 @@ class FontEventStubs(EventInterface):
     """Mixin for font events."""
 
     @functools.cache
-    def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_font_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle font changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1289,11 +1287,11 @@ class KeyboardEvents(EventInterface):
     """Mixin for keyboard events."""
 
     # @abc.abstractmethod
-    # def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    # def on_key_down_event(self: Self, event: HashableEvent) -> None:
     #     """Handle key down events.
 
     #     Args:
-    #         event (pygame.event.Event): The event to handle.
+    #         event (HashableEvent): The event to handle.
 
     #     Returns:
     #         None
@@ -1301,11 +1299,11 @@ class KeyboardEvents(EventInterface):
     #     # KEYDOWN          unicode, key, mod
 
     # @abc.abstractmethod
-    # def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    # def on_key_up_event(self: Self, event: HashableEvent) -> None:
     #     """Handle key up events.
 
     #     Args:
-    #         event (pygame.event.Event): The event to handle.
+    #         event (HashableEvent): The event to handle.
 
     #     Returns:
     #         None
@@ -1313,11 +1311,11 @@ class KeyboardEvents(EventInterface):
     #     # KEYUP            key, mod
 
     # @abc.abstractmethod
-    # def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    # def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
     #     """Handle key chord up events.
 
     #     Args:
-    #         event (pygame.event.Event): The event to handle.
+    #         event (HashableEvent): The event to handle.
     #         keys (list): The keys in the chord.
 
     #     Returns:
@@ -1326,11 +1324,11 @@ class KeyboardEvents(EventInterface):
     #     # Synthesized event.
 
     # @abc.abstractmethod
-    # def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    # def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
     #     """Handle key chord down events.
 
     #     Args:
-    #         event (pygame.event.Event): The event to handle.
+    #         event (HashableEvent): The event to handle.
     #         keys (list): The keys in the chord.
 
     #     Returns:
@@ -1344,11 +1342,11 @@ class KeyboardEventStubs(EventInterface):
     """Mixin for keyboard events."""
 
     @functools.cache
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1357,11 +1355,11 @@ class KeyboardEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1370,11 +1368,11 @@ class KeyboardEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
         """Handle key chord up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
 
         Returns:
@@ -1384,11 +1382,11 @@ class KeyboardEventStubs(EventInterface):
         unhandled_event(self, event, keys)
 
     @functools.cache
-    def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
         """Handle key chord down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
 
         Returns:
@@ -1403,11 +1401,11 @@ class JoystickEvents(EventInterface):
     """Mixin for joystick events."""
 
     @abc.abstractmethod
-    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1415,11 +1413,11 @@ class JoystickEvents(EventInterface):
         # JOYAXISMOTION    joy, axis, value
 
     @abc.abstractmethod
-    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1427,11 +1425,11 @@ class JoystickEvents(EventInterface):
         # JOYBUTTONDOWN    joy, button
 
     @abc.abstractmethod
-    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1439,11 +1437,11 @@ class JoystickEvents(EventInterface):
         # JOYBUTTONUP      joy, button
 
     @abc.abstractmethod
-    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick hat motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1451,11 +1449,11 @@ class JoystickEvents(EventInterface):
         # JOYHATMOTION     joy, hat, value
 
     @abc.abstractmethod
-    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick ball motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1463,11 +1461,11 @@ class JoystickEvents(EventInterface):
         # JOYBALLMOTION    joy, ball, rel
 
     @abc.abstractmethod
-    def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1475,11 +1473,11 @@ class JoystickEvents(EventInterface):
         # JOYDEVICEADDED device_index, guid
 
     @abc.abstractmethod
-    def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1492,11 +1490,11 @@ class JoystickEventStubs(EventInterface):
     """Mixin for joystick events."""
 
     @functools.cache
-    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1505,11 +1503,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1518,11 +1516,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1531,11 +1529,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick hat motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1544,11 +1542,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick ball motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1557,11 +1555,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1570,11 +1568,11 @@ class JoystickEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1598,11 +1596,11 @@ class MouseEvents(EventInterface):
     """Mixin for mouse events."""
 
     @abc.abstractmethod
-    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1610,11 +1608,11 @@ class MouseEvents(EventInterface):
         # MOUSEMOTION      pos, rel, buttons
 
     @abc.abstractmethod
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1623,11 +1621,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1636,11 +1634,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1649,11 +1647,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1662,11 +1660,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1675,11 +1673,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1688,11 +1686,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1701,11 +1699,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1714,11 +1712,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event, entering_focus: object) -> None:
+    def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
         """Handle mouse focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             entering_focus (object): The object that is entering focus.
 
         Returns:
@@ -1727,13 +1725,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_unfocus_event(
-        self: Self, event: pygame.event.Event, leaving_focus: object
-    ) -> None:
+    def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
         """Handle mouse unfocus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             leaving_focus (object): The object that is leaving focus.
 
         Returns:
@@ -1742,11 +1738,11 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1754,11 +1750,11 @@ class MouseEvents(EventInterface):
         # MOUSEBUTTONUP    pos, button
 
     @abc.abstractmethod
-    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1766,11 +1762,11 @@ class MouseEvents(EventInterface):
         # Left Mouse Button Up pos, button
 
     @abc.abstractmethod
-    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1778,11 +1774,11 @@ class MouseEvents(EventInterface):
         # Middle Mouse Button Up pos, button
 
     @abc.abstractmethod
-    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1790,11 +1786,11 @@ class MouseEvents(EventInterface):
         # Right Mouse Button Up pos, button
 
     @abc.abstractmethod
-    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1802,11 +1798,11 @@ class MouseEvents(EventInterface):
         # MOUSEBUTTONDOWN  pos, button
 
     @abc.abstractmethod
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1814,11 +1810,11 @@ class MouseEvents(EventInterface):
         # Left Mouse Button Down pos, button
 
     @abc.abstractmethod
-    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1826,11 +1822,11 @@ class MouseEvents(EventInterface):
         # Middle Mouse Button Down pos, button
 
     @abc.abstractmethod
-    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1838,11 +1834,11 @@ class MouseEvents(EventInterface):
         # Right Mouse Button Down pos, button
 
     @abc.abstractmethod
-    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1850,11 +1846,11 @@ class MouseEvents(EventInterface):
         # This is a synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1862,11 +1858,11 @@ class MouseEvents(EventInterface):
         # This is a synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse wheel events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1880,11 +1876,11 @@ class MouseEventStubs(EventInterface):
     """Mixin for mouse events."""
 
     @functools.cache
-    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -1893,11 +1889,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1907,11 +1903,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1921,11 +1917,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1935,11 +1931,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1949,11 +1945,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1963,11 +1959,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1977,11 +1973,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_right_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -1991,11 +1987,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_right_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         Returns:
@@ -2005,11 +2001,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event, entering_focus: object) -> None:
+    def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
         """Handle mouse focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             entering_focus (object): The object that is entering focus.
 
         Returns:
@@ -2019,13 +2015,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, entering_focus)
 
     @functools.cache
-    def on_mouse_unfocus_event(
-        self: Self, event: pygame.event.Event, leaving_focus: object
-    ) -> None:
+    def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
         """Handle mouse unfocus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
             leaving_focus (object): The object that is leaving focus.
 
         Returns:
@@ -2035,11 +2029,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, leaving_focus)
 
     @functools.cache
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2048,11 +2042,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2061,11 +2055,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2074,11 +2068,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2087,11 +2081,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2100,11 +2094,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2113,11 +2107,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2126,11 +2120,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2139,11 +2133,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2152,11 +2146,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2165,11 +2159,11 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse wheel events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2183,11 +2177,11 @@ class TextEvents(EventInterface):
     """Mixin for text events."""
 
     @abc.abstractmethod
-    def on_text_editing_event(self: Self, event: pygame.event.Event) -> None:
+    def on_text_editing_event(self: Self, event: HashableEvent) -> None:
         """Handle text editing events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2195,11 +2189,11 @@ class TextEvents(EventInterface):
         # TEXTEDITING      text, start, length
 
     @abc.abstractmethod
-    def on_text_input_event(self: Self, event: pygame.event.Event) -> None:
+    def on_text_input_event(self: Self, event: HashableEvent) -> None:
         """Handle text input events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2211,11 +2205,11 @@ class TextEventStubs(EventInterface):
     """Mixin for text events."""
 
     @functools.cache
-    def on_text_editing_event(self: Self, event: pygame.event.Event) -> None:
+    def on_text_editing_event(self: Self, event: HashableEvent) -> None:
         """Handle text editing events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2224,11 +2218,11 @@ class TextEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_text_input_event(self: Self, event: pygame.event.Event) -> None:
+    def on_text_input_event(self: Self, event: HashableEvent) -> None:
         """Handle text input events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2241,11 +2235,11 @@ class WindowEvents(EventInterface):
     """Mixin for window events."""
 
     @abc.abstractmethod
-    def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_close_event(self: Self, event: HashableEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2253,11 +2247,11 @@ class WindowEvents(EventInterface):
         # WINDOWCLOSE      none
 
     @abc.abstractmethod
-    def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2265,11 +2259,11 @@ class WindowEvents(EventInterface):
         # WINDOWENTER      none
 
     @abc.abstractmethod
-    def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2277,11 +2271,11 @@ class WindowEvents(EventInterface):
         # WINDOWEXPOSED    none
 
     @abc.abstractmethod
-    def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2289,11 +2283,11 @@ class WindowEvents(EventInterface):
         # WINDOWFOCUSGAINED none
 
     @abc.abstractmethod
-    def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2301,11 +2295,11 @@ class WindowEvents(EventInterface):
         # WINDOWFOCUSLOST  none
 
     @abc.abstractmethod
-    def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2313,11 +2307,11 @@ class WindowEvents(EventInterface):
         # WINDOWHIDDEN     none
 
     @abc.abstractmethod
-    def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2325,11 +2319,11 @@ class WindowEvents(EventInterface):
         # WINDOWHITTEST    none
 
     @abc.abstractmethod
-    def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_leave_event(self: Self, event: HashableEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2337,11 +2331,11 @@ class WindowEvents(EventInterface):
         # WINDOWLEAVE      none
 
     @abc.abstractmethod
-    def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2349,11 +2343,11 @@ class WindowEvents(EventInterface):
         # WINDOWMAXIMIZED  none
 
     @abc.abstractmethod
-    def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2361,11 +2355,11 @@ class WindowEvents(EventInterface):
         # WINDOWMINIMIZED  none
 
     @abc.abstractmethod
-    def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_moved_event(self: Self, event: HashableEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2373,11 +2367,11 @@ class WindowEvents(EventInterface):
         # WINDOWMOVED      none
 
     @abc.abstractmethod
-    def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_resized_event(self: Self, event: HashableEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2385,11 +2379,11 @@ class WindowEvents(EventInterface):
         # WINDOWRESIZED    size, w, h
 
     @abc.abstractmethod
-    def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_restored_event(self: Self, event: HashableEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2397,11 +2391,11 @@ class WindowEvents(EventInterface):
         # WINDOWRESTORED   none
 
     @abc.abstractmethod
-    def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_shown_event(self: Self, event: HashableEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2409,11 +2403,11 @@ class WindowEvents(EventInterface):
         # WINDOWSHOWN      none
 
     @abc.abstractmethod
-    def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2421,11 +2415,11 @@ class WindowEvents(EventInterface):
         # WINDOWSIZECHANGED size, w, h
 
     @abc.abstractmethod
-    def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2437,11 +2431,11 @@ class WindowEventStubs(EventInterface):
     """Mixin for window events."""
 
     @functools.cache
-    def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_close_event(self: Self, event: HashableEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2450,11 +2444,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2463,11 +2457,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2476,11 +2470,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2489,11 +2483,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2502,11 +2496,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2515,11 +2509,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2528,11 +2522,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_leave_event(self: Self, event: HashableEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2541,11 +2535,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2554,11 +2548,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2567,11 +2561,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_moved_event(self: Self, event: HashableEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2580,11 +2574,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_resized_event(self: Self, event: HashableEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2593,11 +2587,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_restored_event(self: Self, event: HashableEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2606,11 +2600,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_shown_event(self: Self, event: HashableEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2619,11 +2613,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None
@@ -2632,11 +2626,11 @@ class WindowEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
+    def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         Returns:
             None

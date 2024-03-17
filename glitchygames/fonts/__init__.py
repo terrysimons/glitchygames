@@ -100,7 +100,7 @@ class FontManager(ResourceManager):
         # self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add font options to the argument parser.
 
         Args:
@@ -126,7 +126,7 @@ class FontManager(ResourceManager):
     # We can also use a config file to specify the font path.
     @classmethod
     def font(
-        cls: Self, font_config: dict | None = None
+        cls, font_config: dict | None = None
     ) -> pygame.freetype.Font | pygame.freetype.SysFont:
         """Return a font object.
 

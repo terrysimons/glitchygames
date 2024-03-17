@@ -511,7 +511,7 @@ class MouseManager(ResourceManager):
         self.proxies = [MouseManager.MouseProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add arguments to the argument parser.
 
         Args:

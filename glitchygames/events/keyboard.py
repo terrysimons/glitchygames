@@ -125,7 +125,7 @@ class KeyboardManager(ResourceManager):
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add keyboard-specific arguments to the global parser.
 
         This class method will get called automatically by the GameEngine class.

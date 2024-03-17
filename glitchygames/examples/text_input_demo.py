@@ -57,7 +57,7 @@ class Game(Scene):
     # Since I'm not using self in this method, I'm making it
     # a class method to appease the linter
     @classmethod
-    def setup(cls: Self) -> None:
+    def setup(cls) -> None:
         """Set up the game.
 
         Args:

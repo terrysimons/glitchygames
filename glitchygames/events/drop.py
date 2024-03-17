@@ -84,6 +84,20 @@ class DropManager(ResourceManager):
             """
             self.game.on_drop_text_event(event)
 
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser: The argument parser.
+
+        Returns:
+            The argument parser.
+        """
+        group = parser.add_argument_group('Drop Options')  # noqa: F841
+
+        return parser
+
     def __init__(self: Self, game: object = None) -> None:
         """Initialize the drop manager.
 
@@ -96,17 +110,3 @@ class DropManager(ResourceManager):
         super().__init__(game=game)
 
         self.proxies = [DropManager.DropProxy(game=game)]
-
-    @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Add arguments to the argument parser.
-
-        Args:
-            parser: The argument parser.
-
-        Returns:
-            The argument parser.
-        """
-        group = parser.add_argument_group('Drop Options')  # noqa: F841
-
-        return parser

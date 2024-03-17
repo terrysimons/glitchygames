@@ -262,7 +262,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
         self.proxies = [self.game]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add controller options to the parser.
 
         Args:

@@ -242,7 +242,7 @@ class Game(Scene):
         self.all_sprites.clear(self.screen, self.background)
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add arguments to the argument parser.
 
         Args:

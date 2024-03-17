@@ -207,7 +207,7 @@ class ShapesSprite(Sprite):
 
 # TODO: Refactor this into ui.py and/or remove it
 # class TextSprite(Sprite):
-#     def __init__(self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
+#     def __init__(self: Self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
 #         self.background_color = background_color
 #         self.alpha = alpha
 #         self.x = x
@@ -251,7 +251,7 @@ class ShapesSprite(Sprite):
 #         # Interiting from object is default in Python 3.
 #         # Linters complain if you do it.
 #         class TextBox:
-#             def __init__(self, font_controller, x, y, line_height=15):
+#             def __init__(self: Self, font_controller, x, y, line_height=15):
 #                 super().__init__()
 #                 self.image = None
 #                 self.rect = None
@@ -265,7 +265,7 @@ class ShapesSprite(Sprite):
 #                 self.font = pygame.freetype.SysFont(name=font_controller.font,
 #                                                     size=font_controller.font_size)
 
-#             def print(self, surface, string):
+#             def print(self: Self, surface, string):
 #                 (self.image, self.rect) = self.font.render(string, WHITE)
 #                 surface.blit(self.image, (self.x, self.y))
 #                 self.rect.x = self.x
@@ -535,7 +535,7 @@ class Game(Scene):
     # super().update_cursor()
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add arguments to the argument parser.
 
         Args:

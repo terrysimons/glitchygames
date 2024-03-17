@@ -8,7 +8,7 @@ import collections
 import configparser
 import logging
 from pathlib import Path
-from typing import ClassVar, Self, cast
+from typing import Any, ClassVar, Self, cast
 
 import pygame
 from glitchygames.events import MouseEvents
@@ -50,7 +50,7 @@ class Sprite(RootSprite):
     SPRITE_COUNT = 0
 
     @classmethod
-    def break_when(cls: Self, sprite_type: object | None = None) -> None:
+    def break_when(cls: Any, sprite_type: object | None = None) -> None:
         """Register a breakpoint for a sprite type.
 
         Args:
@@ -878,7 +878,7 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
 
-    # def __getattr__(self, attr):
+    # def __getattr__(self: Self,attr):
     #    import pdb; pdb.set_trace()
 
     #    # Try each proxy in turn
@@ -1036,7 +1036,7 @@ class BitmappySprite(Sprite):
 
     @classmethod
     def inflate(
-        cls: Self, width: int, height: int, pixels: list, color_map: dict
+        cls: Any, width: int, height: int, pixels: list, color_map: dict
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
@@ -1305,7 +1305,7 @@ class Singleton:
 
     __instance__ = None
 
-    def __new__(cls: Self, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args, **kwargs) -> Self:
         """Create a new instance of the Singleton.
 
         Args:
@@ -1329,7 +1329,7 @@ class SingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Self, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args, **kwargs) -> Self:
         """Create a new instance of the SingletonBitmappySprite.
 
         Args:
@@ -1380,7 +1380,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Self, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args, **kwargs) -> Self:
         """Create a new instance of the FocusableSingletonBitmappySprite.
 
         Args:

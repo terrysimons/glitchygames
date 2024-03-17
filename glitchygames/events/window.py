@@ -226,7 +226,7 @@ class WindowManager(ResourceManager):
         self.proxies = [WindowManager.WindowManagerProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add window-specific arguments to the global parser.
 
         Args:

@@ -1676,7 +1676,7 @@ class BitmapEditorScene(Scene):
             pass
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add command line arguments.
 
         Args:

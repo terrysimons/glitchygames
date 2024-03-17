@@ -48,7 +48,7 @@ class Game(Scene):
         self.start = False
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add game-specific arguments to the gloal parser.
 
         This class method will get called automatically by the GameEngine class.

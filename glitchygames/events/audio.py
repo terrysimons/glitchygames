@@ -85,7 +85,7 @@ class AudioManager(ResourceManager):
         self.proxies = [AudioManager.AudioProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add arguments to the argument parser.
 
         Args:
