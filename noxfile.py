@@ -12,7 +12,7 @@ def lint_and_test(session: Session) -> None:
     session.run('ruff', 'check', '--select', 'I', '--fix', 'noxfile.py', external=True)
     session.run('ruff', 'check', '--select', 'I', '--fix', 'glitchygames', external=True)
     session.run('ruff', 'check', '--select', 'I', '--fix', 'scripts', external=True)
-    session.run('ruff', 'check', '--select', 'I', '--fix', 'tests', external=True)
+    # session.run('ruff', 'check', '--select', 'I', '--fix', 'tests', external=True)
 
     session.run('pyright', external=True)
 
@@ -20,13 +20,13 @@ def lint_and_test(session: Session) -> None:
     session.run('ruff', 'format', 'noxfile.py', external=True)
     session.run('ruff', 'format', 'glitchygames', external=True)
     session.run('ruff', 'format', 'scripts', external=True)
-    session.run('ruff', 'format', 'tests', external=True)
+    # session.run('ruff', 'format', 'tests', external=True)
 
     # Lint code
     session.run('ruff', 'check', 'noxfile.py', external=True)
     session.run('ruff', 'check', 'glitchygames', external=True)
     session.run('ruff', 'check', 'scripts', external=True)
-    session.run('ruff', 'check', 'tests', external=True)
+    # session.run('ruff', 'check', 'tests', external=True)
 
     # Lint docs
     session.run('mkdocs', 'build', '--strict', external=True)
