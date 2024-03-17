@@ -63,7 +63,7 @@ jobs:
 
             pip install -e .
             pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
 
@@ -110,7 +110,7 @@ jobs:
 
             pip install -e .
             pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
 
@@ -145,7 +145,7 @@ jobs:
             refreshenv
             pip install -e .
             pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             nox
 
 
