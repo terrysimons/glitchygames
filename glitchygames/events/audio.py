@@ -3,12 +3,12 @@
 
 This is a simple audio manager that can be used to manage audio.
 """
+
 import argparse
 import logging
 from typing import Self
 
 import pygame
-
 from glitchygames.events import AudioEvents, ResourceManager
 
 log = logging.getLogger('game.audio')
@@ -20,6 +20,7 @@ class AudioManager(ResourceManager):
 
     class AudioProxy(AudioEvents, ResourceManager):
         """Pygame audio event proxy."""
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the audio proxy.
 
@@ -84,7 +85,7 @@ class AudioManager(ResourceManager):
         self.proxies = [AudioManager.AudioProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add arguments to the argument parser.
 
         Args:

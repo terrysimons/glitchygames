@@ -3,12 +3,20 @@
 version: 2.1
 
 # TODO:  Turn hard coded version strings into variables
-
+# parameters:
+#   action:
+#     type: enum
+#     enum: [build, report]
+#     default: build
+parameters:
+  PYTHON_LATEST_VERSION:
+    type: string
+    default: "3.12.2"
 
 orbs:
   win: circleci/windows@5.0
-  macos: circleci/macos@2.3.6
-  jira: circleci/jira@1.3.1
+  macos: circleci/macos@2.4.1
+  jira: circleci/jira@2.1.0
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
@@ -17,7 +25,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/python:3.11.5
+      - image: cimg/python:3.12.1
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -39,20 +47,23 @@ jobs:
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
             echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
             source ~/.bashrc
+            cd /home/circleci/.pyenv/plugins/python-build/../.. && git pull && cd -
 
             echo "Path: $PATH"
             echo "Pyenv: "
             echo $(which pyenv)
-            echo "Building Python 3.11.5, 3.10.13, 3.9.18"
+            echo "Building Python ${PYTHON_LATEST_VERSION}"
 
-            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18
-            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
-            pyenv global 3.11.5 3.11.5
+            pyenv update
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
+            pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
             python --version
             pyenv versions
-            pip install nox nox-poetry ruff
+
+            pip install -e .
+            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
 
@@ -69,25 +80,37 @@ jobs:
       - run:
           name: "Build and Test macOS"
           command: |
-            rm -rf ~/.pyenv
-            git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # rm -rf ~/.pyenv
+            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            # cd ~/.pyenv && src/configure && make -C src
+            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            # echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
+            # source ~/.bashrc
+            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
             echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            cd ~/.pyenv && src/configure && make -C src
-            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             source ~/.bashrc
-            # PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5 3.10.13 3.9.18 && pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f 3.11.5
-            # pyenv global 3.11.5 3.11.5 3.10.13 3.9.18
-            pyenv global 3.11.5 3.11.5
+            cd /home/circleci/.pyenv/plugins/python-build/../.. && git pull && cd -
+
+            echo "Path: $PATH"
+            echo "Pyenv: "
+            echo $(which pyenv)
+            echo "Building Python ${PYTHON_LATEST_VERSION}"
+
+            # pyenv update
+            brew update && brew upgrade pyenv
+            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
+            pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
             python --version
             pyenv versions
-            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
+            # curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
-            pip install nox nox-poetry ruff
+            pip install -e .
+            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
 
@@ -109,18 +132,20 @@ jobs:
           command: |
             # choco install -y python3 --version=3.11.5 --allow-multiple-versions
             # choco install -y python3 --version=3.10.13 --allow-multiple-versions
-            # choco install -y python3 --version=3.9.18 --allow-multiple-versions
-            choco install pyenv-win --force -y
+            choco install -y python312
+            # choco install pyenv-win --force -y
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
-            # pyenv install -f 3.11.5 3.10.13 3.9.18
-            pyenv install -f 3.11.5
-            pyenv global 3.11.5 3.11.5
-            pyenv versions
-            # (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+            # pyenv update
+            # pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
+            # pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
+            # pyenv versions
+            (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
-            pip install nox nox-poetry poetry ruff
+            pip install -e .
+            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             nox
 
 

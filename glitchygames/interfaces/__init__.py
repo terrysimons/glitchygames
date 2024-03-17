@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 """Interfaces for the game."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
@@ -6,14 +8,12 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     import pygame
 
+
 class SpriteInterface:
     """Sprite interface."""
 
     def update_nested_sprites(self: Self) -> None:
         """Update the nested sprites.
-
-        Args:
-            None
 
         Returns:
             None
@@ -21,9 +21,6 @@ class SpriteInterface:
 
     def update(self: Self) -> None:
         """Update the sprite.
-
-        Args:
-            None
 
         Returns:
             None
@@ -38,6 +35,7 @@ class SpriteInterface:
         Returns:
             None
         """
+
 
 class SceneInterface:
     """Scene interface."""
@@ -55,8 +53,19 @@ class SceneInterface:
     def terminate(self: Self) -> None:
         """Terminate the scene.
 
-        Args:
+        Returns:
             None
+        """
+
+    def play(self: Self) -> None:
+        """Play the scene.
+
+        Returns:
+            None
+        """
+
+    def pause(self: Self) -> None:
+        """Pause the scene.
 
         Returns:
             None

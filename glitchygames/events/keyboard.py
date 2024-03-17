@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Keyboard Event Manager."""
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import KeyboardEvents, ResourceManager
 
 log = logging.getLogger('game.keyboard')
@@ -58,13 +58,7 @@ class KeyboardManager(ResourceManager):
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
-            self.keys[
-                tuple(
-                    sorted(
-                        frozenset(keyboard_key.items())
-                    )
-                )
-            ] = event
+            self.keys[tuple(sorted(frozenset(keyboard_key.items())))] = event
 
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
@@ -81,13 +75,7 @@ class KeyboardManager(ResourceManager):
             # This makes it possible to use
             # a dictionary as a key, which is
             # normally not possible.
-            self.keys[
-                tuple(
-                    sorted(
-                        frozenset(event.dict.items())
-                    )
-                )
-            ] = event
+            self.keys[tuple(sorted(frozenset(event.dict.items())))] = event
 
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
@@ -101,9 +89,11 @@ class KeyboardManager(ResourceManager):
             Returns:
                 None
             """
-            keys_down = [self.keys[key]
-                         for key in self.keys
-                         if self.keys[key].type == pygame.KEYDOWN]
+            keys_down: tuple = (
+                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
+            )
+
+            event['keys_down'] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
@@ -116,9 +106,9 @@ class KeyboardManager(ResourceManager):
             Returns:
                 None
             """
-            keys_down = [self.keys[key]
-                         for key in self.keys
-                         if self.keys[key].type == pygame.KEYDOWN]
+            keys_down: tuple = (
+                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
+            )
 
             self.game.on_key_chord_up_event(event, keys_down)
 
@@ -135,7 +125,7 @@ class KeyboardManager(ResourceManager):
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add keyboard-specific arguments to the global parser.
 
         This class method will get called automatically by the GameEngine class.

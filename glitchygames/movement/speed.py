@@ -3,6 +3,7 @@
 
 This is a simple speed class that can be used to speed up sprites.
 """
+
 from __future__ import annotations
 
 from typing import Self

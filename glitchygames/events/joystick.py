@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick Event Manager."""
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import JoystickEvents, ResourceManager
 
 LOG = logging.getLogger('game.joysticks')
@@ -65,17 +65,13 @@ class JoystickManager(JoystickEvents, ResourceManager):
             self._numhats = self.joystick.get_numhats()
 
             # Initialize button state.
-            self._axes = [self.joystick.get_axis(i)
-                          for i in range(self.get_numaxes())]
+            self._axes = [self.joystick.get_axis(i) for i in range(self.get_numaxes())]
 
-            self._balls = [self.joystick.get_ball(i)
-                           for i in range(self.get_numballs())]
+            self._balls = [self.joystick.get_ball(i) for i in range(self.get_numballs())]
 
-            self._buttons = [self.joystick.get_button(i)
-                             for i in range(self.get_numbuttons())]
+            self._buttons = [self.joystick.get_button(i) for i in range(self.get_numbuttons())]
 
-            self._hats = [self.joystick.get_hat(i)
-                          for i in range(self.get_numhats())]
+            self._hats = [self.joystick.get_hat(i) for i in range(self.get_numhats())]
 
             self.game = game
             self.proxies = [self.game, self.joystick]
@@ -175,9 +171,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_name(self: Self) -> str:
             """Get the joystick name.
 
-            Args:
-                None
-
             Returns:
                 str: The joystick name.
             """
@@ -185,9 +178,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def get_init(self: Self) -> bool:
             """Get the joystick init status.
-
-            Args:
-                None
 
             Returns:
                 bool: The joystick init status.
@@ -197,9 +187,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_numaxes(self: Self) -> int:
             """Get the number of axes.
 
-            Args:
-                None
-
             Returns:
                 int: The number of axes.
             """
@@ -207,9 +194,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def get_numballs(self: Self) -> int:
             """Get the number of trackballs.
-
-            Args:
-                None
 
             Returns:
                 int: The number of trackballs.
@@ -219,9 +203,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def get_numbuttons(self: Self) -> int:
             """Get the number of buttons.
 
-            Args:
-                None
-
             Returns:
                 int: The number of buttons.
             """
@@ -229,9 +210,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         def get_numhats(self: Self) -> int:
             """Get the number of hats.
-
-            Args:
-                None
 
             Returns:
                 int: The number of hats.
@@ -241,27 +219,23 @@ class JoystickManager(JoystickEvents, ResourceManager):
         def __str__(self: Self) -> str:
             """Get the joystick info.
 
-            Args:
-                None
-
             Returns:
                 str: The joystick info.
             """
-            joystick_info = []
-            joystick_info.append(f'Joystick Name: {self.get_name()}')
-            joystick_info.append(f'\tJoystick Id: {self._id}')
-            joystick_info.append(f'\tJoystick Inited: {self.get_init()}')
-            joystick_info.append(f'\tJoystick Axis Count: {self.get_numaxes()}')
-            joystick_info.append(f'\tJoystick Trackball Count: {self.get_numballs()}')
-            joystick_info.append(f'\tJoystick Button Count: {self.get_numbuttons()}')
-            joystick_info.append(f'\tJoystick Hat Count: {self.get_numhats()}')
+            joystick_info = [
+                f'Joystick Name: {self.get_name()}',
+                f'\tJoystick Id: {self._id}',
+                f'\tJoystick Inited: {self.get_init()}',
+                f'\tJoystick Axis Count: {self.get_numaxes()}',
+                f'\tJoystick Trackball Count: {self.get_numballs()}',
+                f'\tJoystick Button Count: {self.get_numbuttons()}',
+                f'\tJoystick Hat Count: {self.get_numhats()}',
+            ]
+
             return '\n'.join(joystick_info)
 
         def __repr__(self: Self) -> str:
             """Get the joystick representation.
-
-            Args:
-                None
 
             Returns:
                 str: The joystick representation.
@@ -299,10 +273,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             except AttributeError:
                 joystick_id = joystick.get_id()
 
-            joystick_proxy = JoystickManager.JoystickProxy(
-                joystick_id=joystick_id,
-                game=self.game
-            )
+            joystick_proxy = JoystickManager.JoystickProxy(joystick_id=joystick_id, game=self.game)
             self.joysticks[joystick_id] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
@@ -311,7 +282,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         self.proxies = [self.game]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add joystick-specific arguments to the global parser.
 
         This class method will get called automatically by the GameEngine class.
@@ -436,8 +407,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         # controller object due to hotplug ends up with an incorrect
         # device_index.
         joystick_proxy = JoystickManager.JoystickProxy(
-            joystick_id=event.device_index,
-            game=self.game
+            joystick_id=event.device_index, game=self.game
         )
         self.joysticks[event.device_index] = joystick_proxy
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Ball."""
+
 from __future__ import annotations
 
 import random
 from typing import Self
 
 import pygame
-
 from glitchygames import game_objects
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
@@ -16,9 +16,15 @@ from glitchygames.sprites import Sprite
 class BallSprite(Sprite):
     """Ball Sprite."""
 
-    def __init__(self: Self, x: int = 0, y: int = 0, width: int = 20, height: int = 20,
-                 groups: pygame.sprite.LayeredDirty | None = None,
-                 collision_sound: str | None = None) -> None:
+    def __init__(
+        self: Self,
+        x: int = 0,
+        y: int = 0,
+        width: int = 20,
+        height: int = 20,
+        groups: pygame.sprite.LayeredDirty | None = None,
+        collision_sound: str | None = None,
+    ) -> None:
         """Initialize the ball sprite.
 
         Args:
@@ -74,13 +80,7 @@ class BallSprite(Sprite):
             None
         """
         self._color = new_color
-        pygame.draw.circle(
-            self.image,
-            self._color,
-            (self.width // 2, self.height // 2),
-            5,
-            0
-        )
+        pygame.draw.circle(self.image, self._color, (self.width // 2, self.height // 2), 5, 0)
 
     def _do_bounce(self: Self) -> None:
         """Bounce the ball.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A simple game that loads a legacy sprite file."""
+
 from __future__ import annotations
 
 import configparser
@@ -25,6 +26,7 @@ LOG.setLevel(logging.INFO)
 
 class BitmappyLegacySprite(Sprite):
     """A sprite class for loading legacy bitmappy sprites."""
+
     log = LOG
 
     def __init__(self: Self, filename: str, palette: list, *args, **kwargs) -> None:
@@ -45,15 +47,15 @@ class BitmappyLegacySprite(Sprite):
         self.name = None
         self.palette = palette
 
-        (self.image, self.rect, self.name) = self.load(filename=filename,
-                                                       palette=self.palette,
-                                                       width=32,
-                                                       height=32)
+        (self.image, self.rect, self.name) = self.load(
+            filename=filename, palette=self.palette, width=32, height=32
+        )
 
         self.save(filename + '.cfg')
 
-    def load(self: Self, filename: str, palette: list, width: int,
-             height: int) -> tuple[pygame.Surface, pygame.Rect, str]:
+    def load(
+        self: Self, filename: str, palette: list, width: int, height: int
+    ) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a sprite from a config file.
 
         Args:
@@ -84,19 +86,19 @@ class BitmappyLegacySprite(Sprite):
         pixels = list(pixels)
 
         # NOTE: This code replaces the below for loop but hasn't been tested.
-        rgb_pixels.extend([palette[pixel] for pixel in pixels[0:width * height]])
+        rgb_pixels.extend([palette[pixel] for pixel in pixels[0 : width * height]])
 
         # for pixel in pixels[0:width * height]:
         #     rgb_pixels.append(palette[pixel])
 
-        (image, rect) = self.inflate(width=width,
-                                     height=height,
-                                     pixels=rgb_pixels)
+        (image, rect) = self.inflate(width=width, height=height, pixels=rgb_pixels)
 
         return (image, rect, filename)
 
-    def inflate(self: Self, width: int, height: int,
-                pixels: list) -> tuple[pygame.Surface, pygame.Rect]:
+    @classmethod
+    def inflate(
+        cls: Self, width: int, height: int, pixels: list
+    ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate the sprite.
 
         Args:
@@ -154,9 +156,7 @@ class BitmappyLegacySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = self.rgb_triplet_generator(
-            pygame.image.tostring(self.image, 'RGB')
-        )
+        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, 'RGB'))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -219,9 +219,11 @@ class BitmappyLegacySprite(Sprite):
         Returns:
             str: The string representation.
         """
-        description = f'Name: {self.name}\n"' \
-                           f'Dimensions: {self.width}x{self.height}' \
-                           f'\nColor Key: {self.color_key}\n'
+        description = (
+            f'Name: {self.name}\n"'
+            f'Dimensions: {self.width}x{self.height}'
+            f'\nColor Key: {self.color_key}\n'
+        )
 
         for row in self.pixels:
             for pixel in row:
@@ -291,13 +293,11 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
-        parser.add_argument('--filename',
-                            help='the file to load',
-                            required=True)
+        parser.add_argument('--filename', help='the file to load', required=True)
 
 
 def main() -> None:

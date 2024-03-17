@@ -3,6 +3,7 @@
 
 This is a simple font manager that can be used to load fonts.
 """
+
 from __future__ import annotations
 
 import logging
@@ -13,7 +14,6 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-
 from glitchygames.events import FontEvents, ResourceManager
 
 log = logging.getLogger('game.fonts')
@@ -58,10 +58,8 @@ class FontManager(ResourceManager):
         # pygame.font.init()
         # pygame.ftfont.init()
 
-        log.info('Freetype Font Cache Size: '
-                 f'{pygame.freetype.get_cache_size()}')
-        log.info('Freetype Font Default Resolution: '
-                 f'{pygame.freetype.get_default_resolution()}')
+        log.info('Freetype Font Cache Size: ' f'{pygame.freetype.get_cache_size()}')
+        log.info('Freetype Font Default Resolution: ' f'{pygame.freetype.get_default_resolution()}')
 
         # Set up the default options.
         FontManager.OPTIONS['font_name'] = game.OPTIONS['font_name']
@@ -102,7 +100,7 @@ class FontManager(ResourceManager):
         # self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add font options to the argument parser.
 
         Args:
@@ -113,23 +111,12 @@ class FontManager(ResourceManager):
         """
         group = parser.add_argument_group('Font Options')
 
-        group.add_argument('--font-name',
-                           default=pygame.freetype.get_default_font())
-        group.add_argument('--font-size',
-                           type=int,
-                           default=14)
-        group.add_argument('--font-bold',
-                           action='store_true',
-                           default=False)
-        group.add_argument('--font-italic',
-                           action='store_true',
-                           default=False)
-        group.add_argument('--font-antialias',
-                           action='store_true',
-                           default=False)
-        group.add_argument('--font-dpi',
-                           type=int,
-                           default=72)
+        group.add_argument('--font-name', default=pygame.freetype.get_default_font())
+        group.add_argument('--font-size', type=int, default=14)
+        group.add_argument('--font-bold', action='store_true', default=False)
+        group.add_argument('--font-italic', action='store_true', default=False)
+        group.add_argument('--font-antialias', action='store_true', default=False)
+        group.add_argument('--font-dpi', type=int, default=72)
 
         return parser
 
@@ -137,7 +124,10 @@ class FontManager(ResourceManager):
     # with a system font by passing an explicit path.
     #
     # We can also use a config file to specify the font path.
-    def font(self: Self, font_config: dict | None = None) -> pygame.freetype.Font | pygame.freetype.SysFont:  # noqa: E501
+    @classmethod
+    def font(
+        cls, font_config: dict | None = None
+    ) -> pygame.freetype.Font | pygame.freetype.SysFont:
         """Return a font object.
 
         If the font requested can't be found then bitstream_vera will be loaded instead.
@@ -162,8 +152,9 @@ class FontManager(ResourceManager):
         log.info(f'Font Size: {font_config["font_size"]}')
 
         try:
-            return pygame.freetype.SysFont(name=font_config['font_name'],
-                                            size=font_config['font_size'])
+            return pygame.freetype.SysFont(
+                name=font_config['font_name'], size=font_config['font_size']
+            )
         except (TypeError, FileNotFoundError):
             # Note: Not sure why but pygame.freetype.SysFont doesn't
             # seem to work with pyinstaller packaged games.

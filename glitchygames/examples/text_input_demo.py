@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Text Input Demo."""
+
 from __future__ import annotations
 
 import logging
 from typing import Self
 
 import pygame
-
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
@@ -24,7 +24,9 @@ class Game(Scene):
     NAME = 'Input Demo'
     VERSION = '1.0'
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:  # noqa: E501
+    def __init__(
+        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+    ) -> None:
         """Initialize the Game.
 
         Args:
@@ -40,24 +42,22 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)
 
         self.input_box = InputBox(
-            x=320,
-            y=240,
-            width=200,
-            height=20,
-            text='Test',
-            parent=self,
-            groups=groups
+            x=320, y=240, width=200, height=20, text='Test', parent=self, groups=groups
         )
 
         self.background_color = (255, 255, 0)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(
-            self.input_box
-        )
+        self.all_sprites = pygame.sprite.LayeredDirty(self.input_box)
 
         self.all_sprites.clear(self.screen, self.background)
 
-    def setup(self: Self) -> None:
+    # Note: This could be a static method, a class method
+    # or an instance method. It's up to you.
+    #
+    # Since I'm not using self in this method, I'm making it
+    # a class method to appease the linter
+    @classmethod
+    def setup(cls) -> None:
         """Set up the game.
 
         Args:

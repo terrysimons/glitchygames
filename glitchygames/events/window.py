@@ -1,5 +1,6 @@
 #!usr/bin/env python3
 """Window."""
+
 from __future__ import annotations
 
 import logging
@@ -21,6 +22,7 @@ class WindowManager(ResourceManager):
 
     class WindowManagerProxy(WindowEvents, ResourceManager):
         """Window manager event proxy."""
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the window manager proxy.
 
@@ -224,7 +226,7 @@ class WindowManager(ResourceManager):
         self.proxies = [WindowManager.WindowManagerProxy(game=game)]
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add window-specific arguments to the global parser.
 
         Args:

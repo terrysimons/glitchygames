@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Basic example game."""
+
 from __future__ import annotations
 
 import logging
@@ -25,8 +26,7 @@ class Game(Scene):
     VERSION: Literal['1.0'] = '1.0'
     log: logging.Logger = LOG
 
-    def __init__(self: Self, options: dict,
-                 groups: pygame.sprite.Group | None = None) -> None:
+    def __init__(self: Self, options: dict, groups: pygame.sprite.Group | None = None) -> None:
         """Initialize the Game.
 
         Args:
@@ -60,9 +60,9 @@ class Game(Scene):
         Returns:
             None
         """
-        parser.add_argument('-v', '--version',
-                            action='store_true',
-                            help='print the game version and exit')
+        parser.add_argument(
+            '-v', '--version', action='store_true', help='print the game version and exit'
+        )
 
     def update(self: Self) -> None:
         """Update the scene.

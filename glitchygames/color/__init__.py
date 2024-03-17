@@ -2,6 +2,7 @@
 
 This module contains color constants and palette helpers.
 """
+
 from .palette import (
     NES,
     SYSTEM,

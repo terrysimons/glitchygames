@@ -1,0 +1,139 @@
+site_name: GlitchyGames
+site_url: https://glitchygames.github.io
+repo_url: https://github.com/terrysimons/glitchygames
+repo_name: glitchygames
+
+nav:
+  - GlitchyGames Getting Started: "index.md"
+  - glitchygames API Reference:
+    - "glitchygames/index.md"
+    - glitchygames.api: "glitchygames/api/index.md"
+    - glitchygames.color: "glitchygames/color/index.md"
+    - glitchygames.engine: "glitchygames/engine/index.md"
+    - glitchygames.events: "glitchygames/events/index.md"
+    - glitchygames.examples: "glitchygames/examples/index.md"
+    - glitchygames.font: "glitchygames/fonts/index.md"
+    - glitchygames.game_objects: "glitchygames/game_objects/index.md"
+    - glitchygames.interfaces: "glitchygames/interfaces/index.md"
+    - glitchygames.movement: "glitchygames/movement/index.md"
+    - glitchygames.pixels: "glitchygames/pixels/index.md"
+    - glitchygames.sprites: "glitchygames/sprites/index.md"
+    - glitchygames.scenes: "glitchygames/scenes/index.md"
+    - glitchygames.templates: "glitchygames/templates/index.md"
+    - glitchygames.tools: "glitchygames/tools/index.md"
+    - glitchygames.ui: "glitchygames/ui/index.md"
+
+validation:
+  omitted_files: warn
+  not_found: warn
+  absolute_links: warn
+
+
+theme:
+  name: readthedocs
+  highlightjs: true
+  include_homepage_in_sidebar: true
+  prev_next_buttons_location: both
+  navigation_depth: 4
+  collapse_navigation: false
+  titles_only: true
+  sticky_navigation: true
+  features:
+    - navigation.expand
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.prefetch
+    - navigation.prune
+    - navigation.quick
+    - navigation.quick.progress
+    - navigation.scroll
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - toc.follow
+    - toc.integrate
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - toc:
+      toc_depth: 3
+      permalink: "#"
+      separator: "-"
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.betterem
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tasklist
+  - pymdownx.tilde
+  - pymdownx.emoji
+  - pymdownx.keys
+  - pymdownx.caret
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - pymdownx.details
+
+plugins:
+  - autorefs
+  - macros
+  - search
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [glitchygames]
+          rendering:
+            show_source: true
+          # options:
+          #   allow_inspection: no
+          #   show_bases: yes
+          #   show_source: no
+          #   show_root_heading: yes
+          #   preload_modules: no
+          #   allow_inspection: yes
+          #   show_bases: yes
+          #   heading_level: 2
+          #   show_root_heading: yes
+          #   show_root_toc_entry: yes
+          #   show_root_full_path: yes
+          #   show_root_members_full_path: yes
+          #   show_object_full_path: yes
+          #   show_category_heading: yes
+          #   show_symbol_type_heading: yes
+          #   show_symbol_type_toc: yes
+          #   inherited_members: yes
+          #   members: yes
+          #   members_order: source
+          #   group_by_category: yes
+          #   show_submodules: yes
+          #   summary: yes
+          #   docstring_style: "google"
+          #   docstring_section_style: table
+          #   show_if_no_docstring: yes
+          #   show_docstring_attributes: yes
+          #   show_docstring_functions: yes
+          #   show_docstring_classes: yes
+          #   show_docstring_modules: yes
+          #   show_docstring_description: yes
+          #   show_docstring_examples: yes
+          #   show_docstring_other_parameters: yes
+          #   show_docstring_parameters: yes
+          #   show_docstring_raises: yes
+          #   show_docstring_receives: yes
+          #   show_docstring_returns: yes
+          #   show_docstring_yields: yes
+          #   annotations_path: brief
+          #   line_length: 100
+          #   show_signature: yes
+          #   show_signature_annotations: yes
+          #   signature_crossrefs: yes
+          #   separate_signature: yes
+          #   unwrap_annotated: no
+

@@ -3,6 +3,7 @@
 
 This is a simple horizontal movement class that can be used to move sprites left and right.
 """
+
 from __future__ import annotations
 
 from typing import Self
