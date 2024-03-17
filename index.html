@@ -42,8 +42,6 @@
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href=".">GlitchyGames Getting Started</a>
-    <ul class="current">
-    </ul>
                 </li>
               </ul>
               
@@ -56,13 +54,19 @@
                   </li></ul>
               
               <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/api/">glitchygames.api</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/color/">glitchygames.color</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/events/">glitchygames.events</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/examples/">glitchygames.examples</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/game_objects/">glitchygames.game_objects</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/interfaces/">glitchygames.interfaces</a>
                   </li>
@@ -73,6 +77,10 @@
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/sprites/">glitchygames.sprites</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/tools/">glitchygames.tools</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/ui/">glitchygames.ui</a>
                   </li>
@@ -93,8 +101,12 @@
     <li><a href="." class="icon icon-home" aria-label="Docs"></a></li>
       <li class="breadcrumb-item active">GlitchyGames Getting Started</li>
     <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/index.md">Edit on glitchygames</a>
     </li>
   </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
@@ -106,9 +118,9 @@
 <li>Readability as a first principle</li>
 <li>Scene primitives</li>
 <li>Advanced event handling</li>
-<li>Human readable sprites</li>
+<li>Human readable/editable sprite file formats</li>
 </ul>
-<h1 id="example-game">Example Game</h1>
+<h1 id="example-game">Example Game<a class="headerlink" href="#example-game" title="Permanent link">#</a></h1>
 <p>Let's make a new game called Bitrot Adventures.</p>
 <p>The goal of our game will be to draw a pixel on the screen and handle key events to move the pixel around.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/usr/bin/env python3</span>
@@ -180,5 +192,5 @@
 
 <!--
 MkDocs version : 1.5.3
-Build Date UTC : 2024-01-27 07:39:28.460013+00:00
+Build Date UTC : 2024-03-17 04:12:41.685965+00:00
 -->
