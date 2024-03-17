@@ -132,7 +132,7 @@ jobs:
           command: |
             # choco install -y python3 --version=3.11.5 --allow-multiple-versions
             # choco install -y python3 --version=3.10.13 --allow-multiple-versions
-            choco install -y python3 --version=3.12.2
+            choco install -y python312
             # choco install pyenv-win --force -y
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
