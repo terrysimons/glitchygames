@@ -427,7 +427,7 @@ class BitmapPixelSprite(BitmappySprite):
         Raises:
             None
         """
-        super().__init__(x=x, y=x, width=width, height=height, name=name, groups=groups)
+        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         self.log.debug(f'BITMAP PIXEL SPRITE GROUPS: {groups}')
         self.pixel_number = pixel_number
         self.pixel_width = width
@@ -488,23 +488,29 @@ class BitmapPixelSprite(BitmappySprite):
             None
         """
         self.log.debug(f'Updating Pixel #: {self.pixel_number} @ {self.x}, {self.y}')
-        cached_image = BitmapPixelSprite.PIXEL_CACHE.get(self.pixel_color)
+        cache_key = (self.pixel_color, self.border_thickness)  # Include border in cache key
+        cached_image = BitmapPixelSprite.PIXEL_CACHE.get(cache_key)
 
         if not cached_image:
-            self.image = pygame.Surface((self.width, self.height))
-            self.rect = pygame.draw.rect(
+            self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)  # Add alpha channel
+            self.image.fill((0,0,0,0))  # Start with transparent
+
+            # Draw main pixel
+            pygame.draw.rect(
                 self.image, self.pixel_color, (0, 0, self.width, self.height)
             )
 
-            # Store this as an image and blit for a speedup.
+            # Draw border if needed
             if self.border_thickness:
                 pygame.draw.rect(
                     self.image, self.color, (0, 0, self.width, self.height), self.border_thickness
                 )
 
-            BitmapPixelSprite.PIXEL_CACHE[self.pixel_color] = self.image
+            BitmapPixelSprite.PIXEL_CACHE[cache_key] = self.image
         else:
-            self.image = cached_image
+            self.image = cached_image.copy()  # Use a copy to prevent shared state
+
+        self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
     def on_pixel_update_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the pixel update event.
@@ -691,17 +697,28 @@ class CanvasSprite(BitmappySprite):
         #     else:
         #         pixel_offset_x += 1
 
-        self.pixel_boxes = [
-            BitmapPixelSprite(
+        self.pixel_boxes = []
+        x = 0
+        y = 0
+        for i in range(self.pixels_across * self.pixels_tall):
+            pixel_x = self.border_margin + (x * self.pixel_width)
+            pixel_y = self.border_margin + (y * self.pixel_height)
+
+            pixel = BitmapPixelSprite(
                 name=f'pixel {i}',
                 pixel_number=i,
-                x=0,
-                y=0,
+                x=pixel_x,
+                y=pixel_y,
                 height=self.pixel_width,
                 width=self.pixel_height,
             )
-            for i in range(self.pixels_across * self.pixels_tall)
-        ]
+            self.pixel_boxes.append(pixel)
+
+            if (x + 1) % self.pixels_across == 0:
+                x = 0
+                y += 1
+            else:
+                x += 1
 
         for pixel_box in self.pixel_boxes:
             # self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
@@ -735,6 +752,11 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.rect.y = self.rect.y
 
         self.update_anyway = False
+
+        # Force initial position update
+        for pixel in self.pixel_boxes:
+            pixel.dirty = 1
+        self.update()
 
     def on_pixel_update_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle the pixel update event.
@@ -986,8 +1008,8 @@ class CanvasSprite(BitmappySprite):
         # self.update()
 
 
-class MiniView(CanvasSprite):
-    """Mini View."""
+class MiniView(BitmappySprite):
+    """Mini View of the canvas."""
 
     log = LOG
 
@@ -1018,188 +1040,86 @@ class MiniView(CanvasSprite):
 
         return (pixel_width, pixel_height)
 
-    def __init__(
-        self: Self,
-        x: int = 0,
-        y: int = 0,
-        width: int = 0,
-        height: int = 0,
-        name: str | None = None,
-        border_thickness: int = 0,
-        pixels: list | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the Mini View.
-
-        Args:
-            x (int, optional): The x coordinate. Defaults to 0.
-            y (int, optional): The y coordinate. Defaults to 0.
-            width (int, optional): The width. Defaults to 0.
-            height (int, optional): The height. Defaults to 0.
-            name (str, optional): The name. Defaults to None.
-            border_thickness (int, optional): The border thickness. Defaults to 0.
-            pixels (list, optional): The pixels. Defaults to None.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(
-            x=x, y=y, width=width, height=height, name=name, has_mini_view=False, groups=groups
-        )
+    def __init__(self, pixels: list, x: int = 0, y: int = 0,
+                 width: int = 0, height: int = 0,
+                 groups: pygame.sprite.LayeredDirty | None = None):
+        super().__init__(x=x, y=y, width=width, height=height, groups=groups)
         self.pixels = pixels
         self.dirty_pixels = [False] * len(self.pixels)
+        self.pixel_width, self.pixel_height = self.pixels_per_pixel(width, height)
 
-        self.pixel_width, self.pixel_height = self.pixels_per_pixel(
-            self.pixels_across, self.pixels_tall
-        )
-
-        # if self.pixels_across < 64:
-        #    self.pixel_width = 64 // self.pixels_tall
-        # else:
-        #    self.pixel_width = 1
-
-        # if self.pixels_tall < 64:
-        #    self.pixel_height = 64 // self.pixels_across
-        # else:
-        #    self.pixel_height = 1
-
-        self.width = self.pixels_across * self.pixel_width
-        self.height = self.pixels_tall * self.pixel_height
-
-        self.border_thickness = 0
-        self.border_margin = 0
-
-        self.grid_line_width = 0
+        self.width = width * self.pixel_width
+        self.height = height * self.pixel_height
 
         self.image = pygame.Surface((self.width, self.height))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
-        self.rect.width = self.width
-        self.rect.height = self.height
 
         self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0), (0, 0, 0)]
         self.palette_index = 0
-        self.image.fill(self.color_palette[self.palette_index])
 
-        self.dirty_pixels = [True] * len(self.pixels)
+        self.dirty = 1
 
-    # NOTE: Not sure why this is needed
-    #
-    # This is usually for sub-sprites that need to be updated when
-    # their parent changes
-    #
-    # This defers the update of the mini map down in the scene manager
-    #
-    # The dirty pixel check here saves us a lot of FPS since it ensures
-    # that we aren't updating the mini map every frame
-    def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
+    def on_pixel_update_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle pixel updates in the mini view.
 
         Args:
-            None
+            event (pygame.event.Event): The pygame event
+            trigger (object): The trigger object
 
         Returns:
-            None
-
-        Raises:
             None
         """
-        if any(self.dirty_pixels):
-            self.dirty = 1
-            self.dirty_pixels = [False] * len(self.pixels)
+        self.dirty = 1
+        self.dirty_pixels[trigger.pixel_number] = True
 
     def update(self: Self) -> None:
-        """Update the sprite.
+        """Update the mini view display.
 
         Args:
             None
 
         Returns:
-            None
-
-        Raises:
             None
         """
         x = 0
         y = 0
 
-        for pixel in self.pixels:
+        for i, pixel in enumerate(self.pixels):
             if pixel == (255, 0, 255):
+                try:
+                    pygame.draw.rect(
+                        self.image,
+                        self.color_palette[self.palette_index],
+                        ((x, y), (self.pixel_width, self.pixel_height)),
+                    )
+                except AttributeError:
+                    self.log.error(f'Error updating minimap pixel {i}')
+            else:
                 pygame.draw.rect(
                     self.image,
-                    self.color_palette[self.palette_index],
-                    ((x, y), (self.pixel_width, self.pixel_height)),
+                    pixel,
+                    ((x, y), (self.pixel_width, self.pixel_height))
                 )
-            else:
-                pygame.draw.rect(self.image, pixel, ((x, y), (self.pixel_width, self.pixel_height)))
-                # self.log.debug(f'Updated minimap pixel {i}')
 
-            if (x + self.pixel_width) % (self.pixels_across * self.pixel_width) == 0:
+            if (x + self.pixel_width) % (self.width) == 0:
                 x = 0
                 y += self.pixel_height
             else:
                 x += self.pixel_width
 
-        if any(self.dirty_pixels):
-            self.screen.blit(self.image, (self.rect.x, self.rect.y))
-
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle the left mouse button up event.
+        """Handle left mouse button up to cycle palette colors.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (pygame.event.Event): The pygame event
 
         Returns:
             None
-
-        Raises:
-            None
         """
-        self.palette_index += 1
-
-        if self.palette_index >= len(self.color_palette):
-            self.palette_index = 0
-
-        self.log.debug(
-            f'MiniMap Palette {self.palette_index}:' f'{self.color_palette[self.palette_index]}'
-        )
-
-        self.image.fill(self.color_palette[self.palette_index])
-
-        self.dirty_pixels = [True] * len(self.pixels)
+        self.palette_index = (self.palette_index + 1) % len(self.color_palette)
         self.dirty = 1
-
-    def __str__(self: Self) -> str:
-        """Get the string representation of the Mini View.
-
-        Args:
-            None
-
-        Returns:
-            str: The string representation of the Mini View.
-
-        Raises:
-            None
-        """
-        return (
-            f'pixels across: {self.pixels_across}, '
-            f'pixels tall: {self.pixels_tall}, '
-            f'width: {self.width}, '
-            f'height: {self.height}, '
-            f'pixel width: {self.pixel_width}, '
-            f'pixel_height: {self.pixel_height}, '
-            f'pixels: {len(self.pixels)}, '
-            f'rect: {self.rect}'
-        )
 
 
 class BitmapEditorScene(Scene):
@@ -1708,7 +1628,10 @@ def main() -> None:
     """
     icon_path = Path(__file__).parent / 'resources' / 'bitmappy.png'
 
-    GameEngine(game=BitmapEditorScene, icon=icon_path).start()
+    GameEngine(
+        game=BitmapEditorScene,
+        icon=icon_path
+    ).start()
 
 
 if __name__ == '__main__':

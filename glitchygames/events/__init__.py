@@ -2724,7 +2724,7 @@ class EventManager(ResourceManager):
 
             event = kwargs.get('event')
 
-            event_trigger = kwargs.get('trigger', None)
+            event_trigger: dict | None = kwargs.get('trigger')
 
             self.log.debug(
                 f'Unhandled Event {event_handler}: '

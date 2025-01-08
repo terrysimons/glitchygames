@@ -1,23 +1,23 @@
 repos:
-- repo: local
-  hooks:
-    - id: nox
-      name: nox
-      files: ^.*\.py$
-      language: python
-      entry: nox
-      types: [python]
-      # stages: [pre-commit, push]
-      pass_filenames: false
-
-# We don't need to do this seperately, because nox will run the tests
 # - repo: local
 #   hooks:
-#     - id: mkdocs
-#       name: mkdocs
+#     - id: nox
+#       name: nox
 #       files: ^.*\.py$
 #       language: python
-#       entry: mkdocs build --strict
+#       entry: nox
 #       types: [python]
 #       # stages: [pre-commit, push]
 #       pass_filenames: false
+
+# We don't need to do this seperately, because nox will run the tests
+- repo: local
+  hooks:
+    - id: mkdocs
+      name: mkdocs
+      files: ^.*\.py$
+      language: python
+      entry: mkdocs build --strict
+      types: [python]
+      # stages: [pre-commit, push]
+      pass_filenames: false

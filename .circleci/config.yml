@@ -11,11 +11,11 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.12.2"
+    default: "3.13.1"
 
 orbs:
   win: circleci/windows@5.0
-  macos: circleci/macos@2.4.1
+  macos: circleci/macos@2.5.2
   jira: circleci/jira@2.1.0
 
 # Define a job to be invoked later in a workflow.
@@ -25,7 +25,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/python:3.12.1
+      - image: cimg/python:3.13.1
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -69,9 +69,9 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: 14.3.1
+      xcode: "16.2.0"
+    resource_class: macos.m1.medium.gen1
 
-    resource_class: medium
 
     steps:
       # Commands will execute in macOS container
@@ -132,7 +132,7 @@ jobs:
           command: |
             # choco install -y python3 --version=3.11.5 --allow-multiple-versions
             # choco install -y python3 --version=3.10.13 --allow-multiple-versions
-            choco install -y python312
+            choco install -y python313
             # choco install pyenv-win --force -y
             Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
             refreshenv
