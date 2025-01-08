@@ -11,7 +11,7 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.12.2"
+    default: "3.13.1"
 
 orbs:
   win: circleci/windows@5.0
@@ -25,7 +25,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/python:3.12.1
+      - image: cimg/python:3.13.1
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -69,8 +69,8 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: "latest"
-    resource_class: m2pro.medium
+      xcode: "16.2.0"
+    resource_class: macos.m1.medium.gen1
 
 
     steps:
