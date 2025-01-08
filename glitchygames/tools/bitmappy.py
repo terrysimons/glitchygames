@@ -506,9 +506,11 @@ class BitmapPixelSprite(BitmappySprite):
                     self.image, self.color, (0, 0, self.width, self.height), self.border_thickness
                 )
 
+            # Convert surface for better performance
+            self.image = self.image.convert_alpha()
             BitmapPixelSprite.PIXEL_CACHE[cache_key] = self.image
         else:
-            self.image = cached_image.copy()  # Use a copy to prevent shared state
+            self.image = cached_image  # No need to copy since we converted the surface
 
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
@@ -745,8 +747,8 @@ class CanvasSprite(BitmappySprite):
                 y=self.rect.y + self.pixels_tall,
                 width=self.pixels_across,
                 height=self.pixels_tall,
-                groups=groups,
             )
+            self.all_sprites.add(self.mini_view)
             self.mini_view.pixels = self.pixels
             self.mini_view.rect.x = self.screen_width - self.mini_view.width
             self.mini_view.rect.y = self.rect.y
