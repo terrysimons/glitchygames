@@ -69,7 +69,7 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: 15.4.0
+      xcode: "latest"
     resource_class: m2pro.medium
 
 
