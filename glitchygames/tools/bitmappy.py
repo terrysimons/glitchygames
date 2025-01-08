@@ -408,33 +408,13 @@ class BitmapPixelSprite(BitmappySprite):
         border_thickness: int = 1,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
-        """Initialize the Bitmap Pixel Sprite.
-
-        Args:
-            x (int, optional): The x coordinate. Defaults to 0.
-            y (int, optional): The y coordinate. Defaults to 0.
-            width (int, optional): The width. Defaults to 1.
-            height (int, optional): The height. Defaults to 1.
-            name (str, optional): The name. Defaults to None.
-            pixel_number (int, optional): The pixel number. Defaults to 0.
-            border_thickness (int, optional): The border thickness. Defaults to 1.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
+        """Initialize the Bitmap Pixel Sprite."""
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
-        self.log.debug(f'BITMAP PIXEL SPRITE GROUPS: {groups}')
+
         self.pixel_number = pixel_number
         self.pixel_width = width
         self.pixel_height = height
         self.border_thickness = border_thickness
-        self.width = self.pixel_width
-        self.height = self.pixel_height
         self.color = (96, 96, 96)
         self.pixel_color = (0, 0, 0)
         self.x = x
@@ -652,78 +632,21 @@ class CanvasSprite(BitmappySprite):
         # Can we change this to groups?
         self.all_sprites = groups
 
-        # self.pixel_boxes = [
-        #         BitmapPixelSprite(
-        #             name=f'pixel {pixel_number}',
-        #             x=self.rect.x,
-        #             y=self.rect.y
-        #         )
-        #     for i, pixel_number in enumerate(range(self.pixels_across * self.pixels_tall))
-        # ]
-
-        # for pixel_number, pixel in enumerate(self.pixel_boxes):
-        #     self.log.info(
-        #         f'BRO: Pixel Number: {pixel_number} '
-        #         f'x: {pixel.x} '
-        #         f'y: {pixel.y} '
-        #         f'rect.x: {pixel.rect.x} '
-        #         f'rect.y: {pixel.rect.y}'
-        #     )
-
-        self.all_sprites.add(self)
-
-        # pixel_offset_x = 0
-        # pixel_offset_y = 0
-        # for pixel_number in range(self.pixels_across * self.pixels_tall):
-        #     pixel_x = pixel_offset_x * self.pixel_width
-        #     pixel_y = pixel_offset_y * self.pixel_height
-        #     self.log.info(f'Pixel box #: {pixel_number}')
-        #     pixel_box = BitmapPixelSprite(name=f'pixel {pixel_number}',
-        #                                   x=self.rect.x,
-        #                                   y=self.rect.y,
-        #                                   height=self.pixel_width,
-        #                                   width=self.pixel_height, groups=groups)
-        #     pixel_box.pixel_color = self.pixels[pixel_number]
-        #     pixel_box.rect.x = pixel_x + self.rect.x
-        #     pixel_box.rect.y = pixel_y + self.rect.y
-
-        #     # This allows us to update the mini map.
-        #     pixel_box.callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
-
-        #     self.pixel_boxes.append(pixel_box)
-
-        #     if (pixel_offset_x + 1) % self.pixels_across == 0:
-        #         pixel_offset_x = 0
-        #         pixel_offset_y += 1
-        #     else:
-        #         pixel_offset_x += 1
-
-        self.pixel_boxes = []
-        x = 0
-        y = 0
-        for i in range(self.pixels_across * self.pixels_tall):
-            pixel_x = self.border_margin + (x * self.pixel_width)
-            pixel_y = self.border_margin + (y * self.pixel_height)
-
-            pixel = BitmapPixelSprite(
+        # Create all pixel boxes at once
+        self.pixel_boxes = [
+            BitmapPixelSprite(
                 name=f'pixel {i}',
                 pixel_number=i,
-                x=pixel_x,
-                y=pixel_y,
+                x=self.border_margin + ((i % self.pixels_across) * self.pixel_width),
+                y=self.border_margin + ((i // self.pixels_across) * self.pixel_height),
                 height=self.pixel_width,
                 width=self.pixel_height,
             )
-            self.pixel_boxes.append(pixel)
+            for i in range(self.pixels_across * self.pixels_tall)
+        ]
 
-            if (x + 1) % self.pixels_across == 0:
-                x = 0
-                y += 1
-            else:
-                x += 1
-
-        for pixel_box in self.pixel_boxes:
-            # self.log.info(f'Pixel Box Groups: {pixel_box.groups}')
-            self.all_sprites.add(pixel_box)
+        # Add all sprites to group at once
+        self.all_sprites.add(self.pixel_boxes)
 
         for i in range(self.pixels_across * self.pixels_tall):
             self.pixel_boxes[i].pixel_color = self.pixels[i]
