@@ -1368,7 +1368,7 @@ class GameEngine(events.EventManager):
         """
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
-                '(UNIMPLEMENTED) ' f'{events.HashableEvent_name(event.type).upper()}: {event}'
+                '(UNIMPLEMENTED) ' f'{pygame.event.event_name(event.type).upper()}: {event}'
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 

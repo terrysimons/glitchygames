@@ -28,13 +28,13 @@ include = [
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
 "homepage" = "https://glitchygames.ai/"
-"documentation" = "https://glitchygames.ai/documentation/"
+"Documentation" = "https://glitchygames.ai/documentation/"
 
 [tool.poetry.scripts]
 bitmappy = "glitchygames.tools.bitmappy:main"
 
 [tool.poetry.dependencies]
-python = ">= 3.12, < 4.0"
+python = ">= 3.13, < 4.0"
 toml = "*"
 pygame = "*"
 future = "*"
@@ -68,12 +68,11 @@ dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-p
 [tool.ruff]
 line-length = 100
 output-format = "grouped"
-lint.ignore-init-module-imports = true
 src = ["glitchygames", "tests", "scripts"]
-lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
-lint.select = [
+select = [
   "F",
   "E",
   "W",
@@ -83,9 +82,7 @@ lint.select = [
   "D",
   "UP",
   "YTT",
-  "ANN",
   "ASYNC",
-  "TRIO",
   "S",
   "BLE",
   "FBT",
@@ -115,7 +112,6 @@ lint.select = [
   "SLOT",
   "SIM",
   "TID",
-  "TCH",
   "INT",
   "ARG",
   "PTH",
@@ -134,7 +130,7 @@ lint.select = [
   "LOG",
   "RUF",
 ]
-lint.ignore = [
+ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
@@ -151,8 +147,6 @@ lint.ignore = [
   "TD003", # Missing issue link on the line following this TODO
   "PLR0913", # Too many arguments to function call
   "TD002", # Missing author in TODO
-  "ANN002", # Missing type annotation for `*args`
-  "ANN003", # Missing type annotation for `**kwargs`
   "S101",
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
@@ -160,33 +154,30 @@ lint.ignore = [
   "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
   "EM101", # Exception must not use a string literal, assign to variable first
   "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
-  "ANN102", # Missing type annotation for `cls` in classmethod
 ]
-lint.exclude = []
-lint.fixable = [
+exclude = []
+fixable = [
   "I001",
   "Q000",
   "EXE001",
-  "ANN",
-  "ANN101"
 ]
-lint.unfixable = []
-target-version = "py312"
+unfixable = []
+target-version = "py313"
 
 [tool.ruff.format]
 quote-style = "single"
 docstring-code-format = true
 
-[tool.ruff.lint.flake8-annotations]
+[tool.ruff.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.ruff.lint.flake8-quotes]
+[tool.ruff.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.ruff.lint.pydocstyle]
+[tool.ruff.pydocstyle]
 convention = "google"
 
 [tool.pyright]
