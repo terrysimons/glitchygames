@@ -1167,53 +1167,61 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites,
         )
 
+        # First create the sliders
         slider_height = 9
+        slider_width = 256
+        slider_x = 10
+        label_width = 32  # Width of the text sprite
+        label_padding = 10  # Padding between slider and label
+        well_padding = 20  # Padding between labels and color well
 
         self.red_slider = SliderSprite(
             name='R',
-            x=10,
+            x=slider_x,
             y=self.screen_height - 70,
-            width=256,
+            width=slider_width,
             height=slider_height,
             parent=self,
             groups=self.all_sprites,
         )
-        self.red_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
 
         self.green_slider = SliderSprite(
             name='G',
-            x=10,
+            x=slider_x,
             y=self.screen_height - 50,
-            width=256,
+            width=slider_width,
             height=slider_height,
             parent=self,
             groups=self.all_sprites,
         )
-        self.green_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
 
         self.blue_slider = SliderSprite(
             name='B',
-            x=10,
+            x=slider_x,
             y=self.screen_height - 30,
-            width=256,
+            width=slider_width,
             height=slider_height,
             parent=self,
             groups=self.all_sprites,
         )
-        self.blue_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
+
+        # Create the color well to the right of the sliders AND their labels
+        well_size = 64
+        total_slider_width = slider_width + label_padding + label_width  # Full width including label
+
+        self.color_well = ColorWellSprite(
+            name='Color Well',
+            x=slider_x + total_slider_width + well_padding,  # Position after sliders + labels + padding
+            y=self.screen_height - 70,  # Align with top slider
+            width=well_size,
+            height=well_size,
+            parent=self,
+            groups=self.all_sprites,
+        )
 
         self.red_slider.value = 0
         self.blue_slider.value = 0
         self.green_slider.value = 0
-
-        self.color_well = ColorWellSprite(
-            name='Colorwell',
-            x=self.red_slider.rect.midright[0] + 30,
-            y=self.red_slider.rect.y,
-            width=64,
-            height=64,
-            groups=groups,
-        )
 
         self.color_well.active_color = (
             self.red_slider.value,
