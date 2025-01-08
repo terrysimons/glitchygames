@@ -69,9 +69,9 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: 14.6.1
+      xcode: 15.4.0
+    resource_class: m2pro.medium
 
-    resource_class: macos.m1.medium.gen1
 
     steps:
       # Commands will execute in macOS container
