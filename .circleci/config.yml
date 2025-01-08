@@ -15,7 +15,7 @@ parameters:
 
 orbs:
   win: circleci/windows@5.0
-  macos: circleci/macos@2.4.1
+  macos: circleci/macos@2.5.2
   jira: circleci/jira@2.1.0
 
 # Define a job to be invoked later in a workflow.
@@ -69,9 +69,9 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: 14.3.1
+      xcode: 14.6.1
 
-    resource_class: medium
+    resource_class: macos.m1.medium.gen1
 
     steps:
       # Commands will execute in macOS container
