@@ -1175,6 +1175,7 @@ class BitmapEditorScene(Scene):
             y=self.screen_height - 70,
             width=256,
             height=slider_height,
+            parent=self,
             groups=self.all_sprites,
         )
         self.red_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
@@ -1185,6 +1186,7 @@ class BitmapEditorScene(Scene):
             y=self.screen_height - 50,
             width=256,
             height=slider_height,
+            parent=self,
             groups=self.all_sprites,
         )
         self.green_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}
@@ -1195,6 +1197,7 @@ class BitmapEditorScene(Scene):
             y=self.screen_height - 30,
             width=256,
             height=slider_height,
+            parent=self,
             groups=self.all_sprites,
         )
         self.blue_slider.callbacks = {'on_left_mouse_button_down_event': self.on_slider_event}

@@ -1526,12 +1526,12 @@ class TextBoxSprite(BitmappySprite):
 class SliderSprite(BitmappySprite):
     """A slider sprite class."""
 
-    log = LOG
+    log = logging.getLogger('game')
 
     class SliderKnobSprite(BitmappySprite):
         """A slider knob sprite class."""
 
-        log = LOG
+        log = logging.getLogger('game')
 
         def __init__(
             self: Self,
@@ -1613,8 +1613,8 @@ class SliderSprite(BitmappySprite):
         self: Self,
         x: int,
         y: int,
-        width: int,
-        height: int,
+        width: int = 256,
+        height: int = 9,
         name: str | None = None,
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
@@ -1636,236 +1636,166 @@ class SliderSprite(BitmappySprite):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        # TODO: If even, make the line 2x thick?
-        if height % 2 == 0:
-            height -= 1
+        # Store parent in a temporary variable
+        self._temp_parent = parent
+
+        self.log = logging.getLogger('game')
+        self.log.info(f"Initializing slider {name} with parent {parent}")
 
         super().__init__(
-            x=x, y=y, width=width + 20, height=height, name=name, parent=parent, groups=groups
-        )
-
-        # self.text_sprite = TextBoxSprite(
-        #     x=257,
-        #     y=self.rect.y,
-        #     width=40,
-        #     height=16,
-        #     name=str((0, 0, 0)),
-        #     parent=self,
-        #     groups=groups,
-        # )
-        self.text_sprite = TextSprite(
-            x=257,
-            y=self.rect.y,
-            width=40,
-            height=16,
-            name=str((0, 0, 0)),
-            parent=self,
-            groups=groups,
-        )
-
-        self.slider_knob = SliderSprite.SliderKnobSprite(
             x=x,
-            y=y - 1,
-            width=self.height * 2 - 1,
-            height=self.height * 2 - 1,
+            y=y,
+            width=width,
+            height=height,
             name=name,
-            parent=self,
+            focusable=True,
             groups=groups,
         )
 
-        self.slider_knob.value = 0
+        # Force set parent after super init
+        self.parent = self._temp_parent
+        delattr(self, '_temp_parent')
 
-        self.text_sprite.text = self.slider_knob.value
+        self.log.info(f"After super().__init__, parent is now {self.parent}")
 
-        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
-        self.slider_knob.rect.y = self.rect.centery - self.rect.height + 1
-        self.slider_knob.dirty = 1
+        # Initialize base values
+        self._value = 0
+        self.min_x = x
+        self.max_x = x + width - 5
+        self.dragging = False
 
-        self.text_sprite.border_width = 1
-        # self.text_sprite.x = self.rect.right
-        # self.text_sprite.y = self.rect.centery
+        # Initialize the slider knob
+        self.slider_knob = BitmappySprite(
+            x=x,
+            y=y,
+            width=5,
+            height=height,
+            name=f'{name}_knob',
+            groups=groups,
+        )
+        self.slider_knob.image.fill((200, 200, 200))
 
-        # This is the stuff pygame really cares about.
-        self.image = pygame.Surface((self.width, self.height))
-        self.rect = self.image.get_rect()
-        self.background = pygame.Surface((self.width, self.height))
-        # self.image.fill((255, 255, 255))
-        self.x = x
-        self.y = y
-        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
-        self.text_sprite.y = self.parent.rect.y if self.parent else self.rect.y
+        # Create the text sprite
+        text_x = x + width + 10
+        self.text_sprite = TextSprite(
+            x=text_x,
+            y=y - (height // 2),
+            width=32,
+            height=20,
+            text='0',
+            groups=groups,
+        )
 
-        # self.image.blit(self.text_sprite.image, (0, 0))
+        # Set color based on slider name
+        if name == 'R':
+            self.color = (255, 0, 0)
+        elif name == 'G':
+            self.color = (0, 255, 0)
+        elif name == 'B':
+            self.color = (0, 0, 255)
+        else:
+            self.color = (128, 128, 128)
+
+        # Set up appearance
+        self.update_slider_appearance()
+
+        # Make sure we update
+        self.dirty = 2
+        self.slider_knob.dirty = 2
+
+        # Now set the initial value
+        self.value = self._value
+
+        self.log.info(f"Finished initializing slider {name}, final parent is {self.parent}")
 
     @property
-    def value(self: Self) -> int:
-        """Get the value of the slider sprite.
-
-        Args:
-            None
-
-        Returns:
-            int: The value of the slider sprite.
-        """
-        return self.slider_knob.value
+    def value(self):
+        return self._value
 
     @value.setter
-    def value(self: Self, value: int) -> None:
-        """Set the value of the slider sprite.
+    def value(self, new_value):
+        if hasattr(self, 'slider_knob'):  # Only update knob if it exists
+            self._value = max(0, min(255, new_value))
+            self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
+            self.slider_knob.dirty = 2
+            if hasattr(self, 'text_sprite'):
+                self.text_sprite.text = str(self._value)
 
-        Args:
-            value (int): The new value of the slider sprite.
-
-        Returns:
-            None
-        """
-        self.slider_knob.value = value
-
-    @property
-    def x(self: Self) -> int:
-        """Get the x coordinate of the slider sprite.
-
-        Args:
-            None
-
-        Returns:
-            int: The x coordinate of the slider sprite.
-        """
-        return self.rect.x
-
-    @x.setter
-    def x(self: Self, new_x: int) -> None:
-        """Set the x coordinate of the slider sprite.
-
-        Args:
-            new_x (int): The new x coordinate of the slider sprite.
-
-        Returns:
-            None
-        """
-        self.rect.x = new_x
-        self.slider_knob.rect.centerx = self.rect.x + self.slider_knob.value
-        self.text_sprite.x = 240
-        # self.text_sprite.text_box.x = self.parent.rect.centerx \
-        #     if self.parent else self.rect.centerx
-        self.dirty = 1
-
-    @property
-    def y(self: Self) -> int:
-        """Get the y coordinate of the slider sprite.
-
-        Args:
-            None
-
-        Returns:
-            int: The y coordinate of the slider sprite.
-        """
-        return self.rect.y
-
-    @y.setter
-    def y(self: Self, new_y: int) -> None:
-        """Set the y coordinate of the slider sprite.
-
-        Args:
-            new_y (int): The new y coordinate of the slider sprite.
-
-        Returns:
-            None
-        """
-        self.rect.y = new_y
-        self.text_sprite.y = self.parent.rect.y if self.parent else new_y
-        # self.text_sprite.text_box.y = self.parent.rect.centery \
-        #     if self.parent else self.rect.centery
-
-        self.dirty = 1
-
-    def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        self.slider_knob.dirty = self.dirty
-        self.text_sprite.dirty = self.dirty
-        # self.text_sprite.text.dirty = self.dirty
-
-    def update(self: Self) -> None:
-        """Update the slider sprite.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        pygame.draw.rect(
-            self.image,
-            (255, 255, 0),
-            Rect(self.x, self.rect.y, self.rect.width, self.rect.height),
-            self.width,
-        )
-
-        pygame.draw.rect(
-            self.image,
-            (255, 0, 0),
-            Rect(self.rect.centerx, self.rect.centery, self.rect.width, self.rect.height),
-            1,
-        )
-        self.text_sprite.value = self.slider_knob.value
-        self.text_sprite.text_box.text = self.slider_knob.value
-
-        self.image.fill((0, 0, 0))
-
-        color = (255, 255, 255)
-
-        for i in range(256):
-            color = (i, i, i)
-
+    def update_slider_appearance(self):
+        """Update the slider's gradient appearance based on its color."""
+        for x in range(self.width):
+            intensity = int((x / self.width) * 255)
             if self.name == 'R':
-                color = (i, 0, 0)
+                color = (intensity, 0, 0)
             elif self.name == 'G':
-                color = (0, i, 0)
+                color = (0, intensity, 0)
             elif self.name == 'B':
-                color = (0, 0, i)
+                color = (0, 0, intensity)
+            else:
+                color = (intensity, intensity, intensity)
+            pygame.draw.line(self.image, color, (x, 0), (x, self.height))
 
-            pygame.draw.line(self.image, color, (i, self.height // 2 - 1), (i, self.height // 2), 1)
+    def update_color_well(self):
+        """Update the color well with current value."""
+        if hasattr(self.parent, 'color_well'):
+            if self.name == 'R':
+                self.parent.red_slider.value = self._value
+            elif self.name == 'G':
+                self.parent.green_slider.value = self._value
+            elif self.name == 'B':
+                self.parent.blue_slider.value = self._value
 
-            pygame.draw.line(self.image, color, (i, self.height // 2), (i, self.height // 2), 1)
+            self.parent.color_well.active_color = (
+                self.parent.red_slider.value,
+                self.parent.green_slider.value,
+                self.parent.blue_slider.value,
+            )
 
-            pygame.draw.line(self.image, color, (i, self.height // 2 + 1), (i, self.height // 2), 1)
+    def on_left_mouse_button_down_event(self, event):
+        mouse = MousePointer(pos=event.pos)
+        if pygame.sprite.collide_rect(mouse, self):
+            self.log.info(f"Mouse down on slider {self.name}")
+            self.dragging = True
+            # Update value based on click position
+            click_x = max(self.min_x, min(event.pos[0], self.max_x))
+            self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle left mouse button down events.
+            # Create trigger event exactly like right-click does
+            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
+            if hasattr(self.parent, 'on_slider_event'):
+                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+                self.parent.on_slider_event(event=event, trigger=trigger)
+            else:
+                self.log.info(f"Parent {self.parent} has no on_slider_event")
 
-        Args:
-            event (pygame.event.Event): The event to handle.
+            self.value = self._value  # Update display after event
 
-        Returns:
-            None
-        """
-        self.slider_knob.on_left_mouse_button_down_event(event)
-        super().on_left_mouse_button_down_event(event)
-        self.dirty = 1
+    def on_mouse_motion_event(self, event):
+        if self.dragging:
+            self.log.info(f"Dragging slider {self.name}")
+            # Update value based on drag position
+            drag_x = max(self.min_x, min(event.pos[0], self.max_x))
+            self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle left mouse drag events.
+            # Create trigger event exactly like right-click does
+            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
+            if hasattr(self.parent, 'on_slider_event'):
+                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+                self.parent.on_slider_event(event=event, trigger=trigger)
+            else:
+                self.log.info(f"Parent {self.parent} has no on_slider_event")
 
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object): The object that triggered the event.
+            self.value = self._value  # Update display after event
 
-        Returns:
-            None
-        """
-        self.on_left_mouse_button_down_event(event)
-        # There's not a good way to pass any useful info, so for now, pass None
-        # since we're not using the event for anything in this class.
-        self.slider_knob.on_left_mouse_drag_event(event, trigger)
-        super().on_left_mouse_drag_event(event, trigger)
-        self.dirty = 1
+    def on_left_mouse_button_up_event(self, event):
+        if self.dragging:
+            self.log.info(f"Mouse up on slider {self.name}")
+            self.dragging = False
+
+    def update(self):
+        super().update()
+        self.slider_knob.update()
+        self.text_sprite.update()
 
 
 class ColorWellSprite(BitmappySprite):
