@@ -550,464 +550,356 @@ class CanvasSprite(BitmappySprite):
     """Canvas Sprite."""
 
     log = LOG
-    WIDTH = 32
-    HEIGHT = 32
-    DEBUG = False
-    PIXEL_CACHE: ClassVar = {}
 
     def __init__(
-        self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        name: str,
-        has_mini_view: bool = True,
-        groups: None | pygame.sprite.LayeredDirty = None,
-    ) -> None:
-        """Initialize the Canvas Sprite.
+        self,
+        name='Canvas',
+        x=0,
+        y=0,
+        pixels_across=32,
+        pixels_tall=32,
+        pixel_width=16,
+        pixel_height=16,
+        groups=None,
+    ):
+        """Initialize the Canvas Sprite."""
+        # Calculate dimensions first
+        width = pixels_across * pixel_width
+        height = pixels_tall * pixel_height
 
-        Args:
-            x (int): The x coordinate.
-            y (int): The y coordinate.
-            width (int): The width.
-            height (int): The height.
-            name (str): The name.
-            has_mini_view (bool, optional): Whether or not to have a mini view.
-                                            Defaults to True.
-            groups (None, optional): Sprite groups. Defaults to None.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
-
-        self.character_sprite = False
-
-        self.border_thickness = 0
-        self.border_margin = 0
-        self.pixels_across = CanvasSprite.WIDTH
-        self.pixels_tall = CanvasSprite.HEIGHT
-        self.pixels = [(255, 0, 255)] * self.pixels_across * self.pixels_tall
-        self.grid_line_width = 0
-        self.pixel_boxes = []
-        self.pixel_width = 1
-        self.pixel_height = 1
-        self.mini_view = None
-        self.resize_widget = None
-        self.active_color = (255, 255, 255)
-
-        self.log.info(f'Canvas: {self.rect.x}, {self.rect.y}')
-
-        self.name = 'Bitmap Canvas'
-
-        if self.pixels_across >= self.pixels_tall:
-            self.pixel_width = self.width // self.pixels_across - self.border_thickness * 2
-            self.pixel_height = self.width // self.pixels_across - self.border_thickness * 2
-        else:
-            self.pixel_width = self.height // self.pixels_tall - self.border_thickness * 2
-            self.pixel_height = self.height // self.pixels_tall - self.border_thickness * 2
-        self.log.info(f'Pixels Across: {self.pixels_across}')
-        self.log.info(f'Pixels Tall: {self.pixels_tall}')
-        self.log.info('')
-
-        # Generate a cache of all bitmap pixel sprites.
-        # color = (0, 0, 0)
-        # for r in range(256):
-        #     for g in range(256):
-        #         for b in range(256):
-        #             color = (r, g, b)
-        #             CanvasSprite.PIXEL_CACHE[color] = pygame.Surface((self.pixel_width,
-        #                                                                self.pixel_height))
-
-        self.log.info(f'Pixel Width: {self.pixel_width}')
-        self.log.info(f'Pixel Height: {self.pixel_height}')
-
-        # Can we change this to groups?
-        self.all_sprites = groups
-
-        # Create all pixel boxes at once
-        self.pixel_boxes = [
-            BitmapPixelSprite(
-                name=f'pixel {i}',
-                pixel_number=i,
-                x=self.border_margin + ((i % self.pixels_across) * self.pixel_width),
-                y=self.border_margin + ((i // self.pixels_across) * self.pixel_height),
-                height=self.pixel_width,
-                width=self.pixel_height,
-            )
-            for i in range(self.pixels_across * self.pixels_tall)
-        ]
-
-        # Add all sprites to group at once
-        self.all_sprites.add(self.pixel_boxes)
-
-        for i in range(self.pixels_across * self.pixels_tall):
-            self.pixel_boxes[i].pixel_color = self.pixels[i]
-            self.pixel_boxes[i].add(self.all_sprites)
-
-            # This allows us to update the mini map.
-            self.pixel_boxes[i].callbacks = {'on_pixel_update_event': self.on_pixel_update_event}
-
-            # This draws the map box.
-            self.pixel_boxes[i].dirty = 1
-
-        if has_mini_view:
-            pixel_width, pixel_height = MiniView.pixels_per_pixel(
-                self.pixels_across, self.pixels_tall
-            )
-
-            self.mini_view = MiniView(
-                pixels=self.pixels,
-                x=self.screen_width - (self.pixels_across * pixel_width),
-                y=self.rect.y + self.pixels_tall,
-                width=self.pixels_across,
-                height=self.pixels_tall,
-            )
-            self.all_sprites.add(self.mini_view)
-            self.mini_view.pixels = self.pixels
-            self.mini_view.rect.x = self.screen_width - self.mini_view.width
-            self.mini_view.rect.y = self.rect.y
-
-        self.update_anyway = False
-
-        # Force initial position update
-        for pixel in self.pixel_boxes:
-            pixel.dirty = 1
-        self.update()
-
-    def on_pixel_update_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the pixel update event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        if self.mini_view:
-            self.mini_view.pixels[trigger.pixel_number] = trigger.pixel_color
-            self.mini_view.dirty_pixels[trigger.pixel_number] = True
-            self.mini_view.on_pixel_update_event(event, trigger)
-            self.mini_view.dirty = 1
-
-        self.pixel_boxes[trigger.pixel_number].pixel_color = trigger.pixel_color
-
-        # if self.pixel_boxes[trigger.pixel_number].dirty:
-        #     self.pixel_boxes[trigger.pixel_number].update()
-
-        self.dirty = 1
-
-    def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        if self.mini_view:
-            self.mini_view.dirty = self.dirty
-
-    def update(self: Self) -> None:
-        """Update the sprite.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        x = 0
-        y = 0
-        self.border_thickness = 0
-        self.border_margin = 0
-        for pixel_box in self.pixel_boxes:
-            if pixel_box.dirty:
-                pixel_x = x * pixel_box.pixel_width
-                pixel_y = y * pixel_box.pixel_height
-
-                adjusted_pixel_box_width = (
-                    pixel_box.pixel_width if x == 0 else pixel_box.pixel_width - 1
-                )
-                adjusted_pixel_box_height = (
-                    pixel_box.pixel_height if y == 0 else pixel_box.pixel_height - 1
-                )
-
-                pixel_x = (
-                    self.border_margin
-                    + self.border_thickness
-                    + (x * adjusted_pixel_box_width)
-                    + (x * pixel_box.border_thickness)
-                )
-                pixel_y = (
-                    self.border_margin
-                    + self.border_thickness
-                    + (y * adjusted_pixel_box_height)
-                    + (y * pixel_box.border_thickness)
-                )
-
-                pixel_box.rect.x = pixel_x + self.rect.x
-                pixel_box.rect.y = pixel_y + self.rect.y
-                self.image.blit(pixel_box.image, (pixel_box.x, pixel_box.y))
-
-                if self.mini_view:
-                    self.mini_view.dirty = 1
-
-            if (x + 1) % self.pixels_across == 0:
-                x = 0
-                y += 1
-            else:
-                x += 1
-
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle the left mouse button down event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        # Check for a sprite collision against the mouse pointer.
-        #
-        # First, we need to create a pygame Sprite that represents the tip of the mouse.
-        mouse = MousePointer(pos=event.pos)
-
-        collided_sprites = pygame.sprite.spritecollide(
-            sprite=mouse, group=self.all_sprites, dokill=False
+        # Initialize parent class first to create rect
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            groups=groups,
         )
 
-        for sprite in collided_sprites:
-            sprite.pixel_color = self.active_color
-            sprite.dirty = 1
+        # Store pixel-related attributes
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
+        self.pixel_width = pixel_width
+        self.pixel_height = pixel_height
 
-            if type(sprite) == BitmapPixelSprite:
-                self.on_pixel_update_event(event=event, trigger=sprite)
-            elif sprite is not self:
-                sprite.on_left_mouse_button_down_event(event)
+        # Initialize pixels with magenta as the transparent/background color
+        self.pixels = [(255, 0, 255) for _ in range(pixels_across * pixels_tall)]
+        self.dirty_pixels = [True] * len(self.pixels)
+        self.background_color = (128, 128, 128)
+        self.active_color = (0, 0, 0)
+        self.border_thickness = 1
 
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the left mouse drag event.
+        # Create initial surface
+        self.image = pygame.Surface((width, height))
+        self.rect = self.image.get_rect(x=x, y=y)
 
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
+        # Get screen dimensions from pygame
+        screen_info = pygame.display.Info()
+        screen_width = screen_info.current_w
 
-        Returns:
-            None
+        # Create miniview - position in top right corner
+        self.mini_view = MiniView(
+            pixels=self.pixels,
+            x=screen_width - (pixels_across * 2) - 10,
+            y=32,
+            width=pixels_across,
+            height=pixels_tall,
+            groups=groups
+        )
 
-        Raises:
-            None
-        """
+        # Add MiniView to the sprite groups explicitly
+        if groups:
+            if isinstance(groups, (list, tuple)):
+                for group in groups:
+                    group.add(self.mini_view)
+            else:
+                groups.add(self.mini_view)
+
+        # Force initial draw
+        self.dirty = 1
+        self.force_redraw()
+
+    def update(self):
+        """Update the canvas display."""
+        # Check if mouse is outside canvas
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Get window size
+        screen_info = pygame.display.Info()
+        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
+
+        # If mouse is outside window or canvas, clear cursor
+        if not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos):
+            if hasattr(self, 'mini_view'):
+                self.log.info("Mouse outside canvas/window, clearing miniview cursor")
+                self.mini_view.clear_cursor()
+
+        if self.dirty:
+            self.force_redraw()
+            self.dirty = 0
+
+    def force_redraw(self):
+        """Force a complete redraw of the canvas."""
+        self.image.fill(self.background_color)
+
+        # Draw all pixels, regardless of dirty state
+        for i, pixel in enumerate(self.pixels):
+            x = (i % self.pixels_across) * self.pixel_width
+            y = (i // self.pixels_across) * self.pixel_height
+            pygame.draw.rect(
+                self.image,
+                pixel,
+                (x, y, self.pixel_width, self.pixel_height)
+            )
+            pygame.draw.rect(
+                self.image,
+                (64, 64, 64),
+                (x, y, self.pixel_width, self.pixel_height),
+                self.border_thickness
+            )
+            self.dirty_pixels[i] = False
+
+        self.log.debug(f"Canvas force redraw complete with {len(self.pixels)} pixels")
+
+    def on_left_mouse_button_down_event(self, event):
+        """Handle the left mouse button down event."""
+        if self.rect.collidepoint(event.pos):
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            pixel_num = y * self.pixels_across + x
+
+            self.pixels[pixel_num] = self.active_color
+            self.dirty_pixels[pixel_num] = True
+            self.dirty = 1
+
+            # Update miniview
+            if hasattr(self, 'mini_view'):
+                self.mini_view.on_pixel_update_event(event, self)
+
+    def on_left_mouse_drag_event(self, event, trigger):
+        """Handle mouse drag events."""
+        # For drag events, we treat them the same as button down
         self.on_left_mouse_button_down_event(event)
 
-    def on_new_file_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the new file event.
+    def on_mouse_motion_event(self, event):
+        """Handle mouse motion events."""
+        if self.rect.collidepoint(event.pos):
+            # Convert mouse position to pixel coordinates
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
 
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
+            # Check if the coordinates are within valid range
+            if (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
+                if hasattr(self, 'mini_view'):
+                    self.mini_view.update_canvas_cursor(x, y, self.active_color)
+            else:
+                if hasattr(self, 'mini_view'):
+                    self.mini_view.clear_cursor()
+        else:
+            if hasattr(self, 'mini_view'):
+                self.mini_view.clear_cursor()
 
-        Returns:
-            None
+    def on_pixel_update_event(self, event, trigger):
+        """Handle pixel update events."""
+        if hasattr(trigger, 'pixel_number'):
+            pixel_num = trigger.pixel_number
+            new_color = trigger.pixel_color
+            self.log.info(f"Canvas updating pixel {pixel_num} to color {new_color}")
 
-        Raises:
-            None
-        """
-        for i, pixel in enumerate([(255, 0, 255)] * self.pixels_across * self.pixels_tall):
-            event = pygame.event.Event(
-                events.GAMEEVENT,
-                {'action': 'on_new_file_event', 'pixel_color': pixel, 'pixel_number': i},
-            )
+            self.pixels[pixel_num] = new_color
+            self.dirty_pixels[pixel_num] = True
+            self.dirty = 1
 
-            # Create a pixel update event for the mini map.
-            self.on_pixel_update_event(event=event, trigger=event)
+            # Update miniview
+            self.mini_view.on_pixel_update_event(event, trigger)
 
-        self.dirty = 1
-        # self.update()
+    def on_mouse_leave_window_event(self, event):
+        """Handle mouse leaving window event."""
+        self.log.info("Mouse left window, clearing miniview cursor")
+        if hasattr(self, 'mini_view'):
+            self.mini_view.clear_cursor()
 
-    def on_save_file_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the save file event.
+    def on_mouse_enter_sprite_event(self, event):
+        """Handle mouse entering canvas."""
+        self.log.info("Mouse entered canvas")
+        if hasattr(self, 'mini_view'):
+            # Update cursor position immediately
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
+                self.mini_view.update_canvas_cursor(x, y, self.active_color)
 
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-
-        # Generate a new bitmappy sprite and tell it to save.
-        save_sprite = BitmappySprite(
-            x=0, y=0, width=self.pixels_across, height=self.pixels_tall, name='Tiley McTile Face'
-        )
-
-        save_sprite.image = image_from_pixels(
-            pixels=pixels, width=save_sprite.width, height=save_sprite.height
-        )
-
-        self.log.info(f'Saving file as: {event.text}')
-        save_sprite.save(filename=event.text)
-
-        self.dirty = 1
-
-        # self.save(filename='screenshot.cfg')
-
-    def on_load_file_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the load file event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        self.log.info(f'Loading file: {event.text}')
-
-        load_sprite = BitmappySprite(
-            filename=event.text, x=0, y=0, width=self.pixels_across, height=self.pixels_tall
-        )
-
-        pixel_data = pygame.image.tostring(load_sprite.image, 'RGB')
-
-        pixels = pixels_from_data(pixel_data=pixel_data)
-
-        # self.log.info(pixels)
-
-        # Update the canvas' pixels across and tall
-        self.pixels_across = load_sprite.width
-        self.pixels_tall = load_sprite.height
-
-        # pixels = [pixel_box.pixel_color for pixel_box in self.pixel_boxes]
-        # pixels = [(255, 255, 255)] * len(pixels)
-
-        # print(pixels)
-
-        for i, pixel in enumerate(pixels):
-            trigger.pixel_number = i
-            trigger.pixel_color = pixel
-
-            event = pygame.event.Event(
-                events.GAMEEVENT,
-                {'action': 'on_load_file_event', 'pixel_color': pixel, 'pixel_number': i},
-            )
-
-            # Create a pixel update event for the mini map.
-            self.on_pixel_update_event(event=event, trigger=event)
-
-        # for pixel_box in self.pixel_boxes:
-        #     pixel_box.dirty = 1
-        #     pixel_box.update()
-
-        self.dirty = 1
-        # self.update()
+    def on_mouse_exit_sprite_event(self, event):
+        """Handle mouse exiting canvas."""
+        self.log.info("Mouse exited canvas")
+        if hasattr(self, 'mini_view'):
+            self.mini_view.clear_cursor()
 
 
 class MiniView(BitmappySprite):
-    """Mini View of the canvas."""
+    """Mini View."""
 
     log = LOG
+    BACKGROUND_COLORS = [
+        (0, 255, 255),    # Cyan
+        (0, 0, 0),        # Black
+        (128, 128, 128),  # Gray
+        (255, 255, 255),  # White
+        (255, 0, 255),    # Magenta
+        (0, 255, 0),      # Green
+        (0, 0, 255),      # Blue
+        (255, 255, 0),    # Yellow
+        (64, 64, 64),     # Dark Gray
+        (192, 192, 192),  # Light Gray
+    ]
+
+    def __init__(self, pixels, x, y, width, height, name='Mini View', groups=None):
+        self.pixels_across = width
+        self.pixels_tall = height
+        pixel_width, pixel_height = self.pixels_per_pixel(width, height)
+        actual_width = width * pixel_width
+        actual_height = height * pixel_height
+
+        super().__init__(
+            x=x,
+            y=y,
+            width=actual_width,
+            height=actual_height,
+            name=name,
+            groups=groups
+        )
+
+        self.pixels = pixels
+        self.dirty_pixels = [True] * len(pixels)
+        self.background_color_index = 0
+        self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
+
+        # Create initial surface
+        self.image = pygame.Surface((actual_width, actual_height))
+        self.rect = self.image.get_rect(x=x, y=y)
+
+        # Initialize cursor and mouse tracking state
+        self.canvas_cursor_pos = None
+        self.cursor_color = (0, 0, 0)  # Will be updated from canvas's active color
+        self.mouse_in_canvas = False
+
+        self.dirty = 1
+        self.force_redraw()
+        self.log.info("MiniView initialized")
+
+    def on_left_mouse_button_down_event(self, event):
+        """Handle left mouse button to cycle background color."""
+        if self.rect.collidepoint(event.pos):
+            self.log.info(f"MiniView clicked at {event.pos}, rect is {self.rect}")
+            old_color = self.background_color
+            self.background_color_index = (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+            self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
+            self.log.info(f"MiniView background color changing from {old_color} to {self.background_color}")
+            self.dirty = 1
+            self.log.info("Setting dirty flag and calling force_redraw")
+            self.force_redraw()
+            return True
+        return False
+
+    def update_canvas_cursor(self, x, y, active_color=None):
+        """Update the cursor position and color from the main canvas."""
+        if x is None or y is None:
+            self.clear_cursor()
+            return
+
+        if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
+            self.clear_cursor()
+            return
+
+        if active_color is not None:
+            self.cursor_color = active_color
+
+        old_pos = self.canvas_cursor_pos
+        self.canvas_cursor_pos = (x, y)
+
+        if old_pos != self.canvas_cursor_pos:
+            self.dirty = 1
+
+    def on_pixel_update_event(self, event, trigger):
+        """Handle pixel update events."""
+        if hasattr(trigger, 'pixel_number'):
+            pixel_num = trigger.pixel_number
+            new_color = trigger.pixel_color
+            self.log.info(f"MiniView updating pixel {pixel_num} to color {new_color}")
+
+            self.pixels[pixel_num] = new_color
+            self.dirty_pixels[pixel_num] = True
+            self.dirty = 1
+
+    def force_redraw(self):
+        """Force a complete redraw of the miniview."""
+        self.log.info(f"Starting force_redraw with background color {self.background_color}")
+        self.image.fill(self.background_color)
+        pixel_width, pixel_height = self.pixels_per_pixel(self.pixels_across, self.pixels_tall)
+
+        # Draw all non-magenta pixels
+        for i, pixel in enumerate(self.pixels):
+            if pixel != (255, 0, 255):  # Skip magenta pixels
+                x = (i % self.pixels_across) * pixel_width
+                y = (i // self.pixels_across) * pixel_height
+                pygame.draw.rect(
+                    self.image,
+                    pixel,
+                    (x, y, pixel_width, pixel_height)
+                )
+
+        # # Only draw cursor if we have a valid position AND mouse is in canvas
+        # canvas = None
+        # for group in self.groups():
+        #     for sprite in group.sprites():
+        #         if isinstance(sprite, CanvasSprite):
+        #             canvas = sprite
+        #             break
+        #     if canvas:
+        #         break
+
+        # if (self.canvas_cursor_pos is not None and
+        #     canvas and
+        #     canvas.rect.collidepoint(pygame.mouse.get_pos())):
+        #     x = self.canvas_cursor_pos[0] * pixel_width
+        #     y = self.canvas_cursor_pos[1] * pixel_height
+        #     pygame.draw.rect(
+        #         self.image,
+        #         self.cursor_color,
+        #         (x, y, pixel_width, pixel_height),
+        #         1  # Border thickness
+        #     )
+
+        self.log.debug(f"MiniView force redraw complete with background {self.background_color}")
+
+    def update(self):
+        """Update the miniview display."""
+        # Get mouse position and window size
+        mouse_pos = pygame.mouse.get_pos()
+        screen_info = pygame.display.Info()
+        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
+
+        # Clear cursor if mouse is outside window
+        if not screen_rect.collidepoint(mouse_pos):
+            self.clear_cursor()
+
+        if self.dirty:
+            self.force_redraw()
+            self.dirty = 0
+
+    def clear_cursor(self):
+        """Clear the cursor and force a redraw."""
+        if self.canvas_cursor_pos is not None:
+            self.log.info("Clearing miniview cursor")
+            self.canvas_cursor_pos = None
+            self.dirty = 1
+            self.force_redraw()
 
     @staticmethod
     def pixels_per_pixel(pixels_across: int, pixels_tall: int) -> tuple[int, int]:
-        """Get the pixels per pixel."""
-        pixel_width = 0
-        pixel_height = 0
-
-        if pixels_across < MAX_PIXELS_ACROSS:
-            pixel_width = (
-                MAX_PIXELS_ACROSS // pixels_across if pixels_across > 0 else MIN_PIXELS_ACROSS
-            )
-
-        if pixels_tall < MAX_PIXELS_TALL:
-            pixel_height = MAX_PIXELS_TALL // pixels_tall if pixels_tall > 0 else MIN_PIXELS_TALL
-
-        return (pixel_width, pixel_height)
-
-    def __init__(
-        self: Self,
-        pixels: list,
-        x: int = 0,
-        y: int = 0,
-        width: int = 0,
-        height: int = 0,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        super().__init__(x=x, y=y, width=width, height=height, groups=groups)
-        self.pixels = pixels
-        self.dirty_pixels = [False] * len(self.pixels)
-        self.pixel_width, self.pixel_height = self.pixels_per_pixel(width, height)
-
-        self.width = width * self.pixel_width
-        self.height = height * self.pixel_height
-
-        self.image = pygame.Surface((self.width, self.height))
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-        self.color_palette = [(0, 255, 0), (255, 0, 255), (255, 255, 0), (0, 0, 0)]
-        self.palette_index = 0
-
-        # Force initial render
-        self.dirty_pixels = [True] * len(self.pixels)
-        self.dirty = 1
-
-    def update(self: Self) -> None:
-        """Update the mini view display."""
-        x = 0
-        y = 0
-        for i, pixel in enumerate(self.pixels):
-            color = self.color_palette[self.palette_index] if pixel == (255, 0, 255) else pixel
-            pygame.draw.rect(
-                self.image,
-                color,
-                ((x, y), (self.pixel_width, self.pixel_height))
-            )
-
-            if (x + self.pixel_width) % (self.width) == 0:
-                x = 0
-                y += self.pixel_height
-            else:
-                x += self.pixel_width
-
-    def on_pixel_update_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle pixel updates in the mini view."""
-        self.dirty = 1
-
-    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle left mouse button up to cycle palette colors."""
-        self.palette_index = (self.palette_index + 1) % len(self.color_palette)
-        self.dirty = 1
+        """Calculate the size of each pixel in the miniview."""
+        return (2, 2)  # Fixed 2x2 pixels for mini view
 
 
 class BitmapEditorScene(Scene):
@@ -1019,9 +911,7 @@ class BitmapEditorScene(Scene):
     NAME = 'Bitmappy'
     VERSION = '1.0'
 
-    def __init__(
-        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
-    ) -> None:
+    def __init__(self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize the Bitmap Editor Scene.
 
         Args:
@@ -1039,6 +929,33 @@ class BitmapEditorScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+
+        # Parse the canvas size from options
+        width, height = options.get('size', '32x32').split('x')
+        pixels_across = int(width)
+        pixels_tall = int(height)
+
+        # Calculate available space
+        bottom_margin = 100  # Space needed for sliders and color well
+        available_height = self.screen_height - bottom_margin - 32  # 32 for top margin
+
+        # Calculate pixel size to fit the canvas in the available space
+        pixel_size = min(
+            available_height // pixels_tall,  # Height-based size
+            (self.screen_width * 2 // 3) // pixels_across  # Width-based size (use 2/3 of screen width)
+        )
+
+        # Create the canvas with the calculated pixel dimensions
+        self.canvas = CanvasSprite(
+            name='Bitmap Canvas',
+            x=0,
+            y=32,
+            pixels_across=pixels_across,
+            pixels_tall=pixels_tall,
+            pixel_width=pixel_size,
+            pixel_height=pixel_size,
+            groups=self.all_sprites,
+        )
 
         width, height = options.get('size').split('x')
         CanvasSprite.WIDTH = int(width)
@@ -1060,112 +977,6 @@ class BitmapEditorScene(Scene):
         # self.menu_icon.name = None
 
         self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
-
-        # self.new_menu_item = MenuItem(
-        #     name='New',
-        #     x=self.menu_icon.rect.topright[0],
-        #     y=self.menu_icon.rect.y,
-        #     width=40,
-        #     height=self.menu_bar.height,
-        #     parent=self,
-        #     groups=self.all_sprites
-        # )
-        # self.save_menu_item = MenuItem(
-        #     name='Save',
-        #     x=self.new_menu_item.rect.topright[0],
-        #     y=self.new_menu_item.rect.y,
-        #     width=40,
-        #     height=self.menu_bar.height,
-        #     parent=self,
-        #     groups=self.all_sprites
-        # )
-        # self.load_menu_item = MenuItem(
-        #     name='Load',
-        #     x=self.save_menu_item.rect.midright[0],
-        #     y=self.save_menu_item.rect.y,
-        #     width=40,
-        #     height=self.menu_bar.height,
-        #     parent=self,
-        #     groups=self.all_sprites
-        # )
-        # self.quit_menu_item = MenuItem(
-        #     name='Quit',
-        #     x=self.load_menu_item.rect.midright[0],
-        #     y=self.load_menu_item.rect.y,
-        #     width=40,
-        #     height=self.menu_bar.height,
-        #     parent=self,
-        #     groups=self.all_sprites
-        # )
-
-        # self.file_menu = MenuItem(
-        #     name='File',
-        #     width=32,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-        # self.save_menu_item = MenuItem(
-        #     name='Save',
-        #     width=40,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-        # self.load_menu_item = MenuItem(
-        #     name='Load',
-        #     width=40,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-        # self.spacer_menu_item = MenuItem(
-        #     name='----',
-        #     width=40,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-        # self.quit_menu_item = MenuItem(
-        #     name='Quit',
-        #     width=40,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-
-        # self.edit_menu = MenuItem(
-        #     name='Edit',
-        #     width=32,
-        #     height=16,
-        #     groups=self.all_sprites
-        # )
-
-        # Add the menu icon as a root level menu item.
-        # self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
-        # self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
-        # self.menu_bar.add_menu_item(menu_item=self.edit_menu, menu=None)
-
-        # self.menu_bar.add_menu_item(menu_item=self.save_menu_item, menu=None)
-        # self.menu_bar.add_menu_item(menu_item=self.load_menu_item, menu=None)
-        # self.menu_bar.add_menu_item(menu_item=self.quit_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.save_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.load_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
-
-        # We'll use the top left quartile of the screen to draw the canvas.
-        # We want a square canvas, so we'll use the height as our input.
-        # self.canvas = CanvasSprite(
-        #     name='Bitmap Canvas',
-        #     x=0, y=self.menu_bar.rect.bottom + 10,
-        #     width=int(self.screen_height * 0.75),
-        #     height=int(self.screen_height * 0.75),
-        #     groups=self.all_sprites
-        # )
-        self.canvas = CanvasSprite(
-            name='Bitmap Canvas',
-            x=0,
-            y=32,
-            width=int(self.screen_height * 0.75),
-            height=int(self.screen_height * 0.75),
-            groups=self.all_sprites,
-        )
 
         # First create the sliders
         slider_height = 9
@@ -1511,6 +1322,16 @@ class BitmapEditorScene(Scene):
             '-v', '--version', action='store_true', help='print the game version and exit'
         )
         parser.add_argument('-s', '--size', default='32x32')
+
+    def handle_event(self, event):
+        """Handle pygame events."""
+        super().handle_event(event)
+
+        if event.type == pygame.WINDOWLEAVE:
+            # Notify sprites that mouse left window
+            for sprite in self.all_sprites:
+                if hasattr(sprite, 'on_mouse_leave_window_event'):
+                    sprite.on_mouse_leave_window_event(event)
 
 
 def main() -> None:
