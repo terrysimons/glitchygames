@@ -578,12 +578,12 @@ class MenuItem(BitmappySprite):
             self.log.debug('Trying to draw the menu')
             pygame.display.get_surface().blit(self.menu_image, (self.menu_rect.x, self.menu_rect.y))
 
-    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
-
+            trigger (object): The trigger object.
         Returns:
             None
         """

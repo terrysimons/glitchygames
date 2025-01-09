@@ -861,17 +861,18 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #     """
     #     self.log.debug(f'{type(self)}: On Key Chord Up Event {event}')
 
-    # def on_menu_item_event(self: Self, event: events.HashableEvent) -> None:
-    #     """Handle menu item events.
+    def on_menu_item_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle menu item events.
 
-    #     Args:
-    #         event (pygame.event.Event): The event to handle.
+        Args:
+            event (pygame.event.Event): The event to handle.
 
-    #     Returns:
-    #         None
-    #     """
-    #     # MENUITEM         menu, item
-    #     self.log.debug(f'{type(self)}: On Menu Item Event {event}')
+        Returns:
+            None
+        """
+        breakpoint()
+        # MENUITEM         menu, item
+        self.log.debug(f'{type(self)}: On Menu Item Event {event}')
 
     # def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
     #     """Handle mouse button down events.

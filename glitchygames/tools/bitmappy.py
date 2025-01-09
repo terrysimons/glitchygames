@@ -961,22 +961,39 @@ class BitmapEditorScene(Scene):
         CanvasSprite.WIDTH = int(width)
         CanvasSprite.HEIGHT = int(height)
 
+        # Create the menu bar using the UI library's MenuBar
         self.menu_bar = MenuBar(
-            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
+            name='Menu Bar',
+            x=0,
+            y=0,
+            width=self.screen_width,
+            height=20,
+            groups=self.all_sprites
         )
 
+        # Add the raspberry icon
+        icon_path = Path(__file__).parent.parent / 'assets' / 'raspberry.cfg'
         self.menu_icon = MenuItem(
             name=None,
-            filename=Path(__file__).parent / 'resources' / 'bitmappy.cfg',
             x=0,
             y=0,
             width=16,
-            height=self.menu_bar.height,
+            height=20,
+            filename=icon_path,
+            groups=self.all_sprites
         )
-        # # When we load the sprite, we set a name.
-        # self.menu_icon.name = None
+        self.menu_bar.add_menu_item(menu_item=self.menu_icon)
 
-        self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
+        # Add the File menu
+        file_menu = MenuItem(
+            name="File",
+            x=25,  # Add padding after icon
+            y=0,
+            width=64,
+            height=20,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(file_menu)
 
         # First create the sliders
         slider_height = 9
@@ -1304,6 +1321,37 @@ class BitmapEditorScene(Scene):
                 sprite.on_left_mouse_drag_event(event, trigger)
         except AttributeError:
             pass
+
+    def on_menu_item_event(self, event: pygame.event.Event) -> None:
+        """Handle the menu item event.
+
+        Args:
+            event (pygame.event.Event): The pygame event.
+            trigger (object): The trigger object.
+
+        Returns:
+            None
+        """
+        self.log.info(f'Scene got menu item event: {event}')
+
+    def on_mouse_drag_event(self, event: pygame.event.Event, trigger: object) -> None:
+        """Handle mouse drag events.
+
+        Args:
+            event (pygame.event.Event): The pygame event.
+            trigger (object): The trigger object.
+
+        Returns:
+            None
+        """
+        sprites = self.sprites_at_position(pos=event.pos)
+        for sprite in sprites:
+            if isinstance(sprite, MenuItem):
+                # MenuItem expects just event
+                sprite.on_mouse_drag_event(event)
+            elif hasattr(sprite, 'on_mouse_drag_event'):
+                # Other sprites expect both event and trigger
+                sprite.on_mouse_drag_event(event, trigger)
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
