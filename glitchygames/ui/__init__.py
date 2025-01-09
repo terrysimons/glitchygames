@@ -589,7 +589,7 @@ class MenuItem(BitmappySprite):
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
-    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+    def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drop events.
 
         Args:
@@ -600,7 +600,7 @@ class MenuItem(BitmappySprite):
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
-    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drag events.
 
         Args:
@@ -611,7 +611,7 @@ class MenuItem(BitmappySprite):
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
-    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+    def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drop events.
 
         Args:
@@ -622,7 +622,7 @@ class MenuItem(BitmappySprite):
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
@@ -633,7 +633,7 @@ class MenuItem(BitmappySprite):
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:

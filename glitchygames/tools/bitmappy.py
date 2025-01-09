@@ -930,16 +930,89 @@ class BitmapEditorScene(Scene):
 
         super().__init__(options=options, groups=groups)
 
-        # Parse the canvas size from options
+        menu_bar_height = 24  # Taller menu bar
+
+        # Different heights for icon vs text items
+        icon_height = 16  # Smaller height for icon
+        menu_item_height = menu_bar_height  # Full height for text items
+
+        # Different vertical offsets for icon vs text
+        icon_y = (menu_bar_height - icon_height) // 2 - 2  # Center the icon and move up 2px
+        menu_item_y = 0  # Text items use full height
+
+        # Create the menu bar using the UI library's MenuBar
+        self.menu_bar = MenuBar(
+            name='Menu Bar',
+            x=0,
+            y=0,
+            width=self.screen_width,
+            height=menu_bar_height,
+            groups=self.all_sprites
+        )
+
+        # Add the raspberry icon with its specific height
+        icon_path = Path(__file__).parent.parent / 'assets' / 'raspberry.cfg'
+        self.menu_icon = MenuItem(
+            name=None,
+            x=4,  # Added 4px offset from left
+            y=icon_y,
+            width=16,
+            height=icon_height,  # Use icon-specific height
+            filename=icon_path,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(self.menu_icon)
+
+        # Add all menus with full height
+        new_menu = MenuItem(
+            name="New",
+            x=24,  # Slightly adjusted from icon
+            y=menu_item_y,
+            width=48,  # Reduced width to better match text
+            height=menu_item_height,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(new_menu)
+
+        save_menu = MenuItem(
+            name="Save",
+            x=72,  # Position directly after File menu
+            y=menu_item_y,
+            width=48,
+            height=menu_item_height,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(save_menu)
+
+        load_menu = MenuItem(
+            name="Load",
+            x=120,  # Position directly after Save menu
+            y=menu_item_y,
+            width=48,
+            height=menu_item_height,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(load_menu)
+
+        quit_menu = MenuItem(
+            name="Quit",
+            x=168,  # Position directly after Load menu
+            y=menu_item_y,
+            width=48,
+            height=menu_item_height,
+            groups=self.all_sprites
+        )
+        self.menu_bar.add_menu(quit_menu)
+
+        # Calculate available space (adjusted for taller menu bar)
+        bottom_margin = 100  # Space needed for sliders and color well
+        available_height = self.screen_height - bottom_margin - menu_bar_height  # Use menu_bar_height instead of 32
+
+        # Calculate pixel size to fit the canvas in the available space
         width, height = options.get('size', '32x32').split('x')
         pixels_across = int(width)
         pixels_tall = int(height)
 
-        # Calculate available space
-        bottom_margin = 100  # Space needed for sliders and color well
-        available_height = self.screen_height - bottom_margin - 32  # 32 for top margin
-
-        # Calculate pixel size to fit the canvas in the available space
         pixel_size = min(
             available_height // pixels_tall,  # Height-based size
             (self.screen_width * 2 // 3) // pixels_across  # Width-based size (use 2/3 of screen width)
@@ -949,7 +1022,7 @@ class BitmapEditorScene(Scene):
         self.canvas = CanvasSprite(
             name='Bitmap Canvas',
             x=0,
-            y=32,
+            y=menu_bar_height,  # Position canvas right below menu bar
             pixels_across=pixels_across,
             pixels_tall=pixels_tall,
             pixel_width=pixel_size,
@@ -960,40 +1033,6 @@ class BitmapEditorScene(Scene):
         width, height = options.get('size').split('x')
         CanvasSprite.WIDTH = int(width)
         CanvasSprite.HEIGHT = int(height)
-
-        # Create the menu bar using the UI library's MenuBar
-        self.menu_bar = MenuBar(
-            name='Menu Bar',
-            x=0,
-            y=0,
-            width=self.screen_width,
-            height=20,
-            groups=self.all_sprites
-        )
-
-        # Add the raspberry icon
-        icon_path = Path(__file__).parent.parent / 'assets' / 'raspberry.cfg'
-        self.menu_icon = MenuItem(
-            name=None,
-            x=0,
-            y=0,
-            width=16,
-            height=20,
-            filename=icon_path,
-            groups=self.all_sprites
-        )
-        self.menu_bar.add_menu_item(menu_item=self.menu_icon)
-
-        # Add the File menu
-        file_menu = MenuItem(
-            name="File",
-            x=25,  # Add padding after icon
-            y=0,
-            width=64,
-            height=20,
-            groups=self.all_sprites
-        )
-        self.menu_bar.add_menu(file_menu)
 
         # First create the sliders
         slider_height = 9
@@ -1094,13 +1133,13 @@ class BitmapEditorScene(Scene):
             self.on_new_canvas_dialog_event(event=event)
         elif event.menu.name == 'Save':
             self.on_save_dialog_event(event=event)
-        elif event.menu_item.name == 'Load':
+        elif event.menu.name == 'Load':
             self.on_load_dialog_event(event=event)
         elif event.menu.name == 'Quit':
             self.log.info('User quit from menu item.')
             self.scene_manager.quit()
         else:
-            raise GGUnhandledMenuItemError(f'Unhandled Menu Item: {event}')
+            self.log.info(f'Unhandled Menu Item: {event.menu.name}')
         self.dirty = 1
 
     # NB: Keepings this around causes GG-7 not to manifest... curious.
@@ -1322,17 +1361,17 @@ class BitmapEditorScene(Scene):
         except AttributeError:
             pass
 
-    def on_menu_item_event(self, event: pygame.event.Event) -> None:
-        """Handle the menu item event.
+    # def on_menu_item_event(self, event: pygame.event.Event) -> None:
+    #     """Handle the menu item event.
 
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
+    #     Args:
+    #         event (pygame.event.Event): The pygame event.
+    #         trigger (object): The trigger object.
 
-        Returns:
-            None
-        """
-        self.log.info(f'Scene got menu item event: {event}')
+    #     Returns:
+    #         None
+    #     """
+    #     self.log.info(f'Scene got menu item event: {event}')
 
     def on_mouse_drag_event(self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
