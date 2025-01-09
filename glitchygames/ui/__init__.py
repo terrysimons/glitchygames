@@ -85,23 +85,29 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.dirty = 2
 
     def add_menu(self: Self, menu: MenuItem) -> None:
-        """Add a menu to the menu bar.
-
-        Args:
-            menu (MenuItem): The menu to add.
-
-        Returns:
-            None
-        """
-        # This makes sure that the menu items get drawn when the menu bar gets drawn.
+        """Add a menu to the menu bar."""
         self.menu_items[menu.name] = menu
-        self.log.debug(f'add_menu({menu})')
-        # Change colorkey to magenta instead of white
+        self.log.info(f'Before offset: menu {menu.name} at x={menu.rect.x}, offset={self.menu_offset_x}')
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
-        menu.rect.x += self.menu_offset_x
+
+        # Store original position before any adjustments
+        original_x = menu.rect.x
+
+        # Only adjust if this isn't the first menu item
+        if self.menu_offset_x > self.border_width:
+            menu.rect.x = self.menu_offset_x
+            # Only adjust text position if it exists
+            if hasattr(menu, 'text'):
+                menu.text.rect.x = self.menu_offset_x
+
         menu.rect.y += self.menu_offset_y
-        self.menu_offset_x += menu.rect.width
+        # Only adjust text y position if it exists
+        if hasattr(menu, 'text'):
+            menu.text.rect.y += self.menu_offset_y
+
+        self.log.info(f'After offset: menu {menu.name} at x={menu.rect.x}')
+        self.menu_offset_x = menu.rect.x + menu.rect.width + self.border_width
         self.log.debug(f'Menu Items: {self.menu_items}')
 
     def add_menu_item(self: Self, menu_item: MenuItem, menu: MenuBar | None = None) -> None:
@@ -442,8 +448,8 @@ class MenuItem(BitmappySprite):
             self.text = TextSprite(
                 background_color=self.background_color,
                 text_color=(0, 0, 0),
-                x=self.rect.x,
-                y=self.rect.y,
+                x=x,
+                y=y,
                 width=self.width,
                 height=self.height,
                 text=self.name,
@@ -452,10 +458,9 @@ class MenuItem(BitmappySprite):
             )
             self.text.image.set_colorkey((255, 0, 255))
             self.text.add(groups)
-            # self.image.blit(self.text.text_box.image, (0, 0))
-            # self.image = self.text.text_box.image
-            # self.rect.x = self.text.rect.x
-            # self.rect.y = self.text.rect.y
+            # Align the rect with the text position
+            self.rect.x = self.text.rect.x
+            self.rect.y = self.text.rect.y
 
         self.menu_up_image = self.image
         self.menu_up_rect = self.rect
@@ -563,20 +568,11 @@ class MenuItem(BitmappySprite):
             self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
 
     def update(self: Self) -> None:
-        """Update the menu item.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        # self.log.debug(f'Menu Items: {self.menu_items.items()}')
-        self.screen.blit(self.image, (self.rect.x, self.rect.y))
-
+        """Update the menu item."""
+        # Draw to our own surface instead of the screen
         if self.active and self.menu_image and self.menu_rect:
-            self.log.debug('Trying to draw the menu')
-            pygame.display.get_surface().blit(self.menu_image, (self.menu_rect.x, self.menu_rect.y))
+            self.log.debug('Drawing the menu')
+            self.image.blit(self.menu_image, (0, 0))  # Draw relative to our own surface
 
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drag events.
@@ -770,7 +766,7 @@ class MenuItem(BitmappySprite):
             # Click the menu item.
             #
             # Don't click sub menus.
-            # if collided_sprite.name in self.menu_items:
+            # if sprite.name in self.menu_items:
             if type(sprite) == MenuItem:
                 self.log.debug(f'Mouse button up on {sprite.name} at {mouse.rect}')
 
@@ -1070,7 +1066,7 @@ class ButtonSprite(BitmappySprite):
             None
         """
         self.rect.x = new_x
-        self.text.x = self.parent.rect.centerx if self.parent else new_x
+        self.text.x = new_x  # Position relative to button
         self.dirty = 1
 
     @property
@@ -1096,7 +1092,7 @@ class ButtonSprite(BitmappySprite):
             None
         """
         self.rect.y = new_y
-        self.text.y = self.parent.rect.centery if self.parent else new_y
+        self.text.y = new_y  # Position relative to button
         self.dirty = 1
 
     def update_nested_sprites(self: Self) -> None:
@@ -1967,64 +1963,64 @@ class InputDialog(BitmappySprite):
         super().__init__(
             x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
         )
-        self.background_color = (0, 0, 0)
-        self.border_width = 1
-        self.width = width
-        self.rect.x = x
-        self.rect.y = y
 
+        # Set border width
+        self.border_width = 1
+
+        # Create a black background surface
+        self.image = pygame.Surface((width, height))
+        self.image.fill((0, 0, 0))
+
+        # Position dialog text at top
         self.dialog_text_sprite = TextBoxSprite(
-            name=dialog_text,
-            x=self.rect.x,
-            y=self.rect.y,
-            width=self.width // 2,
+            name='dialog_text',
+            x=x + 20,
+            y=y + 20,
+            width=width - 40,
             height=20,
             parent=self,
             groups=groups,
         )
-        self.dialog_text_sprite.rect.x = self.rect.x
-        self.dialog_text_sprite.text_box.rect.center = self.dialog_text_sprite.rect.center
-        self.dialog_text_sprite.dirty = 1
-        self.dialog_text_sprite.text_box.dirty = 1
-
+        # Set the text after creation
         self.dialog_text_sprite.text_box.text = dialog_text
-        self.confirm_button = ButtonSprite(
-            name=confirm_text, x=self.rect.x, y=self.rect.y, width=75, height=20, groups=groups
-        )
-        self.cancel_button = ButtonSprite(
-            name=cancel_text, x=self.rect.x, y=self.rect.y, width=75, height=20, groups=groups
-        )
 
+        # Position input box in middle
         self.input_box = InputBox(
-            x=self.rect.x + self.rect.width // 2,
-            y=self.rect.y + self.rect.height // 2,
-            width=200,
+            x=x + 20,
+            y=y + (height // 2) - 10,  # Vertically centered
+            width=width - 40,
             height=20,
             text='',
             parent=self,
             groups=groups,
         )
 
-        self.input_box.rect.x -= self.input_box.width // 2
+        # Position buttons at bottom
+        button_y = y + height - 40  # 20px from bottom
+
+        # Cancel on right
+        self.cancel_button = ButtonSprite(
+            name=cancel_text,
+            x=x + width - 95,  # 20px from right edge
+            y=button_y,
+            width=75,
+            height=20,
+            parent=self,
+            groups=groups
+        )
+
+        # Confirm to left of cancel
+        self.confirm_button = ButtonSprite(
+            name=confirm_text,
+            x=x + width - 180,  # 10px gap between buttons
+            y=button_y,
+            width=75,
+            height=20,
+            parent=self,
+            groups=groups
+        )
 
         self.input_box.activate()
-
-        # self.dialog_text_sprite.rect.center = self.rect.center
-        # self.confirm_button.rect.bottomright = self.rect.bottomright
-        # self.confirm_button.rect.x -= 20
-        # self.confirm_button.rect.y -= 20
-        # self.cancel_button.rect.bottomright = self.confirm_button.rect.bottomleft
-        # self.cancel_button.rect.x -= 20
-
-        # self._dirty = 1
-
-        self.cancel_button.x = self.rect.bottomright[0] - self.cancel_button.width
-        self.cancel_button.y = self.rect.bottomright[1] - self.cancel_button.height
-        self.confirm_button.x = self.cancel_button.rect.left - self.cancel_button.width
-        self.confirm_button.y = self.cancel_button.rect.top
-        # self.input_box.x = self.input_box.width // 2
-        # self.input_box.y = self.input_box.rect.y
-        # self.confirm_button.update_nested_sprites()
 
     def update_nested_sprites(self: Self) -> None:
         """Update the nested sprites.
@@ -2039,35 +2035,37 @@ class InputDialog(BitmappySprite):
         self.confirm_button.dirty = self.dirty
 
     def update(self: Self) -> None:
-        """Update the input dialog.
+        """Update the input dialog."""
+        # Clear the surface first
+        self.image.fill((0, 0, 0))  # Black background
 
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        # Draw the bounding box.
+        # Draw the bounding box
         pygame.draw.rect(
             self.image, (128, 128, 128), Rect(0, 0, self.width, self.height), self.border_width
         )
 
+        # Mark components as dirty
         self.dialog_text_sprite.dirty = 1
         self.cancel_button.dirty = 1
         self.confirm_button.dirty = 1
 
-        self.screen.blit(
+        # Blit to self.image instead of self.screen
+        self.image.blit(
             self.dialog_text_sprite.image,
-            (self.dialog_text_sprite.rect.x, self.dialog_text_sprite.rect.y),
+            (self.dialog_text_sprite.rect.x - self.rect.x, self.dialog_text_sprite.rect.y - self.rect.y),
         )
-        self.screen.blit(
-            self.cancel_button.image, (self.cancel_button.rect.x, self.cancel_button.rect.y)
+        self.image.blit(
+            self.cancel_button.image,
+            (self.cancel_button.rect.x - self.rect.x, self.cancel_button.rect.y - self.rect.y)
         )
-        self.screen.blit(
-            self.confirm_button.image, (self.confirm_button.rect.x, self.confirm_button.rect.y)
+        self.image.blit(
+            self.confirm_button.image,
+            (self.confirm_button.rect.x - self.rect.x, self.confirm_button.rect.y - self.rect.y)
         )
-
-        self.screen.blit(self.input_box.image, (self.input_box.rect.x, self.input_box.rect.y))
+        self.image.blit(
+            self.input_box.image,
+            (self.input_box.rect.x - self.rect.x, self.input_box.rect.y - self.rect.y)
+        )
 
     def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle confirm events.
@@ -2160,7 +2158,8 @@ class InputDialog(BitmappySprite):
         Returns:
             None
         """
-        if self.active:
+        return
+        if self.alive():
             if event.key in {pygame.K_TAB, pygame.K_ESCAPE}:
                 pass
             elif event.key == pygame.K_RETURN:

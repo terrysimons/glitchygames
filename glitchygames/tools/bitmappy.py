@@ -69,20 +69,28 @@ class InputConfirmationDialogScene(Scene):
         Raises:
             None
         """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+        if options is None:
+            options = {}
+
+        self.DIALOG_TEXT = options.get('dialog_text', 'Enter filename:')
+        self.CONFIRMATION_TEXT = options.get('confirm_text', 'OK')
+        self.CANCEL_TEXT = options.get('cancel_text', 'Cancel')
 
         super().__init__(options=options, groups=groups)
         self.previous_scene = previous_scene
+
+        # Fixed positioning
+        dialog_width = self.screen_width // 2
+        dialog_height = self.screen_height // 2
 
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=self.DIALOG_TEXT,
             confirm_text=self.CONFIRMATION_TEXT,
-            x=self.screen.get_rect().center[0] // 2,
-            y=self.screen.get_rect().center[1] // 2,
-            width=self.screen_width // 2,
-            height=self.screen_height // 2,
+            x=self.screen.get_rect().center[0] - (dialog_width // 2),  # Center X
+            y=self.screen.get_rect().center[1] - (dialog_height // 2),  # Center Y
+            width=dialog_width,
+            height=dialog_height,
             parent=self,
             groups=self.all_sprites,
         )
@@ -963,42 +971,64 @@ class BitmapEditorScene(Scene):
         )
         self.menu_bar.add_menu(self.menu_icon)
 
+        # Calculate initial offsets that will be added by MenuBar
+        menu_bar_offset_x = self.menu_bar.menu_offset_x  # Usually equals border_width (2)
+        menu_bar_offset_y = self.menu_bar.menu_offset_y
+
         # Add all menus with full height
+        menu_item_x = 0  # Start at left edge
+        icon_width = 16  # Width of the raspberry icon
+        menu_spacing = 2  # Reduced spacing between items
+        menu_item_width = 48
+        border_offset = self.menu_bar.border_width  # Usually 2px
+
+        # Start after icon, compensating for border
+        menu_item_x = (icon_width + menu_spacing) - border_offset
+
         new_menu = MenuItem(
             name="New",
-            x=24,  # Slightly adjusted from icon
-            y=menu_item_y,
-            width=48,  # Reduced width to better match text
+            x=menu_item_x,
+            y=menu_item_y - border_offset,  # Compensate for y border too
+            width=menu_item_width,
             height=menu_item_height,
             groups=self.all_sprites
         )
         self.menu_bar.add_menu(new_menu)
 
+        # Move to next position
+        menu_item_x += menu_item_width + menu_spacing
+
         save_menu = MenuItem(
             name="Save",
-            x=72,  # Position directly after File menu
-            y=menu_item_y,
-            width=48,
+            x=menu_item_x,
+            y=menu_item_y - border_offset,
+            width=menu_item_width,
             height=menu_item_height,
             groups=self.all_sprites
         )
         self.menu_bar.add_menu(save_menu)
 
+        # Move to next position
+        menu_item_x += menu_item_width + menu_spacing
+
         load_menu = MenuItem(
             name="Load",
-            x=120,  # Position directly after Save menu
-            y=menu_item_y,
-            width=48,
+            x=menu_item_x,
+            y=menu_item_y - border_offset,
+            width=menu_item_width,
             height=menu_item_height,
             groups=self.all_sprites
         )
         self.menu_bar.add_menu(load_menu)
 
+        # Move to next position
+        menu_item_x += menu_item_width + menu_spacing
+
         quit_menu = MenuItem(
             name="Quit",
-            x=168,  # Position directly after Load menu
-            y=menu_item_y,
-            width=48,
+            x=menu_item_x,
+            y=menu_item_y - border_offset,
+            width=menu_item_width,
             height=menu_item_height,
             groups=self.all_sprites
         )
