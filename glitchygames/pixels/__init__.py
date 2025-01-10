@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Iterator
 
 import pygame
 
@@ -117,16 +118,34 @@ def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
         pass
 
 
-def rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) tuples for the provided pixel data."""
-    iterator = iter(pixel_data)
+def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
+    """Generate RGB triplets from pixel data.
 
-    try:
-        while True:
-            # range(3) gives us 3 at a time, so r, g, b.
-            yield tuple(next(iterator) for i in range(3))
-    except StopIteration:
-        pass
+    Args:
+        pixel_data: Raw pixel data as bytes
+
+    Yields:
+        Tuples of (r,g,b) values
+    """
+    # Validate input
+    if not pixel_data:
+        raise ValueError("Empty pixel data")
+
+    if len(pixel_data) % 3 != 0:
+        raise ValueError(f"Pixel data length ({len(pixel_data)}) is not divisible by 3")
+
+    # Convert bytes to integers
+    pixels = [int(b) for b in pixel_data]
+
+    # Yield RGB triplets
+    for i in range(0, len(pixels), 3):
+        try:
+            r = pixels[i]
+            g = pixels[i+1]
+            b = pixels[i+2]
+            yield (r, g, b)
+        except IndexError as e:
+            raise ValueError(f"Not enough data for RGB triplet at index {i}") from e
 
 
 def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:

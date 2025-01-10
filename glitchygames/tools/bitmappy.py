@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import configparser
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Self
 
@@ -398,12 +399,12 @@ class SaveDialogScene(InputConfirmationDialogScene):
 
         Returns:
             None
-
-        Raises:
-            None
         """
         self.log.info(f'Save File: event: {event}, trigger: {trigger}')
-        self.previous_scene.canvas.on_save_file_event(self.dialog.input_box, self.dialog.input_box)
+        # Get the filename from the input box
+        filename = self.dialog.input_box.text
+        # Call save with just the filename
+        self.previous_scene.canvas.on_save_file_event(filename)
         self.dismiss()
 
 
@@ -752,31 +753,33 @@ class CanvasSprite(BitmappySprite):
         if hasattr(self, 'mini_view'):
             self.mini_view.clear_cursor()
 
-    def on_save_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
-        """Handle save file event.
+    def on_save_file_event(self: Self, filename: str) -> None:
+        """Handle save file events.
 
         Args:
-            event (pygame.event.Event): The event to handle
-            trigger (object, optional): The trigger object. Defaults to None.
+            filename (str): The filename to save to.
+
+        Returns:
+            None
         """
-        filename = event if isinstance(event, str) else event.text
-        self.log.info(f"Saving canvas to {filename}")
-        # TODO: Implement actual file saving
-        # For now, just log that we would save the pixels
-        self.log.info(f"Would save {len(self.pixels)} pixels")
+        self.log.info(f'Starting save to file: {filename}')
+        try:
+            self.save(filename=filename, format='ini')  # Changed from 'yaml' to 'ini'
+        except Exception as e:
+            self.log.error(f'Error saving file: {e}')
+            raise
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
-        """Handle load file event.
-
-        Args:
-            event (pygame.event.Event): The event to handle
-            trigger (object, optional): The trigger object. Defaults to None.
-        """
-        filename = event if isinstance(event, str) else event.text
-        self.log.info(f"Loading canvas from {filename}")
-        # TODO: Implement actual file loading
-        # For now, just log that we would load pixels
-        self.log.info(f"Would load pixels from {filename}")
+        """Handle load file event."""
+        try:
+            filename = event if isinstance(event, str) else event.text
+            self.log.info(f"Loading canvas from {filename}")
+            self.load(filename)  # Use the BitmappySprite's load method
+            self.dirty = 1  # Force redraw
+            if hasattr(self, 'mini_view'):
+                self.mini_view.on_pixel_update_event(event, self)
+        except Exception as e:
+            self.log.error(f"Error loading file: {e}")
 
     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle new file event.
@@ -1491,6 +1494,51 @@ class BitmapEditorScene(Scene):
             for sprite in self.all_sprites:
                 if hasattr(sprite, 'on_mouse_leave_window_event'):
                     sprite.on_mouse_leave_window_event(event)
+
+    def deflate(self: Self) -> dict:
+        """Deflate a sprite to a Bitmappy config file."""
+        try:
+            self.log.debug(f"Starting deflate for {self.name}")
+            self.log.debug(f"Image dimensions: {self.image.get_size()}")
+
+            config = configparser.ConfigParser(
+                dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+            )
+
+            # Get the raw pixel data and log its size
+            pixel_string = pygame.image.tostring(self.image, 'RGB')
+            self.log.debug(f"Raw pixel string length: {len(pixel_string)}")
+
+            # Log the first few bytes of pixel data
+            self.log.debug(f"First 12 bytes of pixel data: {list(pixel_string[:12])}")
+
+            # Create the generator and log initial state
+            raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
+            self.log.debug("Created RGB triplet generator")
+
+            # Try to get the first triplet
+            try:
+                first_triplet = next(raw_pixels)
+                self.log.debug(f"First RGB triplet: {first_triplet}")
+                # Reset generator
+                raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
+            except StopIteration:
+                self.log.error("Generator empty on first triplet!")
+                raise
+
+            # Now proceed with the rest of deflate
+            raw_pixels = list(raw_pixels)
+            self.log.debug(f"Converted {len(raw_pixels)} RGB triplets to list")
+
+            # Continue with original deflate code...
+            colors = set(raw_pixels)
+            self.log.debug(f"Found {len(colors)} unique colors")
+
+            return config
+
+        except Exception as e:
+            self.log.error(f"Error in deflate: {e}")
+            raise
 
 
 def main() -> None:
