@@ -1103,14 +1103,14 @@ class BitmappySprite(Sprite):
 
             # Create color to character mapping
             color_map = {}
+            next_char = 0
+            printable_chars = '.#@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
             for color in unique_colors:
-                if color == (255, 0, 255):  # Background color
-                    color_map[color] = '#'
-                elif color == (0, 0, 0):  # Active color
-                    color_map[color] = '.'
-                else:
-                    # Additional colors would go here if needed
-                    pass
+                if next_char >= len(printable_chars):
+                    raise ValueError(f"Too many colors (max {len(printable_chars)})")
+                color_map[color] = printable_chars[next_char]
+                next_char += 1
 
             # Process pixels row by row
             pixel_rows = []
