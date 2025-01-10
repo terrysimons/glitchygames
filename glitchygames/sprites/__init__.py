@@ -1073,9 +1073,17 @@ class BitmappySprite(Sprite):
 
             if format == 'yaml':
                 import yaml
+                class BlockLiteralDumper(yaml.SafeDumper):
+                    def represent_scalar(self, tag, value, style=None):
+                        if isinstance(value, str) and '\n' in value:
+                            style = '|'
+                            # Ensure consistent indentation
+                            value = '\n' + value.rstrip()
+                        return super().represent_scalar(tag, value, style)
+
                 self.log.debug("About to dump YAML")
                 with Path(filename).open('w') as yaml_file:
-                    yaml.dump(config, yaml_file, default_flow_style=False)
+                    yaml.dump(config, yaml_file, default_flow_style=False, Dumper=BlockLiteralDumper, indent=2)
                 self.log.debug("YAML dump complete")
             elif format == 'ini':
                 self.log.debug("About to write INI")
@@ -1126,7 +1134,7 @@ class BitmappySprite(Sprite):
                 config = {
                     'sprite': {
                         'name': self.name or 'unnamed',
-                        'pixels': f'|\n{pixels_str}'
+                        'pixels': pixels_str
                     },
                     'colors': {
                         char: {

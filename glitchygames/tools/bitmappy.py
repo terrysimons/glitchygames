@@ -764,7 +764,7 @@ class CanvasSprite(BitmappySprite):
         """
         self.log.info(f'Starting save to file: {filename}')
         try:
-            self.save(filename=filename, format='ini')  # Changed from 'yaml' to 'ini'
+            self.save(filename=filename, format='ini')  # Changed back to 'ini'
         except Exception as e:
             self.log.error(f'Error saving file: {e}')
             raise
