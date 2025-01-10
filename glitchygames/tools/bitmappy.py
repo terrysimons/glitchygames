@@ -69,31 +69,32 @@ class InputConfirmationDialogScene(Scene):
         Raises:
             None
         """
-        if options is None:
-            options = {}
-
-        self.DIALOG_TEXT = options.get('dialog_text', 'Enter filename:')
-        self.CONFIRMATION_TEXT = options.get('confirm_text', 'OK')
-        self.CANCEL_TEXT = options.get('cancel_text', 'Cancel')
+        if groups is None:
+            # Create a new LayeredDirty group specifically for the dialog
+            groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
         self.previous_scene = previous_scene
 
-        # Fixed positioning
+        # Create dialog with its own sprite group
         dialog_width = self.screen_width // 2
         dialog_height = self.screen_height // 2
 
         self.dialog = InputDialog(
             name=self.NAME,
-            dialog_text=self.DIALOG_TEXT,
+            dialog_text=self.DIALOG_TEXT,  # Use this instance's DIALOG_TEXT
             confirm_text=self.CONFIRMATION_TEXT,
-            x=self.screen.get_rect().center[0] - (dialog_width // 2),  # Center X
-            y=self.screen.get_rect().center[1] - (dialog_height // 2),  # Center Y
+            cancel_text=self.CANCEL_TEXT,
+            x=self.screen.get_rect().center[0] - (dialog_width // 2),
+            y=self.screen.get_rect().center[1] - (dialog_height // 2),
             width=dialog_width,
             height=dialog_height,
             parent=self,
             groups=self.all_sprites,
         )
+        # Set the dialog text
+        self.dialog.dialog_text_sprite.text_box.text = self.DIALOG_TEXT  # Use this instance's DIALOG_TEXT
+        self.dialog.dialog_text_sprite.border_width = 0
 
     def setup(self: Self) -> None:
         """Setup the scene.
@@ -142,8 +143,16 @@ class InputConfirmationDialogScene(Scene):
         Raises:
             None
         """
+        # Set next scene before cleanup
         self.previous_scene.next_scene = self.previous_scene
         self.next_scene = self.previous_scene
+
+        # Clear all sprites from our group
+        self.all_sprites.empty()
+
+        # Force the previous scene to redraw completely
+        for sprite in self.previous_scene.all_sprites:
+            sprite.dirty = 1
 
     def on_cancel_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle the cancel event.
@@ -246,9 +255,9 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
     """New Canvas Dialog Scene."""
 
     log = LOG
-    NAME = 'New Canvas'
-    DIALOG_TEXT = 'Are you sure you want to clear the canvas?'
-    CONFIRMATION_TEXT = 'Clear'
+    NAME = 'New Canvas Dialog'
+    DIALOG_TEXT = 'Enter canvas size (WxH):'
+    CONFIRMATION_TEXT = 'Create'
     CANCEL_TEXT = 'Cancel'
 
     def __init__(
@@ -297,8 +306,8 @@ class LoadDialogScene(InputConfirmationDialogScene):
     """Load Dialog Scene."""
 
     log = LOG
-    NAME = 'Load Sprite'
-    DIALOG_TEXT = 'Would you like to load a sprite?'
+    NAME = 'Load Dialog'
+    DIALOG_TEXT = 'Enter filename to load:'
     CONFIRMATION_TEXT = 'Load'
     CANCEL_TEXT = 'Cancel'
     VERSION = ''
@@ -350,8 +359,8 @@ class SaveDialogScene(InputConfirmationDialogScene):
     """Save Dialog Scene."""
 
     log = LOG
-    NAME = 'Save Sprite'
-    DIALOG_TEXT = 'Would you like to save your sprite?'
+    NAME = 'Save Dialog'
+    DIALOG_TEXT = 'Enter filename to save:'
     CONFIRMATION_TEXT = 'Save'
     CANCEL_TEXT = 'Cancel'
     VERSION = ''
