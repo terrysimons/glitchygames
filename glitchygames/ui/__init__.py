@@ -1372,33 +1372,19 @@ class InputBox(Sprite):
                 self.deactivate()
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle key down events.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
+        """Handle key down events."""
         if self.active:
-            if event.key in {pygame.K_TAB, pygame.K_ESCAPE}:
-                pass
-            elif event.key == pygame.K_RETURN:
-                self.log.debug(f'Text Submitted: {self.name}: {self.text}')
-                self.on_input_box_submit_event(event=self)
-                self.text = ''
-            elif event.key == pygame.K_BACKSPACE:
-                self.text = self.text[:-1]
+            if event.key == pygame.K_RETURN:
+                # Trigger confirm button instead of adding newline
+                if hasattr(self.parent, 'on_confirm_event'):
+                    self.parent.on_confirm_event(event=event, trigger=self)
             else:
-                self.text += event.unicode
-
-                self.cursor_rect.size = self.text_image.get_size()
-                self.cursor.topleft = self.cursor_rect.topright
-
-                if self.text_image.get_width() > self.rect.width - 15:
+                # Handle other key input
+                if event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
-            self.render()
-            self.log.debug(f'{self.name}: {self.text}')
+                else:
+                    self.text += event.unicode
+                self.render()
 
 
 class TextBoxSprite(BitmappySprite):
@@ -2154,16 +2140,9 @@ class InputDialog(BitmappySprite):
             super().on_key_up_event(event)
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle key down events.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        if self.input_box.active:
-            self.input_box.on_key_down_event(event)
-        elif event.key == pygame.K_TAB:
+        """Handle key down events."""
+        if event.key == pygame.K_TAB:
             self.input_box.activate()
+        else:
+            self.input_box.on_key_down_event(event)
 
