@@ -171,20 +171,19 @@ class InputConfirmationDialogScene(Scene):
         self.dismiss()
 
     def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the confirm event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-        """
-        self.log.info(f'{type(self)}on_confirm_event: event: {event}, trigger: {trigger}')
+        """Handle confirm events."""
+        self.log.info(f'Confirm: event: {event}, trigger: {trigger}')
+        # Get the text from input box before dismissing
+        filename = self.dialog.input_box.text
+        # Dismiss first to restore previous scene
         self.dismiss()
+        # Then trigger appropriate canvas event based on dialog type
+        if isinstance(self, SaveDialogScene):
+            self.previous_scene.canvas.on_save_file_event(filename)
+        elif isinstance(self, LoadDialogScene):
+            self.previous_scene.canvas.on_load_file_event(filename)
+        elif isinstance(self, NewCanvasDialogScene):
+            self.previous_scene.canvas.on_new_file_event(filename)
 
     def on_input_box_submit_event(self: Self, control: object) -> None:
         """Handle the input box submit event.
@@ -752,6 +751,48 @@ class CanvasSprite(BitmappySprite):
         self.log.info("Mouse exited canvas")
         if hasattr(self, 'mini_view'):
             self.mini_view.clear_cursor()
+
+    def on_save_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+        """Handle save file event.
+
+        Args:
+            event (pygame.event.Event): The event to handle
+            trigger (object, optional): The trigger object. Defaults to None.
+        """
+        filename = event if isinstance(event, str) else event.text
+        self.log.info(f"Saving canvas to {filename}")
+        # TODO: Implement actual file saving
+        # For now, just log that we would save the pixels
+        self.log.info(f"Would save {len(self.pixels)} pixels")
+
+    def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+        """Handle load file event.
+
+        Args:
+            event (pygame.event.Event): The event to handle
+            trigger (object, optional): The trigger object. Defaults to None.
+        """
+        filename = event if isinstance(event, str) else event.text
+        self.log.info(f"Loading canvas from {filename}")
+        # TODO: Implement actual file loading
+        # For now, just log that we would load pixels
+        self.log.info(f"Would load pixels from {filename}")
+
+    def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+        """Handle new file event.
+
+        Args:
+            event (pygame.event.Event): The event to handle
+            trigger (object, optional): The trigger object. Defaults to None.
+        """
+        dimensions = event if isinstance(event, str) else event.text
+        self.log.info(f"Creating new canvas with dimensions {dimensions}")
+        try:
+            width, height = map(int, dimensions.lower().split('x'))
+            # TODO: Implement actual canvas resizing
+            self.log.info(f"Would create {width}x{height} canvas")
+        except ValueError:
+            self.log.error(f"Invalid dimensions format: {dimensions}")
 
 
 class MiniView(BitmappySprite):
@@ -1412,23 +1453,15 @@ class BitmapEditorScene(Scene):
     #     """
     #     self.log.info(f'Scene got menu item event: {event}')
 
-    def on_mouse_drag_event(self, event: pygame.event.Event, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
+            event (pygame.event.Event): The event to handle
+            trigger (object): The trigger object
         """
-        sprites = self.sprites_at_position(pos=event.pos)
-        for sprite in sprites:
-            if isinstance(sprite, MenuItem):
-                # MenuItem expects just event
-                sprite.on_mouse_drag_event(event)
-            elif hasattr(sprite, 'on_mouse_drag_event'):
-                # Other sprites expect both event and trigger
+        for sprite in self.all_sprites:
+            if hasattr(sprite, 'on_mouse_drag_event'):
                 sprite.on_mouse_drag_event(event, trigger)
 
     @classmethod
