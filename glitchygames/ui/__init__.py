@@ -2129,7 +2129,11 @@ class InputDialog(BitmappySprite):
             None
         """
         self.log.debug(f'{self.name} Got mouse button up event: {event}')
-        self.input_box.activate()
+        # Only activate if click was within input box bounds
+        if self.input_box.rect.collidepoint(event.pos):
+            self.input_box.activate()
+        else:
+            self.input_box.deactivate()
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key up events.
@@ -2158,24 +2162,8 @@ class InputDialog(BitmappySprite):
         Returns:
             None
         """
-        return
-        if self.alive():
-            if event.key in {pygame.K_TAB, pygame.K_ESCAPE}:
-                pass
-            elif event.key == pygame.K_RETURN:
-                self.log.debug(f'Text Submitted: {self.name}: {self.text}')
-                self.on_input_box_submit_event(event=self)
-                self.text = ''
-            elif event.key == pygame.K_BACKSPACE:
-                self.text = self.text[:-1]
-            else:
-                self.text += event.unicode
-
-                self.cursor_rect.size = self.text_image.get_size()
-                self.cursor.topleft = self.cursor_rect.topright
-
-                if self.text_image.get_width() > self.rect.width - 15:
-                    self.text = self.text[:-1]
-            self.render()
-            self.log.debug(f'{self.name}: {self.text}')
+        if self.input_box.active:
+            self.input_box.on_key_down_event(event)
+        elif event.key == pygame.K_TAB:
+            self.input_box.activate()
 
