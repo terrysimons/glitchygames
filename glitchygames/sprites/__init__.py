@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 # ruff: noqa: FBT001, FBT002
 """Glitchy Games Engine sprite module."""
-
 from __future__ import annotations
+
+import logging
+
 
 import collections
 import configparser
-import logging
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
+
+import pygame
+import pygame.freetype
+import pygame.gfxdraw
+import pygame.locals
+import yaml
+from glitchygames.color import BLACK, WHITE
+from glitchygames.fonts import FontManager
+from glitchygames.pixels import image_from_pixels, pixels_from_data
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pygame
 from glitchygames.events import MouseEvents
@@ -18,6 +31,19 @@ from glitchygames.pixels import rgb_triplet_generator
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
+
+
+# Configure logger
+LOG = logging.getLogger('game.sprites')
+LOG.setLevel(logging.DEBUG)
+
+# Add console handler if none exists
+if not LOG.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    LOG.addHandler(ch)
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
@@ -899,10 +925,12 @@ class BitmappySprite(Sprite):
     """A sprite that loads from a Bitmappy config file."""
 
     DEBUG = False
-
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
+
+    # Define valid characters for sprite format - no '#' since it conflicts with YAML comments
+    SPRITE_CHARS = '.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
     def __init__(
         self: Self,
@@ -963,76 +991,72 @@ class BitmappySprite(Sprite):
         self.proxies = [self.parent]
 
     def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file.
+        """Load a sprite from a Bitmappy config file."""
+        self.log.debug(f"=== Starting load from {filename} ===")
 
-        Args:
-            filename: the filename of the Bitmappy config file.
-
-        Returns:
-            A tuple containing the sprite's image, rect, and name.
-
-        Raises:
-            configparser.NoSectionError: if the config file is missing a section.
-            configparser.NoOptionError: if the config file is missing an option.
-        """
-        config = configparser.ConfigParser(
-            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+        config = configparser.RawConfigParser(
+            dict_type=collections.OrderedDict,
+            empty_lines_in_values=True,
+            strict=True
         )
 
-        config.read(filename)
+        # Read the raw file content first
+        with open(filename, 'r') as f:
+            raw_content = f.read()
+        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
 
-        # [sprite]
-        # name = <name>
+        # Try parsing with configparser
+        config.read_string(raw_content)
+        self.log.debug(f"ConfigParser sections: {config.sections()}")
+
         try:
             name = config.get(section='sprite', option='name')
-        except configparser.NoSectionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
+            self.log.debug(f"Sprite name: {name}")
 
-        # pixels = <pixels>
-        try:
-            pixels = config.get(section='sprite', option='pixels').split('\n')
-        except configparser.NoSectionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
-        except configparser.NoOptionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Option')
+            # Get raw pixel data with explicit raw=True to preserve newlines
+            pixel_text = config.get(section='sprite', option='pixels', raw=True)
+            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
 
-        # Set our sprite's length and width.
-        width = 0
-        height = 0
-        index = -1
+            # Split into rows and process each row
+            rows = []
+            for i, row in enumerate(pixel_text.split('\n')):
+                row = row.strip()
+                if row:  # Only add non-empty rows
+                    rows.append(row)
+                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
 
-        # This is a bit of a cleanup in case the config contains something like:
-        #
-        # pixels = \n
-        #  .........
-        #
-        while not width:
-            index += 1
+            self.log.debug(f"Total rows processed: {len(rows)}")
 
-            # Width of the first row.  Each row is expected to be identical.
-            width = len(pixels[0])
+            # Calculate dimensions
+            width = len(rows[0]) if rows else 0
+            height = len(rows)
+            self.log.debug(f"Calculated dimensions: {width}x{height}")
 
-            # The total # of rows is our height
-            height = len(pixels)
+            # Get color definitions with detailed logging
+            color_map = {}
+            for section in config.sections():
+                if len(section) == 1:  # Color sections are single characters
+                    red = config.getint(section=section, option='red')
+                    green = config.getint(section=section, option='green')
+                    blue = config.getint(section=section, option='blue')
+                    color_map[section] = (red, green, blue)
+                    self.log.debug(f"Color map entry: '{section}' -> RGB({red}, {green}, {blue})")
 
-        # Trim any dead whitespace.
-        # We're off by one since we increment the index above
-        pixels = pixels[index:]
+            self.log.debug(f"Total colors in map: {len(color_map)}")
 
-        color_map = {}
-        for section in config.sections():
-            # This is checking the length of the section's name.
-            # Colors are length 1.  This works with unicode, too.
-            if len(section) == 1:
-                red = config.getint(section=section, option='red')
-                green = config.getint(section=section, option='green')
-                blue = config.getint(section=section, option='blue')
+            # Create image and rect
+            self.log.debug("Creating image and rect...")
+            (image, rect) = self.inflate(width=width, height=height, pixels=rows, color_map=color_map)
+            self.log.debug(f"Created image size: {image.get_size()}")
+            self.log.debug(f"Created rect: {rect}")
 
-                color_map[section] = (red, green, blue)
+            return (image, rect, name)
 
-        (image, rect) = self.inflate(width=width, height=height, pixels=pixels, color_map=color_map)
-
-        return (image, rect, name)
+        except Exception as e:
+            self.log.error(f"Error in load: {e}")
+            import traceback
+            self.log.error(traceback.format_exc())
+            raise
 
     @classmethod
     def inflate(
@@ -1064,96 +1088,107 @@ class BitmappySprite(Sprite):
 
         return (image, image.get_rect())
 
-    def save(self: Self, filename: str) -> None:
-        """Save a sprite to a Bitmappy config file.
+    def save(self: Self, filename: str, format: str = 'ini') -> None:
+        """Save a sprite to a file."""
+        try:
+            self.log.debug(f"Starting save in {format} format to {filename}")
+            config = self.deflate(format=format)
+            self.log.debug(f"Got config from deflate: {config}")
 
-        Args:
-            filename: the filename of the Bitmappy config file.
+            if format == 'yaml':
+                import yaml
+                class BlockLiteralDumper(yaml.SafeDumper):
+                    def represent_scalar(self, tag, value, style=None):
+                        if isinstance(value, str) and '\n' in value:
+                            style = '|'
+                            # Ensure consistent indentation
+                            value = '\n' + value.rstrip()
+                        return super().represent_scalar(tag, value, style)
 
-        Returns:
-            None
+                self.log.debug("About to dump YAML")
+                with Path(filename).open('w') as yaml_file:
+                    yaml.dump(config, yaml_file, default_flow_style=False, Dumper=BlockLiteralDumper, indent=2)
+                self.log.debug("YAML dump complete")
+            elif format == 'ini':
+                self.log.debug("About to write INI")
+                with Path(filename).open('w') as ini_file:
+                    config.write(ini_file)
+                self.log.debug("INI write complete")
+            else:
+                raise ValueError(f"Unsupported format: {format}")
 
-        Raises:
-            None
-        """
-        config = self.deflate()
+            self.log.debug(f"Successfully saved to {filename}")
 
-        with Path.open(filename, 'w') as deflated_sprite:
-            config.write(deflated_sprite)
+        except Exception as e:
+            self.log.error(f"Error in save: {e}")
+            self.log.error(f"Config state: {config if 'config' in locals() else 'Not created'}")
+            raise
 
-    def deflate(self: Self) -> dict:
-        """Deflate a sprite to a Bitmappy config file.
+    def deflate(self: Self, format: str = 'yaml') -> dict | configparser.ConfigParser:
+        """Deflate a sprite to a configuration format."""
+        try:
+            self.log.debug(f"Starting deflate for {self.name} in {format} format")
 
-        Args:
-            None
+            # Get unique colors from the pixels list
+            unique_colors = set(self.pixels)
+            self.log.debug(f"Found {len(unique_colors)} unique colors")
 
-        Returns:
-            A dict containing the sprite's config.
+            # Create color to character mapping
+            color_map = {}
+            next_char = 0
+            printable_chars = '''
+                ()[]{},./@$+_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+            '''.strip()
 
-        Raises:
-            None
-        """
-        config = configparser.ConfigParser(
-            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
-        )
+            for color in unique_colors:
+                if next_char >= len(printable_chars):
+                    raise ValueError(f"Too many colors (max {len(printable_chars)})")
+                color_map[color] = printable_chars[next_char]
+                next_char += 1
 
-        # Get the set of distinct pixels.
-        color_map = {}
-        pixels = []
+            # Process pixels row by row
+            pixel_rows = []
+            for y in range(self.pixels_tall):
+                row = ''
+                for x in range(self.pixels_across):
+                    pixel_color = self.pixels[y * self.pixels_across + x]
+                    row += color_map[pixel_color]
+                pixel_rows.append(row)
 
-        raw_pixels = rgb_triplet_generator(pixel_data=pygame.image.tostring(self.image, 'RGB'))
+            if format == 'yaml':
+                pixels_str = '\n'.join(pixel_rows)
+                config = {
+                    'sprite': {
+                        'name': self.name or 'unnamed',
+                        'pixels': pixels_str
+                    },
+                    'colors': {
+                        char: {
+                            'red': color[0],
+                            'green': color[1],
+                            'blue': color[2]
+                        }
+                        for color, char in color_map.items()
+                    }
+                }
+            else:  # ini format
+                config = configparser.ConfigParser()
+                config.add_section('sprite')
+                config.set('sprite', 'name', self.name or 'unnamed')
+                config.set('sprite', 'pixels', '\n'.join(pixel_rows))
 
-        # We're utilizing the generator to give us RGB triplets.
-        # We need a list here becasue we'll use set() to pull out the
-        # unique values, but we also need to consume the list again
-        # down below, so we can't solely use a generator.
-        raw_pixels = list(raw_pixels)
+                # Add a section for each color
+                for color, char in color_map.items():
+                    config.add_section(char)
+                    config.set(char, 'red', str(color[0]))
+                    config.set(char, 'green', str(color[1]))
+                    config.set(char, 'blue', str(color[2]))
 
-        # This gives us the unique rgb triplets in the image.
-        colors = set(raw_pixels)
+            return config
 
-        config.add_section('sprite')
-        config.set('sprite', 'name', self.name)
-
-        # Generate the color key
-        color_key = chr(47)
-        for color in colors:
-            # Characters above doublequote.
-            color_key = chr(ord(color_key) + 1)
-            config.add_section(color_key)
-
-            color_map[color] = color_key
-
-            self.log.debug(f'Key: {color} -> {color_key}')
-
-            red = color[0]
-            config.set(color_key, 'red', str(red))
-
-            green = color[1]
-            config.set(color_key, 'green', str(green))
-
-            blue = color[2]
-            config.set(color_key, 'blue', str(blue))
-
-        x = 0
-        row = []
-        while raw_pixels:
-            row.append(color_map[raw_pixels.pop(0)])
-            x += 1
-
-            if x % self.rect.width == 0:
-                self.log.debug(f'Row: {row}')
-                pixels.append(''.join(row))
-                row = []
-                x = 0
-
-        self.log.debug(pixels)
-
-        config.set('sprite', 'pixels', '\n'.join(pixels))
-
-        self.log.debug(f'Deflated Sprite: {config}')
-
-        return config
+        except Exception as e:
+            self.log.error(f"Error in deflate: {e}")
+            raise
 
     def on_left_mouse_drag_event(
         self: Self, event: pygame.event.Event, trigger: object | None
