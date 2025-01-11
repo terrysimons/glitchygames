@@ -771,15 +771,79 @@ class CanvasSprite(BitmappySprite):
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle load file event."""
+        print("\n=== Starting on_load_file_event ===")
         try:
             filename = event if isinstance(event, str) else event.text
-            self.log.info(f"Loading canvas from {filename}")
-            self.load(filename)  # Use the BitmappySprite's load method
-            self.dirty = 1  # Force redraw
+            print(f"Loading canvas from {filename}")
+
+            # Load and parse the INI file directly
+            config = configparser.RawConfigParser()
+
+            # Read the raw file content first
+            with open(filename, 'r') as f:
+                content = f.read()
+            print(f"Raw file content:\n{content}")
+
+            config.read_string(content)
+            print(f"ConfigParser sections: {config.sections()}")
+
+            # Get color definitions
+            color_map = {}
+            for section in config.sections():
+                if len(section) == 1:  # Color sections are single characters
+                    color_map[section] = (
+                        config.getint(section, 'red'),
+                        config.getint(section, 'green'),
+                        config.getint(section, 'blue')
+                    )
+            print(f"Color map: {color_map}")
+
+            # Get the raw pixel data and handle the indentation properly
+            pixel_text = config.get('sprite', 'pixels', raw=True)  # Use raw=True to preserve whitespace
+            print(f"Raw pixel text:\n{pixel_text}")
+
+            # Split into rows and properly handle indentation
+            rows = []
+            for i, row in enumerate(pixel_text.splitlines()):  # Use splitlines() instead of split('\n')
+                row = row.lstrip()  # Remove leading/trailing whitespace including tabs
+                if row:  # Only add non-empty rows
+                    rows.append(row)
+                    print(f"Row {i}: '{row}' (len={len(row)})")
+
+            print(f"Total rows found: {len(rows)}")
+
+            # Calculate dimensions
+            width = len(rows[0])
+            height = len(rows)
+            print(f"Loading image with dimensions {width}x{height}")
+
+            # Verify dimensions match our canvas
+            if width != self.pixels_across or height != self.pixels_tall:
+                print(f"Image dimensions {width}x{height} don't match canvas {self.pixels_across}x{self.pixels_tall}")
+                return
+
+            # Update the canvas pixels
+            for y, row in enumerate(rows):
+                for x, char in enumerate(row):
+                    pixel_num = y * self.pixels_across + x
+                    if char in color_map:
+                        self.pixels[pixel_num] = color_map[char]
+                        self.dirty_pixels[pixel_num] = True
+
+            # Force a complete redraw
+            self.dirty = 1
+            self.force_redraw()
+
+            # Update miniview if it exists
             if hasattr(self, 'mini_view'):
-                self.mini_view.on_pixel_update_event(event, self)
+                self.mini_view.dirty = 1
+                self.mini_view.force_redraw()
+
         except Exception as e:
-            self.log.error(f"Error loading file: {e}")
+            print(f"Error in on_load_file_event: {e}")
+            import traceback
+            print(traceback.format_exc())
+            raise
 
     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle new file event.

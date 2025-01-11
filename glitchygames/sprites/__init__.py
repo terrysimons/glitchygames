@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 # ruff: noqa: FBT001, FBT002
 """Glitchy Games Engine sprite module."""
-
 from __future__ import annotations
+
+import logging
+
 
 import collections
 import configparser
-import logging
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
+
+import pygame
+import pygame.freetype
+import pygame.gfxdraw
+import pygame.locals
+import yaml
+from glitchygames.color import BLACK, WHITE
+from glitchygames.fonts import FontManager
+from glitchygames.pixels import image_from_pixels, pixels_from_data
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pygame
 from glitchygames.events import MouseEvents
@@ -18,6 +31,19 @@ from glitchygames.pixels import rgb_triplet_generator
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
+
+
+# Configure logger
+LOG = logging.getLogger('game.sprites')
+LOG.setLevel(logging.DEBUG)
+
+# Add console handler if none exists
+if not LOG.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    LOG.addHandler(ch)
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
@@ -963,76 +989,72 @@ class BitmappySprite(Sprite):
         self.proxies = [self.parent]
 
     def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file.
+        """Load a sprite from a Bitmappy config file."""
+        self.log.debug(f"=== Starting load from {filename} ===")
 
-        Args:
-            filename: the filename of the Bitmappy config file.
-
-        Returns:
-            A tuple containing the sprite's image, rect, and name.
-
-        Raises:
-            configparser.NoSectionError: if the config file is missing a section.
-            configparser.NoOptionError: if the config file is missing an option.
-        """
         config = configparser.ConfigParser(
-            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+            dict_type=collections.OrderedDict,
+            empty_lines_in_values=True,
+            strict=True
         )
 
-        config.read(filename)
+        # Read the raw file content first
+        with open(filename, 'r') as f:
+            raw_content = f.read()
+        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
 
-        # [sprite]
-        # name = <name>
+        # Try parsing with configparser
+        config.read_string(raw_content)
+        self.log.debug(f"ConfigParser sections: {config.sections()}")
+
         try:
             name = config.get(section='sprite', option='name')
-        except configparser.NoSectionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
+            self.log.debug(f"Sprite name: {name}")
 
-        # pixels = <pixels>
-        try:
-            pixels = config.get(section='sprite', option='pixels').split('\n')
-        except configparser.NoSectionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Section')
-        except configparser.NoOptionError:
-            return (self.DEFAULT_SURFACE, self.DEFAULT_SURFACE.get_rect(), 'No Option')
+            # Get raw pixel data with explicit raw=True to preserve newlines
+            pixel_text = config.get(section='sprite', option='pixels', raw=True)
+            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
 
-        # Set our sprite's length and width.
-        width = 0
-        height = 0
-        index = -1
+            # Split into rows and process each row
+            rows = []
+            for i, row in enumerate(pixel_text.split('\n')):
+                row = row.strip()
+                if row:  # Only add non-empty rows
+                    rows.append(row)
+                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
 
-        # This is a bit of a cleanup in case the config contains something like:
-        #
-        # pixels = \n
-        #  .........
-        #
-        while not width:
-            index += 1
+            self.log.debug(f"Total rows processed: {len(rows)}")
 
-            # Width of the first row.  Each row is expected to be identical.
-            width = len(pixels[0])
+            # Calculate dimensions
+            width = len(rows[0]) if rows else 0
+            height = len(rows)
+            self.log.debug(f"Calculated dimensions: {width}x{height}")
 
-            # The total # of rows is our height
-            height = len(pixels)
+            # Get color definitions with detailed logging
+            color_map = {}
+            for section in config.sections():
+                if len(section) == 1:  # Color sections are single characters
+                    red = config.getint(section=section, option='red')
+                    green = config.getint(section=section, option='green')
+                    blue = config.getint(section=section, option='blue')
+                    color_map[section] = (red, green, blue)
+                    self.log.debug(f"Color map entry: '{section}' -> RGB({red}, {green}, {blue})")
 
-        # Trim any dead whitespace.
-        # We're off by one since we increment the index above
-        pixels = pixels[index:]
+            self.log.debug(f"Total colors in map: {len(color_map)}")
 
-        color_map = {}
-        for section in config.sections():
-            # This is checking the length of the section's name.
-            # Colors are length 1.  This works with unicode, too.
-            if len(section) == 1:
-                red = config.getint(section=section, option='red')
-                green = config.getint(section=section, option='green')
-                blue = config.getint(section=section, option='blue')
+            # Create image and rect
+            self.log.debug("Creating image and rect...")
+            (image, rect) = self.inflate(width=width, height=height, pixels=rows, color_map=color_map)
+            self.log.debug(f"Created image size: {image.get_size()}")
+            self.log.debug(f"Created rect: {rect}")
 
-                color_map[section] = (red, green, blue)
+            return (image, rect, name)
 
-        (image, rect) = self.inflate(width=width, height=height, pixels=pixels, color_map=color_map)
-
-        return (image, rect, name)
+        except Exception as e:
+            self.log.error(f"Error in load: {e}")
+            import traceback
+            self.log.error(traceback.format_exc())
+            raise
 
     @classmethod
     def inflate(
