@@ -24,6 +24,7 @@ from glitchygames.pixels import image_from_pixels, pixels_from_data
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite
+import yaml  # Add to imports at top
 
 LOG = logging.getLogger('game')
 
@@ -770,17 +771,10 @@ class CanvasSprite(BitmappySprite):
             self.mini_view.clear_cursor()
 
     def on_save_file_event(self: Self, filename: str) -> None:
-        """Handle save file events.
-
-        Args:
-            filename (str): The filename to save to.
-
-        Returns:
-            None
-        """
+        """Handle save file events."""
         self.log.info(f'Starting save to file: {filename}')
         try:
-            self.save(filename=filename, format='ini')  # Changed back to 'ini'
+            self.save(filename=filename)
         except Exception as e:
             self.log.error(f'Error saving file: {e}')
             raise
@@ -792,61 +786,71 @@ class CanvasSprite(BitmappySprite):
             filename = event if isinstance(event, str) else event.text
             print(f"Loading canvas from {filename}")
 
-            # Load and parse the INI file directly
-            config = configparser.RawConfigParser()
+            # Determine file format from extension
+            ext = Path(filename).suffix.lower()
+            if ext not in ('.yml', '.yaml', '.ini'):
+                self.log.error(f"Unsupported file format: {ext}. Use .yml, .yaml, or .ini")
+                return
 
-            # Read the raw file content first
+            # Read the raw file content
             with open(filename, 'r') as f:
                 content = f.read()
             print(f"Raw file content:\n{content}")
 
-            config.read_string(content)
-            print(f"ConfigParser sections: {config.sections()}")
+            # Load based on format
+            if ext in ('.yml', '.yaml'):
+                # Load YAML format
+                config = yaml.safe_load(content)
+                print("Loading YAML format")
 
-            # Get color definitions
-            color_map = {}
-            for section in config.sections():
-                if len(section) == 1:  # Color sections are single characters
-                    color_map[section] = (
-                        config.getint(section, 'red'),
-                        config.getint(section, 'green'),
-                        config.getint(section, 'blue')
+                # Get color definitions from YAML format
+                color_map = {}
+                for char, color_def in config['colors'].items():
+                    color_map[char] = (
+                        color_def['red'],
+                        color_def['green'],
+                        color_def['blue']
                     )
-            print(f"Color map: {color_map}")
+                pixel_text = config['sprite']['pixels']
 
-            # Get the raw pixel data and handle the indentation properly
-            pixel_text = config.get('sprite', 'pixels', raw=True)  # Use raw=True to preserve whitespace
-            print(f"Raw pixel text:\n{pixel_text}")
+            elif ext == '.ini':
+                # Load INI format
+                print("Loading INI format")
+                config = configparser.RawConfigParser()
+                config.read_string(content)
 
-            # Split into rows and properly handle indentation
-            rows = []
-            for i, row in enumerate(pixel_text.splitlines()):  # Use splitlines() instead of split('\n')
-                row = row.lstrip()  # Remove leading/trailing whitespace including tabs
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    print(f"Row {i}: '{row}' (len={len(row)})")
+                # Get color definitions from INI format
+                color_map = {}
+                for section in config.sections():
+                    if len(section) == 1:  # Color sections are single characters
+                        color_map[section] = (
+                            config.getint(section, 'red'),
+                            config.getint(section, 'green'),
+                            config.getint(section, 'blue')
+                        )
+                pixel_text = config.get('sprite', 'pixels', raw=True)
 
-            print(f"Total rows found: {len(rows)}")
+            # Process pixel data
+            rows = [row.strip() for row in pixel_text.splitlines() if row.strip()]
 
-            # Calculate dimensions
+            # Validate dimensions
             width = len(rows[0])
             height = len(rows)
-            print(f"Loading image with dimensions {width}x{height}")
-
-            # Verify dimensions match our canvas
             if width != self.pixels_across or height != self.pixels_tall:
-                print(f"Image dimensions {width}x{height} don't match canvas {self.pixels_across}x{self.pixels_tall}")
-                return
+                raise ValueError(
+                    f"Image dimensions {width}x{height} don't match canvas "
+                    f"{self.pixels_across}x{self.pixels_tall}"
+                )
 
-            # Update the canvas pixels
+            # Update canvas pixels
             for y, row in enumerate(rows):
                 for x, char in enumerate(row):
-                    pixel_num = y * self.pixels_across + x
                     if char in color_map:
+                        pixel_num = y * self.pixels_across + x
                         self.pixels[pixel_num] = color_map[char]
                         self.dirty_pixels[pixel_num] = True
 
-            # Force a complete redraw
+            # Force redraw
             self.dirty = 1
             self.force_redraw()
 
@@ -856,9 +860,7 @@ class CanvasSprite(BitmappySprite):
                 self.mini_view.force_redraw()
 
         except Exception as e:
-            print(f"Error in on_load_file_event: {e}")
-            import traceback
-            print(traceback.format_exc())
+            self.log.error(f"Error loading file: {e}")
             raise
 
     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
@@ -876,6 +878,129 @@ class CanvasSprite(BitmappySprite):
             self.log.info(f"Would create {width}x{height} canvas")
         except ValueError:
             self.log.error(f"Invalid dimensions format: {dimensions}")
+
+    def save(self, filename: str, format: str = None) -> None:
+        """Save sprite to a file.
+
+        Args:
+            filename (str): The filename to save to
+            format (str, optional): Format to save in ('yaml' or 'ini').
+                                  If None, determined by file extension.
+        """
+        try:
+            # Determine format from extension if not specified
+            if format is None:
+                ext = Path(filename).suffix.lower()
+                if ext in ('.yml', '.yaml'):
+                    format = 'yaml'
+                elif ext == '.ini':
+                    format = 'ini'
+                else:
+                    raise ValueError(f"Unsupported file format: {ext}. Use .yml, .yaml, or .ini")
+
+            # Get the sprite data
+            pixel_data = self.deflate()
+
+            if format == 'yaml':
+                # Convert to YAML format
+                yaml_data = {
+                    'colors': {},
+                    'sprite': {
+                        'name': pixel_data['sprite']['name'],
+                        'pixels': '\n' + pixel_data['sprite']['pixels']  # Add leading newline
+                    }
+                }
+
+                # Convert color data to YAML format
+                for char, rgb in pixel_data['colors'].items():
+                    yaml_data['colors'][char] = {
+                        'blue': rgb[2],
+                        'green': rgb[1],
+                        'red': rgb[0]
+                    }
+
+                # Write YAML file
+                with open(filename, 'w') as f:
+                    yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
+
+            elif format == 'ini':
+                config = configparser.ConfigParser(
+                    dict_type=collections.OrderedDict,
+                    empty_lines_in_values=True,
+                    strict=True
+                )
+
+                # Add sprite section
+                config['sprite'] = {
+                    'name': pixel_data['sprite']['name'],
+                    'pixels': pixel_data['sprite']['pixels']
+                }
+
+                # Add color sections
+                for char, rgb in pixel_data['colors'].items():
+                    config[char] = {
+                        'red': str(rgb[0]),
+                        'green': str(rgb[1]),
+                        'blue': str(rgb[2])
+                    }
+
+                # Write INI file
+                with open(filename, 'w') as f:
+                    config.write(f)
+
+            else:
+                raise ValueError(f"Unsupported format: {format}. Must be 'yaml' or 'ini'")
+
+            self.log.info(f"Saved sprite to {filename} in {format} format")
+
+        except Exception as e:
+            self.log.error(f"Error saving file: {e}")
+            raise
+
+    def deflate(self) -> dict:
+        """Deflate sprite data to dictionary format."""
+        try:
+            self.log.debug(f"Starting deflate for {self.name}")
+            self.log.debug(f"Image dimensions: {self.image.get_size()}")
+
+            config = configparser.ConfigParser(
+                dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
+            )
+
+            # Get the raw pixel data and log its size
+            pixel_string = pygame.image.tostring(self.image, 'RGB')
+            self.log.debug(f"Raw pixel string length: {len(pixel_string)}")
+
+            # Log the first few bytes of pixel data
+            self.log.debug(f"First 12 bytes of pixel data: {list(pixel_string[:12])}")
+
+            # Create the generator and log initial state
+            raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
+            self.log.debug("Created RGB triplet generator")
+
+            # Try to get the first triplet
+            try:
+                first_triplet = next(raw_pixels)
+                self.log.debug(f"First RGB triplet: {first_triplet}")
+                # Reset generator
+                raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
+            except StopIteration:
+                self.log.error("Generator empty on first triplet!")
+                raise
+
+            # Now proceed with the rest of deflate
+            raw_pixels = list(raw_pixels)
+            self.log.debug(f"Converted {len(raw_pixels)} RGB triplets to list")
+
+            # Continue with original deflate code...
+            colors = set(raw_pixels)
+            self.log.debug(f"Found {len(colors)} unique colors")
+
+            return config
+
+        except Exception as e:
+            self.log.error(f"Error in deflate: {e}")
+            raise
 
 
 class MiniView(BitmappySprite):

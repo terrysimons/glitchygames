@@ -925,10 +925,12 @@ class BitmappySprite(Sprite):
     """A sprite that loads from a Bitmappy config file."""
 
     DEBUG = False
-
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
+
+    # Define valid characters for sprite format - no '#' since it conflicts with YAML comments
+    SPRITE_CHARS = '.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
     def __init__(
         self: Self,
