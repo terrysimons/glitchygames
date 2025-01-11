@@ -992,7 +992,7 @@ class BitmappySprite(Sprite):
         """Load a sprite from a Bitmappy config file."""
         self.log.debug(f"=== Starting load from {filename} ===")
 
-        config = configparser.ConfigParser(
+        config = configparser.RawConfigParser(
             dict_type=collections.OrderedDict,
             empty_lines_in_values=True,
             strict=True
@@ -1134,7 +1134,7 @@ class BitmappySprite(Sprite):
             # Create color to character mapping
             color_map = {}
             next_char = 0
-            printable_chars = '.#@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            printable_chars = r'.@$&+-_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"`'
 
             for color in unique_colors:
                 if next_char >= len(printable_chars):

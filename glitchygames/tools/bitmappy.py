@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import configparser
 from pathlib import Path
+import sys
 from typing import TYPE_CHECKING, ClassVar, Self
 
 if TYPE_CHECKING:
@@ -34,6 +35,21 @@ MAX_PIXELS_TALL = 64
 MIN_PIXELS_TALL = 1
 MIN_COLOR_VALUE = 0
 MAX_COLOR_VALUE = 255
+
+def resource_path(*path_segments) -> Path:
+    """
+    Return the absolute Path to a resource (e.g., 'assets/raspberry.cfg'),
+    whether running from source or as a PyInstaller one-file bundle.
+    """
+    if hasattr(sys, "_MEIPASS"):
+        # Running in PyInstaller bundle
+        base_path = Path(sys._MEIPASS)
+        # Note: We used --add-data "...:glitchygames/assets", so we must include
+        # glitchygames/assets in the final path segments, e.g.:
+        return base_path.joinpath(*path_segments)
+    else:
+        # Running in normal Python environment
+        return Path(__file__).parent.parent.joinpath(*path_segments)
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -1076,7 +1092,7 @@ class BitmapEditorScene(Scene):
         )
 
         # Add the raspberry icon with its specific height
-        icon_path = Path(__file__).parent.parent / 'assets' / 'raspberry.cfg'
+        icon_path = resource_path("glitchygames", "assets", "raspberry.cfg")
         self.menu_icon = MenuItem(
             name=None,
             x=4,  # Added 4px offset from left
