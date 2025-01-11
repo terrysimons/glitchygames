@@ -1134,7 +1134,9 @@ class BitmappySprite(Sprite):
             # Create color to character mapping
             color_map = {}
             next_char = 0
-            printable_chars = r'.@$&+-_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"`'
+            printable_chars = '''
+                ()[]{},./@$+_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+            '''.strip()
 
             for color in unique_colors:
                 if next_char >= len(printable_chars):

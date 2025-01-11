@@ -49,7 +49,7 @@ def resource_path(*path_segments) -> Path:
         return base_path.joinpath(*path_segments)
     else:
         # Running in normal Python environment
-        return Path(__file__).parent.parent.joinpath(*path_segments)
+        return Path(__file__).parent.parent.joinpath(*path_segments[1:])
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -1092,7 +1092,7 @@ class BitmapEditorScene(Scene):
         )
 
         # Add the raspberry icon with its specific height
-        icon_path = resource_path("glitchygames", "assets", "raspberry.cfg")
+        icon_path = resource_path("glitcygames", "assets", "raspberry.cfg")
         self.menu_icon = MenuItem(
             name=None,
             x=4,  # Added 4px offset from left
