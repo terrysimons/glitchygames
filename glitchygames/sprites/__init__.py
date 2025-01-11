@@ -1134,8 +1134,11 @@ class BitmappySprite(Sprite):
             # Create color to character mapping
             color_map = {}
             next_char = 0
+
+            # This gives us 128 colors per sprite and the characters were selected
+            # carefully to support various text formats such as JSON, YAML, and INI.
             printable_chars = '''
-                ()[]{},./@$+_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+                .XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
             '''.strip()
 
             for color in unique_colors:
