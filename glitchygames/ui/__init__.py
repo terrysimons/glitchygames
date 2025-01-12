@@ -2326,6 +2326,10 @@ class MultiLineTextBox(BitmappySprite):
             pygame.key.stop_text_input()
             if hasattr(self.parent, 'on_text_submit_event'):
                 self.parent.on_text_submit_event(self._text)
+            # Clear the text after submission
+            self._text = ""
+            self.text = ""
+            self.cursor_pos = 0
             return
 
         if event.key == pygame.K_BACKSPACE:
