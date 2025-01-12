@@ -966,6 +966,7 @@ class BitmappySprite(Sprite):
         )
         self.filename = filename
         self.focusable = focusable
+        self.active = False
         # self.width = width
         # self.height = height
 

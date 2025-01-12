@@ -2142,18 +2142,10 @@ class InputDialog(BitmappySprite):
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events."""
-        if self.active:
-            if event.key == pygame.K_RETURN:
-                # Trigger confirm button instead of adding newline
-                if hasattr(self.parent, 'on_confirm_event'):
-                    self.parent.on_confirm_event(event=event, trigger=self)
-            else:
-                # Handle other key input
-                if event.key == pygame.K_BACKSPACE:
-                    self.text = self.text[:-1]
-                else:
-                    self.text += event.unicode
-                self.render()
+        if event.key == pygame.K_TAB:
+            self.input_box.activate()
+        else:
+            self.input_box.on_key_down_event(event)
 
 
 class MultiLineTextBox(BitmappySprite):
