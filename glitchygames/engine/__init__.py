@@ -890,6 +890,41 @@ class GameEngine(events.EventManager):
         # put a quit event in the event queue.
         pygame.event.post(events.HashableEvent(pygame.QUIT, {}))
 
+    def handle_event(self, event: events.HashableEvent) -> None:
+        """Handle pygame events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # First check for system-level QUIT event (window close button)
+        if event.type == pygame.QUIT:
+            self.log.info("Window close requested")
+            self.scene_manager.quit_requested = True
+            return
+
+        # Check if there are any focused sprites in the current scene
+        scene = self.scene_manager.active_scene
+        if scene and scene.all_sprites:
+            focused_sprites = [sprite for sprite in scene.all_sprites
+                             if hasattr(sprite, 'active') and sprite.active]
+
+            # If we have focused sprites, ALL key events go to the scene
+            if focused_sprites and event.type == pygame.KEYDOWN:
+                self.scene_manager.handle_event(event)
+                return
+
+        # Only handle engine-level key events if no focused sprites
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+            self.log.info("Quit key pressed with no focused sprites")
+            self.scene_manager.quit_requested = True
+            return
+
+        # Pass other events to the scene manager
+        self.scene_manager.handle_event(event)
+
     def process_events(self: Self) -> bool:
         """Process events.
 

@@ -333,6 +333,34 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             raise AttributeError(f"'{type(self)}' object has no attribute '{attr}'")
 
+    def handle_event(self, event: events.HashableEvent) -> None:
+        """Handle pygame events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        # Check for focused sprites first
+        if self.active_scene and self.active_scene.all_sprites:
+            focused_sprites = [sprite for sprite in self.active_scene.all_sprites
+                             if hasattr(sprite, 'active') and sprite.active]
+
+            if focused_sprites and event.type == pygame.KEYDOWN:
+                # Let the active scene handle it directly
+                self.active_scene.handle_event(event)
+                return
+
+        # Only process other events if no focused sprites handled it
+        if event.type == pygame.QUIT:
+            self.log.info("POSTING QUIT EVENT")
+            self.quit_requested = True
+        else:
+            # Pass to active scene if we have one
+            if self.active_scene:
+                self.active_scene.handle_event(event)
+
 
 class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     """Scene object base class.
@@ -819,7 +847,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #     """
     #     self.log.debug(f'{type(self)}: On Key Down Event {event}')
 
-    def on_key_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_key_up_event(self, event: events.HashableEvent) -> None:
         """Handle key up events.
 
         Args:
@@ -830,12 +858,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug(f'{type(self)}: On Key Up Event {event}')
 
-        # Wire up quit by default for escape and q.
-        #
-        # If a game implements on_key_up_event themselves
-        # they'll have to map their quit keys or call super().on_key_up_event()
-        if event.key in {pygame.K_q, pygame.K_ESCAPE}:
-            self.scene_manager.quit_game()
+        # Check for focused sprites first
+        focused_sprites = [sprite for sprite in self.all_sprites
+                          if hasattr(sprite, 'active') and sprite.active]
+
+        # Only process quit keys if no sprites are focused
+        if not focused_sprites:
+            if event.key in {pygame.K_q, pygame.K_ESCAPE}:
+                self.log.info("Quit requested")
+                # Post a QUIT event to ensure proper cleanup
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
 
     # def on_key_chord_down_event(self: Self, event: events.HashableEvent, keys_down: list) -> None:
     #     """Handle key chord down events.
@@ -1582,6 +1614,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 if hasattr(sprite, 'on_key_down_event'):
                     sprite.on_key_down_event(event)
                     return  # Stop event propagation after handling
+
+        # Only process scene-level key events if no focused sprite handled it
+        if event.key == pygame.K_q:
+            self.log.info("Quit requested")
+            self.quit_requested = True
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox.
