@@ -815,12 +815,12 @@ class CanvasSprite(BitmappySprite):
             print(f"Color map: {color_map}")
 
             # Get the raw pixel data and handle the indentation properly
-            pixel_text = config.get('sprite', 'pixels', raw=True)  # Use raw=True to preserve whitespace
+            pixel_text = config.get('sprite', 'pixels', raw=True)
             print(f"Raw pixel text:\n{pixel_text}")
 
             # Split into rows and properly handle indentation
             rows = []
-            for i, row in enumerate(pixel_text.splitlines()):  # Use splitlines() instead of split('\n')
+            for i, row in enumerate(pixel_text.splitlines()):
                 row = row.lstrip()  # Remove leading/trailing whitespace including tabs
                 if row:  # Only add non-empty rows
                     rows.append(row)
@@ -833,10 +833,51 @@ class CanvasSprite(BitmappySprite):
             height = len(rows)
             print(f"Loading image with dimensions {width}x{height}")
 
-            # Verify dimensions match our canvas
+            # If dimensions don't match, reinitialize the canvas
             if width != self.pixels_across or height != self.pixels_tall:
-                print(f"Image dimensions {width}x{height} don't match canvas {self.pixels_across}x{self.pixels_tall}")
-                return
+                print(f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {width}x{height}")
+                self.pixels_across = width
+                self.pixels_tall = height
+
+                # Get screen dimensions directly from pygame display
+                screen = pygame.display.get_surface()
+                screen_width = screen.get_width()
+                screen_height = screen.get_height()
+
+                # Recalculate pixel dimensions to fit the screen
+                available_height = screen_height - 100 - 24  # Adjust for bottom margin and menu bar
+                pixel_size = min(
+                    available_height // height,
+                    (screen_width * 2 // 3) // width
+                )
+
+                # Update pixel dimensions
+                self.pixel_width = pixel_size
+                self.pixel_height = pixel_size
+
+                # Create new pixel arrays
+                self.pixels = [(255, 0, 255)] * (width * height)  # Initialize with magenta
+                self.dirty_pixels = [True] * (width * height)
+
+                # Update surface dimensions
+                actual_width = width * pixel_size
+                actual_height = height * pixel_size
+                self.image = pygame.Surface((actual_width, actual_height))
+                self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
+
+                # Update class dimensions
+                CanvasSprite.WIDTH = width
+                CanvasSprite.HEIGHT = height
+
+                # Reinitialize mini view if it exists
+                if hasattr(self, 'mini_view'):
+                    self.mini_view.pixels_across = width
+                    self.mini_view.pixels_tall = height
+                    self.mini_view.pixels = self.pixels
+                    self.mini_view.dirty_pixels = [True] * len(self.pixels)
+                    pixel_width, pixel_height = self.mini_view.pixels_per_pixel(width, height)
+                    self.mini_view.image = pygame.Surface((width * pixel_width, height * pixel_height))
+                    self.mini_view.rect = self.mini_view.image.get_rect(x=self.mini_view.rect.x, y=self.mini_view.rect.y)
 
             # Update the canvas pixels
             for y, row in enumerate(rows):
@@ -862,7 +903,7 @@ class CanvasSprite(BitmappySprite):
             raise
 
     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
-        """Handle new file event.
+        """Handle the new file event.
 
         Args:
             event (pygame.event.Event): The event to handle
