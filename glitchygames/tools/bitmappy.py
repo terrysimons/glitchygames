@@ -23,7 +23,7 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.pixels import image_from_pixels, pixels_from_data
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
-from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite
+from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite, MultiLineTextBox
 
 LOG = logging.getLogger('game')
 
@@ -1275,6 +1275,23 @@ class BitmapEditorScene(Scene):
 
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
+
+        # Calculate debug text box position and size
+        debug_x = self.color_well.rect.right + well_padding  # Start after color well
+        debug_y = self.canvas.rect.bottom + well_padding  # Position below canvas
+        debug_width = self.screen_width - debug_x - well_padding  # Width from color well to right edge
+        debug_height = (self.screen_height - debug_y - well_padding)  # Height from canvas bottom to screen bottom
+
+        # Create the debug text box
+        self.debug_text = MultiLineTextBox(
+            name='Debug Output',
+            x=debug_x,
+            y=debug_y,
+            width=debug_width,
+            height=debug_height,
+            text='Debug Output\n',
+            groups=self.all_sprites
+        )
 
     def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the menu item event.

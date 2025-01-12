@@ -1780,6 +1780,7 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.update()
 
 
+
 class ColorWellSprite(BitmappySprite):
     """A color well sprite class."""
 
@@ -2141,8 +2142,158 @@ class InputDialog(BitmappySprite):
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events."""
-        if event.key == pygame.K_TAB:
-            self.input_box.activate()
+        if self.active:
+            if event.key == pygame.K_RETURN:
+                # Trigger confirm button instead of adding newline
+                if hasattr(self.parent, 'on_confirm_event'):
+                    self.parent.on_confirm_event(event=event, trigger=self)
+            else:
+                # Handle other key input
+                if event.key == pygame.K_BACKSPACE:
+                    self.text = self.text[:-1]
+                else:
+                    self.text += event.unicode
+                self.render()
+
+
+class MultiLineTextBox(BitmappySprite):
+    """A multi-line text box sprite class."""
+
+    log = LOG
+
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        text: str = '',
+        parent: object | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
+        """Initialize a MultiLineTextBox."""
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups,
+            focusable=True  # Important: Make it focusable
+        )
+
+        self._text = text
+        self.active = False
+        self.cursor_visible = False
+        self.cursor_blink_time = pygame.time.get_ticks()
+        self.cursor_pos = len(text)
+
+        # Create surface with alpha support
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        self.image = self.image.convert_alpha()
+
+        self.font = pygame.font.Font(None, 24)
+        self.text_color = WHITE
+        self.cursor_color = WHITE
+
+        self.dirty = 1
+        self.log.debug(f"Initialized MultiLineTextBox: {self.name} at ({x}, {y})")
+
+    def update(self) -> None:
+        """Update the multi-line text box."""
+        self.log.debug(f"Updating MultiLineTextBox: {self.name}, active={self.active}")
+
+        # Clear background
+        self.image.fill((32, 32, 32, 200))
+
+        # Draw border
+        if self.active:
+            pygame.draw.rect(self.image, (64, 64, 255), (0, 0, self.width, self.height), 1)
         else:
-            self.input_box.on_key_down_event(event)
+            pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
+
+        # Render text
+        if self._text:
+            text_surface = self.font.render(self._text, True, self.text_color)
+            self.image.blit(text_surface, (5, 5))
+
+        # Draw cursor
+        if self.active:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.cursor_blink_time > 500:
+                self.cursor_visible = not self.cursor_visible
+                self.cursor_blink_time = current_time
+
+            if self.cursor_visible:
+                text_width = self.font.size(self._text[:self.cursor_pos])[0]
+                pygame.draw.line(
+                    self.image,
+                    self.cursor_color,
+                    (text_width + 5, 5),
+                    (text_width + 5, 25),
+                    2
+                )
+
+        self.dirty = 1
+
+    def on_left_mouse_button_down_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse button down events."""
+        self.log.debug(f"MultiLineTextBox {self.name} received mouse down: {event}")
+        if self.rect.collidepoint(event.pos):
+            self.active = True
+            self.cursor_visible = True
+            self.cursor_blink_time = pygame.time.get_ticks()
+            pygame.key.start_text_input()
+            # Calculate cursor position based on click position
+            x_rel = event.pos[0] - self.rect.x - 5  # Adjust for padding
+            text_width = 0
+            for i, char in enumerate(self._text):
+                char_width = self.font.size(char)[0]
+                if text_width + (char_width / 2) > x_rel:
+                    self.cursor_pos = i
+                    break
+                text_width += char_width
+            else:
+                self.cursor_pos = len(self._text)
+            self.dirty = 1
+            self.log.debug(f"Activated MultiLineTextBox: cursor_pos={self.cursor_pos}")
+        else:
+            self.active = False
+            pygame.key.stop_text_input()
+            self.log.debug("Deactivated MultiLineTextBox")
+
+    def on_key_down_event(self, event: pygame.event.Event) -> None:
+        """Handle key down events."""
+        self.log.debug(f"MultiLineTextBox {self.name} received key down: {event}")
+        if not self.active:
+            return
+
+        if event.key == pygame.K_BACKSPACE:
+            if self.cursor_pos > 0:
+                self._text = self._text[:self.cursor_pos-1] + self._text[self.cursor_pos:]
+                self.cursor_pos -= 1
+                self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}")
+        elif event.key == pygame.K_DELETE:
+            if self.cursor_pos < len(self._text):
+                self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos+1:]
+                self.log.debug(f"Delete: text='{self._text}', cursor_pos={self.cursor_pos}")
+        elif event.key == pygame.K_LEFT:
+            self.cursor_pos = max(0, self.cursor_pos - 1)
+            self.log.debug(f"Left: cursor_pos={self.cursor_pos}")
+        elif event.key == pygame.K_RIGHT:
+            self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+            self.log.debug(f"Right: cursor_pos={self.cursor_pos}")
+        elif event.unicode:
+            self._text = self._text[:self.cursor_pos] + event.unicode + self._text[self.cursor_pos:]
+            self.cursor_pos += 1
+            self.log.debug(f"Text input: '{event.unicode}', text='{self._text}', cursor_pos={self.cursor_pos}")
+
+        self.cursor_visible = True
+        self.cursor_blink_time = pygame.time.get_ticks()
+        self.dirty = 1
 
