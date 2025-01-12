@@ -1917,6 +1917,10 @@ class BitmapEditorScene(Scene):
                             You also must include the color mappings for the
                             sprite.  Each ascii character is mapped to a color.
 
+                            Also each ascii character in the image should have
+                            a color index and there should not be any color
+                            index that is not used.
+
                             The color (255, 0, 255) indicates alpha transparency
                             of 100%.
 
@@ -1967,6 +1971,8 @@ class BitmapEditorScene(Scene):
             # Extract the response content
             ai_response = response.choices[0].message.content
             self.log.info(f"AI response: {ai_response}")
+
+            self.canvas.load(ai_response)
 
             # Here you can handle the response - perhaps display it in another text box
             # or use it to trigger bitmap editor commands
