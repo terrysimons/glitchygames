@@ -1577,10 +1577,18 @@ class BitmapEditorScene(Scene):
         Returns:
             None
         """
-        self.log.info(f"Text submitted: '{text}'")
+        self.log.info(f"AI Sprite Generation Request: '{text}'")
+
+        # Load sprites from examples directory using resource_path
+        sprites_dir = resource_path("glitchygames", "examples", "resources", "sprites")
+        for sprite_file in sprites_dir.glob("*.ini"):
+            try:
+                self.log.info(f"Loading sprite from {sprite_file}")
+                self.canvas.load(sprite_file)
+            except Exception as e:
+                self.log.error(f"Error loading sprite {sprite_file}: {e}")
 
         try:
-            # Create a chat completion using Claude (or whichever model you prefer)
             response = self.ai_client.chat.completions.create(
                 model="anthropic:claude-3-sonnet-20240229",
                 messages=[
@@ -1859,8 +1867,6 @@ class BitmapEditorScene(Scene):
                                     44444444444225522444444444444444
                                     44444444444442244444444444444444
                                     44444444444444444444444444444444
-                                    44444444444444444444444444444444
-                                    44444444444444444444444444444444
 
                             [0]
                             red = 85
@@ -1972,10 +1978,8 @@ class BitmapEditorScene(Scene):
             ai_response = response.choices[0].message.content
             self.log.info(f"AI response: {ai_response}")
 
+            # Load the AI response last so it's on top
             self.canvas.load(ai_response)
-
-            # Here you can handle the response - perhaps display it in another text box
-            # or use it to trigger bitmap editor commands
 
         except Exception as e:
             self.log.error(f"Error getting AI response: {e}")
