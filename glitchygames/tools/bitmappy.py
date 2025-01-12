@@ -1568,6 +1568,23 @@ class BitmapEditorScene(Scene):
             if hasattr(sprite, 'on_mouse_drag_event'):
                 sprite.on_mouse_drag_event(event, trigger)
 
+    def on_text_submit_event(self, text: str) -> None:
+        """Handle text submission from MultiLineTextBox.
+
+        Args:
+            text (str): The submitted text.
+
+        Returns:
+            None
+        """
+        self.log.info(f"BitmapEditor received text: '{text}'")
+        # You can add additional processing here
+        # For example:
+        # - Parse commands
+        # - Update game state
+        # - Trigger other actions
+        self.debug_text.text = text  # Update the debug text display
+
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add command line arguments.
