@@ -1914,6 +1914,12 @@ class BitmapEditorScene(Scene):
                             the width/height of a sprite is derived from the
                             sprite's whitespace, so these are 32x32 sprites.
 
+                            You also must include the color mappings for the
+                            sprite.  Each ascii character is mapped to a color.
+
+                            The color (255, 0, 255) indicates alpha transparency
+                            of 100%.
+
                             The user can ask for different sizes and you can
                             create a sprite of that size.
 
