@@ -1052,13 +1052,12 @@ class BitmapEditorScene(Scene):
     NAME = 'Bitmappy'
     VERSION = '1.0'
 
-    def __init__(self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(self, options: dict | None = None, *args, **kwargs):
         """Initialize the Bitmap Editor Scene.
 
         Args:
-            options (dict): The options.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
+            *args: The positional arguments.
+            **kwargs: The keyword arguments.
 
         Returns:
             None
@@ -1066,10 +1065,14 @@ class BitmapEditorScene(Scene):
         Raises:
             None
         """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+        if options is None:
+            options = {}
 
-        super().__init__(options=options, groups=groups)
+        # Set default size if not provided
+        if 'size' not in options:
+            options['size'] = '32x32'  # Default canvas size
+
+        super().__init__(options=options, *args, **kwargs)
 
         menu_bar_height = 24  # Taller menu bar
 
@@ -1172,7 +1175,7 @@ class BitmapEditorScene(Scene):
         available_height = self.screen_height - bottom_margin - menu_bar_height  # Use menu_bar_height instead of 32
 
         # Calculate pixel size to fit the canvas in the available space
-        width, height = options.get('size', '32x32').split('x')
+        width, height = options['size'].split('x')
         pixels_across = int(width)
         pixels_tall = int(height)
 
@@ -1193,7 +1196,7 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites,
         )
 
-        width, height = options.get('size').split('x')
+        width, height = options['size'].split('x')
         CanvasSprite.WIDTH = int(width)
         CanvasSprite.HEIGHT = int(height)
 
@@ -1274,7 +1277,7 @@ class BitmapEditorScene(Scene):
         self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
 
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
+        self.log.info(f'Game Options: {kwargs}')
 
         # Calculate debug text box position and size
         debug_x = self.color_well.rect.right + well_padding  # Start after color well
@@ -1290,6 +1293,7 @@ class BitmapEditorScene(Scene):
             width=debug_width,
             height=debug_height,
             text='',  # Changed to empty string
+            parent=self,  # Pass self as parent
             groups=self.all_sprites
         )
 

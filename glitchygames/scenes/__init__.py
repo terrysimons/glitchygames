@@ -1582,3 +1582,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 if hasattr(sprite, 'on_key_down_event'):
                     sprite.on_key_down_event(event)
                     return  # Stop event propagation after handling
+
+    def on_text_submit_event(self, text: str) -> None:
+        """Handle text submission from MultiLineTextBox.
+
+        Args:
+            text (str): The submitted text.
+
+        Returns:
+            None
+        """
+        self.log.info(f"Text submitted: '{text}'")
