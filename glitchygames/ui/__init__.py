@@ -2290,7 +2290,7 @@ class MultiLineTextBox(BitmappySprite):
         self.dirty = 2
 
     def on_left_mouse_button_down_event(self, event: pygame.event.Event) -> None:
-        """Handle mouse button down events."""
+        """Handle left mouse button down events."""
         self.log.debug(f"\n--- Mouse Event ---")
         self.log.debug(f"Mouse down at {event.pos}")
         self.log.debug(f"Current rect: {self.rect}")

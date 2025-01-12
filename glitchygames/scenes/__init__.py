@@ -906,16 +906,42 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # MENUITEM         menu, item
         self.log.debug(f'{type(self)}: On Menu Item Event {event}')
 
-    # def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
-    #     """Handle mouse button down events.
+    def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle mouse button down events.
 
-    #     Args:
-    #         event (pygame.event.Event): The event to handle.
+        Args:
+            event (pygame.event.Event): The event to handle.
 
-    #     Returns:
-    #         None
-    #     """
-    #     self.log.debug(f'{type(self)}: On Mouse Button Down Event {event}')
+        Returns:
+            None
+        """
+        self.log.debug(f"=== Scene: Mouse Button Down ===")
+        self.log.debug(f"Click position: {event.pos}")
+
+        # Get sprites at click position
+        collided_sprites = self.sprites_at_position(pos=event.pos)
+        self.log.debug(f"Collided sprites: {[type(s).__name__ for s in collided_sprites]}")
+        self.log.debug(f"Focusable sprites: {[s for s in collided_sprites if hasattr(s, 'focusable') and s.focusable]}")
+
+        # Find currently focused sprites
+        focused_sprites = [sprite for sprite in self.all_sprites
+                          if hasattr(sprite, 'active') and sprite.active]
+        self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
+
+        # If we clicked outside all sprites that can be focused, unfocus them
+        if not any(hasattr(sprite, 'focusable') and sprite.focusable for sprite in collided_sprites):
+            self.log.debug("Click outside focusable sprites - unfocusing")
+            for sprite in focused_sprites:
+                if hasattr(sprite, 'active'):
+                    self.log.debug(f"Unfocusing {type(sprite).__name__}")
+                    sprite.active = False
+                    if hasattr(sprite, 'on_focus_lost'):
+                        sprite.on_focus_lost()
+
+        # Process the click for collided sprites
+        for sprite in collided_sprites:
+            if hasattr(sprite, 'on_mouse_button_down_event'):
+                sprite.on_mouse_button_down_event(event)
 
     # def on_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
     #     """Handle mouse button up events.
@@ -1132,17 +1158,33 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Returns:
             None
         """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event}')
+        self.log.debug("=== Scene: Left Mouse Button Down ===")
+        self.log.debug(f"Click position: {event.pos}")
 
+        # Get sprites at click position
         collided_sprites = self.sprites_at_position(pos=event.pos)
+        self.log.debug(f"Collided sprites: {[type(s).__name__ for s in collided_sprites]}")
+        self.log.debug(f"Focusable sprites: {[s for s in collided_sprites if hasattr(s, 'focusable') and s.focusable]}")
 
-        self.log.info(f'ENGINE SPRITES: {collided_sprites}')
+        # Find currently focused sprites
+        focused_sprites = [sprite for sprite in self.all_sprites
+                          if hasattr(sprite, 'active') and sprite.active]
+        self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
 
-        # if collided_sprites:
-        #     collided_sprites[0].on_left_mouse_button_down_event(event)
+        # If we clicked outside all sprites that can be focused, unfocus them
+        if not any(hasattr(sprite, 'focusable') and sprite.focusable for sprite in collided_sprites):
+            self.log.debug("Click outside focusable sprites - unfocusing")
+            for sprite in focused_sprites:
+                if hasattr(sprite, 'active'):
+                    self.log.debug(f"Unfocusing {type(sprite).__name__}")
+                    sprite.active = False
+                    if hasattr(sprite, 'on_focus_lost'):
+                        sprite.on_focus_lost()
+
+        # Process the click for collided sprites
         for sprite in collided_sprites:
-            sprite.on_left_mouse_button_down_event(event)
+            if hasattr(sprite, 'on_left_mouse_button_down_event'):
+                sprite.on_left_mouse_button_down_event(event)
 
     def on_middle_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
         """Handle middle mouse button down events.
