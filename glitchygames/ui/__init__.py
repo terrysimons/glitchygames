@@ -2182,6 +2182,7 @@ class MultiLineTextBox(BitmappySprite):
         )
 
         self._text = text
+        self.text = text  # Add this line to match InputBox pattern
         self.active = False
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
@@ -2313,23 +2314,26 @@ class MultiLineTextBox(BitmappySprite):
             if self.cursor_pos > 0:
                 self._text = self._text[:self.cursor_pos-1] + self._text[self.cursor_pos:]
                 self.cursor_pos -= 1
-                self.log.debug(f"Backspace: new text='{self._text}', cursor_pos={self.cursor_pos}")
+                self.text = self._text  # Add this line to keep both in sync
+                self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
                 self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos+1:]
-                self.log.debug(f"Delete: new text='{self._text}', cursor_pos={self.cursor_pos}")
+                self.text = self._text  # Add this line to keep both in sync
+                self.log.debug(f"Delete: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
             self.log.debug(f"Left: cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_RIGHT:
             self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
             self.log.debug(f"Right: cursor_pos={self.cursor_pos}")
-        elif event.unicode:
+        elif event.unicode and event.unicode >= ' ':  # Only accept printable characters
             self._text = self._text[:self.cursor_pos] + event.unicode + self._text[self.cursor_pos:]
+            self.text = self._text  # Add this line to keep both in sync
             self.cursor_pos += 1
-            self.log.debug(f"Text input: '{event.unicode}', new text='{self._text}', cursor_pos={self.cursor_pos}")
+            self.log.debug(f"Text input: '{event.unicode}', text='{self._text}', cursor_pos={self.cursor_pos}")
 
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
-        self.dirty = 2
+        self.dirty = 1
 

@@ -1568,3 +1568,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             None
         """
         self.log.debug(f'Implement load_resource() in {type(self)}.')
+
+    def on_key_down_event(self, event: events.HashableEvent) -> None:
+        """Handle key down events."""
+        self.log.debug(f'{type(self)}: On Key Down Event {event}')
+
+        # Find the currently focused sprite
+        focused_sprites = [sprite for sprite in self.all_sprites if hasattr(sprite, 'active') and sprite.active]
+
+        # Pass the event to the focused sprite
+        for sprite in focused_sprites:
+            if hasattr(sprite, 'on_key_down_event'):
+                sprite.on_key_down_event(event)
