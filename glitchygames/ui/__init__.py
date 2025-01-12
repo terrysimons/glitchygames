@@ -2319,13 +2319,22 @@ class MultiLineTextBox(BitmappySprite):
             self.log.debug("Ignored: not active")
             return
 
+        # Check for Shift+Enter to submit
+        if event.key == pygame.K_RETURN and pygame.key.get_mods() & pygame.KMOD_SHIFT:
+            self.log.debug("Shift+Enter pressed, submitting text")
+            self.active = False
+            pygame.key.stop_text_input()
+            if hasattr(self.parent, 'on_text_submit_event'):
+                self.parent.on_text_submit_event(self._text)
+            return
+
         if event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
                 self._text = self._text[:self.cursor_pos-1] + self._text[self.cursor_pos:]
                 self.cursor_pos -= 1
-                self.text = self._text  # Add this line to keep both in sync
+                self.text = self._text
                 self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}")
-        elif event.key == pygame.K_RETURN:  # Add Enter key handling
+        elif event.key == pygame.K_RETURN:  # Regular enter for newline
             self._text = self._text[:self.cursor_pos] + '\n' + self._text[self.cursor_pos:]
             self.text = self._text
             self.cursor_pos += 1

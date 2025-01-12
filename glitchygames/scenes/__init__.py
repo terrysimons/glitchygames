@@ -1576,7 +1576,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Find the currently focused sprite
         focused_sprites = [sprite for sprite in self.all_sprites if hasattr(sprite, 'active') and sprite.active]
 
-        # Pass the event to the focused sprite
-        for sprite in focused_sprites:
-            if hasattr(sprite, 'on_key_down_event'):
-                sprite.on_key_down_event(event)
+        if focused_sprites:
+            # If we have focused sprites, only they get the events
+            for sprite in focused_sprites:
+                if hasattr(sprite, 'on_key_down_event'):
+                    sprite.on_key_down_event(event)
+                    return  # Stop event propagation after handling
