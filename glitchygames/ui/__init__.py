@@ -2355,9 +2355,21 @@ class MultiLineTextBox(BitmappySprite):
             self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
             self.log.debug(f"Right: cursor_pos={self.cursor_pos}")
         elif event.unicode and event.unicode >= ' ':  # Only accept printable characters
-            self._text = self._text[:self.cursor_pos] + event.unicode + self._text[self.cursor_pos:]
-            self.text = self._text  # Add this line to keep both in sync
-            self.cursor_pos += 1
+            # Check if adding this character would exceed the box width
+            current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
+            current_line = self._text[current_line_start:self.cursor_pos]
+            next_char = event.unicode
+            test_line = current_line + next_char
+
+            # If this would make the line too long, insert a newline first
+            if self.font.size(test_line)[0] > self.width - 10:  # 10px margin
+                self._text = self._text[:self.cursor_pos] + '\n' + next_char + self._text[self.cursor_pos:]
+                self.cursor_pos += 2  # Move past both the newline and the new character
+            else:
+                self._text = self._text[:self.cursor_pos] + next_char + self._text[self.cursor_pos:]
+                self.cursor_pos += 1
+
+            self.text = self._text
             self.log.debug(f"Text input: '{event.unicode}', text='{self._text}', cursor_pos={self.cursor_pos}")
 
         self.cursor_visible = True
