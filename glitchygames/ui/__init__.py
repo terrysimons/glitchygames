@@ -2219,6 +2219,7 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug(f"Dirty flag: {self.dirty}")
 
         self._last_update_time = current_time
+        line_height = self.font.get_linesize()  # Moved this up here
 
         # Clear background
         self.image.fill((32, 32, 32, 200))
@@ -2234,7 +2235,6 @@ class MultiLineTextBox(BitmappySprite):
         # Render text with line breaks
         if self._text:
             y_offset = 5
-            line_height = self.font.get_linesize()
 
             # Split text into lines and render each one
             lines = self._text.split('\n')
@@ -2243,26 +2243,6 @@ class MultiLineTextBox(BitmappySprite):
                     text_surface = self.font.render(line, True, self.text_color)
                     self.image.blit(text_surface, (5, y_offset))
                 y_offset += line_height
-
-            # Update cursor position calculation for multiple lines
-            if self.active and self.cursor_visible:
-                # Count newlines before cursor to determine y position
-                lines_before_cursor = self._text[:self.cursor_pos].count('\n')
-                # Get text width of current line up to cursor
-                current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
-                current_line_text = self._text[current_line_start:self.cursor_pos]
-                text_width = self.font.size(current_line_text)[0]
-
-                cursor_x = text_width + 5
-                cursor_y = 5 + (lines_before_cursor * line_height)
-
-                pygame.draw.line(
-                    self.image,
-                    self.cursor_color,
-                    (cursor_x, cursor_y),
-                    (cursor_x, cursor_y + 20),
-                    2
-                )
 
         # Handle cursor blinking
         if self.active:
@@ -2275,9 +2255,16 @@ class MultiLineTextBox(BitmappySprite):
                 self.log.debug(f"Cursor blink state changed to: {self.cursor_visible}")
 
             if self.cursor_visible:
-                text_width = self.font.size(self._text[:self.cursor_pos])[0]
+                # Count newlines before cursor to determine y position
+                lines_before_cursor = self._text[:self.cursor_pos].count('\n')
+                # Get text width of current line up to cursor
+                current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
+                current_line_text = self._text[current_line_start:self.cursor_pos]
+                text_width = self.font.size(current_line_text)[0]
+
                 cursor_x = text_width + 5
-                cursor_y = 5
+                cursor_y = 5 + (lines_before_cursor * line_height)
+
                 pygame.draw.line(
                     self.image,
                     self.cursor_color,
