@@ -1289,7 +1289,7 @@ class BitmapEditorScene(Scene):
             y=debug_y,
             width=debug_width,
             height=debug_height,
-            text='Debug Output\n',
+            text='',  # Changed to empty string
             groups=self.all_sprites
         )
 

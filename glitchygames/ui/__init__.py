@@ -2160,7 +2160,7 @@ class MultiLineTextBox(BitmappySprite):
         width: int,
         height: int,
         name: str | None = None,
-        text: str = '',
+        text: str = '',  # Changed from 'Debug Output\n' to ''
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
