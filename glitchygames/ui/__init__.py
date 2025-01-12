@@ -2339,14 +2339,25 @@ class MultiLineTextBox(BitmappySprite):
             self._text = ""
             self.text = ""
             self.cursor_pos = 0
+            self.scroll_offset = 0  # Reset scroll position
             return
 
         if event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
+                # Check if we're at the start of a line (except first line)
+                prev_char = self._text[self.cursor_pos - 1]
+                cursor_line = self._text[:self.cursor_pos].count('\n')
+
                 self._text = self._text[:self.cursor_pos-1] + self._text[self.cursor_pos:]
                 self.cursor_pos -= 1
+
+                # If we just deleted a newline and we're scrolled down, scroll up
+                if prev_char == '\n' and self.scroll_offset > 0:
+                    self.scroll_offset = max(0, self.scroll_offset - 1)
+                    self.log.debug(f"Scrolled up, new offset: {self.scroll_offset}")
+
                 self.text = self._text
-                self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}")
+                self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}, scroll_offset={self.scroll_offset}")
         elif event.key == pygame.K_RETURN:  # Regular enter for newline
             self._text = self._text[:self.cursor_pos] + '\n' + self._text[self.cursor_pos:]
             self.text = self._text
@@ -2355,7 +2366,7 @@ class MultiLineTextBox(BitmappySprite):
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
                 self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos+1:]
-                self.text = self._text  # Add this line to keep both in sync
+                self.text = self._text
                 self.log.debug(f"Delete: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
