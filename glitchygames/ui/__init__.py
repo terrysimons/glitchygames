@@ -2231,11 +2231,38 @@ class MultiLineTextBox(BitmappySprite):
             pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
             self.log.debug("Drew inactive border")
 
-        # Render text
+        # Render text with line breaks
         if self._text:
-            text_surface = self.font.render(self._text, True, self.text_color)
-            self.image.blit(text_surface, (5, 5))
-            self.log.debug(f"Drew text: '{self._text}'")
+            y_offset = 5
+            line_height = self.font.get_linesize()
+
+            # Split text into lines and render each one
+            lines = self._text.split('\n')
+            for line in lines:
+                if line:  # Only render non-empty lines
+                    text_surface = self.font.render(line, True, self.text_color)
+                    self.image.blit(text_surface, (5, y_offset))
+                y_offset += line_height
+
+            # Update cursor position calculation for multiple lines
+            if self.active and self.cursor_visible:
+                # Count newlines before cursor to determine y position
+                lines_before_cursor = self._text[:self.cursor_pos].count('\n')
+                # Get text width of current line up to cursor
+                current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
+                current_line_text = self._text[current_line_start:self.cursor_pos]
+                text_width = self.font.size(current_line_text)[0]
+
+                cursor_x = text_width + 5
+                cursor_y = 5 + (lines_before_cursor * line_height)
+
+                pygame.draw.line(
+                    self.image,
+                    self.cursor_color,
+                    (cursor_x, cursor_y),
+                    (cursor_x, cursor_y + 20),
+                    2
+                )
 
         # Handle cursor blinking
         if self.active:
@@ -2301,11 +2328,6 @@ class MultiLineTextBox(BitmappySprite):
 
     def on_key_down_event(self, event: pygame.event.Event) -> None:
         """Handle key down events."""
-        self.log.debug(f"\n--- Key Event ---")
-        self.log.debug(f"Key down: {event}")
-        self.log.debug(f"Current state: active={self.active}, cursor_pos={self.cursor_pos}")
-        self.log.debug(f"Current text: '{self._text}'")
-
         if not self.active:
             self.log.debug("Ignored: not active")
             return
@@ -2316,6 +2338,11 @@ class MultiLineTextBox(BitmappySprite):
                 self.cursor_pos -= 1
                 self.text = self._text  # Add this line to keep both in sync
                 self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}")
+        elif event.key == pygame.K_RETURN:  # Add Enter key handling
+            self._text = self._text[:self.cursor_pos] + '\n' + self._text[self.cursor_pos:]
+            self.text = self._text
+            self.cursor_pos += 1
+            self.log.debug(f"Enter: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
                 self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos+1:]
