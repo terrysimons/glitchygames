@@ -2207,11 +2207,17 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug(f"Rect: {self.rect}")
         self.log.debug(f"Groups: {self.groups()}")
 
+        # Add scroll tracking
+        self.scroll_offset = 0  # Number of lines scrolled up
+        self.visible_lines = self.height // self.font.get_linesize()
+        self.log.debug(f"Visible lines in box: {self.visible_lines}")
+
     def update(self) -> None:
         """Update the multi-line text box."""
         self._frame_count += 1
         current_time = pygame.time.get_ticks()
         time_since_last_update = current_time - self._last_update_time
+        line_height = self.font.get_linesize()
 
         self.log.debug(f"\n--- Frame {self._frame_count} ---")
         self.log.debug(f"Update called after {time_since_last_update}ms")
@@ -2219,7 +2225,6 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug(f"Dirty flag: {self.dirty}")
 
         self._last_update_time = current_time
-        line_height = self.font.get_linesize()  # Moved this up here
 
         # Clear background
         self.image.fill((32, 32, 32, 200))
@@ -2227,18 +2232,27 @@ class MultiLineTextBox(BitmappySprite):
         # Draw border
         if self.active:
             pygame.draw.rect(self.image, (64, 64, 255), (0, 0, self.width, self.height), 1)
-            self.log.debug("Drew active border")
         else:
             pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
-            self.log.debug("Drew inactive border")
 
-        # Render text with line breaks
+        # Render text with line breaks and scrolling
         if self._text:
-            y_offset = 5
-
-            # Split text into lines and render each one
             lines = self._text.split('\n')
-            for line in lines:
+            total_lines = len(lines)
+
+            # Adjust scroll if needed to keep cursor visible
+            cursor_line = self._text[:self.cursor_pos].count('\n')
+            if cursor_line - self.scroll_offset >= self.visible_lines:
+                self.scroll_offset = cursor_line - self.visible_lines + 1
+            elif cursor_line < self.scroll_offset:
+                self.scroll_offset = cursor_line
+
+            # Render visible lines
+            visible_range = slice(self.scroll_offset, self.scroll_offset + self.visible_lines)
+            visible_lines = lines[visible_range]
+
+            y_offset = 5
+            for line in visible_lines:
                 if line:  # Only render non-empty lines
                     text_surface = self.font.render(line, True, self.text_color)
                     self.image.blit(text_surface, (5, y_offset))
@@ -2247,38 +2261,33 @@ class MultiLineTextBox(BitmappySprite):
         # Handle cursor blinking
         if self.active:
             time_since_blink = current_time - self.cursor_blink_time
-            self.log.debug(f"Time since last blink: {time_since_blink}ms")
-
             if time_since_blink >= self.cursor_blink_rate:
                 self.cursor_visible = not self.cursor_visible
                 self.cursor_blink_time = current_time
-                self.log.debug(f"Cursor blink state changed to: {self.cursor_visible}")
 
             if self.cursor_visible:
                 # Count newlines before cursor to determine y position
                 lines_before_cursor = self._text[:self.cursor_pos].count('\n')
-                # Get text width of current line up to cursor
-                current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
-                current_line_text = self._text[current_line_start:self.cursor_pos]
-                text_width = self.font.size(current_line_text)[0]
+                # Only draw cursor if it's in the visible range
+                if self.scroll_offset <= lines_before_cursor < self.scroll_offset + self.visible_lines:
+                    # Get text width of current line up to cursor
+                    current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
+                    current_line_text = self._text[current_line_start:self.cursor_pos]
+                    text_width = self.font.size(current_line_text)[0]
 
-                cursor_x = text_width + 5
-                cursor_y = 5 + (lines_before_cursor * line_height)
+                    cursor_x = text_width + 5
+                    cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
 
-                pygame.draw.line(
-                    self.image,
-                    self.cursor_color,
-                    (cursor_x, cursor_y),
-                    (cursor_x, cursor_y + 20),
-                    2
-                )
-                self.log.debug(f"Drew cursor at x={cursor_x}, y={cursor_y}")
-            else:
-                self.log.debug("Cursor hidden this frame")
+                    pygame.draw.line(
+                        self.image,
+                        self.cursor_color,
+                        (cursor_x, cursor_y),
+                        (cursor_x, cursor_y + 20),
+                        2
+                    )
 
         # Force continuous updates
         self.dirty = 2
-        self.log.debug(f"End of update, dirty={self.dirty}")
 
     def on_left_mouse_button_down_event(self, event: pygame.event.Event) -> None:
         """Handle mouse button down events."""
