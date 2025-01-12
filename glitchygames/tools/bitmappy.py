@@ -1577,13 +1577,36 @@ class BitmapEditorScene(Scene):
         Returns:
             None
         """
-        self.log.info(f"BitmapEditor received text: '{text}'")
-        # You can add additional processing here
-        # For example:
-        # - Parse commands
-        # - Update game state
-        # - Trigger other actions
-        self.debug_text.text = text  # Update the debug text display
+        self.log.info(f"Text submitted: '{text}'")
+
+        try:
+            # Create a chat completion using Claude (or whichever model you prefer)
+            response = self.ai_client.chat.completions.create(
+                model="anthropic:claude-3-sonnet-20240229",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """
+                            You are a helpful assistant in a bitmap editor that can create game content for game developers.
+                        """
+                    },
+                    {
+                        "role": "user",
+                        "content": text
+                    },
+                ],
+                temperature=0.7
+            )
+
+            # Extract the response content
+            ai_response = response.choices[0].message.content
+            self.log.info(f"AI response: {ai_response}")
+
+            # Here you can handle the response - perhaps display it in another text box
+            # or use it to trigger bitmap editor commands
+
+        except Exception as e:
+            self.log.error(f"Error getting AI response: {e}")
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -1657,6 +1680,15 @@ class BitmapEditorScene(Scene):
         except Exception as e:
             self.log.error(f"Error in deflate: {e}")
             raise
+
+    def setup(self):
+        """Set up the bitmap editor scene."""
+        super().setup()
+
+        # Initialize AI Suite client
+        import aisuite as ai
+        self.ai_client = ai.Client()
+        self.log.info("Initialized AI Suite client")
 
 
 def main() -> None:
