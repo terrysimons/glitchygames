@@ -31,7 +31,9 @@ from glitchygames.pixels import rgb_triplet_generator
 LOG = logging.getLogger('game.sprites')
 LOG.addHandler(logging.NullHandler())
 
-
+SPRITE_GLYPHS = """
+.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+"""
 
 # Configure logger
 LOG = logging.getLogger('game.sprites')
@@ -966,7 +968,6 @@ class BitmappySprite(Sprite):
         )
         self.filename = filename
         self.focusable = focusable
-        self.active = False
         # self.width = width
         # self.height = height
 
@@ -1138,9 +1139,7 @@ class BitmappySprite(Sprite):
 
             # This gives us 128 colors per sprite and the characters were selected
             # carefully to support various text formats such as JSON, YAML, and INI.
-            printable_chars = '''
-                .XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
-            '''.strip()
+            printable_characters = SPRITE_GLYPHS
 
             for color in unique_colors:
                 if next_char >= len(printable_chars):
