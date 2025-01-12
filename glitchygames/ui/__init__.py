@@ -2301,6 +2301,8 @@ class MultiLineTextBox(BitmappySprite):
             self.cursor_visible = True
             self.cursor_blink_time = pygame.time.get_ticks()
             pygame.key.start_text_input()
+            # Enable key repeat for backspace
+            pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
 
             # Calculate cursor position
             x_rel = event.pos[0] - self.rect.x - 5
@@ -2320,6 +2322,8 @@ class MultiLineTextBox(BitmappySprite):
         else:
             self.active = False
             pygame.key.stop_text_input()
+            # Disable key repeat when inactive
+            pygame.key.set_repeat()  # Calling with no args disables repeat
             self.log.debug("Deactivated, text input stopped")
 
     def on_key_down_event(self, event: pygame.event.Event) -> None:
