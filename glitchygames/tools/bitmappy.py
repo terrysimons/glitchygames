@@ -28,6 +28,9 @@ import multiprocessing
 from queue import Empty
 from dataclasses import dataclass
 from typing import Optional
+import time
+import tempfile
+import os
 
 LOG = logging.getLogger('game')
 
@@ -1096,7 +1099,7 @@ class MiniView(BitmappySprite):
 class AIRequest:
     """Data structure for AI requests."""
     prompt: str
-    response_queue: multiprocessing.Queue
+    request_id: str
 
 @dataclass
 class AIResponse:
@@ -1104,17 +1107,18 @@ class AIResponse:
     content: Optional[str]
     error: Optional[str] = None
 
-def ai_worker(request_queue: multiprocessing.Queue):
+def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
+             response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]"):
     """Worker process for handling AI requests.
 
     Args:
         request_queue: Queue to receive requests from
+        response_queue: Queue to send responses to
     """
     # Set up logging for AI worker process
     log = logging.getLogger('game.ai')
     log.setLevel(logging.INFO)
 
-    # Ensure we have a handler for the AI worker process
     if not log.handlers:
         handler = logging.StreamHandler()
         formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
@@ -1124,28 +1128,24 @@ def ai_worker(request_queue: multiprocessing.Queue):
     log.info("AI worker process initializing...")
 
     try:
-        # Move import inside function to avoid import in child process
         log.info("Attempting to import aisuite...")
         import aisuite as ai
         log.info("AI worker process started")
 
-        # Initialize AI client
         log.info("Initializing AI client...")
         client = ai.Client()
         log.info("AI client initialized")
 
         while True:
             try:
-                # Get next request
                 log.info("Waiting for next request...")
-                request: AIRequest = request_queue.get()
+                request = request_queue.get()
                 if request is None:  # Shutdown signal
                     log.info("Received shutdown signal, closing AI worker")
                     break
 
                 log.info(f"Processing AI request: {request.prompt[:50]}...")
 
-                # Process request
                 response = client.chat.completions.create(
                     model=AI_MODEL,
                     messages=[
@@ -1154,19 +1154,17 @@ def ai_worker(request_queue: multiprocessing.Queue):
                 )
 
                 log.info("AI response received, sending back to main process")
-
-                # Send response back
-                request.response_queue.put(AIResponse(
-                    content=response.choices[0].message.content
+                response_queue.put((
+                    request.request_id,
+                    AIResponse(content=response.choices[0].message.content)
                 ))
 
             except Exception as e:
                 log.error(f"Error processing AI request: {e}")
-                # Send error back
                 if request:
-                    request.response_queue.put(AIResponse(
-                        content=None,
-                        error=str(e)
+                    response_queue.put((
+                        request.request_id,
+                        AIResponse(content=None, error=str(e))
                     ))
     except ImportError as e:
         log.error(f"Failed to import aisuite: {e}")
@@ -1712,15 +1710,15 @@ class BitmapEditorScene(Scene):
             return
 
         try:
-            # Create response queue for this request
-            response_queue = multiprocessing.Queue()
+            # Create unique request ID
+            request_id = str(time.time())
 
             # Send request to worker
-            request = AIRequest(prompt=text, response_queue=response_queue)
+            request = AIRequest(prompt=text, request_id=request_id)
             self.ai_request_queue.put(request)
 
-            # Store response queue to check for results
-            self.pending_ai_requests[text] = response_queue
+            # Store request ID
+            self.pending_ai_requests[request_id] = text
 
             # Update UI to show pending state
             if hasattr(self, 'debug_text'):
@@ -1738,19 +1736,17 @@ class BitmapEditorScene(Scene):
         # Initialize AI processing components
         self.pending_ai_requests = {}
         self.ai_request_queue = None
+        self.ai_response_queue = None
         self.ai_process = None
-
-        # Debug log to see if we're hitting this code
-        self.log.info("Setup running in module: %s", __name__)
 
         # Check if we're in the main process
         if multiprocessing.current_process().name == 'MainProcess':
             self.log.info("Initializing AI worker process...")
-            # Initialize AI processing
-            self.ai_request_queue = multiprocessing.Queue(maxsize=AI_QUEUE_SIZE)
+            self.ai_request_queue = multiprocessing.Queue()
+            self.ai_response_queue = multiprocessing.Queue()
             self.ai_process = multiprocessing.Process(
                 target=ai_worker,
-                args=(self.ai_request_queue,),
+                args=(self.ai_request_queue, self.ai_response_queue),
                 daemon=True
             )
             self.log.info("Starting AI worker process...")
@@ -1762,20 +1758,45 @@ class BitmapEditorScene(Scene):
         super().update()
 
         # Check for completed AI requests
-        if hasattr(self, 'pending_ai_requests'):
-            for response_queue in list(self.pending_ai_requests.values()):
-                try:
-                    response = response_queue.get_nowait()
-                    if response.error:
-                        self.log.error(f"AI Error: {response.error}")
-                        # Update UI to show error
+        if hasattr(self, 'ai_response_queue'):
+            try:
+                request_id, response = self.ai_response_queue.get_nowait()
+                if response.error:
+                    self.log.error(f"AI Error: {response.error}")
+                    if hasattr(self, 'debug_text'):
+                        self.debug_text.text = f"AI Error: {response.error}"
+                else:
+                    # Process successful response
+                    import tempfile
+                    import os
+
+                    tmp_file = None
+                    try:
+                        # Create temporary file
+                        tmp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
+                        tmp_file.write(response.content)
+                        tmp_file.close()  # Close to ensure all data is written
+
+                        # Load the temporary file
+                        self.canvas.load(tmp_file.name)
+
+                    except Exception as e:
+                        self.log.error(f"Error processing AI response: {e}")
                         if hasattr(self, 'debug_text'):
-                            self.debug_text.text = f"AI Error: {response.error}"
-                    else:
-                        # Process successful response
-                        self.canvas.load(response.content)
-                except Empty:
-                    continue
+                            self.debug_text.text = f"Error processing response: {str(e)}"
+                    finally:
+                        # Clean up temporary file
+                        if tmp_file:
+                            try:
+                                os.unlink(tmp_file.name)
+                            except Exception as e:
+                                self.log.error(f"Error cleaning up temporary file: {e}")
+
+                # Remove from pending requests
+                if request_id in self.pending_ai_requests:
+                    del self.pending_ai_requests[request_id]
+            except Empty:
+                pass
 
     def cleanup(self):
         """Clean up resources."""
