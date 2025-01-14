@@ -24,6 +24,10 @@ from glitchygames.pixels import image_from_pixels, pixels_from_data
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite, SPRITE_GLYPHS
 from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite, MultiLineTextBox
+import multiprocessing
+from queue import Empty
+from dataclasses import dataclass
+from typing import Optional
 
 LOG = logging.getLogger('game')
 
@@ -36,7 +40,9 @@ MIN_PIXELS_TALL = 1
 MIN_COLOR_VALUE = 0
 MAX_COLOR_VALUE = 255
 
-AI_MODEL = "ollama:wizardcoder:33b"
+AI_MODEL = "anthropic:claude-3-sonnet-20240229"
+AI_TIMEOUT = 30  # Seconds to wait for AI response
+AI_QUEUE_SIZE = 10
 
 def resource_path(*path_segments) -> Path:
     """
@@ -1086,6 +1092,90 @@ class MiniView(BitmappySprite):
         return (2, 2)  # Fixed 2x2 pixels for mini view
 
 
+@dataclass
+class AIRequest:
+    """Data structure for AI requests."""
+    prompt: str
+    response_queue: multiprocessing.Queue
+
+@dataclass
+class AIResponse:
+    """Data structure for AI responses."""
+    content: Optional[str]
+    error: Optional[str] = None
+
+def ai_worker(request_queue: multiprocessing.Queue):
+    """Worker process for handling AI requests.
+
+    Args:
+        request_queue: Queue to receive requests from
+    """
+    # Set up logging for AI worker process
+    log = logging.getLogger('game.ai')
+    log.setLevel(logging.INFO)
+
+    # Ensure we have a handler for the AI worker process
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        log.addHandler(handler)
+
+    log.info("AI worker process initializing...")
+
+    try:
+        # Move import inside function to avoid import in child process
+        log.info("Attempting to import aisuite...")
+        import aisuite as ai
+        log.info("AI worker process started")
+
+        # Initialize AI client
+        log.info("Initializing AI client...")
+        client = ai.Client()
+        log.info("AI client initialized")
+
+        while True:
+            try:
+                # Get next request
+                log.info("Waiting for next request...")
+                request: AIRequest = request_queue.get()
+                if request is None:  # Shutdown signal
+                    log.info("Received shutdown signal, closing AI worker")
+                    break
+
+                log.info(f"Processing AI request: {request.prompt[:50]}...")
+
+                # Process request
+                response = client.chat.completions.create(
+                    model=AI_MODEL,
+                    messages=[
+                        {"role": "user", "content": request.prompt}
+                    ]
+                )
+
+                log.info("AI response received, sending back to main process")
+
+                # Send response back
+                request.response_queue.put(AIResponse(
+                    content=response.choices[0].message.content
+                ))
+
+            except Exception as e:
+                log.error(f"Error processing AI request: {e}")
+                # Send error back
+                if request:
+                    request.response_queue.put(AIResponse(
+                        content=None,
+                        error=str(e)
+                    ))
+    except ImportError as e:
+        log.error(f"Failed to import aisuite: {e}")
+        raise
+    except Exception as e:
+        log.error(f"Fatal error in AI worker process: {e}")
+        raise
+
+
 class BitmapEditorScene(Scene):
     """Bitmap Editor Scene."""
 
@@ -1615,195 +1705,91 @@ class BitmapEditorScene(Scene):
         """Handle text submission from MultiLineTextBox."""
         self.log.info(f"AI Sprite Generation Request: '{text}'")
 
+        # Only process AI requests if we have an active queue
+        if not self.ai_request_queue:
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = "AI processing not available"
+            return
+
         try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": """
-                        You are a helpful assistant in a bitmap editor that can create
-                        game content for game developers.
-                    """.strip()
-                },
-                {
-                    "role": "user",
-                    "content": """
-                        This bitmap editor uses a custom image format that is text-based and
-                        human-readable. This should help you create game content for game
-                        developers.
+            # Create response queue for this request
+            response_queue = multiprocessing.Queue()
 
-                        I will now share some example sprites with you, and then I will submit the
-                        user's request.
+            # Send request to worker
+            request = AIRequest(prompt=text, response_queue=response_queue)
+            self.ai_request_queue.put(request)
 
-                        Your job is to create sprites in the specified format and to try to match
-                        the style that the user has described. If no style is described, then create
-                        a sprite that is in the style of the examples.
+            # Store response queue to check for results
+            self.pending_ai_requests[text] = response_queue
 
-                        It's really important that you assess your work and determine if it looks
-                        at all like what the user has requested.  You'll have to imagine what the
-                        pixels will look like when rendered based on the sprite data and color
-                        indexes, but that should be easy for you to do.
-                    """.strip()
-                },
-                {
-                    "role": "assistant",
-                    "content": """
-                        Got it, you'll show me some examples and then I'll get a request from the
-                        user that I should pay particular attention to to create a new sprite in
-                        the requested format with the requested style.
-
-                        If I am not provided a style, then create a sprite that is in the style of
-                        the examples.
-
-                        I'll look at the examples provided and the metadata in those files
-                        to understand what I'm looking at, assess the style of the examples, and
-                        then create a new sprite in the requested format with the requested style.
-
-                        I'm ready to see the examples now.
-                    """.strip()
-                }
-            ]
-
-            # Load and add example sprites
-            sprites_dir = resource_path("glitchygames", "examples", "resources", "sprites")
-            examples_content = "Great! Here are some examples:\n\n"
-
-            for sprite_file in sprites_dir.glob("*.*"):
-                try:
-                    with open(sprite_file, 'r') as f:
-                        content = f.read().strip()
-                        file_ext = sprite_file.suffix.lower()
-                        examples_content += f"```{file_ext[1:]}\n{content}\n```\n\n"
-                except Exception as e:
-                    self.log.error(f"Error loading sprite {sprite_file}: {e}")
-
-            messages.append({
-                "role": "user",
-                "content": examples_content.strip()
-            })
-
-            messages.append({
-                "role": "assistant",
-                "content": """
-                    Thank you for sharing. Since you've specified ini format, I'm assuming that
-                    different formats are or will be supported, but I'll stick to ini for now.
-                """.strip()
-            })
-
-            messages.append({
-                "role": "user",
-                "content": f"""
-                    Yes, that's correct... one thing to note is that the width/height of a sprite is
-                    derived from the sprite's whitespace, so these are 32x32 sprites.
-
-                    You also must include the color mappings for the sprite. Each ascii character is
-                    mapped to a color.
-
-                    Also each ascii character in the image should have a color index and there
-                    should not be any color index that is not used.
-
-                    The color (255, 0, 255) indicates alpha transparency of 100%.
-
-                    The user can ask for different sizes and you can create a sprite of that size.
-
-                    If the user requests something larger than 128x128, generate a 128x128 sprite
-                    that is of a big "No" signal, with great detail.
-
-                    You MUST ONLY use the following characters to create the sprite in the order
-                    they are listed, but the color that maps to the character is up to you, and
-                    what pixels they map to is up to you.
-
-                    {SPRITE_GLYPHS}
-
-                    Each character maps to one and exactly one color.  Each character must represent
-                    a different color from the other character indexes.
-
-                    Users may as for a sprite, an image, or a graphic, but they're actually referring
-                    to the .ini or .yaml format, which is text based like the examples.
-                """.strip()
-            })
-
-            messages.extend([
-                {
-                    "role": "assistant",
-                    "content": f"""
-                    Ok great.  I understand that I need to assess the style and metadata
-                    of the examples, understand the relationship between the pixel data
-                    in the examples and how the color indexes would result in rendering the
-                    image, along with the metadata in the example that describes the image.
-
-                    I also understand that the user's art style takes precedence over the
-                    examples, so I'll create a sprite in the requested format with the
-                    requested style, but if none is specified, then I'll create a sprite that
-                    is in the style of the examples.
-
-                    I also understand that I need to actually introspect my reply back
-                    and imagine what the pixels will look like when rendered based on the
-                    sprite data and color indexes, and that the resulting response MUST
-                    look like what the user requested, and if it doesn't then I'll fix it before
-                    I return it to the user.
-
-                    And finally, I understand that if the user requests something larger than
-                    128x128, then I'll create a 128x128 sprite that is of a "No" signal with great detail.
-
-                    I understand that you want me to use the following characters to create the
-                    sprite in the order they are listed, but the colors and pixels they map to is
-                    not restricted:
-
-                    {SPRITE_GLYPHS}
-
-                    I understand that each character maps to exactly one color index and that
-                    each character must represent a different color from the other character
-                    indexes.
-
-                    I also understand that if a user requests something like "a sprite" or an "image" or a "graphic" that they're actually referring to the .ini or .yaml format, which is text based like the examples.
-                """.strip()
-            },
-            {
-                "role": "user",
-                "content": """
-                    Ok, and finally, if you decide not to fulfill the request, you must be extremely
-                    detailed about what made you decide not to, so I can fix it.
-                """.strip()
-            },
-            {
-                "role": "assistant",
-                "content": """
-                    Ok great.  I'll be extremely detailed about what made me decide not to, so you
-                    can fix it.
-
-                    For instance, if the request is in appropriate, I will tell you why, so you can fix it.
-
-                    And if I think something is funny, I'll tell you why.
-                """.strip()
-            }
-            ])
-
-            messages.append({
-                "role": "user",
-                "content": text.strip()
-            })
-
-            LOG.info("Sending AI request:")
-
-            import pprint; pprint.pprint(messages)
-
-            # Send to AI
-            response = self.ai_client.chat.completions.create(
-                # model="anthropic:claude-3-sonnet-20240229",
-                model=AI_MODEL,
-                messages=messages,
-                temperature=0.5,
-            )
-
-            # Handle the response
-            ai_response = response.choices[0].message.content
-            self.log.info(f"AI response: {ai_response}")
-
-            # Load the response into the canvas
-            self.canvas.load(ai_response)
+            # Update UI to show pending state
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = "Processing AI request..."
 
         except Exception as e:
-            self.log.error(f"Error getting AI response: {e}")
+            self.log.error(f"Error submitting AI request: {e}")
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = f"Error: {str(e)}"
+
+    def setup(self):
+        """Set up the bitmap editor scene."""
+        super().setup()
+
+        # Initialize AI processing components
+        self.pending_ai_requests = {}
+        self.ai_request_queue = None
+        self.ai_process = None
+
+        # Debug log to see if we're hitting this code
+        self.log.info("Setup running in module: %s", __name__)
+
+        # Check if we're in the main process
+        if multiprocessing.current_process().name == 'MainProcess':
+            self.log.info("Initializing AI worker process...")
+            # Initialize AI processing
+            self.ai_request_queue = multiprocessing.Queue(maxsize=AI_QUEUE_SIZE)
+            self.ai_process = multiprocessing.Process(
+                target=ai_worker,
+                args=(self.ai_request_queue,),
+                daemon=True
+            )
+            self.log.info("Starting AI worker process...")
+            self.ai_process.start()
+            self.log.info("AI worker process started with PID: %d", self.ai_process.pid)
+
+    def update(self):
+        """Update scene state."""
+        super().update()
+
+        # Check for completed AI requests
+        if hasattr(self, 'pending_ai_requests'):
+            for response_queue in list(self.pending_ai_requests.values()):
+                try:
+                    response = response_queue.get_nowait()
+                    if response.error:
+                        self.log.error(f"AI Error: {response.error}")
+                        # Update UI to show error
+                        if hasattr(self, 'debug_text'):
+                            self.debug_text.text = f"AI Error: {response.error}"
+                    else:
+                        # Process successful response
+                        self.canvas.load(response.content)
+                except Empty:
+                    continue
+
+    def cleanup(self):
+        """Clean up resources."""
+        # Signal AI worker to shut down
+        if hasattr(self, 'ai_request_queue'):
+            self.ai_request_queue.put(None)
+
+        # Wait for AI process to finish
+        if hasattr(self, 'ai_process'):
+            self.ai_process.join(timeout=1.0)
+            if self.ai_process.is_alive():
+                self.ai_process.terminate()
+
+        super().cleanup()
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -1877,32 +1863,6 @@ class BitmapEditorScene(Scene):
         except Exception as e:
             self.log.error(f"Error in deflate: {e}")
             raise
-
-    def setup(self):
-        """Set up the bitmap editor scene."""
-        super().setup()
-
-        # Initialize AI Suite client
-        import aisuite as ai
-        self.ai_client = ai.Client()
-
-        # Now send a test message to the AI to ensure it's working
-        for i in range(10):
-            try:
-                self.log.info(f"Sending test message {i + 1} of 10 to AI...")
-                response = self.ai_client.chat.completions.create(
-                    model=AI_MODEL,
-                    messages=[
-                        {"role": "user", "content": "Give me your specs."}
-                    ]
-                )
-
-            except Exception as e:
-                self.log.error(f"Error initializing AI Suite client: {e}")
-                continue
-
-            self.log.info("Initialized AI Suite client")
-            break
 
 
 def main() -> None:
