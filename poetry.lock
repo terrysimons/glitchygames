@@ -1186,6 +1186,16 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pyperclip"
+version = "1.9.0"
+description = "A cross-platform clipboard module for Python. (Only handles plain text for now.)"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pyperclip-1.9.0.tar.gz", hash = "sha256:b7de0142ddc81bfc5c7507eea19da920b92252b548b96186caf94a5e2527d310"},
+]
+
+[[package]]
 name = "pyproject-hooks"
 version = "1.2.0"
 description = "Wrappers to call pyproject.toml-based build backend hooks."
@@ -1752,4 +1762,4 @@ docs = []
 [metadata]
 lock-version = "2.0"
 python-versions = ">= 3.13, < 4.0"
-content-hash = "ca8da3d8c12f0462facad252c5c758061f72177c59b01eb38b58e79362529a46"
+content-hash = "f494c980b27f4ba066e655982279647734f9b3851d0873f99f17b77f9393612b"

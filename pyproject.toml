@@ -39,6 +39,7 @@ toml = "*"
 pygame = "*"
 future = "*"
 cookiecutter = "*"
+pyperclip = "^1.9.0"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"

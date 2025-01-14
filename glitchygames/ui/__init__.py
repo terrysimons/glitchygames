@@ -2332,6 +2332,41 @@ class MultiLineTextBox(BitmappySprite):
             self.log.debug("Ignored: not active")
             return
 
+        mods = pygame.key.get_mods()
+        is_paste = (event.key == pygame.K_v and
+                    ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
+        is_copy = (event.key == pygame.K_c and
+                   ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
+
+        if is_paste:
+            self.log.debug("Paste shortcut detected")
+            try:
+                import pyperclip  # Use pyperclip instead of pygame.scrap
+                clipboard_text = pyperclip.paste()
+                if clipboard_text:
+                    # Insert clipboard text at cursor position
+                    before_cursor = self._text[:self.cursor_pos]
+                    after_cursor = self._text[self.cursor_pos:]
+                    self._text = before_cursor + clipboard_text + after_cursor
+                    self.cursor_pos += len(clipboard_text)
+                    self.text = self._text
+                    self.dirty = 1
+                    self.log.debug(f"Pasted: '{clipboard_text}'")
+                    return
+            except ImportError:
+                self.log.error("pyperclip not installed - paste functionality disabled")
+            except Exception as e:
+                self.log.error(f"Error pasting text: {e}")
+            return
+        elif is_copy:
+            try:
+                import pyperclip
+                pyperclip.copy(self._text)
+                self.log.debug(f"Copied to clipboard: '{self._text}'")
+            except Exception as e:
+                self.log.error(f"Error copying text: {e}")
+            return
+
         # Check for Shift+Enter to submit
         if event.key == pygame.K_RETURN and pygame.key.get_mods() & pygame.KMOD_SHIFT:
             self.log.debug("Shift+Enter pressed, submitting text")
