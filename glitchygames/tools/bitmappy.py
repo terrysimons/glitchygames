@@ -36,6 +36,8 @@ MIN_PIXELS_TALL = 1
 MIN_COLOR_VALUE = 0
 MAX_COLOR_VALUE = 255
 
+AI_MODEL = "ollama:wizardcoder:33b"
+
 def resource_path(*path_segments) -> Path:
     """
     Return the absolute Path to a resource (e.g., 'assets/raspberry.cfg'),
@@ -1704,7 +1706,7 @@ class BitmapEditorScene(Scene):
                     The user can ask for different sizes and you can create a sprite of that size.
 
                     If the user requests something larger than 128x128, generate a 128x128 sprite
-                    that is of a hand flipping the bird at them, with great detail.
+                    that is of a big "No" signal, with great detail.
 
                     You MUST ONLY use the following characters to create the sprite in the order
                     they are listed, but the color that maps to the character is up to you, and
@@ -1714,12 +1716,16 @@ class BitmapEditorScene(Scene):
 
                     Each character maps to one and exactly one color.  Each character must represent
                     a different color from the other character indexes.
+
+                    Users may as for a sprite, an image, or a graphic, but they're actually referring
+                    to the .ini or .yaml format, which is text based like the examples.
                 """.strip()
             })
 
-            messages.append({
-                "role": "assistant",
-                "content": f"""
+            messages.extend([
+                {
+                    "role": "assistant",
+                    "content": f"""
                     Ok great.  I understand that I need to assess the style and metadata
                     of the examples, understand the relationship between the pixel data
                     in the examples and how the color indexes would result in rendering the
@@ -1737,8 +1743,7 @@ class BitmapEditorScene(Scene):
                     I return it to the user.
 
                     And finally, I understand that if the user requests something larger than
-                    128x128, then I'll create a 128x128 sprite that is of a hand flipping the bird
-                    at them, with great detail.
+                    128x128, then I'll create a 128x128 sprite that is of a "No" signal with great detail.
 
                     I understand that you want me to use the following characters to create the
                     sprite in the order they are listed, but the colors and pixels they map to is
@@ -1749,8 +1754,29 @@ class BitmapEditorScene(Scene):
                     I understand that each character maps to exactly one color index and that
                     each character must represent a different color from the other character
                     indexes.
+
+                    I also understand that if a user requests something like "a sprite" or an "image" or a "graphic" that they're actually referring to the .ini or .yaml format, which is text based like the examples.
                 """.strip()
-            })
+            },
+            {
+                "role": "user",
+                "content": """
+                    Ok, and finally, if you decide not to fulfill the request, you must be extremely
+                    detailed about what made you decide not to, so I can fix it.
+                """.strip()
+            },
+            {
+                "role": "assistant",
+                "content": """
+                    Ok great.  I'll be extremely detailed about what made me decide not to, so you
+                    can fix it.
+
+                    For instance, if the request is in appropriate, I will tell you why, so you can fix it.
+
+                    And if I think something is funny, I'll tell you why.
+                """.strip()
+            }
+            ])
 
             messages.append({
                 "role": "user",
@@ -1764,9 +1790,9 @@ class BitmapEditorScene(Scene):
             # Send to AI
             response = self.ai_client.chat.completions.create(
                 # model="anthropic:claude-3-sonnet-20240229",
-                model="openai:gpt-4o",
+                model=AI_MODEL,
                 messages=messages,
-                temperature=1.0,
+                temperature=0.5,
             )
 
             # Handle the response
@@ -1859,7 +1885,24 @@ class BitmapEditorScene(Scene):
         # Initialize AI Suite client
         import aisuite as ai
         self.ai_client = ai.Client()
-        self.log.info("Initialized AI Suite client")
+
+        # Now send a test message to the AI to ensure it's working
+        for i in range(10):
+            try:
+                self.log.info(f"Sending test message {i + 1} of 10 to AI...")
+                response = self.ai_client.chat.completions.create(
+                    model=AI_MODEL,
+                    messages=[
+                        {"role": "user", "content": "Give me your specs."}
+                    ]
+                )
+
+            except Exception as e:
+                self.log.error(f"Error initializing AI Suite client: {e}")
+                continue
+
+            self.log.info("Initialized AI Suite client")
+            break
 
 
 def main() -> None:
