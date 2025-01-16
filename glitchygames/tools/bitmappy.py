@@ -43,10 +43,6 @@ MIN_PIXELS_TALL = 1
 MIN_COLOR_VALUE = 0
 MAX_COLOR_VALUE = 255
 
-AI_MODEL = "anthropic:claude-3-sonnet-20240229"
-AI_TIMEOUT = 30  # Seconds to wait for AI response
-AI_QUEUE_SIZE = 10
-
 def resource_path(*path_segments) -> Path:
     """
     Return the absolute Path to a resource (e.g., 'assets/raspberry.cfg'),
@@ -61,6 +57,52 @@ def resource_path(*path_segments) -> Path:
     else:
         # Running in normal Python environment
         return Path(__file__).parent.parent.joinpath(*path_segments[1:])
+
+
+AI_MODEL = "anthropic:claude-3-sonnet-20240229"
+AI_TIMEOUT = 30  # Seconds to wait for AI response
+AI_QUEUE_SIZE = 10
+
+
+# Load every .ini file from glitchygames/examples/resources/sprites/
+AI_TRAINING_DATA = []
+
+# Load sprite configuration files for AI training
+SPRITE_CONFIG_DIR = resource_path('glitchygames', 'examples', 'resources', 'sprites')
+
+if SPRITE_CONFIG_DIR.exists():
+    for config_file in SPRITE_CONFIG_DIR.glob('*.ini'):
+        try:
+            config = configparser.ConfigParser()
+            config.read(config_file)
+
+            # Extract sprite data
+            sprite_data = {
+                'name': config['sprite']['name'],
+                'pixels': '\n\t'.join(config['sprite']['pixels'].splitlines()),
+                'colors': {}
+            }
+
+            # Extract color data
+            for i in range(8):  # Support up to 8 colors (0-7)
+                if str(i) in config:
+                    sprite_data['colors'][i] = {
+                        'red': config[str(i)]['red'],
+                        'green': config[str(i)]['green'],
+                        'blue': config[str(i)]['blue']
+                    }
+
+            AI_TRAINING_DATA.append(sprite_data)
+            LOG.debug(f"Loaded sprite config: {config_file.name}")
+
+        except Exception as e:
+            LOG.error(f"Error loading sprite config {config_file}: {e}")
+else:
+    LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
+
+breakpoint()
+
+
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -1108,7 +1150,7 @@ class AIResponse:
     error: Optional[str] = None
 
 def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
-             response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]"):
+             response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]") -> None:
     """Worker process for handling AI requests.
 
     Args:
@@ -1709,12 +1751,94 @@ class BitmapEditorScene(Scene):
                 self.debug_text.text = "AI processing not available"
             return
 
+        messages: list[dict[str, str]] = [
+            {
+                "role": "system",
+                "content": """
+                    You are a helpful assistant in a bitmap editor that can create
+                    game content for game developers.
+                """.strip()
+            },
+            {
+                "role": "user",
+                "content": f"""
+                    Here are some example sprites that I've created.  Use these
+                    as training data to understand how to create new sprites:
+
+                    {'\n'.join([str(data) for data in AI_TRAINING_DATA])}
+                """.strip()
+            },
+            {
+                "role": "assistant",
+                "content": """
+                    Thank you for providing those sprite examples. I understand
+                        that each sprite consists of:
+
+                        1. A name
+                        2. A pixel layout using ASCII characters
+                        3. A color palette mapping numbers to RGB values
+
+                    I'll use this format when suggesting new sprites.
+                """.strip()
+            },
+            {
+                "role": "user",
+                "content": """
+                    Great! When I ask you to create a sprite, please provide:
+                        1. A name for the sprite
+                        2. The pixel layout using ASCII characters (0-7)
+                        3. The RGB values for each color used
+
+                    For example, if I ask for a heart sprite, you might respond with:
+
+                    [sprite]
+                    name = heart
+                    pixels =
+                        0000000
+                        0110110
+                        0111110
+                        0011100
+                        0001000
+                        0000000
+
+                    [0]
+                    red = 0
+                    green = 0
+                    blue = 0
+
+                    [1]
+                    red = 255
+                    green = 0
+                    blue = 0
+                """.strip()
+            },
+            {
+                "role": "assistant",
+                "content": """
+                    I understand. I'll format my sprite suggestions using the .ini
+                        format with sections for:
+                            - [sprite] containing name and pixel layout
+                            - [0] through [7] for color definitions
+                            - RGB values from 0-255 for each color
+
+                    I'll ensure the pixel layout uses only the defined color indices.
+                """.strip()
+            }
+        ]
+
         try:
             # Create unique request ID
             request_id = str(time.time())
 
+            # Combine original prompt with training messages
+            full_prompt = text.strip()
+            messages.append({
+                "role": "user",
+                "content": full_prompt
+            })
+
             # Send request to worker
-            request = AIRequest(prompt=text, request_id=request_id)
+            request = AIRequest(prompt=full_prompt, request_id=request_id)
             self.ai_request_queue.put(request)
 
             # Store request ID
@@ -1757,44 +1881,41 @@ class BitmapEditorScene(Scene):
         """Update scene state."""
         super().update()
 
-        # Check for completed AI requests
-        if hasattr(self, 'ai_response_queue'):
+        # Check for AI responses
+        if hasattr(self, 'ai_response_queue') and self.ai_response_queue:
             try:
-                request_id, response = self.ai_response_queue.get_nowait()
-                if response.error:
-                    self.log.error(f"AI Error: {response.error}")
-                    if hasattr(self, 'debug_text'):
-                        self.debug_text.text = f"AI Error: {response.error}"
-                else:
-                    # Process successful response
-                    import tempfile
-                    import os
+                response = self.ai_response_queue.get_nowait()
+                if response:
+                    breakpoint()
+                    request_id = response.request_id
+                    self.log.info(f"Got AI response for request {request_id}")
 
-                    tmp_file = None
+                    # Create temp file with .ini extension
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as tmp:
+                        tmp.write(response.content)
+                        tmp_path = tmp.name
+                        self.log.info(f"Saved AI response to temp file: {tmp_path}")
+
+                    # Load the sprite from the temp file
                     try:
-                        # Create temporary file
-                        tmp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
-                        tmp_file.write(response.content)
-                        tmp_file.close()  # Close to ensure all data is written
-
-                        # Load the temporary file
-                        self.canvas.load(tmp_file.name)
-
-                    except Exception as e:
-                        self.log.error(f"Error processing AI response: {e}")
+                        self.canvas.load(filename=tmp_path)
                         if hasattr(self, 'debug_text'):
-                            self.debug_text.text = f"Error processing response: {str(e)}"
-                    finally:
-                        # Clean up temporary file
-                        if tmp_file:
-                            try:
-                                os.unlink(tmp_file.name)
-                            except Exception as e:
-                                self.log.error(f"Error cleaning up temporary file: {e}")
+                            self.debug_text.text = "AI sprite loaded successfully"
+                    except Exception as e:
+                        self.log.error(f"Error loading AI sprite: {e}")
+                        if hasattr(self, 'debug_text'):
+                            self.debug_text.text = f"Error loading sprite: {str(e)}"
 
-                # Remove from pending requests
-                if request_id in self.pending_ai_requests:
-                    del self.pending_ai_requests[request_id]
+                    # Clean up temp file
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception as e:
+                        self.log.error(f"Error cleaning up temp file: {e}")
+
+                    # Remove from pending requests
+                    if request_id in self.pending_ai_requests:
+                        del self.pending_ai_requests[request_id]
+
             except Empty:
                 pass
 

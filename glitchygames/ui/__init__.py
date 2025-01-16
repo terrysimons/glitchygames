@@ -2160,7 +2160,7 @@ class MultiLineTextBox(BitmappySprite):
         width: int,
         height: int,
         name: str | None = None,
-        text: str = '',  # Changed from 'Debug Output\n' to ''
+        text: str = '',
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
@@ -2182,7 +2182,7 @@ class MultiLineTextBox(BitmappySprite):
         )
 
         self._text = text
-        self.text = text  # Add this line to match InputBox pattern
+        self.text = text
         self.active = False
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
@@ -2191,8 +2191,12 @@ class MultiLineTextBox(BitmappySprite):
         self._last_update_time = pygame.time.get_ticks()
         self._frame_count = 0
 
+        # Initialize selection attributes
+        self.selection_start = None
+        self.selection_end = None
+
         # Force continuous updates
-        self.dirty = 2  # Always dirty
+        self.dirty = 2
 
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
@@ -2201,16 +2205,9 @@ class MultiLineTextBox(BitmappySprite):
         self.text_color = WHITE
         self.cursor_color = WHITE
 
-        self.log.debug(f"Initialized MultiLineTextBox: {self.name}")
-        self.log.debug(f"Initial state: active={self.active}, cursor_visible={self.cursor_visible}")
-        self.log.debug(f"Text: '{self._text}', cursor_pos={self.cursor_pos}")
-        self.log.debug(f"Rect: {self.rect}")
-        self.log.debug(f"Groups: {self.groups()}")
-
         # Add scroll tracking
-        self.scroll_offset = 0  # Number of lines scrolled up
+        self.scroll_offset = 0
         self.visible_lines = self.height // self.font.get_linesize()
-        self.log.debug(f"Visible lines in box: {self.visible_lines}")
 
     def update(self) -> None:
         """Update the multi-line text box."""
@@ -2329,7 +2326,6 @@ class MultiLineTextBox(BitmappySprite):
     def on_key_down_event(self, event: pygame.event.Event) -> None:
         """Handle key down events."""
         if not self.active:
-            self.log.debug("Ignored: not active")
             return
 
         mods = pygame.key.get_mods()
@@ -2337,99 +2333,91 @@ class MultiLineTextBox(BitmappySprite):
                     ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
         is_copy = (event.key == pygame.K_c and
                    ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
+        is_shift = bool(mods & pygame.KMOD_SHIFT)
+        is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
 
-        if is_paste:
-            self.log.debug("Paste shortcut detected")
+        # Handle Ctrl+Enter for submission
+        if event.key == pygame.K_RETURN and is_ctrl:
+            if self.parent and hasattr(self.parent, 'on_text_submit_event'):
+                self.parent.on_text_submit_event(self._text)
+                # Deactivate the text box after submission
+                self.active = False
+                pygame.key.stop_text_input()
+                pygame.key.set_repeat()  # Disable key repeat
+                self.log.debug("Deactivated after submission")
+            return
+
+        # Handle selection with shift+arrow keys
+        if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+            if is_shift:
+                if self.selection_start is None:
+                    self.selection_start = self.cursor_pos
+
+                if event.key == pygame.K_LEFT:
+                    self.cursor_pos = max(0, self.cursor_pos - 1)
+                else:
+                    self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+                self.selection_end = self.cursor_pos
+                return
+            else:
+                self.selection_start = None
+                self.selection_end = None
+
+        # Handle copy/paste
+        if is_copy and self._text:
             try:
-                import pyperclip  # Use pyperclip instead of pygame.scrap
+                import pyperclip
+                if self.selection_start is not None and self.selection_end is not None:
+                    start = min(self.selection_start, self.selection_end)
+                    end = max(self.selection_start, self.selection_end)
+                    selected_text = self._text[start:end]
+                    pyperclip.copy(selected_text)
+                else:
+                    pyperclip.copy(self._text)
+            except Exception as e:
+                self.log.error(f"Error copying text: {e}")
+            return
+        elif is_paste:
+            try:
+                import pyperclip
                 clipboard_text = pyperclip.paste()
                 if clipboard_text:
-                    # Insert clipboard text at cursor position
                     before_cursor = self._text[:self.cursor_pos]
                     after_cursor = self._text[self.cursor_pos:]
                     self._text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
                     self.text = self._text
-                    self.dirty = 1
-                    self.log.debug(f"Pasted: '{clipboard_text}'")
-                    return
-            except ImportError:
-                self.log.error("pyperclip not installed - paste functionality disabled")
             except Exception as e:
                 self.log.error(f"Error pasting text: {e}")
             return
-        elif is_copy:
-            try:
-                import pyperclip
-                pyperclip.copy(self._text)
-                self.log.debug(f"Copied to clipboard: '{self._text}'")
-            except Exception as e:
-                self.log.error(f"Error copying text: {e}")
-            return
 
-        # Check for Shift+Enter to submit
-        if event.key == pygame.K_RETURN and pygame.key.get_mods() & pygame.KMOD_SHIFT:
-            self.log.debug("Shift+Enter pressed, submitting text")
-            self.active = False
-            pygame.key.stop_text_input()
-            if hasattr(self.parent, 'on_text_submit_event'):
-                self.parent.on_text_submit_event(self._text)
-            # Clear the text after submission
-            self._text = ""
-            self.text = ""
-            self.cursor_pos = 0
-            self.scroll_offset = 0  # Reset scroll position
-            return
-
-        if event.key == pygame.K_BACKSPACE:
+        # Handle regular key events
+        if event.key == pygame.K_RETURN:
+            # Handle newline
+            before_cursor = self._text[:self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos:]
+            self._text = before_cursor + '\n' + after_cursor
+            self.cursor_pos += 1
+            self.text = self._text
+        elif event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
-                # Check if we're at the start of a line (except first line)
-                prev_char = self._text[self.cursor_pos - 1]
-                cursor_line = self._text[:self.cursor_pos].count('\n')
-
                 self._text = self._text[:self.cursor_pos-1] + self._text[self.cursor_pos:]
                 self.cursor_pos -= 1
-
-                # If we just deleted a newline and we're scrolled down, scroll up
-                if prev_char == '\n' and self.scroll_offset > 0:
-                    self.scroll_offset = max(0, self.scroll_offset - 1)
-                    self.log.debug(f"Scrolled up, new offset: {self.scroll_offset}")
-
                 self.text = self._text
-                self.log.debug(f"Backspace: text='{self._text}', cursor_pos={self.cursor_pos}, scroll_offset={self.scroll_offset}")
-        elif event.key == pygame.K_RETURN:  # Regular enter for newline
-            self._text = self._text[:self.cursor_pos] + '\n' + self._text[self.cursor_pos:]
-            self.text = self._text
-            self.cursor_pos += 1
-            self.log.debug(f"Enter: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
                 self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos+1:]
                 self.text = self._text
-                self.log.debug(f"Delete: text='{self._text}', cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
-            self.log.debug(f"Left: cursor_pos={self.cursor_pos}")
         elif event.key == pygame.K_RIGHT:
             self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
-            self.log.debug(f"Right: cursor_pos={self.cursor_pos}")
-        elif event.unicode and event.unicode >= ' ':  # Only accept printable characters
-            # Check if adding this character would exceed the box width
-            current_line_start = self._text[:self.cursor_pos].rindex('\n') + 1 if '\n' in self._text[:self.cursor_pos] else 0
-            current_line = self._text[current_line_start:self.cursor_pos]
-            next_char = event.unicode
-            test_line = current_line + next_char
-
-            # If this would make the line too long, insert a newline first
-            if self.font.size(test_line)[0] > self.width - 10:  # 10px margin
-                self._text = self._text[:self.cursor_pos] + '\n' + next_char + self._text[self.cursor_pos:]
-                self.cursor_pos += 2  # Move past both the newline and the new character
-            else:
-                self._text = self._text[:self.cursor_pos] + next_char + self._text[self.cursor_pos:]
-                self.cursor_pos += 1
-
+        elif event.unicode and event.unicode >= ' ':
+            before_cursor = self._text[:self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos:]
+            self._text = before_cursor + event.unicode + after_cursor
+            self.cursor_pos += 1
             self.text = self._text
-            self.log.debug(f"Text input: '{event.unicode}', text='{self._text}', cursor_pos={self.cursor_pos}")
 
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
