@@ -1923,13 +1923,28 @@ class BitmapEditorScene(Scene):
         """Clean up resources."""
         # Signal AI worker to shut down
         if hasattr(self, 'ai_request_queue'):
-            self.ai_request_queue.put(None)
+            try:
+                self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
+            except:
+                pass  # Ignore queue errors during shutdown
 
         # Wait for AI process to finish
         if hasattr(self, 'ai_process'):
-            self.ai_process.join(timeout=1.0)
-            if self.ai_process.is_alive():
-                self.ai_process.terminate()
+            try:
+                self.ai_process.join(timeout=1.0)
+                if self.ai_process.is_alive():
+                    self.ai_process.terminate()
+                    self.ai_process.join(timeout=0.1)  # Short timeout for terminate
+                    if self.ai_process.is_alive():
+                        self.ai_process.kill()  # Force kill if still alive
+            except:
+                pass  # Ignore process cleanup errors
+
+        # Close queues
+        if hasattr(self, 'ai_request_queue'):
+            self.ai_request_queue.close()
+        if hasattr(self, 'ai_response_queue'):
+            self.ai_response_queue.close()
 
         super().cleanup()
 
