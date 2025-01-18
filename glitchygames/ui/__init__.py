@@ -1681,6 +1681,30 @@ class SliderSprite(BitmappySprite):
         # Set up appearance
         self.update_slider_appearance()
 
+        # Create the text sprite
+        text_x = x + width + 10
+        self.text_sprite = TextSprite(
+            x=text_x,
+            y=y - (height // 2),
+            width=32,
+            height=20,
+            text='0',
+            groups=groups,
+        )
+
+        # Set color based on slider name
+        if name == 'R':
+            self.color = (255, 0, 0)
+        elif name == 'G':
+            self.color = (0, 255, 0)
+        elif name == 'B':
+            self.color = (0, 0, 255)
+        else:
+            self.color = (128, 128, 128)
+
+        # Set up appearance
+        self.update_slider_appearance()
+
         # Make sure we update
         self.dirty = 2
         self.slider_knob.dirty = 2
@@ -1779,7 +1803,67 @@ class SliderSprite(BitmappySprite):
         self.slider_knob.update()
         self.text_sprite.update()
 
+    def update_color_well(self):
+        """Update the color well with current value."""
+        if hasattr(self.parent, 'color_well'):
+            if self.name == 'R':
+                self.parent.red_slider.value = self._value
+            elif self.name == 'G':
+                self.parent.green_slider.value = self._value
+            elif self.name == 'B':
+                self.parent.blue_slider.value = self._value
 
+            self.parent.color_well.active_color = (
+                self.parent.red_slider.value,
+                self.parent.green_slider.value,
+                self.parent.blue_slider.value,
+            )
+
+    def on_left_mouse_button_down_event(self, event):
+        mouse = MousePointer(pos=event.pos)
+        if pygame.sprite.collide_rect(mouse, self):
+            self.log.info(f"Mouse down on slider {self.name}")
+            self.dragging = True
+            # Update value based on click position
+            click_x = max(self.min_x, min(event.pos[0], self.max_x))
+            self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
+
+            # Create trigger event exactly like right-click does
+            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
+            if hasattr(self.parent, 'on_slider_event'):
+                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+                self.parent.on_slider_event(event=event, trigger=trigger)
+            else:
+                self.log.info(f"Parent {self.parent} has no on_slider_event")
+
+            self.value = self._value  # Update display after event
+
+    def on_mouse_motion_event(self, event):
+        if self.dragging:
+            self.log.info(f"Dragging slider {self.name}")
+            # Update value based on drag position
+            drag_x = max(self.min_x, min(event.pos[0], self.max_x))
+            self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
+
+            # Create trigger event exactly like right-click does
+            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
+            if hasattr(self.parent, 'on_slider_event'):
+                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+                self.parent.on_slider_event(event=event, trigger=trigger)
+            else:
+                self.log.info(f"Parent {self.parent} has no on_slider_event")
+
+            self.value = self._value  # Update display after event
+
+    def on_left_mouse_button_up_event(self, event):
+        if self.dragging:
+            self.log.info(f"Mouse up on slider {self.name}")
+            self.dragging = False
+
+    def update(self):
+        super().update()
+        self.slider_knob.update()
+        self.text_sprite.update()
 
 class ColorWellSprite(BitmappySprite):
     """A color well sprite class."""
@@ -2422,4 +2506,6 @@ class MultiLineTextBox(BitmappySprite):
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
         self.dirty = 1
+        else:
+            self.input_box.on_key_down_event(event)
 

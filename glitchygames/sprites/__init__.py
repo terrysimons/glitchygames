@@ -47,6 +47,19 @@ if not LOG.handlers:
     ch.setFormatter(formatter)
     LOG.addHandler(ch)
 
+
+# Configure logger
+LOG = logging.getLogger('game.sprites')
+LOG.setLevel(logging.DEBUG)
+
+# Add console handler if none exists
+if not LOG.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    LOG.addHandler(ch)
+
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
 
@@ -927,10 +940,12 @@ class BitmappySprite(Sprite):
     """A sprite that loads from a Bitmappy config file."""
 
     DEBUG = False
-
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
+
+    # Define valid characters for sprite format - no '#' since it conflicts with YAML comments
+    SPRITE_CHARS = '.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
     def __init__(
         self: Self,
@@ -1136,7 +1151,7 @@ class BitmappySprite(Sprite):
             # Create color to character mapping
             color_map = {}
             next_char = 0
-
+            
             # This gives us 128 colors per sprite and the characters were selected
             # carefully to support various text formats such as JSON, YAML, and INI.
             printable_characters = SPRITE_GLYPHS
