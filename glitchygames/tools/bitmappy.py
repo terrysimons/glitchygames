@@ -2127,6 +2127,9 @@ class BitmapEditorScene(Scene):
         self.new_canvas_dialog_scene.all_sprites.clear(
             self.new_canvas_dialog_scene.screen, self.screenshot
         )
+        # Clear and resize the canvas
+        self.canvas.pixels = [(0,0,0)] * (self.canvas.pixels_across * self.canvas.pixels_tall)
+        self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
         self.canvas.on_new_file_event(event=event, trigger=event)
         self.dirty = 1
 
@@ -2492,7 +2495,6 @@ class BitmapEditorScene(Scene):
             try:
                 response = self.ai_response_queue.get_nowait()
                 if response:
-                    breakpoint()
                     request_id = response.request_id
                     self.log.info(f"Got AI response for request {request_id}")
 
