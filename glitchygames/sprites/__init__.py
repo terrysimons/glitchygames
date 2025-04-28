@@ -1,1461 +1,367 @@
-#!/usr/bin/env python3
-# ruff: noqa: FBT001, FBT002
-"""Glitchy Games Engine sprite module."""
-from __future__ import annotations
+"""Sprite utilities for glitchygames."""
 
+import json
 import logging
-
-
-import collections
-import configparser
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
+import math
+import os
+from typing import Dict, List, Optional, Tuple, Union
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
-import yaml
-from glitchygames.color import BLACK, WHITE
-from glitchygames.fonts import FontManager
-from glitchygames.pixels import image_from_pixels, pixels_from_data
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from glitchygames.movement import Vector2D
 
-import pygame
-from glitchygames.events import MouseEvents
-from glitchygames.interfaces import SpriteInterface
-from glitchygames.pixels import rgb_triplet_generator
+LOG = logging.getLogger('game')
 
-LOG = logging.getLogger('game.sprites')
-LOG.addHandler(logging.NullHandler())
-
-
-
-# Configure logger
-LOG = logging.getLogger('game.sprites')
-LOG.setLevel(logging.DEBUG)
-
-# Add console handler if none exists
-if not LOG.handlers:
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    LOG.addHandler(ch)
-
-class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
-    """A root sprite class.  All Glitchy Games sprites inherit from this class."""
-
-    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
-        """Initialize a RootSprite.
-
+class Sprite(pygame.sprite.Sprite):
+    """Base class for sprites in glitchygames."""
+    
+    def __init__(self, image=None, position=(0, 0), velocity=(0, 0), *groups):
+        """Initialize the sprite.
+        
         Args:
-            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
+            image: Surface or path to image file
+            position: Initial position (x, y)
+            velocity: Initial velocity (vx, vy)
+            *groups: Sprite groups to add this sprite to
         """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(groups)
-        self.rect = pygame.Rect(0, 0, 0, 0)
-        self.image = None
-
-
-class Sprite(RootSprite):
-    """A convenience class for handling all of the common sprite behaviors."""
-
-    log = LOG
-    USE_GFXDRAW: ClassVar = False
-    PROXIES: ClassVar = [pygame.sprite]
-    SPRITE_BREAKPOINTS: ClassVar = None  # None means no breakpoints.  Empty list means all.
-    SPRITE_COUNTERS: ClassVar = collections.OrderedDict()
-    SPRITE_COUNT = 0
-
-    @classmethod
-    def break_when(cls: Any, sprite_type: object | None = None) -> None:
-        """Register a breakpoint for a sprite type.
-
-        Args:
-            sprite_type (object | None): The sprite type to break on.
-                None means break on any sprite.
-
-        Returns:
-            None
-        """
-        # None means disabled.
-        # [] means any.
-        if cls.SPRITE_BREAKPOINTS is None:
-            cls.SPRITE_BREAKPOINTS = []
-
-        # If none, break always.
-        if sprite_type is not None:
-            LOG.info(f'Register break when sprite_type=={cls}')
-            cls.SPRITE_BREAKPOINTS.append(str(cls))
-        else:
-            LOG.info('Register break when sprite_type==<any>')
-
-    def __init__(
-        self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        name: str | None = None,
-        parent: object | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize a Sprite.
-
-        Args:
-            x (int): The x coordinate of the sprite.
-            y (int): The y coordinate of the sprite.
-            width (int): The width of the sprite.
-            height (int): The height of the sprite.
-            name (str | None): The name of the sprite.
-            parent (object | None): The parent of the sprite.
-            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(groups)
-        # This is the stuff pygame really cares about.
-        self.image = pygame.Surface((width, height))
-        self.rect = self.image.get_rect()
-
-        self.dt = 0
-        self.dt_timer = 0
-
-        self.rect.x = x
-        self.rect.y = y
-        self.rect.width = int(width)
-        self.rect.height = int(height)
-
-        self.name = name
-        self.parent = parent
-        self.proxies = [self]
-
-        # For debugging sanity.
-        if not name:
-            self.name = type(self)
-
-        if not self.width:
-            self.log.error(f'{type(self)} has 0 Width')
-
-        if not self.height:
-            self.log.error(f'{type(self)} has 0 Height')
-
-        # Sprites can register callbacks for any event type.
-        self.callbacks = {}
-
-        # Each sprite maintains a reference to the screen.
-        self.screen = pygame.display.get_surface()
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
-
-        groups.add(self)
-
-        # Add ourselves to the sprite counters.
-        my_type = str(type(self))
-
-        if my_type in self.SPRITE_COUNTERS:
-            self.SPRITE_COUNTERS[my_type]['count'] += 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = (
-                self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
-            )
-        else:
-            self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
-            self.SPRITE_COUNTERS[my_type]['count'] = 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = 0
-        self.SPRITE_COUNT += 1
-
-        # None means disabled.
-        if self.SPRITE_BREAKPOINTS is not None:
-            # Empty list means all.
-            if len(self.SPRITE_BREAKPOINTS) == 0:
-                self.log.info(f'Break when sprite_type=={type(self)}')
-                # This breakpoint is intentional
-                breakpoint()  # noqa: T100
+        super().__init__(*groups)
+        
+        self.position = Vector2D.from_tuple(position)
+        self.velocity = Vector2D.from_tuple(velocity)
+        self.acceleration = Vector2D(0, 0)
+        self.rotation = 0  # Rotation in degrees
+        self.scale = 1.0   # Scale factor
+        
+        # Load image if provided
+        if image is not None:
+            if isinstance(image, str):
+                self.load_image(image)
             else:
-                for sprite_type in self.SPRITE_BREAKPOINTS:
-                    # This breakpoint is intentional
-                    breakpoint()  # noqa: T100
-                    if str(type(self)) == sprite_type:
-                        self.log.info('Break when sprite_type==<any>')
-
-                        # This breakpoint is intentional
-                        breakpoint()  # noqa: T100
-
-    @property
-    def width(self: Self) -> int:
-        """Return the width of the sprite.
-
-        Returns:
-            int: The width of the sprite.
-        """
-        return self.rect.width
-
-    @width.setter
-    def width(self: Self, new_width: int) -> None:
-        """Set the width of the sprite.
-
-        Args:
-            new_width (int): The new width of the sprite.
-
-        Returns:
-            None
-        """
-        self.rect.width = new_width
-        self.dirty = 1 if not self.dirty else self.dirty
-
-    @property
-    def height(self: Self) -> int:
-        """Return the height of the sprite.
-
-        Returns:
-            int: The height of the sprite.
-        """
-        return self.rect.height
-
-    @height.setter
-    def height(self: Self, new_height: int) -> None:
-        """Set the height of the sprite.
-
-        Args:
-            new_height (int): The new height of the sprite.
-
-        Returns:
-            None
-        """
-        self.rect.height = new_height
-        self.dirty = 1 if not self.dirty else self.dirty
-
-    def dt_tick(self: Self, dt: float) -> None:
-        """Update the sprite's delta time.
-
-        Args:
-            dt (float): The new delta time.
-
-        Returns:
-            None
-        """
-        self.dt = dt
-        self.dt_timer += self.dt
-
-    def update(self: Self) -> None:
-        """Update the sprite.
-
-        Returns:
-            None
-        """
-
-    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a joystick axis motion event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # JOYAXISMOTION    joy, axis, value
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a joystick button down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # JOYBUTTONDOWN    joy, button
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a joystick button up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # JOYBUTTONUP      joy, button
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a joystick hat motion event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # JOYHATMOTION     joy, hat, value
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a joystick ball motion event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # JOYBALLMOTION    joy, ball, rel
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse motion event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEMOTION      pos, rel, buttons
-        self.log.debug(f'Mouse Motion Event: {type(self)}: {event}')
-
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event, old_focus: object) -> None:
-        """Handle a mouse focus event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            old_focus (object): The old focus.
-
-        Returns:
-            None
-        """
-        # Custom Event
-        self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}')
-
-    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse unfocus event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # Custom Event
-        self.log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
-
-    def on_mouse_enter_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse enter event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # Custom Event
-        self.log.debug(f'Mouse Enter Event: {type(self)}: {event}')
-
-    def on_mouse_exit_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse exit event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # Custom Event
-        self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
-
-    def on_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a mouse drag down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
-
-    def on_left_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drag down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Left Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_left_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drag up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Left Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_middle_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drag down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Middle Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_middle_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drag up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Middle Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_right_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drag down event.
-
-        Args:
-        event (pygame.event.Event): The event to handle.
-        trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Right Mouse Drag Down Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_right_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drag up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(
-            'Right Mouse Drag Up Event: ' f'{type(self)}: event: {event}, trigger: {trigger}'
-        )
-
-    def on_mouse_drag_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse drag up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
-
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse button up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a left mouse button up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONUP    pos, button
-
-        if self.callbacks:
-            callback = self.callbacks.get('on_left_mouse_button_up_event', None)
-            if callback:
-                callback(event=event, trigger=self)
+                self.image = image
+                self.original_image = self.image.copy()
+                self.rect = self.image.get_rect()
         else:
-            self.log.debug(f'{type(self)}: ' f'Left Mouse Button Up Event: {event} @ {self}')
-
-    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a middle mouse button up event.
-
+            self.image = None
+            self.original_image = None
+            self.rect = pygame.Rect(0, 0, 0, 0)
+            
+        # Update rect position
+        self.update_rect()
+        
+    def load_image(self, path: str):
+        """Load an image from a file.
+        
         Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
+            path: Path to image file
         """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
-
-    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a right mouse button up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONUP    pos, button
-        if self.callbacks:
-            callback = self.callbacks.get('on_right_mouse_button_up_event', None)
-            if callback:
-                callback(event=event, trigger=self)
-        else:
-            self.log.debug(f'{type(self)}: ' f'Right Mouse Button Up Event: {event} @ {self}')
-
-    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse button down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: {event} @ {self}')
-
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a left mouse button down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        callback = 'on_left_mouse_button_down_event'
-
-        if self.callbacks:
-            callback = self.callbacks.get('on_left_mouse_button_down_event', None)
-            if callback:
-                callback(event=event, trigger=self)
-        else:
-            self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
-
-    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a middle mouse button down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
-
-    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a right mouse button down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        if self.callbacks:
-            callback = self.callbacks.get('on_right_mouse_button_down_event', None)
-            if callback:
-                callback(event=event, trigger=self)
-        else:
-            self.log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
-
-    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse scroll down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
-
-    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse scroll up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
-
-    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse chord up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
-
-    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a mouse chord down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
-
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a key down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # KEYDOWN          unicode, key, mod
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a key up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # KEYUP            key, mod
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
-        """Handle a key chord down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: {event}, {keys}')
-
-    def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
-        """Handle a key chord up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
-
-    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a quit event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # QUIT             none
-        self.log.debug(f'{type(self)}: {event}')
-        self.terminate()
-
-    def on_active_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle an active event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # ACTIVEEVENT      gain, state
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a video resize event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # VIDEORESIZE      size, w, h
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a video expose event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # VIDEOEXPOSE      none
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a sys wm event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # SYSWMEVENT
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_user_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle a user event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-        """
-        # USEREVENT        code
-        self.log.debug(f'{type(self)}: {event}')
-
-    def on_left_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drag event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_middle_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drag event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_right_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drag event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_left_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_middle_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_right_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse drag event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse wheel event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
-
-    # def __getattr__(self: Self,attr):
-    #    import pdb; pdb.set_trace()
-
-    #    # Try each proxy in turn
-    #    for proxy in type(self).PROXIES:
-    #        try:
-    #            it = getattr(super(), attr)
-    #            import pdb; pdb.set_trace()
-    #            return getattr(proxy, attr)
-    #        except AttributeError:
-    #            log.error(f'No proxies for {type(self)}.{attr}')
-
-    def __str__(self: Self) -> str:
-        """Returns a string representation of the sprite."""
-        return f'{type(self)} "{self.name}" ({self!r})'
-
-
-class BitmappySprite(Sprite):
-    """A sprite that loads from a Bitmappy config file."""
-
-    DEBUG = False
-    DEFAULT_SURFACE_W = 42
-    DEFAULT_SURFACE_H = 42
-    DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
-
-    # Define valid characters for sprite format - no '#' since it conflicts with YAML comments
-    SPRITE_CHARS = '.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-
-    def __init__(
-        self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        name: str | None = None,
-        filename: str | None = None,
-        focusable: bool = False,
-        parent: object = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Subclass to load sprite files.
-
-        Args:
-            x: the x coordinate of the sprite.
-            y: the y coordinate of the sprite.
-            width: the width of the sprite.
-            height: the height of the sprite.
-            name: optional, the name of the sprite.
-            filename: optional, the BitmappySprite config to load.
-            focusable: optional, whether or not the sprite can receive focus.
-            parent: optional, the parent of the sprite.
-            groups: optional, the sprite groups to add the sprite to.
-
-        Returns:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(
-            x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
-        )
-        self.filename = filename
-        self.focusable = focusable
-        # self.width = width
-        # self.height = height
-
-        # Try to load a file if one was specified, otherwise
-        # if a width and height is specified, make a surface.
-        if filename:
-            (self.image, self.rect, self.name) = self.load(filename=filename)
-            self.width = self.rect.width
-            self.height = self.rect.height
-
-        elif self.width and self.height:
-            self.image = pygame.Surface((self.width, self.height))
-            self.image.convert()
-        else:
-            raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
-
-        self.rect = self.image.get_rect()
-        self.parent = parent
-        self.rect.x = x
-        self.rect.y = y
-        self.proxies = [self.parent]
-
-    def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file."""
-        self.log.debug(f"=== Starting load from {filename} ===")
-
-        config = configparser.RawConfigParser(
-            dict_type=collections.OrderedDict,
-            empty_lines_in_values=True,
-            strict=True
-        )
-
-        # Read the raw file content first
-        with open(filename, 'r') as f:
-            raw_content = f.read()
-        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
-
-        # Try parsing with configparser
-        config.read_string(raw_content)
-        self.log.debug(f"ConfigParser sections: {config.sections()}")
-
         try:
-            name = config.get(section='sprite', option='name')
-            self.log.debug(f"Sprite name: {name}")
-
-            # Get raw pixel data with explicit raw=True to preserve newlines
-            pixel_text = config.get(section='sprite', option='pixels', raw=True)
-            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
-
-            # Split into rows and process each row
-            rows = []
-            for i, row in enumerate(pixel_text.split('\n')):
-                row = row.strip()
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
-
-            self.log.debug(f"Total rows processed: {len(rows)}")
-
-            # Calculate dimensions
-            width = len(rows[0]) if rows else 0
-            height = len(rows)
-            self.log.debug(f"Calculated dimensions: {width}x{height}")
-
-            # Get color definitions with detailed logging
-            color_map = {}
-            for section in config.sections():
-                if len(section) == 1:  # Color sections are single characters
-                    red = config.getint(section=section, option='red')
-                    green = config.getint(section=section, option='green')
-                    blue = config.getint(section=section, option='blue')
-                    color_map[section] = (red, green, blue)
-                    self.log.debug(f"Color map entry: '{section}' -> RGB({red}, {green}, {blue})")
-
-            self.log.debug(f"Total colors in map: {len(color_map)}")
-
-            # Create image and rect
-            self.log.debug("Creating image and rect...")
-            (image, rect) = self.inflate(width=width, height=height, pixels=rows, color_map=color_map)
-            self.log.debug(f"Created image size: {image.get_size()}")
-            self.log.debug(f"Created rect: {rect}")
-
-            return (image, rect, name)
-
-        except Exception as e:
-            self.log.error(f"Error in load: {e}")
-            import traceback
-            self.log.error(traceback.format_exc())
-            raise
-
-    @classmethod
-    def inflate(
-        cls: Any, width: int, height: int, pixels: list, color_map: dict
-    ) -> tuple[pygame.Surface, pygame.Rect]:
-        """Inflate a sprite from a list of pixels.
-
-        Args:
-            width: the width of the sprite.
-            height: the height of the sprite.
-            pixels: the list of pixels.
-            color_map: the color map.
-
-        Returns:
-            A tuple containing the sprite's image and rect.
-
-        Raises:
-            None
-        """
-        image = pygame.Surface((width, height))
-        image.convert()
-
-        raw_pixels = []
-        for y, row in enumerate(pixels):
-            for x, pixel in enumerate(row):
-                color = color_map[pixel]
-                raw_pixels.append(color)
-                pygame.draw.rect(image, color, (x, y, 1, 1))
-
-        return (image, image.get_rect())
-
-    def save(self: Self, filename: str, format: str = 'ini') -> None:
-        """Save a sprite to a file."""
-        try:
-            self.log.debug(f"Starting save in {format} format to {filename}")
-            config = self.deflate(format=format)
-            self.log.debug(f"Got config from deflate: {config}")
-
-            if format == 'yaml':
-                import yaml
-                class BlockLiteralDumper(yaml.SafeDumper):
-                    def represent_scalar(self, tag, value, style=None):
-                        if isinstance(value, str) and '\n' in value:
-                            style = '|'
-                            # Ensure consistent indentation
-                            value = '\n' + value.rstrip()
-                        return super().represent_scalar(tag, value, style)
-
-                self.log.debug("About to dump YAML")
-                with Path(filename).open('w') as yaml_file:
-                    yaml.dump(config, yaml_file, default_flow_style=False, Dumper=BlockLiteralDumper, indent=2)
-                self.log.debug("YAML dump complete")
-            elif format == 'ini':
-                self.log.debug("About to write INI")
-                with Path(filename).open('w') as ini_file:
-                    config.write(ini_file)
-                self.log.debug("INI write complete")
+            self.image = pygame.image.load(path).convert_alpha()
+            self.original_image = self.image.copy()
+            self.rect = self.image.get_rect()
+        except pygame.error as e:
+            LOG.error("Failed to load image %s: %s", path, e)
+            # Create a placeholder image
+            self.image = pygame.Surface((32, 32), pygame.SRCALPHA)
+            self.image.fill((255, 0, 255))  # Magenta for missing textures
+            self.original_image = self.image.copy()
+            self.rect = self.image.get_rect()
+            
+    def update_rect(self):
+        """Update the rect position based on the sprite's position."""
+        if self.rect:
+            self.rect.center = (int(self.position.x), int(self.position.y))
+            
+    def update_image(self):
+        """Update the sprite's image based on rotation and scale."""
+        if self.original_image:
+            if self.rotation != 0 or self.scale != 1.0:
+                # Apply rotation and scaling
+                width = int(self.original_image.get_width() * self.scale)
+                height = int(self.original_image.get_height() * self.scale)
+                if width > 0 and height > 0:
+                    scaled = pygame.transform.scale(self.original_image, (width, height))
+                    self.image = pygame.transform.rotate(scaled, self.rotation)
+                    self.rect = self.image.get_rect(center=self.rect.center)
             else:
-                raise ValueError(f"Unsupported format: {format}")
+                self.image = self.original_image.copy()
+                
+    def update(self):
+        """Update the sprite's state.
+        
+        This method is called once per frame by the sprite group.
+        """
+        # Apply velocity to position
+        self.position.x += self.velocity.x
+        self.position.y += self.velocity.y
+        
+        # Apply acceleration to velocity
+        self.velocity.x += self.acceleration.x
+        self.velocity.y += self.acceleration.y
+        
+        # Update rect position
+        self.update_rect()
+        
+    def draw(self, surface: pygame.Surface):
+        """Draw the sprite on a surface.
+        
+        Args:
+            surface: Surface to draw on
+        """
+        if self.image:
+            surface.blit(self.image, self.rect)
+            
+    def set_position(self, x: float, y: float):
+        """Set the sprite's position.
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate
+        """
+        self.position.x = x
+        self.position.y = y
+        self.update_rect()
+        
+    def set_velocity(self, vx: float, vy: float):
+        """Set the sprite's velocity.
+        
+        Args:
+            vx: X velocity
+            vy: Y velocity
+        """
+        self.velocity.x = vx
+        self.velocity.y = vy
+        
+    def set_acceleration(self, ax: float, ay: float):
+        """Set the sprite's acceleration.
+        
+        Args:
+            ax: X acceleration
+            ay: Y acceleration
+        """
+        self.acceleration.x = ax
+        self.acceleration.y = ay
+        
+    def set_rotation(self, angle: float):
+        """Set the sprite's rotation.
+        
+        Args:
+            angle: Rotation angle in degrees
+        """
+        self.rotation = angle % 360
+        self.update_image()
+        
+    def set_scale(self, scale: float):
+        """Set the sprite's scale.
+        
+        Args:
+            scale: Scale factor
+        """
+        self.scale = max(0.1, scale)  # Prevent negative or zero scale
+        self.update_image()
+        
+    def collide_with(self, other) -> bool:
+        """Check if this sprite collides with another sprite.
+        
+        Args:
+            other: Other sprite to check collision with
+            
+        Returns:
+            True if sprites collide, False otherwise
+        """
+        return pygame.sprite.collide_rect(self, other)
+        
+    def distance_to(self, other) -> float:
+        """Calculate distance to another sprite.
+        
+        Args:
+            other: Other sprite
+            
+        Returns:
+            Distance between sprite centers
+        """
+        dx = self.position.x - other.position.x
+        dy = self.position.y - other.position.y
+        return math.sqrt(dx * dx + dy * dy)
 
-            self.log.debug(f"Successfully saved to {filename}")
+class AnimatedSprite(Sprite):
+    """Sprite with animation support."""
+    
+    def __init__(self, frames=None, frame_duration=100, *args, **kwargs):
+        """Initialize the animated sprite.
+        
+        Args:
+            frames: List of surfaces or paths to image files
+            frame_duration: Duration of each frame in milliseconds
+            *args: Arguments to pass to Sprite constructor
+            **kwargs: Keyword arguments to pass to Sprite constructor
+        """
+        super().__init__(*args, **kwargs)
+        
+        self.frames = []
+        self.frame_duration = frame_duration
+        self.current_frame = 0
+        self.animation_time = 0
+        self.playing = True
+        self.loop = True
+        
+        # Load frames if provided
+        if frames:
+            self.load_frames(frames)
+            
+    def load_frames(self, frames):
+        """Load animation frames.
+        
+        Args:
+            frames: List of surfaces or paths to image files
+        """
+        self.frames = []
+        
+        for frame in frames:
+            if isinstance(frame, str):
+                try:
+                    image = pygame.image.load(frame).convert_alpha()
+                    self.frames.append(image)
+                except pygame.error as e:
+                    LOG.error("Failed to load frame %s: %s", frame, e)
+            else:
+                self.frames.append(frame)
+                
+        if self.frames:
+            self.image = self.frames[0]
+            self.original_image = self.image.copy()
+            self.rect = self.image.get_rect()
+            self.update_rect()
+            
+    def update(self):
+        """Update the sprite's state."""
+        super().update()
+        
+        # Update animation
+        if self.playing and self.frames:
+            self.animation_time += pygame.time.get_ticks()
+            
+            if self.animation_time >= self.frame_duration:
+                self.animation_time = 0
+                self.current_frame += 1
+                
+                if self.current_frame >= len(self.frames):
+                    if self.loop:
+                        self.current_frame = 0
+                    else:
+                        self.current_frame = len(self.frames) - 1
+                        self.playing = False
+                        
+                self.image = self.frames[self.current_frame]
+                self.original_image = self.image.copy()
+                self.update_image()
+                
+    def play(self, loop=True):
+        """Start playing the animation.
+        
+        Args:
+            loop: Whether to loop the animation
+        """
+        self.playing = True
+        self.loop = loop
+        
+    def stop(self):
+        """Stop playing the animation."""
+        self.playing = False
+        
+    def reset(self):
+        """Reset the animation to the first frame."""
+        self.current_frame = 0
+        self.animation_time = 0
+        if self.frames:
+            self.image = self.frames[0]
+            self.original_image = self.image.copy()
+            self.update_image()
 
-        except Exception as e:
-            self.log.error(f"Error in save: {e}")
-            self.log.error(f"Config state: {config if 'config' in locals() else 'Not created'}")
-            raise
-
-    def deflate(self: Self, format: str = 'yaml') -> dict | configparser.ConfigParser:
-        """Deflate a sprite to a configuration format."""
+class SpriteSheet:
+    """Utility class for loading sprite sheets."""
+    
+    def __init__(self, image_path: str):
+        """Initialize the sprite sheet.
+        
+        Args:
+            image_path: Path to sprite sheet image
+        """
         try:
-            self.log.debug(f"Starting deflate for {self.name} in {format} format")
-
-            # Get unique colors from the pixels list
-            unique_colors = set(self.pixels)
-            self.log.debug(f"Found {len(unique_colors)} unique colors")
-
-            # Create color to character mapping
-            color_map = {}
-            next_char = 0
-            printable_chars = '''
-                ()[]{},./@$+_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
-            '''.strip()
-
-            for color in unique_colors:
-                if next_char >= len(printable_chars):
-                    raise ValueError(f"Too many colors (max {len(printable_chars)})")
-                color_map[color] = printable_chars[next_char]
-                next_char += 1
-
-            # Process pixels row by row
-            pixel_rows = []
-            for y in range(self.pixels_tall):
-                row = ''
-                for x in range(self.pixels_across):
-                    pixel_color = self.pixels[y * self.pixels_across + x]
-                    row += color_map[pixel_color]
-                pixel_rows.append(row)
-
-            if format == 'yaml':
-                pixels_str = '\n'.join(pixel_rows)
-                config = {
-                    'sprite': {
-                        'name': self.name or 'unnamed',
-                        'pixels': pixels_str
-                    },
-                    'colors': {
-                        char: {
-                            'red': color[0],
-                            'green': color[1],
-                            'blue': color[2]
-                        }
-                        for color, char in color_map.items()
-                    }
-                }
-            else:  # ini format
-                config = configparser.ConfigParser()
-                config.add_section('sprite')
-                config.set('sprite', 'name', self.name or 'unnamed')
-                config.set('sprite', 'pixels', '\n'.join(pixel_rows))
-
-                # Add a section for each color
-                for color, char in color_map.items():
-                    config.add_section(char)
-                    config.set(char, 'red', str(color[0]))
-                    config.set(char, 'green', str(color[1]))
-                    config.set(char, 'blue', str(color[2]))
-
-            return config
-
-        except Exception as e:
-            self.log.error(f"Error in deflate: {e}")
-            raise
-
-    def on_left_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drag event.
-
+            self.sheet = pygame.image.load(image_path).convert_alpha()
+        except pygame.error as e:
+            LOG.error("Failed to load sprite sheet %s: %s", image_path, e)
+            # Create a placeholder image
+            self.sheet = pygame.Surface((64, 64), pygame.SRCALPHA)
+            self.sheet.fill((255, 0, 255))  # Magenta for missing textures
+            
+    def get_image(self, x: int, y: int, width: int, height: int) -> pygame.Surface:
+        """Get a single image from the sprite sheet.
+        
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
+            x: X coordinate of the image
+            y: Y coordinate of the image
+            width: Width of the image
+            height: Height of the image
+            
         Returns:
-            None
+            Image surface
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_middle_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drag event.
-
+        image = pygame.Surface((width, height), pygame.SRCALPHA)
+        image.blit(self.sheet, (0, 0), (x, y, width, height))
+        return image
+        
+    def get_images(self, rects: List[Tuple[int, int, int, int]]) -> List[pygame.Surface]:
+        """Get multiple images from the sprite sheet.
+        
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
+            rects: List of (x, y, width, height) tuples
+            
         Returns:
-            None
+            List of image surfaces
         """
-        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_right_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drag event.
-
+        return [self.get_image(x, y, width, height) for x, y, width, height in rects]
+        
+    def get_strip(self, x: int, y: int, width: int, height: int, count: int, spacing: int = 0) -> List[pygame.Surface]:
+        """Get a strip of images from the sprite sheet.
+        
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
+            x: X coordinate of the first image
+            y: Y coordinate of the first image
+            width: Width of each image
+            height: Height of each image
+            count: Number of images
+            spacing: Spacing between images
+            
         Returns:
-            None
+            List of image surfaces
         """
-        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_left_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a left mouse drop event.
-
+        images = []
+        for i in range(count):
+            images.append(self.get_image(x + i * (width + spacing), y, width, height))
+        return images
+        
+    def get_grid(self, x: int, y: int, width: int, height: int, columns: int, rows: int, spacing_x: int = 0, spacing_y: int = 0) -> List[pygame.Surface]:
+        """Get a grid of images from the sprite sheet.
+        
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
+            x: X coordinate of the first image
+            y: Y coordinate of the first image
+            width: Width of each image
+            height: Height of each image
+            columns: Number of columns
+            rows: Number of rows
+            spacing_x: Horizontal spacing between images
+            spacing_y: Vertical spacing between images
+            
         Returns:
-            None
+            List of image surfaces
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_middle_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a middle mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_right_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
-    ) -> None:
-        """Handle a right mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse drag event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse drop event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
-        """Handle a mouse wheel event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
-
-    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
-        """Handle a mouse chord down event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}')
-
-    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
-        """Handle a mouse chord up event.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
-
-        Returns:
-            None
-        """
-        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
-
-
-class Singleton:
-    """A generic singleton class."""
-
-    __instance__ = None
-
-    def __new__(cls: Any, *args, **kwargs) -> Self:
-        """Create a new instance of the Singleton.
-
-        Args:
-            *args: The arguments to pass to the constructor.
-            **kwargs: The keyword arguments to pass to the constructor.
-
-        Returns:
-            Singleton: The instance of the Singleton.
-        """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast(Singleton, cls.__instance__)
-
-
-# This is a root class for sprites that should be singletons, like
-#  MousePointer class.
-class SingletonBitmappySprite(BitmappySprite):
-    """A singleton class for handling singleton sprites, like mouse pointers."""
-
-    __instance__ = None
-
-    def __new__(cls: Any, *args, **kwargs) -> Self:
-        """Create a new instance of the SingletonBitmappySprite.
-
-        Args:
-            *args: The arguments to pass to the constructor.
-            **kwargs: The keyword arguments to pass to the constructor.
-
-        Returns:
-            SingletonBitmappySprite: The instance of the SingletonBitmappySprite.
-        """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast(SingletonBitmappySprite, cls.__instance__)
-
-    def __init__(
-        self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        name: str | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the SingletonBitmappySprite.
-
-        Args:
-            x (int): The x coordinate of the sprite.
-            y (int): The y coordinate of the sprite.
-            width (int): The width of the sprite.
-            height (int): The height of the sprite.
-            name (str): The name of the sprite.
-            groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
-
-        Returns:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
-
-
-# This is a root class for focusable sprites that should be singletons, like
-# the MenuBar class.
-class FocusableSingletonBitmappySprite(BitmappySprite):
-    """A singleton class for handling all of the focusable sprite behaviors."""
-
-    __instance__ = None
-
-    def __new__(cls: Any, *args, **kwargs) -> Self:
-        """Create a new instance of the FocusableSingletonBitmappySprite.
-
-        Args:
-            *args: The arguments to pass to the constructor.
-            **kwargs: The keyword arguments to pass to the constructor.
-
-        Returns:
-            FocusableSingletonBitmappySprite: The instance of the FocusableSingletonBitmappySprite.
-        """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast(FocusableSingletonBitmappySprite, cls.__instance__)
-
-    def __init__(
-        self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        name: str | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the FocusableSingletonBitmappySprite.
-
-        Args:
-            x (int): The x coordinate of the sprite.
-            y (int): The y coordinate of the sprite.
-            width (int): The width of the sprite.
-            height (int): The height of the sprite.
-            name (str): The name of the sprite.
-            groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
-
-        Returns:
-            None
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(
-            x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups
-        )
+        images = []
+        for row in range(rows):
+            for col in range(columns):
+                images.append(self.get_image(
+                    x + col * (width + spacing_x),
+                    y + row * (height + spacing_y),
+                    width, height
+                ))
+        return images

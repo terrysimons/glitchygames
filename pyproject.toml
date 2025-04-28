@@ -1,224 +1,37 @@
-[tool.poetry]
-name = "glitchygames"
-version = "1.0.0"
-description = "Glitchy Games and Tools for Pygame and Python 3"
-authors = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
-]
-maintainers = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
-]
-readme = "README.md"
-license = "BSD-3-Clause"
-classifiers = [
-    "Programming Language :: Python :: 3.9",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent"
-]
-include = [
-  'glitchygames/assets',
-  'glitchygames/config',
-  'glitchygames/resources',
-  'glitchygames/fonts',
-  'glitchygames/tools'
-]
-
-[tool.poetry.urls]
-"Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
-"homepage" = "https://glitchygames.ai/"
-"Documentation" = "https://glitchygames.ai/documentation/"
-
-[tool.poetry.scripts]
-bitmappy = "glitchygames.tools.bitmappy:main"
-
-[tool.poetry.dependencies]
-python = ">= 3.13, < 4.0"
-toml = "*"
-pygame = "*"
-future = "*"
-cookiecutter = "*"
-
-[tool.poetry.group.dev.dependencies]
-nox = "*"
-nox-poetry = "*"
-pytest = "*"
-ruff = "*"
-pre-commit = "*"
-poetry-plugin-export = "*"
-pyright = "*"
-
-# [tool.poetry.group.docs.dependencies]
-# mkdocs = "*"
-# mkdocstrings = {extras = ["crystal", "python"], version = "*"}
-# mkdocs-material = "*"
-# mkdocs-gen-files = "*"
-# mkdocs-literate-nav = "*"
-# mkdocs-section-index = "*"
-# pymdown-extensions = "*"
-# mkdocs-autorefs = "*"
-# mkdocs-macros-plugin = "*"
-# mkdocstrings-python = "*"
-
-[tool.poetry.extras]
-docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
-
-[tool.ruff]
-line-length = 100
-output-format = "grouped"
-src = ["glitchygames", "tests", "scripts"]
-task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
-include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
-extend-include = []
-select = [
-  "F",
-  "E",
-  "W",
-  "C90",
-  "I",
-  "N",
-  "D",
-  "UP",
-  "YTT",
-  "ASYNC",
-  "S",
-  "BLE",
-  "FBT",
-  "B",
-  "A",
-  "COM",
-  "CPY",
-  "C4",
-  "DTZ",
-  "T10",
-  "DJ",
-  "EM",
-  "EXE",
-  "FA",
-  "ISC",
-  "ICN",
-  "G",
-  "INP",
-  "PIE",
-  "T20",
-  "PYI",
-  "PT",
-  "Q",
-  "RSE",
-  "RET",
-  "SLF",
-  "SLOT",
-  "SIM",
-  "TID",
-  "INT",
-  "ARG",
-  "PTH",
-  "TD",
-  "FIX",
-  "ERA",
-  "PD",
-  "PGH",
-  "PL",
-  "TRY",
-  "FLY",
-  "NPY",
-  "AIR",
-  "PERF",
-  "FURB",
-  "LOG",
-  "RUF",
-]
-ignore = [
-  #"ASYN",
-  "FIX002", # Line contains TODO, consider resolving the issue
-  "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
-  "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-  "COM812", # Trailing comma missing
-  "G004", # Logging statement uses f-string
-  "ISC002", # Use of implicit string concatenation
-  "ERA001", # Found commented-out code
-  "PLR0911", # Too many return statements
-  "C901", # Function is too complex
-  "EM102", # Exception must not use an f-string literal, assign to variable first
-  "TRY003", # Avoid specifying long messages outside the exception class
-  "ARG002", # Unused method argument: `args`
-  "TD003", # Missing issue link on the line following this TODO
-  "PLR0913", # Too many arguments to function call
-  "TD002", # Missing author in TODO
-  "S101",
-  "PLR0917", # Too many positional arguments
-  "PLR0904", # Too many public methods
-  "CPY001", # Missing copyright notice at top of file
-  "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
-  "EM101", # Exception must not use a string literal, assign to variable first
-  "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
-]
-exclude = []
-fixable = [
-  "I001",
-  "Q000",
-  "EXE001",
-]
-unfixable = []
-target-version = "py313"
-
-[tool.ruff.format]
-quote-style = "single"
-docstring-code-format = true
-
-[tool.ruff.flake8-annotations]
-allow-star-arg-any = true
-ignore-fully-untyped = false
-
-[tool.ruff.flake8-quotes]
-docstring-quotes = "double"
-inline-quotes = "single"
-multiline-quotes = "double"
-
-[tool.ruff.pydocstyle]
-convention = "google"
-
-[tool.pyright]
-include = ["glitchygames", "tests", "scripts"]
-exclude = [
-    "**/__pycache__",
-]
-ignore = []
-defineConstant = { DEBUG = true }
-# stubPath = "src/stubs"
-
-pythonVersion = "3.12"
-pythonPlatform = "All"
-
-executionEnvironments = [
-  # { root = "src/web", pythonVersion = "3.5", pythonPlatform = "Windows", extraPaths = [ "src/service_libs" ] },
-  # { root = "src/sdk", pythonVersion = "3.0", extraPaths = [ "src/backend" ] },
-  # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
-  { root = "glitchygames", extraPaths = [ "scripts", "tests" ]}
-]
-reportMissingImports = false
-reportMissingTypeStubs = false
-reportAttributeAccessIssue = false
-reportIncompatibleMethodOverride = false
-reportReturnType = false
-reportArgumentType = false
-reportAbstractUsage = false
-reportGeneralTypeIssues = false
-reportOptionalMemberAccess = false
-reportCallIssue = false
-reportOptionalIterable = false
-reportIncompatibleVariableOverride = false
-reportOptionalSubscript = false
-reportIndexIssue = false
-reportAssignmentType = false
-reportOperatorIssue = false
-reportFunctionMemberAccess = false
-reportPossiblyUnboundVariable = false
-reportRedeclaration = false
-reportPrivateImportUsage = false
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glitchygames"
+version = "0.1.0"
+description = "A wrapper around Pygame for low-powered systems"
+readme = "README.md"
+authors = [
+    {name = "Terry Simons", email = "terry.simons@gmail.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Libraries :: pygame",
+]
+keywords = ["pygame", "game", "engine", "raspberry pi"]
+dependencies = [
+    "pygame>=2.0.0",
+]
+requires-python = ">=3.7"
+
+[project.urls]
+"Homepage" = "https://github.com/terrysimons/glitchygames"
+"Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues"
+
+[tool.setuptools]
+packages = ["glitchygames"]

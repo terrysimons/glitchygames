@@ -1,185 +1,153 @@
-#!/usr/bin/env python3
-"""Pixel data handling."""
+"""Pixel manipulation utilities for glitchygames."""
 
-from __future__ import annotations
-
-import logging
-from pathlib import Path
-from typing import Iterator
+from typing import List, Tuple
 
 import pygame
 
-LOG = logging.getLogger('game.pixels')
-LOG.addHandler(logging.NullHandler())
-
-
-def indexed_rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
-    try:
-        for datum in pixel_data:
-            yield datum[0]
-    except StopIteration:
-        pass
-
-
-def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) pixel tuples for 555 formated color data."""
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
-
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
-
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
-
-            rgb_data = pad_data + rgb_data
-
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
-
-            if red:
-                red += 7
-
-            # green is 6 bits
-            green = int(rgb_data[5:10] + '000', 2)
-
-            if green:
-                green += 7
-
-            # blue is 5 bits
-            blue = int(rgb_data[10:15] + '000', 2)
-
-            # last bit is ignored or used for alpha.
-
-            if blue:
-                blue += 7
-
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
-
-            yield tuple(red, green, blue)
-    except StopIteration:
-        pass
-
-
-def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) tuples for 565 formatted color data."""
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
-
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
-
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
-
-            rgb_data = pad_data + rgb_data
-
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
-
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
-
-            if red:
-                red += 7
-
-            # green is 6 bits
-            green = int(rgb_data[5:11] + '00', 2)
-
-            if green:
-                green += 3
-
-            # blue is 5 bits
-            blue = int(rgb_data[11:] + '000', 2)
-
-            if blue:
-                blue += 7
-
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
-
-            yield tuple(red, green, blue)
-    except StopIteration:
-        pass
-
-
-def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
-    """Generate RGB triplets from pixel data.
-
+def rgb565_to_rgb888(color: int) -> Tuple[int, int, int]:
+    """Convert RGB565 color to RGB888.
+    
     Args:
-        pixel_data: Raw pixel data as bytes
-
-    Yields:
-        Tuples of (r,g,b) values
+        color: RGB565 color (16-bit)
+        
+    Returns:
+        RGB888 color tuple (0-255)
     """
-    # Validate input
-    if not pixel_data:
-        raise ValueError("Empty pixel data")
+    r = (color >> 11) & 0x1F
+    g = (color >> 5) & 0x3F
+    b = color & 0x1F
+    
+    # Scale to 0-255
+    r = (r * 255 + 15) // 31
+    g = (g * 255 + 31) // 63
+    b = (b * 255 + 15) // 31
+    
+    return (r, g, b)
 
-    if len(pixel_data) % 3 != 0:
-        raise ValueError(f"Pixel data length ({len(pixel_data)}) is not divisible by 3")
+def rgb888_to_rgb565(color: Tuple[int, int, int]) -> int:
+    """Convert RGB888 color to RGB565.
+    
+    Args:
+        color: RGB888 color tuple (0-255)
+        
+    Returns:
+        RGB565 color (16-bit)
+    """
+    r, g, b = color
+    
+    # Scale to RGB565 ranges
+    r = (r * 31 + 127) // 255
+    g = (g * 63 + 127) // 255
+    b = (b * 31 + 127) // 255
+    
+    return (r << 11) | (g << 5) | b
 
-    # Convert bytes to integers
-    pixels = [int(b) for b in pixel_data]
+def get_pixel(surface: pygame.Surface, x: int, y: int) -> Tuple[int, int, int, int]:
+    """Get the color of a pixel.
+    
+    Args:
+        surface: Surface to get pixel from
+        x: X coordinate
+        y: Y coordinate
+        
+    Returns:
+        RGBA color tuple (0-255)
+    """
+    return surface.get_at((x, y))
 
-    # Yield RGB triplets
-    for i in range(0, len(pixels), 3):
-        try:
-            r = pixels[i]
-            g = pixels[i+1]
-            b = pixels[i+2]
-            yield (r, g, b)
-        except IndexError as e:
-            raise ValueError(f"Not enough data for RGB triplet at index {i}") from e
+def set_pixel(surface: pygame.Surface, x: int, y: int, color: Tuple[int, int, int, int]):
+    """Set the color of a pixel.
+    
+    Args:
+        surface: Surface to set pixel on
+        x: X coordinate
+        y: Y coordinate
+        color: RGBA color tuple (0-255)
+    """
+    surface.set_at((x, y), color)
 
+def create_pixel_array(width: int, height: int, color: Tuple[int, int, int, int] = (0, 0, 0, 255)) -> pygame.Surface:
+    """Create a new surface with the given dimensions.
+    
+    Args:
+        width: Width of the surface
+        height: Height of the surface
+        color: Default color for the surface
+        
+    Returns:
+        New surface
+    """
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill(color)
+    return surface
 
-def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:
-    """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data."""
-    image = pygame.Surface((width, height))
-    y = 0
-    x = 0
-    for pixel in pixels:
-        image.fill(pixel, ((x, y), (1, 1)))
+def blit_pixel_array(surface: pygame.Surface, pixel_array: pygame.Surface, x: int, y: int):
+    """Blit a pixel array onto a surface.
+    
+    Args:
+        surface: Surface to blit onto
+        pixel_array: Pixel array to blit
+        x: X coordinate
+        y: Y coordinate
+    """
+    surface.blit(pixel_array, (x, y))
 
-        if (x + 1) % width == 0:
-            x = 0
-            y += 1
-        else:
-            x += 1
+def create_pixel_mask(width: int, height: int, transparent_color: Tuple[int, int, int]) -> pygame.Surface:
+    """Create a mask surface with the given dimensions.
+    
+    Args:
+        width: Width of the mask
+        height: Height of the mask
+        transparent_color: Color to use for transparency
+        
+    Returns:
+        New mask surface
+    """
+    mask = pygame.Surface((width, height))
+    mask.fill(transparent_color)
+    mask.set_colorkey(transparent_color)
+    return mask
 
-    return image
+def apply_pixel_mask(surface: pygame.Surface, mask: pygame.Surface):
+    """Apply a mask to a surface.
+    
+    Args:
+        surface: Surface to apply mask to
+        mask: Mask to apply
+    """
+    surface.blit(mask, (0, 0))
 
-
-def pixels_from_data(pixel_data: list) -> list:
-    """Expand raw pixel data into [(R, G, B), ...] triplets."""
-    pixels = rgb_triplet_generator(
-        pixel_data=pixel_data,
-    )
-
-    # We are converting the data from a generator to
-    # a list of data so that it can be referenced
-    # multiple times.
-    return list(pixels)
-
-
-def pixels_from_path(path: str) -> list:
-    """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
-    with Path.open(path, 'rb') as fh:
-        pixel_data = fh.read()
-
-    return pixels_from_data(pixel_data=pixel_data)
+def create_gradient(width: int, height: int, start_color: Tuple[int, int, int], end_color: Tuple[int, int, int], vertical: bool = False) -> pygame.Surface:
+    """Create a gradient surface.
+    
+    Args:
+        width: Width of the gradient
+        height: Height of the gradient
+        start_color: Starting color
+        end_color: Ending color
+        vertical: Whether to create a vertical gradient
+        
+    Returns:
+        Gradient surface
+    """
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    r1, g1, b1 = start_color
+    r2, g2, b2 = end_color
+    
+    if vertical:
+        for y in range(height):
+            factor = y / (height - 1) if height > 1 else 0
+            r = int(r1 + (r2 - r1) * factor)
+            g = int(g1 + (g2 - g1) * factor)
+            b = int(b1 + (b2 - b1) * factor)
+            pygame.draw.line(surface, (r, g, b), (0, y), (width - 1, y))
+    else:
+        for x in range(width):
+            factor = x / (width - 1) if width > 1 else 0
+            r = int(r1 + (r2 - r1) * factor)
+            g = int(g1 + (g2 - g1) * factor)
+            b = int(b1 + (b2 - b1) * factor)
+            pygame.draw.line(surface, (r, g, b), (x, 0), (x, height - 1))
+    
+    return surface
