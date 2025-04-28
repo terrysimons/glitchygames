@@ -153,6 +153,16 @@ class SimpleGame(Scene):
         # Update all sprites
         self.all_sprites.update()
         
+        # Handle player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            self.player.position.x -= self.player.speed
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            self.player.position.x += self.player.speed
+        
+        # Update player rect
+        self.player.update_rect()
+        
         # Spawn enemies
         current_time = pygame.time.get_ticks()
         if current_time - self.spawn_timer > self.spawn_interval:
@@ -210,50 +220,6 @@ class SimpleGame(Scene):
             
         if event.key == pygame.K_SPACE:
             self.shoot()
-        
-    def on_key_up(self, event):
-        """Handle key up events.
-        
-        Args:
-            event: Pygame KEYUP event
-        """
-        super().on_key_up(event)
-        
-    def update(self):
-        """Update the game state."""
-        if self.game_over:
-            return
-            
-        # Update all sprites
-        self.all_sprites.update()
-        
-        # Handle player movement
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.player.position.x -= self.player.speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.player.position.x += self.player.speed
-        
-        # Update player rect
-        self.player.update_rect()
-        
-        # Spawn enemies
-        current_time = pygame.time.get_ticks()
-        if current_time - self.spawn_timer > self.spawn_interval:
-            self.spawn_timer = current_time
-            self.spawn_enemy()
-            
-        # Check for collisions
-        # Bullets hitting enemies
-        hits = pygame.sprite.groupcollide(self.bullets, self.enemies, True, True)
-        for bullet, enemies_hit in hits.items():
-            self.score += len(enemies_hit)
-            
-        # Enemies hitting player
-        hits = pygame.sprite.spritecollide(self.player, self.enemies, False)
-        if hits:
-            self.game_over = True
-            LOG.info("Game over! Final score: %s", self.score)
         
     def spawn_enemy(self):
         """Spawn a new enemy."""
