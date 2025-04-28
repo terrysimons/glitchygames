@@ -1,72 +1,50 @@
-#!/usr/bin/env python3
-"""Interfaces for the game."""
+"""Interfaces for glitchygames components."""
 
-from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from typing import TYPE_CHECKING, Self
+import pygame
 
-if TYPE_CHECKING:
-    import pygame
-
-
-class SpriteInterface:
-    """Sprite interface."""
-
-    def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Returns:
-            None
-        """
-
-    def update(self: Self) -> None:
-        """Update the sprite.
-
-        Returns:
-            None
-        """
-
-    def render(self: Self, screen: pygame.Surface) -> None:
-        """Render the sprite.
-
+class SpriteInterface(ABC):
+    """Interface for sprites."""
+    
+    @abstractmethod
+    def update(self):
+        """Update the sprite's state."""
+        pass
+        
+    @abstractmethod
+    def draw(self, surface: pygame.Surface):
+        """Draw the sprite to the surface.
+        
         Args:
-            screen (pygame.Surface): The screen to render to.
-
-        Returns:
-            None
+            surface: Surface to draw on
         """
-
-
-class SceneInterface:
-    """Scene interface."""
-
-    def switch_to_scene(self: Self, next_scene: SceneInterface) -> None:
-        """Switch to the next scene.
-
+        pass
+        
+class SceneInterface(ABC):
+    """Interface for scenes."""
+    
+    @abstractmethod
+    def init(self):
+        """Initialize the scene."""
+        pass
+        
+    @abstractmethod
+    def update(self):
+        """Update the scene state."""
+        pass
+        
+    @abstractmethod
+    def draw(self, surface: pygame.Surface):
+        """Draw the scene to the surface.
+        
         Args:
-            next_scene (SceneInterface): The next scene.
-
-        Returns:
-            None
+            surface: Surface to draw on
         """
-
-    def terminate(self: Self) -> None:
-        """Terminate the scene.
-
-        Returns:
-            None
-        """
-
-    def play(self: Self) -> None:
-        """Play the scene.
-
-        Returns:
-            None
-        """
-
-    def pause(self: Self) -> None:
-        """Pause the scene.
-
-        Returns:
-            None
-        """
+        pass
+        
+    @abstractmethod
+    def cleanup(self):
+        """Clean up resources used by the scene."""
+        pass

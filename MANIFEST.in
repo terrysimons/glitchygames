@@ -1,2 +1,6 @@
 # MANIFEST.in
 include glitchygames/assets/raspberry.cfg
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include glitchygames/assets *
