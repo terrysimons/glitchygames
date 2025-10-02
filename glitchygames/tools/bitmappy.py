@@ -61,7 +61,7 @@ def resource_path(*path_segments) -> Path:
         # Running in normal Python environment
         return Path(__file__).parent.parent.joinpath(*path_segments[1:])
 
-AI_MODEL = "anthropic:claude-3-sonnet-20240229"
+AI_MODEL = "anthropic:claude-sonnet-4-5"
 AI_TIMEOUT = 30  # Seconds to wait for AI response
 AI_QUEUE_SIZE = 10
 
