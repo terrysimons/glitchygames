@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Test GlitchyGames mouse events."""
+from __future__ import annotations
+
+import logging
+import time
+from threading import Thread
+from typing import TYPE_CHECKING, Literal, Self
+
+if TYPE_CHECKING:
+    import argparse
+
+import pygame
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+
+LOG = logging.getLogger('game.tests.mouse_events')
+LOG.setLevel(logging.DEBUG)
+
+class TestGame(Scene):
+    """Test Game."""
+    def __init__(self: Self, options: dict,
+                groups: pygame.sprite.Group | None = None) -> None:
+        """Initialize the Game.
+
+        Args:
+            options (dict): The options passed to the game.
+            groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
+
+        Returns:
+            None
+        """
+        if groups is None:
+            groups = pygame.sprite.Group()
+
+        super().__init__(options=options, groups=groups)
+        # These are set up in the GameEngine class.
+        self.log.info(f'Game Options: {options}')
+        self.fps: Literal[6] = 6
+
+        self.background_color = (255, 255, 0)
+
+        self.next_scene = self
+
+    @classmethod
+    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+        """Add game-specific arguments to the gloal parser.
+
+        This class method will get called automatically by the GameEngine class.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            None
+        """
+        parser.add_argument('-v', '--version',
+                            action='store_true',
+                            help='print the game version and exit')
+
+    def update(self: Self) -> None:
+        """Update the scene.
+
+        This method will get called automatically by the GameEngine class.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        # Do your updates here
+        super().update()
+
+    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got left mouse button up event: {event}')
+
+    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle right mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got right mouse button up event: {event}')
+
+    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle middle mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got middle mouse button up event: {event}')
+
+    def on_mouse_wheel_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse wheel up event: {event}')
+
+    def on_mouse_wheel_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse wheel down event: {event}')
+
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse motion event: {event}')
+
+    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button down events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse button down event: {event}')
+
+    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse button up event: {event}')
+
+    def on_mouse_button_click_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button click events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse button click event: {event}')
+
+    def on_mouse_button_double_click_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button double click events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+        """
+        self.log.info(f'{self.name}: Got mouse button double click event: {event}')
+
+
+def test_mouse_events() -> None:
+    """Test mouse events."""
+    # Create the game object.
+    game = GameEngine(TestGame)
+
+    # Start the game.
+    # game.start()
+
+    thread = Thread(target=game.start)
+    thread.start()
+
+    # Wait for the game to start.
+    time.sleep(12)
+
+    # Send a left mouse button up event.
+    event = pygame.event.Event(pygame.MOUSEBUTTONUP, button=1)
+    pygame.event.post(event)
+
+    # Send a right mouse button up event.
+    event = pygame.event.Event(pygame.MOUSEBUTTONUP, button=3)
+    pygame.event.post(event)
+
+    # Send a middle mouse button up event.
+    event = pygame.event.Event(pygame.MOUSEBUTTONUP, button=2)
+    pygame.event.post(event)
+
+
+    thread.join()
+
