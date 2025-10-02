@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 import pygame
 from glitchygames.events import KeyboardEvents, ResourceManager
 
-log = logging.getLogger('game.keyboard')
+log = logging.getLogger("game.keyboard")
 log.addHandler(logging.NullHandler())
 
 
@@ -30,6 +30,7 @@ class KeyboardManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game=game)
             self.keys = {}
@@ -44,6 +45,7 @@ class KeyboardManager(ResourceManager):
 
             Returns:
                 None
+
             """
             # The KEYUP and KEYDOWN events are
             # different.  KEYDOWN contains an extra
@@ -53,7 +55,7 @@ class KeyboardManager(ResourceManager):
             # delete the key "unicode" so we can track
             # both sets of events.
             keyboard_key = event.dict.copy()
-            del keyboard_key['unicode']
+            del keyboard_key["unicode"]
 
             # This makes it possible to use
             # a dictionary as a key, which is
@@ -71,6 +73,7 @@ class KeyboardManager(ResourceManager):
 
             Returns:
                 None
+
             """
             # This makes it possible to use
             # a dictionary as a key, which is
@@ -88,12 +91,13 @@ class KeyboardManager(ResourceManager):
 
             Returns:
                 None
+
             """
             keys_down: tuple = (
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
-            event['keys_down'] = keys_down
+            event["keys_down"] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
@@ -105,6 +109,7 @@ class KeyboardManager(ResourceManager):
 
             Returns:
                 None
+
             """
             keys_down: tuple = (
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
@@ -120,6 +125,7 @@ class KeyboardManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
@@ -135,7 +141,8 @@ class KeyboardManager(ResourceManager):
 
         Returns:
             argparse.ArgumentParser
+
         """
-        group = parser.add_argument_group('Keyboard Options')  # noqa: F841
+        group = parser.add_argument_group("Keyboard Options")  # noqa: F841
 
         return parser

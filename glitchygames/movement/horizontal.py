@@ -20,6 +20,7 @@ class Horizontal:
 
         Returns:
             None
+
         """
         self.speed = speed
         self.current_speed = self.speed.x
@@ -32,6 +33,7 @@ class Horizontal:
 
         Returns:
             None
+
         """
         self.current_speed = value
 
@@ -43,6 +45,7 @@ class Horizontal:
 
         Returns:
             None
+
         """
         self._change_speed(-self.speed.x)
 
@@ -54,6 +57,7 @@ class Horizontal:
 
         Returns:
             None
+
         """
         self._change_speed(self.speed.x)
 
@@ -65,5 +69,6 @@ class Horizontal:
 
         Returns:
             None
+
         """
         self._change_speed(0)

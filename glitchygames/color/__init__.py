@@ -10,7 +10,7 @@ from .palette import (
     Default,
 )
 
-__all__ = ['NES', 'SYSTEM', 'VGA', 'Default']
+__all__ = ["NES", "SYSTEM", "VGA", "Default"]
 
 _default_colors: Default = Default()
 YELLOW = _default_colors.YELLOW

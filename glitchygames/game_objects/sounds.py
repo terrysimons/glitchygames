@@ -5,5 +5,5 @@
 class SFX:
     """Sound effects."""
 
-    BOUNCE = 'sfx_bounce.wav'
-    SLAP = 'sfx_slap.wav'
+    BOUNCE = "sfx_bounce.wav"
+    SLAP = "sfx_slap.wav"

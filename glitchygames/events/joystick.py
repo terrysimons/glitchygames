@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 import pygame
 from glitchygames.events import JoystickEvents, ResourceManager
 
-LOG = logging.getLogger('game.joysticks')
+LOG = logging.getLogger("game.joysticks")
 LOG.addHandler(logging.NullHandler())
 
 
@@ -41,6 +41,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game=game)
             self._id = joystick_id
@@ -85,6 +86,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYAXISMOTION    joy, axis, value
             self._axes[event.axis] = event.value
@@ -98,6 +100,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYBUTTONDOWN    joy, button
             self._buttons[event.button] = 1
@@ -111,6 +114,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYBUTTONUP      joy, button
             self._buttons[event.button] = 0
@@ -124,6 +128,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYHATMOTION     joy, hat, value
             self._hats[event.hat] = event.value
@@ -137,6 +142,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYBALLMOTION    joy, ball, rel
             self._balls[event.ball] = event.rel
@@ -150,6 +156,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYDEVICEADDED device_index, guid
             self.game.on_joy_device_added_event(event)
@@ -162,6 +169,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 None
+
             """
             # JOYDEVICEREMOVED device_index
             self.game.on_joy_device_removed_event(event)
@@ -173,6 +181,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 str: The joystick name.
+
             """
             return self._name
 
@@ -181,6 +190,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 bool: The joystick init status.
+
             """
             return self._init
 
@@ -189,6 +199,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 int: The number of axes.
+
             """
             return self._numaxes
 
@@ -197,6 +208,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 int: The number of trackballs.
+
             """
             return self._numballs
 
@@ -205,6 +217,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 int: The number of buttons.
+
             """
             return self._numbuttons
 
@@ -213,6 +226,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 int: The number of hats.
+
             """
             return self._numhats
 
@@ -221,24 +235,26 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             Returns:
                 str: The joystick info.
+
             """
             joystick_info = [
-                f'Joystick Name: {self.get_name()}',
-                f'\tJoystick Id: {self._id}',
-                f'\tJoystick Inited: {self.get_init()}',
-                f'\tJoystick Axis Count: {self.get_numaxes()}',
-                f'\tJoystick Trackball Count: {self.get_numballs()}',
-                f'\tJoystick Button Count: {self.get_numbuttons()}',
-                f'\tJoystick Hat Count: {self.get_numhats()}',
+                f"Joystick Name: {self.get_name()}",
+                f"\tJoystick Id: {self._id}",
+                f"\tJoystick Inited: {self.get_init()}",
+                f"\tJoystick Axis Count: {self.get_numaxes()}",
+                f"\tJoystick Trackball Count: {self.get_numballs()}",
+                f"\tJoystick Button Count: {self.get_numbuttons()}",
+                f"\tJoystick Hat Count: {self.get_numhats()}",
             ]
 
-            return '\n'.join(joystick_info)
+            return "\n".join(joystick_info)
 
         def __repr__(self: Self) -> str:
             """Get the joystick representation.
 
             Returns:
                 str: The joystick representation.
+
             """
             return repr(self.joystick)
 
@@ -250,6 +266,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
         self.joysticks = {}
@@ -259,10 +276,10 @@ class JoystickManager(JoystickEvents, ResourceManager):
         # and is safe to call more than once.
         pygame.joystick.init()
 
-        self.log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
+        self.log.info(f"Joystick Module Inited: {pygame.joystick.get_init()}")
 
         # Joystick Setup
-        self.log.info(f'Joystick Count: {pygame.joystick.get_count()}')
+        self.log.info(f"Joystick Count: {pygame.joystick.get_count()}")
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
         for joystick in joysticks:
@@ -277,7 +294,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             self.joysticks[joystick_id] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
-            self.log.info(f'Added Joystick: {joystick_proxy}')
+            self.log.info(f"Added Joystick: {joystick_proxy}")
 
         self.proxies = [self.game]
 
@@ -292,8 +309,9 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             argparse.ArgumentParser
+
         """
-        group = parser.add_argument_group('Joystick Options')  # noqa: F841
+        group = parser.add_argument_group("Joystick Options")  # noqa: F841
 
         return parser
 
@@ -310,6 +328,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYAXISMOTION    joy, axis, value
         try:
@@ -317,7 +336,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f'JOYAXISMOTION triggered: on_joy_axis_motion_event({event})')
+        self.log.debug(f"JOYAXISMOTION triggered: on_joy_axis_motion_event({event})")
         self.joysticks[joystick_id].on_joy_axis_motion_event(event)
 
     def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
@@ -328,6 +347,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYBUTTONDOWN    joy, button
         try:
@@ -335,7 +355,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f'JOYBUTTONDOWN triggered: on_joy_button_down_event({event})')
+        self.log.debug(f"JOYBUTTONDOWN triggered: on_joy_button_down_event({event})")
         self.joysticks[joystick_id].on_joy_button_down_event(event)
 
     def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -346,6 +366,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYBUTTONUP      joy, button
         try:
@@ -353,7 +374,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f'JOYBUTTONUP triggered: on_joy_button_up_event({event})')
+        self.log.debug(f"JOYBUTTONUP triggered: on_joy_button_up_event({event})")
         self.joysticks[joystick_id].on_joy_button_up_event(event)
 
     def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
@@ -364,6 +385,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYHATMOTION     joy, hat, value
         try:
@@ -371,7 +393,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f'JOYHATMOTION triggered: on_joy_hat_motion_event({event})')
+        self.log.debug(f"JOYHATMOTION triggered: on_joy_hat_motion_event({event})")
         self.joysticks[joystick_id].on_joy_hat_motion_event(event)
 
     def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
@@ -382,6 +404,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYBALLMOTION    joy, ball, rel
         try:
@@ -389,7 +412,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f'JOYBALLMOTION triggered: on_joy_ball_motion_event({event})')
+        self.log.debug(f"JOYBALLMOTION triggered: on_joy_ball_motion_event({event})")
         self.joysticks[joystick_id].on_joy_ball_motion_event(event)
 
     def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
@@ -400,6 +423,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYDEVICEADDED device_index, guid
 
@@ -412,8 +436,8 @@ class JoystickManager(JoystickEvents, ResourceManager):
         self.joysticks[event.device_index] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
-        self.log.debug(f'Added Joystick #{event.device_index}: {joystick_proxy}')
-        self.log.debug(f'JOYDEVICEADDED triggered: on_joy_device_added({event})')
+        self.log.debug(f"Added Joystick #{event.device_index}: {joystick_proxy}")
+        self.log.debug(f"JOYDEVICEADDED triggered: on_joy_device_added({event})")
 
         # Need to notify the game after the joystick exists
         self.joysticks[event.device_index].on_joy_device_added_event(event)
@@ -426,10 +450,11 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         Returns:
             None
+
         """
         # JOYDEVICEREMOVED instance_id
-        self.log.debug(f'Removed Joystick #{event.instance_id}')
-        self.log.debug(f'JOYDEVICEREMOVED triggered: on_joy_device_removed({event})')
+        self.log.debug(f"Removed Joystick #{event.instance_id}")
+        self.log.debug(f"JOYDEVICEREMOVED triggered: on_joy_device_removed({event})")
 
         # Need to notify the game first.
         self.joysticks[event.instance_id].on_joy_device_removed_event(event)

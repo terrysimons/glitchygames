@@ -13,7 +13,7 @@ maintainers = [
 readme = "README.md"
 license = "BSD-3-Clause"
 classifiers = [
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent"
 ]
@@ -39,6 +39,7 @@ toml = "*"
 pygame = "*"
 future = "*"
 cookiecutter = "*"
+pyperclip = "*"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"
@@ -49,30 +50,31 @@ pre-commit = "*"
 poetry-plugin-export = "*"
 pyright = "*"
 
-# [tool.poetry.group.docs.dependencies]
-# mkdocs = "*"
-# mkdocstrings = {extras = ["crystal", "python"], version = "*"}
-# mkdocs-material = "*"
-# mkdocs-gen-files = "*"
-# mkdocs-literate-nav = "*"
-# mkdocs-section-index = "*"
-# pymdown-extensions = "*"
-# mkdocs-autorefs = "*"
-# mkdocs-macros-plugin = "*"
-# mkdocstrings-python = "*"
+[tool.poetry.group.docs.dependencies]
+mkdocs = "1.6.1"
+mkdocstrings = {extras = ["crystal", "python"], version = "0.30.1"}
+mkdocs-material = "9.6.21"
+mkdocs-gen-files = "0.5.0"
+mkdocs-literate-nav = "0.6.2"
+mkdocs-section-index = "0.3.10"
+pymdown-extensions = "*"
+mkdocs-autorefs = "1.4.3"
+mkdocs-macros-plugin = "1.4.0"
+mkdocstrings-python = "1.18.2"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
 dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
 
 [tool.ruff]
+preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
-task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
-select = [
+lint.select = [
   "F",
   "E",
   "W",
@@ -130,7 +132,7 @@ select = [
   "LOG",
   "RUF",
 ]
-ignore = [
+lint.ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
@@ -154,30 +156,37 @@ ignore = [
   "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
   "EM101", # Exception must not use a string literal, assign to variable first
   "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
+  "D203", # Incorrect blank line before class (conflicts with D211)
+  "D213", # Multi-line summary second line (conflicts with D212)
 ]
-exclude = []
-fixable = [
+lint.exclude = []
+lint.fixable = [
   "I001",
   "Q000",
   "EXE001",
+  "D401",
+  "D413",
+  "TRY400",
+  "F541",
+  "T201",
+  "UP035",
 ]
-unfixable = []
+lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.format]
-quote-style = "single"
 docstring-code-format = true
 
-[tool.ruff.flake8-annotations]
+[tool.lint.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.ruff.flake8-quotes]
+[tool.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.ruff.pydocstyle]
+[tool.lint.pydocstyle]
 convention = "google"
 
 [tool.pyright]
@@ -189,7 +198,7 @@ ignore = []
 defineConstant = { DEBUG = true }
 # stubPath = "src/stubs"
 
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 pythonPlatform = "All"
 
 executionEnvironments = [

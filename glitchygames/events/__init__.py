@@ -14,6 +14,7 @@ followed by a mouse button up event.
 from __future__ import annotations
 
 import abc
+import collections
 import functools
 import inspect
 import logging
@@ -29,11 +30,11 @@ if TYPE_CHECKING:
     from glitchygames.scenes import Scene
 
 
-LOG: logging.Logger = logging.getLogger('game.events')
+LOG: logging.Logger = logging.getLogger("game.events")
 LOG.addHandler(logging.NullHandler())
 
 
-def supported_events(like: str = '.*') -> list:
+def supported_events(like: str = ".*") -> list:
     """Return a list of supported events.
 
     This method is crucial for allowing the game engine
@@ -53,11 +54,12 @@ def supported_events(like: str = '.*') -> list:
 
     Returns:
         A list of pygame events whose names match the regular expression.
+
     """
     # Get a list of all of the events
     # by name, but ignore duplicates.
     event_names = (pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS))
-    event_names: set[str] = set(event_names) - set('Unknown')
+    event_names: set[str] = set(event_names) - set("Unknown")
 
     # Pygame 2.5.1 and maybe others have a bug where the event name lookup
     # is wrong.
@@ -71,16 +73,16 @@ def supported_events(like: str = '.*') -> list:
     #
     # The controller documentation also indicates that it should be CONTROLLERDEVICEREMAPPED
     patched_event_names = {
-        'APPDIDENTERBACKGROUND': 'APP_DIDENTERBACKGROUND',
-        'APPDIDENTERFOREGROUND': 'APP_DIDENTERFOREGROUND',
-        'APPLOWMEMORY': 'APP_LOWMEMORY',
-        'APPWILLENTERBACKGROUND': 'APP_WILLENTERBACKGROUND',
-        'APPWILLENTERFOREGROUND': 'APP_WILLENTERFOREGROUND',
-        'APPTERMINATING': 'APP_TERMINATING',
-        'CONTROLLERDEVICEMAPPED': 'CONTROLLERDEVICEREMAPPED',
-        'RENDERDEVICERESET': 'RENDER_DEVICE_RESET',
-        'RENDERTARGETSRESET': 'RENDER_TARGETS_RESET',
-        'UNKNOWN': 'K_UNKNOWN',
+        "APPDIDENTERBACKGROUND": "APP_DIDENTERBACKGROUND",
+        "APPDIDENTERFOREGROUND": "APP_DIDENTERFOREGROUND",
+        "APPLOWMEMORY": "APP_LOWMEMORY",
+        "APPWILLENTERBACKGROUND": "APP_WILLENTERBACKGROUND",
+        "APPWILLENTERFOREGROUND": "APP_WILLENTERFOREGROUND",
+        "APPTERMINATING": "APP_TERMINATING",
+        "CONTROLLERDEVICEMAPPED": "CONTROLLERDEVICEREMAPPED",
+        "RENDERDEVICERESET": "RENDER_DEVICE_RESET",
+        "RENDERTARGETSRESET": "RENDER_TARGETS_RESET",
+        "UNKNOWN": "K_UNKNOWN",
     }
 
     event_list = []
@@ -90,7 +92,7 @@ def supported_events(like: str = '.*') -> list:
         #
         # This works around a pygame bug for CONTROLLERDEVICEREMAPPED
         patched_event_name = patched_event_names.get(event_name.upper(), event_name)
-        LOG.info(f'Adding Event: {patched_event_name}')
+        LOG.info(f"Adding Event: {patched_event_name}")
 
         if re.match(like, patched_event_name.upper()):
             event_list.append(getattr(pygame, patched_event_name.upper()))
@@ -103,16 +105,16 @@ FPSEVENT = pygame.USEREVENT + 1
 GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
 
-AUDIO_EVENTS = supported_events(like='AUDIO.*?')
-CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
-DROP_EVENTS = supported_events(like='DROP.*?')
-TOUCH_EVENTS = supported_events(like='(FINGER|MULTI).*?')
-JOYSTICK_EVENTS = supported_events(like='JOY.*?')
-KEYBOARD_EVENTS = supported_events(like='KEY.*?')
-MIDI_EVENTS = supported_events(like='MIDI.*?')
-MOUSE_EVENTS = supported_events(like='MOUSE.*?')
-TEXT_EVENTS = supported_events(like='TEXT.*?')
-WINDOW_EVENTS = supported_events(like='WINDOW.*?')
+AUDIO_EVENTS = supported_events(like="AUDIO.*?")
+CONTROLLER_EVENTS = supported_events(like="CONTROLLER.*?")
+DROP_EVENTS = supported_events(like="DROP.*?")
+TOUCH_EVENTS = supported_events(like="(FINGER|MULTI).*?")
+JOYSTICK_EVENTS = supported_events(like="JOY.*?")
+KEYBOARD_EVENTS = supported_events(like="KEY.*?")
+MIDI_EVENTS = supported_events(like="MIDI.*?")
+MOUSE_EVENTS = supported_events(like="MOUSE.*?")
+TEXT_EVENTS = supported_events(like="TEXT.*?")
+WINDOW_EVENTS = supported_events(like="WINDOW.*?")
 ALL_EVENTS = supported_events()
 GAME_EVENTS = list(
     set(ALL_EVENTS)
@@ -136,7 +138,7 @@ def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[...
 
     def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
         cache_info: Any = func.cache_info()
-        LOG.debug(f'Cache Info: {func.__name__} {cache_info}')
+        LOG.debug(f"Cache Info: {func.__name__} {cache_info}")
         func(game, *args, **kwargs)
 
     return wrapper
@@ -164,27 +166,28 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
 
     Raises:
         AttributeError: If the event is not handled.
+
     """
-    debug_events: bool | None = game.options.get('debug_events', None)
-    no_unhandled_events: bool | None = game.options.get('no_unhandled_events', None)
+    debug_events: bool | None = game.options.get("debug_events", None)
+    no_unhandled_events: bool | None = game.options.get("no_unhandled_events", None)
 
     if debug_events:
         LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
+            f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
         )
     elif debug_events is None:
         LOG.error(
-            'Error: debug_events is missing from the game options. ' "This shouldn't be possible."
+            "Error: debug_events is missing from the game options. This shouldn't be possible."
         )
 
     if no_unhandled_events:
         LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
+            f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
         )
         sys.exit(-1)
     elif no_unhandled_events is None:
         LOG.error(
-            'Error: no_unhandled_events is missing from the game options. '
+            "Error: no_unhandled_events is missing from the game options. "
             "This shouldn't be possible."
         )
 
@@ -239,10 +242,11 @@ class ResourceManager:
 
         Raises:
             AttributeError: If the event is not handled by any proxy.
+
         """
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
-            LOG.debug(f'Created Resource Manager: {cls}')
+            LOG.debug(f"Created Resource Manager: {cls}")
             cls.__instances__[cls].args = args
             cls.__instances__[cls].kwargs = kwargs
 
@@ -256,6 +260,7 @@ class ResourceManager:
 
         Returns:
             None
+
         """
         super().__init__()
         self.proxies = []
@@ -273,20 +278,21 @@ class ResourceManager:
 
         Raises:
             AttributeError: If the attribute is not found.
+
         """
         # Try each proxy in turn
         try:
             for proxy in self.proxies:
                 return getattr(proxy, attr)
         except AttributeError:
-            self.log.exception(f'No proxies for {type(self)}.{attr}')
+            self.log.exception(f"No proxies for {type(self)}.{attr}")
             raise
 
-        raise AttributeError(f'No proxies for {type(self)}.{attr}')
+        raise AttributeError(f"No proxies for {type(self)}.{attr}")
 
 
 # Note, we can't subclass HashableEvent because it's a C type.
-class HashableEvent(dict):
+class HashableEvent(collections.UserDict):
     """Hashable event class.
 
     Hashable events are cacheable, so we can mitigate some of the
@@ -310,6 +316,7 @@ class HashableEvent(dict):
             type: The type of the event.
             *args: The positional arguments.
             **attributes: The keyword arguments.
+
         """
         self.type = type
         self.__dict__.update(attributes)
@@ -374,11 +381,11 @@ class HashableEvent(dict):
 
     def __repr__(self: Self) -> str:
         """Return a string representation of the object."""
-        return f'{self.__class__.__name__}({self.__dict__})'
+        return f"{self.__class__.__name__}({self.__dict__})"
 
     def __str__(self: Self) -> str:
         """Return a string representation of the object."""
-        return f'{self.__class__.__name__}({self.__dict__})'
+        return f"{self.__class__.__name__}({self.__dict__})"
 
     def __copy__(self: Self) -> Self:
         """Shallow copy the object."""
@@ -399,7 +406,7 @@ class HashableEvent(dict):
 
 
 # We intentionally don't implement any methods here.
-class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
+class EventInterface(abc.ABC):  # noqa: B024
     """Abstract base class for event interfaces."""
 
     @classmethod
@@ -414,19 +421,19 @@ class EventInterface(metaclass=abc.ABCMeta):  # noqa: B024
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
+                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (callable)")
                 else:
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
+                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (attribute))")
                 methods.append(True)
             else:
-                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
+                cls.log.info(f"{subclass.__name__}.{attribute} -> ❌ (unimplemented)")
                 methods.append(False)
 
         # all([]) returns True, so mask it
         #
         # This protects against an empty attribute list
         # which would be a misconfiguration of the interface
-        if len(methods) and all(methods):
+        if len(methods) > 0 and all(methods):
             interface_is_implemented = all(methods)
 
         return interface_is_implemented
@@ -445,6 +452,7 @@ class AudioEvents(EventInterface):
 
         Returns:
             None
+
         """
         # AUDIODEVICEADDED   which, iscapture
 
@@ -457,6 +465,7 @@ class AudioEvents(EventInterface):
 
         Returns:
             None
+
         """
         # AUDIODEVICEREMOVED which, iscapture
 
@@ -474,6 +483,7 @@ class AudioEventStubs(AudioEvents):
 
         Returns:
             None
+
         """
         # AUDIODEVICEADDED   which, iscapture
         return unhandled_event(self, event)
@@ -487,6 +497,7 @@ class AudioEventStubs(AudioEvents):
 
         Returns:
             None
+
         """
         # AUDIODEVICEREMOVED which, iscapture
         return unhandled_event(self, event)
@@ -505,6 +516,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERAXISMOTION joy, axis, value
 
@@ -517,6 +529,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERBUTTONDOWN joy, button
 
@@ -529,6 +542,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERBUTTONUP   joy, button
 
@@ -541,6 +555,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEADDED device_index, guid
 
@@ -553,6 +568,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEREMAPPED device_index
 
@@ -565,6 +581,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEREMOVED device_index
 
@@ -577,6 +594,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADDOWN joy, touchpad
 
@@ -589,6 +607,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADMOTION joy, touchpad
 
@@ -601,6 +620,7 @@ class ControllerEvents(EventInterface):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
 
@@ -617,6 +637,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERAXISMOTION joy, axis, value
         unhandled_event(self, event)
@@ -630,6 +651,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERBUTTONDOWN joy, button
         unhandled_event(self, event)
@@ -643,6 +665,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERBUTTONUP   joy, button
         unhandled_event(self, event)
@@ -656,6 +679,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEADDED device_index, guid
         unhandled_event(self, event)
@@ -669,6 +693,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEREMAPPED device_index
         unhandled_event(self, event)
@@ -682,6 +707,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERDEVICEREMOVED device_index
         unhandled_event(self, event)
@@ -695,6 +721,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADDOWN joy, touchpad
         unhandled_event(self, event)
@@ -708,6 +735,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADMOTION joy, touchpad
         unhandled_event(self, event)
@@ -721,6 +749,7 @@ class ControllerEventStubs(ControllerEvents):
 
         Returns:
             None
+
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
         unhandled_event(self, event)
@@ -739,6 +768,7 @@ class DropEvents(EventInterface):
 
         Returns:
             None
+
         """
         # DROPBEGIN        none
 
@@ -751,6 +781,7 @@ class DropEvents(EventInterface):
 
         Returns:
             None
+
         """
         # DROPFILE         file
 
@@ -763,6 +794,7 @@ class DropEvents(EventInterface):
 
         Returns:
             None
+
         """
         # DROPTEXT         text
 
@@ -775,6 +807,7 @@ class DropEvents(EventInterface):
 
         Returns:
             None
+
         """
         # DROPCOMPLETE     none
 
@@ -792,6 +825,7 @@ class DropEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # DROPBEGIN        none
         unhandled_event(self, event)
@@ -805,6 +839,7 @@ class DropEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # DROPFILE         file
         unhandled_event(self, event)
@@ -818,6 +853,7 @@ class DropEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # DROPTEXT         text
         unhandled_event(self, event)
@@ -831,6 +867,7 @@ class DropEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # DROPCOMPLETE     none
         unhandled_event(self, event)
@@ -849,6 +886,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
 
@@ -861,6 +899,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
 
@@ -873,6 +912,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERUP         finger_id, x, y, dx, dy, pressure
 
@@ -885,6 +925,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
 
@@ -897,6 +938,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
 
@@ -909,6 +951,7 @@ class TouchEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
 
@@ -926,6 +969,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -939,6 +983,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -952,6 +997,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # FINGERUP         finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -965,6 +1011,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -978,6 +1025,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -991,6 +1039,7 @@ class TouchEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -1019,6 +1068,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # ACTIVEEVENT      gain, state
 
@@ -1031,6 +1081,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # FPSEVENT is pygame.USEREVENT + 1
 
@@ -1043,6 +1094,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # GAMEEVENT is pygame.USEREVENT + 2
 
@@ -1055,6 +1107,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MENUEVENT is pygame.USEREVENT + 3
 
@@ -1067,6 +1120,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # SYSWMEVENT
 
@@ -1079,6 +1133,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # USEREVENT        code
 
@@ -1091,6 +1146,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # VIDEOEXPOSE      none
 
@@ -1103,6 +1159,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # VIDEORESIZE      size, w, h
 
@@ -1115,6 +1172,7 @@ class GameEvents(EventInterface):
 
         Returns:
             None
+
         """
         # QUIT             none
 
@@ -1138,6 +1196,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # ACTIVEEVENT      gain, state
         unhandled_event(self, event)
@@ -1151,6 +1210,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # FPSEVENT is pygame.USEREVENT + 1
         unhandled_event(self, event)
@@ -1164,6 +1224,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # GAMEEVENT is pygame.USEREVENT + 2
         unhandled_event(self, event)
@@ -1177,6 +1238,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MENUEVENT is pygame.USEREVENT + 3
         unhandled_event(self, event)
@@ -1190,6 +1252,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # SYSWMEVENT
         unhandled_event(self, event)
@@ -1203,6 +1266,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # USEREVENT        code
         unhandled_event(self, event)
@@ -1216,6 +1280,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # VIDEOEXPOSE      none
         unhandled_event(self, event)
@@ -1229,6 +1294,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # VIDEORESIZE      size, w, h
         unhandled_event(self, event)
@@ -1242,6 +1308,7 @@ class GameEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # QUIT             none
         unhandled_event(self, event)
@@ -1260,6 +1327,7 @@ class FontEvents(EventInterface):
 
         Returns:
             None
+
         """
         # FONTS_CHANGED
 
@@ -1277,6 +1345,7 @@ class FontEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # FONTS_CHANGED
         unhandled_event(self, event)
@@ -1350,6 +1419,7 @@ class KeyboardEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # KEYDOWN          unicode, key, mod
         unhandled_event(self, event)
@@ -1363,6 +1433,7 @@ class KeyboardEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # KEYUP            key, mod
         unhandled_event(self, event)
@@ -1377,6 +1448,7 @@ class KeyboardEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, keys)
@@ -1391,6 +1463,7 @@ class KeyboardEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, keys)
@@ -1409,6 +1482,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYAXISMOTION    joy, axis, value
 
@@ -1421,6 +1495,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBUTTONDOWN    joy, button
 
@@ -1433,6 +1508,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBUTTONUP      joy, button
 
@@ -1445,6 +1521,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYHATMOTION     joy, hat, value
 
@@ -1457,6 +1534,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBALLMOTION    joy, ball, rel
 
@@ -1469,6 +1547,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYDEVICEADDED device_index, guid
 
@@ -1481,6 +1560,7 @@ class JoystickEvents(EventInterface):
 
         Returns:
             None
+
         """
         # JOYDEVICEREMOVED device_index
 
@@ -1498,6 +1578,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYAXISMOTION    joy, axis, value
         unhandled_event(self, event)
@@ -1511,6 +1592,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBUTTONDOWN    joy, button
         unhandled_event(self, event)
@@ -1524,6 +1606,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBUTTONUP      joy, button
         unhandled_event(self, event)
@@ -1537,6 +1620,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYHATMOTION     joy, hat, value
         unhandled_event(self, event)
@@ -1550,6 +1634,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYBALLMOTION    joy, ball, rel
         unhandled_event(self, event)
@@ -1563,6 +1648,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYDEVICEADDED device_index, guid
         unhandled_event(self, event)
@@ -1576,6 +1662,7 @@ class JoystickEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # JOYDEVICEREMOVED device_index
         unhandled_event(self, event)
@@ -1604,6 +1691,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEMOTION      pos, rel, buttons
 
@@ -1617,6 +1705,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1630,6 +1719,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1643,6 +1733,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1656,6 +1747,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1669,6 +1761,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1682,6 +1775,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1695,6 +1789,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1708,6 +1803,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1721,6 +1817,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1734,6 +1831,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
 
@@ -1746,6 +1844,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEBUTTONUP    pos, button
 
@@ -1758,6 +1857,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Left Mouse Button Up pos, button
 
@@ -1770,6 +1870,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Middle Mouse Button Up pos, button
 
@@ -1782,6 +1883,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Right Mouse Button Up pos, button
 
@@ -1794,6 +1896,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEBUTTONDOWN  pos, button
 
@@ -1806,6 +1909,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Left Mouse Button Down pos, button
 
@@ -1818,6 +1922,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Middle Mouse Button Down pos, button
 
@@ -1830,6 +1935,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # Right Mouse Button Down pos, button
 
@@ -1842,6 +1948,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # This is a synthesized event.
 
@@ -1854,6 +1961,7 @@ class MouseEvents(EventInterface):
 
         Returns:
             None
+
         """
         # This is a synthesized event.
 
@@ -1884,6 +1992,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEMOTION      pos, rel, buttons
         unhandled_event(self, event)
@@ -1898,6 +2007,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1912,6 +2022,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1926,6 +2037,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1940,6 +2052,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1954,6 +2067,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1968,6 +2082,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1982,6 +2097,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -1996,6 +2112,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -2010,6 +2127,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, entering_focus)
@@ -2024,6 +2142,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Synthesized event.
         unhandled_event(self, event, leaving_focus)
@@ -2037,6 +2156,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEBUTTONUP    pos, button
         unhandled_event(self, event)
@@ -2050,6 +2170,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Left Mouse Button Up pos, button
         unhandled_event(self, event)
@@ -2063,6 +2184,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Middle Mouse Button Up pos, button
         unhandled_event(self, event)
@@ -2076,6 +2198,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Right Mouse Button Up pos, button
         unhandled_event(self, event)
@@ -2089,6 +2212,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # MOUSEBUTTONDOWN  pos, button
         unhandled_event(self, event)
@@ -2102,6 +2226,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Left Mouse Button Down pos, button
         unhandled_event(self, event)
@@ -2115,6 +2240,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Middle Mouse Button Down pos, button
         unhandled_event(self, event)
@@ -2128,6 +2254,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # Right Mouse Button Down pos, button
         unhandled_event(self, event)
@@ -2141,6 +2268,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # This is a synthesized event.
         unhandled_event(self, event)
@@ -2154,6 +2282,7 @@ class MouseEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # This is a synthesized event.
         unhandled_event(self, event)
@@ -2185,6 +2314,7 @@ class TextEvents(EventInterface):
 
         Returns:
             None
+
         """
         # TEXTEDITING      text, start, length
 
@@ -2197,6 +2327,7 @@ class TextEvents(EventInterface):
 
         Returns:
             None
+
         """
         # TEXTINPUT        text
 
@@ -2213,6 +2344,7 @@ class TextEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # TEXTEDITING      text, start, length
         unhandled_event(self, event)
@@ -2226,6 +2358,7 @@ class TextEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # TEXTINPUT        text
         unhandled_event(self, event)
@@ -2243,6 +2376,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWCLOSE      none
 
@@ -2255,6 +2389,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWENTER      none
 
@@ -2267,6 +2402,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWEXPOSED    none
 
@@ -2279,6 +2415,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWFOCUSGAINED none
 
@@ -2291,6 +2428,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWFOCUSLOST  none
 
@@ -2303,6 +2441,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWHIDDEN     none
 
@@ -2315,6 +2454,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWHITTEST    none
 
@@ -2327,6 +2467,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWLEAVE      none
 
@@ -2339,6 +2480,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMAXIMIZED  none
 
@@ -2351,6 +2493,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMINIMIZED  none
 
@@ -2363,6 +2506,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMOVED      none
 
@@ -2375,6 +2519,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWRESIZED    size, w, h
 
@@ -2387,6 +2532,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWRESTORED   none
 
@@ -2399,6 +2545,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWSHOWN      none
 
@@ -2411,6 +2558,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWSIZECHANGED size, w, h
 
@@ -2423,6 +2571,7 @@ class WindowEvents(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWTAKEFOCUS  none
 
@@ -2439,6 +2588,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWCLOSE      none
         unhandled_event(self, event)
@@ -2452,6 +2602,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWENTER      none
         unhandled_event(self, event)
@@ -2465,6 +2616,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWEXPOSED    none
         unhandled_event(self, event)
@@ -2478,6 +2630,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWFOCUSGAINED none
         unhandled_event(self, event)
@@ -2491,6 +2644,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWFOCUSLOST  none
         unhandled_event(self, event)
@@ -2504,6 +2658,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWHIDDEN     none
         unhandled_event(self, event)
@@ -2517,6 +2672,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWHITTEST    none
         unhandled_event(self, event)
@@ -2530,6 +2686,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWLEAVE      none
         unhandled_event(self, event)
@@ -2543,6 +2700,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMAXIMIZED  none
         unhandled_event(self, event)
@@ -2556,6 +2714,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMINIMIZED  none
         unhandled_event(self, event)
@@ -2569,6 +2728,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWMOVED      none
         unhandled_event(self, event)
@@ -2582,6 +2742,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWRESIZED    size, w, h
         unhandled_event(self, event)
@@ -2595,6 +2756,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWRESTORED   none
         unhandled_event(self, event)
@@ -2608,6 +2770,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWSHOWN      none
         unhandled_event(self, event)
@@ -2621,6 +2784,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWSIZECHANGED size, w, h
         unhandled_event(self, event)
@@ -2634,6 +2798,7 @@ class WindowEventStubs(EventInterface):
 
         Returns:
             None
+
         """
         # WINDOWTAKEFOCUS  none
         unhandled_event(self, event)
@@ -2697,6 +2862,7 @@ class EventManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__()
             # No proxies for the root class.
@@ -2718,17 +2884,18 @@ class EventManager(ResourceManager):
 
             Returns:
                 None
+
             """
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
             event_handler = inspect.stack()[1].function
 
-            event = kwargs.get('event')
+            event = kwargs.get("event")
 
-            event_trigger: dict | None = kwargs.get('trigger')
+            event_trigger: dict | None = kwargs.get("trigger")
 
             self.log.debug(
-                f'Unhandled Event {event_handler}: '
-                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
+                f"Unhandled Event {event_handler}: "
+                f"{self.event_source}->{event} Event Trigger: {event_trigger}"
             )
 
         def __getattr__(self: Self, attr: str) -> Callable:
@@ -2741,6 +2908,7 @@ class EventManager(ResourceManager):
 
             Returns:
                 The attribute.
+
             """
             return self.unhandled_event
 
@@ -2752,6 +2920,7 @@ class EventManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game)
         self.proxies = [EventManager.EventProxy(event_source=self)]

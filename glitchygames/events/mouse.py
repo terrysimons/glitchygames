@@ -14,7 +14,7 @@ from glitchygames.events import MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
 
-LOG = logging.getLogger('game.mouse')
+LOG = logging.getLogger("game.mouse")
 LOG.addHandler(logging.NullHandler())
 
 # TODO @<terry.simons@gmail.com>: Add pygame 2 MOUSEWHEEL event handling.
@@ -40,6 +40,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game)
             self.mouse_state = {}
@@ -60,6 +61,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.mouse_state[event.type] = event
             self.game.on_mouse_motion_event(event)
@@ -67,7 +69,7 @@ class MouseManager(ResourceManager):
             sprite = collided_sprites(self.game, event=event, index=-1)
 
             if sprite:
-                self.log.debug(f'{type(self)}: Mouse Motion: {event}')
+                self.log.debug(f"{type(self)}: Mouse Motion: {event}")
                 sprite[0].on_mouse_motion_event(event)
 
                 # # See if we're focused on the same sprite.
@@ -111,8 +113,9 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
-            self.log.debug(f'{type(self)}: Mouse Drag: {event}')
+            self.log.debug(f"{type(self)}: Mouse Drag: {event}")
             self.game.on_mouse_drag_event(event, trigger)
 
             # if self.focus_locked:
@@ -145,8 +148,9 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
-            self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.log.debug(f"{type(self)}: Mouse Drop: {event} {trigger}")
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
@@ -182,6 +186,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_left_mouse_drag_event(event, trigger)
 
@@ -202,6 +207,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_left_mouse_drag_up_event(event, trigger)
 
@@ -222,6 +228,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
@@ -242,6 +249,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_middle_mouse_drag_up_event(event, trigger)
 
@@ -262,6 +270,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
@@ -282,6 +291,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_right_mouse_drag_up_event(event, trigger)
 
@@ -302,6 +312,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             # Send a leave focus event for the old focus.
             # if not self.focus_locked:
@@ -313,7 +324,7 @@ class MouseManager(ResourceManager):
             # Send an enter event for the new focus.
             entering_focus.on_mouse_focus_event(event, self.current_focus)
 
-            self.log.info(f'Entered Focus: {self.current_focus}')
+            self.log.info(f"Entered Focus: {self.current_focus}")
             # else:
             #     self.log.info(f'Focus Locked: {self.previous_focus}')
 
@@ -328,6 +339,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.previous_focus = leaving_focus
 
@@ -335,7 +347,7 @@ class MouseManager(ResourceManager):
                 leaving_focus.on_mouse_unfocus_event(event)
                 self.current_focus = None
 
-                self.log.info(f'Left Focus: {self.previous_focus}')
+                self.log.info(f"Left Focus: {self.previous_focus}")
 
         def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             """Handle the mouse button up event.
@@ -345,6 +357,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.mouse_state[event.button] = event
             self.game.on_mouse_button_up_event(event)
@@ -378,6 +391,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_left_mouse_button_up_event(event)
 
@@ -389,6 +403,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_middle_mouse_button_up_event(event)
 
@@ -400,6 +415,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_right_mouse_button_up_event(event)
 
@@ -411,6 +427,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.mouse_state[event.button] = event
 
@@ -440,6 +457,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_left_mouse_button_down_event(event)
 
@@ -451,6 +469,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_middle_mouse_button_down_event(event)
 
@@ -462,6 +481,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_right_mouse_button_down_event(event)
 
@@ -473,6 +493,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_mouse_scroll_down_event(event)
 
@@ -484,6 +505,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_mouse_scroll_up_event(event)
 
@@ -495,6 +517,7 @@ class MouseManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_mouse_wheel_event(event)
 
@@ -506,6 +529,7 @@ class MouseManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
         self.proxies = [MouseManager.MouseProxy(game=game)]
@@ -519,8 +543,9 @@ class MouseManager(ResourceManager):
 
         Returns:
             None
+
         """
-        group = parser.add_argument_group('Mouse Options')  # noqa: F841
+        group = parser.add_argument_group("Mouse Options")  # noqa: F841
 
         return parser
 
@@ -542,6 +567,7 @@ class MousePointer:
 
         Returns:
             None
+
         """
         super().__init__()
 
@@ -555,6 +581,7 @@ class MousePointer:
 
         Returns:
             int
+
         """
         return self.pos[0]
 
@@ -567,6 +594,7 @@ class MousePointer:
 
         Returns:
             None
+
         """
         self.pos[0] = new_x
 
@@ -576,6 +604,7 @@ class MousePointer:
 
         Returns:
             int
+
         """
         return self.pos[1]
 
@@ -588,6 +617,7 @@ class MousePointer:
 
         Returns:
             None
+
         """
         self.pos[1] = new_y
 
@@ -602,6 +632,7 @@ def collided_sprites(scene: object, event: pygame.event.Event, index: int | None
 
     Returns:
         list: The list of collided sprites.
+
     """
     mouse = MousePointer(pos=event.pos)
 

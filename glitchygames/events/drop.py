@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from glitchygames.events import DropEvents, ResourceManager
 
-log = logging.getLogger('game.events.drop_events')
+log = logging.getLogger("game.events.drop_events")
 log.addHandler(logging.NullHandler())
 
 
@@ -34,6 +34,7 @@ class DropManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game)
 
@@ -48,6 +49,7 @@ class DropManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_drop_begin_event(event)
 
@@ -59,6 +61,7 @@ class DropManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_drop_complete_event(event)
 
@@ -70,6 +73,7 @@ class DropManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_drop_file_event(event)
 
@@ -81,6 +85,7 @@ class DropManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_drop_text_event(event)
 
@@ -93,8 +98,9 @@ class DropManager(ResourceManager):
 
         Returns:
             The argument parser.
+
         """
-        group = parser.add_argument_group('Drop Options')  # noqa: F841
+        group = parser.add_argument_group("Drop Options")  # noqa: F841
 
         return parser
 
@@ -106,6 +112,7 @@ class DropManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
 

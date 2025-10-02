@@ -16,8 +16,9 @@ def load_sound(snd_file: str, volume: float = 0.25) -> pygame.mixer.Sound:
 
     Returns:
         pygame.mixer.Sound: The sound object.
+
     """
-    path: Path = Path(__file__).parent / 'snd_files' / snd_file
+    path: Path = Path(__file__).parent / "snd_files" / snd_file
     sound = pygame.mixer.Sound(path)
     sound.set_volume(volume)
     return sound
