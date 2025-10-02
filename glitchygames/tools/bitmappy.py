@@ -37,6 +37,14 @@ import yaml  # Add to imports at top
 
 LOG = logging.getLogger('game')
 
+# Set up logging
+LOG.setLevel(logging.INFO)
+if not LOG.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    LOG.addHandler(handler)
+
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
 MAX_PIXELS_ACROSS = 64
@@ -71,12 +79,19 @@ AI_TRAINING_DATA = []
 
 # Load sprite configuration files for AI training
 SPRITE_CONFIG_DIR = resource_path('glitchygames', 'examples', 'resources', 'sprites')
+LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
+LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
 
 if SPRITE_CONFIG_DIR.exists():
-    for config_file in SPRITE_CONFIG_DIR.glob('*.ini'):
+    config_files = list(SPRITE_CONFIG_DIR.glob('*.ini'))
+    LOG.info(f"Found {len(config_files)} sprite config files")
+
+    for config_file in config_files:
+        LOG.debug(f"Processing config file: {config_file}")
         try:
             config = configparser.ConfigParser()
             config.read(config_file)
+            LOG.debug(f"Config sections: {config.sections()}")
 
             # Extract sprite data
             sprite_data = {
@@ -84,6 +99,7 @@ if SPRITE_CONFIG_DIR.exists():
                 'pixels': '\n\t'.join(config['sprite']['pixels'].splitlines()),
                 'colors': {}
             }
+            LOG.debug(f"Extracted sprite data: {sprite_data}")
 
             # Extract color data
             for i in range(8):  # Support up to 8 colors (0-7)
@@ -93,14 +109,20 @@ if SPRITE_CONFIG_DIR.exists():
                         'green': config[str(i)]['green'],
                         'blue': config[str(i)]['blue']
                     }
+                    LOG.debug(f"Extracted color {i}: {sprite_data['colors'][i]}")
 
             AI_TRAINING_DATA.append(sprite_data)
-            LOG.debug(f"Loaded sprite config: {config_file.name}")
+            LOG.info(f"Successfully loaded sprite config: {config_file.name}")
 
         except Exception as e:
             LOG.error(f"Error loading sprite config {config_file}: {e}")
+            import traceback
+            LOG.error(f"Config loading traceback: {traceback.format_exc()}")
 else:
     LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
+
+LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
+LOG.debug(f"AI training data: {AI_TRAINING_DATA}")
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -682,11 +704,24 @@ class CanvasSprite(BitmappySprite):
         screen_info = pygame.display.Info()
         screen_width = screen_info.current_w
 
+        # Calculate mini map size (2x2 pixels per sprite pixel)
+        pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+        mini_map_width = pixels_across * pixel_width
+        mini_map_height = pixels_tall * pixel_height
+
+        # Position mini map flush to the right edge and top
+        mini_map_x = screen_width - mini_map_width  # Flush to right edge
+        mini_map_y = 24  # Flush to top (below menu bar)
+
+        # Ensure mini map doesn't go off screen
+        if mini_map_x < 0:
+            mini_map_x = 20  # Fallback to left side if too wide
+
         # Create miniview - position in top right corner
         self.mini_view = MiniView(
             pixels=self.pixels,
-            x=screen_width - (pixels_across * 2) - 10,
-            y=32,
+            x=mini_map_x,
+            y=mini_map_y,
             width=pixels_across,
             height=pixels_tall,
             groups=groups
@@ -851,23 +886,61 @@ class CanvasSprite(BitmappySprite):
                 content = f.read()
             print(f"Raw file content:\n{content}")
 
-            config.read_string(content)
-            print(f"ConfigParser sections: {config.sections()}")
+            # Split content into sections
+            sections = content.split('\n\n')
+            print(f"Found {len(sections)} sections")
 
-            # Get color definitions
+            # Parse sprite section
+            sprite_section = None
+            color_sections = {}
+
+            for section in sections:
+                if section.strip().startswith('[sprite]'):
+                    sprite_section = section
+                    print(f"Sprite section: {sprite_section[:100]}...")
+                elif section.strip().startswith('[') and len(section.strip()) > 1:
+                    # This is a color section
+                    lines = section.strip().split('\n')
+                    if lines[0].startswith('[') and lines[0].endswith(']'):
+                        color_key = lines[0][1:-1]  # Remove [ and ]
+                        if len(color_key) == 1:  # Single character color
+                            color_sections[color_key] = {}
+                            for line in lines[1:]:
+                                if '=' in line:
+                                    key, value = line.split('=', 1)
+                                    color_sections[color_key][key.strip()] = value.strip()
+
+            print(f"Color sections: {color_sections}")
+
+            # Build color map
             color_map = {}
-            for section in config.sections():
-                if len(section) == 1:  # Color sections are single characters
-                    color_map[section] = (
-                        config.getint(section, 'red'),
-                        config.getint(section, 'green'),
-                        config.getint(section, 'blue')
+            for color_key, color_data in color_sections.items():
+                if 'red' in color_data and 'green' in color_data and 'blue' in color_data:
+                    color_map[color_key] = (
+                        int(color_data['red']),
+                        int(color_data['green']),
+                        int(color_data['blue'])
                     )
             print(f"Color map: {color_map}")
 
-            # Get the raw pixel data and handle the indentation properly
-            pixel_text = config.get('sprite', 'pixels', raw=True)
-            print(f"Raw pixel text:\n{pixel_text}")
+            # Extract pixel data from sprite section
+            if sprite_section:
+                lines = sprite_section.split('\n')
+                pixel_lines = []
+                in_pixels = False
+                for line in lines:
+                    if line.strip() == 'pixels =':
+                        in_pixels = True
+                        continue
+                    elif in_pixels and line.strip():
+                        pixel_lines.append(line.strip())
+                    elif in_pixels and not line.strip():
+                        break
+
+                pixel_text = '\n'.join(pixel_lines)
+                print(f"Extracted pixel text:\n{pixel_text}")
+            else:
+                raise ValueError("No [sprite] section found in file")
 
             # Split into rows and properly handle indentation
             rows = []
@@ -922,13 +995,22 @@ class CanvasSprite(BitmappySprite):
 
                 # Reinitialize mini view if it exists
                 if hasattr(self, 'mini_view'):
+                    # Recalculate mini map position for new size
+                    screen_info = pygame.display.Info()
+                    screen_width = screen_info.current_w
+                    pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+                    mini_map_width = width * pixel_width
+                    mini_map_x = screen_width - mini_map_width  # Flush to right edge
+                    if mini_map_x < 0:
+                        mini_map_x = 20  # Fallback to left side if too wide
+
                     self.mini_view.pixels_across = width
                     self.mini_view.pixels_tall = height
                     self.mini_view.pixels = self.pixels
                     self.mini_view.dirty_pixels = [True] * len(self.pixels)
                     pixel_width, pixel_height = self.mini_view.pixels_per_pixel(width, height)
                     self.mini_view.image = pygame.Surface((width * pixel_width, height * pixel_height))
-                    self.mini_view.rect = self.mini_view.image.get_rect(x=self.mini_view.rect.x, y=self.mini_view.rect.y)
+                    self.mini_view.rect = self.mini_view.image.get_rect(x=mini_map_x, y=24)  # Flush to top
 
             # Update the canvas pixels
             for y, row in enumerate(rows):
@@ -1134,11 +1216,24 @@ class MiniView(BitmappySprite):
         screen_info = pygame.display.Info()
         screen_width = screen_info.current_w
 
+        # Calculate mini map size (2x2 pixels per sprite pixel)
+        pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+        mini_map_width = pixels_across * pixel_width
+        mini_map_height = pixels_tall * pixel_height
+
+        # Position mini map flush to the right edge and top
+        mini_map_x = screen_width - mini_map_width  # Flush to right edge
+        mini_map_y = 24  # Flush to top (below menu bar)
+
+        # Ensure mini map doesn't go off screen
+        if mini_map_x < 0:
+            mini_map_x = 20  # Fallback to left side if too wide
+
         # Create miniview - position in top right corner
         self.mini_view = MiniView(
             pixels=self.pixels,
-            x=screen_width - (pixels_across * 2) - 10,
-            y=32,
+            x=mini_map_x,
+            y=mini_map_y,
             width=pixels_across,
             height=pixels_tall,
             groups=groups
@@ -1338,6 +1433,16 @@ class MiniView(BitmappySprite):
             # Validate dimensions
             width = len(rows[0])
             height = len(rows)
+
+            # Check that all rows have the same width
+            for i, row in enumerate(rows):
+                if len(row) != width:
+                    raise ValueError(
+                        f"Row {i} has width {len(row)} but expected {width}. "
+                        f"All rows must have the same width. "
+                        f"Row {i}: '{row}'"
+                    )
+
             if width != self.pixels_across or height != self.pixels_tall:
                 raise ValueError(
                     f"Image dimensions {width}x{height} don't match canvas "
@@ -1531,6 +1636,7 @@ class AIRequest:
     """Data structure for AI requests."""
     prompt: str
     request_id: str
+    messages: list[dict[str, str]]
 
 @dataclass
 class AIResponse:
@@ -1539,7 +1645,7 @@ class AIResponse:
     error: Optional[str] = None
 
 def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
-             response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]") -> None:
+              response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]") -> None:
     """Worker process for handling AI requests.
 
     Args:
@@ -1557,41 +1663,81 @@ def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
         log.addHandler(handler)
 
     log.info("AI worker process initializing...")
+    log.debug(f"AI_MODEL: {AI_MODEL}")
+    log.debug(f"AI_TIMEOUT: {AI_TIMEOUT}")
 
     try:
         log.info("Attempting to import aisuite...")
         import aisuite as ai
-        log.info("AI worker process started")
+        log.info("aisuite imported successfully")
+        log.debug(f"aisuite version: {getattr(ai, '__version__', 'unknown')}")
 
         log.info("Initializing AI client...")
         client = ai.Client()
-        log.info("AI client initialized")
+        log.info("AI client initialized successfully")
+        log.debug(f"Client type: {type(client)}")
 
+        request_count = 0
         while True:
             try:
-                log.info("Waiting for next request...")
                 request = request_queue.get()
+                request_count += 1
+                log.info(f"Processing AI request #{request_count}")
+
                 if request is None:  # Shutdown signal
                     log.info("Received shutdown signal, closing AI worker")
                     break
 
-                log.info(f"Processing AI request: {request.prompt[:50]}...")
-
+                # Use the full conversation context from the request
+                log.info("Making API call to AI service...")
                 response = client.chat.completions.create(
                     model=AI_MODEL,
-                    messages=[
-                        {"role": "user", "content": request.prompt}
-                    ]
+                    messages=request.messages
                 )
 
-                log.info("AI response received, sending back to main process")
-                response_queue.put((
-                    request.request_id,
-                    AIResponse(content=response.choices[0].message.content)
-                ))
+                log.info("AI response received from API")
+
+                # Extract response content
+                if hasattr(response, 'choices') and response.choices:
+                    first_choice = response.choices[0]
+
+                    if hasattr(first_choice, 'message'):
+                        message = first_choice.message
+
+                        if hasattr(message, 'content'):
+                            content = message.content
+                            log.info(f"Response content length: {len(content) if content else 0}")
+
+                            # Create response object
+                            ai_response = AIResponse(content=content)
+
+                            # Send response back
+                            response_data = (request.request_id, ai_response)
+                            response_queue.put(response_data)
+                            log.info("Response sent successfully")
+                        else:
+                            log.error("No 'content' attribute in message")
+                            response_queue.put((
+                                request.request_id,
+                                AIResponse(content=None, error="No content in response message")
+                            ))
+                    else:
+                        log.error("No 'message' attribute in choice")
+                        response_queue.put((
+                            request.request_id,
+                            AIResponse(content=None, error="No message in response choice")
+                        ))
+                else:
+                    log.error("No choices in response or empty choices")
+                    response_queue.put((
+                        request.request_id,
+                        AIResponse(content=None, error="No choices in response")
+                    ))
 
             except Exception as e:
                 log.error(f"Error processing AI request: {e}")
+                import traceback
+                log.error(f"Full traceback: {traceback.format_exc()}")
                 if request:
                     response_queue.put((
                         request.request_id,
@@ -1599,9 +1745,13 @@ def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
                     ))
     except ImportError as e:
         log.error(f"Failed to import aisuite: {e}")
+        import traceback
+        log.error(f"Import error traceback: {traceback.format_exc()}")
         raise
     except Exception as e:
         log.error(f"Fatal error in AI worker process: {e}")
+        import traceback
+        log.error(f"Fatal error traceback: {traceback.format_exc()}")
         raise
 
 class MiniView(BitmappySprite):
@@ -2058,11 +2208,11 @@ class BitmapEditorScene(Scene):
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
 
-        # Calculate debug text box position and size
-        debug_x = self.color_well.rect.right + well_padding  # Start after color well
-        debug_y = self.canvas.rect.bottom + well_padding  # Position below canvas
-        debug_width = self.screen_width - debug_x - well_padding  # Width from color well to right edge
-        debug_height = (self.screen_height - debug_y - well_padding)  # Height from canvas bottom to screen bottom
+        # Calculate debug text box position and size - align to bottom right corner
+        debug_width = 300  # Fixed width for AI chat box
+        debug_height = 200  # Fixed height for AI chat box
+        debug_x = self.screen_width - debug_width  # Align to right edge
+        debug_y = self.screen_height - debug_height  # Align to bottom edge
 
         # Create the debug text box
         self.debug_text = MultiLineTextBox(
@@ -2224,11 +2374,17 @@ class BitmapEditorScene(Scene):
 
         if trigger.name == 'R':
             self.red_slider.value = value
+            self.log.debug(f'Updated red slider to: {value}')
         elif trigger.name == 'G':
             self.green_slider.value = value
+            self.log.debug(f'Updated green slider to: {value}')
         elif trigger.name == 'B':
             self.blue_slider.value = value
+            self.log.debug(f'Updated blue slider to: {value}')
 
+        # Debug: Log current slider values
+        self.log.debug(f'Current slider values - R: {self.red_slider.value}, G: {self.green_slider.value}, B: {self.blue_slider.value}')
+        
         self.color_well.active_color = (
             self.red_slider.value,
             self.green_slider.value,
@@ -2353,11 +2509,21 @@ class BitmapEditorScene(Scene):
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
         self.log.info(f"AI Sprite Generation Request: '{text}'")
+        self.log.debug(f"Text length: {len(text)}")
+        self.log.debug(f"Text type: {type(text)}")
 
         # Only process AI requests if we have an active queue
         if not self.ai_request_queue:
+            self.log.error("AI request queue is not available")
             if hasattr(self, 'debug_text'):
                 self.debug_text.text = "AI processing not available"
+            return
+
+        # Check AI process status
+        if hasattr(self, 'ai_process') and self.ai_process and not self.ai_process.is_alive():
+            self.log.error("AI process is not alive")
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = "AI process not available"
             return
 
         messages: list[dict[str, str]] = [
@@ -2432,6 +2598,10 @@ class BitmapEditorScene(Scene):
 
                     I'll ensure the pixel layout uses only the defined color indices.
                 """.strip()
+            },
+            {
+                "role": "user",
+                "content": f"{text.strip()} (current dimensions: {self.canvas.pixels_across}x{self.canvas.pixels_tall})"
             }
         ]
 
@@ -2439,15 +2609,18 @@ class BitmapEditorScene(Scene):
             # Create unique request ID
             request_id = str(time.time())
 
-            # Combine original prompt with training messages
-            full_prompt = text.strip()
-            messages.append({
-                "role": "user",
-                "content": full_prompt
-            })
+            # # Combine original prompt with training messages
+            # full_prompt = messages
 
-            # Send request to worker
-            request = AIRequest(prompt=full_prompt, request_id=request_id)
+            # messages.append({
+            #     "role": "user",
+            #     "content": full_prompt
+            # })
+
+            # Send request to worker with full conversation context
+            request = AIRequest(prompt=messages, request_id=request_id, messages=messages)
+            self.log.info(f"Submitting AI request: {request}")
+
             self.ai_request_queue.put(request)
 
             # Store request ID
@@ -2455,7 +2628,7 @@ class BitmapEditorScene(Scene):
 
             # Update UI to show pending state
             if hasattr(self, 'debug_text'):
-                self.debug_text.text = "Processing AI request..."
+                self.debug_text.text = f"Processing AI request... (ID: {request_id})"
 
         except Exception as e:
             self.log.error(f"Error submitting AI request: {e}")
@@ -2475,16 +2648,27 @@ class BitmapEditorScene(Scene):
         # Check if we're in the main process
         if multiprocessing.current_process().name == 'MainProcess':
             self.log.info("Initializing AI worker process...")
-            self.ai_request_queue = multiprocessing.Queue()
-            self.ai_response_queue = multiprocessing.Queue()
-            self.ai_process = multiprocessing.Process(
-                target=ai_worker,
-                args=(self.ai_request_queue, self.ai_response_queue),
-                daemon=True
-            )
-            self.log.info("Starting AI worker process...")
-            self.ai_process.start()
-            self.log.info("AI worker process started with PID: %d", self.ai_process.pid)
+
+            try:
+                self.ai_request_queue = multiprocessing.Queue()
+                self.ai_response_queue = multiprocessing.Queue()
+
+                self.ai_process = multiprocessing.Process(
+                    target=ai_worker,
+                    args=(self.ai_request_queue, self.ai_response_queue),
+                    daemon=True
+                )
+
+                self.ai_process.start()
+                self.log.info(f"AI worker process started with PID: {self.ai_process.pid}")
+
+            except Exception as e:
+                self.log.error(f"Error initializing AI worker process: {e}")
+                self.ai_request_queue = None
+                self.ai_response_queue = None
+                self.ai_process = None
+        else:
+            self.log.warning("Not in main process, AI processing not available")
 
     def update(self):
         """Update scene state."""
@@ -2494,12 +2678,22 @@ class BitmapEditorScene(Scene):
         if hasattr(self, 'ai_response_queue') and self.ai_response_queue:
             try:
                 response_data = self.ai_response_queue.get_nowait()
+
                 if response_data:
                     request_id, response = response_data
                     self.log.info(f"Got AI response for request {request_id}")
 
                     # Create temp file with .ini extension
                     if response.content is not None:
+                        self.log.info(f"AI response received, content length: {len(response.content)}")
+
+                        # Debug: Dump the sprite content
+                        self.log.info("=== AI GENERATED SPRITE CONTENT ===")
+                        self.log.info(f"Content preview (first 500 chars):\n{response.content[:500]}")
+                        if len(response.content) > 500:
+                            self.log.info(f"... (content continues, total length: {len(response.content)})")
+                        self.log.info("=== END SPRITE CONTENT ===")
+
                         with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as tmp:
                             tmp.write(response.content)
                             tmp_path = tmp.name
@@ -2507,19 +2701,26 @@ class BitmapEditorScene(Scene):
 
                         # Load the sprite from the temp file
                         try:
-                            self.canvas.load(filename=tmp_path)
+                            self.log.info("Attempting to load sprite from AI content...")
+                            self.canvas.on_load_file_event(tmp_path)
+                            self.log.info("AI sprite loaded successfully")
                             if hasattr(self, 'debug_text'):
                                 self.debug_text.text = "AI sprite loaded successfully"
+
+                            # Keep temp file for debugging even on success
+                            self.log.info(f"DEBUGGING: Temp file preserved at: {tmp_path}")
+                            self.log.info("DEBUGGING: File kept for inspection")
+
                         except Exception as e:
                             self.log.error(f"Error loading AI sprite: {e}")
+                            import traceback
+                            self.log.error(f"Load error traceback: {traceback.format_exc()}")
                             if hasattr(self, 'debug_text'):
                                 self.debug_text.text = f"Error loading sprite: {str(e)}"
 
-                        # Clean up temp file
-                        try:
-                            os.unlink(tmp_path)
-                        except Exception as e:
-                            self.log.error(f"Error cleaning up temp file: {e}")
+                            # Keep temp file for debugging when there's an error
+                            self.log.error(f"DEBUGGING: Temp file preserved at: {tmp_path}")
+                            self.log.error("DEBUGGING: File kept for error inspection")
                     else:
                         self.log.error("AI response content is None, cannot save sprite")
                         if hasattr(self, 'debug_text'):
@@ -2530,34 +2731,54 @@ class BitmapEditorScene(Scene):
                         del self.pending_ai_requests[request_id]
 
             except Empty:
+                # This is normal - no responses available
                 pass
+            except Exception as e:
+                self.log.error(f"Error processing AI response: {e}")
 
     def cleanup(self):
         """Clean up resources."""
+        self.log.info("Starting AI cleanup...")
+
         # Signal AI worker to shut down
-        if hasattr(self, 'ai_request_queue'):
+        if hasattr(self, 'ai_request_queue') and self.ai_request_queue:
             try:
+                self.log.info("Sending shutdown signal to AI worker...")
                 self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
-            except:
-                pass  # Ignore queue errors during shutdown
+                self.log.info("Shutdown signal sent successfully")
+            except Exception as e:
+                self.log.error(f"Error sending shutdown signal: {e}")
 
         # Wait for AI process to finish
-        if hasattr(self, 'ai_process'):
+        if hasattr(self, 'ai_process') and self.ai_process:
             try:
+                self.log.info("Waiting for AI process to finish...")
                 self.ai_process.join(timeout=1.0)
                 if self.ai_process.is_alive():
+                    self.log.info("AI process still alive, terminating...")
                     self.ai_process.terminate()
                     self.ai_process.join(timeout=0.1)  # Short timeout for terminate
                     if self.ai_process.is_alive():
+                        self.log.info("AI process still alive, force killing...")
                         self.ai_process.kill()  # Force kill if still alive
-            except:
-                pass  # Ignore process cleanup errors
+                self.log.info("AI process cleanup completed")
+            except Exception as e:
+                self.log.error(f"Error during AI process cleanup: {e}")
 
         # Close queues
-        if hasattr(self, 'ai_request_queue'):
-            self.ai_request_queue.close()
-        if hasattr(self, 'ai_response_queue'):
-            self.ai_response_queue.close()
+        if hasattr(self, 'ai_request_queue') and self.ai_request_queue:
+            try:
+                self.ai_request_queue.close()
+                self.log.info("AI request queue closed")
+            except Exception as e:
+                self.log.error(f"Error closing request queue: {e}")
+
+        if hasattr(self, 'ai_response_queue') and self.ai_response_queue:
+            try:
+                self.ai_response_queue.close()
+                self.log.info("AI response queue closed")
+            except Exception as e:
+                self.log.error(f"Error closing response queue: {e}")
 
         super().cleanup()
 
