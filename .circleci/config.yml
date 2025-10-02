@@ -11,7 +11,7 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.13.7"
+    default: "3.12.11"
 
 orbs:
   win: circleci/windows@5.1.0
