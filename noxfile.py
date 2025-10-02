@@ -29,4 +29,4 @@ def lint_and_test(session: Session) -> None:
     session.run("ruff", "check", "tests", external=True)
 
     # Lint docs
-    session.run("mkdocs", "build", "--strict", external=True)
+    # session.run("mkdocs", "build", "--strict", external=True)

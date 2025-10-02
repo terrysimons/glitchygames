@@ -752,7 +752,7 @@ class CanvasSprite(BitmappySprite):
 
         # Calculate mini map size (2x2 pixels per sprite pixel)
         pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
-        mini_map_width = self.pixels_across * self.pixel_width
+        mini_map_width = self.pixels_across * pixel_width
 
         # Position mini map flush to the right edge and top
         mini_map_x = screen_width - mini_map_width  # Flush to right edge
