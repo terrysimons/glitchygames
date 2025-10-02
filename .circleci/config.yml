@@ -14,7 +14,7 @@ parameters:
     default: "3.13.7"
   XCODE_LATEST_VERSION:
     type: string
-    default: "26.0.0"
+    default: "16.4.0"
 
 orbs:
   win: circleci/windows@5.1.0
