@@ -68,6 +68,7 @@ def resource_path(*path_segments) -> Path:
 
     Returns:
         Path: Absolute path to the resource
+
     """
     if hasattr(sys, "_MEIPASS"):
         # Running in PyInstaller bundle
@@ -905,7 +906,7 @@ class CanvasSprite(BitmappySprite):
         try:
             self.save(filename=filename, file_format="ini")  # Changed back to 'ini'
         except (OSError, ValueError, KeyError) as e:
-            self.log.exception(f"Error saving file: {e}")
+            self.log.exception("Error saving file")
             raise
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
@@ -929,7 +930,7 @@ class CanvasSprite(BitmappySprite):
                     content = f.read()
                 print(f"Raw file content:\n{content}")
             except (FileNotFoundError, PermissionError, OSError) as e:
-                self.log.exception(f"Error reading file {filename}: {e}")
+                self.log.exception(f"Error reading file {filename}")
                 return
 
             # Split content into sections
@@ -1156,9 +1157,13 @@ class MiniView(BitmappySprite):
         if self.rect.collidepoint(event.pos):
             self.log.info(f"MiniView clicked at {event.pos}, rect is {self.rect}")
             old_color = self.background_color
-            self.background_color_index = (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+            self.background_color_index = (
+                (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+            )
             self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-            self.log.info(f"MiniView background color changing from {old_color} to {self.background_color}")
+            self.log.info(
+                f"MiniView background color changing from {old_color} to {self.background_color}"
+            )
             self.dirty = 1
             self.log.info("Setting dirty flag and calling force_redraw")
             self.force_redraw()
@@ -1244,7 +1249,7 @@ class MiniView(BitmappySprite):
         screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
 
         # Use existing attributes if they exist
-        if hasattr(self, 'pixels_across') and hasattr(self, 'pixels_tall'):
+        if hasattr(self, "pixels_across") and hasattr(self, "pixels_tall"):
             # Initialize pixels with magenta as the transparent/background color
             self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
             self.dirty_pixels = [True] * len(self.pixels)
@@ -1419,7 +1424,7 @@ class MiniView(BitmappySprite):
         try:
             self.save(filename=filename)
         except (OSError, ValueError, KeyError) as e:
-            self.log.exception(f"Error saving file: {e}")
+            self.log.exception("Error saving file")
             raise
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
@@ -1513,7 +1518,7 @@ class MiniView(BitmappySprite):
                 self.mini_view.force_redraw()
 
         except Exception as e:
-            self.log.error(f"Error loading file: {e}")
+            self.log.exception("Error loading file")
             raise
 
     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
@@ -1553,10 +1558,10 @@ class MiniView(BitmappySprite):
             )
 
         except ValueError as e:
-            self.log.exception(f"Invalid dimensions format '{dimensions}': {e}")
-            self.log.error("Expected format: WxH (e.g., '32x32')")
+            self.log.exception(f"Invalid dimensions format '{dimensions}'")
+            self.log.exception("Expected format: WxH (e.g., '32x32')")
         except (OSError, KeyError, AttributeError) as e:
-            self.log.exception(f"Unexpected error in on_new_file_event: {e}")
+            self.log.exception("Unexpected error in on_new_file_event")
 
     def save(self, filename: str, format: str = None) -> None:
         """Save sprite to a file.
@@ -1634,7 +1639,7 @@ class MiniView(BitmappySprite):
             self.log.info(f"Saved sprite to {filename} in {format} format")
 
         except Exception as e:
-            self.log.error(f"Error saving file: {e}")
+            self.log.exception("Error saving file")
             raise
 
     def deflate(self) -> dict:
@@ -1665,7 +1670,7 @@ class MiniView(BitmappySprite):
                 # Reset generator
                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
             except StopIteration:
-                self.log.error("Generator empty on first triplet!")
+                self.log.exception("Generator empty on first triplet!")
                 raise
 
             # Now proceed with the rest of deflate
@@ -1679,7 +1684,7 @@ class MiniView(BitmappySprite):
             return config
 
         except Exception as e:
-            self.log.error(f"Error in deflate: {e}")
+            self.log.exception("Error in deflate")
             raise
 
         # Clear cursor if mouse is outside window
@@ -1809,17 +1814,17 @@ def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
                     ))
 
             except (ValueError, KeyError, AttributeError, OSError) as e:
-                log.exception(f"Error processing AI request: {e}")
+                log.exception("Error processing AI request")
                 if request:
                     response_queue.put((
                         request.request_id,
                         AIResponse(content=None, error=str(e))
                     ))
     except ImportError as e:
-        log.exception(f"Failed to import aisuite: {e}")
+        log.exception("Failed to import aisuite")
         raise
     except (OSError, ValueError, KeyError, AttributeError) as e:
-        log.exception(f"Fatal error in AI worker process: {e}")
+        log.exception("Fatal error in AI worker process")
         raise
 
 class MiniView(BitmappySprite):
@@ -1878,9 +1883,13 @@ class MiniView(BitmappySprite):
         if self.rect.collidepoint(event.pos):
             self.log.info(f"MiniView clicked at {event.pos}, rect is {self.rect}")
             old_color = self.background_color
-            self.background_color_index = (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+            self.background_color_index = (
+                (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+            )
             self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-            self.log.info(f"MiniView background color changing from {old_color} to {self.background_color}")
+            self.log.info(
+                f"MiniView background color changing from {old_color} to {self.background_color}"
+            )
             self.dirty = 1
             self.log.info("Setting dirty flag and calling force_redraw")
             self.force_redraw()
@@ -2109,7 +2118,9 @@ class BitmapEditorScene(Scene):
 
         # Calculate available space (adjusted for taller menu bar)
         bottom_margin = 100  # Space needed for sliders and color well
-        available_height = self.screen_height - bottom_margin - menu_bar_height  # Use menu_bar_height instead of 32
+        available_height = (
+            self.screen_height - bottom_margin - menu_bar_height
+        )  # Use menu_bar_height instead of 32
 
         # Calculate pixel size to fit the canvas in the available space
         width, height = options["size"].split("x")
@@ -2118,7 +2129,8 @@ class BitmapEditorScene(Scene):
 
         pixel_size = min(
             available_height // pixels_tall,  # Height-based size
-            (self.screen_width * 2 // 3) // pixels_across  # Width-based size (use 2/3 of screen width)
+            # Width-based size (use 2/3 of screen width)
+            (self.screen_width * 2 // 3) // pixels_across
         )
 
         # Create the canvas with the calculated pixel dimensions
@@ -2178,11 +2190,14 @@ class BitmapEditorScene(Scene):
 
         # Create the color well to the right of the sliders AND their labels
         well_size = 64
-        total_slider_width = slider_width + label_padding + label_width  # Full width including label
+        total_slider_width = (
+            slider_width + label_padding + label_width  # Full width including label
+        )
 
         self.color_well = ColorWellSprite(
             name="Color Well",
-            x=slider_x + total_slider_width + well_padding,  # Position after sliders + labels + padding
+            # Position after sliders + labels + padding
+            x=slider_x + total_slider_width + well_padding,
             y=self.screen_height - 70,  # Align with top slider
             width=well_size,
             height=well_size,
@@ -2312,7 +2327,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Parsed dimensions: {width}x{height}")
 
             # Calculate new pixel size to fit the canvas in the available space
-            available_height = self.screen_height - 100 - 24  # Adjust for bottom margin and menu bar
+            # Adjust for bottom margin and menu bar
+            available_height = self.screen_height - 100 - 24
             new_pixel_size = min(
                 available_height // height,  # Height-based size
                 (self.screen_width * 2 // 3) // width  # Width-based size (use 2/3 of screen width)
@@ -2349,9 +2365,15 @@ class BitmapEditorScene(Scene):
                 self.canvas.mini_view.pixels_tall = height
                 self.canvas.mini_view.pixels = self.canvas.pixels
                 self.canvas.mini_view.dirty_pixels = [True] * len(self.canvas.pixels)
-                pixel_width, pixel_height = self.canvas.mini_view.pixels_per_pixel(width, height)
-                self.canvas.mini_view.image = pygame.Surface((width * pixel_width, height * pixel_height))
-                self.canvas.mini_view.rect = self.canvas.mini_view.image.get_rect(x=mini_map_x, y=mini_map_y)
+                pixel_width, pixel_height = self.canvas.mini_view.pixels_per_pixel(
+                    width, height
+                )
+                self.canvas.mini_view.image = pygame.Surface(
+                    (width * pixel_width, height * pixel_height)
+                )
+                self.canvas.mini_view.rect = self.canvas.mini_view.image.get_rect(
+                    x=mini_map_x, y=mini_map_y
+                )
 
             # Update canvas dimensions and redraw
             self.canvas.update()
@@ -2360,8 +2382,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Canvas resized to {width}x{height} with pixel size {new_pixel_size}")
 
         except ValueError as e:
-            self.log.error(f"Invalid dimensions format '{dimensions}': {e}")
-            self.log.error("Expected format: WxH (e.g., '32x32')")
+            self.log.exception(f"Invalid dimensions format '{dimensions}'")
+            self.log.exception("Expected format: WxH (e.g., '32x32')")
 
         self.dirty = 1
 
@@ -2470,7 +2492,10 @@ class BitmapEditorScene(Scene):
             self.log.debug(f"Updated blue slider to: {value}")
 
         # Debug: Log current slider values
-        self.log.debug(f"Current slider values - R: {self.red_slider.value}, G: {self.green_slider.value}, B: {self.blue_slider.value}")
+        self.log.debug(
+            f"Current slider values - R: {self.red_slider.value}, "
+            f"G: {self.green_slider.value}, B: {self.blue_slider.value}"
+        )
 
         self.color_well.active_color = (
             self.red_slider.value,
@@ -2693,7 +2718,10 @@ class BitmapEditorScene(Scene):
             },
             {
                 "role": "user",
-                "content": f"{text.strip()} (current dimensions: {self.canvas.pixels_across}x{self.canvas.pixels_tall})"
+                "content": (
+                    f"{text.strip()} (current dimensions: "
+                    f"{self.canvas.pixels_across}x{self.canvas.pixels_tall})"
+                )
             }
         ]
 
@@ -2723,7 +2751,7 @@ class BitmapEditorScene(Scene):
                 self.debug_text.text = f"Processing AI request... (ID: {request_id})"
 
         except Exception as e:
-            self.log.error(f"Error submitting AI request: {e}")
+            self.log.exception("Error submitting AI request")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = f"Error: {str(e)}"
 
@@ -2755,7 +2783,7 @@ class BitmapEditorScene(Scene):
                 self.log.info(f"AI worker process started with PID: {self.ai_process.pid}")
 
             except Exception as e:
-                self.log.error(f"Error initializing AI worker process: {e}")
+                self.log.exception("Error initializing AI worker process")
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None
@@ -2777,16 +2805,24 @@ class BitmapEditorScene(Scene):
 
                     # Create temp file with .ini extension
                     if response.content is not None:
-                        self.log.info(f"AI response received, content length: {len(response.content)}")
+                        self.log.info(
+                            f"AI response received, content length: {len(response.content)}"
+                        )
 
                         # Debug: Dump the sprite content
                         self.log.info("=== AI GENERATED SPRITE CONTENT ===")
-                        self.log.info(f"Content preview (first 500 chars):\n{response.content[:500]}")
+                        self.log.info(
+                            f"Content preview (first 500 chars):\n{response.content[:500]}"
+                        )
                         if len(response.content) > 500:
-                            self.log.info(f"... (content continues, total length: {len(response.content)})")
+                            self.log.info(
+                                f"... (content continues, total length: {len(response.content)})"
+                            )
                         self.log.info("=== END SPRITE CONTENT ===")
 
-                        with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as tmp:
+                        with tempfile.NamedTemporaryFile(
+                            mode="w", suffix=".ini", delete=False
+                        ) as tmp:
                             tmp.write(response.content)
                             tmp_path = tmp.name
                             self.log.info(f"Saved AI response to temp file: {tmp_path}")
@@ -2804,17 +2840,17 @@ class BitmapEditorScene(Scene):
                             self.log.info("DEBUGGING: File kept for inspection")
 
                         except Exception as e:
-                            self.log.error(f"Error loading AI sprite: {e}")
+                            self.log.exception("Error loading AI sprite")
                             import traceback
-                            self.log.error(f"Load error traceback: {traceback.format_exc()}")
+                            self.log.exception(f"Load error traceback: {traceback.format_exc()}")
                             if hasattr(self, "debug_text"):
                                 self.debug_text.text = f"Error loading sprite: {str(e)}"
 
                             # Keep temp file for debugging when there's an error
-                            self.log.error(f"DEBUGGING: Temp file preserved at: {tmp_path}")
-                            self.log.error("DEBUGGING: File kept for error inspection")
+                            self.log.exception(f"DEBUGGING: Temp file preserved at: {tmp_path}")
+                            self.log.exception("DEBUGGING: File kept for error inspection")
                     else:
-                        self.log.error("AI response content is None, cannot save sprite")
+                        self.log.exception("AI response content is None, cannot save sprite")
                         if hasattr(self, "debug_text"):
                             self.debug_text.text = "AI response was empty"
 
@@ -2826,7 +2862,7 @@ class BitmapEditorScene(Scene):
                 # This is normal - no responses available
                 pass
             except Exception as e:
-                self.log.error(f"Error processing AI response: {e}")
+                self.log.exception("Error processing AI response")
 
     def cleanup(self):
         """Clean up resources."""
@@ -2839,7 +2875,7 @@ class BitmapEditorScene(Scene):
                 self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
                 self.log.info("Shutdown signal sent successfully")
             except Exception as e:
-                self.log.error(f"Error sending shutdown signal: {e}")
+                self.log.exception("Error sending shutdown signal")
 
         # Wait for AI process to finish
         if hasattr(self, "ai_process") and self.ai_process:
@@ -2855,7 +2891,7 @@ class BitmapEditorScene(Scene):
                         self.ai_process.kill()  # Force kill if still alive
                 self.log.info("AI process cleanup completed")
             except Exception as e:
-                self.log.error(f"Error during AI process cleanup: {e}")
+                self.log.exception("Error during AI process cleanup")
 
         # Close queues
         if hasattr(self, "ai_request_queue") and self.ai_request_queue:
@@ -2863,14 +2899,14 @@ class BitmapEditorScene(Scene):
                 self.ai_request_queue.close()
                 self.log.info("AI request queue closed")
             except Exception as e:
-                self.log.error(f"Error closing request queue: {e}")
+                self.log.exception("Error closing request queue")
 
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:
             try:
                 self.ai_response_queue.close()
                 self.log.info("AI response queue closed")
             except Exception as e:
-                self.log.error(f"Error closing response queue: {e}")
+                self.log.exception("Error closing response queue")
 
         super().cleanup()
 
@@ -2932,7 +2968,7 @@ class BitmapEditorScene(Scene):
                 # Reset generator
                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
             except StopIteration:
-                self.log.error("Generator empty on first triplet!")
+                self.log.exception("Generator empty on first triplet!")
                 raise
 
             # Now proceed with the rest of deflate
@@ -2946,7 +2982,7 @@ class BitmapEditorScene(Scene):
             return config
 
         except Exception as e:
-            self.log.error(f"Error in deflate: {e}")
+            self.log.exception("Error in deflate")
             raise
 
 
