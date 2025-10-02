@@ -1681,30 +1681,6 @@ class SliderSprite(BitmappySprite):
         # Set up appearance
         self.update_slider_appearance()
 
-        # Create the text sprite
-        text_x = x + width + 10
-        self.text_sprite = TextSprite(
-            x=text_x,
-            y=y - (height // 2),
-            width=32,
-            height=20,
-            text='0',
-            groups=groups,
-        )
-
-        # Set color based on slider name
-        if name == 'R':
-            self.color = (255, 0, 0)
-        elif name == 'G':
-            self.color = (0, 255, 0)
-        elif name == 'B':
-            self.color = (0, 0, 255)
-        else:
-            self.color = (128, 128, 128)
-
-        # Set up appearance
-        self.update_slider_appearance()
-
         # Make sure we update
         self.dirty = 2
         self.slider_knob.dirty = 2
