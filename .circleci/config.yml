@@ -69,7 +69,7 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: "16.4.0"
+      xcode: "16.2.0"
     resource_class: macos.m1.medium.gen1
 
 
@@ -80,13 +80,13 @@ jobs:
       - run:
           name: "Build and Test macOS"
           command: |
-            rm -rf ~/.pyenv
-            git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            cd ~/.pyenv && src/configure && make -C src
-            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+            # rm -rf ~/.pyenv
+            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+            # echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
+            # cd ~/.pyenv && src/configure && make -C src
+            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
+            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
             # echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
             # source ~/.bashrc
             curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
