@@ -70,7 +70,7 @@ jobs:
   build-and-test-macos:
     macos:
       xcode: "16.4.0"
-    resource_class: m2pro.medium
+    resource_class: macos.m1.medium.gen1
 
 
     steps:
