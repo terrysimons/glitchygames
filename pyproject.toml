@@ -156,6 +156,8 @@ lint.ignore = [
   "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
   "EM101", # Exception must not use a string literal, assign to variable first
   "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
+  "D203", # Incorrect blank line before class (conflicts with D211)
+  "D213", # Multi-line summary second line (conflicts with D212)
 ]
 lint.exclude = []
 lint.fixable = [
@@ -173,7 +175,6 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.format]
-quote-style = "single"
 docstring-code-format = true
 
 [tool.lint.flake8-annotations]

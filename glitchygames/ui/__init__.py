@@ -80,7 +80,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         # Create RGBA colors
         menu_bg_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
-        border_color = (WHITE[0], WHITE[1], WHITE[2], 128)   # Semi-transparent white
+        border_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
 
         # Draw with alpha
         pygame.draw.rect(self.image, menu_bg_color, self.rect)
@@ -345,7 +345,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             # if sprite.name in self.menu_items:
             if isinstance(sprite, MenuItem):
                 self.log.debug(
-                    f"{type(self)} {self.name} " f"Mouse button up on {self.name} at {mouse}"
+                    f"{type(self)} {self.name} Mouse button up on {self.name} at {mouse}"
                 )
                 sprite.on_left_mouse_button_down_event(event)
 
@@ -701,8 +701,7 @@ class MenuItem(BitmappySprite):
         for collided_sprite in collided_sprites:
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f"Mouse enter on {collided_sprite.name} "
-                    f"{collided_sprite.rect} at {mouse.rect}"
+                    f"Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}"
                 )
                 collided_sprite.on_mouse_motion_event(event)
 
@@ -735,8 +734,7 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f"Mouse enter on {collided_sprite.name} "
-                    f"{collided_sprite.rect} at {mouse.rect}"
+                    f"Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}"
                 )
                 collided_sprite.on_mouse_enter_event(event)
 
@@ -768,7 +766,7 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f"Mouse exit on {collided_sprite.name} " f"{collided_sprite.rect} at {mouse}"
+                    f"Mouse exit on {collided_sprite.name} {collided_sprite.rect} at {mouse}"
                 )
                 collided_sprite.on_mouse_exit_event(event)
 
@@ -1965,9 +1963,7 @@ class SliderSprite(BitmappySprite):
             self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
             # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(
-                0, {"name": self.name, "value": self._value}
-            )
+            trigger = pygame.event.Event(0, {"name": self.name, "value": self._value})
             if hasattr(self.parent, "on_slider_event"):
                 self.log.info(
                     f"Slider {self.name} calling on_slider_event with value {self._value}"
@@ -1987,9 +1983,7 @@ class SliderSprite(BitmappySprite):
             self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
             # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(
-                0, {"name": self.name, "value": self._value}
-            )
+            trigger = pygame.event.Event(0, {"name": self.name, "value": self._value})
             if hasattr(self.parent, "on_slider_event"):
                 self.log.info(
                     f"Slider {self.name} calling on_slider_event with value {self._value}"
@@ -2232,7 +2226,7 @@ class InputDialog(BitmappySprite):
             width=75,
             height=20,
             parent=self,
-            groups=groups
+            groups=groups,
         )
 
         # Confirm to left of cancel
@@ -2243,7 +2237,7 @@ class InputDialog(BitmappySprite):
             width=75,
             height=20,
             parent=self,
-            groups=groups
+            groups=groups,
         )
 
         self.input_box.activate()
@@ -2286,15 +2280,15 @@ class InputDialog(BitmappySprite):
         )
         self.image.blit(
             self.cancel_button.image,
-            (self.cancel_button.rect.x - self.rect.x, self.cancel_button.rect.y - self.rect.y)
+            (self.cancel_button.rect.x - self.rect.x, self.cancel_button.rect.y - self.rect.y),
         )
         self.image.blit(
             self.confirm_button.image,
-            (self.confirm_button.rect.x - self.rect.x, self.confirm_button.rect.y - self.rect.y)
+            (self.confirm_button.rect.x - self.rect.x, self.confirm_button.rect.y - self.rect.y),
         )
         self.image.blit(
             self.input_box.image,
-            (self.input_box.rect.x - self.rect.x, self.input_box.rect.y - self.rect.y)
+            (self.input_box.rect.x - self.rect.x, self.input_box.rect.y - self.rect.y),
         )
 
     def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -2429,7 +2423,7 @@ class MultiLineTextBox(BitmappySprite):
             name=name,
             parent=parent,
             groups=groups,
-            focusable=True
+            focusable=True,
         )
 
         self._text = text
@@ -2508,7 +2502,7 @@ class MultiLineTextBox(BitmappySprite):
             lines = self._text.split("\n")
 
             # Adjust scroll if needed to keep cursor visible
-            cursor_line = self._text[:self.cursor_pos].count("\n")
+            cursor_line = self._text[: self.cursor_pos].count("\n")
             if cursor_line - self.scroll_offset >= self.visible_lines:
                 self.scroll_offset = cursor_line - self.visible_lines + 1
             elif cursor_line < self.scroll_offset:
@@ -2540,19 +2534,20 @@ class MultiLineTextBox(BitmappySprite):
 
             if self.cursor_visible:
                 # Count newlines before cursor to determine y position
-                lines_before_cursor = self._text[:self.cursor_pos].count("\n")
+                lines_before_cursor = self._text[: self.cursor_pos].count("\n")
                 # Only draw cursor if it's in the visible range
                 if (
-                    self.scroll_offset <= lines_before_cursor
+                    self.scroll_offset
+                    <= lines_before_cursor
                     < self.scroll_offset + self.visible_lines
                 ):
                     # Get text width of current line up to cursor
                     current_line_start = (
-                        self._text[:self.cursor_pos].rindex("\n") + 1
-                        if "\n" in self._text[:self.cursor_pos]
+                        self._text[: self.cursor_pos].rindex("\n") + 1
+                        if "\n" in self._text[: self.cursor_pos]
                         else 0
                     )
-                    current_line_text = self._text[current_line_start:self.cursor_pos]
+                    current_line_text = self._text[current_line_start : self.cursor_pos]
                     text_width = self._get_text_width(current_line_text)
 
                     cursor_x = text_width + 5
@@ -2563,7 +2558,7 @@ class MultiLineTextBox(BitmappySprite):
                         self.cursor_color,
                         (cursor_x, cursor_y),
                         (cursor_x, cursor_y + 20),
-                        2
+                        2,
                     )
 
         # Force continuous updates
@@ -2612,10 +2607,12 @@ class MultiLineTextBox(BitmappySprite):
             return
 
         mods = pygame.key.get_mods()
-        is_paste = (event.key == pygame.K_v and
-                    ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
-        is_copy = (event.key == pygame.K_c and
-                   ((mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)))
+        is_paste = event.key == pygame.K_v and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
+        is_copy = event.key == pygame.K_c and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
         is_shift = bool(mods & pygame.KMOD_SHIFT)
         is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
 
@@ -2667,8 +2664,8 @@ class MultiLineTextBox(BitmappySprite):
                 if pyperclip:
                     clipboard_text = pyperclip.paste()
                 if clipboard_text:
-                    before_cursor = self._text[:self.cursor_pos]
-                    after_cursor = self._text[self.cursor_pos:]
+                    before_cursor = self._text[: self.cursor_pos]
+                    after_cursor = self._text[self.cursor_pos :]
                     self._text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
                     self.text = self._text
@@ -2679,27 +2676,27 @@ class MultiLineTextBox(BitmappySprite):
         # Handle regular key events
         if event.key == pygame.K_RETURN:
             # Handle newline
-            before_cursor = self._text[:self.cursor_pos]
-            after_cursor = self._text[self.cursor_pos:]
+            before_cursor = self._text[: self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos :]
             self._text = before_cursor + "\n" + after_cursor
             self.cursor_pos += 1
             self.text = self._text
         elif event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
-                self._text = self._text[:self.cursor_pos - 1] + self._text[self.cursor_pos:]
+                self._text = self._text[: self.cursor_pos - 1] + self._text[self.cursor_pos :]
                 self.cursor_pos -= 1
                 self.text = self._text
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
-                self._text = self._text[:self.cursor_pos] + self._text[self.cursor_pos + 1:]
+                self._text = self._text[: self.cursor_pos] + self._text[self.cursor_pos + 1 :]
                 self.text = self._text
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
         elif event.key == pygame.K_RIGHT:
             self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
         elif event.unicode and event.unicode >= " ":
-            before_cursor = self._text[:self.cursor_pos]
-            after_cursor = self._text[self.cursor_pos:]
+            before_cursor = self._text[: self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos :]
             self._text = before_cursor + event.unicode + after_cursor
             self.cursor_pos += 1
             self.text = self._text

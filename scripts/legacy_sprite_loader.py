@@ -227,8 +227,8 @@ class BitmappyLegacySprite(Sprite):
         """
         description = (
             f'Name: {self.name}\n"'
-            f'Dimensions: {self.width}x{self.height}'
-            f'\nColor Key: {self.color_key}\n'
+            f"Dimensions: {self.width}x{self.height}"
+            f"\nColor Key: {self.color_key}\n"
         )
 
         for row in self.pixels:

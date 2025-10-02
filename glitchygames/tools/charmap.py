@@ -129,6 +129,4 @@ if __name__ == "__main__":
     # Log the characters as a single message to avoid excessive logging
     sample_chars = chars[:MAX_CHARS_TO_DISPLAY]
     truncation = "..." if len(chars) > MAX_CHARS_TO_DISPLAY else ""
-    LOG.info(
-        f"Generated {len(chars)} Unicode characters: {' '.join(sample_chars)}{truncation}"
-    )
+    LOG.info(f"Generated {len(chars)} Unicode characters: {' '.join(sample_chars)}{truncation}")

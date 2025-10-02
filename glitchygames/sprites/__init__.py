@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # ruff: noqa: FBT001, FBT002
 """Glitchy Games Engine sprite module."""
+
 from __future__ import annotations
 
 import collections
@@ -430,7 +431,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Left Mouse Drag Down Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Left Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_left_mouse_drag_up_event(
@@ -447,7 +448,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Left Mouse Drag Up Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_middle_mouse_drag_down_event(
@@ -464,7 +465,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Middle Mouse Drag Down Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Middle Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_middle_mouse_drag_up_event(
@@ -481,7 +482,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Middle Mouse Drag Up Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_right_mouse_drag_down_event(
@@ -498,7 +499,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Right Mouse Drag Down Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Right Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_right_mouse_drag_up_event(
@@ -515,7 +516,7 @@ class Sprite(RootSprite):
 
         """
         self.log.debug(
-            "Right Mouse Drag Up Event: " f"{type(self)}: event: {event}, trigger: {trigger}"
+            f"Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
         )
 
     def on_mouse_drag_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -560,7 +561,7 @@ class Sprite(RootSprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f"{type(self)}: " f"Left Mouse Button Up Event: {event} @ {self}")
+            self.log.debug(f"{type(self)}: Left Mouse Button Up Event: {event} @ {self}")
 
     def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle a middle mouse button up event.
@@ -591,7 +592,7 @@ class Sprite(RootSprite):
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f"{type(self)}: " f"Right Mouse Button Up Event: {event} @ {self}")
+            self.log.debug(f"{type(self)}: Right Mouse Button Up Event: {event} @ {self}")
 
     def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle a mouse button down event.
@@ -1059,9 +1060,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f"=== Starting load from {filename} ===")
 
         config = configparser.RawConfigParser(
-            dict_type=collections.OrderedDict,
-            empty_lines_in_values=True,
-            strict=True
+            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
         )
 
         # Read the raw file content first
@@ -1276,9 +1275,7 @@ class BitmappySprite(Sprite):
             for x in range(self.pixels_across):
                 pixel_color = self.pixels[y * self.pixels_across + x]
                 if pixel_color not in color_map:
-                    self.log.error(
-                    f"Color {pixel_color} not found in color_map"
-                )
+                    self.log.error(f"Color {pixel_color} not found in color_map")
                     # Use a default character for missing colors
                     row += "."
                     continue
@@ -1300,18 +1297,11 @@ class BitmappySprite(Sprite):
         """
         pixels_str = "\n".join(pixel_rows)
         return {
-            "sprite": {
-                "name": self.name or "unnamed",
-                "pixels": pixels_str
-            },
+            "sprite": {"name": self.name or "unnamed", "pixels": pixels_str},
             "colors": {
-                char: {
-                    "red": color[0],
-                    "green": color[1],
-                    "blue": color[2]
-                }
+                char: {"red": color[0], "green": color[1], "blue": color[2]}
                 for color, char in color_map.items()
-            }
+            },
         }
 
     def _create_ini_config(

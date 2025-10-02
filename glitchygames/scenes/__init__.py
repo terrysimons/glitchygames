@@ -104,7 +104,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if next_scene != self.active_scene:
             self.dt = 0
             self.timer = 0
-            self.log.info(f'Switching to scene "{next_scene}" ' f'from scene "{self.active_scene}"')
+            self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
 
             if self.active_scene:
                 self.active_scene._screenshot = self.active_scene.screenshot
@@ -156,7 +156,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
                 self.log.info(
                     f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-                    f' at {self.active_scene.target_fps} FPS'
+                    f" at {self.active_scene.target_fps} FPS"
                 )
 
                 # This controls how events are marshalled
@@ -358,8 +358,11 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # Check for focused sprites first
         if self.active_scene and self.active_scene.all_sprites:
-            focused_sprites = [sprite for sprite in self.active_scene.all_sprites
-                             if hasattr(sprite, "active") and sprite.active]
+            focused_sprites = [
+                sprite
+                for sprite in self.active_scene.all_sprites
+                if hasattr(sprite, "active") and sprite.active
+            ]
 
             if focused_sprites and event.type == pygame.KEYDOWN:
                 # Let the active scene handle it directly
@@ -887,8 +890,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"{type(self)}: On Key Up Event {event}")
 
         # Check for focused sprites first
-        focused_sprites = [sprite for sprite in self.all_sprites
-                          if hasattr(sprite, "active") and sprite.active]
+        focused_sprites = [
+            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
+        ]
 
         # Only process quit keys if no sprites are focused
         if not focused_sprites and event.key in {pygame.K_q, pygame.K_ESCAPE}:
@@ -930,7 +934,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             None
 
         """
-        breakpoint()
         # MENUITEM         menu, item
         self.log.debug(f"{type(self)}: On Menu Item Event {event}")
 
@@ -954,8 +957,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
         # Find currently focused sprites
-        focused_sprites = [sprite for sprite in self.all_sprites
-                          if hasattr(sprite, "active") and sprite.active]
+        focused_sprites = [
+            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
+        ]
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
 
         # If we clicked outside all sprites that can be focused, unfocus them
@@ -1213,8 +1217,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
         # Find currently focused sprites
-        focused_sprites = [sprite for sprite in self.all_sprites
-                          if hasattr(sprite, "active") and sprite.active]
+        focused_sprites = [
+            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
+        ]
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
 
         # If we clicked outside all sprites that can be focused, unfocus them
@@ -1727,8 +1732,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"{type(self)}: On Key Down Event {event}")
 
         # Find the currently focused sprite
-        focused_sprites = [sprite for sprite in self.all_sprites
-                          if hasattr(sprite, "active") and sprite.active]
+        focused_sprites = [
+            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
+        ]
 
         if focused_sprites:
             # If we have focused sprites, only they get the events

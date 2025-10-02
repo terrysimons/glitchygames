@@ -417,9 +417,7 @@ class GameEngine(events.EventManager):
         try:
             game.args(parser.add_argument_group(f"{game.NAME} v{game.VERSION} Options"))
         except AttributeError:
-            cls.log.info(
-                "Game does not implement arguments.  " "Add a def args(parser) class method."
-            )
+            cls.log.info("Game does not implement arguments.  Add a def args(parser) class method.")
 
         args: argparse.ArgumentParser = parser.parse_args()
 
@@ -700,20 +698,20 @@ class GameEngine(events.EventManager):
         self.log.info(f"SDL Byte Order: {pygame.get_sdl_byteorder()}")
 
         # Dump a bit more info about the configured mode.
-        self.log.info("Display Driver: " f"{pygame.display.get_driver()}")
-        self.log.info("Display Info: " f"{self.display_info}")
-        self.log.info("Initial Resolution: " f"{self.initial_resolution}")
-        self.log.info("8-bit Modes: " f"{pygame.display.list_modes(8)}")
-        self.log.info("16-bit Modes: " f"{pygame.display.list_modes(16)}")
-        self.log.info("24-bit Modes: " f"{pygame.display.list_modes(24)}")
-        self.log.info("32-bit Modes: " f"{pygame.display.list_modes(32)}")
+        self.log.info(f"Display Driver: {pygame.display.get_driver()}")
+        self.log.info(f"Display Info: {self.display_info}")
+        self.log.info(f"Initial Resolution: {self.initial_resolution}")
+        self.log.info(f"8-bit Modes: {pygame.display.list_modes(8)}")
+        self.log.info(f"16-bit Modes: {pygame.display.list_modes(16)}")
+        self.log.info(f"24-bit Modes: {pygame.display.list_modes(24)}")
+        self.log.info(f"32-bit Modes: {pygame.display.list_modes(32)}")
         self.log.info(
             "Best Color Depth: "
             f"{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}"
             f" ({self.mode_flags})"
         )
-        self.log.info("Window Manager Info: " f"{pygame.display.get_wm_info()}")
-        self.log.info("Platform Timer Resolution: " f"{pygame.TIMER_RESOLUTION}")
+        self.log.info(f"Window Manager Info: {pygame.display.get_wm_info()}")
+        self.log.info(f"Platform Timer Resolution: {pygame.TIMER_RESOLUTION}")
 
     def print_game_info(self: Self) -> None:
         """Print game information.
@@ -727,8 +725,8 @@ class GameEngine(events.EventManager):
             f"and failed loading {self.init_fail} modules."
         )
 
-        self.log.info("Game Title: " f"{type(self).NAME}")
-        self.log.info("Game Version: " f"{type(self).VERSION}")
+        self.log.info(f"Game Title: {type(self).NAME}")
+        self.log.info(f"Game Version: {type(self).VERSION}")
 
     def suggested_resolution(
         self: Self, desired_width: int = 0, desired_height: int = 0
@@ -938,8 +936,11 @@ class GameEngine(events.EventManager):
         # Check if there are any focused sprites in the current scene
         scene = self.scene_manager.active_scene
         if scene and scene.all_sprites:
-            focused_sprites = [sprite for sprite in scene.all_sprites
-                             if hasattr(sprite, "active") and sprite.active]
+            focused_sprites = [
+                sprite
+                for sprite in scene.all_sprites
+                if hasattr(sprite, "active") and sprite.active
+            ]
 
             # If we have focused sprites, ALL key events go to the scene
             if focused_sprites and event.type == pygame.KEYDOWN:
@@ -1447,7 +1448,7 @@ class GameEngine(events.EventManager):
         """
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
-                "(UNIMPLEMENTED) " f"{pygame.event.event_name(event.type).upper()}: {event}"
+                f"(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}"
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 

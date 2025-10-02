@@ -177,7 +177,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
         )
     elif debug_events is None:
         LOG.error(
-            "Error: debug_events is missing from the game options. " "This shouldn't be possible."
+            "Error: debug_events is missing from the game options. This shouldn't be possible."
         )
 
     if no_unhandled_events:
