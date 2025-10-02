@@ -2167,7 +2167,7 @@ class BitmapEditorScene(Scene):
             height=label_height,
             text='AI Sprite',
             text_color=(255, 255, 255),  # White text
-            background_color=(0, 0, 0, 0),  # Transparent background
+            background_color=(0, 0, 0),  # Solid black background like color well
             groups=self.all_sprites
         )
 

@@ -894,6 +894,9 @@ class TextSprite(BitmappySprite):
         self._y = y
         self.background_color = background_color
         self.text_color = text_color
+
+        # Debug: Log the background color during construction
+        print(f"DEBUG: TextSprite constructor - background_color: {self.background_color}")
         self.alpha = alpha
         self._text = text
         self.parent = parent
@@ -942,21 +945,71 @@ class TextSprite(BitmappySprite):
 
     def update_text(self, text):
         """Update the text surface."""
+        # Check if background is transparent (alpha = 0)
+        is_transparent = len(self.background_color) == 4 and self.background_color[3] == 0
+
         # Create surface with alpha support
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
 
         # Fill with the sprite's background color
-        self.image.fill(self.background_color)
+        if is_transparent:
+            # For transparent backgrounds, use a transparent surface
+            self.image.fill((0, 0, 0, 0))
+        else:
+            self.image.fill(self.background_color)
 
         # Create text surface using FontManager for consistent font handling
         from glitchygames.fonts import FontManager
-        font = FontManager.pygame_font()
-        # Render text with the background color to match the sprite background
-        text_surface = font.render(str(text), True, self.text_color, self.background_color)
+        font = FontManager.get_font()
+
+        # Debug: Log font type and background
+        print(f"DEBUG: TextSprite - Font type: {type(font)}")
+        print(f"DEBUG: TextSprite - Background color: {self.background_color}")
+        print(f"DEBUG: TextSprite - Is transparent: {is_transparent}")
+        print(f"DEBUG: TextSprite - Text: '{text}'")
+
+        # Handle different font system render methods
+        text_rect = None  # Initialize text_rect
+
+        if hasattr(font, 'render') and hasattr(font.render, '__call__'):
+            # Check if it's pygame.freetype.Font (returns tuple) or pygame.font.Font (returns surface)
+            try:
+                # Try pygame.freetype style first (returns tuple)
+                if is_transparent:
+                    # For transparent backgrounds, use render_to with a transparent surface
+                    print("DEBUG: Using freetype transparent render")
+                    # Create a transparent surface first
+                    text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                    text_surface.fill((0, 0, 0, 0))
+                    # Render text directly to the transparent surface
+                    text_rect = font.render_to(text_surface, (0, 0), str(text), self.text_color)
+                else:
+                    # For solid backgrounds, pass the background color
+                    print("DEBUG: Using freetype solid render")
+                    text_surface, text_rect = font.render(str(text), self.text_color, self.background_color)
+            except (TypeError, ValueError) as e:
+                # Fall back to pygame.font style (returns surface)
+                print(f"DEBUG: Freetype failed, falling back to pygame.font: {e}")
+                if is_transparent:
+                    # For transparent backgrounds, don't pass background color to pygame.font
+                    print("DEBUG: Using pygame.font transparent render")
+                    text_surface = font.render(str(text), True, self.text_color)
+                else:
+                    # For solid backgrounds, pass the background color
+                    print("DEBUG: Using pygame.font solid render")
+                    text_surface = font.render(str(text), True, self.text_color, self.background_color)
+        else:
+            # Fallback for any other font type
+            print("DEBUG: Using fallback font render")
+            if is_transparent:
+                text_surface = font.render(str(text), True, self.text_color)
+            else:
+                text_surface = font.render(str(text), True, self.text_color, self.background_color)
 
         # Position the text in the center of our surface
-        text_rect = text_surface.get_rect()
+        if text_rect is None:
+            text_rect = text_surface.get_rect()
         target_rect = self.image.get_rect()
         text_rect.centerx = target_rect.centerx
         text_rect.centery = target_rect.centery
@@ -1666,7 +1719,7 @@ class SliderSprite(BitmappySprite):
             width=32,
             height=20,
             text='0',
-            background_color=(0, 0, 0, 0),  # Transparent background
+            background_color=(0, 0, 0),  # Solid black background like color well
             groups=groups,
         )
 
@@ -2265,7 +2318,7 @@ class MultiLineTextBox(BitmappySprite):
 
         # Use FontManager for consistent font handling
         from glitchygames.fonts import FontManager
-        self.font = FontManager.pygame_font()
+        self.font = FontManager.get_font()
         self.text_color = WHITE
         self.cursor_color = WHITE
 

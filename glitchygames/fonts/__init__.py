@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import TYPE_CHECKING, ClassVar, Self, Dict, Any
 
 if TYPE_CHECKING:
     import argparse
@@ -21,7 +21,27 @@ log.addHandler(logging.NullHandler())
 
 
 class FontManager(ResourceManager):
-    """A font manager."""
+    """A font manager for handling fonts in the game.
+    
+    Supports both pygame.font and pygame.freetype font systems:
+    
+    Examples:
+        # Use default font system (pygame.font)
+        font = FontManager.get_font()
+        
+        # Force pygame.font
+        font = FontManager.get_font(use_freetype=False)
+        
+        # Force pygame.freetype
+        font = FontManager.get_font(use_freetype=True)
+        
+        # Change default system
+        FontManager.set_font_system(use_freetype=True)
+        font = FontManager.get_font()  # Now uses freetype by default
+        
+        # Check current system
+        system = FontManager.get_font_system()  # Returns "pygame" or "freetype"
+    """
 
     OPTIONS: ClassVar = {}
     RENDER_CACHE: ClassVar = {}
@@ -68,6 +88,11 @@ class FontManager(ResourceManager):
         FontManager.OPTIONS['font_italic'] = game.OPTIONS['font_italic']
         FontManager.OPTIONS['font_antialias'] = game.OPTIONS['font_antialias']
         FontManager.OPTIONS['font_dpi'] = game.OPTIONS['font_dpi']
+        
+        # Set font system based on command line argument
+        font_system = game.OPTIONS.get('font_system', 'pygame')
+        FontManager.OPTIONS['use_freetype'] = (font_system == 'freetype')
+        log.info(f'Font system initialized: {font_system}')
 
         pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])
 
@@ -117,6 +142,8 @@ class FontManager(ResourceManager):
         group.add_argument('--font-italic', action='store_true', default=False)
         group.add_argument('--font-antialias', action='store_true', default=False)
         group.add_argument('--font-dpi', type=int, default=72)
+        group.add_argument('--font-system', choices=['pygame', 'freetype'], default='pygame',
+                          help='Font system to use: pygame (built-in) or freetype (enhanced)')
 
         return parser
 
@@ -206,3 +233,78 @@ class FontManager(ResourceManager):
         except (TypeError, FileNotFoundError):
             # Fall back to default font
             return pygame.font.Font(None, font_config['font_size'])
+    
+    @classmethod
+    def get_font(cls, use_freetype: bool | None = None, font_config: dict | None = None) -> pygame.font.Font | pygame.freetype.Font:
+        """Get a font object, choosing between pygame.font and pygame.freetype.
+        
+        Args:
+            use_freetype (bool | None): If True, return pygame.freetype.Font, if False pygame.font.Font.
+                                       If None, use the default preference from OPTIONS.
+            font_config (dict | None): The font configuration.
+            
+        Returns:
+            pygame.font.Font | pygame.freetype.Font: The requested font object.
+        """
+        if use_freetype is None:
+            use_freetype = FontManager.OPTIONS.get('use_freetype', False)
+        
+        if use_freetype:
+            return cls.font(font_config)
+        else:
+            return cls.pygame_font(font_config)
+    
+    @classmethod
+    def set_font_system(cls, use_freetype: bool):
+        """Set the default font system preference.
+        
+        Args:
+            use_freetype (bool): If True, use pygame.freetype by default, otherwise pygame.font.
+        """
+        FontManager.OPTIONS['use_freetype'] = use_freetype
+        log.info(f'Font system set to: {"pygame.freetype" if use_freetype else "pygame.font"}')
+    
+    @classmethod
+    def get_font_system(cls) -> str:
+        """Get the current font system preference.
+        
+        Returns:
+            str: "freetype" or "pygame" indicating the current font system.
+        """
+        return "freetype" if FontManager.OPTIONS.get('use_freetype', False) else "pygame"
+    
+    @classmethod
+    def compare_font_systems(cls, text: str = "Hello World", size: int = 24) -> Dict[str, Dict[str, Any]]:
+        """Compare both font systems side by side.
+        
+        Args:
+            text (str): Text to render for comparison.
+            size (int): Font size for comparison.
+            
+        Returns:
+            dict: Information about both font systems.
+        """
+        config = {'font_size': size}
+        
+        # Get pygame.font
+        pygame_font = cls.pygame_font(config)
+        pygame_surface = pygame_font.render(text, True, (255, 255, 255))
+        
+        # Get pygame.freetype
+        freetype_font = cls.font(config)
+        freetype_surface, freetype_rect = freetype_font.render(text, (255, 255, 255))
+        
+        return {
+            'pygame': {
+                'font': pygame_font,
+                'surface': pygame_surface,
+                'size': pygame_surface.get_size(),
+                'type': 'pygame.font.Font'
+            },
+            'freetype': {
+                'font': freetype_font,
+                'surface': freetype_surface,
+                'size': freetype_surface.get_size(),
+                'type': 'pygame.freetype.Font'
+            }
+        }
