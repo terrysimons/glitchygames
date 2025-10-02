@@ -446,7 +446,7 @@ class MenuItem(BitmappySprite):
             self.image.fill((255, 255, 255))
             self.image.set_colorkey((255, 255, 255))
             self.text = TextSprite(
-                background_color=self.background_color,
+                background_color=(255, 255, 255),  # White background to match menu
                 text_color=(0, 0, 0),
                 x=x,
                 y=y,
@@ -456,7 +456,6 @@ class MenuItem(BitmappySprite):
                 parent=parent,
                 groups=groups,
             )
-            self.text.image.set_colorkey((255, 0, 255))
             self.text.add(groups)
             # Align the rect with the text position
             self.rect.x = self.text.rect.x
@@ -947,12 +946,14 @@ class TextSprite(BitmappySprite):
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
 
-        # Fill with black background (or any color that contrasts with the text)
-        self.image.fill((0, 0, 0, 0))  # Fully transparent black
+        # Fill with the sprite's background color
+        self.image.fill(self.background_color)
 
-        # Create text surface using pygame's default font with no anti-aliasing
-        font = pygame.font.Font(None, 24)
-        text_surface = font.render(str(text), False, self.text_color)  # False = no anti-aliasing
+        # Create text surface using FontManager for consistent font handling
+        from glitchygames.fonts import FontManager
+        font = FontManager.pygame_font()
+        # Render text with the background color to match the sprite background
+        text_surface = font.render(str(text), True, self.text_color, self.background_color)
 
         # Position the text in the center of our surface
         text_rect = text_surface.get_rect()
@@ -1665,6 +1666,7 @@ class SliderSprite(BitmappySprite):
             width=32,
             height=20,
             text='0',
+            background_color=(0, 0, 0, 0),  # Transparent background
             groups=groups,
         )
 
@@ -2261,12 +2263,15 @@ class MultiLineTextBox(BitmappySprite):
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
 
-        self.font = pygame.font.Font(None, 24)
+        # Use FontManager for consistent font handling
+        from glitchygames.fonts import FontManager
+        self.font = FontManager.pygame_font()
         self.text_color = WHITE
         self.cursor_color = WHITE
 
         # Add scroll tracking
         self.scroll_offset = 0
+        # Calculate line height using regular pygame font method
         self.visible_lines = self.height // self.font.get_linesize()
 
     def update(self) -> None:

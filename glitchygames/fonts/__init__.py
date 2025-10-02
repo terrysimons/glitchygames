@@ -111,7 +111,7 @@ class FontManager(ResourceManager):
         """
         group = parser.add_argument_group('Font Options')
 
-        group.add_argument('--font-name', default=pygame.freetype.get_default_font())
+        group.add_argument('--font-name', default='arial')
         group.add_argument('--font-size', type=int, default=14)
         group.add_argument('--font-bold', action='store_true', default=False)
         group.add_argument('--font-italic', action='store_true', default=False)
@@ -146,6 +146,12 @@ class FontManager(ResourceManager):
         """
         if not font_config:
             font_config = FontManager.OPTIONS
+        
+        # Provide default font configuration if not set
+        if 'font_name' not in font_config:
+            font_config['font_name'] = 'arial'
+        if 'font_size' not in font_config:
+            font_config['font_size'] = 14
 
         # try:
         log.info(f'Loading Font: {font_config["font_name"]}')
@@ -174,3 +180,29 @@ class FontManager(ResourceManager):
             # TypeError: not a file object
             font_path = Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
             return pygame.freetype.Font(file=font_path, size=12)
+    
+    @classmethod
+    def pygame_font(cls, font_config: dict | None = None) -> pygame.font.Font:
+        """Return a regular pygame font object for compatibility with UI components.
+        
+        Args:
+            font_config (dict | None): The font configuration.
+            
+        Returns:
+            pygame.font.Font: A regular pygame font object.
+        """
+        if not font_config:
+            font_config = FontManager.OPTIONS
+        
+        # Provide default font configuration if not set
+        if 'font_name' not in font_config:
+            font_config['font_name'] = 'arial'
+        if 'font_size' not in font_config:
+            font_config['font_size'] = 14
+            
+        try:
+            # Try to load system font
+            return pygame.font.SysFont(font_config['font_name'], font_config['font_size'])
+        except (TypeError, FileNotFoundError):
+            # Fall back to default font
+            return pygame.font.Font(None, font_config['font_size'])

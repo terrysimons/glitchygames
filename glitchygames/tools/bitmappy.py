@@ -23,7 +23,7 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.pixels import image_from_pixels, pixels_from_data
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite, SPRITE_GLYPHS
-from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite, MultiLineTextBox
+from glitchygames.ui import ColorWellSprite, InputDialog, MenuBar, MenuItem, SliderSprite, MultiLineTextBox, TextSprite
 import multiprocessing
 from queue import Empty
 from dataclasses import dataclass
@@ -2147,12 +2147,29 @@ class BitmapEditorScene(Scene):
 
         # These are set up in the GameEngine class.
         self.log.info(f'Game Options: {options}')
+        
+        # Override font to use a cleaner system font
+        self.options['font_name'] = 'arial'
+        self.log.info(f'Font overridden to: {self.options["font_name"]}')
 
         # Calculate debug text box position and size - align to bottom right corner
         debug_width = 300  # Fixed width for AI chat box
         debug_height = 200  # Fixed height for AI chat box
         debug_x = self.screen_width - debug_width  # Align to right edge
         debug_y = self.screen_height - debug_height  # Align to bottom edge
+
+        # Create the AI label
+        label_height = 20
+        self.ai_label = TextSprite(
+            x=debug_x,
+            y=debug_y - label_height,
+            width=debug_width,
+            height=label_height,
+            text='AI Sprite',
+            text_color=(255, 255, 255),  # White text
+            background_color=(0, 0, 0, 0),  # Transparent background
+            groups=self.all_sprites
+        )
 
         # Create the debug text box
         self.debug_text = MultiLineTextBox(
