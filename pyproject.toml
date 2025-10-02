@@ -190,7 +190,7 @@ ignore = []
 defineConstant = { DEBUG = true }
 # stubPath = "src/stubs"
 
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 pythonPlatform = "All"
 
 executionEnvironments = [
