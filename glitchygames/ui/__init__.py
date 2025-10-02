@@ -1063,10 +1063,10 @@ class TextSprite(BitmappySprite):
         elif is_transparent:
             # This is a pygame.font.Font with transparent background
             # For transparent backgrounds, don't pass background color to pygame.font
-            text_surface = font.render(str(text), True, self.text_color)
+            text_surface = font.render(str(text), antialias=True, color=self.text_color)
         else:
             # For solid backgrounds, render without background parameter for pygame.font
-            text_surface = font.render(str(text), True, self.text_color)
+            text_surface = font.render(str(text), antialias=True, color=self.text_color)
 
         # Position the text in the center of our surface
         if text_rect is None:

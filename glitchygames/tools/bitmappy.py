@@ -6,26 +6,21 @@ from __future__ import annotations
 import collections
 import configparser
 import logging
-import sys
-from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Self
-
-if TYPE_CHECKING:
-    import argparse
-
 import multiprocessing
 import os
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from queue import Empty
-from typing import Optional
+from typing import TYPE_CHECKING, ClassVar, Optional, Self
 
 import pygame
 import pygame.freetype
 import pygame.gfxdraw
 import pygame.locals
-import yaml  # Add to imports at top
+import yaml
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
@@ -39,6 +34,12 @@ from glitchygames.ui import (
     SliderSprite,
     TextSprite,
 )
+
+if TYPE_CHECKING:
+    import argparse
+
+# Constants
+CONTENT_PREVIEW_LENGTH = 500
 
 LOG = logging.getLogger("game.bitmappy")
 
@@ -611,7 +612,7 @@ class BitmapPixelSprite(BitmappySprite):
 
         if not cached_image:
             self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            self.image.fill((0,0,0,0))  # Start with transparent
+            self.image.fill((0, 0, 0, 0))  # Start with transparent
 
             # Draw main pixel
             pygame.draw.rect(
@@ -740,9 +741,8 @@ class CanvasSprite(BitmappySprite):
         screen_width = screen_info.current_w
 
         # Calculate mini map size (2x2 pixels per sprite pixel)
-        pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+        pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
         mini_map_width = pixels_across * pixel_width
-        mini_map_height = pixels_tall * pixel_height
 
         # Position mini map flush to the right edge and top
         mini_map_x = screen_width - mini_map_width  # Flush to right edge
@@ -905,37 +905,36 @@ class CanvasSprite(BitmappySprite):
         self.log.info(f"Starting save to file: {filename}")
         try:
             self.save(filename=filename, file_format="ini")  # Changed back to 'ini'
-        except (OSError, ValueError, KeyError) as e:
+        except (OSError, ValueError, KeyError):
             self.log.exception("Error saving file")
             raise
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle load file event."""
-        print("\n=== Starting on_load_file_event ===")
+        self.log.debug("=== Starting on_load_file_event ===")
         try:
             filename = event if isinstance(event, str) else event.text
-            print(f"Loading canvas from {filename}")
+            self.log.debug(f"Loading canvas from {filename}")
 
             # Check if file exists first
-            if not os.path.exists(filename):
+            if not Path(filename).exists():
                 self.log.error(f"File not found: {filename}")
                 return
 
             # Load and parse the INI file directly
-            config = configparser.RawConfigParser()
 
             # Read the raw file content first
             try:
-                with open(filename, "r") as f:
+                with Path(filename).open("r") as f:
                     content = f.read()
-                print(f"Raw file content:\n{content}")
-            except (FileNotFoundError, PermissionError, OSError) as e:
+                self.log.debug(f"Raw file content:\n{content}")
+            except (FileNotFoundError, PermissionError, OSError):
                 self.log.exception(f"Error reading file {filename}")
                 return
 
             # Split content into sections
             sections = content.split("\n\n")
-            print(f"Found {len(sections)} sections")
+            self.log.debug(f"Found {len(sections)} sections")
 
             # Parse sprite section
             sprite_section = None
@@ -944,7 +943,7 @@ class CanvasSprite(BitmappySprite):
             for section in sections:
                 if section.strip().startswith("[sprite]"):
                     sprite_section = section
-                    print(f"Sprite section: {sprite_section[:100]}...")
+                    self.log.debug(f"Sprite section: {sprite_section[:100]}...")
                 elif section.strip().startswith("[") and len(section.strip()) > 1:
                     # This is a color section
                     lines = section.strip().split("\n")
@@ -957,7 +956,7 @@ class CanvasSprite(BitmappySprite):
                                     key, value = line.split("=", 1)
                                     color_sections[color_key][key.strip()] = value.strip()
 
-            print(f"Color sections: {color_sections}")
+            self.log.debug(f"Color sections: {color_sections}")
 
             # Build color map
             color_map = {}
@@ -968,7 +967,7 @@ class CanvasSprite(BitmappySprite):
                         int(color_data["green"]),
                         int(color_data["blue"])
                     )
-            print(f"Color map: {color_map}")
+            self.log.debug(f"Color map: {color_map}")
 
             # Extract pixel data from sprite section
             if not sprite_section:
@@ -988,7 +987,7 @@ class CanvasSprite(BitmappySprite):
                     break
 
             pixel_text = "\n".join(pixel_lines)
-            print(f"Extracted pixel text:\n{pixel_text}")
+            self.log.debug(f"Extracted pixel text:\n{pixel_text}")
 
             # Split into rows and properly handle indentation
             rows = []
@@ -996,9 +995,9 @@ class CanvasSprite(BitmappySprite):
                 row = row.lstrip()  # Remove leading/trailing whitespace including tabs
                 if row:  # Only add non-empty rows
                     rows.append(row)
-                    print(f"Row {i}: '{row}' (len={len(row)})")
+                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
 
-            print(f"Total rows found: {len(rows)}")
+            self.log.debug(f"Total rows found: {len(rows)}")
 
             # Check if we have any rows before accessing them
             if not rows:
@@ -1008,11 +1007,11 @@ class CanvasSprite(BitmappySprite):
             # Calculate dimensions
             width = len(rows[0])
             height = len(rows)
-            print(f"Loading image with dimensions {width}x{height}")
+            self.log.debug(f"Loading image with dimensions {width}x{height}")
 
             # If dimensions don't match, reinitialize the canvas
             if width != self.pixels_across or height != self.pixels_tall:
-                print(
+                self.log.debug(
                     f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} "
                     f"to {width}x{height}"
                 )
@@ -1054,7 +1053,7 @@ class CanvasSprite(BitmappySprite):
                     # Recalculate mini map position for new size
                     screen_info = pygame.display.Info()
                     screen_width = screen_info.current_w
-                    pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+                    pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
                     mini_map_width = width * pixel_width
                     mini_map_x = screen_width - mini_map_width  # Flush to right edge
                     if mini_map_x < 0:
@@ -1092,13 +1091,11 @@ class CanvasSprite(BitmappySprite):
                 self.mini_view.dirty = 1
                 self.mini_view.force_redraw()
 
-
-        except Exception as e:
-            print(f"Error in on_load_file_event: {e}")
+        except Exception:
+            self.log.exception("Error in on_load_file_event")
             import traceback
-            print(traceback.format_exc())
+            self.log.exception("Full traceback:")
             raise
-
 
 
 class MiniView(BitmappySprite):
@@ -1244,9 +1241,6 @@ class MiniView(BitmappySprite):
     def update(self):
         """Update the miniview display."""
         # Get mouse position and window size
-        mouse_pos = pygame.mouse.get_pos()
-        screen_info = pygame.display.Info()
-        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
 
         # Use existing attributes if they exist
         if hasattr(self, "pixels_across") and hasattr(self, "pixels_tall"):
@@ -1266,9 +1260,8 @@ class MiniView(BitmappySprite):
         screen_width = screen_info.current_w
 
         # Calculate mini map size (2x2 pixels per sprite pixel)
-        pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+        pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
         mini_map_width = pixels_across * pixel_width
-        mini_map_height = pixels_tall * pixel_height
 
         # Position mini map flush to the right edge and top
         mini_map_x = screen_width - mini_map_width  # Flush to right edge
@@ -1423,16 +1416,16 @@ class MiniView(BitmappySprite):
         self.log.info(f"Starting save to file: {filename}")
         try:
             self.save(filename=filename)
-        except (OSError, ValueError, KeyError) as e:
+        except (OSError, ValueError, KeyError):
             self.log.exception("Error saving file")
             raise
 
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle load file event."""
-        print("\n=== Starting on_load_file_event ===")
+        self.log.debug("=== Starting on_load_file_event ===")
         try:
             filename = event if isinstance(event, str) else event.text
-            print(f"Loading canvas from {filename}")
+            self.log.debug(f"Loading canvas from {filename}")
 
             # Determine file format from extension
             ext = Path(filename).suffix.lower()
@@ -1441,15 +1434,15 @@ class MiniView(BitmappySprite):
                 return
 
             # Read the raw file content
-            with open(filename, "r") as f:
+            with Path(filename).open("r") as f:
                 content = f.read()
-            print(f"Raw file content:\n{content}")
+            self.log.debug(f"Raw file content:\n{content}")
 
             # Load based on format
             if ext in (".yml", ".yaml"):
                 # Load YAML format
                 config = yaml.safe_load(content)
-                print("Loading YAML format")
+                self.log.debug("Loading YAML format")
 
                 # Get color definitions from YAML format
                 color_map = {}
@@ -1463,7 +1456,7 @@ class MiniView(BitmappySprite):
 
             elif ext == ".ini":
                 # Load INI format
-                print("Loading INI format")
+                self.log.debug("Loading INI format")
                 config = configparser.RawConfigParser()
                 config.read_string(content)
 
@@ -1517,7 +1510,7 @@ class MiniView(BitmappySprite):
                 self.mini_view.dirty = 1
                 self.mini_view.force_redraw()
 
-        except Exception as e:
+        except Exception:
             self.log.exception("Error loading file")
             raise
 
@@ -1557,10 +1550,10 @@ class MiniView(BitmappySprite):
                 f"Canvas resized to {width}x{height}, new pixel count: {len(self.pixels)}"
             )
 
-        except ValueError as e:
+        except ValueError:
             self.log.exception(f"Invalid dimensions format '{dimensions}'")
             self.log.exception("Expected format: WxH (e.g., '32x32')")
-        except (OSError, KeyError, AttributeError) as e:
+        except (OSError, KeyError, AttributeError):
             self.log.exception("Unexpected error in on_new_file_event")
 
     def save(self, filename: str, format: str = None) -> None:
@@ -1605,7 +1598,7 @@ class MiniView(BitmappySprite):
                     }
 
                 # Write YAML file
-                with open(filename, "w") as f:
+                with Path(filename).open("w") as f:
                     yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
 
             elif format == "ini":
@@ -1630,7 +1623,7 @@ class MiniView(BitmappySprite):
                     }
 
                 # Write INI file
-                with open(filename, "w") as f:
+                with Path(filename).open("w") as f:
                     config.write(f)
 
             else:
@@ -1638,7 +1631,7 @@ class MiniView(BitmappySprite):
 
             self.log.info(f"Saved sprite to {filename} in {format} format")
 
-        except Exception as e:
+        except Exception:
             self.log.exception("Error saving file")
             raise
 
@@ -1683,7 +1676,7 @@ class MiniView(BitmappySprite):
 
             return config
 
-        except Exception as e:
+        except Exception:
             self.log.exception("Error in deflate")
             raise
 
@@ -1706,7 +1699,11 @@ class MiniView(BitmappySprite):
     @staticmethod
     def pixels_per_pixel(pixels_across: int, pixels_tall: int) -> tuple[int, int]:
         """Calculate the size of each pixel in the miniview."""
-        return (2, 2)  # Fixed 2x2 pixels for mini view
+        # Calculate pixel size based on available space and canvas dimensions
+        # For now, use a simple calculation that ensures the mini view fits
+        # You could make this more sophisticated based on screen size
+        max_pixel_size = min(4, max(1, 64 // max(pixels_across, pixels_tall)))
+        return (max_pixel_size, max_pixel_size)
 
 
 @dataclass
@@ -1716,11 +1713,13 @@ class AIRequest:
     request_id: str
     messages: list[dict[str, str]]
 
+
 @dataclass
 class AIResponse:
     """Data structure for AI responses."""
     content: Optional[str]
     error: Optional[str] = None
+
 
 def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
               response_queue: "multiprocessing.Queue[tuple[str, AIResponse]]") -> None:
@@ -1820,12 +1819,13 @@ def ai_worker(request_queue: "multiprocessing.Queue[AIRequest]",
                         request.request_id,
                         AIResponse(content=None, error=str(e))
                     ))
-    except ImportError as e:
+    except ImportError:
         log.exception("Failed to import aisuite")
         raise
-    except (OSError, ValueError, KeyError, AttributeError) as e:
+    except (OSError, ValueError, KeyError, AttributeError):
         log.exception("Fatal error in AI worker process")
         raise
+
 
 class MiniView(BitmappySprite):
     """Mini View."""
@@ -1993,7 +1993,11 @@ class MiniView(BitmappySprite):
     @staticmethod
     def pixels_per_pixel(pixels_across: int, pixels_tall: int) -> tuple[int, int]:
         """Calculate the size of each pixel in the miniview."""
-        return (2, 2)  # Fixed 2x2 pixels for mini view
+        # Calculate pixel size based on available space and canvas dimensions
+        # For now, use a simple calculation that ensures the mini view fits
+        # You could make this more sophisticated based on screen size
+        max_pixel_size = min(4, max(1, 64 // max(pixels_across, pixels_tall)))
+        return (max_pixel_size, max_pixel_size)
 
 
 class BitmapEditorScene(Scene):
@@ -2004,7 +2008,6 @@ class BitmapEditorScene(Scene):
     # Set your game name/version here.
     NAME = "Bitmappy"
     VERSION = "1.0"
-
 
     def __init__(self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize the Bitmap Editor Scene.
@@ -2062,10 +2065,6 @@ class BitmapEditorScene(Scene):
         )
         self.menu_bar.add_menu(self.menu_icon)
 
-        # Calculate initial offsets that will be added by MenuBar
-        menu_bar_offset_x = self.menu_bar.menu_offset_x  # Usually equals border_width (2)
-        menu_bar_offset_y = self.menu_bar.menu_offset_y
-
         # Add all menus with full height
         menu_item_x = 0  # Start at left edge
         icon_width = 16  # Width of the raspberry icon
@@ -2111,10 +2110,6 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites
         )
         self.menu_bar.add_menu(load_menu)
-
-        # Calculate initial offsets that will be added by MenuBar
-        menu_bar_offset_x = self.menu_bar.menu_offset_x  # Usually equals border_width (2)
-        menu_bar_offset_y = self.menu_bar.menu_offset_y
 
         # Calculate available space (adjusted for taller menu bar)
         bottom_margin = 100  # Space needed for sliders and color well
@@ -2352,7 +2347,7 @@ class BitmapEditorScene(Scene):
             # Update mini map position for new size
             screen_info = pygame.display.Info()
             screen_width = screen_info.current_w
-            pixel_width, pixel_height = (2, 2)  # MiniView uses 2x2 pixels per sprite pixel
+            pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
             mini_map_width = width * pixel_width
             mini_map_x = screen_width - mini_map_width  # Flush to right edge
             if mini_map_x < 0:
@@ -2381,7 +2376,7 @@ class BitmapEditorScene(Scene):
 
             self.log.info(f"Canvas resized to {width}x{height} with pixel size {new_pixel_size}")
 
-        except ValueError as e:
+        except ValueError:
             self.log.exception(f"Invalid dimensions format '{dimensions}'")
             self.log.exception("Expected format: WxH (e.g., '32x32')")
 
@@ -2750,7 +2745,7 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "debug_text"):
                 self.debug_text.text = f"Processing AI request... (ID: {request_id})"
 
-        except Exception as e:
+        except Exception:
             self.log.exception("Error submitting AI request")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = f"Error: {str(e)}"
@@ -2782,7 +2777,7 @@ class BitmapEditorScene(Scene):
                 self.ai_process.start()
                 self.log.info(f"AI worker process started with PID: {self.ai_process.pid}")
 
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error initializing AI worker process")
                 self.ai_request_queue = None
                 self.ai_response_queue = None
@@ -2812,9 +2807,9 @@ class BitmapEditorScene(Scene):
                         # Debug: Dump the sprite content
                         self.log.info("=== AI GENERATED SPRITE CONTENT ===")
                         self.log.info(
-                            f"Content preview (first 500 chars):\n{response.content[:500]}"
+                            f"Content preview (first {CONTENT_PREVIEW_LENGTH} chars):\n{response.content[:CONTENT_PREVIEW_LENGTH]}"
                         )
-                        if len(response.content) > 500:
+                        if len(response.content) > CONTENT_PREVIEW_LENGTH:
                             self.log.info(
                                 f"... (content continues, total length: {len(response.content)})"
                             )
@@ -2839,7 +2834,7 @@ class BitmapEditorScene(Scene):
                             self.log.info(f"DEBUGGING: Temp file preserved at: {tmp_path}")
                             self.log.info("DEBUGGING: File kept for inspection")
 
-                        except Exception as e:
+                        except Exception:
                             self.log.exception("Error loading AI sprite")
                             import traceback
                             self.log.exception(f"Load error traceback: {traceback.format_exc()}")
@@ -2861,7 +2856,7 @@ class BitmapEditorScene(Scene):
             except Empty:
                 # This is normal - no responses available
                 pass
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error processing AI response")
 
     def cleanup(self):
@@ -2874,7 +2869,7 @@ class BitmapEditorScene(Scene):
                 self.log.info("Sending shutdown signal to AI worker...")
                 self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
                 self.log.info("Shutdown signal sent successfully")
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error sending shutdown signal")
 
         # Wait for AI process to finish
@@ -2890,7 +2885,7 @@ class BitmapEditorScene(Scene):
                         self.log.info("AI process still alive, force killing...")
                         self.ai_process.kill()  # Force kill if still alive
                 self.log.info("AI process cleanup completed")
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error during AI process cleanup")
 
         # Close queues
@@ -2898,18 +2893,17 @@ class BitmapEditorScene(Scene):
             try:
                 self.ai_request_queue.close()
                 self.log.info("AI request queue closed")
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error closing request queue")
 
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:
             try:
                 self.ai_response_queue.close()
                 self.log.info("AI response queue closed")
-            except Exception as e:
+            except Exception:
                 self.log.exception("Error closing response queue")
 
         super().cleanup()
-
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -2981,7 +2975,7 @@ class BitmapEditorScene(Scene):
 
             return config
 
-        except Exception as e:
+        except Exception:
             self.log.exception("Error in deflate")
             raise
 
