@@ -17,6 +17,7 @@ class SpriteInterface:
 
         Returns:
             None
+
         """
 
     def update(self: Self) -> None:
@@ -24,6 +25,7 @@ class SpriteInterface:
 
         Returns:
             None
+
         """
 
     def render(self: Self, screen: pygame.Surface) -> None:
@@ -34,6 +36,7 @@ class SpriteInterface:
 
         Returns:
             None
+
         """
 
 
@@ -48,6 +51,7 @@ class SceneInterface:
 
         Returns:
             None
+
         """
 
     def terminate(self: Self) -> None:
@@ -55,6 +59,7 @@ class SceneInterface:
 
         Returns:
             None
+
         """
 
     def play(self: Self) -> None:
@@ -62,6 +67,7 @@ class SceneInterface:
 
         Returns:
             None
+
         """
 
     def pause(self: Self) -> None:
@@ -69,4 +75,5 @@ class SceneInterface:
 
         Returns:
             None
+
         """

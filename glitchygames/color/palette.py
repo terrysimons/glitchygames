@@ -14,16 +14,16 @@ from typing import ClassVar, Self
 
 from pygame import Color
 
-VGA = 'vga'
-SYSTEM = 'system'
-NES = 'nes'
+VGA = "vga"
+SYSTEM = "system"
+NES = "nes"
 
 
 class ColorPalette:
     """Manages color palette data for Glitchy Games."""
 
-    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / 'resources'
-    _DEFAULT_EXTENSION: ClassVar = 'palette'
+    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / "resources"
+    _DEFAULT_EXTENSION: ClassVar = "palette"
 
     def __init__(self: Self, colors: list, filename: str | None = None) -> None:
         """Create a color palette object.
@@ -31,15 +31,16 @@ class ColorPalette:
         Args:
             colors: A list of PyGame Colors.  Default: None
             filename: The name of the palette file to load.  Default: None
+
         """
         self._colors = colors
         self._size = 0
 
         if not self._colors and filename:
             script_path = Path(sys.argv[0]).parent
-            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / 'resources']
+            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / "resources"]
             for path in paths:
-                file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
+                file_path = Path(path) / f"{filename}.{self._DEFAULT_EXTENSION}"
                 if Path.exists(file_path):
                     self._colors = PaletteUtility.load_palette_from_file(file_path)
                     break
@@ -48,13 +49,14 @@ class ColorPalette:
             self._size = len(self._colors) - 1
 
     def get_color(self: Self, palette_index: int) -> tuple[int, int, int] | None:
-        """Returns PyGame Color from the palette at the specified index.
+        """Return PyGame Color from the palette at the specified index.
 
         Args:
             palette_index: The index of the color to return.
 
         Returns:
             A PyGame Color object in the format tuple[R: int, G: int, B: int]
+
         """
         if self._size:
             return (
@@ -67,7 +69,7 @@ class ColorPalette:
         return (255, 0, 255)
 
     def set_color(self: Self, palette_index: int, new_color: tuple) -> None:
-        """Sets the indexed color to the new PyGame Color.
+        """Set the indexed color to the new PyGame Color.
 
         Args:
             palette_index: The index of the color to set.
@@ -75,6 +77,7 @@ class ColorPalette:
 
         Returns:
             None
+
         """
         if palette_index < self._size:
             self._colors[palette_index] = new_color
@@ -94,15 +97,16 @@ class PaletteUtility:
 
         Returns:
             A list of PyGame Colors in the format list[tuple[R: int, G: int, B: int]].
+
         """
         colors = []
-        for index in range(int(config['default']['colors'])):
+        for index in range(int(config["default"]["colors"])):
             color_index = str(index)
             tmp_color = Color(
-                config[color_index].getint('red'),
-                config[color_index].getint('green'),
-                config[color_index].getint('blue'),
-                config[color_index].getint('alpha', 255),
+                config[color_index].getint("red"),
+                config[color_index].getint("green"),
+                config[color_index].getint("blue"),
+                config[color_index].getint("alpha", 255),
             )
             colors.append(tmp_color)
 
@@ -117,6 +121,7 @@ class PaletteUtility:
 
         Returns:
             A list of PyGame Colors in the format list[tuple[R: int, G: int, B: int]].
+
         """
         config = configparser.ConfigParser()
         # Read contents of file and close after
@@ -134,8 +139,9 @@ class PaletteUtility:
 
         Returns:
             None
+
         """
-        with Path.open(Path(output_file), 'w') as file_obj:
+        with Path.open(Path(output_file), "w") as file_obj:
             file_obj.write(json.dumps(config_data))
 
     @staticmethod
@@ -147,12 +153,13 @@ class PaletteUtility:
 
         Returns:
             A list of PyGame Colors in the format list[tuple[R: int, G: int, B: int]].
+
         """
         # Read input RGBA Values from file.  No duplicates
         colors = []
         with Path.open(rgb_data_file) as file_obj:
             for line in file_obj.readlines():
-                tmp = [int(x) for x in line.strip().split(',')]
+                tmp = [int(x) for x in line.strip().split(",")]
                 color = Color(*tmp)
                 if color not in colors:
                     colors.append(color)
@@ -167,15 +174,16 @@ class PaletteUtility:
 
         Returns:
             A ConfigParser object containing palette data.
+
         """
         palette_data = configparser.ConfigParser()
-        palette_data['default'] = {'colors': str(len(colors))}
+        palette_data["default"] = {"colors": str(len(colors))}
         for count, color in enumerate(colors):
             palette_data[str(count)] = {
-                'red': color.r,
-                'green': color.g,
-                'blue': color.b,
-                'alpha': color.a,
+                "red": color.r,
+                "green": color.g,
+                "blue": color.b,
+                "alpha": color.a,
             }
         return palette_data
 
@@ -189,8 +197,9 @@ class Default(ColorPalette):
 
         Returns:
             None
+
         """
-        super().__init__(colors=[], filename='default')
+        super().__init__(colors=[], filename="default")
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)
@@ -210,6 +219,7 @@ class System(ColorPalette):
 
         Returns:
             None
+
         """
         super().__init__(filename=SYSTEM)
         self.BLACK = self.get_color(0)
@@ -238,6 +248,7 @@ class Vga(ColorPalette):
 
         Returns:
             None
+
         """
         super().__init__(filename=VGA)
         # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)

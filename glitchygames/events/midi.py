@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 from glitchygames.events import ResourceManager
 
-log = logging.getLogger('game.midi')
+log = logging.getLogger("game.midi")
 log.addHandler(logging.NullHandler())
 
 
@@ -26,6 +26,7 @@ class MidiManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
 
@@ -40,7 +41,8 @@ class MidiManager(ResourceManager):
 
         Returns:
             argparse.ArgumentParser
+
         """
-        group = parser.add_argument_group('Midi Options')  # noqa: F841
+        group = parser.add_argument_group("Midi Options")  # noqa: F841
 
         return parser

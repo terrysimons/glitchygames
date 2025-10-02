@@ -11,7 +11,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
 
-LOG = logging.getLogger('game')
+LOG = logging.getLogger("game")
 LOG.setLevel(logging.DEBUG)
 
 
@@ -21,8 +21,8 @@ class Game(Scene):
     log = LOG
 
     # Set your game name/version here.
-    NAME = 'Input Demo'
-    VERSION = '1.0'
+    NAME = "Input Demo"
+    VERSION = "1.0"
 
     def __init__(
         self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
@@ -35,6 +35,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -42,7 +43,7 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)
 
         self.input_box = InputBox(
-            x=320, y=240, width=200, height=20, text='Test', parent=self, groups=groups
+            x=320, y=240, width=200, height=20, text="Test", parent=self, groups=groups
         )
 
         self.background_color = (255, 255, 0)
@@ -65,6 +66,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         pygame.key.set_repeat(350)
 
@@ -76,6 +78,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         self.input_box.update()
         self.screen.blit(self.input_box.image, (320, 240))
@@ -88,8 +91,9 @@ class Game(Scene):
 
         Returns:
             None
+
         """
-        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
 
     def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse button up events.
@@ -99,6 +103,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         self.input_box.activate()
 
@@ -110,6 +115,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if self.input_box.active:
             self.input_box.on_key_up_event(event)
@@ -126,6 +132,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if self.input_box.active:
             self.input_box.on_key_down_event(event)
@@ -134,9 +141,9 @@ class Game(Scene):
 
 
 def main() -> None:
-    """The main entry point for the game."""
+    """Run the main entry point for the game."""
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

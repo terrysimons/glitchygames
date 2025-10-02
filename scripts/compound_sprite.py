@@ -18,7 +18,7 @@ from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
-log = logging.getLogger('game')
+log = logging.getLogger("game")
 log.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
@@ -33,6 +33,7 @@ class GameScene(Scene):
 
     Returns:
         None
+
     """
 
     def __init__(self: Self, groups: pygame.sprite.Group | None = None) -> None:
@@ -43,6 +44,7 @@ class GameScene(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.Group()
@@ -56,12 +58,12 @@ class GameScene(Scene):
         self.screen.fill((255, 255, 0))
 
         self.menu_bar = MenuBar(
-            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
+            name="Menu Bar", x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
         )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
         self.menu_icon = MenuItem(
-            name=None, filename='raspberry.cfg', x=0, y=0, width=16, height=self.menu_bar.height
+            name=None, filename="raspberry.cfg", x=0, y=0, width=16, height=self.menu_bar.height
         )
 
         # When we load the sprite, we set a name.
@@ -89,7 +91,7 @@ class GameScene(Scene):
         #                          height=16,
         #                          groups=self.all_sprites)
         self.save_menu_item = MenuItem(
-            name='Save',
+            name="Save",
             x=self.menu_icon.width + 5,
             y=self.menu_icon.y,
             width=40,
@@ -97,7 +99,7 @@ class GameScene(Scene):
             groups=self.all_sprites,
         )
         self.load_menu_item = MenuItem(
-            name='Load',
+            name="Load",
             x=self.menu_icon.width + self.save_menu_item.width + 5,
             y=self.menu_icon.y,
             width=40,
@@ -105,7 +107,7 @@ class GameScene(Scene):
             groups=self.all_sprites,
         )
         self.quit_menu_item = MenuItem(
-            name='Quit',
+            name="Quit",
             x=self.menu_icon.width + self.save_menu_item.width + self.load_menu_item.width + 5,
             y=self.menu_icon.y,
             width=40,
@@ -129,7 +131,7 @@ class GameScene(Scene):
             y=(self.screen.get_rect().centery - button_height) // 4,
             width=button_width,
             height=button_height,
-            name='Buttony McButtonface',
+            name="Buttony McButtonface",
             groups=self.all_sprites,
         )
 
@@ -157,16 +159,17 @@ class GameScene(Scene):
 
         Returns:
             None
+
         """
-        self.log.info(f'Mouse Up Event: {event}')
+        self.log.info(f"Mouse Up Event: {event}")
 
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
     # Set your game name/version here.
-    NAME = 'Compound Sprite Demo'
-    VERSION = '1.0'
+    NAME = "Compound Sprite Demo"
+    VERSION = "1.0"
 
     def __init__(self: Self, options: dict) -> None:
         """Initialize the game.
@@ -176,11 +179,12 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
-        log.info(f'Game Options: {options}')
+        log.info(f"Game Options: {options}")
 
         self.next_scene = GameScene()
 
@@ -193,16 +197,17 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
 
 def main() -> None:
-    """The main entry point for the game."""
+    """Run the main entry point for the game."""
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

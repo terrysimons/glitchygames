@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Touch Event Manager."""
-# ruff: noqa: D104
 
 from __future__ import annotations
 
@@ -24,6 +23,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game=game)
             self.fingers: dict = {}
@@ -41,6 +41,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_touch_down_event(event)
 
@@ -52,6 +53,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_touch_motion_event(event)
 
@@ -63,6 +65,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_touch_up_event(event)
 
@@ -74,6 +77,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_multi_touch_down_event(event)
 
@@ -85,6 +89,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_multi_touch_motion_event(event)
 
@@ -96,6 +101,7 @@ class TouchManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_multi_touch_up_event(event)
 
@@ -107,6 +113,7 @@ class TouchManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
         self.proxies = [TouchManager.TouchProxy(game=game)]

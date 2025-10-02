@@ -28,7 +28,7 @@ from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
-log = logging.getLogger('game')
+log = logging.getLogger("game")
 log.setLevel(logging.INFO)
 
 
@@ -54,6 +54,7 @@ class TextSprite(Sprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -119,6 +120,7 @@ class TextSprite(Sprite):
 
                 Returns:
                     None
+
                 """  # noqa: E501
                 if groups is None:
                     groups = pygame.sprite.LayeredDirty()
@@ -143,6 +145,7 @@ class TextSprite(Sprite):
 
                 Returns:
                     None
+
                 """
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
@@ -158,6 +161,7 @@ class TextSprite(Sprite):
 
                 Returns:
                     None
+
                 """
                 self.rect.center = self.start_pos
 
@@ -178,19 +182,20 @@ class TextSprite(Sprite):
 
         Returns:
             None
+
         """
         self.image.fill(self.background_color)
 
         self.text_box.reset()
-        self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
+        self.text_box.print_text(self.image, f"{Game.NAME} version {Game.VERSION}")
 
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
     # Set your game name/version here.
-    NAME = 'Paddle Slap'
-    VERSION = '1.1'
+    NAME = "Paddle Slap"
+    VERSION = "1.1"
 
     def __init__(
         self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
@@ -203,6 +208,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -212,7 +218,7 @@ class Game(Scene):
 
         v_center = self.screen_height / 2
         self.player1 = VerticalPaddle(
-            'Player 1',
+            "Player 1",
             (20, 80),
             (0, v_center - 40),
             WHITE,
@@ -220,7 +226,7 @@ class Game(Scene):
             collision_sound=SFX.SLAP,
         )
         self.player2 = VerticalPaddle(
-            'Player 2',
+            "Player 2",
             (20, 80),
             (self.screen_width - 20, v_center - 40),
             WHITE,
@@ -228,7 +234,7 @@ class Game(Scene):
             collision_sound=SFX.SLAP,
         )
         self.balls = [
-            BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get('balls', 1))
+            BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get("balls", 1))
         ]
 
         for ball in self.balls:
@@ -250,13 +256,14 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+            "-b", "--balls", type=int, help="the number of balls to start with", default=1
         )
 
     def setup(self: Self) -> None:
@@ -267,6 +274,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         self.fps = 60
         pygame.key.set_repeat(1)
@@ -279,6 +287,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         self.dt = dt
         self.dt_timer += self.dt
@@ -294,6 +303,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
@@ -322,12 +332,13 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 
-        self.log.info(f'GOT on_controller_button_down_event: {event}')
+        self.log.info(f"GOT on_controller_button_down_event: {event}")
 
     def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -337,6 +348,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
@@ -344,7 +356,7 @@ class Game(Scene):
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             player.down()
 
-        self.log.info(f'GOT on_controller_button_up_event: {event}')
+        self.log.info(f"GOT on_controller_button_up_event: {event}")
 
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
@@ -354,6 +366,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
@@ -363,7 +376,7 @@ class Game(Scene):
                 player.stop()
             if event.value > 0:
                 player.down()
-            self.log.info(f'GOT on_controller_axis_motion_event: {event}')
+            self.log.info(f"GOT on_controller_axis_motion_event: {event}")
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key up events.
@@ -373,6 +386,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         # Handle ESC/q to quit
         super().on_key_up_event(event)
@@ -397,6 +411,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         # KEYDOWN            key, mod
         # self.log.info(f'Key Down Event: {event}')
@@ -413,16 +428,17 @@ class Game(Scene):
 
 
 def main() -> None:
-    """The main function.
+    """Run the main function.
 
     Args:
         None
 
     Returns:
         None
+
     """
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

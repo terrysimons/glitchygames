@@ -13,7 +13,7 @@ maintainers = [
 readme = "README.md"
 license = "BSD-3-Clause"
 classifiers = [
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent"
 ]
@@ -39,7 +39,7 @@ toml = "*"
 pygame = "*"
 future = "*"
 cookiecutter = "*"
-pyperclip = "^1.9.0"
+pyperclip = "*"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"
@@ -67,13 +67,14 @@ docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs
 dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
 
 [tool.ruff]
+preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
-task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
-select = [
+lint.select = [
   "F",
   "E",
   "W",
@@ -131,7 +132,7 @@ select = [
   "LOG",
   "RUF",
 ]
-ignore = [
+lint.ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
@@ -156,29 +157,35 @@ ignore = [
   "EM101", # Exception must not use a string literal, assign to variable first
   "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
 ]
-exclude = []
-fixable = [
+lint.exclude = []
+lint.fixable = [
   "I001",
   "Q000",
   "EXE001",
+  "D401",
+  "D413",
+  "TRY400",
+  "F541",
+  "T201",
+  "UP035",
 ]
-unfixable = []
+lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.format]
 quote-style = "single"
 docstring-code-format = true
 
-[tool.ruff.flake8-annotations]
+[tool.lint.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.ruff.flake8-quotes]
+[tool.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.ruff.pydocstyle]
+[tool.lint.pydocstyle]
 convention = "google"
 
 [tool.pyright]

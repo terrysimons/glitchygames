@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pygame
 
-LOG = logging.getLogger('game.pixels')
+LOG = logging.getLogger("game.pixels")
 LOG.addHandler(logging.NullHandler())
 
 
@@ -35,36 +35,36 @@ def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
 
             # Pad the data out.
             pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
+            pad_data = "0" * pad_bits
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info(f"Padded {pad_bits} bits (now {rgb_data})")
 
             # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
+            red = int(rgb_data[0:5] + "000", 2)
 
             if red:
                 red += 7
 
             # green is 6 bits
-            green = int(rgb_data[5:10] + '000', 2)
+            green = int(rgb_data[5:10] + "000", 2)
 
             if green:
                 green += 7
 
             # blue is 5 bits
-            blue = int(rgb_data[10:15] + '000', 2)
+            blue = int(rgb_data[10:15] + "000", 2)
 
             # last bit is ignored or used for alpha.
 
             if blue:
                 blue += 7
 
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
+            LOG.info(f"Packed RGB: {rgb_data}")
+            LOG.info(f"Red: {red}")
+            LOG.info(f"Green: {green}")
+            LOG.info(f"Blue: {blue}")
 
             yield tuple(red, green, blue)
     except StopIteration:
@@ -84,34 +84,34 @@ def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
 
             # Pad the data out.
             pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
+            pad_data = "0" * pad_bits
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info(f"Padded {pad_bits} bits (now {rgb_data})")
 
             # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
+            red = int(rgb_data[0:5] + "000", 2)
 
             if red:
                 red += 7
 
             # green is 6 bits
-            green = int(rgb_data[5:11] + '00', 2)
+            green = int(rgb_data[5:11] + "00", 2)
 
             if green:
                 green += 3
 
             # blue is 5 bits
-            blue = int(rgb_data[11:] + '000', 2)
+            blue = int(rgb_data[11:] + "000", 2)
 
             if blue:
                 blue += 7
 
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
+            LOG.info(f"Packed RGB: {rgb_data}")
+            LOG.info(f"Red: {red}")
+            LOG.info(f"Green: {green}")
+            LOG.info(f"Blue: {blue}")
 
             yield tuple(red, green, blue)
     except StopIteration:
@@ -126,6 +126,7 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
 
     Yields:
         Tuples of (r,g,b) values
+
     """
     # Validate input
     if not pixel_data:
@@ -141,8 +142,8 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     for i in range(0, len(pixels), 3):
         try:
             r = pixels[i]
-            g = pixels[i+1]
-            b = pixels[i+2]
+            g = pixels[i + 1]
+            b = pixels[i + 2]
             yield (r, g, b)
         except IndexError as e:
             raise ValueError(f"Not enough data for RGB triplet at index {i}") from e
@@ -179,7 +180,7 @@ def pixels_from_data(pixel_data: list) -> list:
 
 def pixels_from_path(path: str) -> list:
     """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
-    with Path.open(path, 'rb') as fh:
+    with Path.open(path, "rb") as fh:
         pixel_data = fh.read()
 
     return pixels_from_data(pixel_data=pixel_data)

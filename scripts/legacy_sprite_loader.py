@@ -20,7 +20,7 @@ from glitchygames.pixels import indexed_rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
-LOG = logging.getLogger('game')
+LOG = logging.getLogger("game")
 LOG.setLevel(logging.INFO)
 
 
@@ -40,6 +40,7 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             Self
+
         """
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
@@ -51,7 +52,7 @@ class BitmappyLegacySprite(Sprite):
             filename=filename, palette=self.palette, width=32, height=32
         )
 
-        self.save(filename + '.cfg')
+        self.save(filename + ".cfg")
 
     def load(
         self: Self, filename: str, palette: list, width: int, height: int
@@ -66,6 +67,7 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             tuple[pygame.Surface, pygame.Rect, str]: The image, rect, and name.
+
         """
         # We need to load an 8-bit palette for color conversion.
         image = None
@@ -74,12 +76,12 @@ class BitmappyLegacySprite(Sprite):
         rgb_pixels = []
 
         # Load the raw bits in.
-        with Path.open(filename, 'rb') as fh:
+        with Path.open(filename, "rb") as fh:
             data = fh.read()
 
         # Unpack the bytes.
         # Read 1 byte, unsigned.
-        indexed_rgb_data = struct.iter_unpack('<B', data)
+        indexed_rgb_data = struct.iter_unpack("<B", data)
 
         pixels = indexed_rgb_triplet_generator(data=indexed_rgb_data)
 
@@ -108,6 +110,7 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             tuple[pygame.Surface, pygame.Rect]: The image and rect.
+
         """
         image = pygame.Surface((width, height))
         image.fill((0, 255, 0))
@@ -135,10 +138,11 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             None
+
         """
         config = self.deflate()
 
-        with Path.open(filename, 'w') as deflated_sprite:
+        with Path.open(filename, "w") as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:
@@ -149,6 +153,7 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             configparser.ConfigParser: The config parser.
+
         """
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
@@ -156,7 +161,7 @@ class BitmappyLegacySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, 'RGB'))
+        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -167,8 +172,8 @@ class BitmappyLegacySprite(Sprite):
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
 
-        config.add_section('sprite')
-        config.set('sprite', 'name', self.name)
+        config.add_section("sprite")
+        config.set("sprite", "name", self.name)
 
         # Generate the color key
         color_key = chr(47)
@@ -179,16 +184,16 @@ class BitmappyLegacySprite(Sprite):
 
             color_map[color] = color_key
 
-            self.log.debug(f'Key: {color} -> {color_key}')
+            self.log.debug(f"Key: {color} -> {color_key}")
 
             red = color[0]
-            config.set(color_key, 'red', str(red))
+            config.set(color_key, "red", str(red))
 
             green = color[1]
-            config.set(color_key, 'green', str(green))
+            config.set(color_key, "green", str(green))
 
             blue = color[2]
-            config.set(color_key, 'blue', str(blue))
+            config.set(color_key, "blue", str(blue))
 
         x = 0
         row = []
@@ -197,16 +202,16 @@ class BitmappyLegacySprite(Sprite):
             x += 1
 
             if x % self.rect.width == 0:
-                self.log.debug(f'Row: {row}')
-                pixels.append(''.join(row))
+                self.log.debug(f"Row: {row}")
+                pixels.append("".join(row))
                 row = []
                 x = 0
 
         self.log.debug(pixels)
 
-        config.set('sprite', 'pixels', '\n'.join(pixels))
+        config.set("sprite", "pixels", "\n".join(pixels))
 
-        self.log.debug(f'Deflated Sprite: {config}')
+        self.log.debug(f"Deflated Sprite: {config}")
 
         return config
 
@@ -218,6 +223,7 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             str: The string representation.
+
         """
         description = (
             f'Name: {self.name}\n"'
@@ -228,7 +234,7 @@ class BitmappyLegacySprite(Sprite):
         for row in self.pixels:
             for pixel in row:
                 description += pixel
-            description += '\n'
+            description += "\n"
 
         return description
 
@@ -245,6 +251,7 @@ class GameScene(Scene):
 
         Returns:
             None
+
         """
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -265,8 +272,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = 'Sprite Loader'
-    VERSION = '1.0'
+    NAME = "Sprite Loader"
+    VERSION = "1.0"
 
     def __init__(self: Self, options: dict) -> None:
         """Initialize the Game.
@@ -276,9 +283,10 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         super().__init__(options=options)
-        self.filename = options.get('filename')
+        self.filename = options.get("filename")
         self.palette = Vga()
 
         self.next_scene = GameScene()
@@ -292,18 +300,19 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
-        parser.add_argument('--filename', help='the file to load', required=True)
+        parser.add_argument("--filename", help="the file to load", required=True)
 
 
 def main() -> None:
-    """The main entry point for the game."""
+    """Run the main entry point for the game."""
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
