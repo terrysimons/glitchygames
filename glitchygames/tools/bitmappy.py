@@ -1975,7 +1975,7 @@ class BitmapEditorScene(Scene):
         icon_path = resource_path("glitcygames", "assets", "raspberry.cfg")
         self.menu_icon = MenuItem(
             name=None,
-            x=4,  # Added 4px offset from left
+            x=4,  # Add 4px offset from left edge
             y=icon_y,
             width=16,
             height=icon_height,  # Use icon-specific height
@@ -2032,71 +2032,11 @@ class BitmapEditorScene(Scene):
             height=menu_item_height,
             groups=self.all_sprites
         )
-        self.menu_bar.add_menu(self.menu_icon)
+        self.menu_bar.add_menu(load_menu)
 
         # Calculate initial offsets that will be added by MenuBar
         menu_bar_offset_x = self.menu_bar.menu_offset_x  # Usually equals border_width (2)
         menu_bar_offset_y = self.menu_bar.menu_offset_y
-
-        # Add all menus with full height
-        menu_item_x = 0  # Start at left edge
-        icon_width = 16  # Width of the raspberry icon
-        menu_spacing = 2  # Reduced spacing between items
-        menu_item_width = 48
-        border_offset = self.menu_bar.border_width  # Usually 2px
-
-        # Start after icon, compensating for border
-        menu_item_x = (icon_width + menu_spacing) - border_offset
-
-        new_menu = MenuItem(
-            name="New",
-            x=menu_item_x,
-            y=menu_item_y - border_offset,  # Compensate for y border too
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites
-        )
-        self.menu_bar.add_menu(new_menu)
-
-        # Move to next position
-        menu_item_x += menu_item_width + menu_spacing
-
-        save_menu = MenuItem(
-            name="Save",
-            x=menu_item_x,
-            y=menu_item_y - border_offset,
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites
-        )
-        self.menu_bar.add_menu(save_menu)
-
-        # Move to next position
-        menu_item_x += menu_item_width + menu_spacing
-
-        load_menu = MenuItem(
-            name="Load",
-            x=menu_item_x,
-            y=menu_item_y - border_offset,
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites
-        )
-
-        self.menu_bar.add_menu(load_menu)
-
-        # Move to next position
-        menu_item_x += menu_item_width + menu_spacing
-
-        quit_menu = MenuItem(
-            name="Quit",
-            x=menu_item_x,
-            y=menu_item_y - border_offset,
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites
-        )
-        self.menu_bar.add_menu(quit_menu)
 
         # Calculate available space (adjusted for taller menu bar)
         bottom_margin = 100  # Space needed for sliders and color well
