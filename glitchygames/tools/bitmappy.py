@@ -2056,7 +2056,7 @@ class BitmapEditorScene(Scene):
         self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
 
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {kwargs}')
+        self.log.info(f'Game Options: {options}')
 
         # Calculate debug text box position and size
         debug_x = self.color_well.rect.right + well_padding  # Start after color well
@@ -2493,32 +2493,37 @@ class BitmapEditorScene(Scene):
         # Check for AI responses
         if hasattr(self, 'ai_response_queue') and self.ai_response_queue:
             try:
-                response = self.ai_response_queue.get_nowait()
-                if response:
-                    request_id = response.request_id
+                response_data = self.ai_response_queue.get_nowait()
+                if response_data:
+                    request_id, response = response_data
                     self.log.info(f"Got AI response for request {request_id}")
 
                     # Create temp file with .ini extension
-                    with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as tmp:
-                        tmp.write(response.content)
-                        tmp_path = tmp.name
-                        self.log.info(f"Saved AI response to temp file: {tmp_path}")
+                    if response.content is not None:
+                        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as tmp:
+                            tmp.write(response.content)
+                            tmp_path = tmp.name
+                            self.log.info(f"Saved AI response to temp file: {tmp_path}")
 
-                    # Load the sprite from the temp file
-                    try:
-                        self.canvas.load(filename=tmp_path)
-                        if hasattr(self, 'debug_text'):
-                            self.debug_text.text = "AI sprite loaded successfully"
-                    except Exception as e:
-                        self.log.error(f"Error loading AI sprite: {e}")
-                        if hasattr(self, 'debug_text'):
-                            self.debug_text.text = f"Error loading sprite: {str(e)}"
+                        # Load the sprite from the temp file
+                        try:
+                            self.canvas.load(filename=tmp_path)
+                            if hasattr(self, 'debug_text'):
+                                self.debug_text.text = "AI sprite loaded successfully"
+                        except Exception as e:
+                            self.log.error(f"Error loading AI sprite: {e}")
+                            if hasattr(self, 'debug_text'):
+                                self.debug_text.text = f"Error loading sprite: {str(e)}"
 
-                    # Clean up temp file
-                    try:
-                        os.unlink(tmp_path)
-                    except Exception as e:
-                        self.log.error(f"Error cleaning up temp file: {e}")
+                        # Clean up temp file
+                        try:
+                            os.unlink(tmp_path)
+                        except Exception as e:
+                            self.log.error(f"Error cleaning up temp file: {e}")
+                    else:
+                        self.log.error("AI response content is None, cannot save sprite")
+                        if hasattr(self, 'debug_text'):
+                            self.debug_text.text = "AI response was empty"
 
                     # Remove from pending requests
                     if request_id in self.pending_ai_requests:

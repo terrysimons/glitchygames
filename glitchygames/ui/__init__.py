@@ -2506,6 +2506,4 @@ class MultiLineTextBox(BitmappySprite):
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
         self.dirty = 1
-        else:
-            self.input_box.on_key_down_event(event)
 
