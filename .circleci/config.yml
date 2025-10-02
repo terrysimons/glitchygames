@@ -11,12 +11,12 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.13.1"
+    default: "3.13.7"
 
 orbs:
-  win: circleci/windows@5.0
-  macos: circleci/macos@2.5.2
-  jira: circleci/jira@2.1.0
+  win: circleci/windows@5.1.0
+  macos: circleci/macos@2.5.4
+  jira: circleci/jira@2.2.0
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
@@ -25,7 +25,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/python:3.13.1
+      - image: cimg/python:${PYTHON_LATEST_VERSION}
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -69,8 +69,8 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: "16.2.0"
-    resource_class: macos.m1.medium.gen1
+      xcode: "26.0.0"
+    resource_class: m4pro.medium
 
 
     steps:
