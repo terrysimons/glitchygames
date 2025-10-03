@@ -1058,7 +1058,7 @@ class BitmappySprite(Sprite):
         
         # Use the factory to determine sprite type and load appropriately
         try:
-            sprite = SpriteFactory.load_sprite(filename)
+            sprite = SpriteFactory.load_sprite(filename=filename)
             
             # If it's an AnimatedSprite, we can't load it into a BitmappySprite
             if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
@@ -1180,7 +1180,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f"Starting save in {file_format} format to {filename}")
         
         # Use the factory to save the sprite
-        SpriteFactory.save_sprite(self, filename, file_format)
+        SpriteFactory.save_sprite(sprite=self, filename=filename, file_format=file_format)
         
         self.log.debug(f"Successfully saved to {filename}")
 
@@ -1668,8 +1668,18 @@ class SpriteFactory:
     """Factory class for loading sprites with automatic type detection."""
 
     @staticmethod
-    def load_sprite(filename: str | None = None) -> "BitmappySprite | AnimatedSprite":
-        """Load a sprite file, automatically detecting whether it's static or animated."""
+    def load_sprite(*, filename: str | None = None) -> "BitmappySprite | AnimatedSprite":
+        """Load a sprite file, automatically detecting whether it's static or animated.
+        
+        Args:
+            filename: Path to sprite file. If None, loads default sprite (raspberry.cfg).
+            
+        Returns:
+            BitmappySprite or AnimatedSprite based on file content.
+            
+        Raises:
+            ValueError: If file format is invalid or contains mixed content.
+        """
         # Handle default sprite loading
         if filename is None:
             filename = SpriteFactory._get_default_sprite_path()
@@ -1747,8 +1757,18 @@ class SpriteFactory:
         return os.path.join(assets_dir, 'raspberry.cfg')
 
     @staticmethod
-    def save_sprite(sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = "ini") -> None:
-        """Save a sprite to a file with automatic type detection."""
+    def save_sprite(*, sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = "ini") -> None:
+        """Save a sprite to a file with automatic type detection.
+        
+        Args:
+            sprite: The sprite to save (BitmappySprite or AnimatedSprite).
+            filename: Path where to save the sprite file.
+            file_format: Output format ("ini" or "yaml"). Defaults to "ini".
+            
+        Raises:
+            NotImplementedError: If saving animated sprites (not yet implemented).
+            ValueError: If file_format is not supported.
+        """
         if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
             SpriteFactory._save_animated_sprite(sprite, filename, file_format)
         else:  # It's a BitmappySprite

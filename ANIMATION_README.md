@@ -25,6 +25,11 @@ The GlitchyGames Animation System allows you to create animated sprites using th
 - **Multiple Animations**: Single file can contain multiple named animations
 - **Pythonic API**: Clean, intuitive Python interface
 - **Frame Interpolation**: Support for key-frame animation with auto-generation, optimized for common retro game formats (2-4 frame walk cycles, idle animations)
+- **Automatic Type Detection**: SpriteFactory automatically detects static vs animated sprites
+- **Unified Save/Load**: Single API for loading and saving both static and animated sprites
+- **Format Support**: Both INI and YAML formats supported for maximum flexibility
+- **Extensible Architecture**: SpriteFactory designed to support future sprite and sprite sheet formats
+- **Backwards Compatibility**: Existing BitmappySprite code continues to work unchanged
 
 ## File Format
 
@@ -329,6 +334,53 @@ loop = false  # One-time effect
 
 ## API Reference
 
+### Loading Sprites
+
+The SpriteFactory provides automatic type detection for loading both static and animated sprites:
+
+```python
+from glitchygames.sprites import SpriteFactory
+
+# Load any sprite file (automatic type detection)
+sprite = SpriteFactory.load_sprite(filename="hero.ini")  # Could be static or animated
+sprite = SpriteFactory.load_sprite(filename="static.ini")  # Static sprite
+sprite = SpriteFactory.load_sprite(filename="animated.ini")  # Animated sprite
+
+# Load default sprite (raspberry.cfg) when no filename provided
+default_sprite = SpriteFactory.load_sprite()  # Loads default sprite
+default_sprite = SpriteFactory.load_sprite(filename=None)  # Same as above
+```
+
+### Saving Sprites
+
+The SpriteFactory also handles saving with automatic type detection:
+
+```python
+from glitchygames.sprites import SpriteFactory
+
+# Save any sprite (automatic type detection)
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")  # INI format
+SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")  # YAML format
+
+# Save with default format (INI)
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini")
+```
+
+### Backwards Compatibility
+
+Existing BitmappySprite code continues to work unchanged:
+
+```python
+from glitchygames.sprites import BitmappySprite
+
+# Load static sprite (uses factory internally)
+sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename="static.ini")
+
+# Save static sprite (uses factory internally)
+sprite.save("output.ini", "ini")
+sprite.save("output.yaml", "yaml")
+```
+
 ### Loading Animated Sprites
 
 ```python
@@ -336,6 +388,76 @@ from glitchygames.sprites import AnimatedBitmappySprite
 
 # Load animated sprite
 sprite = AnimatedBitmappySprite("hero.ini")
+```
+
+### File Format Support
+
+The factory supports both INI and YAML formats for loading and saving:
+
+```python
+# Load from different formats
+sprite1 = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
+sprite2 = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
+
+# Save to different formats
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")    # INI format
+SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")   # YAML format
+```
+
+### Default Sprite Loading
+
+When no filename is provided, the factory loads the default raspberry sprite:
+
+```python
+# Load default sprite (raspberry.cfg)
+default_sprite = SpriteFactory.load_sprite()  # Loads default sprite
+default_sprite = SpriteFactory.load_sprite(None)  # Same as above
+
+# The default sprite has these properties:
+print(default_sprite.name)  # "Tiley McTile Face"
+print(default_sprite.image.get_size())  # (16, 16)
+```
+
+### Extensible Architecture
+
+The SpriteFactory is designed with extensibility in mind to support future sprite and sprite sheet formats:
+
+```python
+# Current supported formats
+sprite = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
+sprite = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
+
+# Future format support (planned)
+# sprite = SpriteFactory.load_sprite("sprite.png")     # PNG sprite sheets
+# sprite = SpriteFactory.load_sprite("sprite.json")   # JSON sprite data
+# sprite = SpriteFactory.load_sprite("sprite.xml")    # XML sprite definitions
+```
+
+The factory pattern enables easy addition of new format support without breaking existing code:
+
+- **Modular Design**: Each format has its own loader/saver implementation
+- **Automatic Detection**: File extension and content analysis determine format
+- **Consistent API**: Same interface regardless of underlying format
+- **Future-Proof**: New formats can be added without API changes
+
+### Error Handling
+
+The factory provides clear error messages for common issues:
+
+```python
+try:
+    # Mixed content error (both [sprite] pixels and [frame] sections)
+    sprite = SpriteFactory.load_sprite(filename="mixed.ini")
+except ValueError as e:
+    print(f"Invalid sprite file: {e}")
+    # Output: "Invalid sprite file format: mixed.ini"
+
+try:
+    # Animated sprite save not yet implemented
+    SpriteFactory.save_sprite(animated_sprite, "output.ini")
+except NotImplementedError as e:
+    print(f"Save not supported: {e}")
+    # Output: "AnimatedSprite save functionality not yet implemented"
 ```
 
 ### State Properties (Read-Only)
@@ -417,6 +539,76 @@ sprite.stop()
 ```
 
 ## Examples
+
+### Practical Usage Examples
+
+#### Loading and Saving Sprites
+
+```python
+from glitchygames.sprites import SpriteFactory
+
+# Load any sprite file (automatic type detection)
+sprite = SpriteFactory.load_sprite(filename="hero.ini")
+
+# Check if it's animated
+if hasattr(sprite, 'animations'):
+    print("This is an animated sprite")
+    print(f"Available animations: {list(sprite.animations.keys())}")
+else:
+    print("This is a static sprite")
+    print(f"Sprite name: {sprite.name}")
+
+# Save the sprite to different formats
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
+```
+
+#### Working with Static Sprites
+
+```python
+from glitchygames.sprites import BitmappySprite, SpriteFactory
+
+# Create a static sprite programmatically
+sprite = BitmappySprite(x=0, y=0, width=16, height=16, name="MySprite")
+sprite.image = pygame.Surface((16, 16))
+sprite.image.fill((255, 0, 0))  # Red
+sprite.rect = sprite.image.get_rect()
+sprite.pixels = [(255, 0, 0)] * 256  # 16x16 red pixels
+sprite.pixels_across = 16
+sprite.pixels_tall = 16
+
+# Save it
+sprite.save("my_sprite.ini", "ini")
+
+# Load it back
+loaded_sprite = SpriteFactory.load_sprite(filename="my_sprite.ini")
+print(f"Loaded sprite: {loaded_sprite.name}")
+```
+
+#### Working with Animated Sprites
+
+```python
+from glitchygames.sprites import SpriteFactory
+
+# Load animated sprite
+sprite = SpriteFactory.load_sprite(filename="hero.ini")
+
+# Control animation
+sprite.play_animation("idle")
+print(f"Current animation: {sprite.current_animation}")
+print(f"Current frame: {sprite.current_frame}")
+
+# Switch animations
+sprite.next_animation = "walk"
+sprite.play()
+
+# Access frames
+for frame in sprite.frames["idle"]:
+    if not frame.interpolated:
+        print("Original frame from file")
+    else:
+        print("Interpolated frame")
+```
 
 ### Static Sprite Examples
 
@@ -741,6 +933,63 @@ if sprite.is_playing and not sprite.is_looping:
 current_frame = sprite.frames[sprite.current_animation][sprite.current_frame]
 ```
 
+### 5. Factory Pattern Usage
+
+**Use SpriteFactory for new code:**
+```python
+# Recommended: Use factory for automatic type detection
+sprite = SpriteFactory.load_sprite(filename="hero.ini")
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+```
+
+**Maintain backwards compatibility:**
+```python
+# Existing code continues to work
+sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename="static.ini")
+sprite.save("output.ini", "ini")
+```
+
+**Handle different sprite types:**
+```python
+sprite = SpriteFactory.load_sprite(filename="unknown.ini")
+
+if hasattr(sprite, 'animations'):
+    # It's an animated sprite
+    sprite.play_animation("idle")
+else:
+    # It's a static sprite
+    print(f"Static sprite: {sprite.name}")
+```
+
+**Use appropriate file formats:**
+```python
+# INI format for human-readable files
+SpriteFactory.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+
+# YAML format for programmatic editing
+SpriteFactory.save_sprite(sprite=sprite, filename="sprite.yaml", file_format="yaml")
+```
+
+**Plan for future format support:**
+```python
+# Current: Use INI/YAML for maximum compatibility
+SpriteFactory.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+
+# Future: Additional formats will be supported
+# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.png", file_format="png")    # PNG sprite sheets
+# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.json", file_format="json")  # JSON sprite data
+# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.xml", file_format="xml")    # XML definitions
+```
+
+**Design for extensibility:**
+```python
+# Good: Use factory pattern for future-proof code
+sprite = SpriteFactory.load_sprite(filename="sprite.ini")  # Works with any supported format
+
+# Avoid: Direct format-specific loading
+# sprite = BitmappySprite("sprite.ini")  # Tied to specific format
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -777,6 +1026,53 @@ blue = 0
 - [ ] `frame_index` values are sequential (if specified)
 
 ## Advanced Features
+
+### Extensible Format Support
+
+The SpriteFactory architecture is designed to support future sprite and sprite sheet formats without breaking existing code:
+
+#### Current Format Support
+- **INI Format**: Human-readable configuration files
+- **YAML Format**: Programmatic editing and data exchange
+
+#### Planned Format Support
+- **PNG Sprite Sheets**: Traditional sprite sheet images with metadata
+- **JSON Sprite Data**: Structured data format for programmatic generation
+- **XML Sprite Definitions**: Industry-standard sprite definition format
+- **Custom Formats**: Plugin architecture for specialized formats
+
+#### Architecture Benefits
+```python
+# Consistent API regardless of format
+sprite = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
+sprite = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
+# Future: sprite = SpriteFactory.load_sprite("sprite.png")     # PNG format
+# Future: sprite = SpriteFactory.load_sprite("sprite.json")   # JSON format
+
+# Same save API for all formats
+SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
+# Future: SpriteFactory.save_sprite(sprite=sprite, filename="output.png", file_format="png")
+# Future: SpriteFactory.save_sprite(sprite=sprite, filename="output.json", file_format="json")
+```
+
+#### Plugin Architecture
+The factory pattern enables easy addition of new format support:
+
+```python
+# Future: Custom format plugins
+class PNGSpriteLoader:
+    def load(self, filename):
+        # Load PNG sprite sheet
+        pass
+
+    def save(self, sprite, filename):
+        # Save as PNG sprite sheet
+        pass
+
+# Register new format
+SpriteFactory.register_format("png", PNGSpriteLoader())
+```
 
 ### Frame Interpolation
 
