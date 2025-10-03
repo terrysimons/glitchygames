@@ -11,9 +11,6 @@ if TYPE_CHECKING:
 
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite

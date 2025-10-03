@@ -14,9 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 from glitchygames import events
 from glitchygames.color import PURPLE
 from glitchygames.events.audio import AudioManager

@@ -11,9 +11,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Self, cast
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 import yaml
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface

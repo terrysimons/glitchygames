@@ -19,9 +19,6 @@ from queue import Empty
 from typing import TYPE_CHECKING, ClassVar, Self
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 
 # Try to import aisuite, but don't fail if it's not available
 try:
