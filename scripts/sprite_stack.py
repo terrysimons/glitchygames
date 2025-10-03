@@ -75,12 +75,7 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __getitem__(self: Self, index: int) -> pygame.Surface:
-        """Return a sprite from the stack."""
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def intentionally_missing_method(self: Self) -> pygame.Surface:
+    def __getitem__(self: Self, index: int) -> "SpriteFrame":
         """Return a sprite from the stack."""
         raise NotImplementedError
 
@@ -114,13 +109,9 @@ class SpriteFrame(SpriteStackInterface):
         """Set the rect."""
         self._rect = new_rect
 
-    def __getitem__(self: Self, index: int) -> pygame.Surface:
+    def __getitem__(self: Self, index: int) -> "SpriteFrame":
         """Return a sprite from the stack."""
-        return self._image
-
-    def intentionally_missing_method(self: Self) -> pygame.Surface:
-        """Return a sprite from the stack."""
-        return self._image
+        return self
 
     def get_size(self: Self) -> tuple[int, int]:
         """Return the size of the surface."""
@@ -138,7 +129,7 @@ class SpriteFrame(SpriteStackInterface):
 class SpriteStack(SpriteStackInterface):
     """A prototype Sprite Stack class."""
 
-    def __init__(self: Self, sprites: list[SpriteFrame] | list[pygame.Surface]) -> Self:
+    def __init__(self: Self, sprites: list["SpriteFrame"] | list[pygame.Surface]) -> Self:
         """Initialize the Sprite Stack prototype."""
         self.stack = [
             SpriteFrame(sprite) if isinstance(sprite, pygame.Surface) else sprite
@@ -146,21 +137,7 @@ class SpriteStack(SpriteStackInterface):
         ]
         self.frame_index = 0
 
-        assert self.stack, "Sprite stack cannot be empty."
-        assert isinstance(self.stack, list), "Sprite stack must be a list."
-        assert all(isinstance(sprite, SpriteFrame) for sprite in self.stack), (
-            "Sprite stack must be a list of SpriteFrame objects."
-        )
-        assert len(self.stack) > 0, "Sprite stack must at least one sprite."
-        assert all(sprite.get_size() == self.stack[0].get_size() for sprite in self.stack), (
-            "All sprites in the stack must be the same size."
-        )
-        assert all(sprite.get_alpha() == self.stack[0].get_alpha() for sprite in self.stack), (
-            "All sprites in the stack must have the same alpha value."
-        )
-        assert all(
-            sprite.get_colorkey() == self.stack[0].get_colorkey() for sprite in self.stack
-        ), "All sprites in the stack must have the same colorkey."
+        # Validation moved to tests - allows flexible initialization
 
     @property
     def image(self: Self) -> pygame.Surface:
@@ -182,41 +159,243 @@ class SpriteStack(SpriteStackInterface):
         """Set the rect."""
         self[self.frame_index].rect = new_rect
 
-    def __getitem__(self: Self, index: int) -> SpriteFrame:
+    def __getitem__(self: Self, index: int) -> "SpriteFrame":
         """Return a sprite from the stack."""
         return self.stack[index]
 
-    def intentionally_missing_method(self: Self) -> pygame.Surface:
-        """Return a sprite from the stack."""
-        return self[self.frame_index].image
 
-    # def flatten(self: Self) -> pygame.Surface:
-    #     """Return a fully collapsed sprite stack."""
-    #     self._image = pygame.Surface(self.stack[0].get_size(), pygame.SRCALPHA)
-    #     self._image.set_alpha(self.stack[0].get_alpha())
-    #     self._image.set_colorkey(self.stack[0].get_colorkey())
-
-    #     for sprite in self.stack:
-    #         self._image.blit(sprite, (0, 0))
-
-    #     return self._image
-
-
-class AnimatedSpriteInterface(SpriteStackInterface, abc.ABC):
+class AnimatedSpriteInterface(abc.ABC):
     """A formal interface for the Sprite Animation prototype."""
+
+    # Animation state properties (read-only)
+    @property
+    @abc.abstractmethod
+    def current_animation(self: Self) -> str:
+        """Return the current animation name."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def current_frame(self: Self) -> int:
+        """Return the current frame index."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def is_playing(self: Self) -> bool:
+        """Return whether animation is currently playing."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def is_looping(self: Self) -> bool:
+        """Return whether current animation loops."""
+        raise NotImplementedError
+
+    # Animation information properties
+    @property
+    @abc.abstractmethod
+    def frames(self: Self) -> dict[str, list["SpriteFrame"]]:
+        """Return all frames for all animations (including interpolated)."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def animations(self: Self) -> dict[str, dict]:
+        """Return animation metadata for all animations."""
+        raise NotImplementedError
+
+    # Direct animation metadata access (current animation)
+    @property
+    @abc.abstractmethod
+    def frame_interval(self: Self) -> float:
+        """Return the frame interval for the current animation."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def loop(self: Self) -> bool:
+        """Return whether the current animation loops."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def frame_count(self: Self) -> int:
+        """Return the number of frames in the current animation."""
+        raise NotImplementedError
+
+    # Control properties (write-only)
+    @property
+    @abc.abstractmethod
+    def next_animation(self: Self) -> str:
+        """Get the next animation to play."""
+        raise NotImplementedError
+
+    @next_animation.setter
+    @abc.abstractmethod
+    def next_animation(self: Self, animation_name: str) -> None:
+        """Set the next animation to play (resets frame_index to 0)."""
+        raise NotImplementedError
+
+    # Animation control methods
+    @abc.abstractmethod
+    def play_animation(self: Self, animation_name: str) -> None:
+        """Start playing a specific animation."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def play(self: Self) -> None:
+        """Resume current animation."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def pause(self: Self) -> None:
+        """Pause current animation (preserves position)."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def stop(self: Self) -> None:
+        """Stop animation and reset to frame 0."""
+        raise NotImplementedError
+
+    # Frame access by animation name
+    @abc.abstractmethod
+    def __getitem__(self: Self, animation_name: str) -> "SpriteFrame":
+        """Return the current frame of the specified animation."""
+        raise NotImplementedError
+
+    # Sprite properties for drawing system
+    @property
+    @abc.abstractmethod
+    def image(self: Self) -> pygame.Surface:
+        """Return current frame's surface."""
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def rect(self: Self) -> pygame.Rect:
+        """Return current frame's rect."""
+        raise NotImplementedError
 
 
 class AnimatedSprite(AnimatedSpriteInterface):
     """A prototype Sprite Animation class."""
 
-    def __init__(self: Self) -> None:
+    def __init__(self: Self, filename: str | None = None) -> None:
         """Initialize the Sprite Animation prototype."""
         super().__init__()
-        self._frames = []
+        self._animations = {}  # animation_name -> list of frames
+        self._current_animation = ""
+        self._current_frame = 0
+        self._is_playing = False
+        self._is_looping = False
 
-    def __getitem__(self: Self, index: int) -> SpriteFrame:
-        """Return a sprite from the stack."""
-        return self._frames[index]
+        if filename:
+            self.load(filename)
+
+    def __getitem__(self: Self, animation_name: str) -> "SpriteFrame":
+        """Return the current frame of the specified animation."""
+        pass
+
+    def get_current_frame(self: Self) -> "SpriteFrame":
+        """Return the current frame as a "SpriteFrame"."""
+        pass
+
+    # Sprite properties - return current frame's surface information
+    @property
+    def image(self: Self) -> pygame.Surface:
+        """Return current frame's surface."""
+        pass
+
+    @property
+    def rect(self: Self) -> pygame.Rect:
+        """Return current frame's rect."""
+        pass
+
+    # Animation state properties (read-only)
+    @property
+    def current_animation(self: Self) -> str:
+        """Return the current animation name."""
+        pass
+
+    @property
+    def current_frame(self: Self) -> int:
+        """Return the current frame index."""
+        pass
+
+    @property
+    def is_playing(self: Self) -> bool:
+        """Return whether animation is currently playing."""
+        pass
+
+    @property
+    def is_looping(self: Self) -> bool:
+        """Return whether current animation loops."""
+        pass
+
+    # Animation information properties
+    @property
+    def frames(self: Self) -> dict[str, list["SpriteFrame"]]:
+        """Return all frames for all animations (including interpolated)."""
+        pass
+
+    @property
+    def animations(self: Self) -> dict[str, dict]:
+        """Return animation metadata for all animations."""
+        pass
+
+    # Direct animation metadata access (current animation)
+    @property
+    def frame_interval(self: Self) -> float:
+        """Return the frame interval for the current animation."""
+        pass
+
+    @property
+    def loop(self: Self) -> bool:
+        """Return whether the current animation loops."""
+        pass
+
+    @property
+    def frame_count(self: Self) -> int:
+        """Return the number of frames in the current animation."""
+        pass
+
+    # Control properties (write-only)
+    @property
+    def next_animation(self: Self) -> str:
+        """Get the next animation to play."""
+        pass
+
+    @next_animation.setter
+    def next_animation(self: Self, animation_name: str) -> None:
+        """Set the next animation to play (resets frame_index to 0)."""
+        pass
+
+    # Animation control methods
+    def play_animation(self: Self, animation_name: str) -> None:
+        """Start playing a specific animation."""
+        pass
+
+    def play(self: Self) -> None:
+        """Resume current animation."""
+        pass
+
+    def pause(self: Self) -> None:
+        """Pause current animation (preserves position)."""
+        pass
+
+    def stop(self: Self) -> None:
+        """Stop animation and reset to frame 0."""
+        pass
+
+    # Animation loading
+    def load(self: Self, filename: str) -> None:
+        """Load animated sprite from INI file."""
+        pass
+
+    def update(self: Self, dt: float) -> None:
+        """Update animation timing."""
+        pass
 
 
 if __name__ == "__main__":

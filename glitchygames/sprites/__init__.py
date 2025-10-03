@@ -1052,9 +1052,35 @@ class BitmappySprite(Sprite):
         self.rect.y = y
         self.proxies = [self.parent]
 
-    def load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file."""
+    def load(self: Self, filename: str | None = None) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Load a sprite from a Bitmappy config file using the factory for backwards compatibility."""
         self.log.debug(f"=== Starting load from {filename} ===")
+        
+        # Use the factory to determine sprite type and load appropriately
+        try:
+            sprite = SpriteFactory.load_sprite(filename)
+            
+            # If it's an AnimatedSprite, we can't load it into a BitmappySprite
+            if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
+                raise ValueError(f"File {filename} contains animated sprite data. Use AnimatedSprite class instead of BitmappySprite.")
+            
+            # It's a BitmappySprite, copy its properties
+            self.image = sprite.image
+            self.rect = sprite.rect
+            self.name = sprite.name
+            self.width = sprite.width
+            self.height = sprite.height
+            
+            return (self.image, self.rect, self.name)
+            
+        except ValueError as e:
+            # If factory fails, fall back to old static-only loading
+            self.log.debug(f"Factory failed, falling back to static-only loading: {e}")
+            return self._load_static_only(filename)
+
+    def _load_static_only(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Load a static sprite from a Bitmappy config file (legacy method)."""
+        self.log.debug(f"=== Starting static-only load from {filename} ===")
 
         config = configparser.RawConfigParser(
             dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
@@ -1627,3 +1653,86 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         super().__init__(
             x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups
         )
+
+
+class SpriteFactory:
+    """Factory class for loading sprites with automatic type detection."""
+
+    @staticmethod
+    def load_sprite(filename: str | None = None) -> "BitmappySprite | AnimatedSprite":
+        """Load a sprite file, automatically detecting whether it's static or animated."""
+        # Handle default sprite loading
+        if filename is None:
+            filename = SpriteFactory._get_default_sprite_path()
+        
+        analysis = SpriteFactory._analyze_file(filename)
+        sprite_type = SpriteFactory._determine_type(analysis)
+        
+        if sprite_type == "static":
+            # Create BitmappySprite without calling load to avoid recursion
+            sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
+            # Now manually load the file using the static-only method
+            image, rect, name = sprite._load_static_only(filename)
+            sprite.image = image
+            sprite.rect = rect
+            sprite.name = name
+            sprite.width = rect.width
+            sprite.height = rect.height
+            return sprite
+        elif sprite_type == "animated":
+            # Import here to avoid circular imports
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+            from sprite_stack import AnimatedSprite
+            return AnimatedSprite(filename)
+        else:
+            raise ValueError(f"Invalid sprite file format: {filename}")
+
+    @staticmethod
+    def _analyze_file(filename: str) -> dict:
+        """Analyze INI file content to determine sprite type."""
+        config = configparser.ConfigParser()
+        config.read(filename)
+        
+        has_sprite_pixels = False
+        has_animation_sections = False
+        has_frame_sections = False
+        
+        # Check for [sprite] pixels
+        if "sprite" in config and "pixels" in config["sprite"]:
+            has_sprite_pixels = True
+        
+        # Check for [animation] sections
+        if any(section.startswith("animation") for section in config.sections()):
+            has_animation_sections = True
+        
+        # Check for [frame] sections  
+        if any(section.startswith("frame") for section in config.sections()):
+            has_frame_sections = True
+        
+        return {
+            "has_sprite_pixels": has_sprite_pixels,
+            "has_animation_sections": has_animation_sections, 
+            "has_frame_sections": has_frame_sections
+        }
+
+    @staticmethod
+    def _determine_type(analysis: dict) -> str:
+        """Determine sprite type based on file analysis."""
+        if analysis["has_sprite_pixels"] and analysis["has_frame_sections"]:
+            return "error"  # Mixed content - invalid
+        elif analysis["has_frame_sections"] or analysis["has_animation_sections"]:
+            return "animated"
+        elif analysis["has_sprite_pixels"]:
+            return "static"
+        else:
+            return "error"  # No recognizable content
+
+    @staticmethod
+    def _get_default_sprite_path() -> str:
+        """Get the path to the default sprite (raspberry.cfg)."""
+        import os
+        # Get the path to the assets directory
+        assets_dir = os.path.join(os.path.dirname(__file__), '..', 'assets')
+        return os.path.join(assets_dir, 'raspberry.cfg')

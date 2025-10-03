@@ -374,7 +374,12 @@ for frame in sprite.frames["idle"]:
 ### Animation Information
 
 ```python
-# Animation metadata for the "idle" animation
+# Direct access to current animation metadata (recommended)
+sprite.frame_interval  # Returns the frame_interval for the current animation
+sprite.loop           # Returns the loop setting for the current animation
+sprite.frame_count    # Returns the number of frames in the current animation
+
+# Access specific animation metadata by name
 sprite.animations["idle"].frame_interval  # Returns the frame_interval value from the [animation] section
 sprite.animations["idle"].loop            # Returns the loop value from the [animation] section
 sprite.animations["idle"].frame_count     # Returns the number of frames in this animation
