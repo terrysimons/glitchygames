@@ -389,9 +389,19 @@ class AnimatedSprite(AnimatedSpriteInterface):
         pass
 
     # Animation loading
+    def _load(self: Self, filename: str) -> None:
+        """Internal load method for animated sprites."""
+        # For now, raise an error since AnimatedSprite load is not implemented
+        raise NotImplementedError("AnimatedSprite load functionality not yet implemented")
+
+    def _save(self: Self, filename: str, file_format: str = "ini") -> None:
+        """Internal save method for animated sprites."""
+        # For now, raise an error since AnimatedSprite save is not implemented
+        raise NotImplementedError("AnimatedSprite save functionality not yet implemented")
+
     def load(self: Self, filename: str) -> None:
         """Load animated sprite from INI file."""
-        pass
+        self._load(filename)
 
     def update(self: Self, dt: float) -> None:
         """Update animation timing."""
@@ -399,8 +409,7 @@ class AnimatedSprite(AnimatedSpriteInterface):
 
     def save(self: Self, filename: str, file_format: str = "ini") -> None:
         """Save animated sprite to a file."""
-        # For now, raise an error since AnimatedSprite save is not implemented
-        raise NotImplementedError("AnimatedSprite save functionality not yet implemented")
+        self._save(filename, file_format)
 
 
 if __name__ == "__main__":

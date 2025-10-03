@@ -1184,6 +1184,14 @@ class BitmappySprite(Sprite):
         
         self.log.debug(f"Successfully saved to {filename}")
 
+    def _save(self: Self, filename: str, file_format: str = "ini") -> None:
+        """Internal save method for static sprites."""
+        self._save_static_only(filename, file_format)
+
+    def _load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Internal load method for static sprites."""
+        return self._load_static_only(filename)
+
     def _save_static_only(self: Self, filename: str, file_format: str = "ini") -> None:
         """Save a static sprite to a file (legacy method)."""
         try:
@@ -1690,8 +1698,8 @@ class SpriteFactory:
         if sprite_type == "static":
             # Create BitmappySprite without calling load to avoid recursion
             sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
-            # Now manually load the file using the static-only method
-            image, rect, name = sprite._load_static_only(filename)
+            # Now manually load the file using the internal load method
+            image, rect, name = sprite._load(filename)
             sprite.image = image
             sprite.rect = rect
             sprite.name = name
@@ -1777,10 +1785,9 @@ class SpriteFactory:
     @staticmethod
     def _save_static_sprite(sprite: "BitmappySprite", filename: str, file_format: str) -> None:
         """Save a static sprite to a file."""
-        sprite._save_static_only(filename, file_format)
+        sprite._save(filename, file_format)
 
     @staticmethod
     def _save_animated_sprite(sprite: "AnimatedSprite", filename: str, file_format: str) -> None:
         """Save an animated sprite to a file."""
-        # For now, raise an error since AnimatedSprite save is not implemented
-        raise NotImplementedError("AnimatedSprite save functionality not yet implemented")
+        sprite._save(filename, file_format)
