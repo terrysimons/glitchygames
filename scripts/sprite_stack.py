@@ -88,19 +88,51 @@ class SpriteStackInterface(abc.ABC):
 class SpriteFrame(SpriteStackInterface):
     """A prototype Sprite Frame class."""
 
-    def __init__(self: Self, sprite: pygame.sprite.Sprite) -> None:
+    def __init__(self: Self, sprite: pygame.Surface) -> None:
         """Initialize the Sprite Frame prototype."""
         super().__init__()
-        self._image = None
-        self._rect = pygame.Rect((0, 0), (0, 0))
+        self._image = sprite
+        self._rect = pygame.Rect((0, 0), sprite.get_size())
 
+    @property
     def image(self: Self) -> pygame.Surface:
         """Return the flattened sprite stack image."""
         return self._image
 
+    @image.setter
+    def image(self: Self, new_image: pygame.Surface) -> None:
+        """Set the image."""
+        self._image = new_image
+
+    @property
     def rect(self: Self) -> pygame.Rect:
         """Return the sprite stack pygame.Rect."""
         return self._rect
+
+    @rect.setter
+    def rect(self: Self, new_rect: pygame.Rect) -> None:
+        """Set the rect."""
+        self._rect = new_rect
+
+    def __getitem__(self: Self, index: int) -> pygame.Surface:
+        """Return a sprite from the stack."""
+        return self._image
+
+    def intentionally_missing_method(self: Self) -> pygame.Surface:
+        """Return a sprite from the stack."""
+        return self._image
+
+    def get_size(self: Self) -> tuple[int, int]:
+        """Return the size of the surface."""
+        return self._image.get_size()
+
+    def get_alpha(self: Self) -> int:
+        """Return the alpha value of the surface."""
+        return self._image.get_alpha()
+
+    def get_colorkey(self: Self) -> int | None:
+        """Return the colorkey of the surface."""
+        return self._image.get_colorkey()
 
 
 class SpriteStack(SpriteStackInterface):
@@ -153,6 +185,10 @@ class SpriteStack(SpriteStackInterface):
     def __getitem__(self: Self, index: int) -> SpriteFrame:
         """Return a sprite from the stack."""
         return self.stack[index]
+
+    def intentionally_missing_method(self: Self) -> pygame.Surface:
+        """Return a sprite from the stack."""
+        return self[self.frame_index].image
 
     # def flatten(self: Self) -> pygame.Surface:
     #     """Return a fully collapsed sprite stack."""
