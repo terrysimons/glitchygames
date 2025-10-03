@@ -10,14 +10,11 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 
-LOG = logging.getLogger('game')
+LOG = logging.getLogger("game")
 LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
@@ -35,6 +32,7 @@ class IntroScene(Scene):
 
         Returns:
             Self
+
         """
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -49,8 +47,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = 'Debug App'
-    VERSION = '1.0'
+    NAME = "Debug App"
+    VERSION = "1.0"
     log = LOG
 
     def __init__(self: Self, options: dict) -> Self:
@@ -61,10 +59,11 @@ class Game(Scene):
 
         Returns:
             Self
+
         """
         super().__init__(options=options)
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
+        self.log.info(f"Game Options: {options}")
 
         self.next_scene = IntroScene()
 
@@ -77,9 +76,10 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
 
@@ -88,5 +88,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

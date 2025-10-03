@@ -7,10 +7,14 @@ import logging
 import time
 from typing import TYPE_CHECKING, Self
 
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
+
 import pygame
 from glitchygames import events
-from glitchygames.color import BLACKLUCENT, WHITE
-from glitchygames.engine import GameEngine
+from glitchygames.color import WHITE
 from glitchygames.events.mouse import MousePointer
 from glitchygames.fonts import FontManager
 from glitchygames.sprites import (
@@ -23,7 +27,7 @@ from pygame import Rect
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-LOG = logging.getLogger('game.ui')
+LOG = logging.getLogger("game.ui")
 LOG.addHandler(logging.NullHandler())
 
 
@@ -53,6 +57,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -67,7 +72,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.width = width
         self.height = height
         self.has_focus = False
-        self.log.debug(f'MENUBAR GROUPS: {groups}')
+        self.log.debug(f"MENUBAR GROUPS: {groups}")
 
         # Create surface with alpha support
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -75,7 +80,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         # Create RGBA colors
         menu_bg_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
-        border_color = (WHITE[0], WHITE[1], WHITE[2], 128)   # Semi-transparent white
+        border_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
 
         # Draw with alpha
         pygame.draw.rect(self.image, menu_bg_color, self.rect)
@@ -87,28 +92,27 @@ class MenuBar(FocusableSingletonBitmappySprite):
     def add_menu(self: Self, menu: MenuItem) -> None:
         """Add a menu to the menu bar."""
         self.menu_items[menu.name] = menu
-        self.log.info(f'Before offset: menu {menu.name} at x={menu.rect.x}, offset={self.menu_offset_x}')
+        self.log.info(
+            f"Before offset: menu {menu.name} at x={menu.rect.x}, offset={self.menu_offset_x}"
+        )
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
-
-        # Store original position before any adjustments
-        original_x = menu.rect.x
 
         # Only adjust if this isn't the first menu item
         if self.menu_offset_x > self.border_width:
             menu.rect.x = self.menu_offset_x
             # Only adjust text position if it exists
-            if hasattr(menu, 'text'):
+            if hasattr(menu, "text"):
                 menu.text.rect.x = self.menu_offset_x
 
         menu.rect.y += self.menu_offset_y
         # Only adjust text y position if it exists
-        if hasattr(menu, 'text'):
+        if hasattr(menu, "text"):
             menu.text.rect.y += self.menu_offset_y
 
-        self.log.info(f'After offset: menu {menu.name} at x={menu.rect.x}')
+        self.log.info(f"After offset: menu {menu.name} at x={menu.rect.x}")
         self.menu_offset_x = menu.rect.x + menu.rect.width + self.border_width
-        self.log.debug(f'Menu Items: {self.menu_items}')
+        self.log.debug(f"Menu Items: {self.menu_items}")
 
     def add_menu_item(self: Self, menu_item: MenuItem, menu: MenuBar | None = None) -> None:
         """Add a menu item to the menu bar.
@@ -119,12 +123,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug(f"{type(self)} Adding new menu {menu_item}.")
         else:
-            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug(f"{type(self)} Adding menu item {menu_item} to menu {menu}.")
 
     def update(self: Self) -> None:
         """Update the menu bar.
@@ -134,6 +139,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         for menu_item in self.menu_items.values():
             # Blit with alpha support
@@ -152,8 +158,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {event} @ {self} for {trigger}')
+        self.log.debug(f"{type(self)} Mouse Drag {event} @ {self} for {trigger}")
 
     def on_left_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
         """Handle left mouse drop events.
@@ -163,8 +170,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event) -> None:
         """Handle middle mouse drag events.
@@ -174,8 +182,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
         """Handle middle mouse drop events.
@@ -185,8 +194,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
@@ -197,8 +207,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drop events.
@@ -209,8 +220,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
@@ -220,8 +232,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} MOUSE MOVE {self.name}')
+        self.log.debug(f"{type(self)} MOUSE MOVE {self.name}")
 
     def on_mouse_enter_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse enter events.
@@ -231,8 +244,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug(f"{type(self)} ENTER MENU {self.name}")
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
 
@@ -245,7 +259,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.debug(f'{type(self)} {self.name} Mouse enter on {self.name} at {mouse}')
+                self.log.debug(f"{type(self)} {self.name} Mouse enter on {self.name} at {mouse}")
                 collided_sprite.on_mouse_enter_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -261,6 +275,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
@@ -274,7 +289,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.debug(f'{type(self)} {self.name} Mouse exit on {self.name} at {mouse}')
+                self.log.debug(f"{type(self)} {self.name} Mouse exit on {self.name} at {mouse}")
                 collided_sprite.on_mouse_exit_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -290,6 +305,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         # Figure out which item was clicked.
         mouse = MousePointer(pos=event.pos)
@@ -301,8 +317,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             # if sprite.name in self.menu_items:
-            if type(sprite) == MenuItem:
-                self.log.debug(f'{type(self)} Mouse button down on {self.name} at {mouse}')
+            if isinstance(sprite, MenuItem):
+                self.log.debug(f"{type(self)} Mouse button down on {self.name} at {mouse}")
                 sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in sprite.menu_items:
@@ -316,6 +332,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
         mouse = MousePointer(pos=event.pos)
 
@@ -326,9 +343,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             # if sprite.name in self.menu_items:
-            if type(sprite) == MenuItem:
+            if isinstance(sprite, MenuItem):
                 self.log.debug(
-                    f'{type(self)} {self.name} ' f'Mouse button up on {self.name} at {mouse}'
+                    f"{type(self)} {self.name} Mouse button up on {self.name} at {mouse}"
                 )
                 sprite.on_left_mouse_button_down_event(event)
 
@@ -343,8 +360,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_right_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
         """Handle right mouse drop events.
@@ -354,8 +372,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse wheel events.
@@ -365,8 +384,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
+        self.log.debug(f"{type(self)} Mouse Wheel {self.name}")
 
 
 class MenuItem(BitmappySprite):
@@ -379,6 +399,7 @@ class MenuItem(BitmappySprite):
 
     Returns:
         None
+
     """
 
     log = LOG
@@ -408,6 +429,7 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -424,7 +446,7 @@ class MenuItem(BitmappySprite):
         )
         self.all_sprites = groups
 
-        self.log.debug(f'MENUITEM GROUPS: {groups}')
+        self.log.debug(f"MENUITEM GROUPS: {groups}")
 
         self.background_color = (255, 0, 255)
         self.border_width = 2
@@ -446,7 +468,7 @@ class MenuItem(BitmappySprite):
             self.image.fill((255, 255, 255))
             self.image.set_colorkey((255, 255, 255))
             self.text = TextSprite(
-                background_color=self.background_color,
+                background_color=(255, 255, 255),  # White background to match menu
                 text_color=(0, 0, 0),
                 x=x,
                 y=y,
@@ -456,7 +478,6 @@ class MenuItem(BitmappySprite):
                 parent=parent,
                 groups=groups,
             )
-            self.text.image.set_colorkey((255, 0, 255))
             self.text.add(groups)
             # Align the rect with the text position
             self.rect.x = self.text.rect.x
@@ -475,13 +496,14 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         # super().add(*groups)
 
         # There's something funky with MRO and pygame
         # doing things this way avoids dirtier tricks.
         try:
-            text = getattr(self, 'text')  # noqa: B009
+            text = getattr(self, "text")  # noqa: B009
             text.add(*groups)
         except AttributeError:
             pass
@@ -494,6 +516,7 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
@@ -517,15 +540,15 @@ class MenuItem(BitmappySprite):
         self.menu_rect.y = 21
 
         width = (
-            max([self.menu_items[menu_item].rect.width + 20 for menu_item in self.menu_items]) * 2.5
+            max(self.menu_items[menu_item].rect.width + 20 for menu_item in self.menu_items) * 2.5
         )
         heights = [self.menu_items[menu_item].rect.height for menu_item in self.menu_items]
         height = self.rect.height
 
         if heights:
-            self.log.debug(f'Heights: {heights}')
+            self.log.debug(f"Heights: {heights}")
             heights.append(self.rect.height)
-            self.log.debug(f'New Heights: {heights}')
+            self.log.debug(f"New Heights: {heights}")
             height = sum(heights)
 
         # Create a new image that is self.height + [menu.height for menu in self.menu_items]
@@ -560,18 +583,19 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug(f"{type(self)} Adding new menu {menu_item}.")
         else:
-            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug(f"{type(self)} Adding menu item {menu_item} to menu {menu}.")
 
     def update(self: Self) -> None:
         """Update the menu item."""
         # Draw to our own surface instead of the screen
         if self.active and self.menu_image and self.menu_rect:
-            self.log.debug('Drawing the menu')
+            self.log.debug("Drawing the menu")
             self.image.blit(self.menu_image, (0, 0))  # Draw relative to our own surface
 
     def on_left_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -580,65 +604,77 @@ class MenuItem(BitmappySprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object): The trigger object.
+
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_left_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle left mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (object): The trigger object.
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_middle_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (object): The trigger object.
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_middle_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle middle mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (object): The trigger object.
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (object): The trigger object.
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (object): The trigger object.
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
@@ -648,6 +684,7 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         mouse = MousePointer(pos=event.pos)
 
@@ -664,8 +701,7 @@ class MenuItem(BitmappySprite):
         for collided_sprite in collided_sprites:
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse enter on {collided_sprite.name} '
-                    f'{collided_sprite.rect} at {mouse.rect}'
+                    f"Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}"
                 )
                 collided_sprite.on_mouse_motion_event(event)
 
@@ -682,8 +718,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug(f"{type(self)} ENTER MENU {self.name}")
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
 
@@ -697,8 +734,7 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse enter on {collided_sprite.name} '
-                    f'{collided_sprite.rect} at {mouse.rect}'
+                    f"Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}"
                 )
                 collided_sprite.on_mouse_enter_event(event)
 
@@ -715,6 +751,7 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
@@ -729,7 +766,7 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse exit on {collided_sprite.name} ' f'{collided_sprite.rect} at {mouse}'
+                    f"Mouse exit on {collided_sprite.name} {collided_sprite.rect} at {mouse}"
                 )
                 collided_sprite.on_mouse_exit_event(event)
 
@@ -747,8 +784,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Up {self.name}')
+        self.log.debug(f"{type(self)} Mouse Up {self.name}")
         self.image = self.menu_up_image
         self.rect = self.menu_up_rect
         self.active = 0
@@ -758,7 +796,7 @@ class MenuItem(BitmappySprite):
         # Figure out which item was clicked.
         mouse = MousePointer(pos=event.pos)
 
-        self.log.debug(f'Process MOUSE UP {event} at {mouse}')
+        self.log.debug(f"Process MOUSE UP {event} at {mouse}")
 
         sprites = pygame.sprite.spritecollide(sprite=mouse, group=self.all_sprites, dokill=False)
 
@@ -767,25 +805,25 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             # if sprite.name in self.menu_items:
-            if type(sprite) == MenuItem:
-                self.log.debug(f'Mouse button up on {sprite.name} at {mouse.rect}')
+            if isinstance(sprite, MenuItem):
+                self.log.debug(f"Mouse button up on {sprite.name} at {mouse.rect}")
 
                 self.log.debug(
-                    f'{type(self)} Clicked Menu Item: Name: {sprite.name}, '
-                    f'Width: {sprite.rect.width},'
-                    f'Height: {sprite.rect.height}, '
-                    f'Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},'
-                    f'my X: {sprite.rect.x}, '
-                    f'my Y: {sprite.rect.y}'
+                    f"{type(self)} Clicked Menu Item: Name: {sprite.name}, "
+                    f"Width: {sprite.rect.width},"
+                    f"Height: {sprite.rect.height}, "
+                    f"Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},"
+                    f"my X: {sprite.rect.x}, "
+                    f"my Y: {sprite.rect.y}"
                 )
-                menu_item_callback = sprite.callbacks.get('on_menu_item_event', None)
+                menu_item_callback = sprite.callbacks.get("on_menu_item_event", None)
 
                 if menu_item_callback:
                     menu_item_callback(self, event)
                 # Create a menu item clicked event.
                 # Emit it to the pygame event subsystem.
                 pygame.event.post(
-                    pygame.event.Event(events.MENUEVENT, {'menu': self, 'menu_item': sprite})
+                    pygame.event.Event(events.MENUEVENT, {"menu": self, "menu_item": sprite})
                 )
                 # self.game.on_menu_item_clicked_event()
 
@@ -797,8 +835,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Down {self.name}')
+        self.log.debug(f"{type(self)} Mouse Down {self.name}")
         self.image = self.menu_down_image
         self.rect = self.menu_down_rect
         self.active = 1
@@ -819,8 +858,8 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'{type(collided_sprite)} Mouse button down on '
-                    f'{collided_sprite.name} at {mouse.rect}'
+                    f"{type(collided_sprite)} Mouse button down on "
+                    f"{collided_sprite.name} at {mouse.rect}"
                 )
                 collided_sprite.on_left_mouse_button_down_event(event)
 
@@ -832,8 +871,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drag {self.name}")
 
     def on_right_mouse_drop_event(self: Self, event: pygame.event.Event) -> None:
         """Handle right mouse drop events.
@@ -843,8 +883,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug(f"{type(self)} Mouse Drop {self.name}")
 
     def on_mouse_wheel_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse wheel events.
@@ -854,8 +895,9 @@ class MenuItem(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
+        self.log.debug(f"{type(self)} Mouse Wheel {self.name}")
 
 
 class TextSprite(BitmappySprite):
@@ -873,10 +915,26 @@ class TextSprite(BitmappySprite):
         background_color: tuple = (255, 0, 255),
         text_color: tuple = WHITE,
         alpha: int = 0,
-        text: str = 'Text',
+        text: str = "Text",
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
+        """Initialize the text sprite.
+
+        Args:
+            x: X position
+            y: Y position
+            width: Width of the sprite
+            height: Height of the sprite
+            name: Name of the sprite
+            background_color: Background color tuple
+            text_color: Text color tuple
+            alpha: Alpha value
+            text: Text content
+            parent: Parent object
+            groups: Sprite groups
+
+        """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -895,6 +953,7 @@ class TextSprite(BitmappySprite):
         self._y = y
         self.background_color = background_color
         self.text_color = text_color
+
         self.alpha = alpha
         self._text = text
         self.parent = parent
@@ -907,30 +966,36 @@ class TextSprite(BitmappySprite):
 
     @property
     def x(self):
+        """Get the x position."""
         return self._x
 
     @x.setter
     def x(self, value):
+        """Set the x position."""
         self._x = value
         self.rect.x = value
         self.dirty = 2
 
     @property
     def y(self):
+        """Get the y position."""
         return self._y
 
     @y.setter
     def y(self, value):
+        """Set the y position."""
         self._y = value
         self.rect.y = value
         self.dirty = 2
 
     @property
     def text(self):
+        """Get the text content."""
         return self._text
 
     @text.setter
     def text(self, value):
+        """Set the text content."""
         if value != self._text:  # Only update if text has changed
             self._text = str(value)
             self.update_text(self._text)
@@ -943,19 +1008,67 @@ class TextSprite(BitmappySprite):
 
     def update_text(self, text):
         """Update the text surface."""
+        # Check if background is transparent (alpha = 0)
+        rgba_length = 4
+        is_transparent = len(self.background_color) == rgba_length and self.background_color[3] == 0
+
         # Create surface with alpha support
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
 
-        # Fill with black background (or any color that contrasts with the text)
-        self.image.fill((0, 0, 0, 0))  # Fully transparent black
+        # Fill with the sprite's background color
+        if is_transparent:
+            # For transparent backgrounds, use a transparent surface
+            self.image.fill((0, 0, 0, 0))
+        else:
+            self.image.fill(self.background_color)
 
-        # Create text surface using pygame's default font with no anti-aliasing
-        font = pygame.font.Font(None, 24)
-        text_surface = font.render(str(text), False, self.text_color)  # False = no anti-aliasing
+        # Create text surface using FontManager for consistent font handling
+        font = FontManager.get_font()
+
+        # Handle different font system render methods
+        text_rect = None  # Initialize text_rect
+
+        # Check if it's pygame.freetype.Font (has render_to method) or pygame.font.Font
+        if hasattr(font, "render_to"):
+            # This is a pygame.freetype.Font
+            try:
+                if is_transparent:
+                    # For transparent backgrounds, use render_to with a transparent surface
+                    # Create a transparent surface first
+                    text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                    text_surface.fill((0, 0, 0, 0))
+                    # Render text directly to the transparent surface
+                    text_rect = font.render_to(text_surface, (0, 0), str(text), self.text_color)
+                else:
+                    # For solid backgrounds, pass the background color
+                    text_surface, text_rect = font.render(
+                        str(text), self.text_color, self.background_color
+                    )
+            except (TypeError, ValueError):
+                # Fall back to pygame.font style (returns surface)
+                if is_transparent:
+                    # For transparent backgrounds, don't pass background color to pygame.font
+                    text_surface = font.render(str(text), antialias=True, color=self.text_color)
+                else:
+                    # For solid backgrounds, pass the background color
+                    text_surface = font.render(
+                        str(text),
+                        antialias=True,
+                        color=self.text_color,
+                        background=self.background_color,
+                    )
+        elif is_transparent:
+            # This is a pygame.font.Font with transparent background
+            # For transparent backgrounds, don't pass background color to pygame.font
+            text_surface = font.render(str(text), antialias=True, color=self.text_color)
+        else:
+            # For solid backgrounds, render without background parameter for pygame.font
+            text_surface = font.render(str(text), antialias=True, color=self.text_color)
 
         # Position the text in the center of our surface
-        text_rect = text_surface.get_rect()
+        if text_rect is None:
+            text_rect = text_surface.get_rect()
         target_rect = self.image.get_rect()
         text_rect.centerx = target_rect.centerx
         text_rect.centery = target_rect.centery
@@ -992,6 +1105,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1052,6 +1166,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             int: The x coordinate of the button sprite.
+
         """
         return self.rect.x
 
@@ -1064,6 +1179,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.rect.x = new_x
         self.text.x = new_x  # Position relative to button
@@ -1078,6 +1194,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             int: The y coordinate of the button sprite.
+
         """
         return self.rect.y
 
@@ -1090,6 +1207,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.rect.y = new_y
         self.text.y = new_y  # Position relative to button
@@ -1105,6 +1223,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.text.dirty = self.dirty
 
@@ -1116,6 +1235,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.background_color = self.active_color
         # self.update()
@@ -1130,6 +1250,7 @@ class ButtonSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.background_color = self.inactive_color
         # self.update()
@@ -1165,6 +1286,7 @@ class CheckboxSprite(ButtonSprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1182,6 +1304,7 @@ class CheckboxSprite(ButtonSprite):
 
         Returns:
             None
+
         """
         if not self.checked:
             self.image.fill((0, 0, 0))
@@ -1200,6 +1323,7 @@ class CheckboxSprite(ButtonSprite):
 
         Returns:
             None
+
         """
 
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -1210,6 +1334,7 @@ class CheckboxSprite(ButtonSprite):
 
         Returns:
             None
+
         """
         self.checked = not self.checked
         # self.update()
@@ -1226,7 +1351,7 @@ class InputBox(Sprite):
         width: int,
         height: int,
         color: tuple = (233, 248, 215),
-        text: str = '',
+        text: str = "",
         name: str | None = None,
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
@@ -1246,6 +1371,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1258,7 +1384,7 @@ class InputBox(Sprite):
         self.rect.y = y + self.offset_y
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
-        self.font = pygame.font.SysFont('Times', 14)
+        self.font = pygame.font.SysFont("Times", 14)
         self.text = text
         self.text_image = self.font.render(self.text, True, self.color)  # noqa: FBT003
         self.active = False
@@ -1280,6 +1406,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         self.active = True
         self.dirty = 2
@@ -1292,6 +1419,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         self.active = False
         self.dirty = 0
@@ -1304,6 +1432,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         if self.parent:
             try:
@@ -1319,6 +1448,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         self.image.fill((0, 0, 0))
         self.image.blit(self.text_image, (4, 4))
@@ -1341,6 +1471,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         self.text_image = self.font.render(self.text, True, (255, 255, 255))  # noqa: FBT003
 
@@ -1352,6 +1483,7 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
         self.activate()
 
@@ -1363,8 +1495,9 @@ class InputBox(Sprite):
 
         Returns:
             None
+
         """
-        self.log.info(f'INPUT BOX EVENT: {event}')
+        self.log.info(f"INPUT BOX EVENT: {event}")
         if self.active:
             pygame.key.set_repeat(200)
 
@@ -1376,7 +1509,7 @@ class InputBox(Sprite):
         if self.active:
             if event.key == pygame.K_RETURN:
                 # Trigger confirm button instead of adding newline
-                if hasattr(self.parent, 'on_confirm_event'):
+                if hasattr(self.parent, "on_confirm_event"):
                     self.parent.on_confirm_event(event=event, trigger=self)
             else:
                 # Handle other key input
@@ -1417,6 +1550,7 @@ class TextBoxSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1457,6 +1591,7 @@ class TextBoxSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.text_box.dirty = self.dirty
 
@@ -1468,6 +1603,7 @@ class TextBoxSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         if self.text_box:
             self.text_box.background_color = self.background_color
@@ -1488,6 +1624,7 @@ class TextBoxSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.background_color = (128, 128, 128)
         self.dirty = 1
@@ -1500,6 +1637,7 @@ class TextBoxSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.background_color = (0, 0, 0)
         self.dirty = 1
@@ -1508,12 +1646,12 @@ class TextBoxSprite(BitmappySprite):
 class SliderSprite(BitmappySprite):
     """A slider sprite class."""
 
-    log = logging.getLogger('game')
+    log = logging.getLogger("game")
 
     class SliderKnobSprite(BitmappySprite):
         """A slider knob sprite class."""
 
-        log = logging.getLogger('game')
+        log = logging.getLogger("game")
 
         def __init__(
             self: Self,
@@ -1538,6 +1676,7 @@ class SliderSprite(BitmappySprite):
 
             Returns:
                 None
+
             """
             if groups is None:
                 groups = pygame.sprite.LayeredDirty()
@@ -1553,26 +1692,27 @@ class SliderSprite(BitmappySprite):
             self.x = x
             self.y = y
 
-        def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
-            """Handle left mouse button down events.
+        # def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        #     """Handle left mouse button down events.
 
-            Args:
-                event (pygame.event.Event): The event to handle.
+        #     Args:
+        #         event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-            """
-            self.dirty = 1
-            self.value = event.pos[0] - self.parent.x
+        #     Returns:
+        #         None
 
-            # Clamp to 8-bit
-            if self.value > 255:  # noqa: PLR2004
-                self.value = 255
-            elif self.value < 0:
-                self.value = 0
+        #     """
+        #     self.dirty = 1
+        #     self.value = event.pos[0] - self.parent.x
 
-            self.rect.centerx = self.parent.x + self.value if self.parent else self.x + self.value
-            super().on_left_mouse_button_down_event(event)
+        #     # Clamp to 8-bit
+        #     if self.value > 255:
+        #         self.value = 255
+        #     elif self.value < 0:
+        #         self.value = 0
+
+        #     self.rect.centerx = self.parent.x + self.value if self.parent else self.x + self.value
+        #     super().on_left_mouse_button_down_event(event)
 
         def on_left_mouse_drag_event(
             self: Self, event: pygame.event.Event, trigger: object
@@ -1585,6 +1725,7 @@ class SliderSprite(BitmappySprite):
 
             Returns:
                 None
+
             """
             # There's not a good way to pass any useful info, so for now, pass None
             # since we're not using the event for anything in this class.
@@ -1614,6 +1755,7 @@ class SliderSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1621,7 +1763,7 @@ class SliderSprite(BitmappySprite):
         # Store parent in a temporary variable
         self._temp_parent = parent
 
-        self.log = logging.getLogger('game')
+        self.log = logging.getLogger("game")
         self.log.info(f"Initializing slider {name} with parent {parent}")
 
         super().__init__(
@@ -1636,7 +1778,7 @@ class SliderSprite(BitmappySprite):
 
         # Force set parent after super init
         self.parent = self._temp_parent
-        delattr(self, '_temp_parent')
+        delattr(self, "_temp_parent")
 
         self.log.info(f"After super().__init__, parent is now {self.parent}")
 
@@ -1652,7 +1794,7 @@ class SliderSprite(BitmappySprite):
             y=y,
             width=5,
             height=height,
-            name=f'{name}_knob',
+            name=f"{name}_knob",
             groups=groups,
         )
         self.slider_knob.image.fill((200, 200, 200))
@@ -1664,16 +1806,17 @@ class SliderSprite(BitmappySprite):
             y=y - (height // 2),
             width=32,
             height=20,
-            text='0',
+            text="0",
+            background_color=(0, 0, 0),  # Solid black background like color well
             groups=groups,
         )
 
         # Set color based on slider name
-        if name == 'R':
+        if name == "R":
             self.color = (255, 0, 0)
-        elif name == 'G':
+        elif name == "G":
             self.color = (0, 255, 0)
-        elif name == 'B':
+        elif name == "B":
             self.color = (0, 0, 255)
         else:
             self.color = (128, 128, 128)
@@ -1692,39 +1835,115 @@ class SliderSprite(BitmappySprite):
 
     @property
     def value(self):
+        """Get the slider value."""
         return self._value
 
     @value.setter
     def value(self, new_value):
-        if hasattr(self, 'slider_knob'):  # Only update knob if it exists
+        """Set the slider value."""
+        if hasattr(self, "slider_knob"):  # Only update knob if it exists
             self._value = max(0, min(255, new_value))
             self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
             self.slider_knob.dirty = 2
-            if hasattr(self, 'text_sprite'):
+            if hasattr(self, "text_sprite"):
                 self.text_sprite.text = str(self._value)
 
     def update_slider_appearance(self):
         """Update the slider's gradient appearance based on its color."""
         for x in range(self.width):
             intensity = int((x / self.width) * 255)
-            if self.name == 'R':
+            if self.name == "R":
                 color = (intensity, 0, 0)
-            elif self.name == 'G':
+            elif self.name == "G":
                 color = (0, intensity, 0)
-            elif self.name == 'B':
+            elif self.name == "B":
                 color = (0, 0, intensity)
             else:
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
 
+    # def update_color_well(self):
+    #     """Update the color well with current value."""
+    #     if hasattr(self.parent, "color_well"):
+    #         if self.name == "R":
+    #             self.parent.red_slider.value = self._value
+    #         elif self.name == "G":
+    #             self.parent.green_slider.value = self._value
+    #         elif self.name == "B":
+    #             self.parent.blue_slider.value = self._value
+
+    #         self.parent.color_well.active_color = (
+    #             self.parent.red_slider.value,
+    #             self.parent.green_slider.value,
+    #             self.parent.blue_slider.value,
+    #         )
+
+    # def on_left_mouse_button_down_event(self, event):
+    #     """Handle left mouse button down event."""
+    #     mouse = MousePointer(pos=event.pos)
+    #     if pygame.sprite.collide_rect(mouse, self):
+    #         self.log.info(f"Mouse down on slider {self.name}")
+    #         self.dragging = True
+    #         # Update value based on click position
+    #         click_x = max(self.min_x, min(event.pos[0], self.max_x))
+    #         self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
+
+    #         # Create trigger event exactly like right-click does
+    #         trigger = pygame.event.Event(
+    #             0, {"name": self.name, "value": self._value}
+    #         )
+    #         if hasattr(self.parent, "on_slider_event"):
+    #             self.log.info(
+    #                 f"Slider {self.name} calling on_slider_event with value {self._value}"
+    #             )
+    #             self.parent.on_slider_event(event=event, trigger=trigger)
+    #         else:
+    #             self.log.info(f"Parent {self.parent} has no on_slider_event")
+
+    #         self.value = self._value  # Update display after event
+
+    # def on_mouse_motion_event(self, event):
+    #     """Handle mouse motion event."""
+    #     if self.dragging:
+    #         self.log.info(f"Dragging slider {self.name}")
+    #         # Update value based on drag position
+    #         drag_x = max(self.min_x, min(event.pos[0], self.max_x))
+    #         self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
+
+    #         # Create trigger event exactly like right-click does
+    #         trigger = pygame.event.Event(
+    #             0, {"name": self.name, "value": self._value}
+    #         )
+    #         if hasattr(self.parent, "on_slider_event"):
+    #             self.log.info(
+    #                 f"Slider {self.name} calling on_slider_event with value {self._value}"
+    #             )
+    #             self.parent.on_slider_event(event=event, trigger=trigger)
+    #         else:
+    #             self.log.info(f"Parent {self.parent} has no on_slider_event")
+
+    #         self.value = self._value  # Update display after event
+
+    # def on_left_mouse_button_up_event(self, event):
+    #     """Handle left mouse button up event."""
+    #     if self.dragging:
+    #         self.log.info(f"Mouse up on slider {self.name}")
+    #         self.dragging = False
+
+    # def update(self):
+    #     """Update the slider."""
+    #     super().update()
+    #     self.slider_knob.update()
+    #     self.text_sprite.update()
+
     def update_color_well(self):
         """Update the color well with current value."""
-        if hasattr(self.parent, 'color_well'):
-            if self.name == 'R':
+        if hasattr(self.parent, "color_well"):
+            if self.name == "R":
                 self.parent.red_slider.value = self._value
-            elif self.name == 'G':
+            elif self.name == "G":
                 self.parent.green_slider.value = self._value
-            elif self.name == 'B':
+            elif self.name == "B":
                 self.parent.blue_slider.value = self._value
 
             self.parent.color_well.active_color = (
@@ -1734,6 +1953,7 @@ class SliderSprite(BitmappySprite):
             )
 
     def on_left_mouse_button_down_event(self, event):
+        """Handle left mouse button down event."""
         mouse = MousePointer(pos=event.pos)
         if pygame.sprite.collide_rect(mouse, self):
             self.log.info(f"Mouse down on slider {self.name}")
@@ -1743,9 +1963,11 @@ class SliderSprite(BitmappySprite):
             self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
             # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
-            if hasattr(self.parent, 'on_slider_event'):
-                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+            trigger = pygame.event.Event(0, {"name": self.name, "value": self._value})
+            if hasattr(self.parent, "on_slider_event"):
+                self.log.info(
+                    f"Slider {self.name} calling on_slider_event with value {self._value}"
+                )
                 self.parent.on_slider_event(event=event, trigger=trigger)
             else:
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
@@ -1753,6 +1975,7 @@ class SliderSprite(BitmappySprite):
             self.value = self._value  # Update display after event
 
     def on_mouse_motion_event(self, event):
+        """Handle mouse motion event."""
         if self.dragging:
             self.log.info(f"Dragging slider {self.name}")
             # Update value based on drag position
@@ -1760,9 +1983,11 @@ class SliderSprite(BitmappySprite):
             self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
 
             # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
-            if hasattr(self.parent, 'on_slider_event'):
-                self.log.info(f"Slider {self.name} calling on_slider_event with value {self._value}")
+            trigger = pygame.event.Event(0, {"name": self.name, "value": self._value})
+            if hasattr(self.parent, "on_slider_event"):
+                self.log.info(
+                    f"Slider {self.name} calling on_slider_event with value {self._value}"
+                )
                 self.parent.on_slider_event(event=event, trigger=trigger)
             else:
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
@@ -1770,11 +1995,13 @@ class SliderSprite(BitmappySprite):
             self.value = self._value  # Update display after event
 
     def on_left_mouse_button_up_event(self, event):
+        """Handle left mouse button up event."""
         if self.dragging:
             self.log.info(f"Mouse up on slider {self.name}")
             self.dragging = False
 
     def update(self):
+        """Update the slider."""
         super().update()
         self.slider_knob.update()
         self.text_sprite.update()
@@ -1808,6 +2035,7 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1841,6 +2069,7 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             tuple[R: int, G: int, B: int]: The active color.
+
         """
         return (self.red, self.green, self.blue)
 
@@ -1853,6 +2082,7 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.red = active_color[0]
         self.green = active_color[1]
@@ -1868,15 +2098,16 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             str: The hex color in #RRGGBB format.
+
         """
-        hex_str = '{:02X}'
+        hex_str = "{:02X}"
         red, green, blue = self.active_color
 
         red = hex_str.format(red)
         green = hex_str.format(green)
         blue = hex_str.format(blue)
 
-        return f'#{red}{green}{blue}'
+        return f"#{red}{green}{blue}"
 
     def update_nested_sprites(self: Self) -> None:
         """Update the nested sprites.
@@ -1886,6 +2117,7 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         self.text_sprite.dirty = 1
 
@@ -1897,6 +2129,7 @@ class ColorWellSprite(BitmappySprite):
 
         Returns:
             None
+
         """
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
         pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
@@ -1918,9 +2151,9 @@ class InputDialog(BitmappySprite):
         width: int,
         height: int,
         name: str | None = None,
-        dialog_text: str = 'Would you like to do a thing?',
-        confirm_text: str = 'Confirm',
-        cancel_text: str = 'Cancel',
+        dialog_text: str = "Would you like to do a thing?",
+        confirm_text: str = "Confirm",
+        cancel_text: str = "Cancel",
         callbacks: Callable | None = None,
         parent: object = None,
         groups: pygame.sprite.LayeredDirty | None = None,
@@ -1942,6 +2175,7 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -1959,7 +2193,7 @@ class InputDialog(BitmappySprite):
 
         # Position dialog text at top
         self.dialog_text_sprite = TextBoxSprite(
-            name='dialog_text',
+            name="dialog_text",
             x=x + 20,
             y=y + 20,
             width=width - 40,
@@ -1976,7 +2210,7 @@ class InputDialog(BitmappySprite):
             y=y + (height // 2) - 10,  # Vertically centered
             width=width - 40,
             height=20,
-            text='',
+            text="",
             parent=self,
             groups=groups,
         )
@@ -1992,7 +2226,7 @@ class InputDialog(BitmappySprite):
             width=75,
             height=20,
             parent=self,
-            groups=groups
+            groups=groups,
         )
 
         # Confirm to left of cancel
@@ -2003,7 +2237,7 @@ class InputDialog(BitmappySprite):
             width=75,
             height=20,
             parent=self,
-            groups=groups
+            groups=groups,
         )
 
         self.input_box.activate()
@@ -2016,6 +2250,7 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
         self.cancel_button.dirty = self.dirty
         self.confirm_button.dirty = self.dirty
@@ -2038,19 +2273,22 @@ class InputDialog(BitmappySprite):
         # Blit to self.image instead of self.screen
         self.image.blit(
             self.dialog_text_sprite.image,
-            (self.dialog_text_sprite.rect.x - self.rect.x, self.dialog_text_sprite.rect.y - self.rect.y),
+            (
+                self.dialog_text_sprite.rect.x - self.rect.x,
+                self.dialog_text_sprite.rect.y - self.rect.y,
+            ),
         )
         self.image.blit(
             self.cancel_button.image,
-            (self.cancel_button.rect.x - self.rect.x, self.cancel_button.rect.y - self.rect.y)
+            (self.cancel_button.rect.x - self.rect.x, self.cancel_button.rect.y - self.rect.y),
         )
         self.image.blit(
             self.confirm_button.image,
-            (self.confirm_button.rect.x - self.rect.x, self.confirm_button.rect.y - self.rect.y)
+            (self.confirm_button.rect.x - self.rect.x, self.confirm_button.rect.y - self.rect.y),
         )
         self.image.blit(
             self.input_box.image,
-            (self.input_box.rect.x - self.rect.x, self.input_box.rect.y - self.rect.y)
+            (self.input_box.rect.x - self.rect.x, self.input_box.rect.y - self.rect.y),
         )
 
     def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -2062,10 +2300,11 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
         if self.parent:
             self.parent.on_confirm_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got confirm event!')
+        self.log.info(f"{self.name}: Got confirm event!")
 
     def on_cancel_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle cancel events.
@@ -2076,10 +2315,11 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
         if self.parent:
             self.parent.on_cancel_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got cancel event!')
+        self.log.info(f"{self.name}: Got cancel event!")
 
     def on_input_box_cancel_event(self: Self, control: object) -> None:
         """Handle input box cancel events.
@@ -2089,8 +2329,9 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
         self.on_cancel_event(event=control, trigger=control)
 
     def on_input_box_submit_event(self: Self, event: pygame.event.Event) -> None:
@@ -2101,8 +2342,9 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
+        self.log.info(f"{self.name} Got text input from: {event.name}: {event.text}")
         self.on_confirm_event(event=event, trigger=event)
 
     def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -2113,8 +2355,9 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.debug(f'{self.name} Got mouse button up event: {event}')
+        self.log.debug(f"{self.name} Got mouse button up event: {event}")
         # Only activate if click was within input box bounds
         if self.input_box.rect.collidepoint(event.pos):
             self.input_box.activate()
@@ -2129,8 +2372,9 @@ class InputDialog(BitmappySprite):
 
         Returns:
             None
+
         """
-        self.log.info(f'Got Event: {event} from {self.parent}')
+        self.log.info(f"Got Event: {event} from {self.parent}")
 
         if self.input_box.active:
             self.input_box.on_key_up_event(event)
@@ -2146,3 +2390,317 @@ class InputDialog(BitmappySprite):
         else:
             self.input_box.on_key_down_event(event)
 
+
+class MultiLineTextBox(BitmappySprite):
+    """A multi-line text box sprite class."""
+
+    log = LOG
+
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        text: str = "",
+        parent: object | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
+        """Initialize a MultiLineTextBox."""
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
+        self.log.debug(
+            f"Creating MultiLineTextBox: name={name}, pos=({x}, {y}), size=({width}, {height})"
+        )
+
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups,
+            focusable=True,
+        )
+
+        self._text = text
+        self.text = text
+        self.active = False
+        self.cursor_visible = True
+        self.cursor_blink_time = pygame.time.get_ticks()
+        self.cursor_blink_rate = 530
+        self.cursor_pos = len(text)
+        self._last_update_time = pygame.time.get_ticks()
+        self._frame_count = 0
+
+        # Initialize selection attributes
+        self.selection_start = None
+        self.selection_end = None
+
+        # Force continuous updates
+        self.dirty = 2
+
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        self.image = self.image.convert_alpha()
+
+        # Use FontManager for consistent font handling
+        self.font = FontManager.get_font()
+        self.text_color = WHITE
+        self.cursor_color = WHITE
+
+        # Add scroll tracking
+        self.scroll_offset = 0
+        # Calculate line height - handle both pygame.font and pygame.freetype
+        if hasattr(self.font, "get_linesize"):
+            line_height = self.font.get_linesize()
+        else:
+            # For freetype fonts, use the size attribute (it's a float, not a tuple)
+            line_height = self.font.size if hasattr(self.font, "size") else 24
+        self.visible_lines = int(self.height // line_height)
+
+    def _get_text_width(self, text: str) -> int:
+        """Get text width for both pygame.font and pygame.freetype fonts."""
+        if hasattr(self.font, "get_rect"):
+            # pygame.freetype.Font - use get_rect() method
+            return self.font.get_rect(text).width
+        # pygame.font.Font - size() is a method
+        return self.font.size(text)[0]
+
+    def update(self) -> None:  # noqa: PLR0912, PLR0915, PLR0914
+        """Update the multi-line text box."""
+        self._frame_count += 1
+        current_time = pygame.time.get_ticks()
+        time_since_last_update = current_time - self._last_update_time
+        # Get line height - handle both pygame.font and pygame.freetype
+        if hasattr(self.font, "get_linesize"):
+            line_height = self.font.get_linesize()
+        else:
+            # For freetype fonts, use the size attribute (it's a float, not a tuple)
+            line_height = self.font.size if hasattr(self.font, "size") else 24
+
+        self.log.debug(f"\n--- Frame {self._frame_count} ---")
+        self.log.debug(f"Update called after {time_since_last_update}ms")
+        self.log.debug(f"State: active={self.active}, cursor_visible={self.cursor_visible}")
+        self.log.debug(f"Dirty flag: {self.dirty}")
+
+        self._last_update_time = current_time
+
+        # Clear background
+        self.image.fill((32, 32, 32, 200))
+
+        # Draw border
+        if self.active:
+            pygame.draw.rect(self.image, (64, 64, 255), (0, 0, self.width, self.height), 1)
+        else:
+            pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
+
+        # Render text with line breaks and scrolling
+        if self._text:
+            lines = self._text.split("\n")
+
+            # Adjust scroll if needed to keep cursor visible
+            cursor_line = self._text[: self.cursor_pos].count("\n")
+            if cursor_line - self.scroll_offset >= self.visible_lines:
+                self.scroll_offset = cursor_line - self.visible_lines + 1
+            elif cursor_line < self.scroll_offset:
+                self.scroll_offset = cursor_line
+
+            # Render visible lines
+            start_idx = int(self.scroll_offset)
+            end_idx = int(self.scroll_offset + self.visible_lines)
+            visible_lines = lines[start_idx:end_idx]
+
+            y_offset = 5
+            for line in visible_lines:
+                if line:  # Only render non-empty lines
+                    if hasattr(self.font, "get_rect"):
+                        # pygame.freetype.Font - render returns (surface, rect)
+                        text_surface, _ = self.font.render(line, self.text_color)
+                    else:
+                        # pygame.font.Font - render returns surface
+                        text_surface = self.font.render(line, antialias=True, color=self.text_color)
+                    self.image.blit(text_surface, (5, y_offset))
+                y_offset += line_height
+
+        # Handle cursor blinking
+        if self.active:
+            time_since_blink = current_time - self.cursor_blink_time
+            if time_since_blink >= self.cursor_blink_rate:
+                self.cursor_visible = not self.cursor_visible
+                self.cursor_blink_time = current_time
+
+            if self.cursor_visible:
+                # Count newlines before cursor to determine y position
+                lines_before_cursor = self._text[: self.cursor_pos].count("\n")
+                # Only draw cursor if it's in the visible range
+                if (
+                    self.scroll_offset
+                    <= lines_before_cursor
+                    < self.scroll_offset + self.visible_lines
+                ):
+                    # Get text width of current line up to cursor
+                    current_line_start = (
+                        self._text[: self.cursor_pos].rindex("\n") + 1
+                        if "\n" in self._text[: self.cursor_pos]
+                        else 0
+                    )
+                    current_line_text = self._text[current_line_start : self.cursor_pos]
+                    text_width = self._get_text_width(current_line_text)
+
+                    cursor_x = text_width + 5
+                    cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
+
+                    pygame.draw.line(
+                        self.image,
+                        self.cursor_color,
+                        (cursor_x, cursor_y),
+                        (cursor_x, cursor_y + 20),
+                        2,
+                    )
+
+        # Force continuous updates
+        self.dirty = 2
+
+    def on_left_mouse_button_down_event(self, event: pygame.event.Event) -> None:
+        """Handle left mouse button down events."""
+        self.log.debug("\n--- Mouse Event ---")
+        self.log.debug(f"Mouse down at {event.pos}")
+        self.log.debug(f"Current rect: {self.rect}")
+        self.log.debug(f"Current state: active={self.active}, cursor_visible={self.cursor_visible}")
+
+        if self.rect.collidepoint(event.pos):
+            self.active = True
+            self.cursor_visible = True
+            self.cursor_blink_time = pygame.time.get_ticks()
+            pygame.key.start_text_input()
+            # Enable key repeat for backspace
+            pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
+
+            # Calculate cursor position
+            x_rel = event.pos[0] - self.rect.x - 5
+            text_width = 0
+            for i, char in enumerate(self._text):
+                char_width = self._get_text_width(char)
+                if text_width + (char_width / 2) > x_rel:
+                    self.cursor_pos = i
+                    break
+                text_width += char_width
+            else:
+                self.cursor_pos = len(self._text)
+
+            self.log.debug(f"Activated: cursor_pos={self.cursor_pos}")
+            self.log.debug("Text input started")
+            self.dirty = 2
+        else:
+            self.active = False
+            pygame.key.stop_text_input()
+            # Disable key repeat when inactive
+            pygame.key.set_repeat()  # Calling with no args disables repeat
+            self.log.debug("Deactivated, text input stopped")
+
+    def on_key_down_event(self, event: pygame.event.Event) -> None:  # noqa: PLR0912, PLR0915
+        """Handle key down events."""
+        if not self.active:
+            return
+
+        mods = pygame.key.get_mods()
+        is_paste = event.key == pygame.K_v and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
+        is_copy = event.key == pygame.K_c and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
+        is_shift = bool(mods & pygame.KMOD_SHIFT)
+        is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
+
+        # Handle Ctrl+Enter for submission
+        if event.key == pygame.K_RETURN and is_ctrl:
+            if self.parent and hasattr(self.parent, "on_text_submit_event"):
+                self.parent.on_text_submit_event(self._text)
+                # Deactivate the text box after submission
+                self.active = False
+                pygame.key.stop_text_input()
+                pygame.key.set_repeat()  # Disable key repeat
+                self.log.debug("Deactivated after submission")
+            return
+
+        # Handle selection with shift+arrow keys
+        if event.key in {pygame.K_LEFT, pygame.K_RIGHT}:
+            if is_shift:
+                if self.selection_start is None:
+                    self.selection_start = self.cursor_pos
+
+                if event.key == pygame.K_LEFT:
+                    self.cursor_pos = max(0, self.cursor_pos - 1)
+                else:
+                    self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+                self.selection_end = self.cursor_pos
+                return
+            self.selection_start = None
+            self.selection_end = None
+
+        # Handle copy/paste
+        if is_copy and self._text:
+            try:
+                if (
+                    pyperclip
+                    and self.selection_start is not None
+                    and self.selection_end is not None
+                ):
+                    start = min(self.selection_start, self.selection_end)
+                    end = max(self.selection_start, self.selection_end)
+                    selected_text = self._text[start:end]
+                    pyperclip.copy(selected_text)
+                else:
+                    pyperclip.copy(self._text)
+            except (ImportError, AttributeError):
+                self.log.exception("Error copying text")
+            return
+        if is_paste:
+            try:
+                if pyperclip:
+                    clipboard_text = pyperclip.paste()
+                if clipboard_text:
+                    before_cursor = self._text[: self.cursor_pos]
+                    after_cursor = self._text[self.cursor_pos :]
+                    self._text = before_cursor + clipboard_text + after_cursor
+                    self.cursor_pos += len(clipboard_text)
+                    self.text = self._text
+            except (ImportError, AttributeError):
+                self.log.exception("Error pasting text")
+            return
+
+        # Handle regular key events
+        if event.key == pygame.K_RETURN:
+            # Handle newline
+            before_cursor = self._text[: self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos :]
+            self._text = before_cursor + "\n" + after_cursor
+            self.cursor_pos += 1
+            self.text = self._text
+        elif event.key == pygame.K_BACKSPACE:
+            if self.cursor_pos > 0:
+                self._text = self._text[: self.cursor_pos - 1] + self._text[self.cursor_pos :]
+                self.cursor_pos -= 1
+                self.text = self._text
+        elif event.key == pygame.K_DELETE:
+            if self.cursor_pos < len(self._text):
+                self._text = self._text[: self.cursor_pos] + self._text[self.cursor_pos + 1 :]
+                self.text = self._text
+        elif event.key == pygame.K_LEFT:
+            self.cursor_pos = max(0, self.cursor_pos - 1)
+        elif event.key == pygame.K_RIGHT:
+            self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+        elif event.unicode and event.unicode >= " ":
+            before_cursor = self._text[: self.cursor_pos]
+            after_cursor = self._text[self.cursor_pos :]
+            self._text = before_cursor + event.unicode + after_cursor
+            self.cursor_pos += 1
+            self.text = self._text
+
+        self.cursor_visible = True
+        self.cursor_blink_time = pygame.time.get_ticks()
+        self.dirty = 1

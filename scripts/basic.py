@@ -14,7 +14,7 @@ import pygame
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 
-LOG: logging.Logger = logging.getLogger('game')
+LOG: logging.Logger = logging.getLogger("game")
 LOG.setLevel(logging.DEBUG)
 
 
@@ -22,8 +22,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME: Literal['Basic App'] = 'Basic App'
-    VERSION: Literal['1.0'] = '1.0'
+    NAME: Literal["Basic App"] = "Basic App"
+    VERSION: Literal["1.0"] = "1.0"
     log: logging.Logger = LOG
 
     def __init__(self: Self, options: dict, groups: pygame.sprite.Group | None = None) -> None:
@@ -35,13 +35,14 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.Group()
 
         super().__init__(options=options, groups=groups)
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
+        self.log.info(f"Game Options: {options}")
         self.fps: Literal[6] = 6
 
         self.background_color = (255, 255, 0)
@@ -59,9 +60,10 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
     def update(self: Self) -> None:
@@ -74,6 +76,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         # Do your updates here
         super().update()
@@ -86,14 +89,15 @@ class Game(Scene):
 
         Returns:
             None
+
         """
-        self.log.info(f'Left Mouse Up: {event}')
+        self.log.info(f"Left Mouse Up: {event}")
 
 
 def main() -> None:
-    """The main entry point for the game."""
+    """Run the main entry point for the game."""
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

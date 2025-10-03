@@ -11,7 +11,7 @@ from typing import Self
 import pygame
 from glitchygames.events import AudioEvents, ResourceManager
 
-log = logging.getLogger('game.audio')
+log = logging.getLogger("game.audio")
 log.addHandler(logging.NullHandler())
 
 
@@ -29,6 +29,7 @@ class AudioManager(ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game)
 
@@ -43,6 +44,7 @@ class AudioManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_audio_device_added_event(event)
 
@@ -54,6 +56,7 @@ class AudioManager(ResourceManager):
 
             Returns:
                 None
+
             """
             self.game.on_audio_device_removed_event(event)
 
@@ -65,6 +68,7 @@ class AudioManager(ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
 
@@ -75,11 +79,9 @@ class AudioManager(ResourceManager):
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
         (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
-        log.info('Mixer Settings:')
+        log.info("Mixer Settings:")
         log.info(
-            f'Frequency: {sound_frequency}, '
-            f'Format: {sound_format}, '
-            f'Channels: {sound_channels}'
+            f"Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}"
         )
 
         self.proxies = [AudioManager.AudioProxy(game=game)]
@@ -93,9 +95,10 @@ class AudioManager(ResourceManager):
 
         Returns:
             The argument parser.
+
         """
         group: argparse._ArgumentGroup = parser.add_argument_group(  # noqa: F841
-            'Sound Mixer Options'
+            "Sound Mixer Options"
         )
 
         return parser

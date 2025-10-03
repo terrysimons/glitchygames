@@ -14,9 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 from glitchygames import events
 from glitchygames.color import PURPLE
 from glitchygames.events.audio import AudioManager
@@ -35,13 +32,13 @@ from glitchygames.sprites import Sprite
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-LOG: logging.Logger = logging.getLogger('game.engine')
+LOG: logging.Logger = logging.getLogger("game.engine")
 LOG.addHandler(logging.NullHandler())
 
 # logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 PACKAGE_PATH: Path = Path(__file__).parent
-ASSET_PATH: Path = Path(__file__).parent / 'assets'
+ASSET_PATH: Path = Path(__file__).parent / "assets"
 TEST_MODE = False
 
 
@@ -63,6 +60,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             super().__init__(game=game)
             self.game: Scene = game
@@ -76,6 +74,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # ACTIVEEVENT      gain, state
             self.game.on_active_event(event=event)
@@ -88,6 +87,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # FPSEVENT is pygame.USEREVENT + 1
             self.game.on_fps_event(event=event)
@@ -100,6 +100,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # GAMEEVENT is pygame.USEREVENT + 2
             self.game.on_game_event(event=event)
@@ -112,6 +113,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # MENUEVENT is pygame.USEREVENT + 3
             self.game.on_menu_item_event(event=event)
@@ -124,6 +126,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # SYSWMEVENT
             self.game.on_sys_wm_event(event=event)
@@ -136,6 +139,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # USEREVENT        code
             self.game.on_user_event(event=event)
@@ -148,6 +152,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # VIDEOEXPOSE      none
             self.game.on_video_expose_event(event=event)
@@ -160,6 +165,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # VIDEORESIZE      size, w, h
             self.game.on_video_resize_event(event=event)
@@ -172,6 +178,7 @@ class GameManager(events.ResourceManager):
 
             Returns:
                 None
+
             """
             # QUIT             none
             self.game.on_quit_event(event=event)
@@ -184,6 +191,7 @@ class GameManager(events.ResourceManager):
 
         Returns:
             None
+
         """
         super().__init__(game=game)
         self.proxies: list[GameManager.GameProxy] = [GameManager.GameProxy(game=game)]
@@ -197,23 +205,24 @@ class GameManager(events.ResourceManager):
 
         Returns:
             None
+
         """
-        group = parser.add_argument_group('Game Options')
+        group = parser.add_argument_group("Game Options")
         group.add_argument(
-            '-l',
-            '--log-level',
-            help='set the logging level',
-            choices=['debug', 'info', 'warning', 'error', 'critical'],
-            default='info',
+            "-l",
+            "--log-level",
+            help="set the logging level",
+            choices=["debug", "info", "warning", "error", "critical"],
+            default="info",
         )
         group.add_argument(
-            '--no-unhandled-events',
-            help='fail on unhandled events',
-            action='store_true',
+            "--no-unhandled-events",
+            help="fail on unhandled events",
+            action="store_true",
             default=False,
         )
         group.add_argument(
-            '-p', '--profile', help='enable profiling', action='store_true', default=False
+            "-p", "--profile", help="enable profiling", action="store_true", default=False
         )
 
         return parser
@@ -236,15 +245,15 @@ class GameEngine(events.EventManager):
     game: object = None
 
     try:
-        icon: pygame.Surface = pygame.image.load(Path(ASSET_PATH) / 'glitch.png')
+        icon: pygame.Surface = pygame.image.load(Path(ASSET_PATH) / "glitch.png")
     except FileNotFoundError:
         icon = pygame.Surface((32, 32))
 
-    NAME: Literal['Boilerplate Adventures'] = 'Boilerplate Adventures'
-    VERSION: Literal['1.0'] = '1.0'
+    NAME: Literal["Boilerplate Adventures"] = "Boilerplate Adventures"
+    VERSION: Literal["1.0"] = "1.0"
     OPTIONS: ClassVar = {}
 
-    LAST_EVENT_MISS: ClassVar = ''
+    LAST_EVENT_MISS: ClassVar = ""
     MISSING_EVENTS: ClassVar = []
     UNIMPLEMENTED_EVENTS: ClassVar = []
     USE_FASTEVENTS: ClassVar = False
@@ -267,6 +276,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # If it's not a pygame.Surface, assume it's a path
         if icon and not isinstance(icon, pygame.Surface):
@@ -295,72 +305,73 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
-        group = parser.add_argument_group('Graphics Options')
+        group = parser.add_argument_group("Graphics Options")
 
         group.add_argument(
-            '-f',
-            '--target-fps',
-            help='cap the framerate (default: infinite)',
+            "-f",
+            "--target-fps",
+            help="cap the framerate (default: infinite)",
             type=float,
             default=0.0,
         )
         group.add_argument(
-            '--fps-refresh-rate',
-            help='how often to update the FPS counter in ms (default: 1000)',
+            "--fps-refresh-rate",
+            help="how often to update the FPS counter in ms (default: 1000)",
             default=1000,
         )
         group.add_argument(
-            '-w',
-            '--windowed',
-            help='run the program in windowed mode',
-            action='store_true',
+            "-w",
+            "--windowed",
+            help="run the program in windowed mode",
+            action="store_true",
             default=True,
         )
         group.add_argument(
-            '-r',
-            '--resolution',
-            help='the resolution to use (default: 1024x768)',
-            default='800x480',
+            "-r",
+            "--resolution",
+            help="the resolution to use (default: 1024x768)",
+            default="800x480",
         )
-        group.add_argument('--use-gfxdraw', action='store_true', default=False)
+        group.add_argument("--use-gfxdraw", action="store_true", default=False)
         group.add_argument(
-            '--update-type',
-            help='update or flip (default: update)',
-            choices=['update', 'flip'],
-            default='update',
+            "--update-type",
+            help="update or flip (default: update)",
+            choices=["update", "flip"],
+            default="update",
         )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         default_videodriver = []
-        if platform.system() == 'Linux':
+        if platform.system() == "Linux":
             linux_videodriver_choices = [
-                'x11',
-                'dga',
-                'fbcon',
-                'directfb',
-                'ggi',
-                'vgl',
-                'svgalib',
-                'aalib',
+                "x11",
+                "dga",
+                "fbcon",
+                "directfb",
+                "ggi",
+                "vgl",
+                "svgalib",
+                "aalib",
             ]
 
-            LOG.debug(f'Linux Video Driver Choices: {linux_videodriver_choices}')
+            LOG.debug(f"Linux Video Driver Choices: {linux_videodriver_choices}")
 
             default_videodriver = linux_videodriver_choices
 
-        elif platform.system() == 'MacOS':
+        elif platform.system() == "MacOS":
             mac_videodriver_choices = []
 
-            LOG.debug(f'Mac Video Driver Choices: {mac_videodriver_choices}')
+            LOG.debug(f"Mac Video Driver Choices: {mac_videodriver_choices}")
             default_videodriver = mac_videodriver_choices
-        elif platform.system() == 'Windows':
-            windows_videodriver_choices = ['windib', 'directx']
+        elif platform.system() == "Windows":
+            windows_videodriver_choices = ["windib", "directx"]
 
-            LOG.debug(f'Windows Video Driver Choices: {windows_videodriver_choices}')
+            LOG.debug(f"Windows Video Driver Choices: {windows_videodriver_choices}")
             default_videodriver = windows_videodriver_choices
 
-        group.add_argument('--video-driver', default=None, choices=default_videodriver)
+        group.add_argument("--video-driver", default=None, choices=default_videodriver)
 
         event_managers = (
             AudioManager,
@@ -389,9 +400,10 @@ class GameEngine(events.EventManager):
 
         Returns:
             options (dict[str, Any]): The game arguments.
+
         """
         parser: argparse.ArgumentParser = argparse.ArgumentParser(
-            f'{game.NAME} version {game.VERSION}'
+            f"{game.NAME} version {game.VERSION}"
         )
 
         parser = GameEngine.args(parser)
@@ -400,26 +412,24 @@ class GameEngine(events.EventManager):
         # object, which allows us to query all of the game engine objects for their
         # command line parameters.
         try:
-            game.args(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
+            game.args(parser.add_argument_group(f"{game.NAME} v{game.VERSION} Options"))
         except AttributeError:
-            cls.log.info(
-                'Game does not implement arguments.  ' 'Add a def args(parser) class method.'
-            )
+            cls.log.info("Game does not implement arguments.  Add a def args(parser) class method.")
 
         args: argparse.ArgumentParser = parser.parse_args()
 
         # Set the logging level
         logging.basicConfig(
-            format='%(name)s - %(levelname)s - %(message)s', level=args.log_level.upper()
+            format="%(name)s - %(levelname)s - %(message)s", level=args.log_level.upper()
         )
 
         GameEngine.OPTIONS: dict[str, Any] = vars(args)
 
         # Some optimizations to reduce the number of lookups
-        if GameEngine.OPTIONS['log_level'] in ['DEBUG', 'CRITICAL', 'ERROR']:
-            GameEngine.OPTIONS['debug_events'] = True
+        if GameEngine.OPTIONS["log_level"] in {"DEBUG", "CRITICAL", "ERROR"}:
+            GameEngine.OPTIONS["debug_events"] = True
         else:
-            GameEngine.OPTIONS['debug_events'] = False
+            GameEngine.OPTIONS["debug_events"] = False
 
         options: dict[str, Any] = GameEngine.OPTIONS
 
@@ -434,6 +444,7 @@ class GameEngine(events.EventManager):
         Args:
             game: The game instance.
             icon: The game icon.
+
         """
         super().__init__()
 
@@ -450,17 +461,17 @@ class GameEngine(events.EventManager):
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
-        self.fps: float = options.get('fps', 0.0)
-        self.update_type = options.get('update_type')
-        self.use_gfxdraw = options.get('use_gfxdraw')
-        self.windowed = options.get('windowed')
-        self.desired_resolution = options.get('resolution')
-        self.fps_refresh_rate = options.get('fps_refresh_rate')
-        self.pygame_version = {'major': 0, 'minor': 0, 'patch': 0}
+        self.fps: float = options.get("fps", 0.0)
+        self.update_type = options.get("update_type")
+        self.use_gfxdraw = options.get("use_gfxdraw")
+        self.windowed = options.get("windowed")
+        self.desired_resolution = options.get("resolution")
+        self.fps_refresh_rate = options.get("fps_refresh_rate")
+        self.pygame_version = {"major": 0, "minor": 0, "patch": 0}
 
-        self.pygame_version['major'] = pygame.version.vernum[0]
-        self.pygame_version['minor'] = pygame.version.vernum[1]
-        self.pygame_version['patch'] = pygame.version.vernum[2]
+        self.pygame_version["major"] = pygame.version.vernum[0]
+        self.pygame_version["minor"] = pygame.version.vernum[1]
+        self.pygame_version["patch"] = pygame.version.vernum[2]
 
         # For compatibility with older versions of pygame, use fast events
         #
@@ -476,13 +487,13 @@ class GameEngine(events.EventManager):
         # versions of pygame, or use the new event loop for newer
         # versions of pygame >= 2.2
         if self.USE_FASTEVENTS:
-            self.log.info(f'Using pygame.fastevents for pygame version {pygame.version.ver}')
+            self.log.info(f"Using pygame.fastevents for pygame version {pygame.version.ver}")
             pygame.fastevent.init()
         else:
             # This is the default mode when USE_FASTEVENTS is disabled.
             #
             # pygame.event doesn't have an init() method, so nothing to do.
-            self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
+            self.log.info(f"Using pygame.events for pygame version {pygame.version.ver}")
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -493,7 +504,7 @@ class GameEngine(events.EventManager):
 
         # Resolution initialization.
         # Convert our resolution to a tuple
-        (desired_width, desired_height) = self.desired_resolution.split('x')
+        (desired_width, desired_height) = self.desired_resolution.split("x")
 
         if self.windowed:
             self.mode_flags: int = 0
@@ -519,6 +530,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # Let's try to set a resolution to the most compatible for
         # the system.  If we don't provide any parameters, we'll get
@@ -537,9 +549,9 @@ class GameEngine(events.EventManager):
         self.cursor: list[str] = self.set_cursor(cursor=None)
 
         # Set the screen update type.
-        if self.scene_manager.update_type == 'update':
+        if self.scene_manager.update_type == "update":
             self.display_update = pygame.display.update
-        elif self.scene_manager.update_type == 'flip':
+        elif self.scene_manager.update_type == "flip":
             self.display_update = pygame.display.flip
         else:
             self.log.error('Screen update type was neither "update" nor "flip".')
@@ -569,6 +581,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         for event_type in events.AUDIO_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_audio_event
@@ -593,6 +606,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         for event_type in events.CONTROLLER_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_controller_event
@@ -620,15 +634,16 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # This is the total # of sprites.
-        self.log.info(f'Sprite Count: {Sprite.SPRITE_COUNT}')
+        self.log.info(f"Sprite Count: {Sprite.SPRITE_COUNT}")
 
         # This is a count of each type of sprite.
         for sprite_type, counters in Sprite.SPRITE_COUNTERS.items():
             # sprite_count = Sprite.SPRITE_COUNTERS[sprite_type][key]
             for key, value in counters.items():
-                self.log.info(f'{sprite_type} Sprite {key}: {value}')
+                self.log.info(f"{sprite_type} Sprite {key}: {value}")
 
     @property
     def screen_width(self: Self) -> int:
@@ -636,6 +651,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             int: The screen width.
+
         """
         return self.screen.get_width()
 
@@ -645,6 +661,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             int: The screen height.
+
         """
         return self.screen.get_height()
 
@@ -653,16 +670,17 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # General Info
         # TODO: put pygame version in here, too.
-        self.log.info(f'CPU Count: {multiprocessing.cpu_count()}')
-        self.log.info(f'System: {platform.system()}')
-        self.log.info(f'Machine: {platform.machine()}')
-        self.log.info(f'Platform: {platform.platform()}')
-        self.log.info(f'Platform (Terse): {platform.platform(aliased=0, terse=1)}')
-        self.log.info(f'Processor: {platform.processor()}')
-        self.log.info(f'Release: {platform.release()}')
+        self.log.info(f"CPU Count: {multiprocessing.cpu_count()}")
+        self.log.info(f"System: {platform.system()}")
+        self.log.info(f"Machine: {platform.machine()}")
+        self.log.info(f"Platform: {platform.platform()}")
+        self.log.info(f"Platform (Terse): {platform.platform(aliased=0, terse=1)}")
+        self.log.info(f"Processor: {platform.processor()}")
+        self.log.info(f"Release: {platform.release()}")
 
         # Set up a display mode.
         # Note: pygame.display.init() isn't necessary here
@@ -670,41 +688,42 @@ class GameEngine(events.EventManager):
         # initializes all available modules.
         #
         # Let's do a sanity check and make sure we're initialized.
-        self.log.info(f'Display inited: {pygame.display.get_init()}')
+        self.log.info(f"Display inited: {pygame.display.get_init()}")
 
         # Display some configuration information.
-        self.log.info(f'SDL Version: {pygame.get_sdl_version()}')
-        self.log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
+        self.log.info(f"SDL Version: {pygame.get_sdl_version()}")
+        self.log.info(f"SDL Byte Order: {pygame.get_sdl_byteorder()}")
 
         # Dump a bit more info about the configured mode.
-        self.log.info('Display Driver: ' f'{pygame.display.get_driver()}')
-        self.log.info('Display Info: ' f'{self.display_info}')
-        self.log.info('Initial Resolution: ' f'{self.initial_resolution}')
-        self.log.info('8-bit Modes: ' f'{pygame.display.list_modes(8)}')
-        self.log.info('16-bit Modes: ' f'{pygame.display.list_modes(16)}')
-        self.log.info('24-bit Modes: ' f'{pygame.display.list_modes(24)}')
-        self.log.info('32-bit Modes: ' f'{pygame.display.list_modes(32)}')
+        self.log.info(f"Display Driver: {pygame.display.get_driver()}")
+        self.log.info(f"Display Info: {self.display_info}")
+        self.log.info(f"Initial Resolution: {self.initial_resolution}")
+        self.log.info(f"8-bit Modes: {pygame.display.list_modes(8)}")
+        self.log.info(f"16-bit Modes: {pygame.display.list_modes(16)}")
+        self.log.info(f"24-bit Modes: {pygame.display.list_modes(24)}")
+        self.log.info(f"32-bit Modes: {pygame.display.list_modes(32)}")
         self.log.info(
-            'Best Color Depth: '
-            f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-            f' ({self.mode_flags})'
+            "Best Color Depth: "
+            f"{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}"
+            f" ({self.mode_flags})"
         )
-        self.log.info('Window Manager Info: ' f'{pygame.display.get_wm_info()}')
-        self.log.info('Platform Timer Resolution: ' f'{pygame.TIMER_RESOLUTION}')
+        self.log.info(f"Window Manager Info: {pygame.display.get_wm_info()}")
+        self.log.info(f"Platform Timer Resolution: {pygame.TIMER_RESOLUTION}")
 
     def print_game_info(self: Self) -> None:
         """Print game information.
 
         Returns:
             None
+
         """
         self.log.debug(
-            f'Successfully loaded {self.init_pass} modules '
-            f'and failed loading {self.init_fail} modules.'
+            f"Successfully loaded {self.init_pass} modules "
+            f"and failed loading {self.init_fail} modules."
         )
 
-        self.log.info('Game Title: ' f'{type(self).NAME}')
-        self.log.info('Game Version: ' f'{type(self).VERSION}')
+        self.log.info(f"Game Title: {type(self).NAME}")
+        self.log.info(f"Game Version: {type(self).VERSION}")
 
     def suggested_resolution(
         self: Self, desired_width: int = 0, desired_height: int = 0
@@ -717,12 +736,13 @@ class GameEngine(events.EventManager):
 
         Returns:
             tuple[int, int]: The suggested resolution.
+
         """
         # For Ubuntu 19.04, we can't reset the original res
         # so let's just let the system figure it out.
-        if platform.system() == 'Linux':
-            if 'arm' not in platform.machine():
-                self.log.info('Ignoring full screen resolution change on Linux.')
+        if platform.system() == "Linux":
+            if "arm" not in platform.machine():
+                self.log.info("Ignoring full screen resolution change on Linux.")
             else:
                 # RPi Hack
                 #
@@ -737,9 +757,9 @@ class GameEngine(events.EventManager):
     def set_cursor(
         cls,
         cursor: list[str],
-        cursor_black: str = '.',
-        cursor_white: str = 'X',
-        cursor_xor: str = 'o',
+        cursor_black: str = ".",
+        cursor_white: str = "X",
+        cursor_xor: str = "o",
     ) -> list[str]:
         """Set the cursor.
 
@@ -751,35 +771,36 @@ class GameEngine(events.EventManager):
 
         Returns:
             list[str]: The cursor.
+
         """
         if not cursor:
             # Cursor setup.
             # Cursor width/height must be a multiple of 8
             cursor = [
-                'XX                      ',
-                'XXX                     ',
-                'XXXX                    ',
-                'XX.XX                   ',
-                'XX..XX                  ',
-                'XX...XX                 ',
-                'XX....XX                ',
-                'XX.....XX               ',
-                'XX......XX              ',
-                'XX.......XX             ',
-                'XX........XX            ',
-                'XX........XXX           ',
-                'XX......XXXXX           ',
-                'XX.XXX..XX              ',
-                'XXXX XX..XX             ',
-                'XX   XX..XX             ',
-                '     XX..XX             ',
-                '      XX..XX            ',
-                '      XX..XX            ',
-                '       XXXX             ',
-                '       XX               ',
-                '                        ',
-                '                        ',
-                '                        ',
+                "XX                      ",
+                "XXX                     ",
+                "XXXX                    ",
+                "XX.XX                   ",
+                "XX..XX                  ",
+                "XX...XX                 ",
+                "XX....XX                ",
+                "XX.....XX               ",
+                "XX......XX              ",
+                "XX.......XX             ",
+                "XX........XX            ",
+                "XX........XXX           ",
+                "XX......XXXXX           ",
+                "XX.XXX..XX              ",
+                "XXXX XX..XX             ",
+                "XX   XX..XX             ",
+                "     XX..XX             ",
+                "      XX..XX            ",
+                "      XX..XX            ",
+                "       XXXX             ",
+                "       XX               ",
+                "                        ",
+                "                        ",
+                "                        ",
             ]
 
         cursor_width: int = len(cursor[0])
@@ -802,12 +823,13 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # Set the window icon.
         #
         # Always call this before you call set_mode()
 
-        icon: pygame.Surface = getattr(self.game, 'icon', GameEngine.icon)
+        icon: pygame.Surface = getattr(self.game, "icon", GameEngine.icon)
 
         if icon is None:
             icon = pygame.Surface((32, 32))
@@ -817,27 +839,28 @@ class GameEngine(events.EventManager):
 
         # Set the display caption.
         pygame.display.set_caption(
-            f'{type(self).NAME} v{self.VERSION}', f'{type(self).NAME} v{self.VERSION}'
+            f"{type(self).NAME} v{self.VERSION}", f"{type(self).NAME} v{self.VERSION}"
         )
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
-        self.log.info(f'Window Title: {title}')
-        self.log.info(f'Icon Title: {icontitle}')
+        self.log.info(f"Window Title: {title}")
+        self.log.info(f"Icon Title: {icontitle}")
 
     def start(self: Self) -> None:
         """Start the game engine.
 
         Returns:
             None
+
         """
         if self.game is None:
             raise RuntimeError(
-                'Game not initialized.  Pass a game class to the GameEngine constructor.'
+                "Game not initialized.  Pass a game class to the GameEngine constructor."
             )
 
         try:
-            if GameEngine.OPTIONS['profile']:
+            if GameEngine.OPTIONS["profile"]:
                 profiler = cProfile.Profile()
                 profiler.enable()
 
@@ -869,12 +892,12 @@ class GameEngine(events.EventManager):
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
         except Exception:
-            self.log.exception('Error starting game.')
+            self.log.exception("Error starting game.")
         finally:
             pygame.display.quit()
             pygame.quit()
 
-            if GameEngine.OPTIONS['profile']:
+            if GameEngine.OPTIONS["profile"]:
                 profiler.disable()
                 profiler.print_stats()
 
@@ -886,15 +909,56 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # put a quit event in the event queue.
         pygame.event.post(events.HashableEvent(pygame.QUIT, {}))
+
+    def handle_event(self, event: events.HashableEvent) -> None:
+        """Handle pygame events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # First check for system-level QUIT event (window close button)
+        if event.type == pygame.QUIT:
+            self.log.info("Window close requested")
+            self.scene_manager.quit_requested = True
+            return
+
+        # Check if there are any focused sprites in the current scene
+        scene = self.scene_manager.active_scene
+        if scene and scene.all_sprites:
+            focused_sprites = [
+                sprite
+                for sprite in scene.all_sprites
+                if hasattr(sprite, "active") and sprite.active
+            ]
+
+            # If we have focused sprites, ALL key events go to the scene
+            if focused_sprites and event.type == pygame.KEYDOWN:
+                self.scene_manager.handle_event(event)
+                return
+
+        # Only handle engine-level key events if no focused sprites
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+            self.log.info("Quit key pressed with no focused sprites")
+            self.scene_manager.quit_requested = True
+            return
+
+        # Pass other events to the scene manager
+        self.scene_manager.handle_event(event)
 
     def process_events(self: Self) -> bool:
         """Process events.
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         event_was_handled = False
         # To use events in a different thread, use the fastevent package from pygame.
@@ -909,7 +973,7 @@ class GameEngine(events.EventManager):
         for raw_event in pump_events():
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
-            if hasattr(self._active_scene, 'process_event'):
+            if hasattr(self._active_scene, "process_event"):
                 self._active_scene.process_event(raw_event)
                 return True
 
@@ -936,6 +1000,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.AUDIODEVICEADDED:
             # AUDIODEVICEADDED which, iscapture
@@ -957,6 +1022,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.CONTROLLERAXISMOTION:
             self.controller_manager.on_controller_axis_motion_event(event)
@@ -1005,6 +1071,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.DROPBEGIN:
             self.drop_manager.on_drop_begin_event(event)
@@ -1032,6 +1099,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.FINGERDOWN:
             self.touch_manager.on_touch_down_event(event)
@@ -1055,13 +1123,14 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.MIDIIN:
-            self.log.info(f'MIDIIN: {event} NOT IMPLEMENTED')
+            self.log.info(f"MIDIIN: {event} NOT IMPLEMENTED")
             return True
 
         if event.type == pygame.MIDIOUT:
-            self.log.info(f'MIDIOUT: {event} NOT IMPLEMENTED')
+            self.log.info(f"MIDIOUT: {event} NOT IMPLEMENTED")
             return True
 
         return False
@@ -1074,6 +1143,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.MOUSEMOTION:
             # MOUSEMOTION      pos, rel, buttons
@@ -1104,6 +1174,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.KEYDOWN:
             # KEYDOWN          unicode, key, mod
@@ -1125,6 +1196,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.JOYAXISMOTION:
             # JOYAXISMOTION    joy, axis, value
@@ -1169,6 +1241,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.TEXTEDITING:
             self.process_unimplemented_event(event)
@@ -1188,6 +1261,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.WINDOWSHOWN:
             self.window_manager.on_window_shown_event(event)
@@ -1223,6 +1297,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         if event.type == pygame.WINDOWSIZECHANGED:
             # WINDOWSIZECHANGED x, y
@@ -1306,6 +1381,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             bool: True if the event was handled, False otherwise.
+
         """
         # Game events are listed in the order they're most
         # likely to occur in.
@@ -1365,10 +1441,11 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
-                '(UNIMPLEMENTED) ' f'{pygame.event.event_name(event.type).upper()}: {event}'
+                f"(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}"
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
@@ -1383,11 +1460,12 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         event: events.HashableEvent = event_data.copy()
-        event['subtype'] = event_subtype
+        event["subtype"] = event_subtype
         pygame.event.post(events.HashableEvent(events.GAMEEVENT, event))
-        self.log.debug(f'Posted Event: {event}')
+        self.log.debug(f"Posted Event: {event}")
 
     def suppress_event(self: Self, *args: list, attr: str, **kwargs: dict) -> None:
         """Suppress an event.
@@ -1399,8 +1477,9 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
-        self.log.debug(f'Suppressing event: {attr}({args}, {kwargs})')
+        self.log.debug(f"Suppressing event: {attr}({args}, {kwargs})")
 
     def register_game_event(
         self: Self, event_type: events.HashableEventType, callback: Callable
@@ -1413,6 +1492,7 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # This registers a subtype of type GAMEEVENT to call a callback.
         self.log.info(f'Registering event type "{event_type}" for {callback}')
@@ -1429,13 +1509,14 @@ class GameEngine(events.EventManager):
 
         Returns:
             None
+
         """
         # TODO: Add options that can be enabled in the engine to raise an exception
         #       when an unimplemented event is called.
         if self.LAST_EVENT_MISS not in self.MISSING_EVENTS:
             self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
 
-            self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
+            self.log.info(f"Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}")
             self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
@@ -1459,8 +1540,9 @@ class GameEngine(events.EventManager):
 
         Returns:
             Callable: The callable object.
+
         """
-        if attr.startswith('on_') and attr.endswith('_event'):
+        if attr.startswith("on_") and attr.endswith("_event"):
             self.LAST_EVENT_MISS: str = attr
 
             return self.missing_event

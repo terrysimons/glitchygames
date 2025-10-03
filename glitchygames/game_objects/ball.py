@@ -37,6 +37,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -66,6 +67,7 @@ class BallSprite(Sprite):
 
         Returns:
             tuple[int, int, int]: The color of the ball.
+
         """
         return self._color
 
@@ -78,6 +80,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         self._color = new_color
         pygame.draw.circle(self.image, self._color, (self.width // 2, self.height // 2), 5, 0)
@@ -90,6 +93,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         if self.rect.y <= 0:
             self.snd.play()
@@ -108,6 +112,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         self.x = random.randrange(50, 750)
         self.y = random.randrange(25, 400)
@@ -134,6 +139,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         self.direction = (180 - self.direction) % 360
         self.direction -= diff
@@ -149,6 +155,7 @@ class BallSprite(Sprite):
 
         Returns:
             None
+
         """
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x

@@ -21,8 +21,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = 'Delta Time Demo'
-    VERSION = '1.0'
+    NAME = "Delta Time Demo"
+    VERSION = "1.0"
 
     def __init__(
         self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
@@ -35,12 +35,13 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.font = pygame.font.SysFont('Calibri', 40)
+        self.font = pygame.font.SysFont("Calibri", 40)
         self.rect_pos = 0
         self.velocity = 5
         self.record = 0
@@ -58,13 +59,14 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+            "-b", "--balls", type=int, help="the number of balls to start with", default=1
         )
 
     # def setup(self):
@@ -80,6 +82,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         # self.dt = dt
         # self.dt_timer += self.dt
@@ -101,6 +104,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         self.screen.fill((0, 0, 0))
 
@@ -109,12 +113,12 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            text='Time: ' + str(round(self.dt_timer / 100, 5)),
+            text="Time: " + str(round(self.dt_timer / 100, 5)),
             antialias=False,
             color=(255, 255, 255),
         )
         fps_text = self.font.render(
-            text=f'FPS: {round(self.fps, 2)}', antialias=False, color=(255, 255, 255)
+            text=f"FPS: {round(self.fps, 2)}", antialias=False, color=(255, 255, 255)
         )
 
         self.screen.blit(countdown, (0, 0))
@@ -123,7 +127,7 @@ class Game(Scene):
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
             record_text = self.font.render(
-                text=f'Time: {round(self.record, 5)}', antialias=False, color=(255, 255, 255)
+                text=f"Time: {round(self.record, 5)}", antialias=False, color=(255, 255, 255)
             )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
@@ -136,6 +140,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         pressed_keys = pygame.key.get_pressed()
 
@@ -144,9 +149,9 @@ class Game(Scene):
 
 
 def main() -> None:
-    """The main entry point for the game."""
+    """Run the main entry point for the game."""
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

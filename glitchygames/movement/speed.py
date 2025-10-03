@@ -22,6 +22,7 @@ class Speed:
 
         Returns:
             None
+
         """
         self.x = x
         self.y = y
@@ -35,6 +36,7 @@ class Speed:
 
         Returns:
             None
+
         """
         self.speed_up_horizontal()
         self.speed_up_vertical()
@@ -47,6 +49,7 @@ class Speed:
 
         Returns:
             None
+
         """
         self.x += self.increment if self.x >= 0 else self.increment * -1
 
@@ -58,5 +61,6 @@ class Speed:
 
         Returns:
             None
+
         """
         self.y += self.increment if self.y >= 0 else self.increment * -1

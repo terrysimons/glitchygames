@@ -11,16 +11,14 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     import argparse
 
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
+import pygame
 from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 from pygame import Rect
 
-LOG = logging.getLogger('game')
+LOG = logging.getLogger("game")
 LOG.setLevel(logging.DEBUG)
 
 
@@ -36,6 +34,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             Self
+
         """
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = True
@@ -67,6 +66,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         self.rect.center = pos
         self.dirty = 1
@@ -79,6 +79,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         self._draw_point()
         self._draw_circle()
@@ -94,6 +95,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         # Draw a yellow point.
         # There's no point API, so we'll fake
@@ -120,6 +122,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         # Draw a blue circle.
         if self.use_gfxdraw:
@@ -147,6 +150,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
@@ -181,6 +185,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             pygame.rect.Rect: The rectangle.
+
         """
         rect = Rect(0, 0, self.screen_height, self.screen_height)
         rect.center = (self.screen_width / 2, self.screen_height / 2)
@@ -195,6 +200,7 @@ class ShapesSprite(Sprite):
 
         Returns:
             None
+
         """
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
@@ -352,6 +358,7 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -378,11 +385,12 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
         # Load tiles.
-        for resource in Path('resources').glob('*'):
+        for resource in Path("resources").glob("*"):
             with contextlib.suppress(IsADirectoryError):
-                self.log.info(f'Load Resource: {resource}')
+                self.log.info(f"Load Resource: {resource}")
                 self.tiles.append(self.load_graphic(resource))
 
     def render(self: Self, screen: pygame.Surface) -> None:
@@ -393,6 +401,7 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
         super().render(screen)
 
@@ -416,6 +425,7 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
         self.shapes_sprite.move(event.pos)
 
@@ -427,8 +437,9 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
-        self.post_game_event('recharge', {'item': 'bullet', 'rate': 1})
+        self.post_game_event("recharge", {"item": "bullet", "rate": 1})
 
     def on_left_mouse_button_down(self: Self, event: pygame.event.Event) -> None:
         """Handle left mouse button down events.
@@ -438,8 +449,9 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
-        self.post_game_event('pew pew', {'bullet': 'big boomies'})
+        self.post_game_event("pew pew", {"bullet": "big boomies"})
 
     def on_pew_pew_event(self: Self, event: pygame.event.Event) -> None:
         """Handle pew pew events.
@@ -449,8 +461,9 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
-        self.log.info(f'PEW PEW Event: {event}')
+        self.log.info(f"PEW PEW Event: {event}")
 
     def on_recharge_event(self: Self, event: pygame.event.Event) -> None:
         """Handle recharge events.
@@ -460,8 +473,9 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
-        self.log.info(f'Recharge Event: {event}')
+        self.log.info(f"Recharge Event: {event}")
 
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
@@ -471,16 +485,17 @@ class JoystickScene(Scene):
 
         Returns:
             None
+
         """
-        self.log.info('controller Axis motion event')
+        self.log.info("controller Axis motion event")
 
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
     # Set your game name/version here.
-    NAME = 'Joystick and Font Demo'
-    VERSION = '0.0'
+    NAME = "Joystick and Font Demo"
+    VERSION = "0.0"
 
     def __init__(self: Self, options: dict) -> None:
         """Initialize the game.
@@ -490,9 +505,10 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         super().__init__(options=options)
-        self.time = options.get('time')
+        self.time = options.get("time")
         self.next_scene = JoystickScene()
 
         # TODO: Write an FPS layer that uses time.ns_time()
@@ -543,26 +559,28 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '--time', type=int, help='time in seconds to wait before quitting', default=10
+            "--time", type=int, help="time in seconds to wait before quitting", default=10
         )
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
 
 def main() -> None:
-    """The main function.
+    """Run the main function.
 
     Args:
         None
 
     Returns:
         None
+
     """
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

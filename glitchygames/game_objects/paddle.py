@@ -12,7 +12,7 @@ from glitchygames.movement import Horizontal, Vertical
 from glitchygames.sprites import Sprite
 from pygame import draw
 
-log = logging.getLogger('game.paddle')
+log = logging.getLogger("game.paddle")
 log.setLevel(logging.INFO)
 
 
@@ -48,6 +48,7 @@ class BasePaddle(Sprite):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -72,6 +73,7 @@ class BasePaddle(Sprite):
 
         Returns:
             None
+
         """
         self.rect.x += self._move.current_speed
         self.dirty = 1
@@ -84,6 +86,7 @@ class BasePaddle(Sprite):
 
         Returns:
             None
+
         """
         self.rect.y += self._move.current_speed
         self.dirty = 1
@@ -96,6 +99,7 @@ class BasePaddle(Sprite):
 
         Returns:
             bool: True if the paddle is at the bottom of the screen, False otherwise.
+
         """
         return self.rect.bottom + self._move.current_speed > self.screen_height
 
@@ -107,6 +111,7 @@ class BasePaddle(Sprite):
 
         Returns:
             bool: True if the paddle is at the top of the screen, False otherwise.
+
         """
         return self.rect.top + self._move.current_speed < 0
 
@@ -118,6 +123,7 @@ class BasePaddle(Sprite):
 
         Returns:
             bool: True if the paddle is at the left of the screen, False otherwise.
+
         """
         return self.rect.left + self._move.current_speed < self.screen.left
 
@@ -129,6 +135,7 @@ class BasePaddle(Sprite):
 
         Returns:
             bool: True if the paddle is at the right of the screen, False otherwise.
+
         """
         return self.rect.right + self._move.current_speed > self.screen.right
 
@@ -159,6 +166,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -183,6 +191,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         if self.is_at_left_of_screen():
             self.rect.x = 0
@@ -201,6 +210,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.left()
         self.dirty = 1
@@ -213,6 +223,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.right()
         self.dirty = 1
@@ -225,6 +236,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.stop()
         self.dirty = 1
@@ -237,6 +249,7 @@ class HorizontalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.speed.speed_up_horizontal()
 
@@ -267,6 +280,7 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -292,6 +306,7 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         if self.is_at_top_of_screen():
             self.rect.y = 0
@@ -310,6 +325,7 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.up()
         self.dirty = 1
@@ -322,6 +338,7 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.down()
         self.dirty = 1
@@ -334,6 +351,7 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.stop()
         self.dirty = 1
@@ -346,5 +364,6 @@ class VerticalPaddle(BasePaddle):
 
         Returns:
             None
+
         """
         self._move.speed.speed_up_vertical()

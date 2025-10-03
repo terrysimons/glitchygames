@@ -11,12 +11,15 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.13.1"
+    default: "3.13.7"
+  XCODE_LATEST_VERSION:
+    type: string
+    default: "16.4.0"
 
 orbs:
-  win: circleci/windows@5.0
-  macos: circleci/macos@2.5.2
-  jira: circleci/jira@2.1.0
+  win: circleci/windows@5.1.0
+  macos: circleci/macos@2.5.4
+  jira: circleci/jira@2.2.0
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
@@ -25,7 +28,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: cimg/python:3.13.1
+      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
@@ -54,7 +57,7 @@ jobs:
             echo $(which pyenv)
             echo "Building Python ${PYTHON_LATEST_VERSION}"
 
-            pyenv update
+            # pyenv update
             PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
             pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
 
@@ -62,14 +65,14 @@ jobs:
             pyenv versions
 
             pip install -e .
-            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            poetry install --extras docs
             pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
 
   build-and-test-macos:
     macos:
-      xcode: "16.2.0"
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
     resource_class: macos.m1.medium.gen1
 
 
@@ -109,7 +112,7 @@ jobs:
             # curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
 
             pip install -e .
-            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            poetry install --extras docs
             pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             cd ~/project
             nox
@@ -144,7 +147,7 @@ jobs:
             set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
             refreshenv
             pip install -e .
-            pip install "mkdocs" "mkdocstrings" "mkdocs-material" "mkdocs-gen-files" "mkdocs-literate-nav" "mkdocs-section-index" "pymdown-extensions" "mkdocs-autorefs" "mkdocs-macros-plugin" "mkdocstrings-python"
+            poetry install --extras docs
             pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
             nox
 

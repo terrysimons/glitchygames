@@ -20,6 +20,7 @@ class Vertical:
 
         Returns:
             None
+
         """
         self.speed = speed
         self.current_speed = self.speed.y
@@ -32,6 +33,7 @@ class Vertical:
 
         Returns:
             None
+
         """
         self.current_speed = value
 
@@ -43,6 +45,7 @@ class Vertical:
 
         Returns:
             None
+
         """
         self._change_speed(-self.speed.y)
 
@@ -54,6 +57,7 @@ class Vertical:
 
         Returns:
             None
+
         """
         self._change_speed(self.speed.y)
 
@@ -65,5 +69,6 @@ class Vertical:
 
         Returns:
             None
+
         """
         self._change_speed(0)

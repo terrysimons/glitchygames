@@ -11,14 +11,11 @@ if TYPE_CHECKING:
 
 
 import pygame
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 
-LOG = logging.getLogger('game')
+LOG = logging.getLogger("game")
 LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
@@ -38,6 +35,7 @@ class GameScene(Scene):
 
         Returns:
             None
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -57,8 +55,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = 'Cached Font Demo'
-    VERSION = '1.0'
+    NAME = "Cached Font Demo"
+    VERSION = "1.0"
 
     def __init__(self: Self, options: dict) -> None:
         """Initialize the Game.
@@ -68,11 +66,12 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
-        self.log.info(f'Game Options: {options}')
+        self.log.info(f"Game Options: {options}")
 
         self.next_scene = GameScene()
 
@@ -85,9 +84,10 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            "-v", "--version", action="store_true", help="print the game version and exit"
         )
 
 
@@ -96,5 +96,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
