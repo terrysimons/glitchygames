@@ -9,14 +9,16 @@ from pathlib import Path
 
 import pygame
 
-from sprite_stack import (
+from glitchygames.sprites import (
     AnimatedSprite,
     AnimatedSpriteInterface,
+    SpriteFactory,
     SpriteFrame,
+)
+from scripts.sprite_stack import (
     SpriteStack,
     SpriteStackInterface,
 )
-from glitchygames.sprites import SpriteFactory
 
 
 class TestSpriteStackInterface(unittest.TestCase):
@@ -416,7 +418,7 @@ class TestSpriteFactorySave(unittest.TestCase):
     def test_save_animated_sprite_not_implemented(self):
         """Test that saving animated sprites raises NotImplementedError."""
         from glitchygames.sprites import SpriteFactory
-        from sprite_stack import AnimatedSprite
+        from glitchygames.sprites import AnimatedSprite
         
         # Create an animated sprite
         sprite = AnimatedSprite()

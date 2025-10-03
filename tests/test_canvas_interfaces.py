@@ -52,6 +52,47 @@ class TestCanvasInterfaces(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test method."""
         pygame.quit()
+
+    def _display_canvas_visual(self, title="Canvas Display"):
+        """Display the canvas visually tiled across the screen for verification."""
+        screen = pygame.display.get_surface()
+        screen_width, screen_height = screen.get_size()
+        
+        # Clear screen with dark background
+        screen.fill((20, 20, 40))
+        
+        # Get canvas dimensions
+        canvas_width = self.canvas.rect.width
+        canvas_height = self.canvas.rect.height
+        
+        # Calculate how many canvases fit across and down
+        tiles_x = screen_width // canvas_width
+        tiles_y = screen_height // canvas_height
+        
+        # Tile the canvas across the screen
+        for y in range(tiles_y):
+            for x in range(tiles_x):
+                screen.blit(self.canvas.image, (x * canvas_width, y * canvas_height))
+        
+        # Add title text
+        font = pygame.font.Font(None, 36)
+        title_surface = font.render(title, True, (255, 255, 255))
+        screen.blit(title_surface, (10, 10))
+        
+        # Add canvas info
+        info_font = pygame.font.Font(None, 24)
+        info_text = f"Canvas: {self.canvas.pixels_across}x{self.canvas.pixels_tall} pixels, {canvas_width}x{canvas_height} display"
+        info_surface = info_font.render(info_text, True, (200, 200, 200))
+        screen.blit(info_surface, (10, 50))
+        
+        # Update display and wait a bit
+        pygame.display.flip()
+        print(f"DEBUG: Displaying canvas: {title} for 3 seconds...")
+        pygame.time.wait(3000)  # Show for 3 seconds
+        print(f"DEBUG: Canvas display complete")
+        print(f"DEBUG: Additional 2 second pause...")
+        pygame.time.wait(2000)  # Additional 2 second timeout
+        print(f"DEBUG: Additional timeout complete")
     
     def test_canvas_interface_creation(self):
         """Test that canvas interface is created correctly."""
@@ -150,6 +191,12 @@ class TestCanvasInterfaces(unittest.TestCase):
         
         self.assertEqual(red_pixel, (255, 0, 0))
         self.assertEqual(green_pixel, (0, 255, 0))
+        
+        # Force redraw to update the canvas image with the new pixels
+        self.canvas.force_redraw()
+        
+        # Visual test: display the canvas with colored pixels
+        self._display_canvas_visual("Canvas Backwards Compatibility - Red/Green Pixels")
     
     def test_interface_integration(self):
         """Test that all interfaces work together correctly."""
@@ -169,6 +216,12 @@ class TestCanvasInterfaces(unittest.TestCase):
         # Verify the surface was rendered
         self.assertIsNotNone(surface)
         self.assertEqual(surface.get_size(), (128, 128))
+        
+        # Force redraw to update the canvas image with the new pixel
+        self.canvas.force_redraw()
+        
+        # Visual test: display the canvas with blue pixel
+        self._display_canvas_visual("Canvas Interface Integration - Blue Pixel")
 
 
 class TestCanvasInterfaceEdgeCases(unittest.TestCase):

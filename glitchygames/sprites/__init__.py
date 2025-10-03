@@ -15,6 +15,9 @@ import yaml
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface
 
+# Import animated sprite classes
+from .animated import AnimatedSprite, AnimatedSpriteInterface, SpriteFrame
+
 LOG = logging.getLogger("game.sprites")
 LOG.addHandler(logging.NullHandler())
 
@@ -1707,11 +1710,7 @@ class SpriteFactory:
             sprite.height = rect.height
             return sprite
         elif sprite_type == "animated":
-            # Import here to avoid circular imports
-            import sys
-            import os
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-            from sprite_stack import AnimatedSprite
+            # Use the imported AnimatedSprite class
             return AnimatedSprite(filename)
         else:
             raise ValueError(f"Invalid sprite file format: {filename}")

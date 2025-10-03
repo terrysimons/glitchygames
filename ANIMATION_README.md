@@ -25,10 +25,10 @@ The GlitchyGames Animation System allows you to create animated sprites using th
 - **Multiple Animations**: Single file can contain multiple named animations
 - **Pythonic API**: Clean, intuitive Python interface
 - **Frame Interpolation**: Support for key-frame animation with auto-generation, optimized for common retro game formats (2-4 frame walk cycles, idle animations)
-- **Automatic Type Detection**: SpriteFactory automatically detects static vs animated sprites
+- **Automatic Type Detection**: GGSpriteLoader automatically detects static vs animated sprites
 - **Unified Save/Load**: Single API for loading and saving both static and animated sprites
 - **Format Support**: Both INI and YAML formats supported for maximum flexibility
-- **Extensible Architecture**: SpriteFactory designed to support future sprite and sprite sheet formats
+- **Extensible Architecture**: GGSpriteLoader designed to support future sprite and sprite sheet formats
 - **Backwards Compatibility**: Existing BitmappySprite code continues to work unchanged
 
 ## File Format
@@ -336,34 +336,34 @@ loop = false  # One-time effect
 
 ### Loading Sprites
 
-The SpriteFactory provides automatic type detection for loading both static and animated sprites:
+The GGSpriteLoader provides automatic type detection for loading both static and animated sprites:
 
 ```python
-from glitchygames.sprites import SpriteFactory
+from glitchygames.sprites import GGSpriteLoader
 
 # Load any sprite file (automatic type detection)
-sprite = SpriteFactory.load_sprite(filename="hero.ini")  # Could be static or animated
-sprite = SpriteFactory.load_sprite(filename="static.ini")  # Static sprite
-sprite = SpriteFactory.load_sprite(filename="animated.ini")  # Animated sprite
+sprite = GGSpriteLoader.load_sprite(filename="hero.ini")  # Could be static or animated
+sprite = GGSpriteLoader.load_sprite(filename="static.ini")  # Static sprite
+sprite = GGSpriteLoader.load_sprite(filename="animated.ini")  # Animated sprite
 
 # Load default sprite (raspberry.cfg) when no filename provided
-default_sprite = SpriteFactory.load_sprite()  # Loads default sprite
-default_sprite = SpriteFactory.load_sprite(filename=None)  # Same as above
+default_sprite = GGSpriteLoader.load_sprite()  # Loads default sprite
+default_sprite = GGSpriteLoader.load_sprite(filename=None)  # Same as above
 ```
 
 ### Saving Sprites
 
-The SpriteFactory also handles saving with automatic type detection:
+The GGSpriteLoader also handles saving with automatic type detection:
 
 ```python
-from glitchygames.sprites import SpriteFactory
+from glitchygames.sprites import GGSpriteLoader
 
 # Save any sprite (automatic type detection)
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")  # INI format
-SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")  # YAML format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")  # INI format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")  # YAML format
 
 # Save with default format (INI)
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini")
 ```
 
 ### Backwards Compatibility
@@ -384,34 +384,34 @@ sprite.save("output.yaml", "yaml")
 ### Loading Animated Sprites
 
 ```python
-from glitchygames.sprites import AnimatedBitmappySprite
+from glitchygames.sprites import AnimatedSprite
 
 # Load animated sprite
-sprite = AnimatedBitmappySprite("hero.ini")
+sprite = AnimatedSprite("hero.ini")
 ```
 
 ### File Format Support
 
-The factory supports both INI and YAML formats for loading and saving:
+The GGSpriteLoader supports both INI and YAML formats for loading and saving:
 
 ```python
 # Load from different formats
-sprite1 = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
-sprite2 = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
+sprite1 = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite2 = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
 
 # Save to different formats
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")    # INI format
-SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")   # YAML format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")    # INI format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")   # YAML format
 ```
 
 ### Default Sprite Loading
 
-When no filename is provided, the factory loads the default raspberry sprite:
+When no filename is provided, the GGSpriteLoader loads the default raspberry sprite:
 
 ```python
 # Load default sprite (raspberry.cfg)
-default_sprite = SpriteFactory.load_sprite()  # Loads default sprite
-default_sprite = SpriteFactory.load_sprite(None)  # Same as above
+default_sprite = GGSpriteLoader.load_sprite()  # Loads default sprite
+default_sprite = GGSpriteLoader.load_sprite(None)  # Same as above
 
 # The default sprite has these properties:
 print(default_sprite.name)  # "Tiley McTile Face"
@@ -420,17 +420,17 @@ print(default_sprite.image.get_size())  # (16, 16)
 
 ### Extensible Architecture
 
-The SpriteFactory is designed with extensibility in mind to support future sprite and sprite sheet formats:
+The GGSpriteLoader is designed with extensibility in mind to support future sprite and sprite sheet formats:
 
 ```python
 # Current supported formats
-sprite = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
-sprite = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
 
 # Future format support (planned)
-# sprite = SpriteFactory.load_sprite("sprite.png")     # PNG sprite sheets
-# sprite = SpriteFactory.load_sprite("sprite.json")   # JSON sprite data
-# sprite = SpriteFactory.load_sprite("sprite.xml")    # XML sprite definitions
+# sprite = GGSpriteLoader.load_sprite("sprite.png")     # PNG sprite sheets
+# sprite = GGSpriteLoader.load_sprite("sprite.json")   # JSON sprite data
+# sprite = GGSpriteLoader.load_sprite("sprite.xml")    # XML sprite definitions
 ```
 
 The factory pattern enables easy addition of new format support without breaking existing code:
@@ -442,19 +442,19 @@ The factory pattern enables easy addition of new format support without breaking
 
 ### Error Handling
 
-The factory provides clear error messages for common issues:
+The GGSpriteLoader provides clear error messages for common issues:
 
 ```python
 try:
     # Mixed content error (both [sprite] pixels and [frame] sections)
-    sprite = SpriteFactory.load_sprite(filename="mixed.ini")
+    sprite = GGSpriteLoader.load_sprite(filename="mixed.ini")
 except ValueError as e:
     print(f"Invalid sprite file: {e}")
     # Output: "Invalid sprite file format: mixed.ini"
 
 try:
     # Animated sprite save not yet implemented
-    SpriteFactory.save_sprite(animated_sprite, "output.ini")
+    GGSpriteLoader.save_sprite(animated_sprite, "output.ini")
 except NotImplementedError as e:
     print(f"Save not supported: {e}")
     # Output: "AnimatedSprite save functionality not yet implemented"
@@ -545,10 +545,10 @@ sprite.stop()
 #### Loading and Saving Sprites
 
 ```python
-from glitchygames.sprites import SpriteFactory
+from glitchygames.sprites import GGSpriteLoader
 
 # Load any sprite file (automatic type detection)
-sprite = SpriteFactory.load_sprite(filename="hero.ini")
+sprite = GGSpriteLoader.load_sprite(filename="hero.ini")
 
 # Check if it's animated
 if hasattr(sprite, 'animations'):
@@ -559,14 +559,14 @@ else:
     print(f"Sprite name: {sprite.name}")
 
 # Save the sprite to different formats
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
-SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
 ```
 
 #### Working with Static Sprites
 
 ```python
-from glitchygames.sprites import BitmappySprite, SpriteFactory
+from glitchygames.sprites import BitmappySprite, GGSpriteLoader
 
 # Create a static sprite programmatically
 sprite = BitmappySprite(x=0, y=0, width=16, height=16, name="MySprite")
@@ -581,17 +581,17 @@ sprite.pixels_tall = 16
 sprite.save("my_sprite.ini", "ini")
 
 # Load it back
-loaded_sprite = SpriteFactory.load_sprite(filename="my_sprite.ini")
+loaded_sprite = GGSpriteLoader.load_sprite(filename="my_sprite.ini")
 print(f"Loaded sprite: {loaded_sprite.name}")
 ```
 
 #### Working with Animated Sprites
 
 ```python
-from glitchygames.sprites import SpriteFactory
+from glitchygames.sprites import GGSpriteLoader
 
 # Load animated sprite
-sprite = SpriteFactory.load_sprite(filename="hero.ini")
+sprite = GGSpriteLoader.load_sprite(filename="hero.ini")
 
 # Control animation
 sprite.play_animation("idle")
@@ -894,7 +894,7 @@ sprite = BitmappySprite("hero.ini")
 
 **After:**
 ```python
-sprite = AnimatedBitmappySprite("hero.ini")
+sprite = AnimatedSprite("hero.ini")
 sprite.play_animation("idle")
 ```
 
@@ -935,11 +935,11 @@ current_frame = sprite.frames[sprite.current_animation][sprite.current_frame]
 
 ### 5. Factory Pattern Usage
 
-**Use SpriteFactory for new code:**
+**Use GGSpriteLoader for new code:**
 ```python
-# Recommended: Use factory for automatic type detection
-sprite = SpriteFactory.load_sprite(filename="hero.ini")
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+# Recommended: Use GGSpriteLoader for automatic type detection
+sprite = GGSpriteLoader.load_sprite(filename="hero.ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
 ```
 
 **Maintain backwards compatibility:**
@@ -951,7 +951,7 @@ sprite.save("output.ini", "ini")
 
 **Handle different sprite types:**
 ```python
-sprite = SpriteFactory.load_sprite(filename="unknown.ini")
+sprite = GGSpriteLoader.load_sprite(filename="unknown.ini")
 
 if hasattr(sprite, 'animations'):
     # It's an animated sprite
@@ -964,27 +964,27 @@ else:
 **Use appropriate file formats:**
 ```python
 # INI format for human-readable files
-SpriteFactory.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
 
 # YAML format for programmatic editing
-SpriteFactory.save_sprite(sprite=sprite, filename="sprite.yaml", file_format="yaml")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.yaml", file_format="yaml")
 ```
 
 **Plan for future format support:**
 ```python
 # Current: Use INI/YAML for maximum compatibility
-SpriteFactory.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
 
 # Future: Additional formats will be supported
-# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.png", file_format="png")    # PNG sprite sheets
-# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.json", file_format="json")  # JSON sprite data
-# SpriteFactory.save_sprite(sprite=sprite, filename="sprite.xml", file_format="xml")    # XML definitions
+# GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.png", file_format="png")    # PNG sprite sheets
+# GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.json", file_format="json")  # JSON sprite data
+# GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.xml", file_format="xml")    # XML definitions
 ```
 
 **Design for extensibility:**
 ```python
-# Good: Use factory pattern for future-proof code
-sprite = SpriteFactory.load_sprite(filename="sprite.ini")  # Works with any supported format
+# Good: Use GGSpriteLoader for future-proof code
+sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")  # Works with any supported format
 
 # Avoid: Direct format-specific loading
 # sprite = BitmappySprite("sprite.ini")  # Tied to specific format
@@ -1029,7 +1029,7 @@ blue = 0
 
 ### Extensible Format Support
 
-The SpriteFactory architecture is designed to support future sprite and sprite sheet formats without breaking existing code:
+The GGSpriteLoader architecture is designed to support future sprite and sprite sheet formats without breaking existing code:
 
 #### Current Format Support
 - **INI Format**: Human-readable configuration files
@@ -1044,16 +1044,16 @@ The SpriteFactory architecture is designed to support future sprite and sprite s
 #### Architecture Benefits
 ```python
 # Consistent API regardless of format
-sprite = SpriteFactory.load_sprite(filename="sprite.ini")    # INI format
-sprite = SpriteFactory.load_sprite(filename="sprite.yaml")   # YAML format
-# Future: sprite = SpriteFactory.load_sprite("sprite.png")     # PNG format
-# Future: sprite = SpriteFactory.load_sprite("sprite.json")   # JSON format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
+# Future: sprite = GGSpriteLoader.load_sprite("sprite.png")     # PNG format
+# Future: sprite = GGSpriteLoader.load_sprite("sprite.json")   # JSON format
 
 # Same save API for all formats
-SpriteFactory.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
-SpriteFactory.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
-# Future: SpriteFactory.save_sprite(sprite=sprite, filename="output.png", file_format="png")
-# Future: SpriteFactory.save_sprite(sprite=sprite, filename="output.json", file_format="json")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
+# Future: GGSpriteLoader.save_sprite(sprite=sprite, filename="output.png", file_format="png")
+# Future: GGSpriteLoader.save_sprite(sprite=sprite, filename="output.json", file_format="json")
 ```
 
 #### Plugin Architecture
@@ -1071,7 +1071,7 @@ class PNGSpriteLoader:
         pass
 
 # Register new format
-SpriteFactory.register_format("png", PNGSpriteLoader())
+GGSpriteLoader.register_format("png", PNGSpriteLoader())
 ```
 
 ### Frame Interpolation
