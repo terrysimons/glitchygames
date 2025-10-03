@@ -12,6 +12,9 @@ parameters:
   PYTHON_LATEST_VERSION:
     type: string
     default: "3.13.7"
+  XCODE_LATEST_VERSION:
+    type: string
+    default: "16.4.0"
 
 orbs:
   win: circleci/windows@5.1.0
@@ -69,7 +72,7 @@ jobs:
 
   build-and-test-macos:
     macos:
-      xcode: "16.2.0"
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
     resource_class: macos.m1.medium.gen1
 
 

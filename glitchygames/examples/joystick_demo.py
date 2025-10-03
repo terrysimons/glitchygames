@@ -11,9 +11,7 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     import argparse
 
-import pygame.freetype
-import pygame.gfxdraw
-import pygame.locals
+import pygame
 from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
