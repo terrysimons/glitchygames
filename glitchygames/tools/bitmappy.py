@@ -25,11 +25,17 @@ try:
     import aisuite as ai
 except ImportError:
     ai = None
+
 import yaml
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
+from .canvas_interfaces import (
+    StaticCanvasInterface,
+    StaticSpriteSerializer,
+    StaticCanvasRenderer
+)
 from glitchygames.ui import (
     ColorWellSprite,
     InputDialog,
@@ -743,6 +749,11 @@ class CanvasSprite(BitmappySprite):
         self.image = pygame.Surface((self.width, self.height))
         self.rect = self.image.get_rect(x=x, y=y)
 
+        # Initialize interface components for static sprites
+        self.canvas_interface = StaticCanvasInterface(self)
+        self.sprite_serializer = StaticSpriteSerializer()
+        self.canvas_renderer = StaticCanvasRenderer(self)
+
         # Get screen dimensions from pygame
         screen_info = pygame.display.Info()
         screen_width = screen_info.current_w
@@ -803,21 +814,8 @@ class CanvasSprite(BitmappySprite):
 
     def force_redraw(self):
         """Force a complete redraw of the canvas."""
-        self.image.fill(self.background_color)
-
-        # Draw all pixels, regardless of dirty state
-        for i, pixel in enumerate(self.pixels):
-            x = (i % self.pixels_across) * self.pixel_width
-            y = (i // self.pixels_across) * self.pixel_height
-            pygame.draw.rect(self.image, pixel, (x, y, self.pixel_width, self.pixel_height))
-            pygame.draw.rect(
-                self.image,
-                (64, 64, 64),
-                (x, y, self.pixel_width, self.pixel_height),
-                self.border_thickness,
-            )
-            self.dirty_pixels[i] = False
-
+        # Use the interface-based rendering while maintaining existing behavior
+        self.image = self.canvas_renderer.force_redraw(self)
         self.log.debug(f"Canvas force redraw complete with {len(self.pixels)} pixels")
 
     def on_left_mouse_button_down_event(self, event):
@@ -826,12 +824,8 @@ class CanvasSprite(BitmappySprite):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
 
-            # Check bounds to prevent IndexError
-            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-                pixel_num = y * self.pixels_across + x
-                self.pixels[pixel_num] = self.active_color
-                self.dirty_pixels[pixel_num] = True
-                self.dirty = 1
+            # Use the interface to set the pixel
+            self.canvas_interface.set_pixel_at(x, y, self.active_color)
 
             # Update miniview
             if hasattr(self, "mini_view"):
@@ -906,10 +900,38 @@ class CanvasSprite(BitmappySprite):
         """
         self.log.info(f"Starting save to file: {filename}")
         try:
-            self.save(filename=filename, file_format="ini")  # Changed back to 'ini'
+            # Use the interface-based save method
+            self.sprite_serializer.save(self, filename=filename, file_format="ini")
         except (OSError, ValueError, KeyError):
             self.log.exception("Error saving file")
             raise
+
+    def get_canvas_interface(self) -> StaticCanvasInterface:
+        """Get the canvas interface for external access.
+
+        Returns:
+            The canvas interface instance
+
+        """
+        return self.canvas_interface
+
+    def get_sprite_serializer(self) -> StaticSpriteSerializer:
+        """Get the sprite serializer for external access.
+
+        Returns:
+            The sprite serializer instance
+
+        """
+        return self.sprite_serializer
+
+    def get_canvas_renderer(self) -> StaticCanvasRenderer:
+        """Get the canvas renderer for external access.
+
+        Returns:
+            The canvas renderer instance
+
+        """
+        return self.canvas_renderer
 
     def _load_file_content(self, filename: str) -> str | None:
         """Load and return file content."""
