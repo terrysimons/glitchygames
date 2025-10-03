@@ -1176,9 +1176,18 @@ class BitmappySprite(Sprite):
         return (image, image.get_rect())
 
     def save(self: Self, filename: str, file_format: str = "ini") -> None:
-        """Save a sprite to a file."""
+        """Save a sprite to a file using the factory for backwards compatibility."""
+        self.log.debug(f"Starting save in {file_format} format to {filename}")
+        
+        # Use the factory to save the sprite
+        SpriteFactory.save_sprite(self, filename, file_format)
+        
+        self.log.debug(f"Successfully saved to {filename}")
+
+    def _save_static_only(self: Self, filename: str, file_format: str = "ini") -> None:
+        """Save a static sprite to a file (legacy method)."""
         try:
-            self.log.debug(f"Starting save in {file_format} format to {filename}")
+            self.log.debug(f"Starting static-only save in {file_format} format to {filename}")
             config = self.deflate(file_format=file_format)
             self.log.debug(f"Got config from deflate: {config}")
 
@@ -1736,3 +1745,22 @@ class SpriteFactory:
         # Get the path to the assets directory
         assets_dir = os.path.join(os.path.dirname(__file__), '..', 'assets')
         return os.path.join(assets_dir, 'raspberry.cfg')
+
+    @staticmethod
+    def save_sprite(sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = "ini") -> None:
+        """Save a sprite to a file with automatic type detection."""
+        if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
+            SpriteFactory._save_animated_sprite(sprite, filename, file_format)
+        else:  # It's a BitmappySprite
+            SpriteFactory._save_static_sprite(sprite, filename, file_format)
+
+    @staticmethod
+    def _save_static_sprite(sprite: "BitmappySprite", filename: str, file_format: str) -> None:
+        """Save a static sprite to a file."""
+        sprite._save_static_only(filename, file_format)
+
+    @staticmethod
+    def _save_animated_sprite(sprite: "AnimatedSprite", filename: str, file_format: str) -> None:
+        """Save an animated sprite to a file."""
+        # For now, raise an error since AnimatedSprite save is not implemented
+        raise NotImplementedError("AnimatedSprite save functionality not yet implemented")

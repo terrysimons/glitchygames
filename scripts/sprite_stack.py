@@ -397,6 +397,11 @@ class AnimatedSprite(AnimatedSpriteInterface):
         """Update animation timing."""
         pass
 
+    def save(self: Self, filename: str, file_format: str = "ini") -> None:
+        """Save animated sprite to a file."""
+        # For now, raise an error since AnimatedSprite save is not implemented
+        raise NotImplementedError("AnimatedSprite save functionality not yet implemented")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Sprite Stack Prototype")
