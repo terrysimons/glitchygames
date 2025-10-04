@@ -1163,7 +1163,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write(f"green = {color['green']}\n")
                 f.write(f"blue = {color['blue']}\n\n")
 
-    def update(self: Self, dt: float) -> None:
+    def update(self: Self, dt: float = 0.016) -> None:
         """Update animation timing."""
         if not self._is_playing or not self._current_animation:
             return
@@ -1177,9 +1177,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         # Update frame timer
         self._frame_timer += dt
-        current_frame = self.get_current_frame()
 
-        if current_frame and self._frame_timer >= current_frame.duration:
+        # Use the animation's frame interval instead of individual frame duration
+        frame_interval = getattr(self, '_frame_interval', 0.5)
+        
+        if self._frame_timer >= frame_interval:
             # Move to next frame
             old_frame = self._current_frame
             self._frame_timer = 0.0
@@ -1284,6 +1286,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 surface.set_at((x, y), (r, g, b))
 
         return surface
+
+    def update_nested_sprites(self: Self) -> None:
+        """Update nested sprites (required by SpriteInterface)."""
+        # AnimatedSprite doesn't have nested sprites, so this is a no-op
+        pass
 
     def clear_surface_cache(self: Self) -> None:
         """Clear the surface cache to free memory."""
