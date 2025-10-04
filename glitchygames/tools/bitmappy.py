@@ -28,13 +28,17 @@ except ImportError:
 
 import yaml
 from glitchygames.engine import GameEngine
+from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from .canvas_interfaces import (
     StaticCanvasInterface,
     StaticSpriteSerializer,
-    StaticCanvasRenderer
+    StaticCanvasRenderer,
+    AnimatedCanvasInterface,
+    AnimatedSpriteSerializer,
+    AnimatedCanvasRenderer
 )
 from glitchygames.ui import (
     ColorWellSprite,
@@ -45,6 +49,7 @@ from glitchygames.ui import (
     SliderSprite,
     TextSprite,
 )
+from .film_strip import FilmStripWidget
 
 if TYPE_CHECKING:
     import argparse
@@ -70,6 +75,23 @@ MAX_PIXELS_TALL = 64
 MIN_PIXELS_TALL = 1
 MIN_COLOR_VALUE = 0
 MAX_COLOR_VALUE = 255
+
+
+def detect_file_format(filename: str) -> str:
+    """Detect file format from filename extension.
+    
+    Args:
+        filename: The filename to analyze
+        
+    Returns:
+        The detected file format ("ini", "yaml", "toml")
+    """
+    filename_lower = filename.lower()
+    if filename_lower.endswith((".yaml", ".yml")):
+        return "yaml"
+    if filename_lower.endswith(".ini"):
+        return "ini"
+    return "toml"  # Default to toml
 
 
 def resource_path(*path_segments) -> Path:
@@ -900,8 +922,11 @@ class CanvasSprite(BitmappySprite):
         """
         self.log.info(f"Starting save to file: {filename}")
         try:
+            # Detect file format from extension
+            file_format = detect_file_format(filename)
+            self.log.info(f"Detected file format: {file_format}")
             # Use the interface-based save method
-            self.sprite_serializer.save(self, filename=filename, file_format="ini")
+            self.sprite_serializer.save(self, filename=filename, file_format=file_format)
         except (OSError, ValueError, KeyError):
             self.log.exception("Error saving file")
             raise
@@ -1892,6 +1917,427 @@ def ai_worker(
         raise
 
 
+class AnimatedCanvasSprite(BitmappySprite):
+    """Animated Canvas Sprite for editing animated sprites."""
+
+    log = LOG
+
+    def __init__(
+        self,
+        animated_sprite,
+        name="Animated Canvas",
+        x=0,
+        y=0,
+        pixels_across=32,
+        pixels_tall=32,
+        pixel_width=16,
+        pixel_height=16,
+        groups=None,
+    ):
+        """Initialize the Animated Canvas Sprite."""
+        # Calculate dimensions first
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
+        self.pixel_width = pixel_width
+        self.pixel_height = pixel_height
+        width = self.pixels_across * self.pixel_width
+        height = pixels_tall * pixel_height
+
+        # Initialize parent class first to create rect
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            groups=groups,
+        )
+
+        # Store animated sprite and current frame info
+        self.animated_sprite = animated_sprite
+        self.current_animation = list(animated_sprite.frames.keys())[0] if animated_sprite.frames else "idle"
+        self.current_frame = 0
+
+        # Store pixel-related attributes
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
+        self.pixel_width = pixel_width
+        self.pixel_height = pixel_height
+
+        # Initialize pixels with magenta as the transparent/background color
+        self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
+        self.dirty_pixels = [True] * len(self.pixels)
+        self.background_color = (128, 128, 128)
+        self.active_color = (0, 0, 0)
+        self.border_thickness = 1
+
+        # Create initial surface
+        self.image = pygame.Surface((self.width, self.height))
+        self.rect = self.image.get_rect(x=x, y=y)
+
+        # Initialize interface components for animated sprites
+        self.canvas_interface = AnimatedCanvasInterface(self)
+        self.sprite_serializer = AnimatedSpriteSerializer()
+        self.canvas_renderer = AnimatedCanvasRenderer(self)
+
+        # Create film strip widget
+        self.film_strip = FilmStripWidget(x=0, y=self.rect.bottom + 10, width=800, height=100)
+        self.film_strip.set_animated_sprite(animated_sprite)
+
+        # Get screen dimensions from pygame
+        screen_info = pygame.display.Info()
+        screen_width = screen_info.current_w
+
+        # Calculate mini map size using the same logic as MiniView
+        pixel_width, pixel_height = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
+        mini_map_width = self.pixels_across * pixel_width
+
+        # Position mini map flush to the right edge and top
+        mini_map_x = screen_width - mini_map_width  # Flush to right edge
+        mini_map_y = 24  # Flush to top (below menu bar)
+
+        # Ensure mini map doesn't go off screen
+        if mini_map_x < 0:
+            mini_map_x = 20  # Fallback to left side if too wide
+
+        # Get current frame pixels for the mini view
+        current_frame_pixels = self._get_current_frame_pixels()
+
+        # Create miniview - position in top right corner
+        self.mini_view = MiniView(
+            pixels=current_frame_pixels,
+            x=mini_map_x,
+            y=mini_map_y,
+            width=self.pixels_across,
+            height=self.pixels_tall,
+            groups=groups,
+        )
+
+        # Add MiniView to the sprite groups explicitly
+        if groups:
+            if isinstance(groups, (list, tuple)):
+                for group in groups:
+                    group.add(self.mini_view)
+            else:
+                groups.add(self.mini_view)
+
+        # Show the first frame
+        self.show_frame(self.current_animation, self.current_frame)
+
+        # Force initial draw
+        self.dirty = 1
+        self.force_redraw()
+
+    def _get_current_frame_pixels(self) -> list[tuple[int, int, int]]:
+        """Get pixel data from the current frame of the animated sprite."""
+        if hasattr(self, 'animated_sprite') and self.animated_sprite:
+            current_animation = self.current_animation
+            current_frame = self.current_frame
+            if (current_animation in self.animated_sprite._animations and
+                current_frame < len(self.animated_sprite._animations[current_animation])):
+                frame = self.animated_sprite._animations[current_animation][current_frame]
+                if hasattr(frame, 'get_pixel_data'):
+                    return frame.get_pixel_data()
+        # Fallback to static pixels
+        return self.pixels.copy()
+
+    def _update_mini_view_from_current_frame(self) -> None:
+        """Update the mini view with pixel data from the current frame."""
+        if hasattr(self, "mini_view"):
+            current_frame_pixels = self._get_current_frame_pixels()
+            self.mini_view.pixels = current_frame_pixels
+            self.mini_view.dirty_pixels = [True] * len(current_frame_pixels)
+            self.mini_view.dirty = 1
+
+    def show_frame(self, animation: str, frame: int) -> None:
+        """Show a specific frame of the animated sprite."""
+        frames = self.animated_sprite._animations
+        if animation in frames and 0 <= frame < len(frames[animation]):
+            self.current_animation = animation
+            self.current_frame = frame
+
+            # Update the canvas interface
+            self.canvas_interface.set_current_frame(animation, frame)
+
+            # Get the frame data
+            frame_obj = frames[animation][frame]
+            if hasattr(frame_obj, 'get_pixel_data'):
+                self.pixels = frame_obj.get_pixel_data()
+            else:
+                # Fallback to frame pixels if available
+                self.pixels = getattr(frame_obj, 'pixels', [(255, 0, 255)] * (self.pixels_across * self.pixels_tall))
+
+            # Mark all pixels as dirty
+            self.dirty_pixels = [True] * len(self.pixels)
+            self.dirty = 1
+
+            # Update mini view
+            if hasattr(self, "mini_view"):
+                self.mini_view.pixels = self.pixels.copy()
+                self.mini_view.dirty_pixels = [True] * len(self.pixels)
+                self.mini_view.dirty = 1
+
+    def next_frame(self) -> None:
+        """Move to the next frame in the current animation."""
+        frames = self.animated_sprite._animations
+        if self.current_animation in frames:
+            frame_list = frames[self.current_animation]
+            self.current_frame = (self.current_frame + 1) % len(frame_list)
+            self.show_frame(self.current_animation, self.current_frame)
+
+    def previous_frame(self) -> None:
+        """Move to the previous frame in the current animation."""
+        frames = self.animated_sprite._animations
+        if self.current_animation in frames:
+            frame_list = frames[self.current_animation]
+            self.current_frame = (self.current_frame - 1) % len(frame_list)
+            self.show_frame(self.current_animation, self.current_frame)
+
+    def next_animation(self) -> None:
+        """Move to the next animation."""
+        frames = self.animated_sprite._animations
+        animations = list(frames.keys())
+        if animations:
+            current_index = animations.index(self.current_animation)
+            next_index = (current_index + 1) % len(animations)
+            self.show_frame(animations[next_index], 0)
+
+    def previous_animation(self) -> None:
+        """Move to the previous animation."""
+        frames = self.animated_sprite._animations
+        animations = list(frames.keys())
+        if animations:
+            current_index = animations.index(self.current_animation)
+            prev_index = (current_index - 1) % len(animations)
+            self.show_frame(animations[prev_index], 0)
+
+    def handle_keyboard_event(self, key: int) -> None:
+        """Handle keyboard navigation events."""
+        if key == pygame.K_LEFT:
+            self.previous_frame()
+        elif key == pygame.K_RIGHT:
+            self.next_frame()
+        elif key == pygame.K_UP:
+            self.previous_animation()
+        elif key == pygame.K_DOWN:
+            self.next_animation()
+
+    def copy_current_frame(self) -> None:
+        """Copy the current frame to clipboard."""
+        # Get the current frame data
+        frames = self.animated_sprite._animations
+        if self.current_animation in frames and self.current_frame < len(frames[self.current_animation]):
+            frame = frames[self.current_animation][self.current_frame]
+            # Store the pixel data in a simple clipboard attribute
+            self._clipboard = frame.get_pixel_data().copy()
+
+    def paste_to_current_frame(self) -> None:
+        """Paste clipboard content to current frame."""
+        if hasattr(self, '_clipboard') and self._clipboard:
+            # Get the current frame
+            frames = self.animated_sprite._animations
+            if self.current_animation in frames and self.current_frame < len(frames[self.current_animation]):
+                frame = frames[self.current_animation][self.current_frame]
+                # Set the pixel data
+                frame.set_pixel_data(self._clipboard)
+                # Update the canvas pixels
+                self.pixels = self._clipboard.copy()
+                # Mark as dirty
+                self.dirty_pixels = [True] * len(self.pixels)
+                self.dirty = 1
+
+    def save_animated_sprite(self, filename: str) -> None:
+        """Save the animated sprite to a file."""
+        # Delegate to the sprite serializer
+        self.sprite_serializer.save(self.animated_sprite, filename, DEFAULT_FILE_FORMAT)
+
+    @classmethod
+    def from_file(cls, filename: str, x: int = 0, y: int = 0,
+                  pixels_across: int = 32, pixels_tall: int = 32,
+                  pixel_width: int = 16, pixel_height: int = 16, groups=None):
+        """Create an AnimatedCanvasSprite from a file."""
+        from glitchygames.sprites import SpriteFactory
+
+        # Load the animated sprite
+        animated_sprite = SpriteFactory.load_sprite(filename=filename)
+
+        if not hasattr(animated_sprite, 'frames'):
+            raise ValueError(f"File {filename} does not contain animated sprite data")
+
+        return cls(
+            animated_sprite=animated_sprite,
+            name="Animated Canvas",
+            x=x, y=y,
+            pixels_across=pixels_across, pixels_tall=pixels_tall,
+            pixel_width=pixel_width, pixel_height=pixel_height,
+            groups=groups
+        )
+
+    def update(self):
+        """Update the canvas display."""
+        # Check if mouse is outside canvas
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Get window size
+        screen_info = pygame.display.Info()
+        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
+
+        # If mouse is outside window or canvas, clear cursor
+        if (
+            not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
+        ) and hasattr(self, "mini_view"):
+            self.log.info("Mouse outside canvas/window, clearing miniview cursor")
+            self.mini_view.clear_cursor()
+
+        if self.dirty:
+            self.force_redraw()
+            self.dirty = 0
+
+    def force_redraw(self):
+        """Force a complete redraw of the canvas."""
+        # Use the interface-based rendering while maintaining existing behavior
+        self.image = self.canvas_renderer.force_redraw(self)
+        self.log.debug(f"Animated canvas force redraw complete with {len(self.pixels)} pixels")
+
+    def on_left_mouse_button_down_event(self, event):
+        """Handle the left mouse button down event."""
+        self.log.info(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
+        if self.rect.collidepoint(event.pos):
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            self.log.info(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
+
+            # Use the interface to set the pixel
+            self.canvas_interface.set_pixel_at(x, y, self.active_color)
+
+            # Update miniview with current frame data
+            self._update_mini_view_from_current_frame()
+
+            # Update miniview
+            if hasattr(self, "mini_view"):
+                self.mini_view.on_pixel_update_event(event, self)
+        else:
+            self.log.info(f"AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}")
+
+    def on_left_mouse_drag_event(self, event, trigger):
+        """Handle mouse drag events."""
+        # For drag events, we treat them the same as button down
+        self.on_left_mouse_button_down_event(event)
+
+    def on_mouse_motion_event(self, event):
+        """Handle mouse motion events."""
+        if self.rect.collidepoint(event.pos):
+            # Convert mouse position to pixel coordinates
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+
+            # Check if the coordinates are within valid range
+            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
+                if hasattr(self, "mini_view"):
+                    self.mini_view.update_canvas_cursor(x, y, self.active_color)
+            elif hasattr(self, "mini_view"):
+                self.mini_view.clear_cursor()
+        elif hasattr(self, "mini_view"):
+            self.mini_view.clear_cursor()
+
+    def on_pixel_update_event(self, event, trigger):
+        """Handle pixel update events."""
+        if hasattr(trigger, "pixel_number"):
+            pixel_num = trigger.pixel_number
+            new_color = trigger.pixel_color
+            self.log.info(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
+
+            self.pixels[pixel_num] = new_color
+            self.dirty_pixels[pixel_num] = True
+            self.dirty = 1
+
+            # Update miniview
+            self.mini_view.on_pixel_update_event(event, trigger)
+
+    def on_mouse_leave_window_event(self, event):
+        """Handle mouse leaving window event."""
+        self.log.info("Mouse left window, clearing miniview cursor")
+        if hasattr(self, "mini_view"):
+            self.mini_view.clear_cursor()
+
+    def on_mouse_enter_sprite_event(self, event):
+        """Handle mouse entering canvas."""
+        self.log.info("Mouse entered animated canvas")
+        if hasattr(self, "mini_view"):
+            # Update cursor position immediately
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
+                self.mini_view.update_canvas_cursor(x, y, self.active_color)
+
+    def on_mouse_exit_sprite_event(self, event):
+        """Handle mouse exiting canvas."""
+        self.log.info("Mouse exited animated canvas")
+        if hasattr(self, "mini_view"):
+            self.mini_view.clear_cursor()
+
+    def on_save_file_event(self, filename: str) -> None:
+        """Handle save file events."""
+        self.log.info(f"Starting save to file: {filename}")
+        try:
+            # Detect file format from extension
+            file_format = detect_file_format(filename)
+            self.log.info(f"Detected file format: {file_format}")
+            # Use the interface-based save method
+            self.sprite_serializer.save(self.animated_sprite, filename=filename, file_format=file_format)
+        except (OSError, ValueError, KeyError):
+            self.log.exception("Error saving file")
+            raise
+
+    def get_canvas_interface(self) -> AnimatedCanvasInterface:
+        """Get the canvas interface for external access."""
+        return self.canvas_interface
+
+    def get_sprite_serializer(self) -> AnimatedSpriteSerializer:
+        """Get the sprite serializer for external access."""
+        return self.sprite_serializer
+
+    def get_canvas_renderer(self) -> AnimatedCanvasRenderer:
+        """Get the canvas renderer for external access."""
+        return self.canvas_renderer
+
+    def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+        """Handle load file event for animated sprites."""
+        self.log.debug("=== Starting on_load_file_event for animated sprite ===")
+        try:
+            filename = event if isinstance(event, str) else event.text
+            self.log.debug(f"Loading animated sprite from {filename}")
+
+            # Load the animated sprite using the sprite serializer
+            from glitchygames.sprites import AnimatedSprite
+            from glitchygames.tools.bitmappy import detect_file_format
+            
+            # Detect file format and load the sprite
+            file_format = detect_file_format(filename)
+            self.log.debug(f"Detected file format: {file_format}")
+            
+            # Create a new animated sprite and load it
+            loaded_sprite = AnimatedSprite()
+            loaded_sprite.load(filename)
+            
+            # Update our animated sprite with the loaded data
+            self.animated_sprite = loaded_sprite
+            
+            # Update the current frame display
+            if hasattr(self, 'mini_view'):
+                self._update_mini_view_from_current_frame()
+            
+            # Force a complete redraw
+            self.dirty = 1
+            self.force_redraw()
+            
+            self.log.info(f"Successfully loaded animated sprite from {filename}")
+
+        except Exception:
+            self.log.exception("Error in on_load_file_event for animated sprite")
+            raise
+
+
 class MiniView(BitmappySprite):
     """Mini View."""
 
@@ -2177,9 +2623,33 @@ class BitmapEditorScene(Scene):
             (self.screen_width * 2 // 3) // pixels_across,
         )
 
-        # Create the canvas with the calculated pixel dimensions
-        self.canvas = CanvasSprite(
-            name="Bitmap Canvas",
+        # Create a simple animated sprite for testing
+        from glitchygames.sprites import AnimatedSprite, SpriteFrame
+        import pygame
+
+        # Create test frames
+        surface1 = pygame.Surface((pixels_across, pixels_tall))
+        surface1.fill((255, 0, 255))  # Magenta frame (transparent)
+        frame1 = SpriteFrame(surface1)
+        frame1.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
+
+        surface2 = pygame.Surface((pixels_across, pixels_tall))
+        surface2.fill((255, 0, 255))  # Magenta frame (transparent)
+        frame2 = SpriteFrame(surface2)
+        frame2.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
+
+        # Create animated sprite
+        animated_sprite = AnimatedSprite()
+        animated_sprite._animations = {
+            "idle": [frame1, frame2]
+        }
+        animated_sprite._current_animation = "idle"
+        animated_sprite._current_frame = 0
+
+        # Create the animated canvas with the calculated pixel dimensions
+        self.canvas = AnimatedCanvasSprite(
+            animated_sprite=animated_sprite,
+            name="Animated Bitmap Canvas",
             x=0,
             y=menu_bar_height,  # Position canvas right below menu bar
             pixels_across=pixels_across,
@@ -2188,6 +2658,10 @@ class BitmapEditorScene(Scene):
             pixel_height=pixel_size,
             groups=self.all_sprites,
         )
+
+        # Debug: Log canvas position and size
+        self.log.info(f"AnimatedCanvasSprite created at position ({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}")
+        self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
 
         width, height = options.get("size").split("x")
         CanvasSprite.WIDTH = int(width)
@@ -3004,6 +3478,15 @@ class BitmapEditorScene(Scene):
         self._cleanup_queues()
 
         super().cleanup()
+
+    def on_key_down_event(self, event: pygame.event.Event) -> None:
+        """Handle keyboard events for frame navigation."""
+        # Check if we have an animated canvas
+        if hasattr(self, 'canvas') and hasattr(self.canvas, 'handle_keyboard_event'):
+            self.canvas.handle_keyboard_event(event.key)
+        else:
+            # Fall back to parent class handling
+            super().on_key_down_event(event)
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:

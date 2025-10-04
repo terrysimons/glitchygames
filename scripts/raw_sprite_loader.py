@@ -163,15 +163,22 @@ class BitmappyLegacySprite(Sprite):
         config.add_section("sprite")
         config.set("sprite", "name", self.name)
 
-        # Generate the color key
-        color_key = chr(47)
+        # Generate the color key using universal character set
+        from glitchygames.sprites import SPRITE_GLYPHS
+        universal_chars = SPRITE_GLYPHS.strip()
+        
+        # Assign characters sequentially from SPRITE_GLYPHS
+        char_index = 0
         for color in colors:
-            # Characters above doublequote.
-            color_key = chr(ord(color_key) + 1)
+            if char_index >= len(universal_chars):
+                raise ValueError(f"Too many colors (max {len(universal_chars)})")
+            
+            color_key = universal_chars[char_index]
             config.add_section(color_key)
-
             color_map[color] = color_key
+            char_index += 1
 
+            color_key = color_map[color]
             self.log.debug(f"Key: {color} -> {color_key}")
 
             red = color[0]
@@ -182,6 +189,8 @@ class BitmappyLegacySprite(Sprite):
 
             blue = color[2]
             config.set(color_key, "blue", str(blue))
+            
+            char_index += 1
 
         x = 0
         row = []

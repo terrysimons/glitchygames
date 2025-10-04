@@ -17,13 +17,10 @@ from glitchygames.interfaces import SpriteInterface
 
 # Import animated sprite classes
 from .animated import AnimatedSprite, AnimatedSpriteInterface, SpriteFrame
+from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 LOG = logging.getLogger("game.sprites")
 LOG.addHandler(logging.NullHandler())
-
-SPRITE_GLYPHS = """
-.XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
-"""
 
 # Configure logger
 LOG = logging.getLogger("game.sprites")
@@ -1058,24 +1055,24 @@ class BitmappySprite(Sprite):
     def load(self: Self, filename: str | None = None) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a sprite from a Bitmappy config file using the factory for backwards compatibility."""
         self.log.debug(f"=== Starting load from {filename} ===")
-        
+
         # Use the factory to determine sprite type and load appropriately
         try:
             sprite = SpriteFactory.load_sprite(filename=filename)
-            
+
             # If it's an AnimatedSprite, we can't load it into a BitmappySprite
             if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
                 raise ValueError(f"File {filename} contains animated sprite data. Use AnimatedSprite class instead of BitmappySprite.")
-            
+
             # It's a BitmappySprite, copy its properties
             self.image = sprite.image
             self.rect = sprite.rect
             self.name = sprite.name
             self.width = sprite.width
             self.height = sprite.height
-            
+
             return (self.image, self.rect, self.name)
-            
+
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug(f"Factory failed, falling back to static-only loading: {e}")
@@ -1178,16 +1175,16 @@ class BitmappySprite(Sprite):
 
         return (image, image.get_rect())
 
-    def save(self: Self, filename: str, file_format: str = "ini") -> None:
+    def save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save a sprite to a file using the factory for backwards compatibility."""
         self.log.debug(f"Starting save in {file_format} format to {filename}")
-        
+
         # Use the factory to save the sprite
         SpriteFactory.save_sprite(sprite=self, filename=filename, file_format=file_format)
-        
+
         self.log.debug(f"Successfully saved to {filename}")
 
-    def _save(self: Self, filename: str, file_format: str = "ini") -> None:
+    def _save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Internal save method for static sprites."""
         self._save_static_only(filename, file_format)
 
@@ -1195,7 +1192,7 @@ class BitmappySprite(Sprite):
         """Internal load method for static sprites."""
         return self._load_static_only(filename)
 
-    def _save_static_only(self: Self, filename: str, file_format: str = "ini") -> None:
+    def _save_static_only(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save a static sprite to a file (legacy method)."""
         try:
             self.log.debug(f"Starting static-only save in {file_format} format to {filename}")
@@ -1273,10 +1270,12 @@ class BitmappySprite(Sprite):
                 f"Filtered printable chars: '{printable_chars}' (length: {len(printable_chars)})"
             )
 
-            for next_char, color in enumerate(unique_colors):
-                if next_char >= len(printable_chars):
+            # Assign characters sequentially from SPRITE_GLYPHS
+            char_index = 0
+            for color in unique_colors:
+                if char_index >= len(printable_chars):
                     self._raise_too_many_colors_error(len(printable_chars))
-                char = printable_chars[next_char]
+                char = printable_chars[char_index]
                 # Double-check that the character is safe
                 if char in dangerous_chars or not char.isprintable():
                     self.log.error(
@@ -1284,7 +1283,8 @@ class BitmappySprite(Sprite):
                     )
                     char = "."
                 color_map[color] = char
-                self.log.debug(f"Color {color} -> char '{char}' (ord={ord(char)})")
+                char_index += 1
+                self.log.debug(f"Color {color} -> char '{color_map[color]}' (ord={ord(color_map[color])})")
 
             # Process pixels row by row
             pixel_rows = self._process_pixel_rows(color_map)
@@ -1681,23 +1681,23 @@ class SpriteFactory:
     @staticmethod
     def load_sprite(*, filename: str | None = None) -> "BitmappySprite | AnimatedSprite":
         """Load a sprite file, automatically detecting whether it's static or animated.
-        
+
         Args:
             filename: Path to sprite file. If None, loads default sprite (raspberry.cfg).
-            
+
         Returns:
             BitmappySprite or AnimatedSprite based on file content.
-            
+
         Raises:
             ValueError: If file format is invalid or contains mixed content.
         """
         # Handle default sprite loading
         if filename is None:
             filename = SpriteFactory._get_default_sprite_path()
-        
+
         analysis = SpriteFactory._analyze_file(filename)
         sprite_type = SpriteFactory._determine_type(analysis)
-        
+
         if sprite_type == "static":
             # Create BitmappySprite without calling load to avoid recursion
             sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
@@ -1720,26 +1720,26 @@ class SpriteFactory:
         """Analyze INI file content to determine sprite type."""
         config = configparser.ConfigParser()
         config.read(filename)
-        
+
         has_sprite_pixels = False
         has_animation_sections = False
         has_frame_sections = False
-        
+
         # Check for [sprite] pixels
         if "sprite" in config and "pixels" in config["sprite"]:
             has_sprite_pixels = True
-        
+
         # Check for [animation] sections
         if any(section.startswith("animation") for section in config.sections()):
             has_animation_sections = True
-        
-        # Check for [frame] sections  
+
+        # Check for [frame] sections
         if any(section.startswith("frame") for section in config.sections()):
             has_frame_sections = True
-        
+
         return {
             "has_sprite_pixels": has_sprite_pixels,
-            "has_animation_sections": has_animation_sections, 
+            "has_animation_sections": has_animation_sections,
             "has_frame_sections": has_frame_sections
         }
 
@@ -1764,14 +1764,14 @@ class SpriteFactory:
         return os.path.join(assets_dir, 'raspberry.cfg')
 
     @staticmethod
-    def save_sprite(*, sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = "ini") -> None:
+    def save_sprite(*, sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save a sprite to a file with automatic type detection.
-        
+
         Args:
             sprite: The sprite to save (BitmappySprite or AnimatedSprite).
             filename: Path where to save the sprite file.
-            file_format: Output format ("ini" or "yaml"). Defaults to "ini".
-            
+            file_format: Output format ("ini", "yaml", or "toml"). Defaults to "toml".
+
         Raises:
             NotImplementedError: If saving animated sprites (not yet implemented).
             ValueError: If file_format is not supported.

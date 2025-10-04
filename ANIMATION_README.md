@@ -16,7 +16,7 @@ A comprehensive animation system for GlitchyGames that extends the existing Bitm
 
 ## Overview
 
-The GlitchyGames Animation System allows you to create animated sprites using the familiar `.ini` file format. It extends the existing BitmappySprite format with minimal disruption, supporting both simple 2-frame animations and complex multi-animation sprites.
+The GlitchyGames Animation System allows you to create animated sprites using the modern `.toml` file format. It extends the existing BitmappySprite format with minimal disruption, supporting both simple 2-frame animations and complex multi-animation sprites.
 
 ### Key Features
 
@@ -27,7 +27,7 @@ The GlitchyGames Animation System allows you to create animated sprites using th
 - **Frame Interpolation**: Support for key-frame animation with auto-generation, optimized for common retro game formats (2-4 frame walk cycles, idle animations)
 - **Automatic Type Detection**: GGSpriteLoader automatically detects static vs animated sprites
 - **Unified Save/Load**: Single API for loading and saving both static and animated sprites
-- **Format Support**: Both INI and YAML formats supported for maximum flexibility
+- **Format Support**: Both TOML and YAML formats supported for maximum flexibility
 - **Extensible Architecture**: GGSpriteLoader designed to support future sprite and sprite sheet formats
 - **Backwards Compatibility**: Existing BitmappySprite code continues to work unchanged
 
@@ -35,26 +35,29 @@ The GlitchyGames Animation System allows you to create animated sprites using th
 
 ### Static Sprite
 
-```ini
+```toml
 [sprite]
-name = StaticSprite
-pixels = #@@@#  # Single frame pixel data
-         @AAA@
-         #@@@#
+name = "StaticSprite"
+pixels = """
+#@@@#  # Single frame pixel data
+@AAA@
+#@@@#
+"""
 
-[#]  # Color definition for '#' character
+[colors]
+[colors."#"]  # Color definition for '#' character
 red = 0
 green = 0
 blue = 0
 alpha = 0.5  # Optional - half transparency
 
-[@]  # Color definition for '@' character
+[colors."@"]  # Color definition for '@' character
 red = 255
 green = 0
 blue = 0
 alpha = 0.5  # Optional - half transparency
 
-[A]  # Color definition for 'A' character
+[colors."A"]  # Color definition for 'A' character
 red = 255
 green = 255
 blue = 255
@@ -63,43 +66,47 @@ alpha = 0.5  # Optional - half transparency
 
 ### Animated Sprite
 
-```ini
+```toml
 [sprite]
-name = AnimatedHero
+name = "AnimatedHero"
 
 [animation]
-namespace = idle
+namespace = "idle"
 frame_interval = 0.5  # Optional, defaults to 0.5 seconds
 loop = true  # Optional, defaults to true
 
-[frame]
-namespace = idle
+[animation.frame]
+namespace = "idle"
 frame_index = 0  # Optional, auto-generated if missing
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = idle
+[animation.frame]
+namespace = "idle"
 frame_index = 1  # Optional, auto-generated if missing
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-# Color definitions (required)
-[#]
+[colors]
+[colors."#"]  # Color definitions (required)
 red = 0
 green = 0
 blue = 0
 alpha = 0.5  # Optional - half transparency
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 alpha = 0.5  # Optional - half transparency
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
@@ -117,7 +124,7 @@ alpha = 0.5  # Optional - half transparency
 - **`frame_interval`** (optional): Global animation namespace time interval between frames in seconds (default: 0.5)
 - **`loop`** (optional): Whether animation loops (default: true)
 
-#### `[frame]` Section
+#### `[animation.frame]` Section
 - **`namespace`** (required): Must match its corresponding animation namespace
 - **`frame_index`** (optional): Frame position in animation (auto-generated if missing)
 - **`pixels`** (required): Frame pixel data using character map
@@ -125,14 +132,14 @@ alpha = 0.5  # Optional - half transparency
 
 ### Animation-Frame Relationship
 
-The `namespace` field creates a binding between `[animation]` and `[frame]` sections. This relationship is necessary because:
+The `namespace` field creates a binding between `[animation]` and `[animation.frame]` sections. This relationship is necessary because:
 
 - **Animation sections** define the timing and behavior (`frame_interval`, `loop`) for a group of frames
 - **Frame sections** contain the actual pixel data for individual frames and can override animation timing with per-frame `frame_interval` values
 - **Namespace matching** ensures frames are grouped under the correct animation
 - **Multiple animations** can exist in the same file, each with their own namespace
 
-For example, frames with `namespace = idle` belong to the animation with `namespace = idle`, while frames with `namespace = walk` belong to a separate animation with `namespace = walk`.
+For example, frames with `namespace = "idle"` belong to the animation with `namespace = "idle"`, while frames with `namespace = "walk"` belong to a separate animation with `namespace = "walk"`.
 
 ## Animation Features
 
@@ -140,37 +147,43 @@ For example, frames with `namespace = idle` belong to the animation with `namesp
 
 Control timing at the animation namespace global and per-frame levels:
 
-```ini
+```toml
 [sprite]
-name = WalkingCharacter
+name = "WalkingCharacter"
 
 [animation]
-namespace = walk
+namespace = "walk"
 frame_interval = 0.3  # Animation namespace default: 0.3 seconds per frame
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 0
 # No frame_interval: uses global 0.3 seconds
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 1
 frame_interval = 0.6  # Override: this frame takes 0.6 seconds
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 2
 # No frame_interval: uses global 0.3 seconds
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 ```
 
 **Timing Rules:**
@@ -183,38 +196,46 @@ pixels = #@@@#
 
 Frames can be ordered explicitly or auto-generated:
 
-```ini
+```toml
 [animation]
-namespace = complex
+namespace = "complex"
 frame_interval = 0.2
 
-[frame]
-namespace = complex
+[animation.frame]
+namespace = "complex"
 frame_index = 0  # Explicit: key frame
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = complex
+[animation.frame]
+namespace = "complex"
 # No frame_index: auto-generated as 1
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[frame]
-namespace = complex
+[animation.frame]
+namespace = "complex"
 frame_index = 5  # Explicit: another key frame
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = complex
+[animation.frame]
+namespace = "complex"
 # No frame_index: auto-generated as 6
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 ```
 
 **Auto-Generation Rules:**
@@ -228,86 +249,99 @@ pixels = #@@@#
 
 Single file can contain multiple animations:
 
-```ini
+```toml
 [sprite]
-name = Hero
+name = "Hero"
 
 [animation]
-namespace = idle
+namespace = "idle"
 frame_interval = 0.5
 loop = true
 
-[frame]
-namespace = idle
-pixels = #@@@#
-         @AAA@
-         #@@@#
+[animation.frame]
+namespace = "idle"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = idle
-pixels = #@@@#
-         @.A.@
-         #@@@#
+[animation.frame]
+namespace = "idle"
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
 [animation]
-namespace = walk
+namespace = "walk"
 frame_interval = 0.3
 loop = true
 
-[frame]
-namespace = walk
-pixels = #@@@#
-         @AAA@
-         #@@@#
+[animation.frame]
+namespace = "walk"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = walk
-pixels = #@@@#
-         @.A.@
-         #@@@#
+[animation.frame]
+namespace = "walk"
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
 [animation]
-namespace = death
+namespace = "death"
 frame_interval = 0.4
 loop = false
 
-[frame]
-namespace = death
-pixels = #XXX#
-         XXXX#
-         #XXX#
+[animation.frame]
+namespace = "death"
+pixels = """
+#XXX#
+XXXX#
+#XXX#
+"""
 
-[frame]
-namespace = death
-pixels = .....
-         .....
-         .....
+[animation.frame]
+namespace = "death"
+pixels = """
+.....
+.....
+.....
+"""
 
-[#]
+[colors]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
 alpha = 0.5  # half transparent
 
-[X]
+[colors."X"]
 red = 128
 green = 128
 blue = 128
 alpha = 0.5  # half transparent
 
-[.]
+[colors."."]
 red = 255
 green = 0
 blue = 255
@@ -318,17 +352,17 @@ alpha = 0.5  # half transparent
 
 Different animations can have different loop settings:
 
-```ini
+```toml
 [animation]
-namespace = idle
+namespace = "idle"
 loop = true  # Loops forever
 
 [animation]
-namespace = death
+namespace = "death"
 loop = false  # Plays once
 
 [animation]
-namespace = explosion
+namespace = "explosion"
 loop = false  # One-time effect
 ```
 
@@ -342,9 +376,9 @@ The GGSpriteLoader provides automatic type detection for loading both static and
 from glitchygames.sprites import GGSpriteLoader
 
 # Load any sprite file (automatic type detection)
-sprite = GGSpriteLoader.load_sprite(filename="hero.ini")  # Could be static or animated
-sprite = GGSpriteLoader.load_sprite(filename="static.ini")  # Static sprite
-sprite = GGSpriteLoader.load_sprite(filename="animated.ini")  # Animated sprite
+sprite = GGSpriteLoader.load_sprite(filename="hero.toml")  # Could be static or animated
+sprite = GGSpriteLoader.load_sprite(filename="static.toml")  # Static sprite
+sprite = GGSpriteLoader.load_sprite(filename="animated.toml")  # Animated sprite
 
 # Load default sprite (raspberry.cfg) when no filename provided
 default_sprite = GGSpriteLoader.load_sprite()  # Loads default sprite
@@ -359,11 +393,11 @@ The GGSpriteLoader also handles saving with automatic type detection:
 from glitchygames.sprites import GGSpriteLoader
 
 # Save any sprite (automatic type detection)
-GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")  # INI format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.toml", file_format="toml")  # TOML format
 GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")  # YAML format
 
-# Save with default format (INI)
-GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini")
+# Save with default format (TOML)
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.toml")
 ```
 
 ### Backwards Compatibility
@@ -374,10 +408,10 @@ Existing BitmappySprite code continues to work unchanged:
 from glitchygames.sprites import BitmappySprite
 
 # Load static sprite (uses factory internally)
-sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename="static.ini")
+sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename="static.toml")
 
 # Save static sprite (uses factory internally)
-sprite.save("output.ini", "ini")
+sprite.save("output.toml", "toml")
 sprite.save("output.yaml", "yaml")
 ```
 
@@ -387,20 +421,20 @@ sprite.save("output.yaml", "yaml")
 from glitchygames.sprites import AnimatedSprite
 
 # Load animated sprite
-sprite = AnimatedSprite("hero.ini")
+sprite = AnimatedSprite("hero.toml")
 ```
 
 ### File Format Support
 
-The GGSpriteLoader supports both INI and YAML formats for loading and saving:
+The GGSpriteLoader supports both TOML and YAML formats for loading and saving:
 
 ```python
 # Load from different formats
-sprite1 = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite1 = GGSpriteLoader.load_sprite(filename="sprite.toml")    # TOML format
 sprite2 = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
 
 # Save to different formats
-GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")    # INI format
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.toml", file_format="toml")    # TOML format
 GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")   # YAML format
 ```
 
@@ -424,7 +458,7 @@ The GGSpriteLoader is designed with extensibility in mind to support future spri
 
 ```python
 # Current supported formats
-sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.toml")    # TOML format
 sprite = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
 
 # Future format support (planned)
@@ -446,15 +480,15 @@ The GGSpriteLoader provides clear error messages for common issues:
 
 ```python
 try:
-    # Mixed content error (both [sprite] pixels and [frame] sections)
-    sprite = GGSpriteLoader.load_sprite(filename="mixed.ini")
+    # Mixed content error (both [sprite] pixels and [animation.frame] sections)
+    sprite = GGSpriteLoader.load_sprite(filename="mixed.toml")
 except ValueError as e:
     print(f"Invalid sprite file: {e}")
-    # Output: "Invalid sprite file format: mixed.ini"
+    # Output: "Invalid sprite file format: mixed.toml"
 
 try:
     # Animated sprite save not yet implemented
-    GGSpriteLoader.save_sprite(animated_sprite, "output.ini")
+    GGSpriteLoader.save_sprite(animated_sprite, "output.toml")
 except NotImplementedError as e:
     print(f"Save not supported: {e}")
     # Output: "AnimatedSprite save functionality not yet implemented"
@@ -548,7 +582,7 @@ sprite.stop()
 from glitchygames.sprites import GGSpriteLoader
 
 # Load any sprite file (automatic type detection)
-sprite = GGSpriteLoader.load_sprite(filename="hero.ini")
+sprite = GGSpriteLoader.load_sprite(filename="hero.toml")
 
 # Check if it's animated
 if hasattr(sprite, 'animations'):
@@ -559,7 +593,7 @@ else:
     print(f"Sprite name: {sprite.name}")
 
 # Save the sprite to different formats
-GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.toml", file_format="toml")
 GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
 ```
 
@@ -578,10 +612,10 @@ sprite.pixels_across = 16
 sprite.pixels_tall = 16
 
 # Save it
-sprite.save("my_sprite.ini", "ini")
+sprite.save("my_sprite.toml", "toml")
 
 # Load it back
-loaded_sprite = GGSpriteLoader.load_sprite(filename="my_sprite.ini")
+loaded_sprite = GGSpriteLoader.load_sprite(filename="my_sprite.toml")
 print(f"Loaded sprite: {loaded_sprite.name}")
 ```
 
@@ -591,7 +625,7 @@ print(f"Loaded sprite: {loaded_sprite.name}")
 from glitchygames.sprites import GGSpriteLoader
 
 # Load animated sprite
-sprite = GGSpriteLoader.load_sprite(filename="hero.ini")
+sprite = GGSpriteLoader.load_sprite(filename="hero.toml")
 
 # Control animation
 sprite.play_animation("idle")
@@ -613,50 +647,56 @@ for frame in sprite.frames["idle"]:
 ### Static Sprite Examples
 
 #### Sparse Static Sprite (Minimal)
-```ini
+```toml
 [sprite]
-name = SimpleSprite
-pixels = #@@@#
-         @AAA@
-         #@@@#
+name = "SimpleSprite"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[#]
+[colors]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
 ```
 
 #### Verbose Static Sprite (Explicit)
-```ini
+```toml
 [sprite]
-name = ComplexSprite
-pixels = #@@@#
-         @AAA@
-         #@@@#
+name = "ComplexSprite"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[#]  # Color definition for '#' character
+[colors]
+[colors."#"]  # Color definition for '#' character
 red = 0
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[@]  # Color definition for '@' character
+[colors."@"]  # Color definition for '@' character
 red = 255
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[A]  # Color definition for 'A' character
+[colors."A"]  # Color definition for 'A' character
 red = 255
 green = 255
 blue = 255
@@ -667,37 +707,42 @@ alpha = 0.5  # half transparent
 
 #### Sparse Configuration (Minimal)
 
-```ini
+```toml
 [sprite]
-name = SimpleHero
+name = "SimpleHero"
 
 [animation]
-namespace = idle
+namespace = "idle"
 loop = true
 
-[frame]
-namespace = idle
-pixels = #@@@#
-         @AAA@
-         #@@@#
+[animation.frame]
+namespace = "idle"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = idle
-pixels = #@@@#
-         @.A.@
-         #@@@#
+[animation.frame]
+namespace = "idle"
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[#]
+[colors]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
@@ -705,68 +750,77 @@ blue = 255
 
 ### Verbose Configuration (Explicit)
 
-```ini
+```toml
 [sprite]
-name = ComplexHero
+name = "ComplexHero"
 
 [animation]
-namespace = idle
+namespace = "idle"
 frame_interval = 0.5
 loop = true
 
-[frame]
-namespace = idle
+[animation.frame]
+namespace = "idle"
 frame_index = 0
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = idle
+[animation.frame]
+namespace = "idle"
 frame_index = 1
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
 [animation]
-namespace = walk
+namespace = "walk"
 frame_interval = 0.3
 loop = true
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 0
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 1
 frame_interval = 0.2
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[.]
+[colors]
+[colors."."]
 red = 255
 green = 0
 blue = 255
 alpha = 0.5  # half transparent
 
-[#]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 alpha = 0.5  # half transparent
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
@@ -775,52 +829,59 @@ alpha = 0.5  # half transparent
 
 ### Key Frame Animation
 
-```ini
+```toml
 [sprite]
-name = Explosion
+name = "Explosion"
 
 [animation]
-namespace = explosion
+namespace = "explosion"
 frame_interval = 0.1
 loop = false
 
-[frame]
-namespace = explosion
+[animation.frame]
+namespace = "explosion"
 frame_index = 0
-pixels = .....
-         .#@#.
-         .....
+pixels = """
+.....
+.#@#.
+.....
+"""
 
-[frame]
-namespace = explosion
+[animation.frame]
+namespace = "explosion"
 frame_index = 2
-pixels = #@@@#
-         @@@@#
-         #@@@#
+pixels = """
+#@@@#
+@@@@#
+#@@@#
+"""
 
-[frame]
-namespace = explosion
+[animation.frame]
+namespace = "explosion"
 frame_index = 4
-pixels = .....
-         .....
-         .....
+pixels = """
+.....
+.....
+.....
+"""
 
-[.]
+[colors]
+[colors."."]
 red = 128
 green = 0
 blue = 128
 
-[#]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
@@ -831,55 +892,61 @@ blue = 255
 ### From Static Sprites
 
 **Static:**
-```ini
+```toml
 [sprite]
-name = StaticHero
-pixels = #@@@#
-         @AAA@
-         #@@@#
+name = "StaticHero"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[#]
+[colors]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
 ```
 
 **Animated:**
-```ini
+```toml
 [sprite]
-name = AnimatedHero
+name = "AnimatedHero"
 
 [animation]
-namespace = idle
+namespace = "idle"
 loop = true
 
-[frame]
-namespace = idle
-pixels = #@@@#
-         @AAA@
-         #@@@#
+[animation.frame]
+namespace = "idle"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[#]
+[colors]
+[colors."#"]
 red = 0
 green = 0
 blue = 0
 
-[@]
+[colors."@"]
 red = 255
 green = 0
 blue = 0
 
-[A]
+[colors."A"]
 red = 255
 green = 255
 blue = 255
@@ -889,12 +956,12 @@ blue = 255
 
 **Before:**
 ```python
-sprite = BitmappySprite("hero.ini")
+sprite = BitmappySprite("hero.toml")
 ```
 
 **After:**
 ```python
-sprite = AnimatedSprite("hero.ini")
+sprite = AnimatedSprite("hero.toml")
 sprite.play_animation("idle")
 ```
 
@@ -963,8 +1030,8 @@ else:
 
 **Use appropriate file formats:**
 ```python
-# INI format for human-readable files
-GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+# TOML format for human-readable files
+GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.toml", file_format="toml")
 
 # YAML format for programmatic editing
 GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.yaml", file_format="yaml")
@@ -972,8 +1039,8 @@ GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.yaml", file_format="y
 
 **Plan for future format support:**
 ```python
-# Current: Use INI/YAML for maximum compatibility
-GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.ini", file_format="ini")
+# Current: Use TOML/YAML for maximum compatibility
+GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.toml", file_format="toml")
 
 # Future: Additional formats will be supported
 # GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.png", file_format="png")    # PNG sprite sheets
@@ -984,30 +1051,30 @@ GGSpriteLoader.save_sprite(sprite=sprite, filename="sprite.ini", file_format="in
 **Design for extensibility:**
 ```python
 # Good: Use GGSpriteLoader for future-proof code
-sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")  # Works with any supported format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.toml")  # Works with any supported format
 
 # Avoid: Direct format-specific loading
-# sprite = BitmappySprite("sprite.ini")  # Tied to specific format
+# sprite = BitmappySprite("sprite.toml")  # Tied to specific format
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Error: "Both [frame] sections AND [sprite] pixels exist"**
+**Error: "Both [animation.frame] sections AND [sprite] pixels exist"**
 - Remove `pixels` from `[sprite]` section when using animations
 
 **Error: "Missing color definition for character 'X'"**
 - Add color definition:
-```ini
-[X]
+```toml
+[colors."X"]
 red = 255
 green = 0
 blue = 0
 ```
 
 **Animation not playing**
-- Check that `namespace` matches between `[animation]` and `[frame]` sections
+- Check that `namespace` matches between `[animation]` and `[animation.frame]` sections
 - Ensure `loop` is set correctly
 - Check the global animation `frame_interval` for that namespace
 - Check for per-frame `frame_interval` overrides that might be too fast/slow
@@ -1019,7 +1086,7 @@ blue = 0
 
 ### Validation Checklist
 
-- [ ] All `[frame]` sections have matching `namespace`
+- [ ] All `[animation.frame]` sections have matching `namespace`
 - [ ] All `[animation]` sections have `namespace` and `loop`
 - [ ] All characters in `pixels` have color definitions
 - [ ] No `pixels` in `[sprite]` section when using animations
@@ -1032,7 +1099,7 @@ blue = 0
 The GGSpriteLoader architecture is designed to support future sprite and sprite sheet formats without breaking existing code:
 
 #### Current Format Support
-- **INI Format**: Human-readable configuration files
+- **TOML Format**: Human-readable configuration files
 - **YAML Format**: Programmatic editing and data exchange
 
 #### Planned Format Support
@@ -1044,13 +1111,13 @@ The GGSpriteLoader architecture is designed to support future sprite and sprite 
 #### Architecture Benefits
 ```python
 # Consistent API regardless of format
-sprite = GGSpriteLoader.load_sprite(filename="sprite.ini")    # INI format
+sprite = GGSpriteLoader.load_sprite(filename="sprite.toml")    # TOML format
 sprite = GGSpriteLoader.load_sprite(filename="sprite.yaml")   # YAML format
 # Future: sprite = GGSpriteLoader.load_sprite("sprite.png")     # PNG format
 # Future: sprite = GGSpriteLoader.load_sprite("sprite.json")   # JSON format
 
 # Same save API for all formats
-GGSpriteLoader.save_sprite(sprite=sprite, filename="output.ini", file_format="ini")
+GGSpriteLoader.save_sprite(sprite=sprite, filename="output.toml", file_format="toml")
 GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="yaml")
 # Future: GGSpriteLoader.save_sprite(sprite=sprite, filename="output.png", file_format="png")
 # Future: GGSpriteLoader.save_sprite(sprite=sprite, filename="output.json", file_format="json")
@@ -1078,62 +1145,74 @@ GGSpriteLoader.register_format("png", PNGSpriteLoader())
 
 Use key frames with auto-generation for smooth animations:
 
-```ini
-[frame]
-namespace = walk
+```toml
+[animation.frame]
+namespace = "walk"
 frame_index = 0
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 # Auto-generated as frame 1
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 3
 # Auto-generated frames 2 and 4 will be interpolated
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 ```
 
 ### Complex Timing
 
 Mix animation namespace global and per-frame timing for realistic motion:
 
-```ini
+```toml
 [animation]
-namespace = walk
+namespace = "walk"
 frame_interval = 0.3
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 0
 frame_interval = 0.5  # Foot contact - hold longer
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 1
 # Uses animation namespace default 0.3s - quick transition
-pixels = #@@@#
-         @.A.@
-         #@@@#
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
 
-[frame]
-namespace = walk
+[animation.frame]
+namespace = "walk"
 frame_index = 2
 frame_interval = 0.5  # Other foot contact - hold longer
-pixels = #@@@#
-         @AAA@
-         #@@@#
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
 ```
 
 This animation system provides powerful, flexible animation capabilities while maintaining the simplicity and familiarity of the existing GlitchyGames sprite format.
