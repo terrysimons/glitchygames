@@ -380,7 +380,7 @@ sprite = GGSpriteLoader.load_sprite(filename="hero.toml")  # Could be static or 
 sprite = GGSpriteLoader.load_sprite(filename="static.toml")  # Static sprite
 sprite = GGSpriteLoader.load_sprite(filename="animated.toml")  # Animated sprite
 
-# Load default sprite (raspberry.cfg) when no filename provided
+# Load default sprite (raspberry.toml) when no filename provided
 default_sprite = GGSpriteLoader.load_sprite()  # Loads default sprite
 default_sprite = GGSpriteLoader.load_sprite(filename=None)  # Same as above
 ```
@@ -443,7 +443,7 @@ GGSpriteLoader.save_sprite(sprite=sprite, filename="output.yaml", file_format="y
 When no filename is provided, the GGSpriteLoader loads the default raspberry sprite:
 
 ```python
-# Load default sprite (raspberry.cfg)
+# Load default sprite (raspberry.toml)
 default_sprite = GGSpriteLoader.load_sprite()  # Loads default sprite
 default_sprite = GGSpriteLoader.load_sprite(None)  # Same as above
 

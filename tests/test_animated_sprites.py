@@ -330,7 +330,7 @@ class TestSpriteFactory(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=None)
         from glitchygames.sprites import BitmappySprite
         self.assertIsInstance(sprite, BitmappySprite)
-        self.assertEqual(sprite.name, "Tiley McTile Face")  # From raspberry.cfg
+        self.assertEqual(sprite.name, "Tiley McTile Face")  # From raspberry.toml
 
     def test_bitmappy_sprite_load_default(self):
         """Test that BitmappySprite.load() with no filename loads default sprite."""

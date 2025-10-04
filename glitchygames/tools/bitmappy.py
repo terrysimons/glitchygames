@@ -2546,7 +2546,7 @@ class BitmapEditorScene(Scene):
         )
 
         # Add the raspberry icon with its specific height
-        icon_path = resource_path("glitcygames", "assets", "raspberry.cfg")
+        icon_path = resource_path("glitcygames", "assets", "raspberry.toml")
         self.menu_icon = MenuItem(
             name=None,
             x=4,  # Add 4px offset from left edge

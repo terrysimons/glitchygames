@@ -62,7 +62,7 @@ class GameScene(Scene):
         from glitchygames.tools.bitmappy import resource_path
         self.menu_icon = MenuItem(
             name=None,
-            filename=resource_path("glitchygames", "assets", "raspberry.cfg"),
+            filename=resource_path("glitchygames", "assets", "raspberry.toml"),
             x=0,
             y=0,
             width=16,

@@ -1082,6 +1082,16 @@ class BitmappySprite(Sprite):
         """Load a static sprite from a Bitmappy config file (legacy method)."""
         self.log.debug(f"=== Starting static-only load from {filename} ===")
 
+        # Detect file format and handle accordingly
+        file_format = SpriteFactory._detect_file_format(filename)
+        
+        if file_format == "toml":
+            return self._load_static_toml(filename)
+        else:
+            return self._load_static_ini(filename)
+    
+    def _load_static_ini(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Load a static sprite from an INI file."""
         config = configparser.RawConfigParser(
             dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
         )
@@ -1139,6 +1149,68 @@ class BitmappySprite(Sprite):
 
         except Exception:
             self.log.exception("Error in load")
+            raise
+        else:
+            # Return the successfully loaded sprite data
+            return (image, rect, name)
+    
+    def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Load a static sprite from a TOML file."""
+        import toml
+        
+        # Read the raw file content first
+        raw_content = Path(filename).read_text(encoding="utf-8")
+        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
+
+        # Parse TOML
+        data = toml.loads(raw_content)
+        self.log.debug(f"TOML data keys: {list(data.keys())}")
+
+        try:
+            name = data["sprite"]["name"]
+            self.log.debug(f"Sprite name: {name}")
+
+            # Get pixel data
+            pixel_text = data["sprite"]["pixels"]
+            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
+
+            # Split into rows and process each row
+            rows = []
+            for i, raw_row in enumerate(pixel_text.split("\n")):
+                row = raw_row.strip()
+                if row:  # Only add non-empty rows
+                    rows.append(row)
+                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
+
+            self.log.debug(f"Total rows processed: {len(rows)}")
+
+            # Calculate dimensions
+            width = len(rows[0]) if rows else 0
+            height = len(rows)
+            self.log.debug(f"Calculated dimensions: {width}x{height}")
+
+            # Get color definitions
+            color_map = {}
+            if "colors" in data:
+                for color_key, color_data in data["colors"].items():
+                    red = color_data["red"]
+                    green = color_data["green"]
+                    blue = color_data["blue"]
+                    color_map[color_key] = (red, green, blue)
+                    self.log.debug(f"Color map entry: '{color_key}' -> RGB({red}, {green}, {blue})")
+
+            self.log.debug(f"Total colors in map: {len(color_map)}")
+
+            # Create image and rect
+            self.log.debug("Creating image and rect...")
+            (image, rect) = self.inflate(
+                width=width, height=height, pixels=rows, color_map=color_map
+            )
+            self.log.debug(f"Created image size: {image.get_size()}")
+            self.log.debug(f"Created rect: {rect}")
+
+        except Exception:
+            self.log.exception("Error in TOML load")
             raise
         else:
             # Return the successfully loaded sprite data
@@ -1683,7 +1755,7 @@ class SpriteFactory:
         """Load a sprite file, automatically detecting whether it's static or animated.
 
         Args:
-            filename: Path to sprite file. If None, loads default sprite (raspberry.cfg).
+            filename: Path to sprite file. If None, loads default sprite (raspberry.toml).
 
         Returns:
             BitmappySprite or AnimatedSprite based on file content.
@@ -1716,7 +1788,28 @@ class SpriteFactory:
             raise ValueError(f"Invalid sprite file format: {filename}")
 
     @staticmethod
+    def _detect_file_format(filename: str) -> str:
+        """Detect file format based on file extension."""
+        filename_str = str(filename)
+        filename_lower = filename_str.lower()
+        if filename_lower.endswith((".yaml", ".yml")):
+            return "yaml"
+        if filename_lower.endswith(".ini"):
+            return "ini"
+        return "toml"  # Default to toml
+
+    @staticmethod
     def _analyze_file(filename: str) -> dict:
+        """Analyze file content to determine sprite type."""
+        file_format = SpriteFactory._detect_file_format(filename)
+        
+        if file_format == "toml":
+            return SpriteFactory._analyze_toml_file(filename)
+        else:
+            return SpriteFactory._analyze_ini_file(filename)
+    
+    @staticmethod
+    def _analyze_ini_file(filename: str) -> dict:
         """Analyze INI file content to determine sprite type."""
         config = configparser.ConfigParser()
         config.read(filename)
@@ -1742,6 +1835,39 @@ class SpriteFactory:
             "has_animation_sections": has_animation_sections,
             "has_frame_sections": has_frame_sections
         }
+    
+    @staticmethod
+    def _analyze_toml_file(filename: str) -> dict:
+        """Analyze TOML file content to determine sprite type."""
+        import toml
+        
+        with open(filename, 'r') as f:
+            data = toml.load(f)
+
+        has_sprite_pixels = False
+        has_animation_sections = False
+        has_frame_sections = False
+
+        # Check for sprite.pixels
+        if "sprite" in data and "pixels" in data["sprite"]:
+            has_sprite_pixels = True
+
+        # Check for animation sections
+        if "animation" in data:
+            has_animation_sections = True
+
+        # Check for frame sections within animations
+        if "animation" in data:
+            for anim in data["animation"]:
+                if "frame" in anim:
+                    has_frame_sections = True
+                    break
+
+        return {
+            "has_sprite_pixels": has_sprite_pixels,
+            "has_animation_sections": has_animation_sections,
+            "has_frame_sections": has_frame_sections
+        }
 
     @staticmethod
     def _determine_type(analysis: dict) -> str:
@@ -1757,11 +1883,11 @@ class SpriteFactory:
 
     @staticmethod
     def _get_default_sprite_path() -> str:
-        """Get the path to the default sprite (raspberry.cfg)."""
+        """Get the path to the default sprite (raspberry.toml)."""
         import os
         # Get the path to the assets directory
         assets_dir = os.path.join(os.path.dirname(__file__), '..', 'assets')
-        return os.path.join(assets_dir, 'raspberry.cfg')
+        return os.path.join(assets_dir, 'raspberry.toml')
 
     @staticmethod
     def save_sprite(*, sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
