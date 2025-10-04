@@ -12,7 +12,7 @@ import signal
 import sys
 import tempfile
 import time
-import traceback
+import toml
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
@@ -26,20 +26,17 @@ try:
 except ImportError:
     ai = None
 
-import yaml
 from glitchygames.engine import GameEngine
-from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
-from glitchygames.sprites import BitmappySprite
-from .canvas_interfaces import (
-    StaticCanvasInterface,
-    StaticSpriteSerializer,
-    StaticCanvasRenderer,
-    AnimatedCanvasInterface,
-    AnimatedSpriteSerializer,
-    AnimatedCanvasRenderer
+from glitchygames.sprites import (
+    AnimatedSprite,
+    BitmappySprite,
+    SpriteFactory,
+    SpriteFrame,
+    SPRITE_GLYPHS,
 )
+from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 from glitchygames.ui import (
     ColorWellSprite,
     InputDialog,
@@ -49,6 +46,15 @@ from glitchygames.ui import (
     SliderSprite,
     TextSprite,
 )
+
+from .canvas_interfaces import (
+    AnimatedCanvasInterface,
+    AnimatedCanvasRenderer,
+    AnimatedSpriteSerializer,
+    StaticCanvasInterface,
+    StaticCanvasRenderer,
+    StaticSpriteSerializer,
+)
 from .film_strip import FilmStripWidget
 
 if TYPE_CHECKING:
@@ -56,6 +62,32 @@ if TYPE_CHECKING:
 
 # Constants
 CONTENT_PREVIEW_LENGTH = 500
+
+# Complete TOML format template for AI instructions
+COMPLETE_TOML_FORMAT = """
+COMPLETE TOML FORMAT REQUIREMENTS:
+
+STATIC SPRITES (single-frame):
+    [sprite] section with name and pixels
+    [colors] section with colors.0 through colors.7
+    Each color has red, green, blue values (0-255)
+
+ANIMATED SPRITES (multi-frame):
+    [sprite] section with name only (NO pixels item)
+    [colors] section with colors.0 through colors.7
+    [[animation]] section with namespace, frame_interval, loop
+    [[animation.frame]] sections with namespace, frame_index, pixels
+
+CRITICAL RULES:
+    - ALWAYS include ALL 8 color definitions (colors.0 through colors.7)
+    - ALWAYS include namespace in each [[animation.frame]] section
+    - ALWAYS include frame_index in each [[animation.frame]] section
+    - ALWAYS include frame_interval and loop in [[animation]] section
+    - NEVER mix static and animated content in the same file!
+    - Static sprites: [sprite] with pixels + [colors] sections ONLY
+    - Animated sprites: [sprite] with NO pixels item + [colors] + [[animation]] sections ONLY
+    - IMPORTANT: Animated sprites must NOT have a pixels item in the [sprite] section!
+"""
 
 LOG = logging.getLogger("game.bitmappy")
 
@@ -79,12 +111,13 @@ MAX_COLOR_VALUE = 255
 
 def detect_file_format(filename: str) -> str:
     """Detect file format from filename extension.
-    
+
     Args:
         filename: The filename to analyze
-        
+
     Returns:
         The detected file format ("ini", "yaml", "toml")
+
     """
     filename_lower = filename.lower()
     if filename_lower.endswith((".yaml", ".yml")):
@@ -119,8 +152,9 @@ AI_TIMEOUT = 30  # Seconds to wait for AI response
 AI_QUEUE_SIZE = 10
 
 
-# Load every .ini file from glitchygames/examples/resources/sprites/
+# Load sprite files for AI training using SpriteFactory
 AI_TRAINING_DATA = []
+AI_TRAINING_FORMAT = None  # Will be detected from training files
 
 # Load sprite configuration files for AI training
 SPRITE_CONFIG_DIR = resource_path("glitchygames", "examples", "resources", "sprites")
@@ -128,39 +162,78 @@ LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
 LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
 
 if SPRITE_CONFIG_DIR.exists():
-    config_files = list(SPRITE_CONFIG_DIR.glob("*.ini"))
-    LOG.info(f"Found {len(config_files)} sprite config files")
+    # Look for TOML files first (preferred), then fall back to INI
+    toml_files = list(SPRITE_CONFIG_DIR.glob("*.toml"))
+    ini_files = list(SPRITE_CONFIG_DIR.glob("*.ini"))
+
+    if toml_files:
+        config_files = toml_files
+        AI_TRAINING_FORMAT = "toml"
+        LOG.info(f"Found {len(config_files)} TOML sprite config files")
+    elif ini_files:
+        config_files = ini_files
+        AI_TRAINING_FORMAT = "ini"
+        LOG.info(f"Found {len(config_files)} INI sprite config files")
+    else:
+        config_files = []
+        LOG.warning("No sprite config files found")
 
     for config_file in config_files:
         LOG.debug(f"Processing config file: {config_file}")
         try:
-            config = configparser.ConfigParser()
-            config.read(config_file)
-            LOG.debug(f"Config sections: {config.sections()}")
+            # Parse the file directly instead of using SpriteFactory to avoid display requirements
+            if AI_TRAINING_FORMAT == "toml":
+                with config_file.open(encoding="utf-8") as f:
+                    config_data = toml.load(f)
 
-            # Extract sprite data
-            sprite_data = {
-                "name": config["sprite"]["name"],
-                "pixels": "\n\t".join(config["sprite"]["pixels"].splitlines()),
-                "colors": {},
-            }
-            LOG.debug(f"Extracted sprite data: {sprite_data}")
+                # Extract sprite data from TOML structure
+                sprite_data = {
+                    "name": config_data.get("sprite", {}).get("name", "Unknown"),
+                    "format": AI_TRAINING_FORMAT,
+                    "sprite_type": "animated" if "animation" in config_data else "static",
+                }
 
-            # Extract color data
-            for i in range(8):  # Support up to 8 colors (0-7)
-                if str(i) in config:
-                    sprite_data["colors"][i] = {
-                        "red": config[str(i)]["red"],
-                        "green": config[str(i)]["green"],
-                        "blue": config[str(i)]["blue"],
-                    }
-                    LOG.debug(f"Extracted color {i}: {sprite_data['colors'][i]}")
+                # For static sprites, extract pixel data and colors
+                if "sprite" in config_data:
+                    sprite_data["pixels"] = config_data["sprite"].get("pixels", "")
+                    sprite_data["colors"] = config_data.get("colors", {})
+
+                # For animated sprites, extract animation data
+                if "animation" in config_data:
+                    sprite_data["animations"] = config_data["animation"]
+
+            else:  # INI format
+                config = configparser.ConfigParser()
+                config.read(config_file)
+
+                # Extract sprite data from INI structure
+                sprite_data = {
+                    "name": config.get("sprite", "name", fallback="Unknown"),
+                    "format": AI_TRAINING_FORMAT,
+                    "sprite_type": "animated" if "animation" in config.sections() else "static",
+                }
+
+                # For static sprites, extract pixel data and colors
+                if "sprite" in config:
+                    sprite_data["pixels"] = config.get("sprite", "pixels", fallback="")
+                    sprite_data["colors"] = {}
+                    for i in range(8):
+                        if str(i) in config:
+                            sprite_data["colors"][str(i)] = {
+                                "red": config.getint(str(i), "red", fallback=0),
+                                "green": config.getint(str(i), "green", fallback=0),
+                                "blue": config.getint(str(i), "blue", fallback=0),
+                            }
+
+                # For animated sprites, extract animation data
+                if "animation" in config:
+                    sprite_data["animations"] = dict(config["animation"])
 
             AI_TRAINING_DATA.append(sprite_data)
             LOG.info(f"Successfully loaded sprite config: {config_file.name}")
 
-        except (FileNotFoundError, yaml.YAMLError, KeyError, ValueError):
-            LOG.exception(f"Error loading sprite config {config_file}")
+        except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
+            LOG.warning(f"Error loading sprite config {config_file}: {e}")
 else:
     LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
@@ -1917,6 +1990,109 @@ def ai_worker(
         raise
 
 
+class LivePreviewSprite(BitmappySprite):
+    """A sprite that displays the current frame of an animated sprite in real-time."""
+
+    def __init__(
+        self,
+        animated_sprite: AnimatedSprite,
+        name: str = "Live Preview",
+        x: int = 0,
+        y: int = 0,
+        groups: pygame.sprite.Group = None,
+    ):
+        # Initialize with BitmappySprite (64x64 for preview)
+        super().__init__(
+            name=name,
+            x=x,
+            y=y,
+            width=64,
+            height=64,
+            groups=groups,
+        )
+        self.animated_sprite = animated_sprite
+        self.log = logging.getLogger("game.bitmappy.live_preview")
+
+        # Create a surface that's always dirty for real-time updates
+        self.image = pygame.Surface((64, 64))  # Fixed size for preview
+        self.image.fill((255, 0, 0))  # Red background so we can see it
+        self.rect = self.image.get_rect(x=x, y=y)
+        self.dirty = 2  # Always dirty for real-time updates
+
+        # Set initial frame
+        self._update_frame()
+
+    def _update_frame(self):
+        """Update the preview with the current frame of the animated sprite."""
+        self.log.debug("LivePreviewSprite._update_frame called")
+        if self.animated_sprite and hasattr(self.animated_sprite, '_animations'):
+            # Get the current animation and frame from the animated sprite
+            current_animation = self.animated_sprite.current_animation
+            frame_index = self.animated_sprite.current_frame
+
+            self.log.debug(f"LivePreviewSprite._update_frame: Animation: {current_animation}, Frame: {frame_index}")
+
+            # Check if frame has changed
+            if not hasattr(self, '_last_frame_index') or self._last_frame_index != frame_index:
+                self.log.debug(f"=== FRAME TRANSITION DETECTED ===")
+                self.log.debug(f"Previous frame: {getattr(self, '_last_frame_index', 'None')}")
+                self.log.debug(f"Current frame: {frame_index}")
+                self.log.debug(f"Animation: {current_animation}")
+                self.log.debug(f"Animated sprite: {self.animated_sprite}")
+                self.log.debug(f"Has _animations: {hasattr(self.animated_sprite, '_animations')}")
+
+                self._last_frame_index = frame_index
+
+                if current_animation in self.animated_sprite._animations:
+                    frames = self.animated_sprite._animations[current_animation]
+                    self.log.debug(f"Found animation '{current_animation}' with {len(frames)} frames")
+
+                    if frame_index < len(frames):
+                        frame = frames[frame_index]
+                        self.log.debug(f"Frame object: {frame}")
+                        self.log.debug(f"Frame has image: {hasattr(frame, 'image')}")
+                        self.log.debug(f"Frame attributes: {dir(frame)}")
+
+                        if hasattr(frame, 'image'):
+                            original_size = frame.image.get_size()
+                            self.log.debug(f"Original frame size: {original_size}")
+
+                            # Scale the frame to fit the preview size
+                            scaled_frame = pygame.transform.scale(frame.image, (64, 64))
+                            self.image = scaled_frame
+                            self.dirty = 1  # Only dirty when frame changes
+
+                            self.log.debug(f"Scaled frame size: {self.image.get_size()}")
+                            self.log.debug(f"Live preview image updated with frame {frame_index}")
+                            self.log.debug(f"Set dirty = 1 for frame transition")
+                        else:
+                            self.log.debug("Frame has no image attribute")
+                            self.log.debug(f"Frame attributes: {[attr for attr in dir(frame) if not attr.startswith('_')]}")
+                    else:
+                        self.log.debug(f"Frame index {frame_index} out of range for animation {current_animation} (has {len(frames)} frames)")
+                else:
+                    self.log.debug(f"Animation {current_animation} not found in animations")
+                    self.log.debug(f"Available animations: {list(self.animated_sprite._animations.keys())}")
+
+                self.log.debug(f"=== END FRAME TRANSITION ===")
+            else:
+                self.log.debug(f"Frame {frame_index} unchanged, skipping update")
+        else:
+            self.log.debug("No animated sprite or _animations attribute")
+
+    def update(self):
+        """Update the preview frame."""
+        self.log.debug("LivePreviewSprite.update called")
+        self._update_frame()
+        # dirty is set in _update_frame() only when frame changes
+        self.log.debug("LivePreviewSprite.update completed")
+
+    def force_redraw(self):
+        """Force a redraw of the preview."""
+        self._update_frame()
+        return self.image
+
+
 class AnimatedCanvasSprite(BitmappySprite):
     """Animated Canvas Sprite for editing animated sprites."""
 
@@ -1955,8 +2131,13 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Store animated sprite and current frame info
         self.animated_sprite = animated_sprite
-        self.current_animation = list(animated_sprite.frames.keys())[0] if animated_sprite.frames else "idle"
+        self.current_animation = (
+            next(iter(animated_sprite.frames.keys())) if animated_sprite.frames else "idle"
+        )
         self.current_frame = 0
+
+        # Initialize manual frame selection flag to prevent animation override
+        self._manual_frame_selected = True
 
         # Store pixel-related attributes
         self.pixels_across = pixels_across
@@ -2030,16 +2211,28 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def _get_current_frame_pixels(self) -> list[tuple[int, int, int]]:
         """Get pixel data from the current frame of the animated sprite."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
             current_animation = self.current_animation
             current_frame = self.current_frame
-            if (current_animation in self.animated_sprite._animations and
-                current_frame < len(self.animated_sprite._animations[current_animation])):
+            if current_animation in self.animated_sprite._animations and current_frame < len(
+                self.animated_sprite._animations[current_animation]
+            ):
                 frame = self.animated_sprite._animations[current_animation][current_frame]
-                if hasattr(frame, 'get_pixel_data'):
+                if hasattr(frame, "get_pixel_data"):
                     return frame.get_pixel_data()
         # Fallback to static pixels
         return self.pixels.copy()
+
+    def _update_canvas_from_current_frame(self) -> None:
+        """Update the canvas pixels with the current frame data."""
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
+            frames = self.animated_sprite._animations
+            if self.current_animation in frames and self.current_frame < len(frames[self.current_animation]):
+                frame = frames[self.current_animation][self.current_frame]
+                if hasattr(frame, "get_pixel_data"):
+                    self.pixels = frame.get_pixel_data()
+                    self.dirty_pixels = [True] * len(self.pixels)
+                    self.log.debug(f"Updated canvas pixels from frame {self.current_frame}")
 
     def _update_mini_view_from_current_frame(self) -> None:
         """Update the mini view with pixel data from the current frame."""
@@ -2048,6 +2241,30 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.mini_view.pixels = current_frame_pixels
             self.mini_view.dirty_pixels = [True] * len(current_frame_pixels)
             self.mini_view.dirty = 1
+
+    def set_frame(self, frame_index: int) -> None:
+        """Set the current frame index for the current animation."""
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
+            frames = self.animated_sprite._animations
+            if self.current_animation in frames and 0 <= frame_index < len(frames[self.current_animation]):
+                # Pause the animation when manually selecting frames
+                self.animated_sprite.pause()
+
+                self.current_frame = frame_index
+                self.animated_sprite.set_frame(frame_index)
+
+                # Mark that user manually selected a frame
+                self._manual_frame_selected = True
+
+                # Update the canvas interface
+                self.canvas_interface.set_current_frame(self.current_animation, frame_index)
+
+                # Update mini view and mark as dirty
+                if hasattr(self, "mini_view"):
+                    self._update_mini_view_from_current_frame()
+
+                self.dirty = 1
+                self.log.debug(f"Set frame to {frame_index} for animation '{self.current_animation}' (animation paused)")
 
     def show_frame(self, animation: str, frame: int) -> None:
         """Show a specific frame of the animated sprite."""
@@ -2061,11 +2278,13 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Get the frame data
             frame_obj = frames[animation][frame]
-            if hasattr(frame_obj, 'get_pixel_data'):
+            if hasattr(frame_obj, "get_pixel_data"):
                 self.pixels = frame_obj.get_pixel_data()
             else:
                 # Fallback to frame pixels if available
-                self.pixels = getattr(frame_obj, 'pixels', [(255, 0, 255)] * (self.pixels_across * self.pixels_tall))
+                self.pixels = getattr(
+                    frame_obj, "pixels", [(255, 0, 255)] * (self.pixels_across * self.pixels_tall)
+                )
 
             # Mark all pixels as dirty
             self.dirty_pixels = [True] * len(self.pixels)
@@ -2113,30 +2332,60 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def handle_keyboard_event(self, key: int) -> None:
         """Handle keyboard navigation events."""
+        self.log.debug(f"Keyboard event received: key={key}")
+
         if key == pygame.K_LEFT:
+            self.log.debug("LEFT arrow pressed")
             self.previous_frame()
         elif key == pygame.K_RIGHT:
+            self.log.debug("RIGHT arrow pressed")
             self.next_frame()
         elif key == pygame.K_UP:
+            self.log.debug("UP arrow pressed")
             self.previous_animation()
         elif key == pygame.K_DOWN:
+            self.log.debug("DOWN arrow pressed")
             self.next_animation()
+        elif pygame.K_0 <= key <= pygame.K_9:
+            # Handle 0-9 keys for frame selection
+            frame_index = key - pygame.K_0
+            self.log.debug(f"Number key {frame_index} pressed")
+            self.set_frame(frame_index)
+        elif key == pygame.K_SPACE:
+            # Toggle animation play/pause
+            self.log.debug("SPACE key pressed")
+            if hasattr(self, "animated_sprite") and self.animated_sprite:
+                current_state = self.animated_sprite.is_playing
+                self.log.debug(f"Current animation state: is_playing={current_state}")
+                if self.animated_sprite.is_playing:
+                    self.animated_sprite.pause()
+                    self.log.debug("Animation paused")
+                else:
+                    self.animated_sprite.play()
+                    self.log.debug("Animation resumed")
+                self.log.debug(f"New animation state: is_playing={self.animated_sprite.is_playing}")
+        else:
+            self.log.debug(f"Unhandled key: {key}")
 
     def copy_current_frame(self) -> None:
         """Copy the current frame to clipboard."""
         # Get the current frame data
         frames = self.animated_sprite._animations
-        if self.current_animation in frames and self.current_frame < len(frames[self.current_animation]):
+        if self.current_animation in frames and self.current_frame < len(
+            frames[self.current_animation]
+        ):
             frame = frames[self.current_animation][self.current_frame]
             # Store the pixel data in a simple clipboard attribute
             self._clipboard = frame.get_pixel_data().copy()
 
     def paste_to_current_frame(self) -> None:
         """Paste clipboard content to current frame."""
-        if hasattr(self, '_clipboard') and self._clipboard:
+        if hasattr(self, "_clipboard") and self._clipboard:
             # Get the current frame
             frames = self.animated_sprite._animations
-            if self.current_animation in frames and self.current_frame < len(frames[self.current_animation]):
+            if self.current_animation in frames and self.current_frame < len(
+                frames[self.current_animation]
+            ):
                 frame = frames[self.current_animation][self.current_frame]
                 # Set the pixel data
                 frame.set_pixel_data(self._clipboard)
@@ -2152,25 +2401,34 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.sprite_serializer.save(self.animated_sprite, filename, DEFAULT_FILE_FORMAT)
 
     @classmethod
-    def from_file(cls, filename: str, x: int = 0, y: int = 0,
-                  pixels_across: int = 32, pixels_tall: int = 32,
-                  pixel_width: int = 16, pixel_height: int = 16, groups=None):
+    def from_file(
+        cls,
+        filename: str,
+        x: int = 0,
+        y: int = 0,
+        pixels_across: int = 32,
+        pixels_tall: int = 32,
+        pixel_width: int = 16,
+        pixel_height: int = 16,
+        groups=None,
+    ):
         """Create an AnimatedCanvasSprite from a file."""
-        from glitchygames.sprites import SpriteFactory
-
         # Load the animated sprite
         animated_sprite = SpriteFactory.load_sprite(filename=filename)
 
-        if not hasattr(animated_sprite, 'frames'):
+        if not hasattr(animated_sprite, "frames"):
             raise ValueError(f"File {filename} does not contain animated sprite data")
 
         return cls(
             animated_sprite=animated_sprite,
             name="Animated Canvas",
-            x=x, y=y,
-            pixels_across=pixels_across, pixels_tall=pixels_tall,
-            pixel_width=pixel_width, pixel_height=pixel_height,
-            groups=groups
+            x=x,
+            y=y,
+            pixels_across=pixels_across,
+            pixels_tall=pixels_tall,
+            pixel_width=pixel_width,
+            pixel_height=pixel_height,
+            groups=groups,
         )
 
     def update(self):
@@ -2188,6 +2446,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         ) and hasattr(self, "mini_view"):
             self.log.info("Mouse outside canvas/window, clearing miniview cursor")
             self.mini_view.clear_cursor()
+
+        # Animation timing is handled in the scene's update method
 
         if self.dirty:
             self.force_redraw()
@@ -2207,6 +2467,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             y = (event.pos[1] - self.rect.y) // self.pixel_height
             self.log.info(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
 
+            # Mark that user is editing (manual frame selection)
+            self._manual_frame_selected = True
+
             # Use the interface to set the pixel
             self.canvas_interface.set_pixel_at(x, y, self.active_color)
 
@@ -2217,7 +2480,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "mini_view"):
                 self.mini_view.on_pixel_update_event(event, self)
         else:
-            self.log.info(f"AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}")
+            self.log.info(
+                f"AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}"
+            )
 
     def on_left_mouse_drag_event(self, event, trigger):
         """Handle mouse drag events."""
@@ -2284,7 +2549,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             file_format = detect_file_format(filename)
             self.log.info(f"Detected file format: {file_format}")
             # Use the interface-based save method
-            self.sprite_serializer.save(self.animated_sprite, filename=filename, file_format=file_format)
+            self.sprite_serializer.save(
+                self.animated_sprite, filename=filename, file_format=file_format
+            )
         except (OSError, ValueError, KeyError):
             self.log.exception("Error saving file")
             raise
@@ -2309,28 +2576,45 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.log.debug(f"Loading animated sprite from {filename}")
 
             # Load the animated sprite using the sprite serializer
-            from glitchygames.sprites import AnimatedSprite
-            from glitchygames.tools.bitmappy import detect_file_format
-            
+
             # Detect file format and load the sprite
             file_format = detect_file_format(filename)
             self.log.debug(f"Detected file format: {file_format}")
-            
+
             # Create a new animated sprite and load it
             loaded_sprite = AnimatedSprite()
             loaded_sprite.load(filename)
-            
+
             # Update our animated sprite with the loaded data
             self.animated_sprite = loaded_sprite
-            
+
+            # Update the canvas sprite's current animation to match the loaded sprite
+            self.current_animation = loaded_sprite.current_animation
+
+            # Debug: Print available animations
+            available_animations = list(loaded_sprite.frames.keys()) if hasattr(loaded_sprite, 'frames') else []
+            self.log.info(f"AVAILABLE ANIMATIONS: {available_animations}")
+            self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
+
             # Update the current frame display
-            if hasattr(self, 'mini_view'):
+            if hasattr(self, "mini_view"):
                 self._update_mini_view_from_current_frame()
-            
+
+            # Update the live preview to reference the new animated sprite
+            if hasattr(self, "live_preview") and self.live_preview is not None:
+                self.live_preview.animated_sprite = loaded_sprite
+                self.live_preview._update_frame()
+                self.log.debug("Updated live preview with new animated sprite")
+
+            # Start the animation after loading
+            if loaded_sprite.current_animation:
+                loaded_sprite.play()
+                self.log.debug(f"Started animation '{loaded_sprite.current_animation}' using play() method")
+
             # Force a complete redraw
             self.dirty = 1
             self.force_redraw()
-            
+
             self.log.info(f"Successfully loaded animated sprite from {filename}")
 
         except Exception:
@@ -2624,9 +2908,6 @@ class BitmapEditorScene(Scene):
         )
 
         # Create a simple animated sprite for testing
-        from glitchygames.sprites import AnimatedSprite, SpriteFrame
-        import pygame
-
         # Create test frames
         surface1 = pygame.Surface((pixels_across, pixels_tall))
         surface1.fill((255, 0, 255))  # Magenta frame (transparent)
@@ -2640,9 +2921,7 @@ class BitmapEditorScene(Scene):
 
         # Create animated sprite
         animated_sprite = AnimatedSprite()
-        animated_sprite._animations = {
-            "idle": [frame1, frame2]
-        }
+        animated_sprite._animations = {"idle": [frame1, frame2]}
         animated_sprite._current_animation = "idle"
         animated_sprite._current_frame = 0
 
@@ -2660,8 +2939,27 @@ class BitmapEditorScene(Scene):
         )
 
         # Debug: Log canvas position and size
-        self.log.info(f"AnimatedCanvasSprite created at position ({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}")
+        self.log.info(
+            f"AnimatedCanvasSprite created at position "
+            f"({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}"
+        )
         self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
+
+        # Create a live preview surface in the center of the screen
+        try:
+            self.log.debug(f"Creating LivePreviewSprite with all_sprites: {self.all_sprites}")
+            self.live_preview = LivePreviewSprite(
+                animated_sprite=animated_sprite,
+                name="Live Preview",
+                x=400,  # Center of screen
+                y=220,  # Moved up 80 pixels from center
+                groups=self.all_sprites,
+            )
+            self.log.info(f"LivePreviewSprite created at position ({self.live_preview.rect.x}, {self.live_preview.rect.y})")
+        except Exception as e:
+            self.log.warning(f"Cannot create LivePreviewSprite: {type(e).__name__}: {e}")
+            self.log.exception("Full traceback for LivePreviewSprite creation error:")
+            self.live_preview = None
 
         width, height = options.get("size").split("x")
         CanvasSprite.WIDTH = int(width)
@@ -3158,6 +3456,18 @@ class BitmapEditorScene(Scene):
     #     """
     #     self.log.info(f'Scene got menu item event: {event}')
 
+    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse button up events."""
+        # Check if debug text box should handle the event
+        if hasattr(self, "debug_text") and self.debug_text.rect.collidepoint(event.pos):
+            self.debug_text.on_mouse_up_event(event)
+            return
+
+        # Pass to other sprites
+        for sprite in self.all_sprites:
+            if hasattr(sprite, "on_mouse_button_up_event") and sprite.rect.collidepoint(event.pos):
+                sprite.on_mouse_button_up_event(event)
+
     def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle mouse drag events.
 
@@ -3190,78 +3500,85 @@ class BitmapEditorScene(Scene):
                 self.debug_text.text = "AI process not available"
             return
 
+        # Determine the format to use based on training data
+        format_instruction = ""
+        if AI_TRAINING_FORMAT == "toml":
+            format_instruction = """
+                    I understand. I will provide ONLY raw TOML content without any
+                    markdown formatting, code blocks, or explanations. The TOML format
+                    will include:
+                        - [sprite] section containing name and pixels (using block strings)
+                        - [colors.0] through [colors.7] for color definitions
+                        - RGB values from 0-255 for each color
+                        - Pixels using the SPRITE_GLYPHS character set
+                        - For animated sprites: [[animation]] and [[animation.frame]] sections
+                        - When "frame", "animation", "animated", "2-frame", or "multi-frame"
+                          is mentioned, I will create an ANIMATED sprite with multiple frames
+                """.strip()
+        else:
+            format_instruction = """
+                    I understand. I will provide ONLY raw INI content without any
+                    markdown formatting, code blocks, or explanations. The INI format
+                    will include:
+                        - [sprite] section containing name and pixel layout
+                        - [0] through [7] for color definitions
+                        - RGB values from 0-255 for each color
+                        - Pixels using the SPRITE_GLYPHS character set
+                """.strip()
+
         messages: list[dict[str, str]] = [
             {
                 "role": "system",
-                "content": """
+                "content": f"""
                     You are a helpful assistant in a bitmap editor that can create
-                    game content for game developers.
+                    game content for game developers. You can create both static
+                    single-frame sprites and animated multi-frame sprites.
+
+                    Available character set for sprite pixels: {SPRITE_GLYPHS.strip()}
+                """.strip(),
+            },
+                    {
+                        "role": "user",
+                        "content": f"""
+                            Here are some example sprites that I've created. Use these
+                            as training data to understand how to create new sprites:
+
+                            {"\n".join([str(data) for data in AI_TRAINING_DATA])}
+
+                            Available character set: {SPRITE_GLYPHS.strip()}
+                        """.strip(),
+                    },
+            {
+                "role": "assistant",
+                "content": f"""
+                    Thank you for providing those sprite examples. I understand
+                    that each sprite consists of:
+
+                    1. A name
+                    2. A pixel layout using characters from: {SPRITE_GLYPHS.strip()}
+                    3. A color palette mapping characters to RGB values
+                    4. For animated sprites: multiple frames with timing information
+
+                    I'll use the {AI_TRAINING_FORMAT.upper()} format when suggesting new sprites.
                 """.strip(),
             },
             {
                 "role": "user",
                 "content": f"""
-                    Here are some example sprites that I've created.  Use these
-                    as training data to understand how to create new sprites:
+                    Great! When I ask you to create a sprite, please provide ONLY the
+                    {AI_TRAINING_FORMAT.upper()} content without any markdown formatting,
+                    code blocks, or explanations. Just the raw {AI_TRAINING_FORMAT.upper()}
+                    file content.
 
-                    {"\n".join([str(data) for data in AI_TRAINING_DATA])}
+                    {COMPLETE_TOML_FORMAT}
+
+                    IMPORTANT: Return ONLY the {AI_TRAINING_FORMAT.upper()} content,
+                    no markdown code blocks, no explanations, no ```toml or ``` markers.
                 """.strip(),
             },
             {
                 "role": "assistant",
-                "content": """
-                    Thank you for providing those sprite examples. I understand
-                        that each sprite consists of:
-
-                        1. A name
-                        2. A pixel layout using ASCII characters
-                        3. A color palette mapping numbers to RGB values
-
-                    I'll use this format when suggesting new sprites.
-                """.strip(),
-            },
-            {
-                "role": "user",
-                "content": """
-                    Great! When I ask you to create a sprite, please provide:
-                        1. A name for the sprite
-                        2. The pixel layout using ASCII characters (0-7)
-                        3. The RGB values for each color used
-
-                    For example, if I ask for a heart sprite, you might respond with:
-
-                    [sprite]
-                    name = heart
-                    pixels =
-                        0000000
-                        0110110
-                        0111110
-                        0011100
-                        0001000
-                        0000000
-
-                    [0]
-                    red = 0
-                    green = 0
-                    blue = 0
-
-                    [1]
-                    red = 255
-                    green = 0
-                    blue = 0
-                """.strip(),
-            },
-            {
-                "role": "assistant",
-                "content": """
-                    I understand. I'll format my sprite suggestions using the .ini
-                        format with sections for:
-                            - [sprite] containing name and pixel layout
-                            - [0] through [7] for color definitions
-                            - RGB values from 0-255 for each color
-
-                    I'll ensure the pixel layout uses only the defined color indices.
-                """.strip(),
+                "content": format_instruction,
             },
             {
                 "role": "user",
@@ -3353,7 +3670,7 @@ class BitmapEditorScene(Scene):
             del self.pending_ai_requests[request_id]
 
     def _load_ai_sprite(self, request_id: str, content: str) -> None:
-        """Load sprite from AI content."""
+        """Load sprite from AI content using SpriteFactory APIs."""
         self.log.info(f"AI response received, content length: {len(content)}")
 
         # Debug: Dump the sprite content
@@ -3366,38 +3683,176 @@ class BitmapEditorScene(Scene):
             self.log.info(f"... (content continues, total length: {len(content)})")
         self.log.info("=== END SPRITE CONTENT ===")
 
+        # Clean up any markdown formatting from AI response
+        cleaned_content = self._clean_ai_response(content)
+
+        # Determine file extension based on training format
+        file_extension = f".{AI_TRAINING_FORMAT}" if AI_TRAINING_FORMAT else ".toml"
+
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".ini", delete=False, encoding="utf-8"
+            mode="w", suffix=file_extension, delete=False, encoding="utf-8"
         ) as tmp:
-            tmp.write(content)
+            tmp.write(cleaned_content)
             tmp_path = tmp.name
             self.log.info(f"Saved AI response to temp file: {tmp_path}")
 
-        # Load the sprite from the temp file
+        # Detect sprite type and create appropriate canvas
         try:
-            self.log.info("Attempting to load sprite from AI content...")
-            self.canvas.on_load_file_event(tmp_path)
-            self.log.info("AI sprite loaded successfully")
+            self.log.info("Detecting AI sprite type...")
+
+            # Use SpriteFactory to detect the sprite type
+            sprite = SpriteFactory.load_sprite(filename=tmp_path)
+            is_animated = hasattr(sprite, "frames") and sprite.frames
+            self.log.info(f"AI sprite type: {'Animated' if is_animated else 'Static'}")
+
+            if is_animated:
+                # For animated sprites, use the existing animated canvas load method
+                self.log.info("Loading animated sprite into existing animated canvas...")
+
+                class MockEvent:
+                    def __init__(self, text):
+                        self.text = text
+
+                mock_event = MockEvent(tmp_path)
+                self.canvas.on_load_file_event(mock_event)
+
+                self.log.info("AI animated sprite loaded successfully")
+            else:
+                # For static sprites, we need to create a new static canvas
+                # because the current canvas is always animated
+                self.log.info("Creating new static canvas for AI static sprite...")
+
+                # Create a new static canvas
+                new_canvas = CanvasSprite(
+                    name="Static Canvas",
+                    x=self.canvas.rect.x,
+                    y=self.canvas.rect.y,
+                    pixels_across=self.canvas.pixels_across,
+                    pixels_tall=self.canvas.pixels_tall,
+                    pixel_width=self.canvas.pixel_width,
+                    pixel_height=self.canvas.pixel_height,
+                    groups=self.all_sprites
+                )
+
+                # Replace the current canvas with the new static canvas
+                self.canvas.kill()  # Remove old canvas from groups
+                self.canvas = new_canvas
+
+                # Load the static sprite into the new canvas
+                class MockEvent:
+                    def __init__(self, text):
+                        self.text = text
+
+                mock_event = MockEvent(tmp_path)
+                self.canvas.on_load_file_event(mock_event)
+
+                self.log.info("AI static sprite loaded successfully into new static canvas")
+
             if hasattr(self, "debug_text"):
                 self.debug_text.text = "AI sprite loaded successfully"
 
-            # Keep temp file for debugging even on success
-            self.log.info(f"DEBUGGING: Temp file preserved at: {tmp_path}")
-            self.log.info("DEBUGGING: File kept for inspection")
-
-        except Exception:
-            self.log.exception("Error loading AI sprite")
-            self.log.exception(f"Load error traceback: {traceback.format_exc()}")
+        except Exception as sprite_error:
+            self.log.exception("Failed to load AI sprite")
             if hasattr(self, "debug_text"):
-                self.debug_text.text = "Error loading sprite: Failed to parse AI response"
+                self.debug_text.text = f"Error loading AI sprite: {sprite_error}"
+        # Note: Temp file is kept for debugging - remove this comment when done debugging
 
-            # Keep temp file for debugging when there's an error
-            self.log.exception(f"DEBUGGING: Temp file preserved at: {tmp_path}")
-            self.log.exception("DEBUGGING: File kept for error inspection")
+    def _clean_ai_response(self, content: str) -> str:
+        """Clean up markdown formatting from AI response."""
+        cleaned_content = content
+
+        # Handle various markdown code block patterns
+        markdown_patterns = [
+            ("```toml", "```"),
+            ("```", "```"),
+            ("```ini", "```"),
+        ]
+
+        for start_marker, end_marker in markdown_patterns:
+            if start_marker in content:
+                start_idx = content.find(start_marker)
+                if start_idx != -1:
+                    start_idx += len(start_marker)
+                    end_idx = content.find(end_marker, start_idx)
+                    if end_idx != -1:
+                        cleaned_content = content[start_idx:end_idx].strip()
+                        self.log.info(
+                            f"Extracted content from markdown code block ({start_marker})"
+                        )
+                        break
+
+        # Remove any remaining markdown artifacts
+        if cleaned_content.startswith("```") or cleaned_content.endswith("```"):
+            cleaned_content = cleaned_content.strip("`")
+
+        # Remove any explanatory text before the actual content
+        lines = cleaned_content.split("\n")
+        content_start = 0
+        for i, line in enumerate(lines):
+            if line.strip().startswith("[") and ("sprite" in line or "animation" in line):
+                content_start = i
+                break
+        return "\n".join(lines[content_start:])
 
     def update(self):
         """Update scene state."""
         super().update()
+        self.log.debug("=== SCENE UPDATE CALLED ===")
+
+        # Track delta time for animation updates
+        current_time = pygame.time.get_ticks() / 1000.0  # Convert to seconds
+        if not hasattr(self, '_last_update_time'):
+            self._last_update_time = current_time
+        dt = current_time - self._last_update_time
+        self._last_update_time = current_time
+
+        # Make live preview always dirty for testing
+        if hasattr(self, "live_preview") and self.live_preview is not None:
+            self.log.debug("Setting live preview to always dirty")
+            self.live_preview.dirty = 2  # Always dirty
+            self.live_preview._update_frame()
+            self.log.debug("Live preview updated (always dirty)")
+
+        # Update animation timing for animated canvas
+        self.log.debug(f"Checking canvas: hasattr={hasattr(self, 'canvas')}, canvas={getattr(self, 'canvas', None)}")
+        if hasattr(self, "canvas") and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            self.log.debug(f"Canvas has animated sprite: {self.canvas.animated_sprite}, is_playing: {self.canvas.animated_sprite.is_playing}")
+            if self.canvas.animated_sprite.is_playing:
+                # Use actual delta time for animation updates
+                self.canvas.animated_sprite.update(dt)
+
+                # Check if the animation frame index changed
+                frame_index = self.canvas.animated_sprite.current_frame
+                self.log.debug(f"Checking frame transition: last={getattr(self, '_last_animation_frame', 'None')}, current={frame_index}")
+                if not hasattr(self, '_last_animation_frame') or self._last_animation_frame != frame_index:
+                    self.log.debug(f"Animation frame transition: {getattr(self, '_last_animation_frame', 'None')} -> {frame_index}")
+                    self._last_animation_frame = frame_index
+
+                    # Update live preview on frame transition
+                    if hasattr(self, "live_preview") and self.live_preview is not None:
+                        self.log.debug("Updating live preview on frame transition")
+                        self.live_preview._update_frame()
+                        self.log.debug("Live preview update completed")
+                    else:
+                        self.log.debug("Live preview not available for update")
+
+                    # Only update canvas if it's not being edited (no manual frame selection)
+                    if not hasattr(self.canvas, '_manual_frame_selected') or not self.canvas._manual_frame_selected:
+                        # Set the canvas to the new frame
+                        self.canvas.current_frame = frame_index
+
+                        # Update the canvas pixels with the new frame data
+                        self.canvas._update_canvas_from_current_frame()
+                        self.canvas.dirty = 1
+
+            else:
+                # Auto-restart animation if it's not playing (for testing non-looping animations)
+                if not hasattr(self.canvas, "_last_animation_state") or not self.canvas._last_animation_state:
+                    self.log.debug("Auto-restarting animation for testing")
+                    self.canvas.animated_sprite.play()
+                    self.canvas.animated_sprite.set_frame(0)  # Reset to first frame
+
+        # Live preview is now updated only on frame transitions
 
         # Check for AI responses
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:
@@ -3480,12 +3935,21 @@ class BitmapEditorScene(Scene):
         super().cleanup()
 
     def on_key_down_event(self, event: pygame.event.Event) -> None:
-        """Handle keyboard events for frame navigation."""
+        """Handle keyboard events for frame navigation and text input."""
+        self.log.debug(f"Key down event received: key={event.key}")
+
+        # Check if debug text box is active and handle text input
+        if hasattr(self, "debug_text") and self.debug_text.active:
+            self.debug_text.on_key_down_event(event)
+            return
+
         # Check if we have an animated canvas
-        if hasattr(self, 'canvas') and hasattr(self.canvas, 'handle_keyboard_event'):
+        if hasattr(self, "canvas") and hasattr(self.canvas, "handle_keyboard_event"):
+            self.log.debug("Routing keyboard event to canvas")
             self.canvas.handle_keyboard_event(event.key)
         else:
             # Fall back to parent class handling
+            self.log.debug("No canvas found, using parent class handling")
             super().on_key_down_event(event)
 
     @classmethod

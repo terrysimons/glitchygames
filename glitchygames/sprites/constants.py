@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Constants for the sprites module."""
 
 # Default file format for saving sprites

@@ -1,43 +1,48 @@
-#!/usr/bin/env python3
-"""
-Test suite for Canvas Interface refactoring.
+"""Test suite for Canvas Interface refactoring.
 
 This module tests the new canvas interfaces that allow the bitmap editor to work
 with both static BitmappySprites and animated sprites through a unified API.
 
 Tests cover:
 - StaticCanvasInterface functionality
-- StaticSpriteSerializer operations  
+- StaticSpriteSerializer operations
 - StaticCanvasRenderer rendering
 - Backwards compatibility with existing CanvasSprite API
 """
 
-import unittest
-import pygame
 import sys
-import os
-import tempfile
+import unittest
+from pathlib import Path
+
+import pygame
 
 # Add the project root to the path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 from glitchygames.tools.bitmappy import CanvasSprite
 from glitchygames.tools.canvas_interfaces import (
-    StaticCanvasInterface, 
-    StaticSpriteSerializer, 
-    StaticCanvasRenderer
+    StaticCanvasInterface,
+    StaticCanvasRenderer,
+    StaticSpriteSerializer,
 )
+
+# Constants for test values
+CANVAS_SIZE = 8
+CANVAS_PIXEL_COUNT = 64  # 8x8 = 64 pixels
+PIXEL_SIZE = 16
+SMALL_CANVAS_SIZE = 4
+SMALL_CANVAS_PIXEL_COUNT = 16  # 4x4 = 16 pixels
 
 
 class TestCanvasInterfaces(unittest.TestCase):
     """Test suite for canvas interface functionality."""
-    
+
     def setUp(self):
         """Set up test fixtures before each test method."""
         # Initialize pygame with display for each test
         pygame.init()
         pygame.display.set_mode((800, 600))
-        
+
         # Create a test canvas
         self.canvas = CanvasSprite(
             name="Test Canvas",
@@ -46,10 +51,11 @@ class TestCanvasInterfaces(unittest.TestCase):
             pixels_across=8,
             pixels_tall=8,
             pixel_width=16,
-            pixel_height=16
+            pixel_height=16,
         )
-    
-    def tearDown(self):
+
+    @staticmethod
+    def tearDown():
         """Clean up after each test method."""
         pygame.quit()
 
@@ -57,181 +63,181 @@ class TestCanvasInterfaces(unittest.TestCase):
         """Display the canvas visually tiled across the screen for verification."""
         screen = pygame.display.get_surface()
         screen_width, screen_height = screen.get_size()
-        
+
         # Clear screen with dark background
         screen.fill((20, 20, 40))
-        
+
         # Get canvas dimensions
         canvas_width = self.canvas.rect.width
         canvas_height = self.canvas.rect.height
-        
+
         # Calculate how many canvases fit across and down
         tiles_x = screen_width // canvas_width
         tiles_y = screen_height // canvas_height
-        
+
         # Tile the canvas across the screen
         for y in range(tiles_y):
             for x in range(tiles_x):
                 screen.blit(self.canvas.image, (x * canvas_width, y * canvas_height))
-        
+
         # Add title text
         font = pygame.font.Font(None, 36)
-        title_surface = font.render(title, True, (255, 255, 255))
+        title_surface = font.render(title, antialias=True, color=(255, 255, 255))
         screen.blit(title_surface, (10, 10))
-        
+
         # Add canvas info
         info_font = pygame.font.Font(None, 24)
-        info_text = f"Canvas: {self.canvas.pixels_across}x{self.canvas.pixels_tall} pixels, {canvas_width}x{canvas_height} display"
-        info_surface = info_font.render(info_text, True, (200, 200, 200))
+        info_text = (
+            f"Canvas: {self.canvas.pixels_across}x{self.canvas.pixels_tall} pixels, "
+            f"{canvas_width}x{canvas_height} display"
+        )
+        info_surface = info_font.render(info_text, antialias=True, color=(200, 200, 200))
         screen.blit(info_surface, (10, 50))
-        
+
         # Update display and wait a bit
         pygame.display.flip()
-        print(f"DEBUG: Displaying canvas: {title} for 3 seconds...")
+        # DEBUG: Displaying canvas for 3 seconds
         pygame.time.wait(3000)  # Show for 3 seconds
-        print(f"DEBUG: Canvas display complete")
-        print(f"DEBUG: Additional 2 second pause...")
+        # DEBUG: Additional 2 second pause
         pygame.time.wait(2000)  # Additional 2 second timeout
-        print(f"DEBUG: Additional timeout complete")
-    
+
     def test_canvas_interface_creation(self):
         """Test that canvas interface is created correctly."""
         interface = self.canvas.get_canvas_interface()
-        self.assertIsInstance(interface, StaticCanvasInterface)
-    
+        assert isinstance(interface, StaticCanvasInterface)
+
     def test_canvas_interface_dimensions(self):
         """Test canvas interface dimension methods."""
         interface = self.canvas.get_canvas_interface()
-        
+
         # Test getting dimensions
         width, height = interface.get_dimensions()
-        self.assertEqual(width, 8)
-        self.assertEqual(height, 8)
-    
+        assert width == CANVAS_SIZE
+        assert height == CANVAS_SIZE
+
     def test_canvas_interface_pixel_operations(self):
         """Test canvas interface pixel manipulation."""
         interface = self.canvas.get_canvas_interface()
-        
+
         # Test setting and getting individual pixels
         interface.set_pixel_at(0, 0, (255, 0, 0))  # Red pixel
         interface.set_pixel_at(1, 1, (0, 255, 0))  # Green pixel
-        
+
         red_pixel = interface.get_pixel_at(0, 0)
         green_pixel = interface.get_pixel_at(1, 1)
-        
-        self.assertEqual(red_pixel, (255, 0, 0))
-        self.assertEqual(green_pixel, (0, 255, 0))
-    
+
+        assert red_pixel == (255, 0, 0)
+        assert green_pixel == (0, 255, 0)
+
     def test_canvas_interface_pixel_data(self):
         """Test canvas interface pixel data operations."""
         interface = self.canvas.get_canvas_interface()
-        
+
         # Test getting all pixel data
         pixel_data = interface.get_pixel_data()
-        self.assertEqual(len(pixel_data), 64)  # 8x8 = 64 pixels
-        
+        assert len(pixel_data) == CANVAS_PIXEL_COUNT  # 8x8 = 64 pixels
+
         # Test setting all pixel data
-        new_pixels = [(128, 128, 128)] * 64  # Gray pixels
+        new_pixels = [(128, 128, 128)] * CANVAS_PIXEL_COUNT  # Gray pixels
         interface.set_pixel_data(new_pixels)
-        
+
         # Verify the change
         updated_pixel = interface.get_pixel_at(0, 0)
-        self.assertEqual(updated_pixel, (128, 128, 128))
-    
+        assert updated_pixel == (128, 128, 128)
+
     def test_sprite_serializer_creation(self):
         """Test that sprite serializer is created correctly."""
         serializer = self.canvas.get_sprite_serializer()
-        self.assertIsInstance(serializer, StaticSpriteSerializer)
-    
+        assert isinstance(serializer, StaticSpriteSerializer)
+
     def test_canvas_renderer_creation(self):
         """Test that canvas renderer is created correctly."""
         renderer = self.canvas.get_canvas_renderer()
-        self.assertIsInstance(renderer, StaticCanvasRenderer)
-    
+        assert isinstance(renderer, StaticCanvasRenderer)
+
     def test_canvas_renderer_pixel_size(self):
         """Test canvas renderer pixel size method."""
         renderer = self.canvas.get_canvas_renderer()
         pixel_width, pixel_height = renderer.get_pixel_size()
-        
-        self.assertEqual(pixel_width, 16)
-        self.assertEqual(pixel_height, 16)
-    
+
+        assert pixel_width == PIXEL_SIZE
+        assert pixel_height == PIXEL_SIZE
+
     def test_canvas_renderer_rendering(self):
         """Test canvas renderer rendering methods."""
         renderer = self.canvas.get_canvas_renderer()
-        
+
         # Test rendering
         surface = renderer.render(self.canvas)
-        self.assertEqual(surface.get_size(), (128, 128))  # 8*16 x 8*16
-        
+        assert surface.get_size() == (128, 128)  # 8*16 x 8*16
+
         # Test force redraw
         redraw_surface = renderer.force_redraw(self.canvas)
-        self.assertEqual(redraw_surface.get_size(), (128, 128))
-    
+        assert redraw_surface.get_size() == (128, 128)
+
     def test_backwards_compatibility(self):
         """Test that existing CanvasSprite functionality still works."""
         # Test that old attributes still exist
-        self.assertTrue(hasattr(self.canvas, 'pixels'))
-        self.assertTrue(hasattr(self.canvas, 'pixels_across'))
-        self.assertTrue(hasattr(self.canvas, 'pixels_tall'))
-        self.assertTrue(hasattr(self.canvas, 'active_color'))
-        
+        assert hasattr(self.canvas, "pixels")
+        assert hasattr(self.canvas, "pixels_across")
+        assert hasattr(self.canvas, "pixels_tall")
+        assert hasattr(self.canvas, "active_color")
+
         # Test that old methods still work
-        self.assertTrue(hasattr(self.canvas, 'force_redraw'))
-        self.assertTrue(hasattr(self.canvas, 'on_save_file_event'))
-        
+        assert hasattr(self.canvas, "force_redraw")
+        assert hasattr(self.canvas, "on_save_file_event")
+
         # Test setting pixels the old way
         self.canvas.pixels[0] = (255, 0, 0)  # Red pixel
         self.canvas.pixels[1] = (0, 255, 0)  # Green pixel
-        
+
         # Test that the interface reflects the changes
         interface = self.canvas.get_canvas_interface()
         red_pixel = interface.get_pixel_at(0, 0)
         green_pixel = interface.get_pixel_at(1, 0)
-        
-        self.assertEqual(red_pixel, (255, 0, 0))
-        self.assertEqual(green_pixel, (0, 255, 0))
-        
+
+        assert red_pixel == (255, 0, 0)
+        assert green_pixel == (0, 255, 0)
+
         # Force redraw to update the canvas image with the new pixels
         self.canvas.force_redraw()
-        
+
         # Visual test: display the canvas with colored pixels
         self._display_canvas_visual("Canvas Backwards Compatibility - Red/Green Pixels")
-    
+
     def test_interface_integration(self):
         """Test that all interfaces work together correctly."""
         # Get all interface components
         interface = self.canvas.get_canvas_interface()
-        serializer = self.canvas.get_sprite_serializer()
         renderer = self.canvas.get_canvas_renderer()
-        
+
         # Test that they all work together
         interface.set_pixel_at(2, 2, (0, 0, 255))  # Blue pixel
         surface = renderer.render(self.canvas)
-        
+
         # Verify the pixel was set correctly
         blue_pixel = interface.get_pixel_at(2, 2)
-        self.assertEqual(blue_pixel, (0, 0, 255))
-        
+        assert blue_pixel == (0, 0, 255)
+
         # Verify the surface was rendered
-        self.assertIsNotNone(surface)
-        self.assertEqual(surface.get_size(), (128, 128))
-        
+        assert surface is not None
+        assert surface.get_size() == (128, 128)
+
         # Force redraw to update the canvas image with the new pixel
         self.canvas.force_redraw()
-        
+
         # Visual test: display the canvas with blue pixel
         self._display_canvas_visual("Canvas Interface Integration - Blue Pixel")
 
 
 class TestCanvasInterfaceEdgeCases(unittest.TestCase):
     """Test edge cases for canvas interfaces."""
-    
+
     def setUp(self):
         """Set up test fixtures before each test method."""
         pygame.init()
         pygame.display.set_mode((800, 600))
-        
+
         self.canvas = CanvasSprite(
             name="Test Canvas",
             x=0,
@@ -239,56 +245,53 @@ class TestCanvasInterfaceEdgeCases(unittest.TestCase):
             pixels_across=4,
             pixels_tall=4,
             pixel_width=16,
-            pixel_height=16
+            pixel_height=16,
         )
-    
-    def tearDown(self):
+
+    @staticmethod
+    def tearDown():
         """Clean up after each test method."""
         pygame.quit()
-    
+
     def test_out_of_bounds_pixel_access(self):
         """Test accessing pixels outside canvas bounds."""
         interface = self.canvas.get_canvas_interface()
-        
+
         # Test out-of-bounds access
         out_of_bounds_pixel = interface.get_pixel_at(10, 10)
-        self.assertEqual(out_of_bounds_pixel, (255, 0, 255))  # Should return magenta
-    
+        assert out_of_bounds_pixel == (255, 0, 255)  # Should return magenta
+
     def test_out_of_bounds_pixel_setting(self):
         """Test setting pixels outside canvas bounds."""
         interface = self.canvas.get_canvas_interface()
-        
+
         # Test setting out-of-bounds pixel (should not crash)
         interface.set_pixel_at(10, 10, (255, 0, 0))
-        
+
         # Verify the canvas wasn't corrupted
-        self.assertEqual(len(self.canvas.pixels), 16)  # 4x4 = 16 pixels
+        assert len(self.canvas.pixels) == SMALL_CANVAS_PIXEL_COUNT  # 4x4 = 16 pixels
 
 
 def run_tests():
     """Run all tests and return success status."""
-    print("Running Canvas Interface Tests...")
-    print("=" * 50)
-    
+    # Running Canvas Interface Tests...
+    # ==================================================
+
     # Create test suite
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
-    
+
     # Add test cases
     suite.addTests(loader.loadTestsFromTestCase(TestCanvasInterfaces))
     suite.addTests(loader.loadTestsFromTestCase(TestCanvasInterfaceEdgeCases))
-    
+
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
-    
-    print("=" * 50)
-    if result.wasSuccessful():
-        print("🎉 All tests passed!")
-        return True
-    else:
-        print(f"❌ {len(result.failures)} test(s) failed, {len(result.errors)} error(s)")
-        return False
+
+    # ==================================================
+    # Return success status directly
+    return result.wasSuccessful()
 
 
 if __name__ == "__main__":

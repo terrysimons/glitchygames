@@ -2704,3 +2704,24 @@ class MultiLineTextBox(BitmappySprite):
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
         self.dirty = 1
+
+    def on_mouse_up_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse up events to activate text input."""
+        if self.rect.collidepoint(event.pos):
+            self.activate()
+        else:
+            self.deactivate()
+
+    def activate(self) -> None:
+        """Activate the text box for input."""
+        self.active = True
+        pygame.key.start_text_input()
+        pygame.key.set_repeat(200)  # Enable key repeat
+        self.log.debug("MultiLineTextBox activated")
+
+    def deactivate(self) -> None:
+        """Deactivate the text box."""
+        self.active = False
+        pygame.key.stop_text_input()
+        pygame.key.set_repeat()  # Disable key repeat
+        self.log.debug("MultiLineTextBox deactivated")

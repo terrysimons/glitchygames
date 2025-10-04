@@ -17,7 +17,7 @@ import pygame
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_565_triplet_generator, rgb_triplet_generator
 from glitchygames.scenes import Scene
-from glitchygames.sprites import Sprite
+from glitchygames.sprites import SPRITE_GLYPHS, Sprite
 
 LOG = logging.getLogger("game")
 LOG.setLevel(logging.INFO)
@@ -164,15 +164,15 @@ class BitmappyLegacySprite(Sprite):
         config.set("sprite", "name", self.name)
 
         # Generate the color key using universal character set
-        from glitchygames.sprites import SPRITE_GLYPHS
+
         universal_chars = SPRITE_GLYPHS.strip()
-        
+
         # Assign characters sequentially from SPRITE_GLYPHS
         char_index = 0
         for color in colors:
             if char_index >= len(universal_chars):
                 raise ValueError(f"Too many colors (max {len(universal_chars)})")
-            
+
             color_key = universal_chars[char_index]
             config.add_section(color_key)
             color_map[color] = color_key
@@ -189,7 +189,7 @@ class BitmappyLegacySprite(Sprite):
 
             blue = color[2]
             config.set(color_key, "blue", str(blue))
-            
+
             char_index += 1
 
         x = 0

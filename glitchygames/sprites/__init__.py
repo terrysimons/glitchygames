@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Self, cast
 
 import pygame
+import toml
 import yaml
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface
@@ -18,6 +19,17 @@ from glitchygames.interfaces import SpriteInterface
 # Import animated sprite classes
 from .animated import AnimatedSprite, AnimatedSpriteInterface, SpriteFrame
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
+
+# Public API
+__all__ = [
+    "AnimatedSprite",
+    "AnimatedSpriteInterface", 
+    "BitmappySprite",
+    "DEFAULT_FILE_FORMAT",
+    "SpriteFactory",
+    "SpriteFrame",
+    "SPRITE_GLYPHS",
+]
 
 LOG = logging.getLogger("game.sprites")
 LOG.addHandler(logging.NullHandler())
@@ -1053,7 +1065,7 @@ class BitmappySprite(Sprite):
         self.proxies = [self.parent]
 
     def load(self: Self, filename: str | None = None) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file using the factory for backwards compatibility."""
+        """Load a sprite from a Bitmappy config file using the factory."""
         self.log.debug(f"=== Starting load from {filename} ===")
 
         # Use the factory to determine sprite type and load appropriately
@@ -1061,8 +1073,8 @@ class BitmappySprite(Sprite):
             sprite = SpriteFactory.load_sprite(filename=filename)
 
             # If it's an AnimatedSprite, we can't load it into a BitmappySprite
-            if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
-                raise ValueError(f"File {filename} contains animated sprite data. Use AnimatedSprite class instead of BitmappySprite.")
+            if hasattr(sprite, "animations"):  # It's an AnimatedSprite
+                BitmappySprite._raise_animated_sprite_error(filename)
 
             # It's a BitmappySprite, copy its properties
             self.image = sprite.image
@@ -1072,11 +1084,18 @@ class BitmappySprite(Sprite):
             self.height = sprite.height
 
             return (self.image, self.rect, self.name)
-
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug(f"Factory failed, falling back to static-only loading: {e}")
             return self._load_static_only(filename)
+
+    @staticmethod
+    def _raise_animated_sprite_error(filename: str) -> None:
+        """Raise an error for animated sprite files."""
+        raise ValueError(
+            f"File {filename} contains animated sprite data. "
+            f"Use AnimatedSprite class instead of BitmappySprite."
+        )
 
     def _load_static_only(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a Bitmappy config file (legacy method)."""
@@ -1084,12 +1103,11 @@ class BitmappySprite(Sprite):
 
         # Detect file format and handle accordingly
         file_format = SpriteFactory._detect_file_format(filename)
-        
+
         if file_format == "toml":
             return self._load_static_toml(filename)
-        else:
-            return self._load_static_ini(filename)
-    
+        return self._load_static_ini(filename)
+
     def _load_static_ini(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from an INI file."""
         config = configparser.RawConfigParser(
@@ -1153,11 +1171,9 @@ class BitmappySprite(Sprite):
         else:
             # Return the successfully loaded sprite data
             return (image, rect, name)
-    
+
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file."""
-        import toml
-        
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding="utf-8")
         self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
@@ -1257,14 +1273,16 @@ class BitmappySprite(Sprite):
         self.log.debug(f"Successfully saved to {filename}")
 
     def _save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
-        """Internal save method for static sprites."""
+        """Save static sprite to file."""
         self._save_static_only(filename, file_format)
 
     def _load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Internal load method for static sprites."""
+        """Load static sprite from file."""
         return self._load_static_only(filename)
 
-    def _save_static_only(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def _save_static_only(
+        self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT
+    ) -> None:
         """Save a static sprite to a file (legacy method)."""
         try:
             self.log.debug(f"Starting static-only save in {file_format} format to {filename}")
@@ -1343,8 +1361,7 @@ class BitmappySprite(Sprite):
             )
 
             # Assign characters sequentially from SPRITE_GLYPHS
-            char_index = 0
-            for color in unique_colors:
+            for char_index, color in enumerate(unique_colors):
                 if char_index >= len(printable_chars):
                     self._raise_too_many_colors_error(len(printable_chars))
                 char = printable_chars[char_index]
@@ -1355,8 +1372,9 @@ class BitmappySprite(Sprite):
                     )
                     char = "."
                 color_map[color] = char
-                char_index += 1
-                self.log.debug(f"Color {color} -> char '{color_map[color]}' (ord={ord(color_map[color])})")
+                self.log.debug(
+                    f"Color {color} -> char '{color_map[color]}' (ord={ord(color_map[color])})"
+                )
 
             # Process pixels row by row
             pixel_rows = self._process_pixel_rows(color_map)
@@ -1751,7 +1769,7 @@ class SpriteFactory:
     """Factory class for loading sprites with automatic type detection."""
 
     @staticmethod
-    def load_sprite(*, filename: str | None = None) -> "BitmappySprite | AnimatedSprite":
+    def load_sprite(*, filename: str | None = None) -> BitmappySprite | AnimatedSprite:
         """Load a sprite file, automatically detecting whether it's static or animated.
 
         Args:
@@ -1762,6 +1780,7 @@ class SpriteFactory:
 
         Raises:
             ValueError: If file format is invalid or contains mixed content.
+
         """
         # Handle default sprite loading
         if filename is None:
@@ -1781,11 +1800,10 @@ class SpriteFactory:
             sprite.width = rect.width
             sprite.height = rect.height
             return sprite
-        elif sprite_type == "animated":
-            # Use the imported AnimatedSprite class
-            return AnimatedSprite(filename)
-        else:
-            raise ValueError(f"Invalid sprite file format: {filename}")
+        if sprite_type == "animated":
+            # Use the imported AnimatedSprite class with proper sprite group integration
+            return AnimatedSprite(filename, groups=None)
+        raise ValueError(f"Invalid sprite file format: {filename}")
 
     @staticmethod
     def _detect_file_format(filename: str) -> str:
@@ -1802,12 +1820,11 @@ class SpriteFactory:
     def _analyze_file(filename: str) -> dict:
         """Analyze file content to determine sprite type."""
         file_format = SpriteFactory._detect_file_format(filename)
-        
+
         if file_format == "toml":
             return SpriteFactory._analyze_toml_file(filename)
-        else:
-            return SpriteFactory._analyze_ini_file(filename)
-    
+        return SpriteFactory._analyze_ini_file(filename)
+
     @staticmethod
     def _analyze_ini_file(filename: str) -> dict:
         """Analyze INI file content to determine sprite type."""
@@ -1833,23 +1850,21 @@ class SpriteFactory:
         return {
             "has_sprite_pixels": has_sprite_pixels,
             "has_animation_sections": has_animation_sections,
-            "has_frame_sections": has_frame_sections
+            "has_frame_sections": has_frame_sections,
         }
-    
+
     @staticmethod
     def _analyze_toml_file(filename: str) -> dict:
         """Analyze TOML file content to determine sprite type."""
-        import toml
-        
-        with open(filename, 'r') as f:
+        with Path(filename).open("r", encoding="utf-8") as f:
             data = toml.load(f)
 
         has_sprite_pixels = False
         has_animation_sections = False
         has_frame_sections = False
 
-        # Check for sprite.pixels
-        if "sprite" in data and "pixels" in data["sprite"]:
+        # Check for sprite.pixels (ignore empty strings)
+        if "sprite" in data and "pixels" in data["sprite"] and data["sprite"]["pixels"].strip():
             has_sprite_pixels = True
 
         # Check for animation sections
@@ -1866,7 +1881,7 @@ class SpriteFactory:
         return {
             "has_sprite_pixels": has_sprite_pixels,
             "has_animation_sections": has_animation_sections,
-            "has_frame_sections": has_frame_sections
+            "has_frame_sections": has_frame_sections,
         }
 
     @staticmethod
@@ -1874,23 +1889,26 @@ class SpriteFactory:
         """Determine sprite type based on file analysis."""
         if analysis["has_sprite_pixels"] and analysis["has_frame_sections"]:
             return "error"  # Mixed content - invalid
-        elif analysis["has_frame_sections"] or analysis["has_animation_sections"]:
+        if analysis["has_frame_sections"] or analysis["has_animation_sections"]:
             return "animated"
-        elif analysis["has_sprite_pixels"]:
+        if analysis["has_sprite_pixels"]:
             return "static"
-        else:
-            return "error"  # No recognizable content
+        return "error"  # No recognizable content
 
     @staticmethod
     def _get_default_sprite_path() -> str:
         """Get the path to the default sprite (raspberry.toml)."""
-        import os
         # Get the path to the assets directory
-        assets_dir = os.path.join(os.path.dirname(__file__), '..', 'assets')
-        return os.path.join(assets_dir, 'raspberry.toml')
+        assets_dir = Path(__file__).parent / ".." / "assets"
+        return str(assets_dir / "raspberry.toml")
 
     @staticmethod
-    def save_sprite(*, sprite: "BitmappySprite | AnimatedSprite", filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def save_sprite(
+        *,
+        sprite: BitmappySprite | AnimatedSprite,
+        filename: str,
+        file_format: str = DEFAULT_FILE_FORMAT,
+    ) -> None:
         """Save a sprite to a file with automatic type detection.
 
         Args:
@@ -1901,18 +1919,67 @@ class SpriteFactory:
         Raises:
             NotImplementedError: If saving animated sprites (not yet implemented).
             ValueError: If file_format is not supported.
+
         """
-        if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
+        if hasattr(sprite, "animations"):  # It's an AnimatedSprite
             SpriteFactory._save_animated_sprite(sprite, filename, file_format)
         else:  # It's a BitmappySprite
             SpriteFactory._save_static_sprite(sprite, filename, file_format)
 
     @staticmethod
-    def _save_static_sprite(sprite: "BitmappySprite", filename: str, file_format: str) -> None:
+    def _save_static_sprite(sprite: BitmappySprite, filename: str, file_format: str) -> None:
         """Save a static sprite to a file."""
         sprite._save(filename, file_format)
 
     @staticmethod
-    def _save_animated_sprite(sprite: "AnimatedSprite", filename: str, file_format: str) -> None:
+    def _save_animated_sprite(sprite: AnimatedSprite, filename: str, file_format: str) -> None:
         """Save an animated sprite to a file."""
         sprite._save(filename, file_format)
+
+
+# Add helper methods to BitmappySprite for AI training data extraction
+def _get_pixel_string(self: Self) -> str:
+    """Get pixel data as a string for AI training."""
+    if not hasattr(self, "pixels") or not self.pixels:
+        return ""
+
+    # Convert pixels to character representation
+    pixel_string = ""
+    for y in range(self.pixels_tall):
+        for x in range(self.pixels_across):
+            pixel_index = y * self.pixels_across + x
+            if pixel_index < len(self.pixels):
+                # For now, just use a placeholder - this would need proper character mapping
+                pixel_string += "."
+            else:
+                pixel_string += "."
+        if y < self.pixels_tall - 1:  # Don't add newline after last row
+            pixel_string += "\n"
+
+    return pixel_string
+
+
+def _get_color_map(self: Self) -> dict:
+    """Get color mapping for AI training."""
+    if not hasattr(self, "pixels") or not self.pixels:
+        return {}
+
+    # Get unique colors and create mapping
+    unique_colors = list(set(self.pixels))
+    color_map = {}
+
+    MAX_COLORS = 8  # Limit to 8 colors
+    for i, color in enumerate(unique_colors):
+        if i < MAX_COLORS:
+            color_map[str(i)] = {
+                "red": color[0],
+                "green": color[1],
+                "blue": color[2],
+            }
+
+    return color_map
+
+
+# Add methods to BitmappySprite class
+BitmappySprite._get_pixel_string = _get_pixel_string
+BitmappySprite._get_color_map = _get_color_map
