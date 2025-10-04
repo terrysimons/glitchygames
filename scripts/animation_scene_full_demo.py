@@ -28,22 +28,11 @@ LOG.setLevel(logging.INFO)
 class AnimationGame(Scene):
     """Full glitchygames scene for displaying animated sprites."""
 
-    # Set your game name/version here
     NAME = "Animation Scene Demo"
-    VERSION = "1.0"
     log = LOG
 
     def __init__(self: Self, options: dict, groups: pygame.sprite.Group | None = None) -> None:
-        """Initialize the animation game.
-
-        Args:
-            options (dict): The options passed to the game.
-            groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
-
-        """
+        """Initialize the animation game."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
@@ -53,19 +42,8 @@ class AnimationGame(Scene):
         self.background_color = (20, 20, 40)
         self.fps = 60
 
-        # Load the animated sprite from foo.toml
-        foo_toml_path = Path(__file__).parent.parent / "foo.toml"
-
-        try:
-            self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
-            self.animated_sprite.play()
-            self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
-            self.log.info(f"Loaded: {self.animated_sprite.name} "
-                         f"({self.animated_sprite.frame_count} frames)")
-            self.log.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
-        except (FileNotFoundError, ValueError, RuntimeError):
-            self.log.exception("Failed to load animation")
-            raise
+        # Load animated sprite
+        self._load_animated_sprite()
 
         # Clear the screen with background
         self.all_sprites.clear(self.screen, self.background)
@@ -74,40 +52,53 @@ class AnimationGame(Scene):
         """Update the scene."""
         super().update()
 
-        # Update the animated sprite with corrected delta time
-        # The scene system multiplies dt by 10.0, so we need to divide by 10
         if self.animated_sprite:
-            corrected_dt = self.dt / 10.0
-            self.animated_sprite.update(corrected_dt)
+            self.animated_sprite.update(self.dt)
 
     def on_keydown_event(self: Self, event: pygame.event.Event) -> None:
         """Handle keydown events."""
         if event.key == pygame.K_ESCAPE or event.unicode.lower() == "q":
             self.scene_manager.quit()
+            return
+
         if event.key == pygame.K_SPACE:
             if self.animated_sprite.is_playing:
                 self.animated_sprite.pause()
             else:
                 self.animated_sprite.play()
+            return
+
         if event.key == pygame.K_r:
             self.animated_sprite.stop()
             self.animated_sprite.play()
+            return
+
         if event.key == pygame.K_1:
             self.animated_sprite.set_frame(0)
+            return
+
         if event.key == pygame.K_2:
             self.animated_sprite.set_frame(1)
 
+    def _load_animated_sprite(self: Self) -> None:
+        """Load the animated sprite from foo.toml."""
+        foo_toml_path = Path(__file__).parent.parent / "foo.toml"
+
+        try:
+            self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
+            self.animated_sprite.play()
+            # Center on screen dynamically
+            self.animated_sprite.rect.center = self.screen.get_rect().center
+            self.log.info(f"Loaded: {self.animated_sprite.name} "
+                         f"({self.animated_sprite.frame_count} frames)")
+            self.log.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
+        except (FileNotFoundError, ValueError, RuntimeError):
+            self.log.exception("Failed to load animation")
+            raise
+
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Add game-specific arguments to the global parser.
-
-        Args:
-            parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            argparse.ArgumentParser: The updated parser.
-
-        """
+        """Add game-specific arguments to the global parser."""
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
         )

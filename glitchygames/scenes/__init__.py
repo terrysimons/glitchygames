@@ -190,7 +190,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.clock.tick(self.target_fps)
 
             now: float = time.perf_counter()
-            self.dt: float = (now - previous_time) * 10.0
+            self.dt: float = now - previous_time
             previous_time = current_time
 
             self.active_scene.dt_tick(self.dt)
