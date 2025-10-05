@@ -2116,7 +2116,7 @@ class LivePreviewSprite(BitmappySprite):
         # Use the provided animated sprite if available, otherwise use self.animated_sprite
         sprite_to_use = animated_sprite if animated_sprite is not None else self.animated_sprite
 
-        if sprite_to_use and hasattr(sprite_to_use, "frames"):
+        if sprite_to_use and hasattr(sprite_to_use, "_animations"):
             # Get the current animation and frame from the animated sprite
             current_animation = sprite_to_use.current_animation
             frame_index = sprite_to_use.current_frame
@@ -2134,9 +2134,9 @@ class LivePreviewSprite(BitmappySprite):
 
                 self._last_frame_index = frame_index
 
-                if current_animation in sprite_to_use.frames:
+                if current_animation in sprite_to_use._animations:
                     # Get the current frame and create a fresh surface from its pixel data
-                    frame = sprite_to_use.frames[current_animation][frame_index]
+                    frame = sprite_to_use._animations[current_animation][frame_index]
                     if hasattr(frame, "get_pixel_data"):
                         frame_pixels = frame.get_pixel_data()
                         # Create a fresh surface from the pixel data
@@ -2808,7 +2808,14 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "live_preview") and self.live_preview is not None:
                 self.log.debug(f"Updating live preview with new animated sprite: {loaded_sprite}")
                 self.live_preview.animated_sprite = loaded_sprite
+                
+                # Force the live preview to update by clearing its frame tracking
+                if hasattr(self.live_preview, "_last_frame_index"):
+                    delattr(self.live_preview, "_last_frame_index")
+                
+                # Force update the live preview
                 self.live_preview._update_frame()
+                self.live_preview.dirty = 1  # Force redraw
                 self.log.debug("Updated live preview with new animated sprite")
 
             # Start the animation after loading
@@ -3114,22 +3121,17 @@ class BitmapEditorScene(Scene):
             (self.screen_width * 2 // 3) // pixels_across,
         )
 
-        # Create a simple animated sprite for testing
-        # Create test frames
+        # Create a simple animated sprite for testing - single frame mode
+        # Create single test frame
         surface1 = pygame.Surface((pixels_across, pixels_tall))
         surface1.fill((255, 0, 255))  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
         frame1.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
 
-        surface2 = pygame.Surface((pixels_across, pixels_tall))
-        surface2.fill((255, 0, 255))  # Magenta frame (transparent)
-        frame2 = SpriteFrame(surface2)
-        frame2.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
-
-        # Create animated sprite using proper initialization
+        # Create animated sprite using proper initialization - single frame
         animated_sprite = AnimatedSprite()
-        # Use the proper method to set up animations
-        animated_sprite._animations = {"idle": [frame1, frame2]}
+        # Use the proper method to set up animations with single frame
+        animated_sprite._animations = {"idle": [frame1]}
         animated_sprite._frame_interval = 0.5
         animated_sprite._is_looping = True  # Enable looping for the animation
 

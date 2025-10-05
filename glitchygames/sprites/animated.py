@@ -704,18 +704,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         self.log.debug(f"Found {len(animations)} animation(s) in TOML file")
 
-        for anim_data in animations:
-            anim_name = anim_data.get("namespace", "default")
-            frames = self._process_toml_animation(anim_data, color_map)
-            if frames:
-                self._animations[anim_name] = frames
-                self._animation_order.append(anim_name)  # Track order
+        # Check if this is a legacy static sprite (has sprite.pixels but no animations)
+        if not animations and "sprite" in data and "pixels" in data["sprite"]:
+            self.log.debug("Detected legacy static sprite, converting to single-frame animation")
+            self._convert_legacy_static_sprite(data, color_map)
+        else:
+            # Process normal animated sprite
+            for anim_data in animations:
+                anim_name = anim_data.get("namespace", "default")
+                frames = self._process_toml_animation(anim_data, color_map)
+                if frames:
+                    self._animations[anim_name] = frames
+                    self._animation_order.append(anim_name)  # Track order
 
         # Log the first namespace found in the file
         if animations:
             first_anim = animations[0]
             first_namespace = first_anim.get("namespace", "default")
             self.log.info(f"FIRST ANIMATION NAMESPACE: '{first_namespace}'")
+        elif self._animations:
+            # For legacy static sprites, log the converted animation
+            first_anim_name = next(iter(self._animations.keys()))
+            self.log.info(f"LEGACY STATIC SPRITE CONVERTED TO ANIMATION: '{first_anim_name}'")
         else:
             self.log.info("NO ANIMATIONS FOUND IN FILE")
 
@@ -727,8 +737,48 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug(
                 f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', frame={self.frame_manager.current_frame}"
             )
-            # Force initial surface update
+            # Force initial surface update by resetting frame tracking
+            self._last_frame_index = -1  # Force update regardless of previous state
             self._update_surface_and_mark_dirty()
+
+    def _convert_legacy_static_sprite(self: Self, data: dict, color_map: dict) -> None:
+        """Convert a legacy static sprite to a single-frame animation."""
+        sprite_data = data["sprite"]
+        pixels = sprite_data["pixels"]
+        
+        # Parse pixel rows
+        pixel_rows = pixels.strip().split('\n')
+        height = len(pixel_rows)
+        width = len(pixel_rows[0]) if pixel_rows else 0
+        
+        # Create a surface from the pixel data
+        surface = pygame.Surface((width, height))
+        surface.convert()
+        
+        # Convert character pixels to actual colors
+        for y, row in enumerate(pixel_rows):
+            for x, char in enumerate(row):
+                if char in color_map:
+                    color = color_map[char]
+                    surface.set_at((x, y), color)
+                else:
+                    # Default to magenta for unknown characters
+                    surface.set_at((x, y), (255, 0, 255))
+        
+        # Create a single frame from the surface
+        frame = SpriteFrame(surface)
+        frame.pixels = []
+        for y in range(height):
+            for x in range(width):
+                color = surface.get_at((x, y))
+                frame.pixels.append((color.r, color.g, color.b))
+        
+        # Create a single animation with one frame
+        animation_name = sprite_data.get("name", "idle")
+        self._animations[animation_name] = [frame]
+        self._animation_order.append(animation_name)
+        
+        self.log.debug(f"Converted legacy static sprite to single-frame animation '{animation_name}' ({width}x{height})")
 
     @staticmethod
     def _build_color_map(data: dict) -> dict:
@@ -885,14 +935,116 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save animated sprite to a file."""
-        if file_format == "ini":
-            self._save_ini(filename)
-        elif file_format == "yaml":
-            self._save_yaml(filename)
-        elif file_format == "toml":
-            self._save_toml(filename)
+        # Check if this is a single animation with a single frame
+        if self._is_single_frame_sprite():
+            self.log.info("Detected single-frame sprite, saving in legacy static format")
+            self._save_as_static_sprite(filename, file_format)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+            # Save as animated sprite
+            if file_format == "ini":
+                self._save_ini(filename)
+            elif file_format == "yaml":
+                self._save_yaml(filename)
+            elif file_format == "toml":
+                self._save_toml(filename)
+            else:
+                raise ValueError(f"Unsupported file format: {file_format}")
+
+    def _is_single_frame_sprite(self: Self) -> bool:
+        """Check if this sprite has only one animation with one frame."""
+        if len(self._animations) != 1:
+            return False
+        
+        # Get the first (and only) animation
+        animation_frames = next(iter(self._animations.values()))
+        return len(animation_frames) == 1
+
+    def _save_as_static_sprite(self: Self, filename: str, file_format: str) -> None:
+        """Save as a legacy static sprite format using existing TOML save methods."""
+        if file_format == "toml":
+            # Use the existing TOML save method but modify it for single frame
+            self._save_toml_single_frame(filename)
+        else:
+            # For other formats, use BitmappySprite infrastructure
+            from glitchygames.sprites import BitmappySprite
+            import pygame
+            
+            # Get the single frame from the single animation
+            animation_name = next(iter(self._animations.keys()))
+            frame = self._animations[animation_name][0]
+            
+            # Get frame dimensions and pixel data
+            width, height = frame.get_size()
+            pixels = frame.get_pixel_data()
+            
+            # Initialize pygame screen if not already done
+            if not pygame.display.get_init():
+                pygame.display.init()
+            if pygame.display.get_surface() is None:
+                pygame.display.set_mode((800, 600))
+            
+            # Create a temporary BitmappySprite with the frame data
+            temp_sprite = BitmappySprite(
+                x=0, y=0, 
+                width=width, height=height, 
+                name=animation_name
+            )
+            
+            # Set the pixel data
+            temp_sprite.pixels = pixels
+            temp_sprite.pixels_across = width
+            temp_sprite.pixels_tall = height
+            
+            # Use the existing BitmappySprite save infrastructure
+            temp_sprite.save(filename, file_format)
+    
+    def _save_toml_single_frame(self: Self, filename: str) -> None:
+        """Save single frame as static TOML using existing TOML infrastructure."""
+        # Get the single frame from the single animation
+        animation_name = next(iter(self._animations.keys()))
+        frame = self._animations[animation_name][0]
+        
+        # Build color map for the single frame
+        color_map = self._build_toml_color_map()
+        
+        # Get frame dimensions and pixel data
+        width, height = frame.get_size()
+        pixels = frame.get_pixel_data()
+        
+        # Convert pixels to character representation
+        pixel_rows = []
+        for y in range(height):
+            row = ""
+            for x in range(width):
+                pixel_index = y * width + x
+                if pixel_index < len(pixels):
+                    pixel = pixels[pixel_index]
+                    # Find the character for this color
+                    char = None
+                    for color, char_val in color_map.items():
+                        if color == pixel:
+                            char = char_val
+                            break
+                    if char is None:
+                        char = "."  # Default character
+                    row += char
+                else:
+                    row += "."  # Default character
+            pixel_rows.append(row)
+        
+        # Write TOML file with proper block string format
+        with Path(filename).open("w", encoding="utf-8") as f:
+            f.write(f'[sprite]\n')
+            f.write(f'name = "{animation_name}"\n')
+            f.write(f'pixels = """\n')
+            f.write('\n'.join(pixel_rows))
+            f.write(f'\n"""\n\n')
+            
+            # Write colors section
+            f.write(f'[colors]\n')
+            for color_tuple, char in color_map.items():
+                r, g, b = color_tuple
+                f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
 
     def _save_ini(self: Self, filename: str) -> None:
         """Save animated sprite in INI format."""
