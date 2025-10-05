@@ -2197,10 +2197,10 @@ class LivePreviewSprite(BitmappySprite):
         )
 
         # Get the frame from the canvas's animated sprite
-        if current_animation in canvas.animated_sprite.frames and current_frame < len(
-            canvas.animated_sprite.frames[current_animation]
+        if current_animation in canvas.animated_sprite._animations and current_frame < len(
+            canvas.animated_sprite._animations[current_animation]
         ):
-            frame = canvas.animated_sprite.frames[current_animation][current_frame]
+            frame = canvas.animated_sprite._animations[current_animation][current_frame]
 
             if hasattr(frame, "get_pixel_data"):
                 frame_pixels = frame.get_pixel_data()
@@ -2662,16 +2662,21 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Update live preview to reflect the changes
             if hasattr(self, "live_preview") and self.live_preview is not None:
+                self.log.debug(f"Live preview exists: {self.live_preview}")
                 # Force live preview to update by clearing its frame tracking
                 if hasattr(self.live_preview, "_last_frame_index"):
                     delattr(self.live_preview, "_last_frame_index")
 
-                # Temporarily set the animated sprite to the canvas's current frame for the preview
-                original_frame = self.animated_sprite.current_frame
-                self.animated_sprite.set_frame(self.current_frame)
-                self.live_preview._update_frame(animated_sprite=self.animated_sprite)
-                # Restore the original frame
-                self.animated_sprite.set_frame(original_frame)
+                # Update the live preview directly from the canvas's current frame
+                try:
+                    self.log.debug("Calling _update_frame_from_canvas")
+                    self.live_preview._update_frame_from_canvas(self)
+                except Exception as e:
+                    self.log.error(f"Error updating live preview: {e}")
+                    import traceback
+                    self.log.error(traceback.format_exc())
+            else:
+                self.log.debug("No live preview available for update")
 
             # Update miniview
             if hasattr(self, "mini_view"):
@@ -3125,10 +3130,12 @@ class BitmapEditorScene(Scene):
         animated_sprite = AnimatedSprite()
         # Use the proper method to set up animations
         animated_sprite._animations = {"idle": [frame1, frame2]}
-        animated_sprite._current_animation = "idle"
-        animated_sprite._current_frame = 0
         animated_sprite._frame_interval = 0.5
         animated_sprite._is_looping = True  # Enable looping for the animation
+
+        # Set up the frame manager properly
+        animated_sprite.frame_manager.current_animation = "idle"
+        animated_sprite.frame_manager.current_frame = 0
 
         # Initialize the sprite properly like a loaded sprite would be
         animated_sprite._update_surface_and_mark_dirty()
@@ -3203,6 +3210,10 @@ class BitmapEditorScene(Scene):
             self.log.debug(
                 f"After live preview update - live_preview._last_frame_index={getattr(self.live_preview, '_last_frame_index', 'None')}"
             )
+            
+            # Connect the live preview to the canvas
+            self.canvas.live_preview = self.live_preview
+            self.log.debug("Connected live preview to canvas")
         except Exception as e:
             self.log.warning(f"Cannot create LivePreviewSprite: {type(e).__name__}: {e}")
             self.log.exception("Full traceback for LivePreviewSprite creation error:")
