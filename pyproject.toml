@@ -52,15 +52,15 @@ pyright = "*"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = "1.6.1"
-mkdocstrings = {extras = ["crystal", "python"], version = "0.30.1"}
-mkdocs-material = "9.6.21"
-mkdocs-gen-files = "0.5.0"
-mkdocs-literate-nav = "0.6.2"
-mkdocs-section-index = "0.3.10"
+mkdocstrings = {extras = ["crystal", "python"], version = "^0"}
+mkdocs-material = "^9.6"
+mkdocs-gen-files = "^0"
+mkdocs-literate-nav = "^0"
+mkdocs-section-index = "^0"
 pymdown-extensions = "*"
-mkdocs-autorefs = "1.4.3"
-mkdocs-macros-plugin = "1.4.0"
-mkdocstrings-python = "1.18.2"
+mkdocs-autorefs = "^1.4"
+mkdocs-macros-plugin = "^1.4"
+mkdocstrings-python = "^1.18"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]

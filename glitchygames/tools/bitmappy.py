@@ -8,6 +8,7 @@ import configparser
 import contextlib
 import logging
 import multiprocessing
+import operator
 import signal
 import sys
 import tempfile
@@ -1922,26 +1923,28 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
     """Query the model's capabilities including max tokens."""
     try:
         client = _initialize_ai_client(log)
-        
+
         # Try to get model info through a simple test request
         test_messages = [
             {
-                "role": "user", 
-                "content": "What is your maximum token output limit? Please respond with just the number."
+                "role": "user",
+                "content": (
+                    "What is your maximum token output limit? Please respond with just the number."
+                ),
             }
         ]
-        
+
         log.info("Querying model capabilities...")
         response = client.chat.completions.create(
             model=AI_MODEL,
             messages=test_messages,
-            max_tokens=100  # Small response for capability query
+            max_tokens=100,  # Small response for capability query
         )
-        
-        if hasattr(response, 'choices') and response.choices:
+
+        if hasattr(response, "choices") and response.choices:
             content = response.choices[0].message.content
             log.info(f"Model response about capabilities: {content}")
-            
+
             # Try to extract max tokens from response
             try:
                 max_tokens = int(content.strip())
@@ -1949,11 +1952,11 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
                 return {"max_tokens": max_tokens}
             except ValueError:
                 log.warning(f"Could not parse max tokens from response: {content}")
-        
+
         return {"max_tokens": None}
-        
-    except Exception as e:
-        log.error(f"Failed to query model capabilities: {e}")
+
+    except (ValueError, ConnectionError, TimeoutError):
+        log.exception("Failed to query model capabilities")
         return {"max_tokens": None}
 
 
@@ -1961,54 +1964,58 @@ def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIRe
     """Process a single AI request."""
     log.info("Making API call to AI service...")
     response = client.chat.completions.create(
-        model=AI_MODEL, 
-        messages=request.messages,
-        max_tokens=AI_MAX_TOKENS
+        model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
     )
 
     log.info("AI response received from API")
     return _extract_response_content(response, log)
 
 
-def _select_relevant_training_examples(user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES) -> list:
+def _select_relevant_training_examples(
+    user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES
+) -> list:
     """Select the most relevant training examples based on user request."""
     if len(AI_TRAINING_DATA) <= max_examples:
         return AI_TRAINING_DATA
-    
+
     # Simple keyword matching for now - could be enhanced with semantic similarity
     user_lower = user_request.lower()
     relevant_examples = []
-    
+
     # Score examples based on keyword matches
     scored_examples = []
     for example in AI_TRAINING_DATA:
         score = 0
         name = example.get("name", "").lower()
         sprite_type = example.get("sprite_type", "").lower()
-        
+
         # Check for keyword matches
-        if any(keyword in user_lower for keyword in ["animated", "animation", "frame"]):
-            if sprite_type == "animated":
-                score += 10
-        if any(keyword in user_lower for keyword in ["static", "single", "one"]):
-            if sprite_type == "static":
-                score += 10
-                
+        if (
+            any(keyword in user_lower for keyword in ["animated", "animation", "frame"])
+            and sprite_type == "animated"
+        ):
+            score += 10
+        if (
+            any(keyword in user_lower for keyword in ["static", "single", "one"])
+            and sprite_type == "static"
+        ):
+            score += 10
+
         # Check for name similarity
         if any(word in name for word in user_lower.split()):
             score += 5
-            
+
         scored_examples.append((score, example))
-    
+
     # Sort by score and take top examples
-    scored_examples.sort(key=lambda x: x[0], reverse=True)
+    scored_examples.sort(key=operator.itemgetter(0), reverse=True)
     relevant_examples = [example for _, example in scored_examples[:max_examples]]
-    
+
     # Fill remaining slots with random examples if needed
     if len(relevant_examples) < max_examples:
         remaining = [ex for ex in AI_TRAINING_DATA if ex not in relevant_examples]
-        relevant_examples.extend(remaining[:max_examples - len(relevant_examples)])
-    
+        relevant_examples.extend(remaining[: max_examples - len(relevant_examples)])
+
     return relevant_examples
 
 
@@ -2088,6 +2095,7 @@ class LivePreviewSprite(BitmappySprite):
         y: int = 0,
         groups: pygame.sprite.Group = None,
     ):
+        """Initialize the live preview sprite."""
         # Initialize with BitmappySprite (64x64 for preview)
         super().__init__(
             name=name,
@@ -2122,12 +2130,13 @@ class LivePreviewSprite(BitmappySprite):
             frame_index = sprite_to_use.current_frame
 
             self.log.debug(
-                f"LivePreviewSprite._update_frame: Animation: {current_animation}, Frame: {frame_index}"
+                f"LivePreviewSprite._update_frame: Animation: {current_animation}, "
+                f"Frame: {frame_index}"
             )
 
             # Check if frame has changed
             if not hasattr(self, "_last_frame_index") or self._last_frame_index != frame_index:
-                self.log.debug(f"=== LIVE PREVIEW FRAME TRANSITION DETECTED ===")
+                self.log.debug("=== LIVE PREVIEW FRAME TRANSITION DETECTED ===")
                 self.log.debug(f"Previous frame: {getattr(self, '_last_frame_index', 'None')}")
                 self.log.debug(f"Current frame: {frame_index}")
                 self.log.debug(f"Animation: {current_animation}")
@@ -2150,7 +2159,8 @@ class LivePreviewSprite(BitmappySprite):
                             current_surface.set_at((x, y), pixel)
 
                         self.log.debug(
-                            f"Created fresh surface from frame {frame_index} with {len(frame_pixels)} pixels"
+                            f"Created fresh surface from frame {frame_index} "
+                            f"with {len(frame_pixels)} pixels"
                         )
 
                         if current_surface:
@@ -2166,7 +2176,7 @@ class LivePreviewSprite(BitmappySprite):
                 else:
                     self.log.debug(f"Animation {current_animation} not found in frames")
 
-                self.log.debug(f"=== END FRAME TRANSITION ===")
+                self.log.debug("=== END FRAME TRANSITION ===")
             else:
                 self.log.debug(f"Frame {frame_index} unchanged, skipping update")
         else:
@@ -2193,7 +2203,8 @@ class LivePreviewSprite(BitmappySprite):
         current_frame = canvas.current_frame
 
         self.log.debug(
-            f"LivePreviewSprite._update_frame_from_canvas: Animation: {current_animation}, Frame: {current_frame}"
+            f"LivePreviewSprite._update_frame_from_canvas: "
+            f"Animation: {current_animation}, Frame: {current_frame}"
         )
 
         # Get the frame from the canvas's animated sprite
@@ -2274,7 +2285,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Sync the canvas frame with the animated sprite's current frame
         self.current_frame = animated_sprite.current_frame
         self.log.debug(
-            f"Canvas initialized - animated_sprite.current_frame={animated_sprite.current_frame}, canvas.current_frame={self.current_frame}"
+            f"Canvas initialized - animated_sprite.current_frame="
+            f"{animated_sprite.current_frame}, canvas.current_frame={self.current_frame}"
         )
 
         # Initialize manual frame selection flag to allow automatic animation updates
@@ -2399,7 +2411,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             ):
                 # Store the current playing state
                 was_playing = self.animated_sprite.is_playing
-                
+
                 # Pause the animation when manually selecting frames
                 self.animated_sprite.pause()
 
@@ -2422,11 +2434,14 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self._manual_frame_selected = False
                 else:
                     # Keep it paused if it was already paused
-                    self.log.debug(f"Animation was paused, keeping it paused at frame {frame_index}")
+                    self.log.debug(
+                        f"Animation was paused, keeping it paused at frame {frame_index}"
+                    )
 
                 self.dirty = 1
                 self.log.debug(
-                    f"Set frame to {frame_index} for animation '{self.current_animation}' (was_playing: {was_playing})"
+                    f"Set frame to {frame_index} for animation "
+                    f"'{self.current_animation}' (was_playing: {was_playing})"
                 )
 
     def show_frame(self, animation: str, frame: int) -> None:
@@ -2671,10 +2686,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                 try:
                     self.log.debug("Calling _update_frame_from_canvas")
                     self.live_preview._update_frame_from_canvas(self)
-                except Exception as e:
-                    self.log.error(f"Error updating live preview: {e}")
-                    import traceback
-                    self.log.error(traceback.format_exc())
+                except (AttributeError, ValueError, RuntimeError):
+                    self.log.exception("Error updating live preview")
             else:
                 self.log.debug("No live preview available for update")
 
@@ -2787,15 +2800,30 @@ class AnimatedCanvasSprite(BitmappySprite):
             loaded_sprite = AnimatedSprite()
             loaded_sprite.load(filename)
 
-            # Update our animated sprite with the loaded data
-            self.animated_sprite = loaded_sprite
+            # Check if the loaded sprite has different dimensions than the canvas
+            if loaded_sprite.frames and loaded_sprite.current_animation in loaded_sprite.frames:
+                first_frame = loaded_sprite.frames[loaded_sprite.current_animation][0]
+                sprite_width, sprite_height = first_frame.get_size()
+                self.log.debug(f"Loaded sprite dimensions: {sprite_width}x{sprite_height}")
+                self.log.debug(f"Canvas dimensions: {self.pixels_across}x{self.pixels_tall}")
+                
+                # If sprite has different dimensions than canvas, resize canvas to match
+                if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
+                    self.log.info(f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {sprite_width}x{sprite_height}")
+                    self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
+                
+                # Use the loaded sprite as-is
+                self.animated_sprite = loaded_sprite
+            else:
+                # No frames or animation, use as-is
+                self.animated_sprite = loaded_sprite
 
             # Update the canvas sprite's current animation to match the loaded sprite
-            self.current_animation = loaded_sprite.current_animation
+            self.current_animation = self.animated_sprite.current_animation
 
             # Debug: Print available animations
             available_animations = (
-                list(loaded_sprite.frames.keys()) if hasattr(loaded_sprite, "frames") else []
+                list(self.animated_sprite.frames.keys()) if hasattr(self.animated_sprite, "frames") else []
             )
             self.log.info(f"AVAILABLE ANIMATIONS: {available_animations}")
             self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
@@ -2806,23 +2834,23 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Update the live preview to reference the new animated sprite
             if hasattr(self, "live_preview") and self.live_preview is not None:
-                self.log.debug(f"Updating live preview with new animated sprite: {loaded_sprite}")
-                self.live_preview.animated_sprite = loaded_sprite
-                
+                self.log.debug(f"Updating live preview with new animated sprite: {self.animated_sprite}")
+                self.live_preview.animated_sprite = self.animated_sprite
+
                 # Force the live preview to update by clearing its frame tracking
                 if hasattr(self.live_preview, "_last_frame_index"):
                     delattr(self.live_preview, "_last_frame_index")
-                
+
                 # Force update the live preview
                 self.live_preview._update_frame()
                 self.live_preview.dirty = 1  # Force redraw
                 self.log.debug("Updated live preview with new animated sprite")
 
             # Start the animation after loading
-            if loaded_sprite.current_animation:
-                loaded_sprite.play()
+            if self.animated_sprite.current_animation:
+                self.animated_sprite.play()
                 self.log.debug(
-                    f"Started animation '{loaded_sprite.current_animation}' using play() method"
+                    f"Started animation '{self.animated_sprite.current_animation}' using play() method"
                 )
 
             # Force a complete redraw
@@ -2834,6 +2862,94 @@ class AnimatedCanvasSprite(BitmappySprite):
         except Exception:
             self.log.exception("Error in on_load_file_event for animated sprite")
             raise
+
+    def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
+        """Resize the canvas to match the sprite dimensions."""
+        self.log.debug(f"Resizing canvas to {sprite_width}x{sprite_height}")
+        
+        # Update canvas dimensions
+        self.pixels_across = sprite_width
+        self.pixels_tall = sprite_height
+        
+        # Get screen dimensions directly from pygame display
+        screen = pygame.display.get_surface()
+        screen_width = screen.get_width()
+        screen_height = screen.get_height()
+        
+        # Recalculate pixel dimensions to fit the screen
+        available_height = screen_height - 100 - 24  # Adjust for bottom margin and menu bar
+        pixel_size = min(available_height // sprite_height, (screen_width * 2 // 3) // sprite_width)
+        
+        # Update pixel dimensions
+        self.pixel_width = pixel_size
+        self.pixel_height = pixel_size
+        
+        # Create new pixel arrays
+        self.pixels = [(255, 0, 255)] * (sprite_width * sprite_height)  # Initialize with magenta
+        self.dirty_pixels = [True] * (sprite_width * sprite_height)
+        
+        # Update surface dimensions
+        actual_width = sprite_width * pixel_size
+        actual_height = sprite_height * pixel_size
+        self.image = pygame.Surface((actual_width, actual_height))
+        self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
+        
+        # Update class dimensions
+        CanvasSprite.WIDTH = sprite_width
+        CanvasSprite.HEIGHT = sprite_height
+        
+        # Reinitialize mini view if it exists and has the resize method
+        if hasattr(self, "mini_view") and hasattr(self, "_resize_mini_view"):
+            self._resize_mini_view(sprite_width, sprite_height)
+        
+        self.log.info(f"Canvas resized to {sprite_width}x{sprite_height} with pixel size {pixel_size}")
+
+    def _resize_mini_view(self, width: int, height: int) -> None:
+        """Resize mini view for new canvas dimensions."""
+        if not hasattr(self, "mini_view") or not self.mini_view:
+            return
+            
+        self.log.debug(f"Resizing mini view to {width}x{height}")
+        
+        # Get screen dimensions from pygame
+        screen_info = pygame.display.Info()
+        screen_width = screen_info.current_w
+        
+        # Calculate mini map size using the same logic as MiniView
+        pixel_width, pixel_height = MiniView.pixels_per_pixel(width, height)
+        mini_map_width = width * pixel_width
+        
+        # Position mini map flush to the right edge and top
+        mini_map_x = screen_width - mini_map_width  # Flush to right edge
+        mini_map_y = 24  # Flush to top (below menu bar)
+        
+        # Ensure mini map doesn't go off screen
+        if mini_map_x < 0:
+            mini_map_x = 20  # Fallback to left side if too wide
+        
+        # Update mini view dimensions and position
+        self.mini_view.pixels_across = width
+        self.mini_view.pixels_tall = height
+        self.mini_view.rect.x = mini_map_x
+        self.mini_view.rect.y = mini_map_y
+        
+        # Update mini view surface
+        self.mini_view.image = pygame.Surface((mini_map_width, height * pixel_height))
+        self.mini_view.rect = self.mini_view.image.get_rect(x=mini_map_x, y=mini_map_y)
+        
+        # Update pixel arrays
+        self.mini_view.pixels = [(255, 0, 255)] * (width * height)
+        self.mini_view.dirty_pixels = [True] * (width * height)
+        
+        # Update mini view with current frame from animated sprite
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
+            self._update_mini_view_from_current_frame()
+        
+        # Force redraw
+        self.mini_view.dirty = 1
+        self.mini_view.force_redraw()
+        
+        self.log.debug(f"Mini view resized to {width}x{height} at position ({mini_map_x}, {mini_map_y})")
 
 
 class MiniView(BitmappySprite):
@@ -3178,12 +3294,14 @@ class BitmapEditorScene(Scene):
                 groups=self.all_sprites,
             )
             self.log.info(
-                f"LivePreviewSprite created at position ({self.live_preview.rect.x}, {self.live_preview.rect.y})"
+                f"LivePreviewSprite created at position "
+                f"({self.live_preview.rect.x}, {self.live_preview.rect.y})"
             )
 
             # Force initial update of the live preview to show frame 0
             self.log.debug(
-                f"Live preview initialization - animated_sprite.current_frame={animated_sprite.current_frame}"
+                f"Live preview initialization - "
+                f"animated_sprite.current_frame={animated_sprite.current_frame}"
             )
 
             # Ensure the live preview uses the same animated sprite as the canvas
@@ -3195,7 +3313,9 @@ class BitmapEditorScene(Scene):
 
             # Update the live preview to show the current frame
             self.log.debug(
-                f"Before live preview update - canvas.current_frame={self.canvas.current_frame}, animated_sprite.current_frame={animated_sprite.current_frame}"
+                f"Before live preview update - canvas.current_frame="
+                f"{self.canvas.current_frame}, animated_sprite.current_frame="
+                f"{animated_sprite.current_frame}"
             )
 
             # Force the animated sprite to match the canvas's current frame
@@ -3210,13 +3330,14 @@ class BitmapEditorScene(Scene):
 
             self.live_preview._update_frame(animated_sprite=temp_animated_sprite)
             self.log.debug(
-                f"After live preview update - live_preview._last_frame_index={getattr(self.live_preview, '_last_frame_index', 'None')}"
+                f"After live preview update - live_preview._last_frame_index="
+                f"{getattr(self.live_preview, '_last_frame_index', 'None')}"
             )
-            
+
             # Connect the live preview to the canvas
             self.canvas.live_preview = self.live_preview
             self.log.debug("Connected live preview to canvas")
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError) as e:
             self.log.warning(f"Cannot create LivePreviewSprite: {type(e).__name__}: {e}")
             self.log.exception("Full traceback for LivePreviewSprite creation error:")
             self.live_preview = None
@@ -3365,7 +3486,7 @@ class BitmapEditorScene(Scene):
             if capabilities.get("max_tokens"):
                 self.log.info(f"Model max tokens detected: {capabilities['max_tokens']}")
                 # Could update AI_MAX_TOKENS here if needed
-        except Exception as e:
+        except (ValueError, ConnectionError, TimeoutError) as e:
             self.log.warning(f"Could not query model capabilities: {e}")
 
         self.all_sprites.clear(self.screen, self.background)
@@ -3800,8 +3921,10 @@ class BitmapEditorScene(Scene):
 
         # Select relevant training examples
         relevant_examples = _select_relevant_training_examples(text)
-        self.log.info(f"Using {len(relevant_examples)} training examples (max: {AI_MAX_TRAINING_EXAMPLES})")
-        
+        self.log.info(
+            f"Using {len(relevant_examples)} training examples (max: {AI_MAX_TRAINING_EXAMPLES})"
+        )
+
         messages: list[dict[str, str]] = [
             {
                 "role": "system",

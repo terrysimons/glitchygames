@@ -21,13 +21,13 @@ from .animated import AnimatedSprite, AnimatedSpriteInterface, SpriteFrame
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 # Public API
-__all__ = [
+__all__ = [  # noqa: RUF022
     "AnimatedSprite",
     "AnimatedSpriteInterface",
     "BitmappySprite",
-    "DEFAULT_FILE_FORMAT",
     "SpriteFactory",
     "SpriteFrame",
+    "DEFAULT_FILE_FORMAT",
     "SPRITE_GLYPHS",
 ]
 
@@ -1968,9 +1968,9 @@ def _get_color_map(self: Self) -> dict:
     unique_colors = list(set(self.pixels))
     color_map = {}
 
-    MAX_COLORS = 8  # Limit to 8 colors
+    max_colors = 8  # Limit to 8 colors
     for i, color in enumerate(unique_colors):
-        if i < MAX_COLORS:
+        if i < max_colors:
             color_map[str(i)] = {
                 "red": color[0],
                 "green": color[1],

@@ -7,6 +7,7 @@ timing and playback control.
 
 import abc
 import configparser
+import hashlib
 import logging
 import operator
 from pathlib import Path
@@ -34,40 +35,50 @@ except ImportError:
         return "toml"  # Default to toml
 
 
+# Import BitmappySprite for static sprite saving
+try:
+    from glitchygames.sprites import BitmappySprite
+except ImportError:
+    BitmappySprite = None
+
+
 LOG = logging.getLogger("game.sprites.animated")
+
+# Constants
+PIXEL_ARRAY_SHAPE_DIMENSIONS = 3
 
 
 class FrameManager:
     """Centralized frame state management for animation system."""
-    
+
     def __init__(self, animated_sprite):
         """Initialize with reference to the animated sprite."""
         self.animated_sprite = animated_sprite
         self._current_animation = ""
         self._current_frame = 0
         self._observers = []  # Components that need to be notified of frame changes
-        
+
     def add_observer(self, observer):
         """Add an observer that will be notified of frame changes."""
         if observer not in self._observers:
             self._observers.append(observer)
-            
+
     def remove_observer(self, observer):
         """Remove an observer."""
         if observer in self._observers:
             self._observers.remove(observer)
-            
+
     def notify_observers(self, change_type, old_value, new_value):
         """Notify all observers of a frame change."""
         for observer in self._observers:
-            if hasattr(observer, 'on_frame_change'):
+            if hasattr(observer, "on_frame_change"):
                 observer.on_frame_change(change_type, old_value, new_value)
-    
+
     @property
     def current_animation(self):
         """Get the current animation name."""
         return self._current_animation
-        
+
     @current_animation.setter
     def current_animation(self, value):
         """Set the current animation and notify observers."""
@@ -75,21 +86,21 @@ class FrameManager:
             old_value = self._current_animation
             self._current_animation = value
             self._current_frame = 0  # Reset frame when animation changes
-            self.notify_observers('animation', old_value, value)
-            
+            self.notify_observers("animation", old_value, value)
+
     @property
     def current_frame(self):
         """Get the current frame index."""
         return self._current_frame
-        
+
     @current_frame.setter
     def current_frame(self, value):
         """Set the current frame and notify observers."""
         if value != self._current_frame:
             old_value = self._current_frame
             self._current_frame = value
-            self.notify_observers('frame', old_value, value)
-            
+            self.notify_observers("frame", old_value, value)
+
     def set_frame(self, frame_index):
         """Set the current frame with bounds checking."""
         if self._current_animation in self.animated_sprite._animations:
@@ -98,21 +109,23 @@ class FrameManager:
                 self.current_frame = frame_index
                 return True
         return False
-        
+
     def set_animation(self, animation_name):
         """Set the current animation with validation."""
         if animation_name in self.animated_sprite._animations:
             self.current_animation = animation_name
             return True
         return False
-        
+
     def get_frame_data(self):
         """Get the current frame data."""
-        if (self._current_animation in self.animated_sprite._animations and 
-            self._current_frame < len(self.animated_sprite._animations[self._current_animation])):
+        if (
+            self._current_animation in self.animated_sprite._animations
+            and self._current_frame < len(self.animated_sprite._animations[self._current_animation])
+        ):
             return self.animated_sprite._animations[self._current_animation][self._current_frame]
         return None
-        
+
     def get_frame_count(self):
         """Get the number of frames in the current animation."""
         if self._current_animation in self.animated_sprite._animations:
@@ -339,7 +352,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._is_looping = False
         self._frame_timer = 0.0
         self._color_map = {}  # Color mapping for TOML files
-        
+
         # Initialize frame manager as the single source of truth
         self.frame_manager = FrameManager(self)
 
@@ -404,9 +417,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     surface.set_at((x, y), (r, g, b))
 
             return surface
-        else:
-            # Fallback to frame's existing surface
-            return frame.image.copy()
+
+        # Fallback to frame's existing surface
+        return frame.image.copy()
 
     # Animation state properties (read-only)
     @property
@@ -676,7 +689,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 )
                 self.frame_manager.current_animation = initial_animation
                 self.log.debug(
-                    f"No 'idle' animation found, using first animation in file: '{initial_animation}' with {len(self._animations[initial_animation])} frames"
+                    f"No 'idle' animation found, using first animation in file: "
+                    f"'{initial_animation}' with {len(self._animations[initial_animation])} frames"
                 )
             self.frame_manager.current_frame = 0
         else:
@@ -733,9 +747,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._log_toml_load_results()
 
         # Initialize the sprite surface with the first frame
-        if self.frame_manager.current_animation and self.frame_manager.current_animation in self._animations:
+        if (
+            self.frame_manager.current_animation
+            and self.frame_manager.current_animation in self._animations
+        ):
             self.log.debug(
-                f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', frame={self.frame_manager.current_frame}"
+                f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', "
+                f"frame={self.frame_manager.current_frame}"
             )
             # Force initial surface update by resetting frame tracking
             self._last_frame_index = -1  # Force update regardless of previous state
@@ -745,16 +763,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """Convert a legacy static sprite to a single-frame animation."""
         sprite_data = data["sprite"]
         pixels = sprite_data["pixels"]
-        
+
         # Parse pixel rows
-        pixel_rows = pixels.strip().split('\n')
+        pixel_rows = pixels.strip().split("\n")
         height = len(pixel_rows)
         width = len(pixel_rows[0]) if pixel_rows else 0
-        
+
         # Create a surface from the pixel data
         surface = pygame.Surface((width, height))
         surface.convert()
-        
+
         # Convert character pixels to actual colors
         for y, row in enumerate(pixel_rows):
             for x, char in enumerate(row):
@@ -764,7 +782,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 else:
                     # Default to magenta for unknown characters
                     surface.set_at((x, y), (255, 0, 255))
-        
+
         # Create a single frame from the surface
         frame = SpriteFrame(surface)
         frame.pixels = []
@@ -772,13 +790,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             for x in range(width):
                 color = surface.get_at((x, y))
                 frame.pixels.append((color.r, color.g, color.b))
-        
+
         # Create a single animation with one frame
         animation_name = sprite_data.get("name", "idle")
         self._animations[animation_name] = [frame]
         self._animation_order.append(animation_name)
-        
-        self.log.debug(f"Converted legacy static sprite to single-frame animation '{animation_name}' ({width}x{height})")
+
+        self.log.debug(
+            f"Converted legacy static sprite to single-frame animation "
+            f"'{animation_name}' ({width}x{height})"
+        )
 
     @staticmethod
     def _build_color_map(data: dict) -> dict:
@@ -939,22 +960,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if self._is_single_frame_sprite():
             self.log.info("Detected single-frame sprite, saving in legacy static format")
             self._save_as_static_sprite(filename, file_format)
+        elif file_format == "ini":
+            self._save_ini(filename)
+        elif file_format == "yaml":
+            self._save_yaml(filename)
+        elif file_format == "toml":
+            self._save_toml(filename)
         else:
-            # Save as animated sprite
-            if file_format == "ini":
-                self._save_ini(filename)
-            elif file_format == "yaml":
-                self._save_yaml(filename)
-            elif file_format == "toml":
-                self._save_toml(filename)
-            else:
-                raise ValueError(f"Unsupported file format: {file_format}")
+            raise ValueError(f"Unsupported file format: {file_format}")
 
     def _is_single_frame_sprite(self: Self) -> bool:
         """Check if this sprite has only one animation with one frame."""
         if len(self._animations) != 1:
             return False
-        
+
         # Get the first (and only) animation
         animation_frames = next(iter(self._animations.values()))
         return len(animation_frames) == 1
@@ -966,51 +985,47 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._save_toml_single_frame(filename)
         else:
             # For other formats, use BitmappySprite infrastructure
-            from glitchygames.sprites import BitmappySprite
-            import pygame
-            
+            if BitmappySprite is None:
+                raise ImportError("BitmappySprite not available for static sprite saving")
+
             # Get the single frame from the single animation
             animation_name = next(iter(self._animations.keys()))
             frame = self._animations[animation_name][0]
-            
+
             # Get frame dimensions and pixel data
             width, height = frame.get_size()
             pixels = frame.get_pixel_data()
-            
+
             # Initialize pygame screen if not already done
             if not pygame.display.get_init():
                 pygame.display.init()
             if pygame.display.get_surface() is None:
                 pygame.display.set_mode((800, 600))
-            
+
             # Create a temporary BitmappySprite with the frame data
-            temp_sprite = BitmappySprite(
-                x=0, y=0, 
-                width=width, height=height, 
-                name=animation_name
-            )
-            
+            temp_sprite = BitmappySprite(x=0, y=0, width=width, height=height, name=animation_name)
+
             # Set the pixel data
             temp_sprite.pixels = pixels
             temp_sprite.pixels_across = width
             temp_sprite.pixels_tall = height
-            
+
             # Use the existing BitmappySprite save infrastructure
             temp_sprite.save(filename, file_format)
-    
+
     def _save_toml_single_frame(self: Self, filename: str) -> None:
         """Save single frame as static TOML using existing TOML infrastructure."""
         # Get the single frame from the single animation
         animation_name = next(iter(self._animations.keys()))
         frame = self._animations[animation_name][0]
-        
+
         # Build color map for the single frame
         color_map = self._build_toml_color_map()
-        
+
         # Get frame dimensions and pixel data
         width, height = frame.get_size()
         pixels = frame.get_pixel_data()
-        
+
         # Convert pixels to character representation
         pixel_rows = []
         for y in range(height):
@@ -1031,17 +1046,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 else:
                     row += "."  # Default character
             pixel_rows.append(row)
-        
+
         # Write TOML file with proper block string format
         with Path(filename).open("w", encoding="utf-8") as f:
-            f.write(f'[sprite]\n')
+            f.write("[sprite]\n")
             f.write(f'name = "{animation_name}"\n')
-            f.write(f'pixels = """\n')
-            f.write('\n'.join(pixel_rows))
-            f.write(f'\n"""\n\n')
-            
+            f.write('pixels = """\n')
+            f.write("\n".join(pixel_rows))
+            f.write('\n"""\n\n')
+
             # Write colors section
-            f.write(f'[colors]\n')
+            f.write("[colors]\n")
             for color_tuple, char in color_map.items():
                 r, g, b = color_tuple
                 f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
@@ -1400,76 +1415,97 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         frame_interval = getattr(self, "_frame_interval", 0.5)
 
         if self._frame_timer >= frame_interval:
-            # Move to next frame
-            old_frame = self.frame_manager.current_frame
-            self._frame_timer = 0.0
-            self.frame_manager.current_frame += 1
-
-            # Log only on frame transitions
-            self.log.debug(f"Frame advance: {old_frame} -> {self.frame_manager.current_frame}")
-            if old_frame == 0 and self.frame_manager.current_frame == 1:
-                self.log.debug("FIRST FRAME ADVANCE: 0 -> 1")
-
-            # Check if we've reached the end
-            if self.frame_manager.current_frame >= len(frames):
-                if self._is_looping:
-                    self.frame_manager.current_frame = 0
-                    self.log.debug(f"Looping back to frame 0 (total frames: {len(frames)})")
-                else:
-                    self.frame_manager.current_frame = len(frames) - 1
-                    self._is_playing = False
-                    self.log.debug(f"Animation ended, stopped at frame {self.frame_manager.current_frame}")
-
-            # Update the surface with the new frame's pixel data
+            self._advance_frame(frames)
             self._update_surface_and_mark_dirty()
+            self._debug_frame_info(frames)
 
-            # Debug: Dump current frame info only on transitions (after loop correction)
-            if self.frame_manager.current_animation and self.frame_manager.current_animation in self._animations:
-                frames = self._animations[self.frame_manager.current_animation]
-                if self.frame_manager.current_frame < len(frames):
-                    frame = frames[self.frame_manager.current_frame]
-                    self.log.debug(
-                        f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', frame_index={self.frame_manager.current_frame}, frame={frame}, has_surface={hasattr(frame, 'surface')}"
-                    )
+    def _advance_frame(self: Self, frames: list) -> None:
+        """Advance to the next frame in the animation."""
+        old_frame = self.frame_manager.current_frame
+        self._frame_timer = 0.0
+        self.frame_manager.current_frame += 1
 
-                    # Get pixel data from the frame
-                    if hasattr(frame, "pixels") and frame.pixels:
-                        # Create hash of frame pixel data for debugging
-                        import hashlib
-                        pixel_data_str = str(frame.pixels)
-                        pixel_hash = hashlib.md5(pixel_data_str.encode()).hexdigest()[:8]
-                        self.log.debug(f"  Frame {self.frame_manager.current_frame} pixel hash: {pixel_hash}")
-                        self.log.debug(f"  Total pixels: {len(frame.pixels)}")
-                    elif hasattr(frame, "image"):
-                        # Try to get pixel data from the image surface
-                        try:
-                            pixel_array = pygame.surfarray.array3d(frame.image)
-                            self.log.debug(f"  Image surface size: {frame.image.get_size()}")
-                            self.log.debug(f"  Pixel array shape: {pixel_array.shape}")
-                            # Show a small sample of pixel data
-                            if pixel_array.size > 0:
-                                sample_pixels = (
-                                    pixel_array[0, 0, :]
-                                    if len(pixel_array.shape) == 3
-                                    else pixel_array[0]
-                                )
-                                self.log.debug(f"  Sample pixel data: {sample_pixels}")
-                        except Exception as e:
-                            self.log.debug(f"  Could not get pixel data from image: {e}")
-                    else:
-                        self.log.debug(f"  No pixel data available")
-                else:
-                    self.log.debug(
-                        f"ANIMATION FRAME DUMP: frame_index {self._current_frame} out of range for {len(frames)} frames"
-                    )
+        # Log only on frame transitions
+        self.log.debug(f"Frame advance: {old_frame} -> {self.frame_manager.current_frame}")
+        if old_frame == 0 and self.frame_manager.current_frame == 1:
+            self.log.debug("FIRST FRAME ADVANCE: 0 -> 1")
+
+        # Check if we've reached the end
+        if self.frame_manager.current_frame >= len(frames):
+            if self._is_looping:
+                self.frame_manager.current_frame = 0
+                self.log.debug(f"Looping back to frame 0 (total frames: {len(frames)})")
             else:
+                self.frame_manager.current_frame = len(frames) - 1
+                self._is_playing = False
                 self.log.debug(
-                    f"ANIMATION FRAME DUMP: animation '{self._current_animation}' not found or no animation"
+                    f"Animation ended, stopped at frame {self.frame_manager.current_frame}"
                 )
+
+    def _debug_frame_info(self: Self, frames: list) -> None:
+        """Debug frame information for development."""
+        if (
+            not self.frame_manager.current_animation
+            or self.frame_manager.current_animation not in self._animations
+        ):
+            self.log.debug(
+                f"ANIMATION FRAME DUMP: animation '{self.frame_manager.current_animation}' "
+                f"not found or no animation"
+            )
+            return
+
+        if self.frame_manager.current_frame >= len(frames):
+            self.log.debug(
+                f"ANIMATION FRAME DUMP: frame_index {self.frame_manager.current_frame} "
+                f"out of range for {len(frames)} frames"
+            )
+            return
+
+        frame = frames[self.frame_manager.current_frame]
+        self.log.debug(
+            f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', "
+            f"frame_index={self.frame_manager.current_frame}, frame={frame}, "
+            f"has_surface={hasattr(frame, 'surface')}"
+        )
+
+        self._debug_frame_pixel_data(frame)
+
+    def _debug_frame_pixel_data(self: Self, frame: "SpriteFrame") -> None:
+        """Debug pixel data for a frame."""
+        if hasattr(frame, "pixels") and frame.pixels:
+            # Create hash of frame pixel data for debugging
+            pixel_data_str = str(frame.pixels)
+            pixel_hash = hashlib.sha256(pixel_data_str.encode()).hexdigest()[:8]
+            self.log.debug(f"  Frame {self.frame_manager.current_frame} pixel hash: {pixel_hash}")
+            self.log.debug(f"  Total pixels: {len(frame.pixels)}")
+        elif hasattr(frame, "image"):
+            self._debug_frame_image_data(frame)
+        else:
+            self.log.debug("  No pixel data available")
+
+    def _debug_frame_image_data(self: Self, frame: "SpriteFrame") -> None:
+        """Debug image data for a frame."""
+        try:
+            pixel_array = pygame.surfarray.array3d(frame.image)
+            self.log.debug(f"  Image surface size: {frame.image.get_size()}")
+            self.log.debug(f"  Pixel array shape: {pixel_array.shape}")
+            # Show a small sample of pixel data
+            if pixel_array.size > 0:
+                sample_pixels = (
+                    pixel_array[0, 0, :]
+                    if len(pixel_array.shape) == PIXEL_ARRAY_SHAPE_DIMENSIONS
+                    else pixel_array[0]
+                )
+                self.log.debug(f"  Sample pixel data: {sample_pixels}")
+        except (ValueError, pygame.error) as e:
+            self.log.debug(f"  Could not get pixel data from image: {e}")
 
     def _update_surface_and_mark_dirty(self) -> None:
         """Update the sprite's surface and mark as dirty for efficient rendering."""
-        if not self.frame_manager.current_animation or self.frame_manager.current_animation not in self._animations:
+        if (
+            not self.frame_manager.current_animation
+            or self.frame_manager.current_animation not in self._animations
+        ):
             return
 
         frames = self._animations[self.frame_manager.current_animation]
@@ -1496,7 +1532,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self.dirty = 1
 
         self.log.debug(
-            f"Updated surface for frame {self.frame_manager.current_frame} of animation '{self.frame_manager.current_animation}'"
+            f"Updated surface for frame {self.frame_manager.current_frame} "
+            f"of animation '{self.frame_manager.current_animation}'"
         )
 
     @staticmethod
@@ -1516,7 +1553,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def update_nested_sprites(self: Self) -> None:
         """Update nested sprites (required by SpriteInterface)."""
         # AnimatedSprite doesn't have nested sprites, so this is a no-op
-        pass
 
     def clear_surface_cache(self: Self) -> None:
         """Clear the surface cache to free memory."""
