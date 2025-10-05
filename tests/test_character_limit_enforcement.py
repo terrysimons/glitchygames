@@ -25,6 +25,8 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         pygame.init()
+        # Create a display surface for testing
+        pygame.display.set_mode((800, 600))
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -74,9 +76,9 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 8
 
         # Should not raise error
-        ini_file = self.temp_path / "test_64_colors.ini"
-        sprite.save(str(ini_file), "ini")
-        assert ini_file.exists()
+        toml_file = self.temp_path / "test_64_colors.toml"
+        sprite.save(str(toml_file), "toml")
+        assert toml_file.exists()
 
         # Test with 65 colors (should fail)
         sprite.pixels = [*colors, (255, 255, 255)]  # Add one more color
@@ -84,7 +86,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 9
 
         with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(ini_file), "ini")
+            sprite.save(str(toml_file), "toml")
 
     def test_animated_sprite_character_limit(self):
         """Test character limit enforcement in animated sprites."""
@@ -108,15 +110,15 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         animated_sprite.add_animation("test_anim", [frame])
 
         # Should not raise error
-        ini_file = self.temp_path / "test_64_colors_animated.ini"
-        animated_sprite.save(str(ini_file), "ini")
-        assert ini_file.exists()
+        toml_file = self.temp_path / "test_64_colors_animated.toml"
+        animated_sprite.save(str(toml_file), "toml")
+        assert toml_file.exists()
 
         # Test with 65 colors (should fail)
         frame.set_pixel_data([*colors, (255, 255, 255)])  # Add one more color
 
         with pytest.raises(ValueError, match="Too many colors"):
-            animated_sprite.save(str(ini_file), "ini")
+            animated_sprite.save(str(toml_file), "toml")
 
     @staticmethod
     def test_legacy_sprite_character_limit():
@@ -183,9 +185,9 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         animated_sprite.add_animation("anim2", [frame2])
 
         # Total unique colors should be 64 (should work)
-        ini_file = self.temp_path / "test_mixed_animations.ini"
-        animated_sprite.save(str(ini_file), "ini")
-        assert ini_file.exists()
+        toml_file = self.temp_path / "test_mixed_animations.toml"
+        animated_sprite.save(str(toml_file), "toml")
+        assert toml_file.exists()
 
         # Add third animation with one more color (should fail)
         frame3 = SpriteFrame(pygame.Surface((2, 2)))
@@ -193,7 +195,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         animated_sprite.add_animation("anim3", [frame3])
 
         with pytest.raises(ValueError, match="Too many colors"):
-            animated_sprite.save(str(ini_file), "ini")
+            animated_sprite.save(str(toml_file), "toml")
 
     def test_character_limit_edge_cases(self):
         """Test character limit enforcement with edge cases."""
@@ -234,9 +236,9 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
                 sprite.pixels_tall = height
 
                 # Should not raise error
-                ini_file = self.temp_path / f"test_{width}x{height}.ini"
-                sprite.save(str(ini_file), "ini")
-                assert ini_file.exists()
+                toml_file = self.temp_path / f"test_{width}x{height}.toml"
+                sprite.save(str(toml_file), "toml")
+                assert toml_file.exists()
 
     def test_character_limit_error_messages(self):
         """Test that character limit error messages are informative."""
@@ -256,7 +258,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 9
 
         with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(self.temp_path / "test_error.ini"), "ini")
+            sprite.save(str(self.temp_path / "test_error.toml"), "toml")
 
     def test_character_limit_with_reserved_characters(self):
         """Test character limit enforcement with reserved characters."""
@@ -284,12 +286,12 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 8
 
         # Should not raise error (64 total colors including reserved)
-        ini_file = self.temp_path / "test_reserved.ini"
-        sprite.save(str(ini_file), "ini")
-        assert ini_file.exists()
+        toml_file = self.temp_path / "test_reserved.toml"
+        sprite.save(str(toml_file), "toml")
+        assert toml_file.exists()
 
         # Check that reserved characters are used
-        content = ini_file.read_text()
+        content = toml_file.read_text()
         assert "[#]" in content  # Black should map to '#'
         assert "[@]" in content  # Red should map to '@'
 
@@ -321,7 +323,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         start_time = time.time()
 
         with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(self.temp_path / "test_performance.ini"), "ini")
+            sprite.save(str(self.temp_path / "test_performance.toml"), "toml")
 
         end_time = time.time()
         execution_time = end_time - start_time

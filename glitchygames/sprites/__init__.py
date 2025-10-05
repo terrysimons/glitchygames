@@ -1800,7 +1800,7 @@ class SpriteFactory:
             return SpriteFactory._analyze_toml_file(filename)
 
         raise ValueError(
-            f"Unsupported file format: {file_format}. Only TOML is currently supported."
+            f"Unsupported format: {file_format}. Only TOML is currently supported."
         )
 
     @staticmethod
@@ -1883,7 +1883,7 @@ class SpriteFactory:
     @staticmethod
     def _save_animated_sprite(sprite: AnimatedSprite, filename: str, file_format: str) -> None:
         """Save an animated sprite to a file."""
-        sprite._save(filename, file_format)
+        sprite.save(filename, file_format)
 
 
 # Add helper methods to BitmappySprite for AI training data extraction

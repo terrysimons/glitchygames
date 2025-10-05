@@ -144,7 +144,7 @@ class TestTOMLOnlySupport(unittest.TestCase):
         yaml_file = self.temp_path / "test.yaml"
 
         # Should raise error when trying to save as YAML
-        with pytest.raises(ValueError, match="Unsupported file format"):
+        with pytest.raises(ValueError, match="Unsupported format"):
             animated_sprite.save(str(yaml_file), "yaml")
 
     def test_animated_sprite_ini_rejected(self):
@@ -159,7 +159,7 @@ class TestTOMLOnlySupport(unittest.TestCase):
         ini_file = self.temp_path / "test.ini"
 
         # Should raise error when trying to save as INI
-        with pytest.raises(ValueError, match="Unsupported file format"):
+        with pytest.raises(ValueError, match="Unsupported format"):
             animated_sprite.save(str(ini_file), "ini")
 
     def test_default_format_is_toml(self):

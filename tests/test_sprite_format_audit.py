@@ -9,7 +9,7 @@ This script analyzes all TOML sprite files to determine:
 import os
 import tempfile
 import unittest
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import pygame
@@ -61,8 +61,12 @@ class SpriteFormatAudit(unittest.TestCase):
                 sprite_name = sprite_file.name
                 width, height = sprite.image.get_size()
 
-                # Check if it's animated
-                is_animated = hasattr(sprite, "animations") and sprite.animations
+                # Check if it's truly animated (has multiple frames in any animation)
+                is_animated = False
+                if hasattr(sprite, "animations") and sprite.animations:
+                    # Check if any animation has more than 1 frame
+                    total_frames = sum(len(frames) for frames in sprite.animations.values())
+                    is_animated = total_frames > len(sprite.animations)  # More frames than animations = multi-frame
 
                 if is_animated:
                     animated_sprites.append({
@@ -155,8 +159,6 @@ class SpriteFormatAudit(unittest.TestCase):
         animated_sizes = [sprite["size"] for sprite in animated_sprites]
 
         if single_sizes:
-            from collections import Counter
-
             single_size_counts = Counter(single_sizes)
             print(f"Single-frame sprite sizes:")
             for size, count in single_size_counts.most_common():

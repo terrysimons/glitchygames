@@ -3160,14 +3160,23 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         frame = frames[0]  # Get the first (and only) frame
 
-        # Create a static sprite from the frame
-        static_sprite = BitmappySprite()
-        static_sprite.pixels = frame.get_pixel_data()
-        static_sprite.pixels_across = frame.width
-        static_sprite.pixels_tall = frame.height
-
-        # Save using the static sprite's save method
-        static_sprite.save(filename, file_format)
+        # Create an AnimatedSprite from the frame (since everything is AnimatedSprite now)
+        from glitchygames.sprites.animated import AnimatedSprite
+        
+        # Create a new AnimatedSprite with the frame data
+        animated_sprite = AnimatedSprite()
+        
+        # Set up the frame data
+        animated_sprite._animations = {"idle": [frame]}
+        animated_sprite.frame_manager.current_animation = "idle"
+        animated_sprite.frame_manager.current_frame = 0
+        
+        # Update the sprite's image to match the frame
+        animated_sprite.image = frame.image.copy()
+        animated_sprite.rect = animated_sprite.image.get_rect()
+        
+        # Save using the animated sprite's save method
+        animated_sprite.save(filename, file_format)
         self.log.info(f"Saved single-frame animation as static sprite to {filename}")
 
     def _copy_sprite_to_canvas(self) -> None:

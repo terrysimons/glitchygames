@@ -61,6 +61,8 @@ class TestCanvasInterfaces(unittest.TestCase):
 
     def _display_canvas_visual(self, title="Canvas Display"):
         """Display the canvas visually tiled across the screen for verification."""
+        from glitchygames.fonts import FontManager
+        
         screen = pygame.display.get_surface()
         screen_width, screen_height = screen.get_size()
 
@@ -80,18 +82,28 @@ class TestCanvasInterfaces(unittest.TestCase):
             for x in range(tiles_x):
                 screen.blit(self.canvas.image, (x * canvas_width, y * canvas_height))
 
-        # Add title text
-        font = pygame.font.Font(None, 36)
-        title_surface = font.render(title, antialias=True, color=(255, 255, 255))
+        # Add title text using FontManager
+        font = FontManager.get_font()
+        if hasattr(font, "render_to"):
+            # pygame.freetype.Font - render returns (surface, rect)
+            title_surface, _ = font.render(title, (255, 255, 255))
+        else:
+            # pygame.font.Font - render returns surface
+            title_surface = font.render(title, antialias=True, color=(255, 255, 255))
         screen.blit(title_surface, (10, 10))
 
-        # Add canvas info
-        info_font = pygame.font.Font(None, 24)
+        # Add canvas info using FontManager
+        info_font = FontManager.get_font()
         info_text = (
             f"Canvas: {self.canvas.pixels_across}x{self.canvas.pixels_tall} pixels, "
             f"{canvas_width}x{canvas_height} display"
         )
-        info_surface = info_font.render(info_text, antialias=True, color=(200, 200, 200))
+        if hasattr(info_font, "render_to"):
+            # pygame.freetype.Font - render returns (surface, rect)
+            info_surface, _ = info_font.render(info_text, (200, 200, 200))
+        else:
+            # pygame.font.Font - render returns surface
+            info_surface = info_font.render(info_text, antialias=True, color=(200, 200, 200))
         screen.blit(info_surface, (10, 50))
 
         # Update display and wait a bit
