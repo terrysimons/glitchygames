@@ -33,6 +33,7 @@ except ImportError:
             return "ini"
         return "toml"  # Default to toml
 
+
 LOG = logging.getLogger("game.sprites.animated")
 
 
@@ -238,9 +239,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     log = LOG
 
     def __init__(
-        self: Self, 
-        filename: str | None = None, 
-        groups: pygame.sprite.LayeredDirty | None = None
+        self: Self, filename: str | None = None, groups: pygame.sprite.LayeredDirty | None = None
     ) -> None:
         """Initialize the Sprite Animation prototype."""
         super().__init__()
@@ -294,17 +293,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             cache_key = "default_surface"
             if cache_key in self._surface_cache:
                 return self._surface_cache[cache_key]
-            
+
             # Create and cache default surface
             surface = pygame.Surface((32, 32))
             self._surface_cache[cache_key] = surface
             return surface
-        
+
         # Use cached surface if available
         cache_key = f"{self._current_animation}_{self._current_frame}"
         if cache_key in self._surface_cache:
             return self._surface_cache[cache_key]
-        
+
         # Create and cache surface if not available
         surface = self._create_optimized_surface(frame)
         self._surface_cache[cache_key] = surface
@@ -313,18 +312,18 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     @staticmethod
     def _create_optimized_surface(frame: "SpriteFrame") -> pygame.Surface:
         """Create an optimized surface from frame data."""
-        if hasattr(frame, 'pixels') and frame.pixels:
+        if hasattr(frame, "pixels") and frame.pixels:
             # Create surface from pixel data
             width, height = frame.image.get_size()
             surface = pygame.Surface((width, height))
-            
+
             # Apply pixels efficiently
             for i, (r, g, b) in enumerate(frame.pixels):
                 if i < width * height:
                     x = i % width
                     y = i // width
                     surface.set_at((x, y), (r, g, b))
-            
+
             return surface
         else:
             # Fallback to frame's existing surface
@@ -426,7 +425,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 old_frame = self._current_frame
                 self._current_frame = frame_index
                 self._frame_timer = 0.0
-                
+
                 # Mark dirty if frame actually changed
                 if old_frame != frame_index:
                     self._update_surface_and_mark_dirty()
@@ -438,7 +437,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._current_animation = animation_name
             self._current_frame = 0
             self._frame_timer = 0.0
-            
+
             # Mark dirty if animation actually changed
             if old_animation != animation_name:
                 self._update_surface_and_mark_dirty()
@@ -578,9 +577,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def _char_to_color(char: str) -> tuple[int, int, int]:
         """Convert character to RGB color."""
         color_map = {
-            "R": (255, 0, 0),    # Red
-            "G": (0, 255, 0),    # Green
-            "B": (0, 0, 255),    # Blue
+            "R": (255, 0, 0),  # Red
+            "G": (0, 255, 0),  # Green
+            "B": (0, 0, 255),  # Blue
         }
         return color_map.get(char, (255, 0, 255))  # Default to magenta
 
@@ -601,11 +600,19 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # First try to find "idle" animation, then fall back to first animation in file order
             if "idle" in self._animations:
                 self._current_animation = "idle"
-                self.log.debug(f"Set initial animation to 'idle' with {len(self._animations['idle'])} frames")
+                self.log.debug(
+                    f"Set initial animation to 'idle' with {len(self._animations['idle'])} frames"
+                )
             else:
                 # Use the first animation as it appears in the file
-                self._current_animation = self._animation_order[0] if self._animation_order else next(iter(self._animations.keys()))
-                self.log.debug(f"No 'idle' animation found, using first animation in file: '{self._current_animation}' with {len(self._animations[self._current_animation])} frames")
+                self._current_animation = (
+                    self._animation_order[0]
+                    if self._animation_order
+                    else next(iter(self._animations.keys()))
+                )
+                self.log.debug(
+                    f"No 'idle' animation found, using first animation in file: '{self._current_animation}' with {len(self._animations[self._current_animation])} frames"
+                )
             self._current_frame = 0
         else:
             self._current_animation = ""
@@ -652,7 +659,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         # Initialize the sprite surface with the first frame
         if self._current_animation and self._current_animation in self._animations:
-            self.log.debug(f"INITIAL FRAME STATE: animation='{self._current_animation}', frame={self._current_frame}")
+            self.log.debug(
+                f"INITIAL FRAME STATE: animation='{self._current_animation}', frame={self._current_frame}"
+            )
             # Force initial surface update
             self._update_surface_and_mark_dirty()
 
@@ -773,9 +782,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return surface
 
     @staticmethod
-    def _extract_toml_pixels(
-        pixel_lines: list, width: int, height: int, color_map: dict
-    ) -> list:
+    def _extract_toml_pixels(pixel_lines: list, width: int, height: int, color_map: dict) -> list:
         """Extract pixel data as RGB tuples."""
         pixels = []
         for y, row in enumerate(pixel_lines):
@@ -900,9 +907,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         config.set(frame_section, "pixels", "\n".join(pixel_chars))
 
     @staticmethod
-    def _convert_pixels_to_chars(
-        pixels: list, width: int, height: int, color_map: dict
-    ) -> list:
+    def _convert_pixels_to_chars(pixels: list, width: int, height: int, color_map: dict) -> list:
         """Convert pixel data to character representation."""
         pixel_chars = []
         for y in range(height):
@@ -919,9 +924,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return pixel_chars
 
     @staticmethod
-    def _add_color_definitions(
-        config: configparser.ConfigParser, color_map: dict
-    ) -> None:
+    def _add_color_definitions(config: configparser.ConfigParser, color_map: dict) -> None:
         """Add color definitions to INI config."""
         for color_tuple, char in sorted(color_map.items(), key=operator.itemgetter(1)):
             config.add_section(char)
@@ -1101,9 +1104,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return animation_frames
 
     @staticmethod
-    def _create_toml_frame_data(
-        frame: SpriteFrame, frame_index: int, color_map: dict
-    ) -> dict:
+    def _create_toml_frame_data(frame: SpriteFrame, frame_index: int, color_map: dict) -> dict:
         """Create TOML frame data."""
         pixels = frame.get_pixel_data()
         width, height = frame.get_size()
@@ -1179,8 +1180,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._frame_timer += dt
 
         # Use the animation's frame interval instead of individual frame duration
-        frame_interval = getattr(self, '_frame_interval', 0.5)
-        
+        frame_interval = getattr(self, "_frame_interval", 0.5)
+
         if self._frame_timer >= frame_interval:
             # Move to next frame
             old_frame = self._current_frame
@@ -1210,21 +1211,19 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 frames = self._animations[self._current_animation]
                 if self._current_frame < len(frames):
                     frame = frames[self._current_frame]
-                    self.log.debug(f"ANIMATION FRAME DUMP: animation='{self._current_animation}', frame_index={self._current_frame}, frame={frame}, has_surface={hasattr(frame, 'surface')}")
+                    self.log.debug(
+                        f"ANIMATION FRAME DUMP: animation='{self._current_animation}', frame_index={self._current_frame}, frame={frame}, has_surface={hasattr(frame, 'surface')}"
+                    )
 
                     # Get pixel data from the frame
-                    if hasattr(frame, 'pixels') and frame.pixels:
-                        # Show first few pixels of the frame
-                        pixel_preview = frame.pixels[:10] if len(frame.pixels) > 10 else frame.pixels
-                        self.log.debug(f"  Frame pixels (first 10): {pixel_preview}")
+                    if hasattr(frame, "pixels") and frame.pixels:
+                        # Create hash of frame pixel data for debugging
+                        import hashlib
+                        pixel_data_str = str(frame.pixels)
+                        pixel_hash = hashlib.md5(pixel_data_str.encode()).hexdigest()[:8]
+                        self.log.debug(f"  Frame {self._current_frame} pixel hash: {pixel_hash}")
                         self.log.debug(f"  Total pixels: {len(frame.pixels)}")
-
-                        # Show pixels from the middle where the sprite content is
-                        if len(frame.pixels) > 500:
-                            middle_start = 500
-                            middle_end = min(510, len(frame.pixels))
-                            self.log.debug(f"  Frame pixels (middle 500-510): {frame.pixels[middle_start:middle_end]}")
-                    elif hasattr(frame, 'image'):
+                    elif hasattr(frame, "image"):
                         # Try to get pixel data from the image surface
                         try:
                             pixel_array = pygame.surfarray.array3d(frame.image)
@@ -1232,16 +1231,24 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                             self.log.debug(f"  Pixel array shape: {pixel_array.shape}")
                             # Show a small sample of pixel data
                             if pixel_array.size > 0:
-                                sample_pixels = pixel_array[0, 0, :] if len(pixel_array.shape) == 3 else pixel_array[0]
+                                sample_pixels = (
+                                    pixel_array[0, 0, :]
+                                    if len(pixel_array.shape) == 3
+                                    else pixel_array[0]
+                                )
                                 self.log.debug(f"  Sample pixel data: {sample_pixels}")
                         except Exception as e:
                             self.log.debug(f"  Could not get pixel data from image: {e}")
                     else:
                         self.log.debug(f"  No pixel data available")
                 else:
-                    self.log.debug(f"ANIMATION FRAME DUMP: frame_index {self._current_frame} out of range for {len(frames)} frames")
+                    self.log.debug(
+                        f"ANIMATION FRAME DUMP: frame_index {self._current_frame} out of range for {len(frames)} frames"
+                    )
             else:
-                self.log.debug(f"ANIMATION FRAME DUMP: animation '{self._current_animation}' not found or no animation")
+                self.log.debug(
+                    f"ANIMATION FRAME DUMP: animation '{self._current_animation}' not found or no animation"
+                )
 
     def _update_surface_and_mark_dirty(self) -> None:
         """Update the sprite's surface and mark as dirty for efficient rendering."""
@@ -1259,7 +1266,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Update the sprite's image and rect
         new_surface = self._get_current_surface()
         self.image = new_surface
-        
+
         # Preserve the current position when updating rect
         old_center = self.rect.center
         self.rect = new_surface.get_rect()
@@ -1271,7 +1278,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Mark as dirty for pygame's dirty sprite system
         self.dirty = 1
 
-        self.log.debug(f"Updated surface for frame {self._current_frame} of animation '{self._current_animation}'")
+        self.log.debug(
+            f"Updated surface for frame {self._current_frame} of animation '{self._current_animation}'"
+        )
 
     @staticmethod
     def _create_surface_from_toml_pixels(width: int, height: int, pixels: list) -> pygame.Surface:

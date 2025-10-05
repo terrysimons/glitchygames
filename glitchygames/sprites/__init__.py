@@ -23,7 +23,7 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 # Public API
 __all__ = [
     "AnimatedSprite",
-    "AnimatedSpriteInterface", 
+    "AnimatedSpriteInterface",
     "BitmappySprite",
     "DEFAULT_FILE_FORMAT",
     "SpriteFactory",

@@ -33,7 +33,7 @@ def convert_ini_to_toml(ini_file_path: str, toml_file_path: str) -> bool:
             return False
 
         # Format pixels into rows for TOML
-        pixel_rows = [clean_pixels[y * width:(y + 1) * width] for y in range(height)]
+        pixel_rows = [clean_pixels[y * width : (y + 1) * width] for y in range(height)]
 
         # Create TOML content with proper structure
         toml_content = f'''[sprite]

@@ -109,8 +109,11 @@ class FilmStripWidget:
 
     def set_current_frame(self, animation: str, frame: int) -> None:
         """Set the current animation and frame."""
-        if (self.animated_sprite and animation in self.animated_sprite.frames and
-            0 <= frame < len(self.animated_sprite.frames[animation])):
+        if (
+            self.animated_sprite
+            and animation in self.animated_sprite.frames
+            and 0 <= frame < len(self.animated_sprite.frames[animation])
+        ):
             self.current_animation = animation
             self.current_frame = frame
 

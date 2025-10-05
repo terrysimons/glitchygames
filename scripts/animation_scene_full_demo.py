@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 # Set up logging
 LOG = logging.getLogger("game")
-LOG.setLevel(logging.INFO)
+LOG.setLevel(logging.DEBUG)
 
 
 class AnimationGame(Scene):
@@ -89,8 +89,9 @@ class AnimationGame(Scene):
             self.animated_sprite.play()
             # Center on screen dynamically
             self.animated_sprite.rect.center = self.screen.get_rect().center
-            self.log.info(f"Loaded: {self.animated_sprite.name} "
-                         f"({self.animated_sprite.frame_count} frames)")
+            self.log.info(
+                f"Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)"
+            )
             self.log.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
         except (FileNotFoundError, ValueError, RuntimeError):
             self.log.exception("Failed to load animation")

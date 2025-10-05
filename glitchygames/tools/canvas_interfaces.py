@@ -218,11 +218,15 @@ class AnimatedCanvasInterface:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
         # Set initial animation - prefer "idle" if available, otherwise first animation
-        if hasattr(canvas_sprite, 'animated_sprite') and canvas_sprite.animated_sprite:
+        if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
             if "idle" in canvas_sprite.animated_sprite._animations:
                 self.current_animation = "idle"
             else:
-                self.current_animation = next(iter(canvas_sprite.animated_sprite._animations.keys())) if canvas_sprite.animated_sprite._animations else "idle"
+                self.current_animation = (
+                    next(iter(canvas_sprite.animated_sprite._animations.keys()))
+                    if canvas_sprite.animated_sprite._animations
+                    else "idle"
+                )
         else:
             self.current_animation = "idle"
         self.current_frame = 0
@@ -258,10 +262,16 @@ class AnimatedCanvasInterface:
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             if hasattr(self.canvas_sprite, "animated_sprite"):
-                frame = self.canvas_sprite.animated_sprite.frames[self.current_animation][
-                    self.current_frame
-                ]
-                return frame.get_pixel_data()[pixel_num]
+                # Get the current frame from the canvas (not the animated sprite)
+                current_animation = self.canvas_sprite.current_animation
+                current_frame_index = self.canvas_sprite.current_frame
+
+                # Access the frame through the animated sprite's frames property
+                if current_animation in self.canvas_sprite.animated_sprite.frames:
+                    frame = self.canvas_sprite.animated_sprite.frames[current_animation][
+                        current_frame_index
+                    ]
+                    return frame.get_pixel_data()[pixel_num]
             return self.canvas_sprite.pixels[pixel_num]
         return (255, 0, 255)  # Return magenta for out-of-bounds
 
@@ -270,15 +280,28 @@ class AnimatedCanvasInterface:
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             if hasattr(self.canvas_sprite, "animated_sprite"):
-                frame = self.canvas_sprite.animated_sprite.frames[self.current_animation][
-                    self.current_frame
-                ]
-                frame_pixels = frame.get_pixel_data()
-                frame_pixels[pixel_num] = color
-                frame.set_pixel_data(frame_pixels)
-                # Mark canvas as dirty so it will redraw
-                self.canvas_sprite.dirty_pixels[pixel_num] = True
-                self.canvas_sprite.dirty = 1
+                # Get the current frame from the canvas (not the animated sprite)
+                current_animation = self.canvas_sprite.current_animation
+                current_frame_index = self.canvas_sprite.current_frame
+
+                # Access the frame through the animated sprite's frames property
+                if current_animation in self.canvas_sprite.animated_sprite.frames:
+                    frame = self.canvas_sprite.animated_sprite.frames[current_animation][
+                        current_frame_index
+                    ]
+                    frame_pixels = frame.get_pixel_data()
+                    frame_pixels[pixel_num] = color
+                    frame.set_pixel_data(frame_pixels)
+
+                    # Clear the surface cache for this frame so it gets regenerated
+                    if hasattr(self.canvas_sprite.animated_sprite, "_surface_cache"):
+                        cache_key = f"{current_animation}_{current_frame_index}"
+                        if cache_key in self.canvas_sprite.animated_sprite._surface_cache:
+                            del self.canvas_sprite.animated_sprite._surface_cache[cache_key]
+
+                    # Mark canvas as dirty so it will redraw
+                    self.canvas_sprite.dirty_pixels[pixel_num] = True
+                    self.canvas_sprite.dirty = 1
             else:
                 self.canvas_sprite.pixels[pixel_num] = color
                 self.canvas_sprite.dirty_pixels[pixel_num] = True
@@ -334,10 +357,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
     def force_redraw(self, sprite: Any) -> pygame.Surface:
         """Force a complete redraw of the animated sprite."""
         if hasattr(self.canvas_sprite, "animated_sprite"):
-            # Get the current frame
+            # Get the current frame from the canvas (not the animated sprite)
             current_animation = self.canvas_sprite.current_animation
             current_frame = self.canvas_sprite.current_frame
-            frames = self.canvas_sprite.animated_sprite._animations
+            frames = self.canvas_sprite.animated_sprite.frames
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
                 frame = frames[current_animation][current_frame]

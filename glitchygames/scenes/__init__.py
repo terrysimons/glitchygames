@@ -539,9 +539,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Ideally we'd just make dirty a property with a setter and getter on each
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
-        # Debug: Check if this is BitmapEditorScene
-        if hasattr(self, '__class__') and 'BitmapEditorScene' in str(self.__class__):
-            self.log.debug("=== BITMAP EDITOR SCENE UPDATE CALLED ===")
         [sprite.update() for sprite in self.all_sprites if sprite.dirty]
 
         # Make all of the new scene's sprites dirty to force a redraw
