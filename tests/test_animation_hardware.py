@@ -8,16 +8,16 @@ where rendering problems occur in the pipeline.
 import time
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pygame
-import pytest
-from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
-if TYPE_CHECKING:
-    from glitchygames.sprites.animated import AnimatedSprite
+# Constants for test thresholds
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+MAX_FRAME_COUNT = 3
+MAX_PERFORMANCE_TIME = 2.0
 
 
 class HardwareAnimationTestScene(Scene):
@@ -50,16 +50,11 @@ class HardwareAnimationTestScene(Scene):
 
     def _load_animated_sprite(self) -> None:
         """Load the animated sprite from the specified file."""
-        try:
-            self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
-            if hasattr(self.animated_sprite, "play"):
-                self.animated_sprite.play()
-            # Center on screen
-            self.animated_sprite.rect.center = self.screen.get_rect().center
-            print(f"Loaded: {self.animated_sprite.name}")
-        except Exception as e:
-            print(f"Failed to load animation: {e}")
-            raise
+        self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
+        if hasattr(self.animated_sprite, "play"):
+            self.animated_sprite.play()
+        # Center on screen
+        self.animated_sprite.rect.center = self.screen.get_rect().center
 
     def update(self) -> None:
         """Update the scene and capture frame data."""
@@ -69,7 +64,8 @@ class HardwareAnimationTestScene(Scene):
             # Update with delta time
             self.animated_sprite.update(self.dt)
 
-    def capture_hardware_display_buffer(self) -> list[tuple[int, int, int]]:
+    @staticmethod
+    def capture_hardware_display_buffer() -> list[tuple[int, int, int]]:
         """Capture pixel data directly from the hardware display buffer."""
         # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
@@ -185,10 +181,10 @@ class TestAnimationHardware(unittest.TestCase):
         hardware_pixels = scene.capture_hardware_display_buffer()
 
         # Verify we can access hardware buffer
-        self.assertGreater(len(hardware_pixels), 0, "Should capture hardware buffer data")
-        self.assertEqual(len(hardware_pixels), 800 * 600, "Should capture full screen buffer")
-
-        print(f"Hardware buffer: {len(hardware_pixels)} pixels captured")
+        assert len(hardware_pixels) > 0, "Should capture hardware buffer data"
+        assert len(hardware_pixels) == SCREEN_WIDTH * SCREEN_HEIGHT, (
+            "Should capture full screen buffer"
+        )
 
     def test_sprite_visibility_in_hardware_buffer(self):
         """Test that animated sprite is visible in the hardware display buffer."""
@@ -204,13 +200,8 @@ class TestAnimationHardware(unittest.TestCase):
         background_color = scene.background_color
         non_background_pixels = [pixel for pixel in sprite_area_pixels if pixel != background_color]
 
-        print(f"Sprite area pixels: {len(sprite_area_pixels)}")
-        print(f"Non-background pixels in hardware buffer: {len(non_background_pixels)}")
-
         # Verify sprite is visible in hardware buffer
-        self.assertGreater(
-            len(non_background_pixels), 0, "Sprite should be visible in hardware display buffer"
-        )
+        assert len(non_background_pixels) > 0, "Sprite should be visible in hardware display buffer"
 
     def test_hardware_vs_surface_consistency(self):
         """Test that scene surface matches hardware display buffer."""
@@ -223,12 +214,9 @@ class TestAnimationHardware(unittest.TestCase):
         hardware_pixels = scene.capture_hardware_display_buffer()
         surface_pixels = scene.capture_test_surface_pixels()
 
-        print(f"Hardware buffer: {len(hardware_pixels)} pixels")
-        print(f"Surface buffer: {len(surface_pixels)} pixels")
-
         # Verify both have data
-        self.assertGreater(len(hardware_pixels), 0, "Hardware buffer should have data")
-        self.assertGreater(len(surface_pixels), 0, "Surface buffer should have data")
+        assert len(hardware_pixels) > 0, "Hardware buffer should have data"
+        assert len(surface_pixels) > 0, "Surface buffer should have data"
 
         # For small sprites, check sprite area specifically
         sprite_area_hardware = scene.get_sprite_area_from_hardware_buffer()
@@ -237,19 +225,14 @@ class TestAnimationHardware(unittest.TestCase):
         sprite_rect = scene.animated_sprite.rect
         for y in range(sprite_rect.top, sprite_rect.bottom):
             for x in range(sprite_rect.left, sprite_rect.right):
-                if 0 <= x < 800 and 0 <= y < 600:
-                    pixel_index = y * 800 + x
+                if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
+                    pixel_index = y * SCREEN_WIDTH + x
                     if pixel_index < len(surface_pixels):
                         sprite_area_surface.append(surface_pixels[pixel_index])
 
-        print(f"Sprite area - Hardware: {len(sprite_area_hardware)} pixels")
-        print(f"Sprite area - Surface: {len(sprite_area_surface)} pixels")
-
         # Verify sprite areas have similar content
-        self.assertEqual(
-            len(sprite_area_hardware),
-            len(sprite_area_surface),
-            "Sprite areas should have same pixel count",
+        assert len(sprite_area_hardware) == len(sprite_area_surface), (
+            "Sprite areas should have same pixel count"
         )
 
     def test_animation_frame_transitions_in_hardware(self):
@@ -260,10 +243,10 @@ class TestAnimationHardware(unittest.TestCase):
             self.skipTest("No animations found")
 
         # Get all frames from the animation
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
-        if len(frames) < 3:
+        if len(frames) < MAX_FRAME_COUNT:
             self.skipTest("Need at least 3 frames to test transitions")
 
         # Test frame transitions in hardware buffer
@@ -283,15 +266,9 @@ class TestAnimationHardware(unittest.TestCase):
             sprite_pixels = scene.get_sprite_area_from_hardware_buffer()
             hardware_frame_data.append(sprite_pixels)
 
-            print(f"Frame {i}: {len(sprite_pixels)} pixels in hardware buffer")
-
         # Verify frames have different content in hardware buffer
-        unique_frames = set(tuple(pixels) for pixels in hardware_frame_data)
-        self.assertGreater(
-            len(unique_frames), 1, "Hardware buffer should show different frame content"
-        )
-
-        print(f"Found {len(unique_frames)} unique frame contents in hardware buffer")
+        unique_frames = {tuple(pixels) for pixels in hardware_frame_data}
+        assert len(unique_frames) > 1, "Hardware buffer should show different frame content"
 
     def test_hardware_rendering_performance(self):
         """Test that hardware rendering performs within acceptable limits."""
@@ -309,9 +286,9 @@ class TestAnimationHardware(unittest.TestCase):
         total_time = end_time - start_time
 
         # Verify performance is acceptable
-        self.assertLess(total_time, 2.0, f"Hardware rendering should be fast: {total_time:.3f}s")
-
-        print(f"Hardware rendering performance: {total_time:.3f}s for 5 captures")
+        assert total_time < MAX_PERFORMANCE_TIME, (
+            f"Hardware rendering should be fast: {total_time:.3f}s"
+        )
 
     def test_hardware_buffer_integrity(self):
         """Test that hardware buffer maintains pixel integrity."""
@@ -326,11 +303,10 @@ class TestAnimationHardware(unittest.TestCase):
         buffer2 = scene.capture_hardware_display_buffer()
 
         # Verify buffer consistency
-        self.assertEqual(len(buffer1), len(buffer2), "Hardware buffer size should be consistent")
+        assert len(buffer1) == len(buffer2), "Hardware buffer size should be consistent"
 
         # For static scenes, buffers should be identical
         # For animated scenes, they might differ slightly
-        print(f"Hardware buffer captures: {len(buffer1)} and {len(buffer2)} pixels")
 
     def test_sprite_positioning_in_hardware_buffer(self):
         """Test that sprite positioning is correct in hardware buffer."""
@@ -341,19 +317,16 @@ class TestAnimationHardware(unittest.TestCase):
 
         # Get sprite position and size
         sprite_rect = scene.animated_sprite.rect
-        print(f"Sprite positioned at {sprite_rect.topleft} with size {sprite_rect.size}")
 
         # Verify sprite is within screen bounds
-        self.assertGreaterEqual(sprite_rect.left, 0, "Sprite should be within screen bounds")
-        self.assertGreaterEqual(sprite_rect.top, 0, "Sprite should be within screen bounds")
-        self.assertLess(sprite_rect.right, 800, "Sprite should be within screen bounds")
-        self.assertLess(sprite_rect.bottom, 600, "Sprite should be within screen bounds")
+        assert sprite_rect.left >= 0, "Sprite should be within screen bounds"
+        assert sprite_rect.top >= 0, "Sprite should be within screen bounds"
+        assert sprite_rect.right < SCREEN_WIDTH, "Sprite should be within screen bounds"
+        assert sprite_rect.bottom < SCREEN_HEIGHT, "Sprite should be within screen bounds"
 
         # Check that sprite area has content in hardware buffer
         sprite_area_pixels = scene.get_sprite_area_from_hardware_buffer()
-        self.assertGreater(
-            len(sprite_area_pixels), 0, "Sprite area should have pixels in hardware buffer"
-        )
+        assert len(sprite_area_pixels) > 0, "Sprite area should have pixels in hardware buffer"
 
     def test_hardware_vs_sprite_surface_consistency(self):
         """Test that hardware buffer matches sprite surface data."""
@@ -368,20 +341,12 @@ class TestAnimationHardware(unittest.TestCase):
         # Get sprite area from hardware buffer
         hardware_sprite_pixels = scene.get_sprite_area_from_hardware_buffer()
 
-        print(f"Sprite surface: {len(sprite_pixels)} pixels")
-        print(f"Hardware sprite area: {len(hardware_sprite_pixels)} pixels")
-
         # Verify both have data
-        self.assertGreater(len(sprite_pixels), 0, "Sprite surface should have data")
-        self.assertGreater(len(hardware_sprite_pixels), 0, "Hardware sprite area should have data")
+        assert len(sprite_pixels) > 0, "Sprite surface should have data"
+        assert len(hardware_sprite_pixels) > 0, "Hardware sprite area should have data"
 
         # For small sprites, the pixel counts should match
-        if len(sprite_pixels) == len(hardware_sprite_pixels):
-            print("✅ Sprite surface and hardware buffer pixel counts match")
-        else:
-            print(
-                f"⚠️ Pixel count mismatch: surface={len(sprite_pixels)}, hardware={len(hardware_sprite_pixels)}"
-            )
+        # This is informational only - no assertion needed
 
     def test_animation_timing_affects_hardware_buffer(self):
         """Test that animation timing affects what appears in hardware buffer."""
@@ -390,7 +355,7 @@ class TestAnimationHardware(unittest.TestCase):
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
             self.skipTest("No animations found")
 
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         # Test that different frames show different content in hardware buffer
@@ -410,15 +375,9 @@ class TestAnimationHardware(unittest.TestCase):
             sprite_pixels = scene.get_sprite_area_from_hardware_buffer()
             frame_contents.append(sprite_pixels)
 
-            print(f"Frame {i}: {len(sprite_pixels)} pixels, duration={frames[i].duration}s")
-
         # Verify frames are different in hardware buffer
-        unique_contents = set(tuple(pixels) for pixels in frame_contents)
-        self.assertGreater(
-            len(unique_contents), 1, "Hardware buffer should show different frame content"
-        )
-
-        print(f"Hardware buffer shows {len(unique_contents)} unique frame contents")
+        unique_contents = {tuple(pixels) for pixels in frame_contents}
+        assert len(unique_contents) > 1, "Hardware buffer should show different frame content"
 
 
 if __name__ == "__main__":

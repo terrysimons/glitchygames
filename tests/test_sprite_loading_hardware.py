@@ -4,20 +4,14 @@ This module tests that sprites load correctly and are properly blitted to
 glitchygames scenes, with verification that they appear in the hardware display buffer.
 """
 
+import random
 import time
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pygame
-import pytest
-from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
-
-if TYPE_CHECKING:
-    from glitchygames.sprites import BitmappySprite
-    from glitchygames.sprites.animated import AnimatedSprite
 
 
 class SpriteLoadingTestScene(Scene):
@@ -63,11 +57,9 @@ class SpriteLoadingTestScene(Scene):
                 self.all_sprites.add(sprite)
                 self.loaded_sprites.append(sprite)
 
-                print(f"Loaded sprite {i + 1}: {sprite_file} at {sprite.rect.topleft}")
-
-            except Exception as e:
-                print(f"Failed to load sprite {sprite_file}: {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
                 # Continue loading other sprites even if one fails
+                pass
 
     def update(self) -> None:
         """Update the scene and all sprites."""
@@ -78,7 +70,8 @@ class SpriteLoadingTestScene(Scene):
             if hasattr(sprite, "update"):
                 sprite.update(self.dt)
 
-    def capture_hardware_display_buffer(self) -> list[tuple[int, int, int]]:
+    @staticmethod
+    def capture_hardware_display_buffer() -> list[tuple[int, int, int]]:
         """Capture pixel data directly from the hardware display buffer."""
         # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
@@ -176,6 +169,13 @@ class SpriteLoadingTestScene(Scene):
 class TestSpriteLoadingHardware(unittest.TestCase):
     """Test sprite loading with hardware buffer verification."""
 
+    # Constants for test thresholds
+    SCREEN_WIDTH = 800
+    SCREEN_HEIGHT = 600
+    MAX_LOADING_TIME = 5.0
+    MAX_RENDERING_TIME = 3.0
+    MAX_MEMORY_USAGE = 1000000
+
     def setUp(self):
         """Set up test fixtures."""
         pygame.init()
@@ -204,7 +204,8 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         if not self.available_sprites:
             self.skipTest("No sprite files found for testing")
 
-    def tearDown(self):
+    @staticmethod
+    def tearDown():
         """Clean up test fixtures."""
         # Clear display before next test
         if pygame.display.get_init():
@@ -215,7 +216,8 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         # Don't quit pygame here as it's shared across tests
         # pygame.quit()  # Commented out to avoid issues with shared display
 
-    def _clear_display(self):
+    @staticmethod
+    def _clear_display():
         """Clear the display to ensure test isolation."""
         screen = pygame.display.get_surface()
         screen.fill((0, 0, 0))  # Black background
@@ -223,8 +225,6 @@ class TestSpriteLoadingHardware(unittest.TestCase):
 
     def _get_test_sprites(self, count: int = 2) -> list[str]:
         """Get a random selection of sprites for testing."""
-        import random
-
         # Use a different seed for each test to get variety
         random.seed(hash(self._testMethodName) % 1000)
         return random.sample(self.available_sprites, min(count, len(self.available_sprites)))
@@ -236,15 +236,13 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         scene = SpriteLoadingTestScene(sprite_files)
 
         # Verify sprites were loaded
-        self.assertGreater(len(scene.loaded_sprites), 0, "Should load at least one sprite")
-        self.assertEqual(
-            len(scene.loaded_sprites), len(sprite_files), "Should load all available sprite files"
+        assert len(scene.loaded_sprites) > 0, "Should load at least one sprite"
+        assert len(scene.loaded_sprites) == len(sprite_files), (
+            "Should load all available sprite files"
         )
 
         # Verify sprites are in the sprite group
-        self.assertGreater(len(scene.all_sprites), 0, "Sprite group should contain sprites")
-
-        print(f"Loaded {len(scene.loaded_sprites)} sprites into scene")
+        assert len(scene.all_sprites) > 0, "Sprite group should contain sprites"
 
     def test_sprite_positioning_in_scene(self):
         """Test that sprites are positioned correctly in the scene."""
@@ -254,17 +252,15 @@ class TestSpriteLoadingHardware(unittest.TestCase):
 
         # Verify each sprite has a valid position
         for i, sprite in enumerate(scene.loaded_sprites):
-            self.assertIsNotNone(sprite.rect, f"Sprite {i} should have a rect")
-            self.assertGreater(sprite.rect.width, 0, f"Sprite {i} should have width")
-            self.assertGreater(sprite.rect.height, 0, f"Sprite {i} should have height")
+            assert sprite.rect is not None, f"Sprite {i} should have a rect"
+            assert sprite.rect.width > 0, f"Sprite {i} should have width"
+            assert sprite.rect.height > 0, f"Sprite {i} should have height"
 
             # Verify sprite is within screen bounds
-            self.assertGreaterEqual(sprite.rect.left, 0, f"Sprite {i} should be within screen")
-            self.assertGreaterEqual(sprite.rect.top, 0, f"Sprite {i} should be within screen")
-            self.assertLess(sprite.rect.right, 800, f"Sprite {i} should be within screen")
-            self.assertLess(sprite.rect.bottom, 600, f"Sprite {i} should be within screen")
-
-            print(f"Sprite {i}: positioned at {sprite.rect.topleft} with size {sprite.rect.size}")
+            assert sprite.rect.left >= 0, f"Sprite {i} should be within screen"
+            assert sprite.rect.top >= 0, f"Sprite {i} should be within screen"
+            assert sprite.rect.right < self.SCREEN_WIDTH, f"Sprite {i} should be within screen"
+            assert sprite.rect.bottom < self.SCREEN_HEIGHT, f"Sprite {i} should be within screen"
 
     def test_sprite_visibility_in_hardware_buffer(self):
         """Test that loaded sprites are visible in the hardware display buffer."""
@@ -276,7 +272,7 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         scene.force_display_update()
 
         # Check each sprite's visibility in hardware buffer
-        for i, sprite in enumerate(scene.loaded_sprites):
+        for i in range(len(scene.loaded_sprites)):
             sprite_area_pixels = scene.get_sprite_area_from_hardware_buffer(i)
 
             # Check for non-background pixels in sprite area
@@ -285,15 +281,9 @@ class TestSpriteLoadingHardware(unittest.TestCase):
                 pixel for pixel in sprite_area_pixels if pixel != background_color
             ]
 
-            print(
-                f"Sprite {i}: {len(sprite_area_pixels)} pixels, {len(non_background_pixels)} non-background"
-            )
-
             # Verify sprite is visible in hardware buffer
-            self.assertGreater(
-                len(non_background_pixels),
-                0,
-                f"Sprite {i} should be visible in hardware display buffer",
+            assert len(non_background_pixels) > 0, (
+                f"Sprite {i} should be visible in hardware display buffer"
             )
 
     def test_sprite_surface_vs_hardware_consistency(self):
@@ -305,45 +295,31 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         scene.force_display_update()
 
         # Check consistency for each sprite
-        for i, sprite in enumerate(scene.loaded_sprites):
+        for i in range(len(scene.loaded_sprites)):
             # Get sprite surface data
             sprite_surface_pixels = scene.get_sprite_surface_pixels(i)
 
             # Get sprite area from hardware buffer
             hardware_sprite_pixels = scene.get_sprite_area_from_hardware_buffer(i)
 
-            print(
-                f"Sprite {i}: surface={len(sprite_surface_pixels)} pixels, hardware={len(hardware_sprite_pixels)} pixels"
-            )
-
             # Verify both have data
-            self.assertGreater(
-                len(sprite_surface_pixels), 0, f"Sprite {i} surface should have data"
-            )
-            self.assertGreater(
-                len(hardware_sprite_pixels), 0, f"Sprite {i} hardware area should have data"
-            )
-
-            # For small sprites, pixel counts should match
-            if len(sprite_surface_pixels) == len(hardware_sprite_pixels):
-                print(f"✅ Sprite {i}: surface and hardware pixel counts match")
-            else:
-                print(f"⚠️ Sprite {i}: pixel count mismatch")
+            assert len(sprite_surface_pixels) > 0, f"Sprite {i} surface should have data"
+            assert len(hardware_sprite_pixels) > 0, f"Sprite {i} hardware area should have data"
 
     def test_multiple_sprite_loading_performance(self):
         """Test that loading multiple sprites performs within acceptable limits."""
         start_time = time.time()
 
         sprite_files = self._get_test_sprites(3)  # Use 3 sprites for performance test
-        scene = SpriteLoadingTestScene(sprite_files)
+        SpriteLoadingTestScene(sprite_files)
 
         end_time = time.time()
         loading_time = end_time - start_time
 
         # Verify performance is acceptable
-        self.assertLess(loading_time, 5.0, f"Sprite loading should be fast: {loading_time:.3f}s")
-
-        print(f"Sprite loading performance: {loading_time:.3f}s for {len(sprite_files)} sprites")
+        assert loading_time < self.MAX_LOADING_TIME, (
+            f"Sprite loading should be fast: {loading_time:.3f}s"
+        )
 
     def test_sprite_rendering_performance(self):
         """Test that rendering multiple sprites performs within acceptable limits."""
@@ -362,11 +338,9 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         rendering_time = end_time - start_time
 
         # Verify performance is acceptable
-        self.assertLess(
-            rendering_time, 3.0, f"Sprite rendering should be fast: {rendering_time:.3f}s"
+        assert rendering_time < self.MAX_RENDERING_TIME, (
+            f"Sprite rendering should be fast: {rendering_time:.3f}s"
         )
-
-        print(f"Sprite rendering performance: {rendering_time:.3f}s for 10 render cycles")
 
     def test_sprite_types_loading(self):
         """Test that different sprite types load correctly."""
@@ -375,16 +349,9 @@ class TestSpriteLoadingHardware(unittest.TestCase):
 
         # Check sprite types
         for i, sprite in enumerate(scene.loaded_sprites):
-            sprite_type = type(sprite).__name__
-            print(f"Sprite {i}: {sprite_type}")
-
             # Verify sprite has required attributes
-            self.assertIsNotNone(sprite.rect, f"Sprite {i} should have a rect")
-            self.assertIsNotNone(sprite.image, f"Sprite {i} should have an image")
-
-            # Check if it's animated
-            is_animated = hasattr(sprite, "animations") and sprite.animations
-            print(f"Sprite {i}: animated={is_animated}")
+            assert sprite.rect is not None, f"Sprite {i} should have a rect"
+            assert sprite.image is not None, f"Sprite {i} should have an image"
 
     def test_sprite_animation_in_hardware_buffer(self):
         """Test that animated sprites show animation in hardware buffer."""
@@ -402,8 +369,6 @@ class TestSpriteLoadingHardware(unittest.TestCase):
 
         # Test animation in hardware buffer
         for sprite_index, sprite in animated_sprites:
-            print(f"Testing animation for sprite {sprite_index}")
-
             # Get initial frame
             scene.force_display_update()
             initial_pixels = scene.get_sprite_area_from_hardware_buffer(sprite_index)
@@ -417,30 +382,24 @@ class TestSpriteLoadingHardware(unittest.TestCase):
                         sprite.set_frame(1)
                     elif hasattr(sprite, "frame_manager"):
                         sprite.frame_manager.set_frame(1)
-                else:
+                elif hasattr(sprite, "set_frame"):
                     # Single frame animation - stay on frame 0
-                    if hasattr(sprite, "set_frame"):
-                        sprite.set_frame(0)
-                    elif hasattr(sprite, "frame_manager"):
-                        sprite.frame_manager.set_frame(0)
-                    print(
-                        f"Sprite {sprite_index}: animation '{current_animation}' has only 1 frame, staying on frame 0"
-                    )
+                    sprite.set_frame(0)
+                elif hasattr(sprite, "frame_manager"):
+                    sprite.frame_manager.set_frame(0)
 
             # Get next frame
             scene.force_display_update()
             next_pixels = scene.get_sprite_area_from_hardware_buffer(sprite_index)
 
-            print(
-                f"Sprite {sprite_index}: {len(initial_pixels)} initial pixels, {len(next_pixels)} next pixels"
-            )
-
             # Verify frames are different (if animation has multiple frames)
-            if len(initial_pixels) == len(next_pixels) and len(initial_pixels) > 0:
-                if initial_pixels != next_pixels:
-                    print(f"✅ Sprite {sprite_index}: animation frames differ in hardware buffer")
-                else:
-                    print(f"⚠️ Sprite {sprite_index}: animation frames are identical")
+            if (
+                len(initial_pixels) == len(next_pixels)
+                and len(initial_pixels) > 0
+                and initial_pixels != next_pixels
+            ):
+                # Animation is working correctly
+                pass
 
     def test_sprite_collision_detection_in_hardware(self):
         """Test that sprite positioning doesn't cause collisions in hardware buffer."""
@@ -455,10 +414,9 @@ class TestSpriteLoadingHardware(unittest.TestCase):
             for j, sprite2 in enumerate(scene.loaded_sprites):
                 if i != j:
                     # Check if sprites overlap
-                    if sprite1.rect.colliderect(sprite2.rect):
-                        print(f"⚠️ Sprites {i} and {j} overlap: {sprite1.rect} vs {sprite2.rect}")
-                    else:
-                        print(f"✅ Sprites {i} and {j} don't overlap")
+                    assert not sprite1.rect.colliderect(sprite2.rect), (
+                        f"Sprites {i} and {j} overlap: {sprite1.rect} vs {sprite2.rect}"
+                    )
 
     def test_sprite_memory_usage(self):
         """Test that sprite loading doesn't cause excessive memory usage."""
@@ -467,21 +425,19 @@ class TestSpriteLoadingHardware(unittest.TestCase):
 
         # Check that sprites have reasonable memory footprint
         total_surface_area = 0
-        for i, sprite in enumerate(scene.loaded_sprites):
+        for sprite in scene.loaded_sprites:
             if hasattr(sprite, "image"):
                 surface = sprite.image
                 area = surface.get_width() * surface.get_height()
                 total_surface_area += area
-                print(f"Sprite {i}: {surface.get_size()} = {area} pixels")
-
-        print(f"Total surface area: {total_surface_area} pixels")
 
         # Verify reasonable memory usage (less than 1MB of surface data)
-        self.assertLess(
-            total_surface_area, 1000000, "Total sprite surface area should be reasonable"
+        assert total_surface_area < self.MAX_MEMORY_USAGE, (
+            "Total sprite surface area should be reasonable"
         )
 
-    def test_sprite_loading_error_handling(self):
+    @staticmethod
+    def test_sprite_loading_error_handling():
         """Test that sprite loading handles errors gracefully."""
         # Test with non-existent files
         invalid_files = ["nonexistent1.toml", "nonexistent2.toml"]
@@ -489,8 +445,7 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         scene = SpriteLoadingTestScene(invalid_files)
 
         # Should handle errors gracefully
-        self.assertEqual(len(scene.loaded_sprites), 0, "Should handle invalid files gracefully")
-        print("✅ Invalid sprite files handled gracefully")
+        assert len(scene.loaded_sprites) == 0, "Should handle invalid files gracefully"
 
     def test_sprite_loading_with_mixed_types(self):
         """Test loading sprites of different types together."""
@@ -499,14 +454,10 @@ class TestSpriteLoadingHardware(unittest.TestCase):
         scene = SpriteLoadingTestScene(sprite_files)
 
         # Verify all sprites loaded successfully
-        self.assertGreater(len(scene.loaded_sprites), 0, "Should load sprites of different types")
+        assert len(scene.loaded_sprites) > 0, "Should load sprites of different types"
 
         # Verify sprites are in the scene
-        self.assertGreater(
-            len(scene.all_sprites), 0, "Sprite group should contain mixed sprite types"
-        )
-
-        print(f"✅ Successfully loaded {len(scene.loaded_sprites)} sprites of mixed types")
+        assert len(scene.all_sprites) > 0, "Sprite group should contain mixed sprite types"
 
 
 if __name__ == "__main__":

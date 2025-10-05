@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test-driven development tests for animation system audit issues.
 
 These tests are designed to expose bugs and missing functionality
@@ -11,16 +10,22 @@ import pygame
 from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
+# Constants for test thresholds
+DEFAULT_FRAME_INTERVAL = 0.5
+EXPECTED_FRAME_COUNT = 2
+
 
 class TestAnimationSystemAudit(unittest.TestCase):
     """Test cases that expose animation system issues."""
 
-    def setUp(self):
+    @staticmethod
+    def setUp():
         """Set up test fixtures."""
         pygame.init()
         pygame.display.set_mode((800, 600))
 
-    def tearDown(self):
+    @staticmethod
+    def tearDown():
         """Clean up test fixtures."""
         pygame.quit()
 
@@ -41,13 +46,13 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # This should work but will fail due to the bug
         try:
             interval = sprite.frame_interval
-            self.assertIsInstance(interval, float)
-            self.assertGreater(interval, 0)
-            print(f"✅ Frame interval retrieved: {interval}")
+            assert isinstance(interval, float)
+            assert interval > 0
         except (AttributeError, KeyError, IndexError) as e:
             self.fail(f"frame_interval property failed: {e}")
 
-    def test_animations_property_interface_mismatch(self):
+    @staticmethod
+    def test_animations_property_interface_mismatch():
         """Test that exposes the animations property interface mismatch.
 
         BUG: animations property returns dict[str, list] but interface
@@ -55,32 +60,25 @@ class TestAnimationSystemAudit(unittest.TestCase):
         """
         sprite = SpriteFactory.load_sprite(filename="colors.toml")
 
-        # Get animations property
-        animations = sprite.animations
-
         # Test discrete property accessors for metadata
-        self.assertIsInstance(sprite.animation_count, int)
-        self.assertGreater(sprite.animation_count, 0)
+        assert isinstance(sprite.animation_count, int)
+        assert sprite.animation_count > 0
 
-        self.assertIsInstance(sprite.current_animation_frame_count, int)
-        self.assertGreater(sprite.current_animation_frame_count, 0)
+        assert isinstance(sprite.current_animation_frame_count, int)
+        assert sprite.current_animation_frame_count > 0
 
-        self.assertIsInstance(sprite.current_animation_total_duration, float)
-        self.assertGreater(sprite.current_animation_total_duration, 0)
+        assert isinstance(sprite.current_animation_total_duration, float)
+        assert sprite.current_animation_total_duration > 0
 
-        self.assertIsInstance(sprite.animation_names, list)
-        self.assertGreater(len(sprite.animation_names), 0)
+        assert isinstance(sprite.animation_names, list)
+        assert len(sprite.animation_names) > 0
 
         # Test read/write properties
         original_looping = sprite.is_looping
         sprite.is_looping = not original_looping
-        self.assertEqual(sprite.is_looping, not original_looping)
+        expected_looping = not original_looping
+        assert sprite.is_looping == expected_looping
         sprite.is_looping = original_looping  # Restore
-
-        print(f"✅ Animation count: {sprite.animation_count}")
-        print(f"✅ Current animation frames: {sprite.current_animation_frame_count}")
-        print(f"✅ Current animation duration: {sprite.current_animation_total_duration}")
-        print(f"✅ Animation names: {sprite.animation_names}")
 
     def test_missing_add_frame_method(self):
         """Test that exposes missing add_frame method.
@@ -96,11 +94,10 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # This should work but will fail due to missing method
         try:
             sprite.add_frame("test_anim", frame, index=0)
-            print("✅ add_frame method exists")
 
             # Verify frame was added
-            self.assertIn("test_anim", sprite._animations)
-            self.assertEqual(len(sprite._animations["test_anim"]), 1)
+            assert "test_anim" in sprite._animations
+            assert len(sprite._animations["test_anim"]) == 1
 
         except AttributeError as e:
             self.fail(f"add_frame method missing: {e}")
@@ -121,10 +118,9 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # This should work but will fail due to missing method
         try:
             sprite.remove_frame("test_anim", 1)
-            print("✅ remove_frame method exists")
 
             # Verify frame was removed
-            self.assertEqual(len(sprite._animations["test_anim"]), 2)
+            assert len(sprite._animations["test_anim"]) == EXPECTED_FRAME_COUNT
 
         except AttributeError as e:
             self.fail(f"remove_frame method missing: {e}")
@@ -137,20 +133,30 @@ class TestAnimationSystemAudit(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename="colors.toml")
 
         # Test invalid animation name
-        with self.assertRaises(ValueError):
+        try:
             sprite.get_frame("nonexistent_animation", 0)
+            self.fail("Expected ValueError for invalid animation name")
+        except ValueError:
+            pass
 
         # Test invalid frame index
-        with self.assertRaises(IndexError):
+        try:
             sprite.get_frame("timing_demo", 999)
+            self.fail("Expected IndexError for invalid frame index")
+        except IndexError:
+            pass
 
         # Test negative frame index
-        with self.assertRaises(IndexError):
+        try:
             sprite.get_frame("timing_demo", -1)
+            self.fail("Expected IndexError for negative frame index")
+        except IndexError:
+            pass
 
-        print("✅ get_frame error handling works correctly")
+        # Print statement removed for linting compliance
 
-    def test_frame_interval_bounds_checking(self):
+    @staticmethod
+    def test_frame_interval_bounds_checking():
         """Test that exposes missing bounds checking in frame_interval.
 
         MISSING: Bounds checking for frame_interval property.
@@ -159,23 +165,22 @@ class TestAnimationSystemAudit(unittest.TestCase):
 
         # Test with no animations
         interval = sprite.frame_interval
-        self.assertEqual(interval, 0.5)  # Should return default
+        assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
 
         # Test with invalid current animation
         sprite.frame_manager.current_animation = "nonexistent"
         interval = sprite.frame_interval
-        self.assertEqual(interval, 0.5)  # Should return default
+        assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
 
         # Test with invalid frame index
         sprite.add_animation("test", [SpriteFrame(pygame.Surface((16, 16)))])
         sprite.frame_manager.current_animation = "test"
         sprite.frame_manager.current_frame = 999
         interval = sprite.frame_interval
-        self.assertEqual(interval, 0.5)  # Should return default
+        assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
 
-        print("✅ frame_interval bounds checking works correctly")
-
-    def test_animation_state_consistency(self):
+    @staticmethod
+    def test_animation_state_consistency():
         """Test that exposes potential state inconsistency issues.
 
         ISSUE: AnimatedSprite maintains _is_playing/_is_looping while
@@ -189,15 +194,13 @@ class TestAnimationSystemAudit(unittest.TestCase):
         sprite.frame_manager.current_animation = "test"
 
         # State should be consistent
-        self.assertTrue(sprite.is_playing)
-        self.assertTrue(sprite.is_looping)
-        self.assertEqual(sprite.current_animation, "test")
+        assert sprite.is_playing
+        assert sprite.is_looping
+        assert sprite.current_animation == "test"
 
         # Test state changes through frame_manager
         sprite.frame_manager.current_animation = "new_anim"
-        self.assertEqual(sprite.current_animation, "new_anim")
-
-        print("✅ Animation state consistency maintained")
+        assert sprite.current_animation == "new_anim"
 
     def test_animation_metadata_access(self):
         """Test that exposes missing animation metadata access methods.
@@ -209,17 +212,15 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # Test getting animation metadata
         try:
             metadata = sprite.get_animation_metadata("timing_demo")
-            self.assertIsInstance(metadata, dict)
-            self.assertIn("frame_count", metadata)
-            self.assertIn("total_duration", metadata)
-            print("✅ get_animation_metadata method exists")
+            assert isinstance(metadata, dict)
+            assert "frame_count" in metadata
+            assert "total_duration" in metadata
         except AttributeError:
             self.fail("get_animation_metadata method missing")
 
         # Test setting animation metadata
         try:
             sprite.set_animation_metadata("timing_demo", {"is_looping": True})
-            print("✅ set_animation_metadata method exists")
         except AttributeError:
             self.fail("set_animation_metadata method missing")
 
@@ -231,19 +232,24 @@ class TestAnimationSystemAudit(unittest.TestCase):
         sprite = AnimatedSprite()
 
         # Test invalid animation name in set_animation
-        with self.assertRaises(ValueError):
+        try:
             sprite.set_animation("nonexistent_animation")
+            self.fail("Expected ValueError for invalid animation name")
+        except ValueError:
+            pass
 
         # Test invalid frame index in set_frame
         sprite.add_animation("test", [SpriteFrame(pygame.Surface((16, 16)))])
         sprite.set_animation("test")
 
-        with self.assertRaises(IndexError):
+        try:
             sprite.set_frame(999)
+            self.fail("Expected IndexError for invalid frame index")
+        except IndexError:
+            pass
 
-        print("✅ Animation validation works correctly")
-
-    def test_animation_edge_cases(self):
+    @staticmethod
+    def test_animation_edge_cases():
         """Test that exposes missing edge case handling.
 
         MISSING: Proper handling of edge cases like empty animations,
@@ -256,8 +262,8 @@ class TestAnimationSystemAudit(unittest.TestCase):
         sprite.set_animation("empty")
 
         # Should handle gracefully
-        self.assertEqual(sprite.frame_count, 0)
-        self.assertIsNone(sprite.get_current_frame())
+        assert sprite.frame_count == 0
+        assert sprite.get_current_frame() is None
 
         # Test single-frame animation
         frame = SpriteFrame(pygame.Surface((16, 16)))
@@ -265,10 +271,8 @@ class TestAnimationSystemAudit(unittest.TestCase):
         sprite.add_animation("single", [frame])
         sprite.set_animation("single")
 
-        self.assertEqual(sprite.frame_count, 1)
-        self.assertIsNotNone(sprite.get_current_frame())
-
-        print("✅ Animation edge cases handled correctly")
+        assert sprite.frame_count == 1
+        assert sprite.get_current_frame() is not None
 
 
 if __name__ == "__main__":

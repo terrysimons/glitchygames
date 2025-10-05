@@ -172,8 +172,7 @@ class BitmappyLegacySprite(Sprite):
         universal_chars = SPRITE_GLYPHS.strip()
 
         # Assign characters sequentially from SPRITE_GLYPHS
-        char_index = 0
-        for color in colors:
+        for char_index, color in enumerate(colors):
             if char_index >= len(universal_chars):
                 raise ValueError(f"Too many colors (max {len(universal_chars)})")
 
@@ -191,8 +190,6 @@ class BitmappyLegacySprite(Sprite):
 
             blue = color[2]
             config.set(color_key, "blue", str(blue))
-
-            char_index += 1
 
         # Process pixels only if we have any
         if raw_pixels:

@@ -310,9 +310,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors.append((r, g, b))
 
         # Set up pixel data to use all 65 colors
-        pixels = []
-        for i in range(65):  # 65x1 = 65 pixels
-            pixels.append(colors[i])
+        pixels = [colors[i] for i in range(65)]  # 65x1 = 65 pixels
 
         sprite.pixels = pixels
         sprite.pixels_across = 65

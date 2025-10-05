@@ -29,7 +29,8 @@ class TestTOMLOnlySupport(unittest.TestCase):
         """Clean up test fixtures."""
         pygame.quit()
 
-    def test_file_format_detection_toml_only(self):
+    @staticmethod
+    def test_file_format_detection_toml_only():
         """Test that file format detection only supports TOML."""
         # Test TOML detection
         toml_format = SpriteFactory._detect_file_format("test.toml")
@@ -175,7 +176,8 @@ class TestTOMLOnlySupport(unittest.TestCase):
         sprite.save(str(toml_file))
         assert toml_file.exists()
 
-    def test_unsupported_format_error_message(self):
+    @staticmethod
+    def test_unsupported_format_error_message():
         """Test that unsupported format error messages are clear."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="test")
         sprite.pixels = [(255, 0, 0)] * 4
@@ -183,10 +185,8 @@ class TestTOMLOnlySupport(unittest.TestCase):
         sprite.pixels_tall = 2
 
         # Test error message for unsupported format
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Unsupported format"):
             sprite.save("test.json", "json")
-
-        assert "Unsupported format" in str(exc_info.value)
 
 
 if __name__ == "__main__":

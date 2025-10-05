@@ -1,6 +1,5 @@
 """Test suite for sprite stack functionality."""
 
-import configparser
 import shutil
 import tempfile
 import unittest

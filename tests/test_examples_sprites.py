@@ -4,14 +4,21 @@ This module tests loading all the TOML sprite files from the examples directory
 and verifies they work correctly with the TOML-only implementation.
 """
 
-import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 import pygame
-import pytest
 from glitchygames.sprites import SpriteFactory
+
+# Constants for test thresholds
+PIXEL_INTEGRITY_THRESHOLD = 95.0
+MAX_REASONABLE_DIMENSION = 1000
+MAX_ASPECT_RATIO = 10.0
+MIN_ASPECT_RATIO = 0.1
+MAX_LOAD_TIME = 1.0
+MAX_RENDER_TIME = 0.1
 
 
 class TestExamplesSprites(unittest.TestCase):
@@ -47,51 +54,32 @@ class TestExamplesSprites(unittest.TestCase):
         failed_count = 0
         results = []
 
-        print(f"🔍 Testing {len(self.toml_files)} TOML sprite files...")
-
         for sprite_file in self.toml_files:
             try:
                 # Load the sprite
                 sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
-                self.assertIsNotNone(sprite, f"Failed to load {sprite_file.name}")
+                assert sprite is not None, f"Failed to load {sprite_file.name}"
 
                 # Verify basic properties
-                self.assertIsNotNone(
-                    sprite.image, f"Sprite {sprite_file.name} should have an image"
-                )
-                self.assertIsInstance(
-                    sprite.image,
-                    pygame.Surface,
-                    f"Sprite {sprite_file.name} image should be a Surface",
+                assert sprite.image is not None, f"Sprite {sprite_file.name} should have an image"
+                assert isinstance(sprite.image, pygame.Surface), (
+                    f"Sprite {sprite_file.name} image should be a Surface"
                 )
 
                 # Check dimensions
                 width, height = sprite.image.get_size()
-                self.assertGreater(width, 0, f"Sprite {sprite_file.name} width should be positive")
-                self.assertGreater(
-                    height, 0, f"Sprite {sprite_file.name} height should be positive"
-                )
+                assert width > 0, f"Sprite {sprite_file.name} width should be positive"
+                assert height > 0, f"Sprite {sprite_file.name} height should be positive"
 
                 loaded_count += 1
                 results.append((sprite_file.name, "SUCCESS", f"{width}x{height}"))
-                print(f"✅ {sprite_file.name}: {width}x{height}")
 
-            except Exception as e:
+            except (ValueError, FileNotFoundError, AttributeError) as e:
                 failed_count += 1
                 results.append((sprite_file.name, "FAILED", str(e)))
-                print(f"❌ {sprite_file.name}: {e}")
-
-        # Print summary
-        print(f"\n📊 Results: {loaded_count} loaded, {failed_count} failed")
 
         # Verify we loaded at least some sprites
-        self.assertGreater(loaded_count, 0, "Should load at least one example sprite")
-
-        # Print detailed results
-        print("\n📋 Detailed Results:")
-        for filename, status, details in results:
-            status_icon = "✅" if status == "SUCCESS" else "❌"
-            print(f"  {status_icon} {filename}: {details}")
+        assert loaded_count > 0, "Should load at least one example sprite"
 
     def test_sprite_pixel_integrity(self):
         """Test pixel data integrity for a sample of sprites."""
@@ -128,20 +116,19 @@ class TestExamplesSprites(unittest.TestCase):
 
                 # Calculate match percentage
                 matches = sum(
-                    1 for orig, drawn in zip(original_pixels, drawn_pixels) if orig == drawn
+                    1
+                    for orig, drawn in zip(original_pixels, drawn_pixels, strict=True)
+                    if orig == drawn
                 )
                 match_percentage = matches / len(original_pixels) * 100
 
-                self.assertGreater(
-                    match_percentage,
-                    95.0,
-                    f"Pixel integrity too low for {sprite_name}: {match_percentage:.1f}%",
+                assert match_percentage > PIXEL_INTEGRITY_THRESHOLD, (
+                    f"Pixel integrity too low for {sprite_name}: {match_percentage:.1f}%"
                 )
 
-                print(f"✅ {sprite_name}: {match_percentage:.1f}% pixel integrity")
-
-            except Exception as e:
-                print(f"❌ Error testing pixel integrity for {sprite_name}: {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
+                # Skip sprites that can't be loaded
+                pass
 
     def test_sprite_dimensions_consistency(self):
         """Test that sprite dimensions are consistent and reasonable."""
@@ -171,20 +158,21 @@ class TestExamplesSprites(unittest.TestCase):
                 width, height = sprite.image.get_size()
 
                 # Check dimensions are reasonable
-                self.assertGreater(width, 0, f"{sprite_name} width should be positive")
-                self.assertGreater(height, 0, f"{sprite_name} height should be positive")
-                self.assertLess(width, 1000, f"{sprite_name} width should be reasonable")
-                self.assertLess(height, 1000, f"{sprite_name} height should be reasonable")
+                assert width > 0, f"{sprite_name} width should be positive"
+                assert height > 0, f"{sprite_name} height should be positive"
+                assert width < MAX_REASONABLE_DIMENSION, f"{sprite_name} width should be reasonable"
+                assert height < MAX_REASONABLE_DIMENSION, (
+                    f"{sprite_name} height should be reasonable"
+                )
 
                 # Check aspect ratio is reasonable
                 aspect_ratio = width / height if height > 0 else 1
-                self.assertLess(aspect_ratio, 10, f"{sprite_name} aspect ratio too wide")
-                self.assertGreater(aspect_ratio, 0.1, f"{sprite_name} aspect ratio too tall")
+                assert aspect_ratio < MAX_ASPECT_RATIO, f"{sprite_name} aspect ratio too wide"
+                assert aspect_ratio > MIN_ASPECT_RATIO, f"{sprite_name} aspect ratio too tall"
 
-                print(f"✅ {sprite_name}: {width}x{height} (ratio: {aspect_ratio:.2f})")
-
-            except Exception as e:
-                print(f"❌ Error checking dimensions for {sprite_name}: {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
+                # Skip sprites that can't be loaded
+                pass
 
     def test_animated_sprites(self):
         """Test animated sprites in the examples directory."""
@@ -204,44 +192,37 @@ class TestExamplesSprites(unittest.TestCase):
 
                 # Check if it's an animated sprite
                 if hasattr(sprite, "animations"):
-                    self.assertIsNotNone(
-                        sprite.animations, f"Animated sprite {sprite_name} should have animations"
+                    assert sprite.animations is not None, (
+                        f"Animated sprite {sprite_name} should have animations"
                     )
-                    self.assertGreater(
-                        len(sprite.animations),
-                        0,
-                        f"Animated sprite {sprite_name} should have at least one animation",
+                    assert len(sprite.animations) > 0, (
+                        f"Animated sprite {sprite_name} should have at least one animation"
                     )
 
                     # Check each animation
                     for anim_name, frames in sprite.animations.items():
-                        self.assertIsNotNone(frames, f"Animation {anim_name} should have frames")
-                        self.assertGreater(
-                            len(frames), 0, f"Animation {anim_name} should have at least one frame"
+                        assert frames is not None, f"Animation {anim_name} should have frames"
+                        assert len(frames) > 0, (
+                            f"Animation {anim_name} should have at least one frame"
                         )
 
                         # Check each frame
                         for i, frame in enumerate(frames):
-                            self.assertIsNotNone(
-                                frame.image, f"Frame {i} in {anim_name} should have an image"
+                            assert frame.image is not None, (
+                                f"Frame {i} in {anim_name} should have an image"
                             )
-                            self.assertIsInstance(
-                                frame.image,
-                                pygame.Surface,
-                                f"Frame {i} in {anim_name} should be a Surface",
+                            assert isinstance(frame.image, pygame.Surface), (
+                                f"Frame {i} in {anim_name} should be a Surface"
                             )
 
-                    print(f"✅ Animated sprite {sprite_name}: {len(sprite.animations)} animations")
-
-            except Exception as e:
-                print(f"❌ Error testing animated sprite {sprite_name}: {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
+                # Skip sprites that can't be loaded
+                pass
 
     def test_sprite_performance(self):
         """Test sprite loading and rendering performance."""
         if not self.sprites_dir.exists():
             self.skipTest(f"Sprites directory {self.sprites_dir} not found")
-
-        import time
 
         # Test a sample of sprites for performance
         test_sprites = [
@@ -270,15 +251,16 @@ class TestExamplesSprites(unittest.TestCase):
                 render_time = time.time() - start_time
 
                 # Verify performance is reasonable
-                self.assertLess(load_time, 1.0, f"{sprite_name} loading too slow: {load_time:.3f}s")
-                self.assertLess(
-                    render_time, 0.1, f"{sprite_name} rendering too slow: {render_time:.3f}s"
+                assert load_time < MAX_LOAD_TIME, (
+                    f"{sprite_name} loading too slow: {load_time:.3f}s"
+                )
+                assert render_time < MAX_RENDER_TIME, (
+                    f"{sprite_name} rendering too slow: {render_time:.3f}s"
                 )
 
-                print(f"✅ {sprite_name}: load {load_time:.3f}s, render {render_time:.3f}s")
-
-            except Exception as e:
-                print(f"❌ Error testing performance for {sprite_name}: {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
+                # Skip sprites that can't be loaded
+                pass
 
     @staticmethod
     def _extract_pixel_data(surface):

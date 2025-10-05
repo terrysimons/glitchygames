@@ -8,16 +8,16 @@ the complete animation pipeline.
 import time
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pygame
-import pytest
-from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
-if TYPE_CHECKING:
-    from glitchygames.sprites.animated import AnimatedSprite
+# Constants for test thresholds
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+MIN_FRAME_COUNT = 2
+MAX_FRAME_DURATION = 10
 
 
 class AnimationTestScene(Scene):
@@ -51,16 +51,11 @@ class AnimationTestScene(Scene):
 
     def _load_animated_sprite(self) -> None:
         """Load the animated sprite from the specified file."""
-        try:
-            self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
-            if hasattr(self.animated_sprite, "play"):
-                self.animated_sprite.play()
-            # Center on screen
-            self.animated_sprite.rect.center = self.screen.get_rect().center
-            print(f"Loaded: {self.animated_sprite.name}")
-        except Exception as e:
-            print(f"Failed to load animation: {e}")
-            raise
+        self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
+        if hasattr(self.animated_sprite, "play"):
+            self.animated_sprite.play()
+        # Center on screen
+        self.animated_sprite.rect.center = self.screen.get_rect().center
 
     def update(self) -> None:
         """Update the scene and capture frame data."""
@@ -136,16 +131,16 @@ class TestAnimationVisual(unittest.TestCase):
         scene = AnimationTestScene(self.animation_file)
 
         # Verify scene setup
-        self.assertIsNotNone(scene.animated_sprite, "Animated sprite should be loaded")
-        self.assertIsNotNone(scene.test_surface, "Test surface should be created")
-        self.assertEqual(
-            scene.test_surface.get_size(), (800, 600), "Test surface should be 800x600"
+        assert scene.animated_sprite is not None, "Animated sprite should be loaded"
+        assert scene.test_surface is not None, "Test surface should be created"
+        assert scene.test_surface.get_size() == (SCREEN_WIDTH, SCREEN_HEIGHT), (
+            "Test surface should be 800x600"
         )
 
         # Verify sprite is positioned
-        self.assertIsNotNone(scene.animated_sprite.rect, "Sprite should have a rect")
-        self.assertGreater(scene.animated_sprite.rect.width, 0, "Sprite should have width")
-        self.assertGreater(scene.animated_sprite.rect.height, 0, "Sprite should have height")
+        assert scene.animated_sprite.rect is not None, "Sprite should have a rect"
+        assert scene.animated_sprite.rect.width > 0, "Sprite should have width"
+        assert scene.animated_sprite.rect.height > 0, "Sprite should have height"
 
     def test_animation_frame_rendering(self):
         """Test that animation frames render correctly to the screen."""
@@ -153,38 +148,25 @@ class TestAnimationVisual(unittest.TestCase):
 
         # Capture initial frame
         initial_pixels = scene.capture_frame_pixels()
-        self.assertGreater(len(initial_pixels), 0, "Should capture pixel data")
-
-        # Debug: Check sprite properties
-        print(f"Sprite rect: {scene.animated_sprite.rect}")
-        print(f"Sprite image size: {scene.animated_sprite.image.get_size()}")
-        print(f"Background color: {scene.background_color}")
-        print(f"Total pixels captured: {len(initial_pixels)}")
+        assert len(initial_pixels) > 0, "Should capture pixel data"
 
         # Check for any non-background pixels
         background_color = scene.background_color
-        non_background_pixels = [pixel for pixel in initial_pixels if pixel != background_color]
-        print(f"Non-background pixels: {len(non_background_pixels)}")
 
         # For very small sprites, we might need to check the sprite area specifically
         sprite_rect = scene.animated_sprite.rect
         sprite_pixels = []
         for y in range(sprite_rect.top, sprite_rect.bottom):
             for x in range(sprite_rect.left, sprite_rect.right):
-                if 0 <= x < 800 and 0 <= y < 600:
-                    pixel_index = y * 800 + x
+                if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
+                    pixel_index = y * SCREEN_WIDTH + x
                     if pixel_index < len(initial_pixels):
                         sprite_pixels.append(initial_pixels[pixel_index])
 
-        print(f"Sprite area pixels: {len(sprite_pixels)}")
         sprite_non_bg = [p for p in sprite_pixels if p != background_color]
-        print(f"Sprite non-background pixels: {len(sprite_non_bg)}")
 
         # Check if sprite has any visible content
-        if len(sprite_non_bg) > 0:
-            print("✅ Sprite is visible in its area")
-        else:
-            print("❌ Sprite area shows only background")
+        if len(sprite_non_bg) == 0:
             # Check if sprite image has any non-transparent pixels
             sprite_image = scene.animated_sprite.image
             sprite_surface_pixels = []
@@ -193,11 +175,11 @@ class TestAnimationVisual(unittest.TestCase):
                     color = sprite_image.get_at((x, y))
                     sprite_surface_pixels.append((color.r, color.g, color.b))
 
-            sprite_surface_non_bg = [p for p in sprite_surface_pixels if p != (0, 0, 0)]
-            print(f"Sprite surface non-black pixels: {len(sprite_surface_non_bg)}")
+            # Check if sprite surface has non-black pixels
+            _ = [p for p in sprite_surface_pixels if p != (0, 0, 0)]
 
         # For now, just verify we captured pixel data (the sprite might be very small)
-        self.assertGreater(len(initial_pixels), 0, "Should capture pixel data")
+        assert len(initial_pixels) > 0, "Should capture pixel data"
 
     def test_animation_frame_transitions(self):
         """Test that animation frames transition correctly and show different content."""
@@ -207,16 +189,16 @@ class TestAnimationVisual(unittest.TestCase):
             self.skipTest("No animations found")
 
         # Get all frames from the animation
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
-        if len(frames) < 2:
+        if len(frames) < MIN_FRAME_COUNT:
             self.skipTest("Need at least 2 frames to test transitions")
 
         # Test frame-by-frame transitions
         frame_pixel_data = []
 
-        for i, frame in enumerate(frames):
+        for i, _ in enumerate(frames):
             # Set the sprite to this specific frame
             if hasattr(scene.animated_sprite, "set_frame"):
                 scene.animated_sprite.set_frame(i)
@@ -230,13 +212,9 @@ class TestAnimationVisual(unittest.TestCase):
             sprite_pixels = scene.get_sprite_pixel_data()
             frame_pixel_data.append(sprite_pixels)
 
-            print(f"Frame {i}: {len(sprite_pixels)} pixels captured")
-
         # Verify frames have different content
-        unique_frames = set(tuple(pixels) for pixels in frame_pixel_data)
-        self.assertGreater(len(unique_frames), 1, "Frames should have different pixel content")
-
-        print(f"Found {len(unique_frames)} unique frame contents out of {len(frames)} frames")
+        unique_frames = {tuple(pixels) for pixels in frame_pixel_data}
+        assert len(unique_frames) > 1, "Frames should have different pixel content"
 
     def test_animation_timing_visual_verification(self):
         """Test that animation timing affects visual display correctly."""
@@ -245,7 +223,7 @@ class TestAnimationVisual(unittest.TestCase):
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
             self.skipTest("No animations found")
 
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         # Test timing by manually advancing frames and verifying content changes
@@ -266,15 +244,11 @@ class TestAnimationVisual(unittest.TestCase):
             frame_contents.append(sprite_pixels)
 
             # Verify frame has content
-            self.assertGreater(len(sprite_pixels), 0, f"Frame {i} should have pixel content")
-
-            print(f"Frame {i}: {len(sprite_pixels)} pixels, duration={frames[i].duration}s")
+            assert len(sprite_pixels) > 0, f"Frame {i} should have pixel content"
 
         # Verify frames are different
-        unique_contents = set(tuple(pixels) for pixels in frame_contents)
-        self.assertGreater(
-            len(unique_contents), 1, "Different frames should have different content"
-        )
+        unique_contents = {tuple(pixels) for pixels in frame_contents}
+        assert len(unique_contents) > 1, "Different frames should have different content"
 
     def test_animation_surface_properties(self):
         """Test that animation surfaces have correct properties."""
@@ -283,7 +257,7 @@ class TestAnimationVisual(unittest.TestCase):
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
             self.skipTest("No animations found")
 
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         # Test each frame's surface properties
@@ -291,20 +265,16 @@ class TestAnimationVisual(unittest.TestCase):
             surface = frame.image
 
             # Verify surface properties
-            self.assertIsNotNone(surface, f"Frame {i} should have an image surface")
-            self.assertGreater(surface.get_width(), 0, f"Frame {i} should have width > 0")
-            self.assertGreater(surface.get_height(), 0, f"Frame {i} should have height > 0")
+            assert surface is not None, f"Frame {i} should have an image surface"
+            assert surface.get_width() > 0, f"Frame {i} should have width > 0"
+            assert surface.get_height() > 0, f"Frame {i} should have height > 0"
 
             # Verify surface dimensions are consistent
             if i > 0:
                 prev_surface = frames[i - 1].image
-                self.assertEqual(
-                    surface.get_size(),
-                    prev_surface.get_size(),
-                    f"Frame {i} should have same size as previous frame",
+                assert surface.get_size() == prev_surface.get_size(), (
+                    f"Frame {i} should have same size as previous frame"
                 )
-
-            print(f"Frame {i}: {surface.get_size()}, duration={frame.duration}s")
 
     def test_animation_pixel_integrity(self):
         """Test that animation maintains pixel integrity across frames."""
@@ -313,7 +283,7 @@ class TestAnimationVisual(unittest.TestCase):
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
             self.skipTest("No animations found")
 
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         # Test pixel integrity for each frame
@@ -334,19 +304,13 @@ class TestAnimationVisual(unittest.TestCase):
             frame_pixels = frame.get_pixel_data()
 
             # Verify pixel data matches
-            self.assertEqual(
-                len(sprite_pixels),
-                len(frame_pixels),
-                f"Frame {i} sprite and frame pixel counts should match",
+            assert len(sprite_pixels) == len(frame_pixels), (
+                f"Frame {i} sprite and frame pixel counts should match"
             )
 
             # Verify pixel data is consistent
-            self.assertGreater(len(sprite_pixels), 0, f"Frame {i} should have pixel data")
-            self.assertGreater(len(frame_pixels), 0, f"Frame {i} should have frame pixel data")
-
-            print(
-                f"Frame {i}: {len(sprite_pixels)} sprite pixels, {len(frame_pixels)} frame pixels"
-            )
+            assert len(sprite_pixels) > 0, f"Frame {i} should have pixel data"
+            assert len(frame_pixels) > 0, f"Frame {i} should have frame pixel data"
 
     def test_animation_rendering_performance(self):
         """Test that animation rendering performs within acceptable limits."""
@@ -363,9 +327,7 @@ class TestAnimationVisual(unittest.TestCase):
         total_time = end_time - start_time
 
         # Verify performance is acceptable (should be fast)
-        self.assertLess(total_time, 1.0, f"Frame capture should be fast: {total_time:.3f}s")
-
-        print(f"Frame capture performance: {total_time:.3f}s for 10 captures")
+        assert total_time < 1.0, f"Frame capture should be fast: {total_time:.3f}s"
 
     def test_animation_screen_integration(self):
         """Test that animation integrates properly with the screen rendering system."""
@@ -373,18 +335,14 @@ class TestAnimationVisual(unittest.TestCase):
 
         # Test that sprite appears on screen
         screen_pixels = scene.capture_frame_pixels()
-        self.assertGreater(len(screen_pixels), 0, "Screen should have pixel data")
+        assert len(screen_pixels) > 0, "Screen should have pixel data"
 
         # Test that sprite is positioned correctly
         sprite_rect = scene.animated_sprite.rect
-        self.assertGreater(sprite_rect.x, 0, "Sprite should be positioned on screen")
-        self.assertGreater(sprite_rect.y, 0, "Sprite should be positioned on screen")
-        self.assertLess(sprite_rect.right, scene.screen.get_width(), "Sprite should fit on screen")
-        self.assertLess(
-            sprite_rect.bottom, scene.screen.get_height(), "Sprite should fit on screen"
-        )
-
-        print(f"Sprite positioned at {sprite_rect.topleft} with size {sprite_rect.size}")
+        assert sprite_rect.x > 0, "Sprite should be positioned on screen"
+        assert sprite_rect.y > 0, "Sprite should be positioned on screen"
+        assert sprite_rect.right < scene.screen.get_width(), "Sprite should fit on screen"
+        assert sprite_rect.bottom < scene.screen.get_height(), "Sprite should fit on screen"
 
     def test_animation_frame_consistency(self):
         """Test that animation frames maintain consistent properties."""
@@ -393,32 +351,26 @@ class TestAnimationVisual(unittest.TestCase):
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
             self.skipTest("No animations found")
 
-        animation_name = list(scene.animated_sprite.animations.keys())[0]
+        animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         # Test frame consistency
         frame_sizes = []
         frame_durations = []
 
-        for i, frame in enumerate(frames):
+        for frame in frames:
             surface = frame.image
             frame_sizes.append(surface.get_size())
             frame_durations.append(frame.duration)
 
-            print(f"Frame {i}: size={surface.get_size()}, duration={frame.duration}s")
-
         # Verify all frames have the same size
         unique_sizes = set(frame_sizes)
-        self.assertEqual(len(unique_sizes), 1, "All frames should have the same size")
+        assert len(unique_sizes) == 1, "All frames should have the same size"
 
         # Verify durations are reasonable
         for duration in frame_durations:
-            self.assertGreater(duration, 0, "Frame duration should be positive")
-            self.assertLess(duration, 10, "Frame duration should be reasonable")
-
-        print(
-            f"Frame consistency: {len(unique_sizes)} unique sizes, {len(set(frame_durations))} unique durations"
-        )
+            assert duration > 0, "Frame duration should be positive"
+            assert duration < MAX_FRAME_DURATION, "Frame duration should be reasonable"
 
 
 if __name__ == "__main__":

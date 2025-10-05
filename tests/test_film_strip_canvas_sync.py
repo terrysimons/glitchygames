@@ -1,18 +1,12 @@
-"""
-Test film strip canvas synchronization.
+"""Test film strip canvas synchronization.
 
 This test verifies that the film strip updates to show the current canvas content
 when drawing on the canvas, rather than showing stale frame data.
 """
 
-import os
-import tempfile
-from pathlib import Path
-
 import pygame
 import pytest
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite
 from glitchygames.tools.film_strip import FilmStripWidget
 
 
@@ -46,7 +40,8 @@ class TestFilmStripCanvasSync:
         self.canvas = MockCanvas()
         self.film_strip.set_parent_canvas(self.canvas)
 
-    def teardown_method(self):
+    @staticmethod
+    def teardown_method():
         """Clean up test environment."""
         pygame.quit()
 
@@ -131,7 +126,8 @@ class TestFilmStripCanvasSync:
         assert has_green, "Frame thumbnail should contain green pixel from canvas"
         assert has_blue, "Frame thumbnail should contain blue pixel from canvas"
 
-    def _get_surface_pixels(self, surface):
+    @staticmethod
+    def _get_surface_pixels(surface):
         """Extract pixel data from a surface for comparison."""
         pixels = []
         for y in range(surface.get_height()):
@@ -147,6 +143,7 @@ class MockCanvas:
     """Mock canvas for testing film strip integration."""
 
     def __init__(self):
+        """Initialize mock canvas with default settings."""
         self.pixels_across = 32
         self.pixels_tall = 32
         self.pixels = [(255, 0, 255)] * (32 * 32)  # Initial magenta background

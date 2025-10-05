@@ -4,18 +4,21 @@ This module tests that sprites can be loaded, drawn to a display, and their
 pixel data can be extracted and verified to match the original data.
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
 
 import pygame
-import pytest
 from glitchygames.sprites import SpriteFactory
 
 
 class TestSpritePixelIntegrity(unittest.TestCase):
     """Test sprite pixel data integrity across various sprite files."""
+
+    # Constants for test thresholds
+    PIXEL_MATCH_THRESHOLD = 95.0
+    PIXEL_INTEGRITY_THRESHOLD = 90.0
+    MAX_REASONABLE_DIMENSION = 1000
 
     def setUp(self):
         """Set up test fixtures."""
@@ -33,12 +36,12 @@ class TestSpritePixelIntegrity(unittest.TestCase):
         """Test that static sprites maintain pixel data integrity."""
         # Test with static.toml
         sprite_file = "static.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load the sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
-        self.assertIsNotNone(sprite)
+        assert sprite is not None
 
         # Get original pixel data
         original_pixels = self._extract_pixel_data(sprite.image)
@@ -53,35 +56,33 @@ class TestSpritePixelIntegrity(unittest.TestCase):
         drawn_pixels = self._extract_pixel_data(test_surface)
 
         # Verify pixel data integrity
-        self.assertEqual(len(original_pixels), len(drawn_pixels))
-        self.assertEqual(original_size, test_surface.get_size())
+        assert len(original_pixels) == len(drawn_pixels)
+        assert original_size == test_surface.get_size()
 
         # Check that pixel data matches (allowing for some tolerance)
-        matches = sum(1 for orig, drawn in zip(original_pixels, drawn_pixels) if orig == drawn)
+        matches = sum(
+            1 for orig, drawn in zip(original_pixels, drawn_pixels, strict=True) if orig == drawn
+        )
         match_percentage = matches / len(original_pixels) * 100
 
-        self.assertGreater(
-            match_percentage,
-            95.0,
-            f"Pixel data integrity check failed: {match_percentage:.1f}% match",
+        assert match_percentage > self.PIXEL_MATCH_THRESHOLD, (
+            f"Pixel data integrity check failed: {match_percentage:.1f}% match"
         )
-
-        print(f"✅ Static sprite pixel integrity: {match_percentage:.1f}% match")
 
     def test_animated_sprite_pixel_integrity(self):
         """Test that animated sprites maintain pixel data integrity."""
         # Test with colors.toml (animated sprite)
         sprite_file = "colors.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load the animated sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
-        self.assertIsNotNone(sprite)
+        assert sprite is not None
 
         # Test each frame of the animation
         if hasattr(sprite, "animations") and sprite.animations:
-            animation_name = list(sprite.animations.keys())[0]
+            animation_name = next(iter(sprite.animations.keys()))
             frames = sprite.animations[animation_name]
 
             for frame_index, frame in enumerate(frames):
@@ -98,34 +99,30 @@ class TestSpritePixelIntegrity(unittest.TestCase):
                 drawn_pixels = self._extract_pixel_data(test_surface)
 
                 # Verify pixel data integrity
-                self.assertEqual(len(frame_pixels), len(drawn_pixels))
-                self.assertEqual(frame_size, test_surface.get_size())
+                assert len(frame_pixels) == len(drawn_pixels)
+                assert frame_size == test_surface.get_size()
 
                 # Check that pixel data matches
-                matches = sum(1 for orig, drawn in zip(frame_pixels, drawn_pixels) if orig == drawn)
+                matches = sum(
+                    1
+                    for orig, drawn in zip(frame_pixels, drawn_pixels, strict=True)
+                    if orig == drawn
+                )
                 match_percentage = matches / len(frame_pixels) * 100
 
-                self.assertGreater(
-                    match_percentage,
-                    95.0,
-                    f"Frame {frame_index} pixel integrity failed: {match_percentage:.1f}% match",
-                )
-
-                print(
-                    f"✅ Animated sprite frame {frame_index} pixel integrity: {match_percentage:.1f}% match"
+                assert match_percentage > self.PIXEL_MATCH_THRESHOLD, (
+                    f"Frame {frame_index} pixel integrity failed: {match_percentage:.1f}% match"
                 )
 
     def test_sprite_save_load_roundtrip(self):
         """Test that sprites can be saved and loaded with pixel data integrity."""
         # Load an existing sprite
         sprite_file = "static.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load original sprite
-        original_sprite = SpriteFactory.load_sprite(filename=sprite_file)
-        original_pixels = self._extract_pixel_data(original_sprite.image)
-        original_size = original_sprite.image.get_size()
+        SpriteFactory.load_sprite(filename=sprite_file)
 
         # Skip save test for now since it requires pixels_across/pixels_tall attributes
         # that aren't set on loaded sprites
@@ -141,14 +138,13 @@ class TestSpritePixelIntegrity(unittest.TestCase):
         results = []
 
         for sprite_file in sprite_files:
-            if not os.path.exists(sprite_file):
-                print(f"⚠️  Skipping {sprite_file} - file not found")
+            if not Path(sprite_file).exists():
                 continue
 
             try:
                 # Load sprite
                 sprite = SpriteFactory.load_sprite(filename=sprite_file)
-                self.assertIsNotNone(sprite)
+                assert sprite is not None
 
                 # Test pixel integrity
                 original_pixels = self._extract_pixel_data(sprite.image)
@@ -162,29 +158,27 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
                 # Calculate match percentage
                 matches = sum(
-                    1 for orig, drawn in zip(original_pixels, drawn_pixels) if orig == drawn
+                    1
+                    for orig, drawn in zip(original_pixels, drawn_pixels, strict=True)
+                    if orig == drawn
                 )
                 match_percentage = matches / len(original_pixels) * 100
 
                 results.append((sprite_file, match_percentage))
-                print(f"✅ {sprite_file}: {match_percentage:.1f}% pixel integrity")
 
-            except Exception as e:
-                print(f"❌ {sprite_file}: Error - {e}")
+            except (ValueError, FileNotFoundError, AttributeError):
                 results.append((sprite_file, 0.0))
 
         # Verify all results are acceptable
         for sprite_file, match_percentage in results:
-            self.assertGreater(
-                match_percentage,
-                90.0,
-                f"Pixel integrity too low for {sprite_file}: {match_percentage:.1f}%",
+            assert match_percentage > self.PIXEL_INTEGRITY_THRESHOLD, (
+                f"Pixel integrity too low for {sprite_file}: {match_percentage:.1f}%"
             )
 
     def test_animated_sprite_frame_consistency(self):
         """Test that animated sprite frames maintain consistency."""
         sprite_file = "colors.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load animated sprite
@@ -193,7 +187,7 @@ class TestSpritePixelIntegrity(unittest.TestCase):
         if not hasattr(sprite, "animations") or not sprite.animations:
             self.skipTest("No animations found in sprite")
 
-        animation_name = list(sprite.animations.keys())[0]
+        animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
 
         # Test that all frames have consistent dimensions
@@ -201,18 +195,14 @@ class TestSpritePixelIntegrity(unittest.TestCase):
             first_frame_size = frames[0].image.get_size()
             for i, frame in enumerate(frames):
                 frame_size = frame.image.get_size()
-                self.assertEqual(
-                    first_frame_size,
-                    frame_size,
-                    f"Frame {i} size mismatch: {frame_size} vs {first_frame_size}",
+                assert first_frame_size == frame_size, (
+                    f"Frame {i} size mismatch: {frame_size} vs {first_frame_size}"
                 )
-
-        print(f"✅ Animated sprite frame consistency verified for {len(frames)} frames")
 
     def test_sprite_color_preservation(self):
         """Test that sprite colors are preserved correctly."""
         sprite_file = "static.toml"  # Use static sprite instead of animated
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load sprite
@@ -223,16 +213,13 @@ class TestSpritePixelIntegrity(unittest.TestCase):
         unique_colors = set(pixels)
 
         # Verify we have some colors (not just one)
-        self.assertGreater(len(unique_colors), 1, "Sprite should have multiple colors")
+        assert len(unique_colors) > 1, "Sprite should have multiple colors"
 
         # Test that colors are reasonable (not all transparent/magenta)
         non_magenta_colors = [color for color in unique_colors if color != (255, 0, 255)]
-        self.assertGreater(len(non_magenta_colors), 0, "Sprite should have non-magenta colors")
+        assert len(non_magenta_colors) > 0, "Sprite should have non-magenta colors"
 
-        print(
-            f"✅ Sprite color preservation: {len(unique_colors)} unique colors, "
-            f"{len(non_magenta_colors)} non-magenta colors"
-        )
+        # Test passes if we reach here without assertions failing
 
     @staticmethod
     def _extract_pixel_data(surface):
@@ -252,7 +239,7 @@ class TestSpritePixelIntegrity(unittest.TestCase):
     def test_sprite_dimensions(self):
         """Test that sprite dimensions are correct."""
         sprite_file = "static.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load sprite
@@ -260,36 +247,30 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
         # Verify dimensions are reasonable
         width, height = sprite.image.get_size()
-        self.assertGreater(width, 0, "Sprite width should be positive")
-        self.assertGreater(height, 0, "Sprite height should be positive")
-        self.assertLess(width, 1000, "Sprite width should be reasonable")
-        self.assertLess(height, 1000, "Sprite height should be reasonable")
-
-        print(f"✅ Sprite dimensions: {width}x{height}")
+        assert width > 0, "Sprite width should be positive"
+        assert height > 0, "Sprite height should be positive"
+        assert width < self.MAX_REASONABLE_DIMENSION, "Sprite width should be reasonable"
+        assert height < self.MAX_REASONABLE_DIMENSION, "Sprite height should be reasonable"
 
     def test_sprite_surface_properties(self):
         """Test that sprite surfaces have correct properties."""
         sprite_file = "static.toml"
-        if not os.path.exists(sprite_file):
+        if not Path(sprite_file).exists():
             self.skipTest(f"Sprite file {sprite_file} not found")
 
         # Load sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
 
         # Verify surface properties
-        self.assertIsNotNone(sprite.image, "Sprite should have an image")
-        self.assertIsInstance(sprite.image, pygame.Surface, "Sprite image should be a Surface")
+        assert sprite.image is not None, "Sprite should have an image"
+        assert isinstance(sprite.image, pygame.Surface), "Sprite image should be a Surface"
 
         # Verify rect properties
         if hasattr(sprite, "rect"):
-            self.assertIsNotNone(sprite.rect, "Sprite should have a rect")
-            self.assertEqual(
-                sprite.rect.size,
-                sprite.image.get_size(),
-                "Sprite rect size should match image size",
+            assert sprite.rect is not None, "Sprite should have a rect"
+            assert sprite.rect.size == sprite.image.get_size(), (
+                "Sprite rect size should match image size"
             )
-
-        print("✅ Sprite surface properties verified")
 
 
 if __name__ == "__main__":
