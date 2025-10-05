@@ -62,7 +62,7 @@ class TestCanvasInterfaces(unittest.TestCase):
     def _display_canvas_visual(self, title="Canvas Display"):
         """Display the canvas visually tiled across the screen for verification."""
         from glitchygames.fonts import FontManager
-        
+
         screen = pygame.display.get_surface()
         screen_width, screen_height = screen.get_size()
 

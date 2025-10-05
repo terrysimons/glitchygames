@@ -1799,9 +1799,7 @@ class SpriteFactory:
         if file_format == "toml":
             return SpriteFactory._analyze_toml_file(filename)
 
-        raise ValueError(
-            f"Unsupported format: {file_format}. Only TOML is currently supported."
-        )
+        raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
     @staticmethod
     def _analyze_toml_file(filename: str) -> dict:

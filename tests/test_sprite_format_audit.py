@@ -66,7 +66,9 @@ class SpriteFormatAudit(unittest.TestCase):
                 if hasattr(sprite, "animations") and sprite.animations:
                     # Check if any animation has more than 1 frame
                     total_frames = sum(len(frames) for frames in sprite.animations.values())
-                    is_animated = total_frames > len(sprite.animations)  # More frames than animations = multi-frame
+                    is_animated = total_frames > len(
+                        sprite.animations
+                    )  # More frames than animations = multi-frame
 
                 if is_animated:
                     animated_sprites.append({

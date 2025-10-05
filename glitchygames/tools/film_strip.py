@@ -7,6 +7,7 @@ between frames in animated sprites, with sprocket separators between animations.
 # No typing imports needed
 
 import pygame
+from glitchygames.fonts import FontManager
 from glitchygames.sprites import AnimatedSprite
 
 
@@ -50,53 +51,66 @@ class FilmStripWidget:
             self.current_animation = "idle"
         else:
             self.current_animation = (
-                next(iter(animated_sprite._animations.keys())) if animated_sprite._animations else "idle"
+                next(iter(animated_sprite._animations.keys()))
+                if animated_sprite._animations
+                else "idle"
             )
         self.current_frame = 0
         self.scroll_offset = 0  # Horizontal scroll offset for rolling effect
         self._calculate_layout()
         self._update_height()
-        
+
     def update_layout(self) -> None:
         """Update the layout of frames and sprockets."""
         self._calculate_layout()
         # Mark the parent film strip sprite as dirty if it exists
-        if hasattr(self, "parent_canvas") and self.parent_canvas and hasattr(self.parent_canvas, "film_strip_sprite"):
+        if (
+            hasattr(self, "parent_canvas")
+            and self.parent_canvas
+            and hasattr(self.parent_canvas, "film_strip_sprite")
+        ):
             self.parent_canvas.film_strip_sprite.dirty = 1
-        
+
     def set_parent_canvas(self, canvas):
         """Set the parent canvas for getting current canvas data."""
         self.parent_canvas = canvas
-        
+
     def mark_dirty(self):
         """Mark the film strip widget as needing a re-render."""
         # This will be called when the canvas changes to force a re-render
-        if hasattr(self, "parent_canvas") and self.parent_canvas and hasattr(self.parent_canvas, "film_strip_sprite"):
+        if (
+            hasattr(self, "parent_canvas")
+            and self.parent_canvas
+            and hasattr(self.parent_canvas, "film_strip_sprite")
+        ):
             self.parent_canvas.film_strip_sprite.dirty = 1
-            
+
     def update_scroll_for_frame(self, frame_index: int) -> None:
         """Update scroll offset to keep the selected frame visible and centered."""
-        if not self.animated_sprite or self.current_animation not in self.animated_sprite._animations:
+        if (
+            not self.animated_sprite
+            or self.current_animation not in self.animated_sprite._animations
+        ):
             return
-            
+
         frames = self.animated_sprite._animations[self.current_animation]
         if frame_index >= len(frames):
             return
-            
+
         # Calculate the position of the selected frame
         frame_width = self.frame_width + self.frame_spacing
         selected_frame_x = frame_index * frame_width
-        
+
         # Calculate the center of the visible area
         visible_center = self.rect.width // 2
-        
+
         # Calculate the scroll offset to center the selected frame
         target_scroll = selected_frame_x - visible_center + (self.frame_width // 2)
-        
+
         # Clamp the scroll offset to reasonable bounds
         max_scroll = max(0, len(frames) * frame_width - self.rect.width)
         self.scroll_offset = max(0, min(target_scroll, max_scroll))
-        
+
         # Recalculate layout with new scroll offset
         self._calculate_layout()
         self._update_height()
@@ -106,25 +120,34 @@ class FilmStripWidget:
         """Update the film strip height based on the number of animations (up to 5 rows max)."""
         if not self.animated_sprite:
             return
-            
+
         # Calculate required height based on number of animations
         num_animations = len(self.animated_sprite._animations)
         max_animations = 5  # Maximum 5 rows
-        
+
         # Limit to maximum 5 animations
         visible_animations = min(num_animations, max_animations)
-        
+
         # Calculate height: (label_height + frame_height + spacing) * num_animations + padding
-        required_height = (self.animation_label_height + self.frame_height + 10) * visible_animations + 20
-        
+        required_height = (
+            self.animation_label_height + self.frame_height + 10
+        ) * visible_animations + 20
+
         # Update the rect height
         self.rect.height = required_height
-        
+
         # Update the parent film strip sprite height if it exists
-        if hasattr(self, "parent_canvas") and self.parent_canvas and hasattr(self.parent_canvas, "film_strip_sprite"):
+        if (
+            hasattr(self, "parent_canvas")
+            and self.parent_canvas
+            and hasattr(self.parent_canvas, "film_strip_sprite")
+        ):
             self.parent_canvas.film_strip_sprite.rect.height = required_height
             # Also update the surface size
-            self.parent_canvas.film_strip_sprite.image = pygame.Surface((self.parent_canvas.film_strip_sprite.rect.width, required_height))
+            self.parent_canvas.film_strip_sprite.image = pygame.Surface((
+                self.parent_canvas.film_strip_sprite.rect.width,
+                required_height,
+            ))
             self.parent_canvas.film_strip_sprite.dirty = 1
 
     def _calculate_layout(self) -> None:
@@ -149,12 +172,17 @@ class FilmStripWidget:
             for frame_idx, _frame in enumerate(frames):
                 frame_x = frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset
                 frame_rect = pygame.Rect(
-                    frame_x, y_offset + self.animation_label_height, self.frame_width, self.frame_height
+                    frame_x,
+                    y_offset + self.animation_label_height,
+                    self.frame_width,
+                    self.frame_height,
                 )
                 self.frame_layouts[anim_name, frame_idx] = frame_rect
 
             # Move to next row
-            y_offset += self.animation_label_height + self.frame_height + 10  # 10px spacing between animations
+            y_offset += (
+                self.animation_label_height + self.frame_height + 10
+            )  # 10px spacing between animations
 
             # Add sprocket separator (except for last animation)
             if anim_name != list(self.animated_sprite._animations.keys())[-1]:
@@ -222,7 +250,8 @@ class FilmStripWidget:
         frame_surface = pygame.Surface((self.frame_width, self.frame_height))
         frame_surface.fill(self.frame_background)  # Yellow film strip background
 
-        # Draw the actual frame image - use current canvas content for selected frame, stored data for others
+        # Draw the actual frame image - use current canvas content for selected frame,
+        # stored data for others
         if is_selected and hasattr(self, "parent_canvas") and self.parent_canvas:
             # For the selected frame, use current canvas content
             frame_img = self.parent_canvas.get_canvas_surface()
@@ -231,23 +260,22 @@ class FilmStripWidget:
             frame_img = frame.image
         else:
             frame_img = None
-            
+
         if frame_img:
-            
             # Calculate scaling to fit within the frame area (leaving some padding)
             max_width = self.frame_width - 8  # Leave 4px padding on each side
             max_height = self.frame_height - 8  # Leave 4px padding on top/bottom
-            
+
             # Calculate scale factor to fit the image
             scale_x = max_width / frame_img.get_width()
             scale_y = max_height / frame_img.get_height()
             scale = min(scale_x, scale_y)  # Use the smaller scale to fit both dimensions
-            
+
             # Scale the image
             new_width = int(frame_img.get_width() * scale)
             new_height = int(frame_img.get_height() * scale)
             scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
-            
+
             # Center the scaled image within the frame
             x_offset = (self.frame_width - new_width) // 2
             y_offset = (self.frame_height - new_height) // 2
@@ -343,7 +371,6 @@ class FilmStripWidget:
             label_surface.fill(self.film_background)
 
             # Add animation name text
-            from glitchygames.fonts import FontManager
             font = FontManager.get_font()
             text = font.render(anim_name, fgcolor=(255, 255, 255), size=16)
             if isinstance(text, tuple):  # freetype returns (surface, rect)
@@ -375,7 +402,9 @@ class FilmStripWidget:
                 is_hovered = self.hovered_frame == (anim_name, frame_idx)
 
                 # Render frame thumbnail for ALL frames (not just selected ones)
-                frame_thumbnail = self.render_frame_thumbnail(frame, is_selected=is_selected, is_hovered=is_hovered)
+                frame_thumbnail = self.render_frame_thumbnail(
+                    frame, is_selected=is_selected, is_hovered=is_hovered
+                )
 
                 # Blit to surface
                 if is_selected:
@@ -403,37 +432,42 @@ class FilmStripWidget:
 
         return total_width
 
-    def set_current_frame(self, frame_index: int) -> None:
+    def set_frame_index(self, frame_index: int) -> None:
         """Set the current frame and update the canvas."""
         if not self.animated_sprite:
             return
-            
+
         # Update the current frame
         self.current_frame = frame_index
-        
+
         # Update scroll to keep the selected frame visible and centered
         self.update_scroll_for_frame(frame_index)
-        
-        # Update the parent canvas to show this frame
-        if self.parent_canvas and hasattr(self.parent_canvas, 'canvas_interface'):
-            self.parent_canvas.canvas_interface.set_current_frame(self.current_animation, frame_index)
 
-    def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
-        """Handle mouse click on the film strip. Returns (animation, frame) if a frame was clicked."""
+        # Update the parent canvas to show this frame
+        if self.parent_canvas and hasattr(self.parent_canvas, "canvas_interface"):
+            self.parent_canvas.canvas_interface.set_current_frame(
+                self.current_animation, frame_index
+            )
+
+    def handle_frame_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
+        """Handle mouse click on the film strip.
+
+        Returns (animation, frame) if a frame was clicked.
+        """
         if not self.animated_sprite:
             return None
-            
+
         # Coordinates are already local to the film strip widget
         local_x, local_y = pos
-        
+
         # Check if click is within film strip bounds
         if not (0 <= local_x < self.rect.width and 0 <= local_y < self.rect.height):
             return None
-            
+
         # Check if click is on a frame
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
             if frame_rect.collidepoint(local_x, local_y):
                 # Frame was clicked - return the animation and frame info
                 return (anim_name, frame_idx)
-                
+
         return None

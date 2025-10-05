@@ -8,7 +8,6 @@ timing and playback control.
 import abc
 import hashlib
 import logging
-import operator
 from pathlib import Path
 from typing import Self
 
@@ -24,7 +23,7 @@ try:
     from glitchygames.tools.bitmappy import detect_file_format
 except ImportError:
     # Fallback if bitmappy module is not available
-    def detect_file_format(filename: str) -> str:
+    def detect_file_format(_filename: str) -> str:
         """Detect file format based on extension.
 
         Currently only supports TOML format. To add new formats:
@@ -506,11 +505,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return list(self._animations.keys())
 
     # Animation metadata properties (read/write)
-    @property
-    def is_looping(self: Self) -> bool:
-        """Get whether animations loop."""
-        return self._is_looping
-
     @is_looping.setter
     def is_looping(self: Self, value: bool) -> None:
         """Set whether animations loop."""
@@ -567,7 +561,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if not self.frame_manager.set_frame(frame_index):
             frames = self._animations.get(self.frame_manager.current_animation, [])
             raise IndexError(
-                f"Frame index {frame_index} out of range for animation '{self.frame_manager.current_animation}' (0-{len(frames) - 1})"
+                f"Frame index {frame_index} out of range for animation "
+                f"'{self.frame_manager.current_animation}' (0-{len(frames) - 1})"
             )
 
         self._frame_timer = 0.0
@@ -729,10 +724,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         try:
             with Path(filename).open(encoding="utf-8") as f:
                 data = toml.load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Sprite file not found: {filename}")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Sprite file not found: {filename}") from e
         except Exception as e:
-            raise ValueError(f"Error loading TOML file {filename}: {e}")
+            raise ValueError(f"Error loading TOML file {filename}: {e}") from e
 
         self.name = data.get("sprite", {}).get("name", "animated_sprite")
         self.description = data.get("sprite", {}).get("description", "")
@@ -1099,7 +1094,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """Build color map for TOML format.
 
         This method creates a mapping from RGB colors to characters for TOML format.
-        To add new formats, create similar methods like _build_json_color_map(), _build_xml_color_map()
+        To add new formats, create similar methods like _build_json_color_map(),
+        _build_xml_color_map()
         See LOADER_README.md for detailed implementation guide.
         """
         color_map = {}

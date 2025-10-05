@@ -1271,7 +1271,7 @@ class CanvasSprite(BitmappySprite):
                 )
 
         except FileNotFoundError as e:
-            self.log.error(f"File not found: {e}")
+            self.log.exception(f"File not found: {e}")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
@@ -2190,7 +2190,8 @@ class LivePreviewSprite(BitmappySprite):
                             self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
                             self.dirty = 1  # Only dirty when frame changes
                             self.log.debug(
-                                f"Live preview updated with frame {frame_index} at actual size {frame_size[0]}x{frame_size[1]}"
+                                f"Live preview updated with frame {frame_index} at actual size "
+                                f"{frame_size[0]}x{frame_size[1]}"
                             )
                         else:
                             self.log.debug("Failed to create surface from frame data")
@@ -2254,7 +2255,8 @@ class LivePreviewSprite(BitmappySprite):
                     self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
                     self.dirty = 1
                     self.log.debug(
-                        f"Live preview updated with canvas frame {current_frame} at actual size {frame_size[0]}x{frame_size[1]}"
+                        f"Live preview updated with canvas frame {current_frame} at actual size "
+                        f"{frame_size[0]}x{frame_size[1]}"
                     )
                 else:
                     self.log.debug("Failed to create surface from canvas frame data")
@@ -2309,7 +2311,7 @@ class FilmStripSprite(BitmappySprite):
             if clicked_frame:
                 animation, frame_idx = clicked_frame
                 # Notify the canvas to change frame
-                if hasattr(self, 'parent_canvas') and self.parent_canvas:
+                if hasattr(self, "parent_canvas") and self.parent_canvas:
                     self.parent_canvas.show_frame(animation, frame_idx)
 
     def set_parent_canvas(self, canvas):
@@ -2402,7 +2404,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         required_width = int(5.0 * (64 + 2)) + 20  # 5.0 frames * (width + spacing) + padding
         film_strip_width = max(300, required_width)
 
-        self.film_strip = FilmStripWidget(x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100)
+        self.film_strip = FilmStripWidget(
+            x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100
+        )
         self.film_strip.set_animated_sprite(animated_sprite)
 
         # Create film strip sprite for rendering (height will be updated dynamically)
@@ -2412,7 +2416,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             y=film_strip_y,
             width=film_strip_width,
             height=self.film_strip.rect.height,
-            groups=groups
+            groups=groups,
         )
 
         # Connect the film strip to this canvas
@@ -2567,7 +2571,9 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.log.debug("Mini view updated successfully with frame pixels")
             else:
                 self.log.warning(
-                    f"Frame pixels don't match mini view dimensions: {len(current_frame_pixels)} vs {self.mini_view.pixels_across * self.mini_view.pixels_tall}"
+                    f"Frame pixels don't match mini view dimensions: "
+                    f"{len(current_frame_pixels)} vs "
+                    f"{self.mini_view.pixels_across * self.mini_view.pixels_tall}"
                 )
                 # Don't update if dimensions don't match
 
@@ -2835,7 +2841,6 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.force_redraw()
             self.dirty = 0
 
-
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
         if hasattr(self, "animated_sprite") and self.animated_sprite:
@@ -3037,7 +3042,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # If sprite has different dimensions than canvas, resize canvas to match
                 if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
                     self.log.info(
-                        f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {sprite_width}x{sprite_height}"
+                        f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
+                        f"{sprite_width}x{sprite_height}"
                     )
                     self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
 
@@ -3062,7 +3068,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                     # If sprite has different dimensions than canvas, resize canvas to match
                     if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
                         self.log.info(
-                            f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {sprite_width}x{sprite_height}"
+                            f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
+                            f"{sprite_width}x{sprite_height}"
                         )
                         self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
 
@@ -3122,11 +3129,14 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.animated_sprite._is_looping = True
                 self.animated_sprite.play()
                 self.log.debug(
-                    f"Started animation '{self.animated_sprite.current_animation}' using play() method"
+                    f"Started animation '{self.animated_sprite.current_animation}' "
+                    f"using play() method"
                 )
                 # Verify animation state immediately after starting
                 self.log.debug(
-                    f"Animation state after play(): is_playing={self.animated_sprite.is_playing}, is_looping={self.animated_sprite._is_looping}, current_frame={self.animated_sprite.current_frame}"
+                    f"Animation state after play(): is_playing={self.animated_sprite.is_playing}, "
+                    f"is_looping={self.animated_sprite._is_looping}, "
+                    f"current_frame={self.animated_sprite.current_frame}"
                 )
 
             # Force a complete redraw
@@ -3147,7 +3157,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 )
 
         except FileNotFoundError as e:
-            self.log.error(f"File not found: {e}")
+            self.log.exception(f"File not found: {e}")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
@@ -3209,12 +3219,14 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(static_sprite, "get_pixel_data"):
             pixel_data = static_sprite.get_pixel_data()
             self.log.debug(
-                f"Got pixel data from get_pixel_data(): {len(pixel_data)} pixels, first few: {pixel_data[:5]}"
+                f"Got pixel data from get_pixel_data(): {len(pixel_data)} pixels, "
+                f"first few: {pixel_data[:5]}"
             )
         elif hasattr(static_sprite, "pixels"):
             pixel_data = static_sprite.pixels.copy()
             self.log.debug(
-                f"Got pixel data from pixels attribute: {len(pixel_data)} pixels, first few: {pixel_data[:5]}"
+                f"Got pixel data from pixels attribute: {len(pixel_data)} pixels, "
+                f"first few: {pixel_data[:5]}"
             )
         else:
             # Fallback - create magenta pixels
@@ -3253,7 +3265,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if animated_sprite._animations["idle"]:
                     frame_pixels = animated_sprite._animations["idle"][0].get_pixel_data()
                     self.log.debug(
-                        f"First frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:5]}"
+                        f"First frame pixels: {len(frame_pixels)} pixels, "
+                        f"first few: {frame_pixels[:5]}"
                     )
 
         return animated_sprite
@@ -3289,8 +3302,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         frame = frames[0]  # Get the first (and only) frame
 
         # Create an AnimatedSprite from the frame (since everything is AnimatedSprite now)
-        from glitchygames.sprites.animated import AnimatedSprite
-
         # Create a new AnimatedSprite with the frame data
         animated_sprite = AnimatedSprite()
 
@@ -3377,7 +3388,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             f"Mini view resized to {width}x{height} at position ({mini_map_x}, {mini_map_y})"
         )
         self.log.debug(
-            f"Mini view pixels: {len(self.mini_view.pixels)} pixels, first few: {self.mini_view.pixels[:5] if self.mini_view.pixels else 'None'}"
+            f"Mini view pixels: {len(self.mini_view.pixels)} pixels, "
+            f"first few: {self.mini_view.pixels[:5] if self.mini_view.pixels else 'None'}"
         )
 
     def _update_animated_sprite_frame(self):
@@ -3394,7 +3406,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                     if 0 <= current_frame < len(frames):
                         # Update the frame's image with current canvas data
                         frame = frames[current_frame]
-                        if hasattr(frame, 'image'):
+                        if hasattr(frame, "image"):
                             # Create a new surface from the canvas pixels
                             surface = pygame.Surface((self.pixels_across, self.pixels_tall))
                             for y in range(self.pixels_tall):
@@ -3596,7 +3608,7 @@ class MiniView(BitmappySprite):
             self.force_redraw()
 
     @staticmethod
-    def pixels_per_pixel(pixels_across: int, pixels_tall: int) -> tuple[int, int]:
+    def pixels_per_pixel(_pixels_across: int, _pixels_tall: int) -> tuple[int, int]:
         """Calculate the size of each pixel in the miniview."""
         # Use consistent 2x2 pixel doubling for best ergonomic experience
         return (2, 2)
@@ -3762,8 +3774,12 @@ class BitmapEditorScene(Scene):
             self.log.debug(f"Creating LivePreviewSprite with all_sprites: {self.all_sprites}")
 
             # Calculate position to the right of the film strip, centered with canvas
-            live_preview_x = self.canvas.film_strip_sprite.rect.right + 20  # 20px to the right of film strip
-            live_preview_y = self.canvas.rect.centery - 32  # Center vertically with canvas (assuming 64px preview height)
+            live_preview_x = (
+                self.canvas.film_strip_sprite.rect.right + 20
+            )  # 20px to the right of film strip
+            live_preview_y = (
+                self.canvas.rect.centery - 32
+            )  # Center vertically with canvas (assuming 64px preview height)
 
             self.live_preview = LivePreviewSprite(
                 animated_sprite=animated_sprite,
@@ -4376,18 +4392,24 @@ class BitmapEditorScene(Scene):
         format_instruction = ""
         if AI_TRAINING_FORMAT == "toml":
             format_instruction = """
-                    I understand. I will provide ONLY raw TOML content without any
-                    markdown formatting, code blocks, or explanations. The TOML format
+                    I understand. I will provide ONLY raw TOML content "
+                    "without any
+                    markdown formatting, code blocks, or explanations. The TOML "
+                    "format
                     will include:
-                        - [sprite] section containing name and pixels (using triple-quoted block strings)
-                        - [colors.X] sections ONLY for colors that are actually used in the pixel data
+                        - [sprite] section containing name and pixels "
+                        "(using triple-quoted block strings)
+                        - [colors.X] sections ONLY for colors that are actually used "
+                        "in the pixel data
                         - RGB values from 0-255 for each color
                         - Pixels using the SPRITE_GLYPHS character set
                         - For animated sprites: [[animation]] and [[animation.frame]] sections
-                        - When "frame", "animation", "animated", "2-frame", or "multi-frame"
+                        - When "frame", "animation", "animated", "2-frame", or "
+                        "multi-frame"
                           is mentioned, I will create an ANIMATED sprite with multiple frames
                         - IMPORTANT: Use triple-quoted block strings for multi-line pixel data
-                        - EFFICIENCY: Only define colors that appear in the pixels (e.g., if pixels="0", only define [colors.0])
+                        - EFFICIENCY: Only define colors that appear in the pixels "
+                        "(e.g., if pixels=\"0\", only define [colors.0])
                 """.strip()
         else:
             format_instruction = """
@@ -4573,15 +4595,13 @@ class BitmapEditorScene(Scene):
         if original_prompt and AI_TRAINING_FORMAT == "toml":
             # Parse the TOML content and add description
             try:
-                import toml
-
                 data = toml.loads(cleaned_content)
                 if "sprite" not in data:
                     data["sprite"] = {}
                 data["sprite"]["description"] = original_prompt
                 cleaned_content = toml.dumps(data)
                 self.log.debug(f"Added description to TOML content: '{original_prompt}'")
-            except Exception as e:
+            except (toml.TomlDecodeError, KeyError, ValueError) as e:
                 self.log.warning(f"Failed to add description to TOML content: {e}")
 
         # Determine file extension based on training format
@@ -4647,11 +4667,16 @@ class BitmapEditorScene(Scene):
                 # Just verify the state after loading
                 if hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
                     self.log.debug(
-                        f"AI sprite loaded - animated_sprite state: current_animation='{self.canvas.animated_sprite.current_animation}', is_playing={self.canvas.animated_sprite.is_playing}"
+                        f"AI sprite loaded - animated_sprite state: "
+                        f"current_animation='{self.canvas.animated_sprite.current_animation}', "
+                        f"is_playing={self.canvas.animated_sprite.is_playing}"
                     )
-                    self.log.debug(
-                        f"AI sprite animations: {list(self.canvas.animated_sprite._animations.keys()) if hasattr(self.canvas.animated_sprite, '_animations') else 'No _animations'}"
+                    animations = (
+                        list(self.canvas.animated_sprite._animations.keys())
+                        if hasattr(self.canvas.animated_sprite, "_animations")
+                        else "No _animations"
                     )
+                    self.log.debug(f"AI sprite animations: {animations}")
 
                     # Also ensure the live preview is updated
                     if hasattr(self.canvas, "live_preview") and self.canvas.live_preview:
@@ -4752,7 +4777,8 @@ class BitmapEditorScene(Scene):
             # Log animation state every 60 frames (about once per second at 60fps)
             if self._debug_animation_counter % 60 == 0:
                 self.log.debug(
-                    f"Animation update - is_playing={self.canvas.animated_sprite.is_playing}, current_frame={self.canvas.animated_sprite.current_frame}"
+                    f"Animation update - is_playing={self.canvas.animated_sprite.is_playing}, "
+                    f"current_frame={self.canvas.animated_sprite.current_frame}"
                 )
                 # Also check if animation is being paused/stopped
                 if not self.canvas.animated_sprite.is_playing:

@@ -82,7 +82,6 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         assert "green =" in content
         assert "blue =" in content
 
-
     def test_animated_sprite_toml_save(self):
         """Test animated sprite TOML save with universal character set."""
         animated_sprite = AnimatedSprite()

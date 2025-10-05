@@ -206,10 +206,10 @@ blue = 0
         """Create an empty TOML file (should be invalid)."""
         filepath = Path(self.temp_dir) / filename
 
-        toml_content = '''[sprite]
+        toml_content = """[sprite]
 name = "TestEmptySprite"
 # No pixels, no frames, no animations
-'''
+"""
 
         filepath.write_text(toml_content, encoding="utf-8")
         return str(filepath)
@@ -417,7 +417,7 @@ class TestSpriteFactorySave(unittest.TestCase):
         # Create an animated sprite
         sprite = AnimatedSprite()
         sprite.name = "TestAnimatedSprite"
-        
+
         # Add a frame
         frame = SpriteFrame(pygame.Surface((2, 2)))
         frame.set_pixel_data([(255, 0, 0)] * 4)
@@ -426,10 +426,10 @@ class TestSpriteFactorySave(unittest.TestCase):
         # Save via factory should work in TOML format
         filename = Path(self.temp_dir) / "test_animated.toml"
         SpriteFactory.save_sprite(sprite=sprite, filename=str(filename), file_format="toml")
-        
+
         # Verify file was created
         assert filename.exists()
-        
+
         # Verify content
         content = filename.read_text()
         # Since it's detected as single-frame, it uses the animation name
