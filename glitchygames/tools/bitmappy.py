@@ -2397,6 +2397,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             if self.current_animation in frames and 0 <= frame_index < len(
                 frames[self.current_animation]
             ):
+                # Store the current playing state
+                was_playing = self.animated_sprite.is_playing
+                
                 # Pause the animation when manually selecting frames
                 self.animated_sprite.pause()
 
@@ -2413,13 +2416,17 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if hasattr(self, "mini_view"):
                     self._update_mini_view_from_current_frame()
 
-                # Restart animation immediately from the beginning
-                self.animated_sprite.play()
-                self._manual_frame_selected = False
+                # Only restart animation if it was playing before
+                if was_playing:
+                    self.animated_sprite.play()
+                    self._manual_frame_selected = False
+                else:
+                    # Keep it paused if it was already paused
+                    self.log.debug(f"Animation was paused, keeping it paused at frame {frame_index}")
 
                 self.dirty = 1
                 self.log.debug(
-                    f"Set frame to {frame_index} for animation '{self.current_animation}' (animation paused)"
+                    f"Set frame to {frame_index} for animation '{self.current_animation}' (was_playing: {was_playing})"
                 )
 
     def show_frame(self, animation: str, frame: int) -> None:

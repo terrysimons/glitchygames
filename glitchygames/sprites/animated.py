@@ -37,6 +37,89 @@ except ImportError:
 LOG = logging.getLogger("game.sprites.animated")
 
 
+class FrameManager:
+    """Centralized frame state management for animation system."""
+    
+    def __init__(self, animated_sprite):
+        """Initialize with reference to the animated sprite."""
+        self.animated_sprite = animated_sprite
+        self._current_animation = ""
+        self._current_frame = 0
+        self._observers = []  # Components that need to be notified of frame changes
+        
+    def add_observer(self, observer):
+        """Add an observer that will be notified of frame changes."""
+        if observer not in self._observers:
+            self._observers.append(observer)
+            
+    def remove_observer(self, observer):
+        """Remove an observer."""
+        if observer in self._observers:
+            self._observers.remove(observer)
+            
+    def notify_observers(self, change_type, old_value, new_value):
+        """Notify all observers of a frame change."""
+        for observer in self._observers:
+            if hasattr(observer, 'on_frame_change'):
+                observer.on_frame_change(change_type, old_value, new_value)
+    
+    @property
+    def current_animation(self):
+        """Get the current animation name."""
+        return self._current_animation
+        
+    @current_animation.setter
+    def current_animation(self, value):
+        """Set the current animation and notify observers."""
+        if value != self._current_animation:
+            old_value = self._current_animation
+            self._current_animation = value
+            self._current_frame = 0  # Reset frame when animation changes
+            self.notify_observers('animation', old_value, value)
+            
+    @property
+    def current_frame(self):
+        """Get the current frame index."""
+        return self._current_frame
+        
+    @current_frame.setter
+    def current_frame(self, value):
+        """Set the current frame and notify observers."""
+        if value != self._current_frame:
+            old_value = self._current_frame
+            self._current_frame = value
+            self.notify_observers('frame', old_value, value)
+            
+    def set_frame(self, frame_index):
+        """Set the current frame with bounds checking."""
+        if self._current_animation in self.animated_sprite._animations:
+            max_frames = len(self.animated_sprite._animations[self._current_animation])
+            if 0 <= frame_index < max_frames:
+                self.current_frame = frame_index
+                return True
+        return False
+        
+    def set_animation(self, animation_name):
+        """Set the current animation with validation."""
+        if animation_name in self.animated_sprite._animations:
+            self.current_animation = animation_name
+            return True
+        return False
+        
+    def get_frame_data(self):
+        """Get the current frame data."""
+        if (self._current_animation in self.animated_sprite._animations and 
+            self._current_frame < len(self.animated_sprite._animations[self._current_animation])):
+            return self.animated_sprite._animations[self._current_animation][self._current_frame]
+        return None
+        
+    def get_frame_count(self):
+        """Get the number of frames in the current animation."""
+        if self._current_animation in self.animated_sprite._animations:
+            return len(self.animated_sprite._animations[self._current_animation])
+        return 0
+
+
 class AnimatedSpriteInterface(abc.ABC):
     """A formal interface for animated sprites."""
 
@@ -252,12 +335,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Animation state
         self.name = "animated_sprite"  # Default name
         self._animations = {}  # animation_name -> list of frames
-        self._current_animation = ""
-        self._current_frame = 0
         self._is_playing = False
         self._is_looping = False
         self._frame_timer = 0.0
         self._color_map = {}  # Color mapping for TOML files
+        
+        # Initialize frame manager as the single source of truth
+        self.frame_manager = FrameManager(self)
 
         # Dirty sprite properties
         self.dirty = 1  # Start dirty to ensure initial render
@@ -273,16 +357,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def __getitem__(self: Self, animation_name: str) -> "SpriteFrame":
         """Return the current frame of the specified animation."""
-        return self._animations.get(animation_name, [None])[self._current_frame]
+        return self._animations.get(animation_name, [None])[self.frame_manager.current_frame]
 
     def get_current_frame(self: Self) -> "SpriteFrame":
         """Return the current frame as a "SpriteFrame"."""
-        if not self._current_animation or self._current_animation not in self._animations:
-            return None
-        frames = self._animations[self._current_animation]
-        if not frames or self._current_frame >= len(frames):
-            return None
-        return frames[self._current_frame]
+        return self.frame_manager.get_frame_data()
 
     # Sprite properties - return current frame's surface information
     def _get_current_surface(self: Self) -> pygame.Surface:
@@ -300,7 +379,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             return surface
 
         # Use cached surface if available
-        cache_key = f"{self._current_animation}_{self._current_frame}"
+        cache_key = f"{self.frame_manager.current_animation}_{self.frame_manager.current_frame}"
         if cache_key in self._surface_cache:
             return self._surface_cache[cache_key]
 
@@ -333,12 +412,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     @property
     def current_animation(self: Self) -> str:
         """Return the current animation name."""
-        return self._current_animation
+        return self.frame_manager.current_animation
 
     @property
     def current_frame(self: Self) -> int:
         """Return the current frame index."""
-        return self._current_frame
+        return self.frame_manager.current_frame
 
     @property
     def is_playing(self: Self) -> bool:
@@ -375,9 +454,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     @property
     def frame_count(self: Self) -> int:
         """Return the number of frames in the current animation."""
-        if self._current_animation in self._animations:
-            return len(self._animations[self._current_animation])
-        return 0
+        return self.frame_manager.get_frame_count()
 
     @property
     def next_animation(self: Self) -> str:
@@ -414,33 +491,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def stop(self: Self) -> None:
         """Stop the current animation and reset to frame 0."""
         self._is_playing = False
-        self._current_frame = 0
+        self.frame_manager.current_frame = 0
         self._frame_timer = 0.0
 
     def set_frame(self: Self, frame_index: int) -> None:
         """Set the current frame index."""
-        if self._current_animation in self._animations:
-            max_frames = len(self._animations[self._current_animation])
-            if 0 <= frame_index < max_frames:
-                old_frame = self._current_frame
-                self._current_frame = frame_index
-                self._frame_timer = 0.0
-
-                # Mark dirty if frame actually changed
-                if old_frame != frame_index:
-                    self._update_surface_and_mark_dirty()
+        if self.frame_manager.set_frame(frame_index):
+            self._frame_timer = 0.0
+            self._update_surface_and_mark_dirty()
 
     def set_animation(self: Self, animation_name: str) -> None:
         """Set the current animation."""
-        if animation_name in self._animations:
-            old_animation = self._current_animation
-            self._current_animation = animation_name
-            self._current_frame = 0
+        if self.frame_manager.set_animation(animation_name):
             self._frame_timer = 0.0
-
-            # Mark dirty if animation actually changed
-            if old_animation != animation_name:
-                self._update_surface_and_mark_dirty()
+            self._update_surface_and_mark_dirty()
 
     # Animation data methods
     def add_animation(
@@ -448,8 +512,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     ) -> None:
         """Add a new animation."""
         self._animations[name] = frames.copy()
-        if not self._current_animation:
-            self._current_animation = name
+        if not self.frame_manager.current_animation:
+            self.frame_manager.current_animation = name
 
     def remove_animation(self: Self, name: str) -> None:
         """Remove an animation."""
@@ -599,24 +663,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if self._animations:
             # First try to find "idle" animation, then fall back to first animation in file order
             if "idle" in self._animations:
-                self._current_animation = "idle"
+                self.frame_manager.current_animation = "idle"
                 self.log.debug(
                     f"Set initial animation to 'idle' with {len(self._animations['idle'])} frames"
                 )
             else:
                 # Use the first animation as it appears in the file
-                self._current_animation = (
+                initial_animation = (
                     self._animation_order[0]
                     if self._animation_order
                     else next(iter(self._animations.keys()))
                 )
+                self.frame_manager.current_animation = initial_animation
                 self.log.debug(
-                    f"No 'idle' animation found, using first animation in file: '{self._current_animation}' with {len(self._animations[self._current_animation])} frames"
+                    f"No 'idle' animation found, using first animation in file: '{initial_animation}' with {len(self._animations[initial_animation])} frames"
                 )
-            self._current_frame = 0
+            self.frame_manager.current_frame = 0
         else:
-            self._current_animation = ""
-            self._current_frame = 0
+            self.frame_manager.current_animation = ""
+            self.frame_manager.current_frame = 0
             self.log.debug("No animations available, set to empty")
 
     def _load_yaml(self: Self, filename: str) -> None:
@@ -658,9 +723,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._log_toml_load_results()
 
         # Initialize the sprite surface with the first frame
-        if self._current_animation and self._current_animation in self._animations:
+        if self.frame_manager.current_animation and self.frame_manager.current_animation in self._animations:
             self.log.debug(
-                f"INITIAL FRAME STATE: animation='{self._current_animation}', frame={self._current_frame}"
+                f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', frame={self.frame_manager.current_frame}"
             )
             # Force initial surface update
             self._update_surface_and_mark_dirty()
@@ -1166,13 +1231,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def update(self: Self, dt: float = 0.016) -> None:
         """Update animation timing."""
-        if not self._is_playing or not self._current_animation:
+        if not self._is_playing or not self.frame_manager.current_animation:
             return
 
-        if self._current_animation not in self._animations:
+        if self.frame_manager.current_animation not in self._animations:
             return
 
-        frames = self._animations[self._current_animation]
+        frames = self._animations[self.frame_manager.current_animation]
         if not frames:
             return
 
@@ -1184,35 +1249,35 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         if self._frame_timer >= frame_interval:
             # Move to next frame
-            old_frame = self._current_frame
+            old_frame = self.frame_manager.current_frame
             self._frame_timer = 0.0
-            self._current_frame += 1
+            self.frame_manager.current_frame += 1
 
             # Log only on frame transitions
-            self.log.debug(f"Frame advance: {old_frame} -> {self._current_frame}")
-            if old_frame == 0 and self._current_frame == 1:
+            self.log.debug(f"Frame advance: {old_frame} -> {self.frame_manager.current_frame}")
+            if old_frame == 0 and self.frame_manager.current_frame == 1:
                 self.log.debug("FIRST FRAME ADVANCE: 0 -> 1")
 
             # Check if we've reached the end
-            if self._current_frame >= len(frames):
+            if self.frame_manager.current_frame >= len(frames):
                 if self._is_looping:
-                    self._current_frame = 0
+                    self.frame_manager.current_frame = 0
                     self.log.debug(f"Looping back to frame 0 (total frames: {len(frames)})")
                 else:
-                    self._current_frame = len(frames) - 1
+                    self.frame_manager.current_frame = len(frames) - 1
                     self._is_playing = False
-                    self.log.debug(f"Animation ended, stopped at frame {self._current_frame}")
+                    self.log.debug(f"Animation ended, stopped at frame {self.frame_manager.current_frame}")
 
             # Update the surface with the new frame's pixel data
             self._update_surface_and_mark_dirty()
 
             # Debug: Dump current frame info only on transitions (after loop correction)
-            if self._current_animation and self._current_animation in self._animations:
-                frames = self._animations[self._current_animation]
-                if self._current_frame < len(frames):
-                    frame = frames[self._current_frame]
+            if self.frame_manager.current_animation and self.frame_manager.current_animation in self._animations:
+                frames = self._animations[self.frame_manager.current_animation]
+                if self.frame_manager.current_frame < len(frames):
+                    frame = frames[self.frame_manager.current_frame]
                     self.log.debug(
-                        f"ANIMATION FRAME DUMP: animation='{self._current_animation}', frame_index={self._current_frame}, frame={frame}, has_surface={hasattr(frame, 'surface')}"
+                        f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', frame_index={self.frame_manager.current_frame}, frame={frame}, has_surface={hasattr(frame, 'surface')}"
                     )
 
                     # Get pixel data from the frame
@@ -1221,7 +1286,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                         import hashlib
                         pixel_data_str = str(frame.pixels)
                         pixel_hash = hashlib.md5(pixel_data_str.encode()).hexdigest()[:8]
-                        self.log.debug(f"  Frame {self._current_frame} pixel hash: {pixel_hash}")
+                        self.log.debug(f"  Frame {self.frame_manager.current_frame} pixel hash: {pixel_hash}")
                         self.log.debug(f"  Total pixels: {len(frame.pixels)}")
                     elif hasattr(frame, "image"):
                         # Try to get pixel data from the image surface
@@ -1252,15 +1317,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def _update_surface_and_mark_dirty(self) -> None:
         """Update the sprite's surface and mark as dirty for efficient rendering."""
-        if not self._current_animation or self._current_animation not in self._animations:
+        if not self.frame_manager.current_animation or self.frame_manager.current_animation not in self._animations:
             return
 
-        frames = self._animations[self._current_animation]
-        if self._current_frame >= len(frames):
+        frames = self._animations[self.frame_manager.current_animation]
+        if self.frame_manager.current_frame >= len(frames):
             return
 
         # Check if frame actually changed
-        if self._last_frame_index == self._current_frame:
+        if self._last_frame_index == self.frame_manager.current_frame:
             return  # No change needed
 
         # Update the sprite's image and rect
@@ -1273,13 +1338,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self.rect.center = old_center
 
         # Update frame tracking
-        self._last_frame_index = self._current_frame
+        self._last_frame_index = self.frame_manager.current_frame
 
         # Mark as dirty for pygame's dirty sprite system
         self.dirty = 1
 
         self.log.debug(
-            f"Updated surface for frame {self._current_frame} of animation '{self._current_animation}'"
+            f"Updated surface for frame {self.frame_manager.current_frame} of animation '{self.frame_manager.current_animation}'"
         )
 
     @staticmethod
