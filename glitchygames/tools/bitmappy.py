@@ -2119,7 +2119,7 @@ class LivePreviewSprite(BitmappySprite):
         self.log = logging.getLogger("game.bitmappy.live_preview")
 
         # Create initial surface - size will be determined by the actual sprite
-        self.image = pygame.Surface((32, 32))  # Default size, will be updated
+        self.image = pygame.Surface((64, 64))  # Default size, will be updated
         self.image.fill((255, 0, 255))  # Magenta background
         self.rect = self.image.get_rect(x=x, y=y)
         self.dirty = 2  # Always dirty for real-time updates
@@ -2184,8 +2184,9 @@ class LivePreviewSprite(BitmappySprite):
                         )
 
                         if current_surface:
-                            # Display the frame at its actual dimensions
-                            self.image = current_surface
+                            # Scale the frame up to 64x64 for the preview
+                            scaled_surface = pygame.transform.scale(current_surface, (64, 64))
+                            self.image = scaled_surface
                             self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
                             self.dirty = 1  # Only dirty when frame changes
                             self.log.debug(
@@ -2404,13 +2405,13 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.film_strip = FilmStripWidget(x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100)
         self.film_strip.set_animated_sprite(animated_sprite)
 
-        # Create film strip sprite for rendering
+        # Create film strip sprite for rendering (height will be updated dynamically)
         self.film_strip_sprite = FilmStripSprite(
             film_strip_widget=self.film_strip,
             x=film_strip_x,
             y=film_strip_y,
             width=film_strip_width,
-            height=100,
+            height=self.film_strip.rect.height,
             groups=groups
         )
 
@@ -2619,6 +2620,11 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.current_animation = animation
             self.current_frame = frame
 
+            # Update the animated sprite to the new animation and frame
+            if animation != self.animated_sprite.current_animation:
+                self.animated_sprite.set_animation(animation)
+            self.animated_sprite.set_frame(frame)
+
             # Update the canvas interface
             self.canvas_interface.set_current_frame(animation, frame)
 
@@ -2652,6 +2658,15 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Update film strip sprite
             if hasattr(self, "film_strip_sprite"):
                 self.film_strip_sprite.dirty = 1
+
+            # Update live preview to show the new animation
+            if hasattr(self, "live_preview"):
+                # Clear the frame tracking to force an update
+                if hasattr(self.live_preview, "_last_frame_index"):
+                    delattr(self.live_preview, "_last_frame_index")
+                # Force update the live preview
+                self.live_preview._update_frame()
+                self.live_preview.dirty = 1
 
     def next_frame(self) -> None:
         """Move to the next frame in the current animation."""
@@ -3742,14 +3757,19 @@ class BitmapEditorScene(Scene):
         )
         self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
 
-        # Create a live preview surface in the center of the screen
+        # Create a live preview surface positioned to the right of the film strip
         try:
             self.log.debug(f"Creating LivePreviewSprite with all_sprites: {self.all_sprites}")
+
+            # Calculate position to the right of the film strip, centered with canvas
+            live_preview_x = self.canvas.film_strip_sprite.rect.right + 20  # 20px to the right of film strip
+            live_preview_y = self.canvas.rect.centery - 32  # Center vertically with canvas (assuming 64px preview height)
+
             self.live_preview = LivePreviewSprite(
                 animated_sprite=animated_sprite,
                 name="Live Preview",
-                x=400,  # Center of screen
-                y=220,  # Moved up 80 pixels from center
+                x=live_preview_x,
+                y=live_preview_y,
                 groups=self.all_sprites,
             )
             self.log.info(

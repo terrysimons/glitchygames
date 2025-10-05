@@ -55,6 +55,7 @@ class FilmStripWidget:
         self.current_frame = 0
         self.scroll_offset = 0  # Horizontal scroll offset for rolling effect
         self._calculate_layout()
+        self._update_height()
         
     def update_layout(self) -> None:
         """Update the layout of frames and sprockets."""
@@ -98,7 +99,33 @@ class FilmStripWidget:
         
         # Recalculate layout with new scroll offset
         self._calculate_layout()
+        self._update_height()
         self.mark_dirty()
+
+    def _update_height(self) -> None:
+        """Update the film strip height based on the number of animations (up to 5 rows max)."""
+        if not self.animated_sprite:
+            return
+            
+        # Calculate required height based on number of animations
+        num_animations = len(self.animated_sprite._animations)
+        max_animations = 5  # Maximum 5 rows
+        
+        # Limit to maximum 5 animations
+        visible_animations = min(num_animations, max_animations)
+        
+        # Calculate height: (label_height + frame_height + spacing) * num_animations + padding
+        required_height = (self.animation_label_height + self.frame_height + 10) * visible_animations + 20
+        
+        # Update the rect height
+        self.rect.height = required_height
+        
+        # Update the parent film strip sprite height if it exists
+        if hasattr(self, "parent_canvas") and self.parent_canvas and hasattr(self.parent_canvas, "film_strip_sprite"):
+            self.parent_canvas.film_strip_sprite.rect.height = required_height
+            # Also update the surface size
+            self.parent_canvas.film_strip_sprite.image = pygame.Surface((self.parent_canvas.film_strip_sprite.rect.width, required_height))
+            self.parent_canvas.film_strip_sprite.dirty = 1
 
     def _calculate_layout(self) -> None:
         """Calculate the layout of frames and sprockets."""
@@ -111,23 +138,23 @@ class FilmStripWidget:
 
         x_offset = 0
 
+        y_offset = 0
         for anim_name, frames in self.animated_sprite._animations.items():
-            # Calculate animation label area - center on the entire strip width
+            # Calculate animation label area for this row
             self.animation_layouts[anim_name] = pygame.Rect(
-                0, 0, self.rect.width, self.animation_label_height
+                0, y_offset, self.rect.width, self.animation_label_height
             )
 
-            # Calculate frame positions with scroll offset
+            # Calculate frame positions with scroll offset for this row
             for frame_idx, _frame in enumerate(frames):
-                frame_x = x_offset + frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset
+                frame_x = frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset
                 frame_rect = pygame.Rect(
-                    frame_x, self.animation_label_height, self.frame_width, self.frame_height
+                    frame_x, y_offset + self.animation_label_height, self.frame_width, self.frame_height
                 )
                 self.frame_layouts[anim_name, frame_idx] = frame_rect
 
-            # Calculate the actual width of frames for this animation
-            animation_width = len(frames) * (self.frame_width + self.frame_spacing)
-            x_offset += animation_width
+            # Move to next row
+            y_offset += self.animation_label_height + self.frame_height + 10  # 10px spacing between animations
 
             # Add sprocket separator (except for last animation)
             if anim_name != list(self.animated_sprite._animations.keys())[-1]:
