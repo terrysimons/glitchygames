@@ -51,9 +51,6 @@ from .canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
-    StaticCanvasInterface,
-    StaticCanvasRenderer,
-    StaticSpriteSerializer,
 )
 from .film_strip import FilmStripWidget
 
@@ -801,643 +798,62 @@ class Canvas(BitmappySprite):
         # Draw the pixel canvas grid
 
 
-class CanvasSprite(BitmappySprite):
-    """Canvas Sprite."""
-
-    log = LOG
-
-    def __init__(
-        self,
-        name="Canvas",
-        x=0,
-        y=0,
-        pixels_across=32,
-        pixels_tall=32,
-        pixel_width=16,
-        pixel_height=16,
-        groups=None,
-    ):
-        """Initialize the Canvas Sprite."""
-        # Calculate dimensions first
-        self.pixels_across = pixels_across
-        self.pixels_tall = pixels_tall
-        self.pixel_width = pixel_width
-        self.pixel_height = pixel_height
-        width = self.pixels_across * self.pixel_width
-        height = pixels_tall * pixel_height
-
-        # Initialize parent class first to create rect
-        super().__init__(
-            x=x,
-            y=y,
-            width=width,
-            height=height,
-            name=name,
-            groups=groups,
-        )
-
-        # Store pixel-related attributes
-        self.pixels_across = pixels_across
-        self.pixels_tall = pixels_tall
-        self.pixel_width = pixel_width
-        self.pixel_height = pixel_height
-
-        # Initialize pixels with magenta as the transparent/background color
-        self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
-        self.dirty_pixels = [True] * len(self.pixels)
-        self.background_color = (128, 128, 128)
-        self.active_color = (0, 0, 0)
-        self.border_thickness = 1
-
-        # Create initial surface
-        self.image = pygame.Surface((self.width, self.height))
-        self.rect = self.image.get_rect(x=x, y=y)
-
-        # Initialize interface components for static sprites
-        self.canvas_interface = StaticCanvasInterface(self)
-        self.sprite_serializer = StaticSpriteSerializer()
-        self.canvas_renderer = StaticCanvasRenderer(self)
-
-        # Get screen dimensions from pygame
-        screen_info = pygame.display.Info()
-        screen_width = screen_info.current_w
-
-        # Calculate mini map size (2x2 pixels per sprite pixel)
-        pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
-        mini_map_width = self.pixels_across * pixel_width
-
-        # Position mini map flush to the right edge and top
-        mini_map_x = screen_width - mini_map_width  # Flush to right edge
-        mini_map_y = 24  # Flush to top (below menu bar)
-
-        # Ensure mini map doesn't go off screen
-        if mini_map_x < 0:
-            mini_map_x = 20  # Fallback to left side if too wide
-
-        # Create miniview - position in top right corner
-        self.mini_view = MiniView(
-            pixels=self.pixels,
-            x=mini_map_x,
-            y=mini_map_y,
-            width=self.pixels_across,
-            height=self.pixels_tall,
-            groups=groups,
-        )
-
-        # Add MiniView to the sprite groups explicitly
-        if groups:
-            if isinstance(groups, (list, tuple)):
-                for group in groups:
-                    group.add(self.mini_view)
-            else:
-                groups.add(self.mini_view)
-
-        # Force initial draw
-        self.dirty = 1
-        self.force_redraw()
-
-    def update(self):
-        """Update the canvas display."""
-        # Check if mouse is outside canvas
-        mouse_pos = pygame.mouse.get_pos()
-
-        # Get window size
-        screen_info = pygame.display.Info()
-        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
-
-        # If mouse is outside window or canvas, clear cursor
-        if (
-            not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
-        ) and hasattr(self, "mini_view"):
-            self.log.info("Mouse outside canvas/window, clearing miniview cursor")
-            self.mini_view.clear_cursor()
-
-        if self.dirty:
-            self.force_redraw()
-            self.dirty = 0
-
-    def force_redraw(self):
-        """Force a complete redraw of the canvas."""
-        # Use the interface-based rendering while maintaining existing behavior
-        self.image = self.canvas_renderer.force_redraw(self)
-        self.log.debug(f"Canvas force redraw complete with {len(self.pixels)} pixels")
-
-    def on_left_mouse_button_down_event(self, event):
-        """Handle the left mouse button down event."""
-        if self.rect.collidepoint(event.pos):
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
-
-            # Use the interface to set the pixel
-            self.canvas_interface.set_pixel_at(x, y, self.active_color)
-
-            # Update miniview
-            if hasattr(self, "mini_view"):
-                self.mini_view.on_pixel_update_event(event, self)
-
-    def on_left_mouse_drag_event(self, event, trigger):
-        """Handle mouse drag events."""
-        # For drag events, we treat them the same as button down
-        self.on_left_mouse_button_down_event(event)
-
-    def on_mouse_motion_event(self, event):
-        """Handle mouse motion events."""
-        if self.rect.collidepoint(event.pos):
-            # Convert mouse position to pixel coordinates
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
-
-            # Check if the coordinates are within valid range
-            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-                if hasattr(self, "mini_view"):
-                    self.mini_view.update_canvas_cursor(x, y, self.active_color)
-            elif hasattr(self, "mini_view"):
-                self.mini_view.clear_cursor()
-        elif hasattr(self, "mini_view"):
-            self.mini_view.clear_cursor()
-
-    def on_pixel_update_event(self, event, trigger):
-        """Handle pixel update events."""
-        if hasattr(trigger, "pixel_number"):
-            pixel_num = trigger.pixel_number
-            new_color = trigger.pixel_color
-            self.log.info(f"Canvas updating pixel {pixel_num} to color {new_color}")
-
-            self.pixels[pixel_num] = new_color
-            self.dirty_pixels[pixel_num] = True
-            self.dirty = 1
-
-            # Update miniview
-            self.mini_view.on_pixel_update_event(event, trigger)
-
-    def on_mouse_leave_window_event(self, event):
-        """Handle mouse leaving window event."""
-        self.log.info("Mouse left window, clearing miniview cursor")
-        if hasattr(self, "mini_view"):
-            self.mini_view.clear_cursor()
-
-    def on_mouse_enter_sprite_event(self, event):
-        """Handle mouse entering canvas."""
-        self.log.info("Mouse entered canvas")
-        if hasattr(self, "mini_view"):
-            # Update cursor position immediately
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
-            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-                self.mini_view.update_canvas_cursor(x, y, self.active_color)
-
-    def on_mouse_exit_sprite_event(self, event):
-        """Handle mouse exiting canvas."""
-        self.log.info("Mouse exited canvas")
-        if hasattr(self, "mini_view"):
-            self.mini_view.clear_cursor()
-
-    def on_save_file_event(self: Self, filename: str) -> None:
-        """Handle save file events.
-
-        Args:
-            filename (str): The filename to save to.
-
-        Returns:
-            None
-
-        """
-        self.log.info(f"Starting save to file: {filename}")
-        try:
-            # Detect file format from extension
-            file_format = detect_file_format(filename)
-            self.log.info(f"Detected file format: {file_format}")
-            # Use the interface-based save method
-            self.sprite_serializer.save(self, filename=filename, file_format=file_format)
-        except (OSError, ValueError, KeyError):
-            self.log.exception("Error saving file")
-            raise
-
-    def get_canvas_interface(self) -> StaticCanvasInterface:
-        """Get the canvas interface for external access.
-
-        Returns:
-            The canvas interface instance
-
-        """
-        return self.canvas_interface
-
-    def get_sprite_serializer(self) -> StaticSpriteSerializer:
-        """Get the sprite serializer for external access.
-
-        Returns:
-            The sprite serializer instance
-
-        """
-        return self.sprite_serializer
-
-    def get_canvas_renderer(self) -> StaticCanvasRenderer:
-        """Get the canvas renderer for external access.
-
-        Returns:
-            The canvas renderer instance
-
-        """
-        return self.canvas_renderer
-
-    def _load_file_content(self, filename: str) -> str | None:
-        """Load and return file content."""
-        if not Path(filename).exists():
-            self.log.error(f"File not found: {filename}")
-            return None
-
-        try:
-            with Path(filename).open("r", encoding="utf-8") as f:
-                content = f.read()
-            self.log.debug(f"Raw file content:\n{content}")
-        except (FileNotFoundError, PermissionError, OSError):
-            self.log.exception(f"Error reading file {filename}")
-            return None
-        else:
-            return content
-
-    @staticmethod
-    def _parse_color_section(section: str) -> tuple[str, dict[str, str]] | None:
-        """Parse a single color section."""
-        lines = section.strip().split("\n")
-        if not lines[0].startswith("[") or not lines[0].endswith("]"):
-            return None
-
-        color_key = lines[0][1:-1]  # Remove [ and ]
-        if len(color_key) != 1:  # Single character color
-            return None
-
-        color_data = {}
-        for line in lines[1:]:
-            if "=" in line:
-                key, value = line.split("=", 1)
-                color_data[key.strip()] = value.strip()
-
-        return color_key, color_data
-
-    def _parse_sections(self, content: str) -> tuple[str | None, dict[str, dict[str, str]]]:
-        """Parse content into sprite and color sections."""
-        sections = content.split("\n\n")
-        self.log.debug(f"Found {len(sections)} sections")
-
-        sprite_section = None
-        color_sections = {}
-
-        for section in sections:
-            if section.strip().startswith("[sprite]"):
-                sprite_section = section
-                self.log.debug(f"Sprite section: {sprite_section[:100]}...")
-            elif section.strip().startswith("[") and len(section.strip()) > 1:
-                # This is a color section
-                result = self._parse_color_section(section)
-                if result is not None:
-                    color_key, color_data = result
-                    color_sections[color_key] = color_data
-
-        self.log.debug(f"Color sections: {color_sections}")
-        return sprite_section, color_sections
-
-    def _build_color_map(
-        self, color_sections: dict[str, dict[str, str]]
-    ) -> dict[str, tuple[int, int, int]]:
-        """Build color map from color sections."""
-        color_map = {}
-        for color_key, color_data in color_sections.items():
-            if "red" in color_data and "green" in color_data and "blue" in color_data:
-                color_map[color_key] = (
-                    int(color_data["red"]),
-                    int(color_data["green"]),
-                    int(color_data["blue"]),
-                )
-        self.log.debug(f"Color map: {color_map}")
-        return color_map
-
-    def _extract_pixel_data(self, sprite_section: str) -> list[str] | None:
-        """Extract pixel data from sprite section."""
-        if not sprite_section:
-            self.log.error("No sprite section found in file")
-            return None
-
-        lines = sprite_section.split("\n")
-        pixel_lines = []
-        in_pixels = False
-        for line in lines:
-            if "pixels =" in line:
-                in_pixels = True
-            elif in_pixels and line.strip():
-                pixel_lines.append(line.strip())
-            elif in_pixels and not line.strip():
-                break
-
-        pixel_text = "\n".join(pixel_lines)
-        self.log.debug(f"Extracted pixel text:\n{pixel_text}")
-
-        # Split into rows and properly handle indentation
-        rows = []
-        for i, row in enumerate(pixel_text.splitlines()):
-            processed_row = row.lstrip()  # Remove leading/trailing whitespace including tabs
-            if processed_row:  # Only add non-empty rows
-                rows.append(processed_row)
-                self.log.debug(f"Row {i}: '{processed_row}' (len={len(processed_row)})")
-
-        self.log.debug(f"Total rows found: {len(rows)}")
-
-        if not rows:
-            self.log.error("No pixel data found in file")
-            return None
-
-        return rows
-
-    def _resize_canvas_if_needed(self, width: int, height: int) -> None:
-        """Resize canvas if dimensions don't match."""
-        if width == self.pixels_across and height == self.pixels_tall:
-            return
-
-        self.log.debug(
-            f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {width}x{height}"
-        )
-        self.pixels_across = width
-        self.pixels_tall = height
-
-        # Get screen dimensions directly from pygame display
-        screen = pygame.display.get_surface()
-        screen_width = screen.get_width()
-        screen_height = screen.get_height()
-
-        # Recalculate pixel dimensions to fit the screen
-        available_height = screen_height - 100 - 24  # Adjust for bottom margin and menu bar
-        pixel_size = min(available_height // height, (screen_width * 2 // 3) // width)
-
-        # Update pixel dimensions
-        self.pixel_width = pixel_size
-        self.pixel_height = pixel_size
-
-        # Create new pixel arrays
-        self.pixels = [(255, 0, 255)] * (width * height)  # Initialize with magenta
-        self.dirty_pixels = [True] * (width * height)
-
-        # Update surface dimensions
-        actual_width = width * pixel_size
-        actual_height = height * pixel_size
-        self.image = pygame.Surface((actual_width, actual_height))
-        self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
-
-        # Update class dimensions
-        CanvasSprite.WIDTH = width
-        CanvasSprite.HEIGHT = height
-
-        # Reinitialize mini view if it exists
-        if hasattr(self, "mini_view"):
-            self._resize_mini_view(width, height)
-
-    def _resize_mini_view(self, width: int, height: int) -> None:
-        """Resize mini view for new canvas dimensions."""
-        # Recalculate mini map position for new size
-        screen_info = pygame.display.Info()
-        screen_width = screen_info.current_w
-        pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
-        mini_map_width = width * pixel_width
-        mini_map_x = screen_width - mini_map_width  # Flush to right edge
-        if mini_map_x < 0:
-            mini_map_x = 20  # Fallback to left side if too wide
-
-        self.mini_view.pixels_across = width
-        self.mini_view.pixels_tall = height
-        self.mini_view.pixels = self.pixels
-        self.mini_view.dirty_pixels = [True] * len(self.pixels)
-        pixel_width, pixel_height = self.mini_view.pixels_per_pixel(width, height)
-        self.mini_view.image = pygame.Surface((width * pixel_width, height * pixel_height))
-        # Flush to top
-        self.mini_view.rect = self.mini_view.image.get_rect(x=mini_map_x, y=24)
-
-    def _update_canvas_pixels(
-        self, rows: list[str], color_map: dict[str, tuple[int, int, int]]
-    ) -> None:
-        """Update canvas pixels with new data."""
-        for y, row in enumerate(rows):
-            for x, char in enumerate(row):
-                pixel_num = y * self.pixels_across + x
-                if char in color_map:
-                    self.pixels[pixel_num] = color_map[char]
-                    self.dirty_pixels[pixel_num] = True
-
-    def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
-        """Handle load file event."""
-        self.log.debug("=== Starting on_load_file_event ===")
-        try:
-            filename = event if isinstance(event, str) else event.text
-            self.log.debug(f"Loading canvas from {filename}")
-
-            # Load file content
-            content = self._load_file_content(filename)
-            if content is None:
-                return
-
-            # Parse sections
-            sprite_section, color_sections = self._parse_sections(content)
-
-            # Build color map
-            color_map = self._build_color_map(color_sections)
-
-            # Extract pixel data
-            rows = self._extract_pixel_data(sprite_section)
-            if rows is None:
-                return
-
-            # Calculate dimensions
-            width = len(rows[0])
-            height = len(rows)
-            self.log.debug(f"Loading image with dimensions {width}x{height}")
-
-            # Resize canvas if needed
-            self._resize_canvas_if_needed(width, height)
-
-            # Update canvas pixels
-            self._update_canvas_pixels(rows, color_map)
-
-            # Force a complete redraw
-            self.dirty = 1
-            self.force_redraw()
-
-            # Update miniview if it exists
-            if hasattr(self, "mini_view"):
-                self.mini_view.dirty = 1
-                self.mini_view.force_redraw()
-
-            # Reset AI textbox to prompt string after successful sprite loading
-            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-                self.parent.debug_text.text = (
-                    "Enter a description of the sprite you want to create:"
-                )
-
-        except FileNotFoundError as e:
-            self.log.exception(f"File not found: {e}")
-            # Show user-friendly error message instead of crashing
-            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-                self.parent.debug_text.text = f"Error: File not found - {e}"
-        except Exception as e:
-            self.log.exception("Error in on_load_file_event")
-            # Show user-friendly error message instead of crashing
-            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-                self.parent.debug_text.text = f"Error loading sprite: {e}"
-
-
-# class MiniView(BitmappySprite):
-#     """Mini View."""
+# class CanvasSprite(BitmappySprite):
+#     """Canvas Sprite."""
 
 #     log = LOG
-#     BACKGROUND_COLORS = [
-#         (0, 255, 255),    # Cyan
-#         (0, 0, 0),        # Black
-#         (128, 128, 128),  # Gray
-#         (255, 255, 255),  # White
-#         (255, 0, 255),    # Magenta
-#         (0, 255, 0),      # Green
-#         (0, 0, 255),      # Blue
-#         (255, 255, 0),    # Yellow
-#         (64, 64, 64),     # Dark Gray
-#         (192, 192, 192),  # Light Gray
-#     ]
 
-#     def __init__(self, pixels, x, y, width, height, name="Mini View", groups=None):
-#         self.pixels_across = width
-#         self.pixels_tall = height
-#         pixel_width, pixel_height = self.pixels_per_pixel(width, height)
-#         actual_width = width * pixel_width
-#         actual_height = height * pixel_height
+#     def __init__(
+#         self,
+#         name="Canvas",
+#         x=0,
+#         y=0,
+#         pixels_across=32,
+#         pixels_tall=32,
+#         pixel_width=16,
+#         pixel_height=16,
+#         groups=None,
+#     ):
+#         """Initialize the Canvas Sprite."""
+#         # Calculate dimensions first
+#         self.pixels_across = pixels_across
+#         self.pixels_tall = pixels_tall
+#         self.pixel_width = pixel_width
+#         self.pixel_height = pixel_height
+#         width = self.pixels_across * self.pixel_width
+#         height = pixels_tall * pixel_height
 
+#         # Initialize parent class first to create rect
 #         super().__init__(
 #             x=x,
 #             y=y,
-#             width=actual_width,
-#             height=actual_height,
+#             width=width,
+#             height=height,
 #             name=name,
-#             groups=groups
+#             groups=groups,
 #         )
 
-#         self.pixels = pixels
-#         self.dirty_pixels = [True] * len(pixels)
-#         self.background_color_index = 0
-#         self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
+#         # Store pixel-related attributes
+#         self.pixels_across = pixels_across
+#         self.pixels_tall = pixels_tall
+#         self.pixel_width = pixel_width
+#         self.pixel_height = pixel_height
 
-#         # Create initial surface
-#         self.image = pygame.Surface((actual_width, actual_height))
-#         self.rect = self.image.get_rect(x=x, y=y)
-
-#         # Initialize cursor and mouse tracking state
-#         self.canvas_cursor_pos = None
-#         self.cursor_color = (0, 0, 0)  # Will be updated from canvas's active color
-#         self.mouse_in_canvas = False
-
-#         self.dirty = 1
-#         self.force_redraw()
-#         self.log.info("MiniView initialized")
-
-#     def on_left_mouse_button_down_event(self, event):
-#         """Handle left mouse button to cycle background color."""
-#         if self.rect.collidepoint(event.pos):
-#             self.log.info(f"MiniView clicked at {event.pos}, rect is {self.rect}")
-#             old_color = self.background_color
-#             self.background_color_index = (
-#                 (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
-#             )
-#             self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-#             self.log.info(
-#                 f"MiniView background color changing from {old_color} to {self.background_color}"
-#             )
-#             self.dirty = 1
-#             self.log.info("Setting dirty flag and calling force_redraw")
-#             self.force_redraw()
-#             return True
-#         return False
-
-#     def update_canvas_cursor(self, x, y, active_color=None):
-#         """Update the cursor position and color from the main canvas."""
-#         if x is None or y is None:
-#             self.clear_cursor()
-#             return
-
-#         if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
-#             self.clear_cursor()
-#             return
-
-#         if active_color is not None:
-#             self.cursor_color = active_color
-
-#         old_pos = self.canvas_cursor_pos
-#         self.canvas_cursor_pos = (x, y)
-
-#         if old_pos != self.canvas_cursor_pos:
-#             self.dirty = 1
-
-#     def on_pixel_update_event(self, event, trigger):
-#         """Handle pixel update events."""
-#         if hasattr(trigger, "pixel_number"):
-#             pixel_num = trigger.pixel_number
-#             new_color = trigger.pixel_color
-#             self.log.info(f"MiniView updating pixel {pixel_num} to color {new_color}")
-
-#             self.pixels[pixel_num] = new_color
-#             self.dirty_pixels[pixel_num] = True
-#             self.dirty = 1
-
-#     def force_redraw(self):
-#         """Force a complete redraw of the miniview."""
-#         self.log.info(f"Starting force_redraw with background color {self.background_color}")
-#         self.image.fill(self.background_color)
-#         pixel_width, pixel_height = self.pixels_per_pixel(self.pixels_across, self.pixels_tall)
-
-#         # Draw all non-magenta pixels
-#         for i, pixel in enumerate(self.pixels):
-#             if pixel != (255, 0, 255):  # Skip magenta pixels
-#                 x = (i % self.pixels_across) * pixel_width
-#                 y = (i // self.pixels_across) * pixel_height
-#                 pygame.draw.rect(
-#                     self.image,
-#                     pixel,
-#                     (x, y, pixel_width, pixel_height)
-#                 )
-
-#         # # Only draw cursor if we have a valid position AND mouse is in canvas
-#         # canvas = None
-#         # for group in self.groups():
-#         #     for sprite in group.sprites():
-#         #         if isinstance(sprite, CanvasSprite):
-#         #             canvas = sprite
-#         #             break
-#         #     if canvas:
-#         #         break
-
-#         # if (self.canvas_cursor_pos is not None and
-#         #     canvas and
-#         #     canvas.rect.collidepoint(pygame.mouse.get_pos())):
-#         #     x = self.canvas_cursor_pos[0] * pixel_width
-#         #     y = self.canvas_cursor_pos[1] * pixel_height
-#         #     pygame.draw.rect(
-#         #         self.image,
-#         #         self.cursor_color,
-#         #         (x, y, pixel_width, pixel_height),
-#         #         1  # Border thickness
-#         #     )
-
-#         self.log.debug(f"MiniView force redraw complete with background {self.background_color}")
-
-#     def update(self):
-#         """Update the miniview display."""
-#         # Get mouse position and window size
-
-#         # Use existing attributes if they exist
-#         if hasattr(self, "pixels_across") and hasattr(self, "pixels_tall"):
-#             # Initialize pixels with magenta as the transparent/background color
-#             self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
-#             self.dirty_pixels = [True] * len(self.pixels)
+#         # Initialize pixels with magenta as the transparent/background color
+#         self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
+#         self.dirty_pixels = [True] * len(self.pixels)
 #         self.background_color = (128, 128, 128)
 #         self.active_color = (0, 0, 0)
 #         self.border_thickness = 1
 
 #         # Create initial surface
 #         self.image = pygame.Surface((self.width, self.height))
-#         self.rect = self.image.get_rect(x=self.x, y=self.y)
+#         self.rect = self.image.get_rect(x=x, y=y)
+
+#         # Initialize interface components for static sprites
+#         self.canvas_interface = StaticCanvasInterface(self)
+#         self.sprite_serializer = StaticSpriteSerializer()
+#         self.canvas_renderer = StaticCanvasRenderer(self)
 
 #         # Get screen dimensions from pygame
 #         screen_info = pygame.display.Info()
@@ -1462,16 +878,16 @@ class CanvasSprite(BitmappySprite):
 #             y=mini_map_y,
 #             width=self.pixels_across,
 #             height=self.pixels_tall,
-#             groups=self.groups
+#             groups=groups,
 #         )
 
 #         # Add MiniView to the sprite groups explicitly
-#         if self.groups:
-#             if isinstance(self.groups, (list, tuple)):
-#                 for group in self.groups:
+#         if groups:
+#             if isinstance(groups, (list, tuple)):
+#                 for group in groups:
 #                     group.add(self.mini_view)
 #             else:
-#                 self.groups.add(self.mini_view)
+#                 groups.add(self.mini_view)
 
 #         # Force initial draw
 #         self.dirty = 1
@@ -1487,8 +903,9 @@ class CanvasSprite(BitmappySprite):
 #         screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
 
 #         # If mouse is outside window or canvas, clear cursor
-#         if ((not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos))
-#             and hasattr(self, "mini_view")):
+#         if (
+#             not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
+#         ) and hasattr(self, "mini_view"):
 #             self.log.info("Mouse outside canvas/window, clearing miniview cursor")
 #             self.mini_view.clear_cursor()
 
@@ -1498,25 +915,8 @@ class CanvasSprite(BitmappySprite):
 
 #     def force_redraw(self):
 #         """Force a complete redraw of the canvas."""
-#         self.image.fill(self.background_color)
-
-#         # Draw all pixels, regardless of dirty state
-#         for i, pixel in enumerate(self.pixels):
-#             x = (i % self.pixels_across) * self.pixel_width
-#             y = (i // self.pixels_across) * self.pixel_height
-#             pygame.draw.rect(
-#                 self.image,
-#                 pixel,
-#                 (x, y, self.pixel_width, self.pixel_height)
-#             )
-#             pygame.draw.rect(
-#                 self.image,
-#                 (64, 64, 64),
-#                 (x, y, self.pixel_width, self.pixel_height),
-#                 self.border_thickness
-#             )
-#             self.dirty_pixels[i] = False
-
+#         # Use the interface-based rendering while maintaining existing behavior
+#         self.image = self.canvas_renderer.force_redraw(self)
 #         self.log.debug(f"Canvas force redraw complete with {len(self.pixels)} pixels")
 
 #     def on_left_mouse_button_down_event(self, event):
@@ -1525,12 +925,8 @@ class CanvasSprite(BitmappySprite):
 #             x = (event.pos[0] - self.rect.x) // self.pixel_width
 #             y = (event.pos[1] - self.rect.y) // self.pixel_height
 
-#             # Check bounds to prevent IndexError
-#             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-#                 pixel_num = y * self.pixels_across + x
-#                 self.pixels[pixel_num] = self.active_color
-#                 self.dirty_pixels[pixel_num] = True
-#                 self.dirty = 1
+#             # Use the interface to set the pixel
+#             self.canvas_interface.set_pixel_at(x, y, self.active_color)
 
 #             # Update miniview
 #             if hasattr(self, "mini_view"):
@@ -1549,7 +945,7 @@ class CanvasSprite(BitmappySprite):
 #             y = (event.pos[1] - self.rect.y) // self.pixel_height
 
 #             # Check if the coordinates are within valid range
-#             if (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
+#             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
 #                 if hasattr(self, "mini_view"):
 #                     self.mini_view.update_canvas_cursor(x, y, self.active_color)
 #             elif hasattr(self, "mini_view"):
@@ -1594,13 +990,233 @@ class CanvasSprite(BitmappySprite):
 #             self.mini_view.clear_cursor()
 
 #     def on_save_file_event(self: Self, filename: str) -> None:
-#         """Handle save file events."""
+#         """Handle save file events.
+
+#         Args:
+#             filename (str): The filename to save to.
+
+#         Returns:
+#             None
+
+#         """
 #         self.log.info(f"Starting save to file: {filename}")
 #         try:
-#             self.save(filename=filename)
+#             # Detect file format from extension
+#             file_format = detect_file_format(filename)
+#             self.log.info(f"Detected file format: {file_format}")
+#             # Use the interface-based save method
+#             self.sprite_serializer.save(self, filename=filename, file_format=file_format)
 #         except (OSError, ValueError, KeyError):
 #             self.log.exception("Error saving file")
 #             raise
+
+#     def get_canvas_interface(self) -> StaticCanvasInterface:
+#         """Get the canvas interface for external access.
+
+#         Returns:
+#             The canvas interface instance
+
+#         """
+#         return self.canvas_interface
+
+#     def get_sprite_serializer(self) -> StaticSpriteSerializer:
+#         """Get the sprite serializer for external access.
+
+#         Returns:
+#             The sprite serializer instance
+
+#         """
+#         return self.sprite_serializer
+
+#     def get_canvas_renderer(self) -> StaticCanvasRenderer:
+#         """Get the canvas renderer for external access.
+
+#         Returns:
+#             The canvas renderer instance
+
+#         """
+#         return self.canvas_renderer
+
+#     def _load_file_content(self, filename: str) -> str | None:
+#         """Load and return file content."""
+#         if not Path(filename).exists():
+#             self.log.error(f"File not found: {filename}")
+#             return None
+
+#         try:
+#             with Path(filename).open("r", encoding="utf-8") as f:
+#                 content = f.read()
+#             self.log.debug(f"Raw file content:\n{content}")
+#         except (FileNotFoundError, PermissionError, OSError):
+#             self.log.exception(f"Error reading file {filename}")
+#             return None
+#         else:
+#             return content
+
+#     @staticmethod
+#     def _parse_color_section(section: str) -> tuple[str, dict[str, str]] | None:
+#         """Parse a single color section."""
+#         lines = section.strip().split("\n")
+#         if not lines[0].startswith("[") or not lines[0].endswith("]"):
+#             return None
+
+#         color_key = lines[0][1:-1]  # Remove [ and ]
+#         if len(color_key) != 1:  # Single character color
+#             return None
+
+#         color_data = {}
+#         for line in lines[1:]:
+#             if "=" in line:
+#                 key, value = line.split("=", 1)
+#                 color_data[key.strip()] = value.strip()
+
+#         return color_key, color_data
+
+#     def _parse_sections(self, content: str) -> tuple[str | None, dict[str, dict[str, str]]]:
+#         """Parse content into sprite and color sections."""
+#         sections = content.split("\n\n")
+#         self.log.debug(f"Found {len(sections)} sections")
+
+#         sprite_section = None
+#         color_sections = {}
+
+#         for section in sections:
+#             if section.strip().startswith("[sprite]"):
+#                 sprite_section = section
+#                 self.log.debug(f"Sprite section: {sprite_section[:100]}...")
+#             elif section.strip().startswith("[") and len(section.strip()) > 1:
+#                 # This is a color section
+#                 result = self._parse_color_section(section)
+#                 if result is not None:
+#                     color_key, color_data = result
+#                     color_sections[color_key] = color_data
+
+#         self.log.debug(f"Color sections: {color_sections}")
+#         return sprite_section, color_sections
+
+#     def _build_color_map(
+#         self, color_sections: dict[str, dict[str, str]]
+#     ) -> dict[str, tuple[int, int, int]]:
+#         """Build color map from color sections."""
+#         color_map = {}
+#         for color_key, color_data in color_sections.items():
+#             if "red" in color_data and "green" in color_data and "blue" in color_data:
+#                 color_map[color_key] = (
+#                     int(color_data["red"]),
+#                     int(color_data["green"]),
+#                     int(color_data["blue"]),
+#                 )
+#         self.log.debug(f"Color map: {color_map}")
+#         return color_map
+
+#     def _extract_pixel_data(self, sprite_section: str) -> list[str] | None:
+#         """Extract pixel data from sprite section."""
+#         if not sprite_section:
+#             self.log.error("No sprite section found in file")
+#             return None
+
+#         lines = sprite_section.split("\n")
+#         pixel_lines = []
+#         in_pixels = False
+#         for line in lines:
+#             if "pixels =" in line:
+#                 in_pixels = True
+#             elif in_pixels and line.strip():
+#                 pixel_lines.append(line.strip())
+#             elif in_pixels and not line.strip():
+#                 break
+
+#         pixel_text = "\n".join(pixel_lines)
+#         self.log.debug(f"Extracted pixel text:\n{pixel_text}")
+
+#         # Split into rows and properly handle indentation
+#         rows = []
+#         for i, row in enumerate(pixel_text.splitlines()):
+#             processed_row = row.lstrip()  # Remove leading/trailing whitespace including tabs
+#             if processed_row:  # Only add non-empty rows
+#                 rows.append(processed_row)
+#                 self.log.debug(f"Row {i}: '{processed_row}' (len={len(processed_row)})")
+
+#         self.log.debug(f"Total rows found: {len(rows)}")
+
+#         if not rows:
+#             self.log.error("No pixel data found in file")
+#             return None
+
+#         return rows
+
+#     def _resize_canvas_if_needed(self, width: int, height: int) -> None:
+#         """Resize canvas if dimensions don't match."""
+#         if width == self.pixels_across and height == self.pixels_tall:
+#             return
+
+#         self.log.debug(
+#             f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to {width}x{height}"
+#         )
+#         self.pixels_across = width
+#         self.pixels_tall = height
+
+#         # Get screen dimensions directly from pygame display
+#         screen = pygame.display.get_surface()
+#         screen_width = screen.get_width()
+#         screen_height = screen.get_height()
+
+#         # Recalculate pixel dimensions to fit the screen
+#         available_height = screen_height - 100 - 24  # Adjust for bottom margin and menu bar
+#         pixel_size = min(available_height // height, (screen_width * 2 // 3) // width)
+
+#         # Update pixel dimensions
+#         self.pixel_width = pixel_size
+#         self.pixel_height = pixel_size
+
+#         # Create new pixel arrays
+#         self.pixels = [(255, 0, 255)] * (width * height)  # Initialize with magenta
+#         self.dirty_pixels = [True] * (width * height)
+
+#         # Update surface dimensions
+#         actual_width = width * pixel_size
+#         actual_height = height * pixel_size
+#         self.image = pygame.Surface((actual_width, actual_height))
+#         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
+
+#         # Update class dimensions
+#         CanvasSprite.WIDTH = width
+#         CanvasSprite.HEIGHT = height
+
+#         # Reinitialize mini view if it exists
+#         if hasattr(self, "mini_view"):
+#             self._resize_mini_view(width, height)
+
+#     def _resize_mini_view(self, width: int, height: int) -> None:
+#         """Resize mini view for new canvas dimensions."""
+#         # Recalculate mini map position for new size
+#         screen_info = pygame.display.Info()
+#         screen_width = screen_info.current_w
+#         pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
+#         mini_map_width = width * pixel_width
+#         mini_map_x = screen_width - mini_map_width  # Flush to right edge
+#         if mini_map_x < 0:
+#             mini_map_x = 20  # Fallback to left side if too wide
+
+#         self.mini_view.pixels_across = width
+#         self.mini_view.pixels_tall = height
+#         self.mini_view.pixels = self.pixels
+#         self.mini_view.dirty_pixels = [True] * len(self.pixels)
+#         pixel_width, pixel_height = self.mini_view.pixels_per_pixel(width, height)
+#         self.mini_view.image = pygame.Surface((width * pixel_width, height * pixel_height))
+#         # Flush to top
+#         self.mini_view.rect = self.mini_view.image.get_rect(x=mini_map_x, y=24)
+
+#     def _update_canvas_pixels(
+#         self, rows: list[str], color_map: dict[str, tuple[int, int, int]]
+#     ) -> None:
+#         """Update canvas pixels with new data."""
+#         for y, row in enumerate(rows):
+#             for x, char in enumerate(row):
+#                 pixel_num = y * self.pixels_across + x
+#                 if char in color_map:
+#                     self.pixels[pixel_num] = color_map[char]
+#                     self.dirty_pixels[pixel_num] = True
 
 #     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
 #         """Handle load file event."""
@@ -1609,81 +1225,34 @@ class CanvasSprite(BitmappySprite):
 #             filename = event if isinstance(event, str) else event.text
 #             self.log.debug(f"Loading canvas from {filename}")
 
-#             # Determine file format from extension
-#             ext = Path(filename).suffix.lower()
-#             if ext not in (".yml", ".yaml", ".ini"):
-#                 self.log.error(f"Unsupported file format: {ext}. Use .yml, .yaml, or .ini")
+#             # Load file content
+#             content = self._load_file_content(filename)
+#             if content is None:
 #                 return
 
-#             # Read the raw file content
-#             with Path(filename).open("r") as f:
-#                 content = f.read()
-#             self.log.debug(f"Raw file content:\n{content}")
+#             # Parse sections
+#             sprite_section, color_sections = self._parse_sections(content)
 
-#             # Load based on format
-#             if ext in (".yml", ".yaml"):
-#                 # Load YAML format
-#                 config = yaml.safe_load(content)
-#                 self.log.debug("Loading YAML format")
+#             # Build color map
+#             color_map = self._build_color_map(color_sections)
 
-#                 # Get color definitions from YAML format
-#                 color_map = {}
-#                 for char, color_def in config["colors"].items():
-#                     color_map[char] = (
-#                         color_def["red"],
-#                         color_def["green"],
-#                         color_def["blue"]
-#                     )
-#                 pixel_text = config["sprite"]["pixels"]
+#             # Extract pixel data
+#             rows = self._extract_pixel_data(sprite_section)
+#             if rows is None:
+#                 return
 
-#             elif ext == ".ini":
-#                 # Load INI format
-#                 self.log.debug("Loading INI format")
-#                 config = configparser.RawConfigParser()
-#                 config.read_string(content)
-
-#                 # Get color definitions from INI format
-#                 color_map = {}
-#                 for section in config.sections():
-#                     if len(section) == 1:  # Color sections are single characters
-#                         color_map[section] = (
-#                             config.getint(section, "red"),
-#                             config.getint(section, "green"),
-#                             config.getint(section, "blue")
-#                         )
-#                 pixel_text = config.get("sprite", "pixels", raw=True)
-
-#             # Process pixel data
-#             rows = [row.strip() for row in pixel_text.splitlines() if row.strip()]
-
-#             # Validate dimensions
+#             # Calculate dimensions
 #             width = len(rows[0])
 #             height = len(rows)
+#             self.log.debug(f"Loading image with dimensions {width}x{height}")
 
-#             # Check that all rows have the same width
-#             for i, row in enumerate(rows):
-#                 if len(row) != width:
-#                     raise ValueError(
-#                         f"Row {i} has width {len(row)} but expected {width}. "
-#                         f"All rows must have the same width. "
-#                         f"Row {i}: '{row}'"
-#                     )
-
-#             if width != self.pixels_across or height != self.pixels_tall:
-#                 raise ValueError(
-#                     f"Image dimensions {width}x{height} don't match canvas "
-#                     f"{self.pixels_across}x{self.pixels_tall}"
-#                 )
+#             # Resize canvas if needed
+#             self._resize_canvas_if_needed(width, height)
 
 #             # Update canvas pixels
-#             for y, row in enumerate(rows):
-#                 for x, char in enumerate(row):
-#                     if char in color_map:
-#                         pixel_num = y * self.pixels_across + x
-#                         self.pixels[pixel_num] = color_map[char]
-#                         self.dirty_pixels[pixel_num] = True
+#             self._update_canvas_pixels(rows, color_map)
 
-#             # Force redraw
+#             # Force a complete redraw
 #             self.dirty = 1
 #             self.force_redraw()
 
@@ -1692,200 +1261,22 @@ class CanvasSprite(BitmappySprite):
 #                 self.mini_view.dirty = 1
 #                 self.mini_view.force_redraw()
 
-#         except Exception:
-#             self.log.exception("Error loading file")
-#             raise
-
-#     def on_new_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
-#         """Handle new file event.
-
-#         Args:
-#             event (pygame.event.Event): The event to handle
-#             trigger (object, optional): The trigger object. Defaults to None.
-
-#         """
-#         dimensions = event if isinstance(event, str) else event.text
-#         self.log.info(f"CanvasSprite.on_new_file_event called with dimensions: {dimensions}")
-#         self.log.info(f"Current canvas size: {self.pixels_across}x{self.pixels_tall}")
-#         try:
-#             width, height = map(int, dimensions.lower().split("x"))
-#             self.log.info(f"Parsed dimensions: {width}x{height}")
-
-#             # Resize the canvas
-#             self.log.info(f"Setting pixels_across to {width}")
-#             self.pixels_across = width
-#             self.log.info(f"Setting pixels_tall to {height}")
-#             self.pixels_tall = height
-
-#             # Clear and resize the canvas
-#             new_pixel_count = width * height
-#             self.log.info(f"Creating {new_pixel_count} pixels")
-#             self.pixels = [(255, 0, 255)] * new_pixel_count  # Use magenta as background
-#             self.dirty_pixels = [True] * len(self.pixels)
-
-#             # Update canvas dimensions and redraw
-#             self.log.info("Calling self.update()")
-#             self.update()
-#             self.dirty = 1
-
-#             self.log.info(
-#                 f"Canvas resized to {width}x{height}, new pixel count: {len(self.pixels)}"
-#             )
-
-#         except ValueError:
-#             self.log.exception(f"Invalid dimensions format '{dimensions}'")
-#             self.log.exception("Expected format: WxH (e.g., '32x32')")
-#         except (OSError, KeyError, AttributeError):
-#             self.log.exception("Unexpected error in on_new_file_event")
-
-#     def save(self, filename: str, format: str = None) -> None:
-#         """Save sprite to a file.
-
-#         Args:
-#             filename (str): The filename to save to
-#             format (str, optional): Format to save in ('yaml' or 'ini').
-#                                   If None, determined by file extension.
-
-#         """
-#         try:
-#             # Determine format from extension if not specified
-#             if format is None:
-#                 ext = Path(filename).suffix.lower()
-#                 if ext in (".yml", ".yaml"):
-#                     format = "yaml"
-#                 elif ext == ".ini":
-#                     format = "ini"
-#                 else:
-#                     raise ValueError(f"Unsupported file format: {ext}. Use .yml, .yaml, or .ini")
-
-#             # Get the sprite data
-#             pixel_data = self.deflate()
-
-#             if format == "yaml":
-#                 # Convert to YAML format
-#                 yaml_data = {
-#                     "colors": {},
-#                     "sprite": {
-#                         "name": pixel_data["sprite"]["name"],
-#                         "pixels": "\n" + pixel_data["sprite"]["pixels"]  # Add leading newline
-#                     }
-#                 }
-
-#                 # Convert color data to YAML format
-#                 for char, rgb in pixel_data["colors"].items():
-#                     yaml_data["colors"][char] = {
-#                         "blue": rgb[2],
-#                         "green": rgb[1],
-#                         "red": rgb[0]
-#                     }
-
-#                 # Write YAML file
-#                 with Path(filename).open("w") as f:
-#                     yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
-
-#             elif format == "ini":
-#                 config = configparser.ConfigParser(
-#                     dict_type=collections.OrderedDict,
-#                     empty_lines_in_values=True,
-#                     strict=True
+#             # Reset AI textbox to prompt string after successful sprite loading
+#             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+#                 self.parent.debug_text.text = (
+#                     "Enter a description of the sprite you want to create:"
 #                 )
 
-#                 # Add sprite section
-#                 config["sprite"] = {
-#                     "name": pixel_data["sprite"]["name"],
-#                     "pixels": pixel_data["sprite"]["pixels"]
-#                 }
-
-#                 # Add color sections
-#                 for char, rgb in pixel_data["colors"].items():
-#                     config[char] = {
-#                         "red": str(rgb[0]),
-#                         "green": str(rgb[1]),
-#                         "blue": str(rgb[2])
-#                     }
-
-#                 # Write INI file
-#                 with Path(filename).open("w") as f:
-#                     config.write(f)
-
-#             else:
-#                 raise ValueError(f"Unsupported format: {format}. Must be 'yaml' or 'ini'")
-
-#             self.log.info(f"Saved sprite to {filename} in {format} format")
-
-#         except Exception:
-#             self.log.exception("Error saving file")
-#             raise
-
-#     def deflate(self) -> dict:
-#         """Deflate sprite data to dictionary format."""
-#         try:
-#             self.log.debug(f"Starting deflate for {self.name}")
-#             self.log.debug(f"Image dimensions: {self.image.get_size()}")
-
-#             config = configparser.ConfigParser(
-#                 dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
-#             )
-
-#             # Get the raw pixel data and log its size
-#             pixel_string = pygame.image.tostring(self.image, "RGB")
-#             self.log.debug(f"Raw pixel string length: {len(pixel_string)}")
-
-#             # Log the first few bytes of pixel data
-#             self.log.debug(f"First 12 bytes of pixel data: {list(pixel_string[:12])}")
-
-#             # Create the generator and log initial state
-#             raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-#             self.log.debug("Created RGB triplet generator")
-
-#             # Try to get the first triplet
-#             try:
-#                 first_triplet = next(raw_pixels)
-#                 self.log.debug(f"First RGB triplet: {first_triplet}")
-#                 # Reset generator
-#                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-#             except StopIteration:
-#                 self.log.exception("Generator empty on first triplet!")
-#                 raise
-
-#             # Now proceed with the rest of deflate
-#             raw_pixels = list(raw_pixels)
-#             self.log.debug(f"Converted {len(raw_pixels)} RGB triplets to list")
-
-#             # Continue with original deflate code...
-#             colors = set(raw_pixels)
-#             self.log.debug(f"Found {len(colors)} unique colors")
-
-#             return config
-
-#         except Exception:
-#             self.log.exception("Error in deflate")
-#             raise
-
-#         # Clear cursor if mouse is outside window
-#         if not screen_rect.collidepoint(mouse_pos):
-#             self.clear_cursor()
-
-#         if self.dirty:
-#             self.force_redraw()
-#             self.dirty = 0
-
-#     def clear_cursor(self):
-#         """Clear the cursor and force a redraw."""
-#         if self.canvas_cursor_pos is not None:
-#             self.log.info("Clearing miniview cursor")
-#             self.canvas_cursor_pos = None
-#             self.dirty = 1
-#             self.force_redraw()
-
-#     @staticmethod
-#     def pixels_per_pixel(pixels_across: int, pixels_tall: int) -> tuple[int, int]:
-#         """Calculate the size of each pixel in the miniview."""
-#         # Calculate pixel size based on available space and canvas dimensions
-#         # For now, use a simple calculation that ensures the mini view fits
-#         # You could make this more sophisticated based on screen size
-#         max_pixel_size = min(4, max(1, 64 // max(pixels_across, pixels_tall)))
-#         return (max_pixel_size, max_pixel_size)
+#         except FileNotFoundError as e:
+#             self.log.exception(f"File not found: {e}")
+#             # Show user-friendly error message instead of crashing
+#             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+#                 self.parent.debug_text.text = f"Error: File not found - {e}"
+#         except Exception as e:
+#             self.log.exception("Error in on_load_file_event")
+#             # Show user-friendly error message instead of crashing
+#             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+#                 self.parent.debug_text.text = f"Error loading sprite: {e}"
 
 
 @dataclass
@@ -3199,8 +2590,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
         # Update class dimensions
-        CanvasSprite.WIDTH = sprite_width
-        CanvasSprite.HEIGHT = sprite_height
+        AnimatedCanvasSprite.WIDTH = sprite_width
+        AnimatedCanvasSprite.HEIGHT = sprite_height
 
         # Reinitialize mini view if it exists and has the resize method
         if hasattr(self, "mini_view") and hasattr(self, "_resize_mini_view"):
@@ -3841,8 +3232,8 @@ class BitmapEditorScene(Scene):
         animated_sprite.play()
 
         width, height = options.get("size").split("x")
-        CanvasSprite.WIDTH = int(width)
-        CanvasSprite.HEIGHT = int(height)
+        AnimatedCanvasSprite.WIDTH = int(width)
+        AnimatedCanvasSprite.HEIGHT = int(height)
 
     def _setup_sliders_and_color_well(self) -> None:
         """Set up the color sliders and color well."""
