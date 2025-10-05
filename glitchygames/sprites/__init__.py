@@ -12,7 +12,6 @@ from typing import Any, ClassVar, Self, cast
 
 import pygame
 import toml
-import yaml
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface
 
@@ -1283,37 +1282,25 @@ class BitmappySprite(Sprite):
     def _save_static_only(
         self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT
     ) -> None:
-        """Save a static sprite to a file (legacy method)."""
+        """Save a static sprite to a file (legacy method).
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add format detection in _detect_file_format()
+        2. Add save logic here (e.g., _save_json(), _save_xml())
+        3. Add load methods in _load_static_only()
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         try:
             self.log.debug(f"Starting static-only save in {file_format} format to {filename}")
             config = self.deflate(file_format=file_format)
             self.log.debug(f"Got config from deflate: {config}")
 
-            if file_format == "yaml":
-
-                class BlockLiteralDumper(yaml.SafeDumper):
-                    def represent_scalar(self, tag, value, style=None):
-                        if isinstance(value, str) and "\n" in value:
-                            style = "|"
-                            # Ensure consistent indentation
-                            value = "\n" + value.rstrip()
-                        return super().represent_scalar(tag, value, style)
-
-                self.log.debug("About to dump YAML")
-                with Path(filename).open("w", encoding="utf-8") as yaml_file:
-                    yaml.dump(
-                        config,
-                        yaml_file,
-                        default_flow_style=False,
-                        Dumper=BlockLiteralDumper,
-                        indent=2,
-                    )
-                self.log.debug("YAML dump complete")
-            elif file_format == "ini":
-                self.log.debug("About to write INI")
-                with Path(filename).open("w", encoding="utf-8") as ini_file:
-                    config.write(ini_file)
-                self.log.debug("INI write complete")
+            if file_format == "toml":
+                self.log.debug("About to write TOML")
+                with Path(filename).open("w", encoding="utf-8") as toml_file:
+                    toml.dump(config, toml_file)
+                self.log.debug("TOML write complete")
             else:
                 self._raise_unsupported_format_error(file_format)
 
@@ -1323,8 +1310,16 @@ class BitmappySprite(Sprite):
             self.log.exception("Error in save")
             raise
 
-    def deflate(self: Self, file_format: str = "yaml") -> dict | configparser.ConfigParser:
-        """Deflate a sprite to a configuration format."""
+    def deflate(self: Self, file_format: str = "toml") -> dict:
+        """Deflate a sprite to a configuration format.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add format detection in _detect_file_format()
+        2. Add deflate logic here (e.g., _deflate_json(), _deflate_xml())
+        3. Add inflate methods in _load_static_only()
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         try:
             self.log.debug(f"Starting deflate for {self.name} in {file_format} format")
 
@@ -1380,10 +1375,10 @@ class BitmappySprite(Sprite):
             pixel_rows = self._process_pixel_rows(color_map)
 
             # Create configuration based on format
-            if file_format == "yaml":
-                config = self._create_yaml_config(pixel_rows, color_map)
-            else:  # ini format
-                config = self._create_ini_config(pixel_rows, color_map)
+            if file_format == "toml":
+                config = self._create_toml_config(pixel_rows, color_map)
+            else:
+                self._raise_unsupported_format_error(file_format)
 
         except Exception:
             self.log.exception("Error in deflate")
@@ -1417,16 +1412,18 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _create_yaml_config(self, pixel_rows: list[str], color_map: dict) -> dict:
-        """Create YAML configuration.
-
+    def _create_toml_config(self, pixel_rows: list[str], color_map: dict) -> dict:
+        """Create TOML configuration.
+        
         Args:
             pixel_rows: List of pixel rows as strings
             color_map: Mapping of colors to characters
-
+            
         Returns:
-            YAML configuration dictionary
-
+            TOML configuration dictionary
+            
+        To add new formats, create similar methods like _create_json_config(), _create_xml_config()
+        See LOADER_README.md for detailed implementation guide.
         """
         pixels_str = "\n".join(pixel_rows)
         return {
@@ -1436,37 +1433,6 @@ class BitmappySprite(Sprite):
                 for color, char in color_map.items()
             },
         }
-
-    def _create_ini_config(
-        self, pixel_rows: list[str], color_map: dict
-    ) -> configparser.ConfigParser:
-        """Create INI configuration.
-
-        Args:
-            pixel_rows: List of pixel rows as strings
-            color_map: Mapping of colors to characters
-
-        Returns:
-            INI configuration parser
-
-        """
-        config = configparser.ConfigParser()
-        config.add_section("sprite")
-        config.set("sprite", "name", self.name or "unnamed")
-        # Add proper indentation to match original format
-        pixels_str = pixel_rows[0]  # First line has no indentation
-        for row in pixel_rows[1:]:  # Subsequent lines have tab indentation
-            pixels_str += "\n\t" + row
-        config.set("sprite", "pixels", pixels_str)
-
-        # Add a section for each color
-        for color, char in color_map.items():
-            config.add_section(char)
-            config.set(char, "red", str(color[0]))
-            config.set(char, "green", str(color[1]))
-            config.set(char, "blue", str(color[2]))
-
-        return config
 
     @staticmethod
     def _raise_unsupported_format_error(file_format: str) -> None:
@@ -1807,51 +1773,44 @@ class SpriteFactory:
 
     @staticmethod
     def _detect_file_format(filename: str) -> str:
-        """Detect file format based on file extension."""
-        filename_str = str(filename)
-        filename_lower = filename_str.lower()
-        if filename_lower.endswith((".yaml", ".yml")):
-            return "yaml"
-        if filename_lower.endswith(".ini"):
-            return "ini"
+        """Detect file format based on file extension.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add file extension detection here
+        2. Add analysis method in _analyze_file()
+        3. Add save/load methods in BitmappySprite and AnimatedSprite
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
+        # filename_str = str(filename)  # Will be used when adding new formats
+        
+        # TODO: Add new format detection here
+        # if filename_str.lower().endswith(".json"):
+        #     return "json"
+        # if filename_str.lower().endswith(".xml"):
+        #     return "xml"
+        
         return "toml"  # Default to toml
 
     @staticmethod
     def _analyze_file(filename: str) -> dict:
-        """Analyze file content to determine sprite type."""
+        """Analyze file content to determine sprite type.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add format detection in _detect_file_format()
+        2. Add analysis method here (e.g., _analyze_json_file())
+        3. Add save/load methods in BitmappySprite and AnimatedSprite
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         file_format = SpriteFactory._detect_file_format(filename)
 
         if file_format == "toml":
             return SpriteFactory._analyze_toml_file(filename)
-        return SpriteFactory._analyze_ini_file(filename)
-
-    @staticmethod
-    def _analyze_ini_file(filename: str) -> dict:
-        """Analyze INI file content to determine sprite type."""
-        config = configparser.ConfigParser()
-        config.read(filename)
-
-        has_sprite_pixels = False
-        has_animation_sections = False
-        has_frame_sections = False
-
-        # Check for [sprite] pixels
-        if "sprite" in config and "pixels" in config["sprite"]:
-            has_sprite_pixels = True
-
-        # Check for [animation] sections
-        if any(section.startswith("animation") for section in config.sections()):
-            has_animation_sections = True
-
-        # Check for [frame] sections
-        if any(section.startswith("frame") for section in config.sections()):
-            has_frame_sections = True
-
-        return {
-            "has_sprite_pixels": has_sprite_pixels,
-            "has_animation_sections": has_animation_sections,
-            "has_frame_sections": has_frame_sections,
-        }
+        
+        raise ValueError(
+            f"Unsupported file format: {file_format}. Only TOML is currently supported."
+        )
 
     @staticmethod
     def _analyze_toml_file(filename: str) -> dict:

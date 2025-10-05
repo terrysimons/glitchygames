@@ -6,7 +6,6 @@ timing and playback control.
 """
 
 import abc
-import configparser
 import hashlib
 import logging
 import operator
@@ -558,119 +557,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         file_format = detect_file_format(filename)
 
-        if file_format == "ini":
-            self._load_ini(filename)
-        elif file_format == "yaml":
-            self._load_yaml(filename)
-        elif file_format == "toml":
+        if file_format == "toml":
             self._load_toml(filename)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
 
-    def _load_ini(self: Self, filename: str) -> None:
-        """Load animated sprite from INI file."""
-        config = configparser.ConfigParser()
-        config.read(filename)
 
-        self._validate_ini_sprite(config, filename)
-        self.name = config.get("sprite", "name", fallback="animated_sprite")
-        self._animations = {}
 
-        animation_sections = [
-            section for section in config.sections() if section.startswith("animation_")
-        ]
 
-        for anim_section in animation_sections:
-            anim_name = anim_section.replace("animation_", "")
-            frames = self._load_animation_frames(config, anim_name)
-            if frames:
-                self._animations[anim_name] = frames
 
-        self._set_initial_animation()
 
-    @staticmethod
-    def _validate_ini_sprite(config: configparser.ConfigParser, filename: str) -> None:
-        """Validate that the INI file contains an animated sprite."""
-        if not config.has_section("sprite"):
-            raise ValueError(f"File {filename} is not a valid sprite file")
 
-        sprite_type = config.get("sprite", "type", fallback="static")
-        if sprite_type != "animated":
-            raise ValueError(f"File {filename} is not an animated sprite file")
-
-    @staticmethod
-    def _load_animation_frames(config: configparser.ConfigParser, anim_name: str) -> list:
-        """Load frames for a specific animation from INI config."""
-        frame_count = config.getint(f"animation_{anim_name}", "frame_count", fallback=0)
-        frames = []
-
-        for i in range(frame_count):
-            frame_section = f"frame_{anim_name}_{i}"
-            if config.has_section(frame_section):
-                frame = AnimatedSprite._create_frame_from_ini(config, frame_section)
-                if frame:
-                    frames.append(frame)
-
-        return frames
-
-    @staticmethod
-    def _create_frame_from_ini(
-        config: configparser.ConfigParser, frame_section: str
-    ) -> SpriteFrame:
-        """Create a SpriteFrame from INI frame section."""
-        width = config.getint(frame_section, "width", fallback=8)
-        height = config.getint(frame_section, "height", fallback=8)
-        pixels_str = config.get(frame_section, "pixels", fallback="")
-
-        surface = pygame.Surface((width, height))
-        surface.fill((255, 0, 255))  # Magenta background
-
-        pixels = AnimatedSprite._parse_pixel_data(pixels_str, width, height)
-        AnimatedSprite._draw_pixels_to_surface(surface, pixels, width, height)
-
-        frame = SpriteFrame(surface)
-        frame.pixels = pixels
-        return frame
-
-    @staticmethod
-    def _parse_pixel_data(pixels_str: str, width: int, height: int) -> list:
-        """Parse pixel data string into RGB tuples."""
-        pixel_rows = pixels_str.split("\n")
-        pixels = []
-
-        for y, row in enumerate(pixel_rows):
-            if y < height:
-                for x, char in enumerate(row):
-                    if x < width:
-                        color = AnimatedSprite._char_to_color(char)
-                        pixels.append(color)
-                    else:
-                        pixels.append((255, 0, 255))
-            else:
-                pixels.extend([(255, 0, 255)] * width)
-
-        return pixels
-
-    @staticmethod
-    def _char_to_color(char: str) -> tuple[int, int, int]:
-        """Convert character to RGB color."""
-        color_map = {
-            "R": (255, 0, 0),  # Red
-            "G": (0, 255, 0),  # Green
-            "B": (0, 0, 255),  # Blue
-        }
-        return color_map.get(char, (255, 0, 255))  # Default to magenta
-
-    @staticmethod
-    def _draw_pixels_to_surface(
-        surface: pygame.Surface, pixels: list, width: int, height: int
-    ) -> None:
-        """Draw pixels to pygame surface."""
-        for i, color in enumerate(pixels):
-            x = i % width
-            y = i // width
-            if y < height:
-                surface.set_at((x, y), color)
 
     def _set_initial_animation(self: Self) -> None:
         """Set the initial animation and frame."""
@@ -699,10 +596,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.frame_manager.current_frame = 0
             self.log.debug("No animations available, set to empty")
 
-    def _load_yaml(self: Self, filename: str) -> None:
-        """Load animated sprite from YAML file."""
-        # TODO: Implement YAML loading
-        raise NotImplementedError("YAML loading not yet implemented")
 
     def _load_toml(self: Self, filename: str) -> None:
         """Load animated sprite from TOML file."""
@@ -964,19 +857,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug("TOML load complete: No animations loaded")
 
     def save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
-        """Save animated sprite to a file."""
+        """Save animated sprite to a file.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add format detection in _detect_file_format()
+        2. Add save logic here (e.g., _save_json(), _save_xml())
+        3. Add load methods in _load()
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         # Check if this is a single animation with a single frame
         if self._is_single_frame_sprite():
             self.log.info("Detected single-frame sprite, saving in legacy static format")
             self._save_as_static_sprite(filename, file_format)
-        elif file_format == "ini":
-            self._save_ini(filename)
-        elif file_format == "yaml":
-            self._save_yaml(filename)
         elif file_format == "toml":
             self._save_toml(filename)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
 
     def _is_single_frame_sprite(self: Self) -> bool:
         """Check if this sprite has only one animation with one frame."""
@@ -993,34 +890,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # Use the existing TOML save method but modify it for single frame
             self._save_toml_single_frame(filename)
         else:
-            # For other formats, use BitmappySprite infrastructure
-            if BitmappySprite is None:
-                raise ImportError("BitmappySprite not available for static sprite saving")
-
-            # Get the single frame from the single animation
-            animation_name = next(iter(self._animations.keys()))
-            frame = self._animations[animation_name][0]
-
-            # Get frame dimensions and pixel data
-            width, height = frame.get_size()
-            pixels = frame.get_pixel_data()
-
-            # Initialize pygame screen if not already done
-            if not pygame.display.get_init():
-                pygame.display.init()
-            if pygame.display.get_surface() is None:
-                pygame.display.set_mode((800, 600))
-
-            # Create a temporary BitmappySprite with the frame data
-            temp_sprite = BitmappySprite(x=0, y=0, width=width, height=height, name=animation_name)
-
-            # Set the pixel data
-            temp_sprite.pixels = pixels
-            temp_sprite.pixels_across = width
-            temp_sprite.pixels_tall = height
-
-            # Use the existing BitmappySprite save infrastructure
-            temp_sprite.save(filename, file_format)
+            # For unsupported formats, raise an error
+            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
 
     def _save_toml_single_frame(self: Self, filename: str) -> None:
         """Save single frame as static TOML using existing TOML infrastructure."""
@@ -1070,223 +941,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 r, g, b = color_tuple
                 f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
 
-    def _save_ini(self: Self, filename: str) -> None:
-        """Save animated sprite in INI format."""
-        config = configparser.ConfigParser()
 
-        self._add_sprite_section(config)
-        color_map = self._build_ini_color_map()
-        self._add_animation_sections(config, color_map)
-        AnimatedSprite._add_color_definitions(config, color_map)
 
-        with Path(filename).open("w", encoding="utf-8") as f:
-            config.write(f)
 
-    def _add_sprite_section(self: Self, config: configparser.ConfigParser) -> None:
-        """Add sprite section to INI config."""
-        if self.name and self.name != "animated_sprite":
-            config.add_section("sprite")
-            config.set("sprite", "name", self.name)
 
-    def _build_ini_color_map(self: Self) -> dict:
-        """Build color map from all frames using universal character set."""
-        color_map = {}
-        universal_chars = SPRITE_GLYPHS.strip()
-        char_index = 0
 
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                for r, g, b in pixels:
-                    color_tuple = (r, g, b)
-                    if color_tuple not in color_map:
-                        if char_index >= len(universal_chars):
-                            raise ValueError(f"Too many colors (max {len(universal_chars)})")
-                        color_map[color_tuple] = universal_chars[char_index]
-                        char_index += 1
 
-        return color_map
-
-    def _add_animation_sections(
-        self: Self, config: configparser.ConfigParser, color_map: dict
-    ) -> None:
-        """Add animation sections to INI config."""
-        for anim_name, frames in self._animations.items():
-            AnimatedSprite._add_animation_section(config, anim_name, frames, color_map)
-
-    @staticmethod
-    def _add_animation_section(
-        config: configparser.ConfigParser, anim_name: str, frames: list, color_map: dict
-    ) -> None:
-        """Add a single animation section to INI config."""
-        anim_section = f"animation_{anim_name}"
-        config.add_section(anim_section)
-        config.set(anim_section, "namespace", anim_name)
-        config.set(anim_section, "frame_interval", "0.5")
-        config.set(anim_section, "loop", "true")
-
-        for i, frame in enumerate(frames):
-            AnimatedSprite._add_frame_section(config, anim_name, i, frame, color_map)
-
-    @staticmethod
-    def _add_frame_section(
-        config: configparser.ConfigParser,
-        anim_name: str,
-        frame_index: int,
-        frame: SpriteFrame,
-        color_map: dict,
-    ) -> None:
-        """Add a single frame section to INI config."""
-        frame_section = f"frame_{anim_name}_{frame_index}"
-        config.add_section(frame_section)
-        config.set(frame_section, "namespace", anim_name)
-        config.set(frame_section, "frame_index", str(frame_index))
-
-        pixels = frame.get_pixel_data()
-        width, height = frame.get_size()
-        pixel_chars = AnimatedSprite._convert_pixels_to_chars(pixels, width, height, color_map)
-        config.set(frame_section, "pixels", "\n".join(pixel_chars))
-
-    @staticmethod
-    def _convert_pixels_to_chars(pixels: list, width: int, height: int, color_map: dict) -> list:
-        """Convert pixel data to character representation."""
-        pixel_chars = []
-        for y in range(height):
-            row = []
-            for x in range(width):
-                pixel_idx = y * width + x
-                if pixel_idx < len(pixels):
-                    r, g, b = pixels[pixel_idx]
-                    color_char = color_map.get((r, g, b), ".")
-                    row.append(color_char)
-                else:
-                    row.append(".")
-            pixel_chars.append("".join(row))
-        return pixel_chars
-
-    @staticmethod
-    def _add_color_definitions(config: configparser.ConfigParser, color_map: dict) -> None:
-        """Add color definitions to INI config."""
-        for color_tuple, char in sorted(color_map.items(), key=operator.itemgetter(1)):
-            config.add_section(char)
-            config.set(char, "red", str(color_tuple[0]))
-            config.set(char, "green", str(color_tuple[1]))
-            config.set(char, "blue", str(color_tuple[2]))
-
-    def _save_yaml(self: Self, filename: str) -> None:
-        """Save animated sprite in YAML format."""
-        color_map = self._build_yaml_color_map()
-        data = self._build_yaml_data_structure(color_map)
-
-        with Path(filename).open("w", encoding="utf-8") as f:
-            AnimatedSprite._write_yaml_header(f, data)
-            AnimatedSprite._write_yaml_colors(f, data)
-            AnimatedSprite._write_yaml_animations(f, data)
-
-    def _build_yaml_color_map(self: Self) -> dict:
-        """Build color map for YAML format."""
-        color_map = {}
-        universal_chars = SPRITE_GLYPHS.strip()
-        char_index = 0
-
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                for r, g, b in pixels:
-                    color_tuple = (r, g, b)
-                    if color_tuple not in color_map:
-                        if char_index >= len(universal_chars):
-                            raise ValueError(f"Too many colors (max {len(universal_chars)})")
-                        color_map[color_tuple] = universal_chars[char_index]
-                        char_index += 1
-
-        return color_map
-
-    def _build_yaml_data_structure(self: Self, color_map: dict) -> dict:
-        """Build YAML data structure."""
-        data = {"sprite": {"name": self.name or "animated_sprite"}, "colors": {}, "animations": {}}
-
-        # Add color definitions
-        for (r, g, b), char in color_map.items():
-            data["colors"][char] = {"red": r, "green": g, "blue": b}
-
-        # Add animation data
-        for anim_name, frames in self._animations.items():
-            animation_data = {"frames": []}
-            for frame in frames:
-                frame_data = AnimatedSprite._create_yaml_frame_data(frame, color_map)
-                animation_data["frames"].append(frame_data)
-            data["animations"][anim_name] = animation_data
-
-        return data
-
-    @staticmethod
-    def _create_yaml_frame_data(frame: SpriteFrame, color_map: dict) -> dict:
-        """Create frame data for YAML format."""
-        pixels = frame.get_pixel_data()
-        width, height = frame.get_size()
-        pixel_strings = AnimatedSprite._convert_pixels_to_yaml_strings(
-            pixels, width, height, color_map
-        )
-        pixel_data = " ".join(pixel_strings)
-        return {"pixels": pixel_data, "duration": frame.duration}
-
-    @staticmethod
-    def _convert_pixels_to_yaml_strings(
-        pixels: list, width: int, height: int, color_map: dict
-    ) -> list:
-        """Convert pixels to YAML string representation."""
-        pixel_strings = []
-        for y in range(height):
-            row = ""
-            for x in range(width):
-                pixel_index = y * width + x
-                if pixel_index < len(pixels):
-                    r, g, b = pixels[pixel_index]
-                    char = color_map.get((r, g, b), ".")
-                    row += char
-                else:
-                    row += "."
-            pixel_strings.append(row)
-        return pixel_strings
-
-    @staticmethod
-    def _write_yaml_header(f, data: dict) -> None:
-        """Write YAML header sections."""
-        f.write("sprite:\n")
-        f.write(f"  name: {data['sprite']['name']}\n")
-        f.write(f"  type: {data['sprite'].get('type', 'animated')}\n\n")
-
-    @staticmethod
-    def _write_yaml_colors(f, data: dict) -> None:
-        """Write YAML colors section."""
-        if data.get("colors"):
-            f.write("colors:\n")
-            for char, color_info in data["colors"].items():
-                f.write(f"  {char}:\n")
-                f.write(f"    red: {color_info['red']}\n")
-                f.write(f"    green: {color_info['green']}\n")
-                f.write(f"    blue: {color_info['blue']}\n")
-            f.write("\n")
-
-    @staticmethod
-    def _write_yaml_animations(f, data: dict) -> None:
-        """Write YAML animations section."""
-        f.write("animations:\n")
-        for anim_name, anim_data in data["animations"].items():
-            f.write(f"  {anim_name}:\n")
-            f.write("    frames:\n")
-            for frame in anim_data["frames"]:
-                f.write("    - frame:\n")
-                f.write("        duration: {}\n".format(frame["duration"]))
-                f.write("        pixels: |\n")
-                pixel_rows = frame["pixels"].split(" ")
-                for row in pixel_rows:
-                    f.write(f"          {row}\n")
-                f.write("\n")
 
     def _save_toml(self: Self, filename: str) -> None:
-        """Save animated sprite in TOML format."""
+        """Save animated sprite in TOML format.
+        
+        This is the main TOML save method for animated sprites. To add new formats:
+        1. Create similar methods like _save_json(), _save_xml()
+        2. Add format detection in _detect_file_format()
+        3. Add save logic in save() method
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         color_map = self._build_toml_color_map()
         data = self._build_toml_data_structure(color_map)
 
@@ -1296,7 +967,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             AnimatedSprite._write_toml_colors(f, data)
 
     def _build_toml_color_map(self: Self) -> dict:
-        """Build color map for TOML format."""
+        """Build color map for TOML format.
+        
+        This method creates a mapping from RGB colors to characters for TOML format.
+        To add new formats, create similar methods like _build_json_color_map(), _build_xml_color_map()
+        See LOADER_README.md for detailed implementation guide.
+        """
         color_map = {}
         universal_chars = SPRITE_GLYPHS.strip()
         char_index = 0
