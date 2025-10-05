@@ -2265,6 +2265,57 @@ class LivePreviewSprite(BitmappySprite):
             )
 
 
+class FilmStripSprite(BitmappySprite):
+    """Sprite wrapper for the film strip widget."""
+
+    def __init__(self, film_strip_widget, x=0, y=0, width=800, height=100, groups=None):
+        """Initialize the film strip sprite."""
+        super().__init__(x=x, y=y, width=width, height=height, groups=groups)
+        self.film_strip_widget = film_strip_widget
+        self.name = "Film Strip"
+
+        # Create initial surface
+        self.image = pygame.Surface((width, height))
+        self.rect = self.image.get_rect(x=x, y=y)
+
+        # Force initial render
+        self.dirty = 1
+
+    def update(self):
+        """Update the film strip sprite."""
+        if self.dirty:
+            self.force_redraw()
+            self.dirty = 0
+
+    def force_redraw(self):
+        """Force a redraw of the film strip."""
+        # Clear the surface
+        self.image.fill((40, 40, 40))  # Film background color
+
+        # Render the film strip widget
+        self.film_strip_widget.render(self.image)
+
+    def on_left_mouse_button_down_event(self, event):
+        """Handle mouse clicks on the film strip."""
+        if self.rect.collidepoint(event.pos):
+            # Convert screen coordinates to film strip coordinates
+            film_x = event.pos[0] - self.rect.x
+            film_y = event.pos[1] - self.rect.y
+
+            # Handle click in the film strip widget
+            clicked_frame = self.film_strip_widget.handle_click((film_x, film_y))
+
+            if clicked_frame:
+                animation, frame_idx = clicked_frame
+                # Notify the canvas to change frame
+                if hasattr(self, 'parent_canvas') and self.parent_canvas:
+                    self.parent_canvas.show_frame(animation, frame_idx)
+
+    def set_parent_canvas(self, canvas):
+        """Set the parent canvas for frame changes."""
+        self.parent_canvas = canvas
+
+
 class AnimatedCanvasSprite(BitmappySprite):
     """Animated Canvas Sprite for editing animated sprites."""
 
@@ -2342,9 +2393,38 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.sprite_serializer = AnimatedSpriteSerializer()
         self.canvas_renderer = AnimatedCanvasRenderer(self)
 
-        # Create film strip widget
-        self.film_strip = FilmStripWidget(x=0, y=self.rect.bottom + 10, width=800, height=100)
+        # Create film strip widget - position to the right of the canvas
+        film_strip_x = self.rect.right + 20  # 20px to the right of canvas
+        film_strip_y = self.rect.y  # Same vertical position as canvas
+
+        # Calculate required width for film strip (5.0 frames + spacing)
+        required_width = int(5.0 * (64 + 2)) + 20  # 5.0 frames * (width + spacing) + padding
+        film_strip_width = max(300, required_width)
+
+        self.film_strip = FilmStripWidget(x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100)
         self.film_strip.set_animated_sprite(animated_sprite)
+
+        # Create film strip sprite for rendering
+        self.film_strip_sprite = FilmStripSprite(
+            film_strip_widget=self.film_strip,
+            x=film_strip_x,
+            y=film_strip_y,
+            width=film_strip_width,
+            height=100,
+            groups=groups
+        )
+
+        # Connect the film strip to this canvas
+        self.film_strip_sprite.set_parent_canvas(self)
+        self.film_strip.set_parent_canvas(self)
+
+        # Add FilmStripSprite to the sprite groups explicitly
+        if groups:
+            if isinstance(groups, (list, tuple)):
+                for group in groups:
+                    group.add(self.film_strip_sprite)
+            else:
+                groups.add(self.film_strip_sprite)
 
         # Get screen dimensions from pygame
         screen_info = pygame.display.Info()
@@ -2562,6 +2642,17 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.mini_view.dirty_pixels = [True] * len(self.pixels)
                 self.mini_view.dirty = 1
 
+            # Update film strip
+            if hasattr(self, "film_strip"):
+                self.film_strip.current_animation = animation
+                self.film_strip.current_frame = frame
+                self.film_strip.update_scroll_for_frame(frame)
+                self.film_strip.update_layout()
+
+            # Update film strip sprite
+            if hasattr(self, "film_strip_sprite"):
+                self.film_strip_sprite.dirty = 1
+
     def next_frame(self) -> None:
         """Move to the next frame in the current animation."""
         frames = self.animated_sprite._animations
@@ -2729,6 +2820,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.force_redraw()
             self.dirty = 0
 
+
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
         if hasattr(self, "animated_sprite") and self.animated_sprite:
@@ -2818,6 +2910,16 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.pixels[pixel_num] = new_color
             self.dirty_pixels[pixel_num] = True
             self.dirty = 1
+
+            # Update film strip when canvas content changes
+            if hasattr(self, "film_strip_sprite"):
+                self.film_strip_sprite.dirty = 1
+            if hasattr(self, "film_strip"):
+                self.film_strip.mark_dirty()
+
+            # Update the animated sprite's frame data
+            if hasattr(self, "animated_sprite"):
+                self._update_animated_sprite_frame()
 
             # Update miniview
             self.mini_view.on_pixel_update_event(event, trigger)
@@ -2987,6 +3089,17 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.live_preview._update_frame()
                 self.live_preview.dirty = 1  # Force redraw
                 self.log.debug("Updated live preview with new animated sprite")
+
+            # Update the film strip widget with the new animated sprite
+            if hasattr(self, "film_strip") and self.film_strip is not None:
+                self.log.debug("Updating film strip with new animated sprite")
+                self.film_strip.set_animated_sprite(self.animated_sprite)
+                self.log.debug("Film strip updated with new animated sprite")
+
+            # Update the film strip sprite to force redraw
+            if hasattr(self, "film_strip_sprite") and self.film_strip_sprite is not None:
+                self.film_strip_sprite.dirty = 1
+                self.log.debug("Film strip sprite marked for redraw")
 
             # Start the animation after loading
             if self.animated_sprite.current_animation:
@@ -3162,19 +3275,19 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Create an AnimatedSprite from the frame (since everything is AnimatedSprite now)
         from glitchygames.sprites.animated import AnimatedSprite
-        
+
         # Create a new AnimatedSprite with the frame data
         animated_sprite = AnimatedSprite()
-        
+
         # Set up the frame data
         animated_sprite._animations = {"idle": [frame]}
         animated_sprite.frame_manager.current_animation = "idle"
         animated_sprite.frame_manager.current_frame = 0
-        
+
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
         animated_sprite.rect = animated_sprite.image.get_rect()
-        
+
         # Save using the animated sprite's save method
         animated_sprite.save(filename, file_format)
         self.log.info(f"Saved single-frame animation as static sprite to {filename}")
@@ -3251,6 +3364,54 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.log.debug(
             f"Mini view pixels: {len(self.mini_view.pixels)} pixels, first few: {self.mini_view.pixels[:5] if self.mini_view.pixels else 'None'}"
         )
+
+    def _update_animated_sprite_frame(self):
+        """Update the animated sprite's current frame with canvas data."""
+        if hasattr(self, "animated_sprite") and hasattr(self, "frame_manager"):
+            # Get current animation and frame
+            current_anim = self.frame_manager.current_animation
+            current_frame = self.frame_manager.current_frame
+
+            if current_anim and current_frame is not None:
+                # Update the frame's pixel data
+                if current_anim in self.animated_sprite._animations:
+                    frames = self.animated_sprite._animations[current_anim]
+                    if 0 <= current_frame < len(frames):
+                        # Update the frame's image with current canvas data
+                        frame = frames[current_frame]
+                        if hasattr(frame, 'image'):
+                            # Create a new surface from the canvas pixels
+                            surface = pygame.Surface((self.pixels_across, self.pixels_tall))
+                            for y in range(self.pixels_tall):
+                                for x in range(self.pixels_across):
+                                    pixel_num = y * self.pixels_across + x
+                                    if pixel_num < len(self.pixels):
+                                        color = self.pixels[pixel_num]
+                                        surface.set_at((x, y), color)
+
+                            # Update the frame's image
+                            frame.image = surface
+
+                            # Update the film strip
+                            if hasattr(self, "film_strip"):
+                                self.film_strip.update_layout()
+                                self.film_strip.mark_dirty()
+
+                            # Update film strip sprite
+                            if hasattr(self, "film_strip_sprite"):
+                                self.film_strip_sprite.dirty = 1
+
+    def get_canvas_surface(self):
+        """Get the current canvas surface for the film strip."""
+        # Create a surface from the current canvas pixels
+        surface = pygame.Surface((self.pixels_across, self.pixels_tall))
+        for y in range(self.pixels_tall):
+            for x in range(self.pixels_across):
+                pixel_num = y * self.pixels_across + x
+                if pixel_num < len(self.pixels):
+                    color = self.pixels[pixel_num]
+                    surface.set_at((x, y), color)
+        return surface
 
 
 class MiniView(BitmappySprite):
