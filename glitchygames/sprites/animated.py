@@ -347,6 +347,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         # Animation state
         self.name = "animated_sprite"  # Default name
+        self.description = ""  # Description field for metadata
         self._animations = {}  # animation_name -> list of frames
         self._is_playing = False
         self._is_looping = False
@@ -709,6 +710,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             data = toml.load(f)
 
         self.name = data.get("sprite", {}).get("name", "animated_sprite")
+        self.description = data.get("sprite", {}).get("description", "")
         self._animations = {}
         self._animation_order = []  # Track order of animations as they appear in file
 
@@ -867,7 +869,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         width, height = self._validate_toml_frame_dimensions(pixel_lines, frame_index)
         surface = AnimatedSprite._create_toml_surface(width, height, pixel_lines, color_map)
 
-        frame = SpriteFrame(surface, duration=frame_interval)
+        # Check for per-frame frame_interval, otherwise use global frame_interval
+        frame_duration = frame_data.get("frame_interval", frame_interval)
+        if "frame_interval" in frame_data:
+            self.log.debug(f"    Using per-frame frame_interval: {frame_duration}")
+        else:
+            self.log.debug(f"    Using global frame_interval: {frame_duration}")
+
+        frame = SpriteFrame(surface, duration=frame_duration)
         frame.pixels = AnimatedSprite._extract_toml_pixels(pixel_lines, width, height, color_map)
 
         self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
@@ -1307,7 +1316,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def _build_toml_data_structure(self: Self, color_map: dict) -> dict:
         """Build TOML data structure."""
-        data = {"sprite": {"name": self.name or "animated_sprite"}, "colors": {}, "animation": []}
+        data = {
+            "sprite": {
+                "name": self.name or "animated_sprite",
+                "description": self.description or ""
+            }, 
+            "colors": {}, 
+            "animation": []
+        }
 
         # Add color definitions
         for (r, g, b), char in color_map.items():
@@ -1366,7 +1382,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def _write_toml_sprite_section(f, data: dict) -> None:
         """Write TOML sprite section."""
         f.write("[sprite]\n")
-        f.write(f'name = "{data["sprite"]["name"]}"\n\n')
+        f.write(f'name = "{data["sprite"]["name"]}"\n')
+        if data["sprite"].get("description"):
+            f.write(f'description = """{data["sprite"]["description"]}"""\n')
+        f.write("\n")
 
     @staticmethod
     def _write_toml_animations(f, data: dict) -> None:
@@ -1411,8 +1430,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Update frame timer
         self._frame_timer += dt
 
-        # Use the animation's frame interval instead of individual frame duration
-        frame_interval = getattr(self, "_frame_interval", 0.5)
+        # Use the current frame's duration for timing
+        current_frame = frames[self.frame_manager.current_frame]
+        frame_interval = current_frame.duration
 
         if self._frame_timer >= frame_interval:
             self._advance_frame(frames)

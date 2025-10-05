@@ -2473,43 +2473,42 @@ class MultiLineTextBox(BitmappySprite):
         """Wrap text to fit within the specified width."""
         if not text:
             return text
-            
-        lines = text.split('\n')
+
+        lines = text.split("\n")
         wrapped_lines = []
-        
+
         for line in lines:
             if not line:  # Empty line
-                wrapped_lines.append('')
+                wrapped_lines.append("")
                 continue
-                
+
             # If line already fits, keep it as is
             if self._get_text_width(line) <= max_width:
                 wrapped_lines.append(line)
                 continue
-            
+
             # Split line into words and wrap
-            words = line.split(' ')
-            current_line = ''
-            
+            words = line.split(" ")
+            current_line = ""
+
             for word in words:
-                test_line = current_line + (' ' if current_line else '') + word
+                test_line = current_line + (" " if current_line else "") + word
                 if self._get_text_width(test_line) <= max_width:
                     current_line = test_line
-                else:
+                elif current_line:
                     # Current line is full, start a new one
-                    if current_line:
-                        wrapped_lines.append(current_line)
-                        current_line = word
-                    else:
-                        # Single word is too long, force it on its own line
-                        wrapped_lines.append(word)
-                        current_line = ''
-            
+                    wrapped_lines.append(current_line)
+                    current_line = word
+                else:
+                    # Single word is too long, force it on its own line
+                    wrapped_lines.append(word)
+                    current_line = ""
+
             # Add the last line if there's content
             if current_line:
                 wrapped_lines.append(current_line)
-        
-        return '\n'.join(wrapped_lines)
+
+        return "\n".join(wrapped_lines)
 
     @property
     def text(self) -> str:
@@ -2670,6 +2669,12 @@ class MultiLineTextBox(BitmappySprite):
         is_copy = event.key == pygame.K_c and (
             (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
         )
+        is_cut = event.key == pygame.K_x and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
+        is_select_all = event.key == pygame.K_a and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
         is_shift = bool(mods & pygame.KMOD_SHIFT)
         is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
 
@@ -2727,6 +2732,55 @@ class MultiLineTextBox(BitmappySprite):
                     self.cursor_pos += len(clipboard_text)
             except (ImportError, AttributeError):
                 self.log.exception("Error pasting text")
+            return
+
+        # Handle cut (Ctrl+X)
+        if is_cut and self._text:
+            try:
+                if (
+                    pyperclip
+                    and self.selection_start is not None
+                    and self.selection_end is not None
+                ):
+                    start = min(self.selection_start, self.selection_end)
+                    end = max(self.selection_start, self.selection_end)
+                    selected_text = self._text[start:end]
+                    pyperclip.copy(selected_text)
+                    # Remove selected text
+                    before_selection = self._text[:start]
+                    after_selection = self._text[end:]
+                    self.text = before_selection + after_selection
+                    self.cursor_pos = start
+                    self.selection_start = None
+                    self.selection_end = None
+                else:
+                    # Cut all text
+                    pyperclip.copy(self._text)
+                    self.text = ""
+                    self.cursor_pos = 0
+            except (ImportError, AttributeError):
+                self.log.exception("Error cutting text")
+            return
+
+        # Handle select all (Ctrl+A)
+        if is_select_all:
+            self.selection_start = 0
+            self.selection_end = len(self._text)
+            self.cursor_pos = len(self._text)
+            return
+
+        # Handle delete with selection
+        if event.key == pygame.K_DELETE and (
+            self.selection_start is not None and self.selection_end is not None
+        ):
+            start = min(self.selection_start, self.selection_end)
+            end = max(self.selection_start, self.selection_end)
+            before_selection = self._text[:start]
+            after_selection = self._text[end:]
+            self.text = before_selection + after_selection
+            self.cursor_pos = start
+            self.selection_start = None
+            self.selection_end = None
             return
 
         # Handle regular key events

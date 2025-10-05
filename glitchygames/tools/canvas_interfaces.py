@@ -234,7 +234,7 @@ class AnimatedCanvasInterface:
     def get_pixel_data(self) -> list[tuple[int, int, int]]:
         """Get the current pixel data as a list of RGB tuples."""
         if hasattr(self.canvas_sprite, "animated_sprite"):
-            frame = self.canvas_sprite.animated_sprite.frames[self.current_animation][
+            frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
             ]
             return frame.get_pixel_data()
@@ -243,7 +243,7 @@ class AnimatedCanvasInterface:
     def set_pixel_data(self, pixels: list[tuple[int, int, int]]) -> None:
         """Set the pixel data from a list of RGB tuples."""
         if hasattr(self.canvas_sprite, "animated_sprite"):
-            frame = self.canvas_sprite.animated_sprite.frames[self.current_animation][
+            frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
             ]
             frame.set_pixel_data(pixels)
@@ -268,7 +268,7 @@ class AnimatedCanvasInterface:
 
                 # Access the frame through the animated sprite's frames property
                 if current_animation in self.canvas_sprite.animated_sprite.frames:
-                    frame = self.canvas_sprite.animated_sprite.frames[current_animation][
+                    frame = self.canvas_sprite.animated_sprite._animations[current_animation][
                         current_frame_index
                     ]
                     return frame.get_pixel_data()[pixel_num]
@@ -286,7 +286,7 @@ class AnimatedCanvasInterface:
 
                 # Access the frame through the animated sprite's frames property
                 if current_animation in self.canvas_sprite.animated_sprite.frames:
-                    frame = self.canvas_sprite.animated_sprite.frames[current_animation][
+                    frame = self.canvas_sprite.animated_sprite._animations[current_animation][
                         current_frame_index
                     ]
                     frame_pixels = frame.get_pixel_data()

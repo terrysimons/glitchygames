@@ -1887,8 +1887,7 @@ class SpriteFactory:
     @staticmethod
     def _determine_type(analysis: dict) -> str:
         """Determine sprite type based on file analysis."""
-        if analysis["has_sprite_pixels"] and analysis["has_frame_sections"]:
-            return "error"  # Mixed content - invalid
+        # Prioritize animations over static content
         if analysis["has_frame_sections"] or analysis["has_animation_sections"]:
             return "animated"
         if analysis["has_sprite_pixels"]:

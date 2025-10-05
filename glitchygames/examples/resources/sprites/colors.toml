@@ -1,0 +1,149 @@
+[sprite]
+name = "timing_demo"
+
+[[animation]]
+namespace = "timing_demo"
+frame_interval = 0.1
+loop = true
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 0
+frame_interval = 0.25
+pixels = """
+..
+..
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 1
+frame_interval = 0.75
+pixels = """
+aa
+aa
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 2
+frame_interval = 0.66
+pixels = """
+AA
+AA
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 3
+frame_interval = 1.5
+pixels = """
+bb
+bb
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 4
+frame_interval = 0.15
+pixels = """
+BB
+BB
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 5
+frame_interval = 0.25
+pixels = """
+cc
+cc
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 6
+frame_interval = 0.75
+pixels = """
+CC
+CC
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 7
+frame_interval = 0.15
+pixels = """
+dd
+dd
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 8
+frame_interval = 0.15
+pixels = """
+DD
+DD
+"""
+
+[[animation.frame]]
+namespace = "timing_demo"
+frame_index = 9
+frame_interval = 0.15
+pixels = """
+ee
+ee
+"""
+
+[colors]
+[colors."."]
+red = 255
+green = 0
+blue = 0
+
+[colors."a"]
+red = 0
+green = 255
+blue = 0
+
+[colors."A"]
+red = 0
+green = 0
+blue = 255
+
+[colors."b"]
+red = 255
+green = 255
+blue = 0
+
+[colors."B"]
+red = 255
+green = 0
+blue = 255
+
+[colors."c"]
+red = 0
+green = 255
+blue = 255
+
+[colors."C"]
+red = 255
+green = 128
+blue = 0
+
+[colors."d"]
+red = 128
+green = 0
+blue = 255
+
+[colors."D"]
+red = 0
+green = 255
+blue = 128
+
+[colors."e"]
+red = 255
+green = 255
+blue = 255
+

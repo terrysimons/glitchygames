@@ -112,7 +112,7 @@ class FilmStripWidget:
         if (
             self.animated_sprite
             and animation in self.animated_sprite.frames
-            and 0 <= frame < len(self.animated_sprite.frames[animation])
+            and 0 <= frame < len(self.animated_sprite._animations[animation])
         ):
             self.current_animation = animation
             self.current_frame = frame
@@ -251,10 +251,10 @@ class FilmStripWidget:
 
         # Render frames
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
-            if anim_name in self.animated_sprite.frames and frame_idx < len(
-                self.animated_sprite.frames[anim_name]
+            if anim_name in self.animated_sprite._animations and frame_idx < len(
+                self.animated_sprite._animations[anim_name]
             ):
-                frame = self.animated_sprite.frames[anim_name][frame_idx]
+                frame = self.animated_sprite._animations[anim_name][frame_idx]
 
                 # Determine if this frame is selected or hovered
                 is_selected = (
