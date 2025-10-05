@@ -1270,9 +1270,16 @@ class CanvasSprite(BitmappySprite):
                     "Enter a description of the sprite you want to create:"
                 )
 
-        except Exception:
+        except FileNotFoundError as e:
+            self.log.error(f"File not found: {e}")
+            # Show user-friendly error message instead of crashing
+            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+                self.parent.debug_text.text = f"Error: File not found - {e}"
+        except Exception as e:
             self.log.exception("Error in on_load_file_event")
-            raise
+            # Show user-friendly error message instead of crashing
+            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+                self.parent.debug_text.text = f"Error loading sprite: {e}"
 
 
 # class MiniView(BitmappySprite):
@@ -2181,7 +2188,9 @@ class LivePreviewSprite(BitmappySprite):
                             self.image = current_surface
                             self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
                             self.dirty = 1  # Only dirty when frame changes
-                            self.log.debug(f"Live preview updated with frame {frame_index} at actual size {frame_size[0]}x{frame_size[1]}")
+                            self.log.debug(
+                                f"Live preview updated with frame {frame_index} at actual size {frame_size[0]}x{frame_size[1]}"
+                            )
                         else:
                             self.log.debug("Failed to create surface from frame data")
                     else:
@@ -2243,7 +2252,9 @@ class LivePreviewSprite(BitmappySprite):
                     self.image = current_surface
                     self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
                     self.dirty = 1
-                    self.log.debug(f"Live preview updated with canvas frame {current_frame} at actual size {frame_size[0]}x{frame_size[1]}")
+                    self.log.debug(
+                        f"Live preview updated with canvas frame {current_frame} at actual size {frame_size[0]}x{frame_size[1]}"
+                    )
                 else:
                     self.log.debug("Failed to create surface from canvas frame data")
             else:
@@ -3007,9 +3018,16 @@ class AnimatedCanvasSprite(BitmappySprite):
                     "Enter a description of the sprite you want to create:"
                 )
 
-        except Exception:
+        except FileNotFoundError as e:
+            self.log.error(f"File not found: {e}")
+            # Show user-friendly error message instead of crashing
+            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+                self.parent.debug_text.text = f"Error: File not found - {e}"
+        except Exception as e:
             self.log.exception("Error in on_load_file_event for animated sprite")
-            raise
+            # Show user-friendly error message instead of crashing
+            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+                self.parent.debug_text.text = f"Error loading sprite: {e}"
 
     def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
         """Resize the canvas to match the sprite dimensions."""
@@ -4366,6 +4384,7 @@ class BitmapEditorScene(Scene):
             # Parse the TOML content and add description
             try:
                 import toml
+
                 data = toml.loads(cleaned_content)
                 if "sprite" not in data:
                     data["sprite"] = {}

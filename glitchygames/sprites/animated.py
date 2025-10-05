@@ -26,7 +26,7 @@ except ImportError:
     # Fallback if bitmappy module is not available
     def detect_file_format(filename: str) -> str:
         """Detect file format based on extension.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add file extension detection here
         2. Add analysis method in _analyze_file()
@@ -39,7 +39,7 @@ except ImportError:
         #     return "json"
         # if filename.lower().endswith(".xml"):
         #     return "xml"
-        
+
         return "toml"  # Default to TOML only
 
 
@@ -457,21 +457,64 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return self._animations.copy()
 
     @property
-    def animations(self: Self) -> dict[str, dict]:
-        """Return animation metadata for all animations."""
-        # For now, return empty metadata - can be extended later
-        return {name: {} for name in self._animations}
+    def animations(self: Self) -> dict[str, list]:
+        """Return animation frames for all animations."""
+        return self._animations.copy()
 
     @property
     def frame_interval(self: Self) -> float:
         """Return the frame interval for the current animation."""
-        frame = self._animations.get(self._current_animation, [None])[self._current_frame]
+        if not self.frame_manager.current_animation:
+            return 0.5  # Default frame interval
+
+        frames = self._animations.get(self.frame_manager.current_animation, [])
+        if not frames or self.frame_manager.current_frame >= len(frames):
+            return 0.5  # Default frame interval
+
+        frame = frames[self.frame_manager.current_frame]
         return frame.duration if frame else 0.5  # Default frame interval
 
     @property
     def loop(self: Self) -> bool:
         """Return whether the current animation loops."""
         return self._is_looping
+
+    # Animation metadata properties (read-only)
+    @property
+    def animation_count(self: Self) -> int:
+        """Return the number of animations."""
+        return len(self._animations)
+
+    @property
+    def current_animation_frame_count(self: Self) -> int:
+        """Return the number of frames in the current animation."""
+        if not self.frame_manager.current_animation:
+            return 0
+        return len(self._animations.get(self.frame_manager.current_animation, []))
+
+    @property
+    def current_animation_total_duration(self: Self) -> float:
+        """Return the total duration of the current animation."""
+        if not self.frame_manager.current_animation:
+            return 0.0
+        frames = self._animations.get(self.frame_manager.current_animation, [])
+        return sum(f.duration for f in frames)
+
+    @property
+    def animation_names(self: Self) -> list[str]:
+        """Return list of animation names."""
+        return list(self._animations.keys())
+
+    # Animation metadata properties (read/write)
+    @property
+    def is_looping(self: Self) -> bool:
+        """Get whether animations loop."""
+        return self._is_looping
+
+    @is_looping.setter
+    def is_looping(self: Self, value: bool) -> None:
+        """Set whether animations loop."""
+        self._is_looping = value
 
     @property
     def frame_count(self: Self) -> int:
@@ -518,15 +561,31 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def set_frame(self: Self, frame_index: int) -> None:
         """Set the current frame index."""
-        if self.frame_manager.set_frame(frame_index):
-            self._frame_timer = 0.0
-            self._update_surface_and_mark_dirty()
+        if not self.frame_manager.current_animation:
+            raise ValueError("No animation is currently set")
+
+        if not self.frame_manager.set_frame(frame_index):
+            frames = self._animations.get(self.frame_manager.current_animation, [])
+            raise IndexError(
+                f"Frame index {frame_index} out of range for animation '{self.frame_manager.current_animation}' (0-{len(frames) - 1})"
+            )
+
+        self._frame_timer = 0.0
+        self._update_surface_and_mark_dirty()
 
     def set_animation(self: Self, animation_name: str) -> None:
         """Set the current animation."""
-        if self.frame_manager.set_animation(animation_name):
-            self._frame_timer = 0.0
-            self._update_surface_and_mark_dirty()
+        if animation_name not in self._animations:
+            available = list(self._animations.keys())
+            raise ValueError(
+                f"Animation '{animation_name}' not found. Available animations: {available}"
+            )
+
+        if not self.frame_manager.set_animation(animation_name):
+            raise ValueError(f"Failed to set animation '{animation_name}'")
+
+        self._frame_timer = 0.0
+        self._update_surface_and_mark_dirty()
 
     # Animation data methods
     def add_animation(
@@ -541,27 +600,87 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """Remove an animation."""
         if name in self._animations:
             del self._animations[name]
-            if self._current_animation == name:
+            if self.frame_manager.current_animation == name:
                 # Switch to first available animation
                 if self._animations:
-                    self._current_animation = next(iter(self._animations.keys()))
-                    self._current_frame = 0
+                    self.frame_manager.current_animation = next(iter(self._animations.keys()))
+                    self.frame_manager.current_frame = 0
                 else:
-                    self._current_animation = ""
-                    self._current_frame = 0
+                    self.frame_manager.current_animation = ""
+                    self.frame_manager.current_frame = 0
 
     def get_frame(self: Self, animation_name: str, frame_index: int) -> "SpriteFrame":
         """Get a specific frame from a specific animation."""
-        if animation_name in self._animations:
-            frames = self._animations[animation_name]
-            if 0 <= frame_index < len(frames):
-                return frames[frame_index]
-        return None
+        if animation_name not in self._animations:
+            raise ValueError(f"Animation '{animation_name}' not found")
+        frames = self._animations[animation_name]
+        if not 0 <= frame_index < len(frames):
+            raise IndexError(
+                f"Frame index {frame_index} out of range for animation '{animation_name}'"
+            )
+        return frames[frame_index]
+
+    def add_frame(self: Self, animation_name: str, frame: "SpriteFrame", index: int = -1) -> None:
+        """Add a frame to an animation."""
+        if animation_name not in self._animations:
+            self._animations[animation_name] = []
+
+        frames = self._animations[animation_name]
+        if index == -1:
+            frames.append(frame)
+        else:
+            frames.insert(index, frame)
+
+        # Update surface if this is the current animation
+        if self.frame_manager.current_animation == animation_name:
+            self._update_surface_and_mark_dirty()
+
+    def remove_frame(self: Self, animation_name: str, frame_index: int) -> None:
+        """Remove a frame from an animation."""
+        if animation_name not in self._animations:
+            raise ValueError(f"Animation '{animation_name}' not found")
+
+        frames = self._animations[animation_name]
+        if not 0 <= frame_index < len(frames):
+            raise IndexError(
+                f"Frame index {frame_index} out of range for animation '{animation_name}'"
+            )
+
+        frames.pop(frame_index)
+
+        # Adjust current frame if needed
+        if (
+            self.frame_manager.current_animation == animation_name
+            and self.frame_manager.current_frame >= len(frames)
+        ):
+            self.frame_manager.current_frame = max(0, len(frames) - 1)
+            self._update_surface_and_mark_dirty()
+
+    def get_animation_metadata(self: Self, animation_name: str) -> dict:
+        """Get metadata for a specific animation."""
+        if animation_name not in self._animations:
+            raise ValueError(f"Animation '{animation_name}' not found")
+
+        frames = self._animations[animation_name]
+        return {
+            "frame_count": len(frames),
+            "total_duration": sum(f.duration for f in frames),
+            "is_looping": self._is_looping,
+        }
+
+    def set_animation_metadata(self: Self, animation_name: str, metadata: dict) -> None:
+        """Set metadata for a specific animation."""
+        if animation_name not in self._animations:
+            raise ValueError(f"Animation '{animation_name}' not found")
+
+        # Update looping state if provided
+        if "is_looping" in metadata:
+            self._is_looping = metadata["is_looping"]
 
     # File I/O methods
     def load(self: Self, filename: str) -> None:
         """Load animated sprite from a file.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add format detection in _detect_file_format()
         2. Add load logic here (e.g., _load_json(), _load_xml())
@@ -574,11 +693,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if file_format == "toml":
             self._load_toml(filename)
         else:
-            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
-
-
-
-
+            raise ValueError(
+                f"Unsupported format: {file_format}. Only TOML is currently supported."
+            )
 
     def _set_initial_animation(self: Self) -> None:
         """Set the initial animation and frame."""
@@ -607,11 +724,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.frame_manager.current_frame = 0
             self.log.debug("No animations available, set to empty")
 
-
     def _load_toml(self: Self, filename: str) -> None:
         """Load animated sprite from TOML file."""
-        with Path(filename).open(encoding="utf-8") as f:
-            data = toml.load(f)
+        try:
+            with Path(filename).open(encoding="utf-8") as f:
+                data = toml.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Sprite file not found: {filename}")
+        except Exception as e:
+            raise ValueError(f"Error loading TOML file {filename}: {e}")
 
         self.name = data.get("sprite", {}).get("name", "animated_sprite")
         self.description = data.get("sprite", {}).get("description", "")
@@ -869,7 +990,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def save(self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save animated sprite to a file.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add format detection in _detect_file_format()
         2. Add save logic here (e.g., _save_json(), _save_xml())
@@ -884,7 +1005,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         elif file_format == "toml":
             self._save_toml(filename)
         else:
-            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
+            raise ValueError(
+                f"Unsupported format: {file_format}. Only TOML is currently supported."
+            )
 
     def _is_single_frame_sprite(self: Self) -> bool:
         """Check if this sprite has only one animation with one frame."""
@@ -902,7 +1025,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._save_toml_single_frame(filename)
         else:
             # For unsupported formats, raise an error
-            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
+            raise ValueError(
+                f"Unsupported format: {file_format}. Only TOML is currently supported."
+            )
 
     def _save_toml_single_frame(self: Self, filename: str) -> None:
         """Save single frame as static TOML using existing TOML infrastructure."""
@@ -952,16 +1077,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 r, g, b = color_tuple
                 f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
 
-
-
-
-
-
-
-
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
-        
+
         This is the main TOML save method for animated sprites. To add new formats:
         1. Create similar methods like _save_json(), _save_xml()
         2. Add format detection in _detect_file_format()
@@ -979,7 +1097,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def _build_toml_color_map(self: Self) -> dict:
         """Build color map for TOML format.
-        
+
         This method creates a mapping from RGB colors to characters for TOML format.
         To add new formats, create similar methods like _build_json_color_map(), _build_xml_color_map()
         See LOADER_README.md for detailed implementation guide.
@@ -1006,10 +1124,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         data = {
             "sprite": {
                 "name": self.name or "animated_sprite",
-                "description": self.description or ""
-            }, 
-            "colors": {}, 
-            "animation": []
+                "description": self.description or "",
+            },
+            "colors": {},
+            "animation": [],
         }
 
         # Add color definitions

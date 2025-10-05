@@ -1067,20 +1067,23 @@ class BitmappySprite(Sprite):
         """Load a sprite from a Bitmappy config file using the factory."""
         self.log.debug(f"=== Starting load from {filename} ===")
 
-        # Use the factory to determine sprite type and load appropriately
+        # Use the factory to load sprite (always returns AnimatedSprite now)
         try:
-            sprite = SpriteFactory.load_sprite(filename=filename)
+            animated_sprite = SpriteFactory.load_sprite(filename=filename)
 
-            # If it's an AnimatedSprite, we can't load it into a BitmappySprite
-            if hasattr(sprite, "animations"):  # It's an AnimatedSprite
-                BitmappySprite._raise_animated_sprite_error(filename)
+            # Convert AnimatedSprite to BitmappySprite format
+            # Get the current frame surface from the animated sprite
+            current_frame = animated_sprite.get_current_frame()
+            if current_frame and hasattr(current_frame, "surface"):
+                self.image = current_frame.surface
+            else:
+                # Fallback: create surface from animated sprite's image
+                self.image = animated_sprite.image.copy()
 
-            # It's a BitmappySprite, copy its properties
-            self.image = sprite.image
-            self.rect = sprite.rect
-            self.name = sprite.name
-            self.width = sprite.width
-            self.height = sprite.height
+            self.rect = self.image.get_rect()
+            self.name = animated_sprite.name
+            self.width = self.rect.width
+            self.height = self.rect.height
 
             return (self.image, self.rect, self.name)
         except ValueError as e:
@@ -1283,7 +1286,7 @@ class BitmappySprite(Sprite):
         self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT
     ) -> None:
         """Save a static sprite to a file (legacy method).
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add format detection in _detect_file_format()
         2. Add save logic here (e.g., _save_json(), _save_xml())
@@ -1312,7 +1315,7 @@ class BitmappySprite(Sprite):
 
     def deflate(self: Self, file_format: str = "toml") -> dict:
         """Deflate a sprite to a configuration format.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add format detection in _detect_file_format()
         2. Add deflate logic here (e.g., _deflate_json(), _deflate_xml())
@@ -1414,16 +1417,17 @@ class BitmappySprite(Sprite):
 
     def _create_toml_config(self, pixel_rows: list[str], color_map: dict) -> dict:
         """Create TOML configuration.
-        
+
         Args:
             pixel_rows: List of pixel rows as strings
             color_map: Mapping of colors to characters
-            
+
         Returns:
             TOML configuration dictionary
-            
+
         To add new formats, create similar methods like _create_json_config(), _create_xml_config()
         See LOADER_README.md for detailed implementation guide.
+
         """
         pixels_str = "\n".join(pixel_rows)
         return {
@@ -1735,14 +1739,17 @@ class SpriteFactory:
     """Factory class for loading sprites with automatic type detection."""
 
     @staticmethod
-    def load_sprite(*, filename: str | None = None) -> BitmappySprite | AnimatedSprite:
-        """Load a sprite file, automatically detecting whether it's static or animated.
+    def load_sprite(*, filename: str | None = None) -> AnimatedSprite:
+        """Load a sprite file, always returning an AnimatedSprite.
+
+        Static sprites are automatically converted to single-frame animations
+        for consistent internal representation.
 
         Args:
             filename: Path to sprite file. If None, loads default sprite (raspberry.toml).
 
         Returns:
-            BitmappySprite or AnimatedSprite based on file content.
+            AnimatedSprite (static sprites are converted to single-frame animations).
 
         Raises:
             ValueError: If file format is invalid or contains mixed content.
@@ -1752,29 +1759,13 @@ class SpriteFactory:
         if filename is None:
             filename = SpriteFactory._get_default_sprite_path()
 
-        analysis = SpriteFactory._analyze_file(filename)
-        sprite_type = SpriteFactory._determine_type(analysis)
-
-        if sprite_type == "static":
-            # Create BitmappySprite without calling load to avoid recursion
-            sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
-            # Now manually load the file using the internal load method
-            image, rect, name = sprite._load(filename)
-            sprite.image = image
-            sprite.rect = rect
-            sprite.name = name
-            sprite.width = rect.width
-            sprite.height = rect.height
-            return sprite
-        if sprite_type == "animated":
-            # Use the imported AnimatedSprite class with proper sprite group integration
-            return AnimatedSprite(filename, groups=None)
-        raise ValueError(f"Invalid sprite file format: {filename}")
+        # Always return AnimatedSprite - it handles both static and animated content
+        return AnimatedSprite(filename, groups=None)
 
     @staticmethod
-    def _detect_file_format(filename: str) -> str:
+    def _detect_file_format(_filename: str) -> str:
         """Detect file format based on file extension.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add file extension detection here
         2. Add analysis method in _analyze_file()
@@ -1783,19 +1774,19 @@ class SpriteFactory:
         See LOADER_README.md for detailed implementation guide.
         """
         # filename_str = str(filename)  # Will be used when adding new formats
-        
+
         # TODO: Add new format detection here
         # if filename_str.lower().endswith(".json"):
         #     return "json"
         # if filename_str.lower().endswith(".xml"):
         #     return "xml"
-        
+
         return "toml"  # Default to toml
 
     @staticmethod
     def _analyze_file(filename: str) -> dict:
         """Analyze file content to determine sprite type.
-        
+
         Currently only supports TOML format. To add new formats:
         1. Add format detection in _detect_file_format()
         2. Add analysis method here (e.g., _analyze_json_file())
@@ -1807,7 +1798,7 @@ class SpriteFactory:
 
         if file_format == "toml":
             return SpriteFactory._analyze_toml_file(filename)
-        
+
         raise ValueError(
             f"Unsupported file format: {file_format}. Only TOML is currently supported."
         )
