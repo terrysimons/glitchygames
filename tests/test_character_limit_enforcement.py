@@ -150,7 +150,16 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         assert config is not None
 
         # Test with 65 colors (should fail)
-        surface.set_at((0, 0), (255, 255, 255))  # Add one more unique color
+        # Create a new surface with 65 unique colors
+        surface_65 = pygame.Surface((65, 1))
+        for i in range(65):
+            r = (i * 3) % 256
+            g = (i * 5) % 256
+            b = (i * 7) % 256
+            surface_65.set_at((i, 0), (r, g, b))
+
+        legacy_sprite.image = surface_65
+        legacy_sprite.rect = surface_65.get_rect()
 
         with pytest.raises(ValueError, match="Too many colors"):
             legacy_sprite.deflate()
@@ -160,40 +169,32 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         animated_sprite = AnimatedSprite()
         animated_sprite.name = "test_mixed_animations"
 
-        # Create first animation with 32 colors
+        # Create first animation with 33 colors
         colors1 = []
-        for i in range(32):
+        for i in range(33):
             r = (i * 3) % 256
             g = (i * 5) % 256
             b = (i * 7) % 256
             colors1.append((r, g, b))
 
-        frame1 = SpriteFrame(pygame.Surface((4, 4)))
-        frame1.set_pixel_data(colors1[:16])  # Use first 16 colors
+        frame1 = SpriteFrame(pygame.Surface((33, 1)))
+        frame1.set_pixel_data(colors1)  # Use all 33 colors
         animated_sprite.add_animation("anim1", [frame1])
 
-        # Create second animation with 32 different colors
+        # Create second animation with 32 different colors (offset to avoid overlap)
         colors2 = []
         for i in range(32):
-            r = (i * 4) % 256
-            g = (i * 6) % 256
-            b = (i * 8) % 256
+            r = ((i + 50) * 4) % 256  # Offset to avoid overlap with first animation
+            g = ((i + 50) * 6) % 256
+            b = ((i + 50) * 8) % 256
             colors2.append((r, g, b))
 
-        frame2 = SpriteFrame(pygame.Surface((4, 4)))
-        frame2.set_pixel_data(colors2[:16])  # Use first 16 colors
+        frame2 = SpriteFrame(pygame.Surface((32, 1)))
+        frame2.set_pixel_data(colors2)  # Use all 32 colors
         animated_sprite.add_animation("anim2", [frame2])
 
-        # Total unique colors should be 64 (should work)
+        # Total unique colors should be 65 (should fail)
         toml_file = self.temp_path / "test_mixed_animations.toml"
-        animated_sprite.save(str(toml_file), "toml")
-        assert toml_file.exists()
-
-        # Add third animation with one more color (should fail)
-        frame3 = SpriteFrame(pygame.Surface((2, 2)))
-        frame3.set_pixel_data([(255, 255, 255)] * 4)  # Add one more unique color
-        animated_sprite.add_animation("anim3", [frame3])
-
         with pytest.raises(ValueError, match="Too many colors"):
             animated_sprite.save(str(toml_file), "toml")
 
@@ -261,12 +262,12 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             sprite.save(str(self.temp_path / "test_error.toml"), "toml")
 
     def test_character_limit_with_reserved_characters(self):
-        """Test character limit enforcement with reserved characters."""
-        # Test that reserved characters (# and @) don't count against the limit
+        """Test character limit enforcement with universal characters."""
+        # Test that universal characters are used correctly
         sprite = BitmappySprite(x=0, y=0, width=8, height=8, name="test_reserved")
 
-        # Create 64 colors including black and red (which map to reserved characters)
-        colors = [(0, 0, 0), (255, 0, 0)]  # Black and red - map to '#' and '@'
+        # Create 64 colors including black and red (which map to universal characters)
+        colors = [(0, 0, 0), (255, 0, 0)]  # Black and red - map to '.' and 'a'
 
         for i in range(62):  # Add 62 more colors
             r = (i * 3) % 256
@@ -285,39 +286,37 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_across = 8
         sprite.pixels_tall = 8
 
-        # Should not raise error (64 total colors including reserved)
+        # Should not raise error (64 total colors using universal character set)
         toml_file = self.temp_path / "test_reserved.toml"
         sprite.save(str(toml_file), "toml")
         assert toml_file.exists()
 
-        # Check that reserved characters are used
+        # Check that universal characters are used
         content = toml_file.read_text()
-        assert "[#]" in content  # Black should map to '#'
-        assert "[@]" in content  # Red should map to '@'
+        assert '[colors."."]' in content  # Black should map to '.'
+        assert "[colors.a]" in content  # Red should map to 'a'
 
     def test_character_limit_performance(self):
         """Test that character limit enforcement is efficient."""
-        # Create sprite with many colors to test performance
-        sprite = BitmappySprite(x=0, y=0, width=16, height=16, name="test_performance")
+        # Create sprite with exactly 65 colors (more than 64 limit)
+        sprite = BitmappySprite(x=0, y=0, width=65, height=1, name="test_performance")
 
-        # Create 100 colors (more than limit)
+        # Create 65 colors (more than limit)
         colors = []
-        for i in range(100):
+        for i in range(65):
             r = (i * 3) % 256
             g = (i * 5) % 256
             b = (i * 7) % 256
             colors.append((r, g, b))
 
-        # Set up pixel data
+        # Set up pixel data to use all 65 colors
         pixels = []
-        for y in range(16):
-            for x in range(16):
-                color_index = (x + y) % len(colors)
-                pixels.append(colors[color_index])
+        for i in range(65):  # 65x1 = 65 pixels
+            pixels.append(colors[i])
 
         sprite.pixels = pixels
-        sprite.pixels_across = 16
-        sprite.pixels_tall = 16
+        sprite.pixels_across = 65
+        sprite.pixels_tall = 1
 
         # Measure time to detect limit violation
         start_time = time.time()

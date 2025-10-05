@@ -120,12 +120,12 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
         assert len(color_sections) == TEST_SMALL_SIZE, "Should have 4 color sections"
 
-        # Check that reserved characters are used for black and red
-        assert "#" in color_sections  # Black should map to '#'
-        assert "@" in color_sections  # Red should map to '@'
+        # Check that universal characters are used (starting with '.')
+        assert "." in color_sections  # Black should map to '.'
+        assert "a" in color_sections  # Red should map to 'a'
 
         # Check that other colors use universal characters
-        other_colors = [s for s in color_sections if s not in {"#", "@"}]
+        other_colors = [s for s in color_sections if s not in {".", "a"}]
         assert len(other_colors) == TEST_MEDIUM_SIZE, "Should have 2 other color sections"
 
         for char in other_colors:
@@ -134,16 +134,15 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
     @staticmethod
     def test_legacy_sprite_character_limit():
         """Test character limit enforcement in legacy sprites."""
-        # Create surface with many colors
-        surface = pygame.Surface((8, 8))
+        # Create surface with exactly 65 colors (more than 64 limit)
+        surface = pygame.Surface((65, 1))
 
-        # Fill with many different colors
-        for y in range(8):
-            for x in range(8):
-                r = (x + y) * 32 % 256
-                g = (x + y) * 16 % 256
-                b = (x + y) * 8 % 256
-                surface.set_at((x, y), (r, g, b))
+        # Fill with 65 unique colors
+        for i in range(65):
+            r = (i * 3) % 256
+            g = (i * 5) % 256
+            b = (i * 7) % 256
+            surface.set_at((i, 0), (r, g, b))
 
         # Create legacy sprite
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
@@ -178,13 +177,13 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
 
         assert len(color_sections) == 1, "Should have only one color section"
 
-        # Should use reserved character for red
-        assert "@" in color_sections, "Red should map to '@'"
+        # Should use universal character for red
+        assert "." in color_sections, "Red should map to '.'"
 
         # Check RGB values
-        red = int(config.get("@", "red"))
-        green = int(config.get("@", "green"))
-        blue = int(config.get("@", "blue"))
+        red = int(config.get(".", "red"))
+        green = int(config.get(".", "green"))
+        blue = int(config.get(".", "blue"))
 
         assert red == MAX_RGB_VALUE
         assert green == 0
@@ -282,17 +281,20 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
 
         assert len(color_sections) == TEST_GRAYSCALE_SIZE, "Should have 4 color sections"
 
-        # Check that black maps to reserved character
-        assert "#" in color_sections, "Black should map to '#'"
+        # Find which character maps to black (0, 0, 0)
+        black_char = None
+        for char in color_sections:
+            red = int(config.get(char, "red"))
+            green = int(config.get(char, "green"))
+            blue = int(config.get(char, "blue"))
+            if red == 0 and green == 0 and blue == 0:
+                black_char = char
+                break
 
-        # Check RGB values for black
-        red = int(config.get("#", "red"))
-        green = int(config.get("#", "green"))
-        blue = int(config.get("#", "blue"))
-
-        assert red == 0
-        assert green == 0
-        assert blue == 0
+        assert black_char is not None, "Black color (0,0,0) should be mapped to a character"
+        assert black_char in SPRITE_GLYPHS.strip(), (
+            f"Black should map to a universal character, got {black_char}"
+        )
 
     @staticmethod
     def test_legacy_sprite_character_order():
@@ -323,9 +325,9 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
         for char in expected_chars:
             assert char in color_sections, f"Character '{char}' should be used"
 
-        # Check that black and red use reserved characters
-        assert "#" in color_sections, "Black should map to '#'"
-        assert "@" in color_sections, "Red should map to '@'"
+        # Check that black and red use universal characters
+        assert "." in color_sections, "Black should map to '.'"
+        assert "a" in color_sections, "Red should map to 'a'"
 
 
 if __name__ == "__main__":

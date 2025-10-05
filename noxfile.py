@@ -8,6 +8,8 @@ from nox_poetry import Session, session
 def lint_and_test(session: Session) -> None:
     session.run("poetry", "install", "--no-root", external=True)
 
+    session.run("pytest", external=True)
+
     # Sort imports (not supported by ruff format yet)
     session.run("ruff", "check", "--select", "I", "--fix", "noxfile.py", external=True)
     session.run("ruff", "check", "--select", "I", "--fix", "glitchygames", external=True)
@@ -29,4 +31,4 @@ def lint_and_test(session: Session) -> None:
     session.run("ruff", "check", "tests", external=True)
 
     # Lint docs
-    # session.run("mkdocs", "build", "--strict", external=True)
+    session.run("mkdocs", "build", "--strict", external=True)

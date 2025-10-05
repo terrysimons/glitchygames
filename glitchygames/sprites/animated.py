@@ -1061,7 +1061,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Write TOML file with proper block string format
         with Path(filename).open("w", encoding="utf-8") as f:
             f.write("[sprite]\n")
-            f.write(f'name = "{animation_name}"\n')
+            f.write(f'name = "{self.name}"\n')
             f.write('pixels = """\n')
             f.write("\n".join(pixel_rows))
             f.write('\n"""\n\n')

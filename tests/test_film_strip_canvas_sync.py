@@ -52,9 +52,12 @@ class TestFilmStripCanvasSync:
 
     def test_film_strip_shows_canvas_content(self):
         """Test that film strip shows current canvas content, not stored frame data."""
+        # Create a surface for rendering
+        render_surface = pygame.Surface((400, 100))
+
         # Get initial film strip content
-        initial_surface = self.film_strip.render()
-        initial_pixels = self._get_surface_pixels(initial_surface)
+        self.film_strip.render(render_surface)
+        initial_pixels = self._get_surface_pixels(render_surface)
 
         # Modify canvas content (simulate drawing)
         self.canvas.set_pixel(15, 15, (255, 255, 0))  # Yellow pixel
@@ -64,8 +67,8 @@ class TestFilmStripCanvasSync:
         self.film_strip.update_layout()
 
         # Get updated film strip content
-        updated_surface = self.film_strip.render()
-        updated_pixels = self._get_surface_pixels(updated_surface)
+        self.film_strip.render(render_surface)
+        updated_pixels = self._get_surface_pixels(render_surface)
 
         # The film strip should show different content after canvas changes
         assert initial_pixels != updated_pixels, (
@@ -82,9 +85,12 @@ class TestFilmStripCanvasSync:
 
     def test_film_strip_updates_on_canvas_changes(self):
         """Test that film strip updates when canvas pixels change."""
+        # Create a surface for rendering
+        render_surface = pygame.Surface((400, 100))
+
         # Get initial state
-        initial_surface = self.film_strip.render()
-        initial_hash = hash(initial_surface.get_buffer().raw)
+        self.film_strip.render(render_surface)
+        initial_hash = hash(render_surface.get_buffer().raw)
 
         # Make multiple canvas changes
         for i in range(5):
@@ -94,8 +100,8 @@ class TestFilmStripCanvasSync:
         self.film_strip.update_layout()
 
         # Get updated state
-        updated_surface = self.film_strip.render()
-        updated_hash = hash(updated_surface.get_buffer().raw)
+        self.film_strip.render(render_surface)
+        updated_hash = hash(render_surface.get_buffer().raw)
 
         # The film strip should be different after canvas changes
         assert initial_hash != updated_hash, "Film strip should update when canvas pixels change"

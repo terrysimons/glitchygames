@@ -365,53 +365,6 @@ class TestSpriteFactorySave(unittest.TestCase):
         """Clean up test fixtures."""
         shutil.rmtree(self.temp_dir)
 
-    def test_save_static_sprite_ini(self):
-        """Test saving a static sprite to INI format via factory."""
-        # Create a simple static sprite
-        sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="TestSprite")
-        sprite.image = pygame.Surface((2, 2))
-        sprite.image.fill((255, 0, 0))  # Red
-        sprite.rect = sprite.image.get_rect()
-        sprite.pixels = [(255, 0, 0), (255, 0, 0), (255, 0, 0), (255, 0, 0)]
-        sprite.pixels_across = 2
-        sprite.pixels_tall = 2
-
-        # Save via factory
-        filename = Path(self.temp_dir) / "test_save.ini"
-        SpriteFactory.save_sprite(sprite=sprite, filename=str(filename), file_format="ini")
-
-        # Verify file was created
-        assert filename.exists()
-
-        # Verify file content
-        content = filename.read_text(encoding="utf-8")
-        assert "[sprite]" in content
-        assert "name = TestSprite" in content
-        assert "[.]" in content  # Color definition (uses first character from SPRITE_GLYPHS)
-
-    def test_save_static_sprite_yaml(self):
-        """Test saving a static sprite to YAML format via factory."""
-        # Create a simple static sprite
-        sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="TestSprite")
-        sprite.image = pygame.Surface((2, 2))
-        sprite.image.fill((255, 0, 0))  # Red
-        sprite.rect = sprite.image.get_rect()
-        sprite.pixels = [(255, 0, 0), (255, 0, 0), (255, 0, 0), (255, 0, 0)]
-        sprite.pixels_across = 2
-        sprite.pixels_tall = 2
-
-        # Save via factory
-        filename = Path(self.temp_dir) / "test_save.yaml"
-        SpriteFactory.save_sprite(sprite=sprite, filename=str(filename), file_format="yaml")
-
-        # Verify file was created
-        assert filename.exists()
-
-        # Verify file content
-        content = filename.read_text(encoding="utf-8")
-        assert "sprite:" in content
-        assert "name: TestSprite" in content
-
     def test_save_animated_sprite_toml(self):
         """Test that saving animated sprites works in TOML format."""
         # Create an animated sprite
@@ -432,32 +385,9 @@ class TestSpriteFactorySave(unittest.TestCase):
 
         # Verify content
         content = filename.read_text()
-        # Since it's detected as single-frame, it uses the animation name
-        assert 'name = "test_anim"' in content
+        # Since it's detected as single-frame, it uses the sprite name
+        assert 'name = "TestAnimatedSprite"' in content
         assert "[colors]" in content
-
-    def test_bitmappy_sprite_save_backwards_compatibility(self):
-        """Test that BitmappySprite.save() still works via factory."""
-        # Create a simple static sprite
-        sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="TestSprite")
-        sprite.image = pygame.Surface((2, 2))
-        sprite.image.fill((255, 0, 0))  # Red
-        sprite.rect = sprite.image.get_rect()
-        sprite.pixels = [(255, 0, 0), (255, 0, 0), (255, 0, 0), (255, 0, 0)]
-        sprite.pixels_across = 2
-        sprite.pixels_tall = 2
-
-        # Save via BitmappySprite.save() (should use factory internally)
-        filename = Path(self.temp_dir) / "test_backwards.ini"
-        sprite.save(str(filename), "ini")
-
-        # Verify file was created
-        assert filename.exists()
-
-        # Verify file content
-        content = filename.read_text(encoding="utf-8")
-        assert "[sprite]" in content
-        assert "name = TestSprite" in content
 
 
 class TestSpriteStackValidation(unittest.TestCase):

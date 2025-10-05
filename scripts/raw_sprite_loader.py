@@ -150,21 +150,25 @@ class BitmappyLegacySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
+        # Handle empty surfaces
+        if self.rect.width == 0 or self.rect.height == 0:
+            raw_pixels = []
+            colors = set()
+        else:
+            raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
 
-        # We're utilizing the generator to give us RGB triplets.
-        # We need a list here becasue we'll use set() to pull out the
-        # unique values, but we also need to consume the list again
-        # down below, so we can't solely use a generator.
-        raw_pixels = list(raw_pixels)
-        # This gives us the unique rgb triplets in the image.
-        colors = set(raw_pixels)
+            # We're utilizing the generator to give us RGB triplets.
+            # We need a list here becasue we'll use set() to pull out the
+            # unique values, but we also need to consume the list again
+            # down below, so we can't solely use a generator.
+            raw_pixels = list(raw_pixels)
+            # This gives us the unique rgb triplets in the image.
+            colors = set(raw_pixels)
 
         config.add_section("sprite")
         config.set("sprite", "name", self.name)
 
         # Generate the color key using universal character set
-
         universal_chars = SPRITE_GLYPHS.strip()
 
         # Assign characters sequentially from SPRITE_GLYPHS
@@ -176,9 +180,7 @@ class BitmappyLegacySprite(Sprite):
             color_key = universal_chars[char_index]
             config.add_section(color_key)
             color_map[color] = color_key
-            char_index += 1
 
-            color_key = color_map[color]
             self.log.debug(f"Key: {color} -> {color_key}")
 
             red = color[0]
@@ -192,21 +194,25 @@ class BitmappyLegacySprite(Sprite):
 
             char_index += 1
 
-        x = 0
-        row = []
-        while raw_pixels:
-            row.append(color_map[raw_pixels.pop(0)])
-            x += 1
+        # Process pixels only if we have any
+        if raw_pixels:
+            x = 0
+            row = []
+            while raw_pixels:
+                row.append(color_map[raw_pixels.pop(0)])
+                x += 1
 
-            if x % self.rect.width == 0:
-                self.log.debug(f"Row: {row}")
-                pixels.append("".join(row))
-                row = []
-                x = 0
+                if x % self.rect.width == 0:
+                    self.log.debug(f"Row: {row}")
+                    pixels.append("".join(row))
+                    row = []
+                    x = 0
 
-        self.log.debug(pixels)
-
-        config.set("sprite", "pixels", "\n".join(pixels))
+            self.log.debug(pixels)
+            config.set("sprite", "pixels", "\n".join(pixels))
+        else:
+            # Empty surface - set empty pixels
+            config.set("sprite", "pixels", "")
 
         self.log.debug(f"Deflated Sprite: {config}")
 

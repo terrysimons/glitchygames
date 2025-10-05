@@ -408,11 +408,24 @@ class TestSpriteLoadingHardware(unittest.TestCase):
             scene.force_display_update()
             initial_pixels = scene.get_sprite_area_from_hardware_buffer(sprite_index)
 
-            # Advance to next frame if possible
-            if hasattr(sprite, "set_frame"):
-                sprite.set_frame(1)
-            elif hasattr(sprite, "frame_manager"):
-                sprite.frame_manager.set_frame(1)
+            # Advance to next frame if possible (only if animation has multiple frames)
+            if hasattr(sprite, "animations") and sprite.animations:
+                current_animation = sprite.current_animation
+                if current_animation and len(sprite.animations[current_animation]) > 1:
+                    # Try to advance to next frame (frame 1)
+                    if hasattr(sprite, "set_frame"):
+                        sprite.set_frame(1)
+                    elif hasattr(sprite, "frame_manager"):
+                        sprite.frame_manager.set_frame(1)
+                else:
+                    # Single frame animation - stay on frame 0
+                    if hasattr(sprite, "set_frame"):
+                        sprite.set_frame(0)
+                    elif hasattr(sprite, "frame_manager"):
+                        sprite.frame_manager.set_frame(0)
+                    print(
+                        f"Sprite {sprite_index}: animation '{current_animation}' has only 1 frame, staying on frame 0"
+                    )
 
             # Get next frame
             scene.force_display_update()

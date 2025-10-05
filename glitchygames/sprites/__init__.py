@@ -1759,6 +1759,23 @@ class SpriteFactory:
         if filename is None:
             filename = SpriteFactory._get_default_sprite_path()
 
+        # Validate file content before loading
+        analysis = SpriteFactory._analyze_file(filename)
+
+        # Check if file has valid content
+        if not (
+            analysis["has_sprite_pixels"]
+            or analysis["has_animation_sections"]
+            or analysis["has_frame_sections"]
+        ):
+            raise ValueError("Invalid sprite file")
+
+        # Check for mixed content (both static and animated data)
+        if analysis["has_sprite_pixels"] and (
+            analysis["has_animation_sections"] or analysis["has_frame_sections"]
+        ):
+            raise ValueError("Invalid sprite file")
+
         # Always return AnimatedSprite - it handles both static and animated content
         return AnimatedSprite(filename, groups=None)
 
@@ -1825,6 +1842,10 @@ class SpriteFactory:
                 if "frame" in anim:
                     has_frame_sections = True
                     break
+
+        # Check for standalone frame sections (mixed content)
+        if "frame" in data:
+            has_frame_sections = True
 
         return {
             "has_sprite_pixels": has_sprite_pixels,
