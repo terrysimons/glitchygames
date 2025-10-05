@@ -15,7 +15,7 @@ from typing import Self
 import pygame
 import toml
 
-# import yaml  # Unused import removed
+# YAML support removed - TOML only
 # Import constants
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
@@ -25,13 +25,22 @@ try:
 except ImportError:
     # Fallback if bitmappy module is not available
     def detect_file_format(filename: str) -> str:
-        """Detect file format based on extension."""
-        filename_lower = filename.lower()
-        if filename_lower.endswith((".yaml", ".yml")):
-            return "yaml"
-        if filename_lower.endswith(".ini"):
-            return "ini"
-        return "toml"  # Default to toml
+        """Detect file format based on extension.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add file extension detection here
+        2. Add analysis method in _analyze_file()
+        3. Add save/load methods in AnimatedSprite
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
+        # TODO: Add new format detection here
+        # if filename.lower().endswith(".json"):
+        #     return "json"
+        # if filename.lower().endswith(".xml"):
+        #     return "xml"
+        
+        return "toml"  # Default to TOML only
 
 
 # Import BitmappySprite for static sprite saving
@@ -551,19 +560,21 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     # File I/O methods
     def load(self: Self, filename: str) -> None:
-        """Load animated sprite from a file."""
-        # Detect file format from extension
-        # Import moved to top level
-
+        """Load animated sprite from a file.
+        
+        Currently only supports TOML format. To add new formats:
+        1. Add format detection in _detect_file_format()
+        2. Add load logic here (e.g., _load_json(), _load_xml())
+        3. Add save methods in save()
+        4. Update tests
+        See LOADER_README.md for detailed implementation guide.
+        """
         file_format = detect_file_format(filename)
 
         if file_format == "toml":
             self._load_toml(filename)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
-
-
-
+            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
 
 
@@ -873,7 +884,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         elif file_format == "toml":
             self._save_toml(filename)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
+            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
     def _is_single_frame_sprite(self: Self) -> bool:
         """Check if this sprite has only one animation with one frame."""
@@ -891,7 +902,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._save_toml_single_frame(filename)
         else:
             # For unsupported formats, raise an error
-            raise ValueError(f"Unsupported file format: {file_format}. Only TOML is currently supported.")
+            raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
     def _save_toml_single_frame(self: Self, filename: str) -> None:
         """Save single frame as static TOML using existing TOML infrastructure."""

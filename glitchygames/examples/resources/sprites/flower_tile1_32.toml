@@ -36,53 +36,40 @@ HED605MMMMMMMMMMMMMMMMMM506DEH7F
 """
 
 [colors]
-[colors.0]
-red = 63
-green = 147
-blue = 87
-
-[colors.1]
-red = 23
-green = 203
-blue = 79
-
-[colors.2]
-red = 119
-green = 27
-blue = 127
-
-[colors.3]
-red = 55
-green = 167
-blue = 111
-
-[colors.4]
-red = 175
-green = 31
-blue = 191
-
-[colors.5]
-red = 63
-green = 139
-blue = 95
-
-[colors.6]
-red = 87
-green = 119
-blue = 111
-
-[colors.7]
-red = 143
-green = 11
-blue = 159
-
-[colors.8]
-red = 47
-green = 171
-blue = 95
-
-[colors.9]
-red = 47
-green = 175
-blue = 103
-
+# Flower tile colors - bright and vibrant
+"H" = { red = 255, green = 200, blue = 100 }  # Golden yellow
+"E" = { red = 255, green = 100, blue = 50 }    # Orange
+"D" = { red = 200, green = 50, blue = 100 }   # Pink
+"6" = { red = 150, green = 100, blue = 200 }  # Purple
+"0" = { red = 100, green = 150, blue = 255 }  # Light blue
+"5" = { red = 50, green = 200, blue = 100 }   # Green
+"M" = { red = 100, green = 100, blue = 100 }  # Gray
+"Q" = { red = 255, green = 255, blue = 200 }  # Light yellow
+"I" = { red = 200, green = 200, blue = 255 }  # Light purple
+"3" = { red = 150, green = 255, blue = 150 } # Light green
+":" = { red = 255, green = 150, blue = 150 }  # Light pink
+";" = { red = 150, green = 150, blue = 255 }  # Light blue
+"C" = { red = 200, green = 200, blue = 200 }  # Light gray
+"G" = { red = 100, green = 255, blue = 100 }  # Bright green
+"9" = { red = 255, green = 200, blue = 100 }  # Golden
+"?" = { red = 200, green = 100, blue = 255 }  # Magenta
+"8" = { red = 100, green = 200, blue = 255 }  # Sky blue
+">" = { red = 255, green = 100, blue = 200 }  # Hot pink
+"R" = { red = 255, green = 150, blue = 50 }   # Orange-red
+"1" = { red = 255, green = 255, blue = 100 }  # Yellow
+"F" = { red = 255, green = 255, blue = 255 }  # White
+"K" = { red = 50, green = 50, blue = 50 }     # Dark gray
+"B" = { red = 0, green = 0, blue = 255 }      # Blue
+"N" = { red = 255, green = 100, blue = 100 }  # Light red
+"@" = { red = 255, green = 200, blue = 50 }   # Gold
+"P" = { red = 200, green = 100, blue = 200 }  # Pink
+"O" = { red = 255, green = 150, blue = 100 }  # Peach
+"J" = { red = 100, green = 255, blue = 200 }  # Mint
+"L" = { red = 200, green = 255, blue = 100 }  # Lime
+"S" = { red = 100, green = 200, blue = 255 }  # Light blue
+"2" = { red = 255, green = 255, blue = 200 }  # Cream
+"7" = { red = 200, green = 200, blue = 100 }  # Olive
+"4" = { red = 255, green = 200, blue = 150 }  # Light orange
+"A" = { red = 100, green = 255, blue = 100 }  # Bright green
+"<" = { red = 200, green = 200, blue = 100 }  # Light yellow
+"=" = { red = 255, green = 100, blue = 100 }  # Light red
