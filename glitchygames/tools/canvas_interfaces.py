@@ -217,18 +217,24 @@ class AnimatedCanvasInterface:
     def __init__(self, canvas_sprite):
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
-        # Set initial animation - prefer "idle" if available, otherwise first animation
+        # Set initial animation using sprite introspection
         if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
-            if "idle" in canvas_sprite.animated_sprite._animations:
-                self.current_animation = "idle"
+            if canvas_sprite.animated_sprite._animations:
+                if (
+                    hasattr(canvas_sprite.animated_sprite, "_animation_order")
+                    and canvas_sprite.animated_sprite._animation_order
+                ):
+                    # Use the first animation in the file order
+                    self.current_animation = canvas_sprite.animated_sprite._animation_order[0]
+                else:
+                    # Fall back to the first key in _animations
+                    self.current_animation = next(
+                        iter(canvas_sprite.animated_sprite._animations.keys())
+                    )
             else:
-                self.current_animation = (
-                    next(iter(canvas_sprite.animated_sprite._animations.keys()))
-                    if canvas_sprite.animated_sprite._animations
-                    else "idle"
-                )
+                self.current_animation = ""
         else:
-            self.current_animation = "idle"
+            self.current_animation = ""
         self.current_frame = 0
 
     def get_pixel_data(self) -> list[tuple[int, int, int]]:
@@ -302,6 +308,21 @@ class AnimatedCanvasInterface:
                     # Mark canvas as dirty so it will redraw
                     self.canvas_sprite.dirty_pixels[pixel_num] = True
                     self.canvas_sprite.dirty = 1
+
+                    # Trigger pixel update event to notify film strip
+                    if hasattr(self.canvas_sprite, "on_pixel_update_event"):
+                        # Create a mock event and trigger object
+                        class MockEvent:
+                            pass
+
+                        class MockTrigger:
+                            def __init__(self, pixel_num, color):
+                                self.pixel_number = pixel_num
+                                self.pixel_color = color
+
+                        mock_event = MockEvent()
+                        mock_trigger = MockTrigger(pixel_num, color)
+                        self.canvas_sprite.on_pixel_update_event(mock_event, mock_trigger)
             else:
                 self.canvas_sprite.pixels[pixel_num] = color
                 self.canvas_sprite.dirty_pixels[pixel_num] = True

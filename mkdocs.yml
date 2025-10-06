@@ -89,7 +89,7 @@ plugins:
       handlers:
         python:
           paths: [glitchygames]
-          rendering:
+          options:
             show_source: true
           # options:
           #   allow_inspection: no

@@ -160,8 +160,6 @@ AI_TIMEOUT = 30  # Seconds to wait for AI response
 AI_QUEUE_SIZE = 10
 AI_MAX_TOKENS = 64000  # Maximum tokens for response (Claude Sonnet 4.5 limit)
 AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
-
-
 # Load sprite files for AI training using SpriteFactory
 AI_TRAINING_DATA = []
 AI_TRAINING_FORMAT = None  # Will be detected from training files
@@ -432,7 +430,7 @@ def _initialize_ai_client(log: logging.Logger):
     """Initialize AI client."""
     if ai is None:
         log.error("aisuite not available - AI features disabled")
-        raise ImportError("aisuite not available")
+        return None
 
     log.info("aisuite is available")
     log.debug(f"aisuite version: {getattr(ai, '__version__', 'unknown')}")
@@ -448,6 +446,11 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
     """Query the model's capabilities including max tokens."""
     try:
         client = _initialize_ai_client(log)
+
+        # Check if AI client is available
+        if client is None:
+            log.warning("AI client not available, using default capabilities")
+            return {"max_tokens": 4096}  # Default fallback
 
         # Try to get model info through a simple test request
         test_messages = [
@@ -487,6 +490,11 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
 
 def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIResponse:
     """Process a single AI request."""
+    # Check if AI client is available
+    if client is None:
+        log.warning("AI client not available, returning empty response")
+        return AIResponse(content="AI features not available", usage=None)
+
     log.info("Making API call to AI service...")
     response = client.chat.completions.create(
         model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
@@ -609,171 +617,6 @@ def ai_worker(
         raise
 
 
-class LivePreviewSprite(BitmappySprite):
-    """A sprite that displays the current frame of an animated sprite in real-time."""
-
-    def __init__(
-        self,
-        animated_sprite: AnimatedSprite,
-        name: str = "Live Preview",
-        x: int = 0,
-        y: int = 0,
-        groups: pygame.sprite.Group = None,
-    ):
-        """Initialize the live preview sprite."""
-        self.animated_sprite = animated_sprite
-        self.log = logging.getLogger("game.bitmappy.live_preview")
-
-        # Create initial surface - size will be determined by the actual sprite
-        self.image = pygame.Surface((64, 64))  # Default size, will be updated
-        self.image.fill((255, 0, 255))  # Magenta background
-        self.rect = self.image.get_rect(x=x, y=y)
-        self.dirty = 2  # Always dirty for real-time updates
-
-        # Initialize parent class with the surface dimensions
-        super().__init__(
-            name=name,
-            x=x,
-            y=y,
-            width=self.image.get_width(),
-            height=self.image.get_height(),
-            groups=groups,
-        )
-
-        # Set initial frame
-        self._update_frame()
-
-    def _update_frame(self, animated_sprite=None):
-        """Update the preview with the current frame of the animated sprite."""
-        self.log.debug("LivePreviewSprite._update_frame called")
-
-        # Use the provided animated sprite if available, otherwise use self.animated_sprite
-        sprite_to_use = animated_sprite if animated_sprite is not None else self.animated_sprite
-
-        if sprite_to_use and hasattr(sprite_to_use, "_animations"):
-            # Get the current animation and frame from the animated sprite
-            current_animation = sprite_to_use.current_animation
-            frame_index = sprite_to_use.current_frame
-
-            self.log.debug(
-                f"LivePreviewSprite._update_frame: Animation: {current_animation}, "
-                f"Frame: {frame_index}"
-            )
-
-            # Check if frame has changed
-            if not hasattr(self, "_last_frame_index") or self._last_frame_index != frame_index:
-                self.log.debug("=== LIVE PREVIEW FRAME TRANSITION DETECTED ===")
-                self.log.debug(f"Previous frame: {getattr(self, '_last_frame_index', 'None')}")
-                self.log.debug(f"Current frame: {frame_index}")
-                self.log.debug(f"Animation: {current_animation}")
-
-                self._last_frame_index = frame_index
-
-                if current_animation in sprite_to_use._animations:
-                    # Get the current frame and create a fresh surface from its pixel data
-                    frame = sprite_to_use._animations[current_animation][frame_index]
-                    if hasattr(frame, "get_pixel_data"):
-                        frame_pixels = frame.get_pixel_data()
-                        # Create a fresh surface from the pixel data
-                        frame_size = frame.get_size()
-                        current_surface = pygame.Surface(frame_size)
-
-                        # Draw each pixel to the surface
-                        for i, pixel in enumerate(frame_pixels):
-                            x = i % frame_size[0]
-                            y = i // frame_size[0]
-                            current_surface.set_at((x, y), pixel)
-
-                        self.log.debug(
-                            f"Created fresh surface from frame {frame_index} "
-                            f"with {len(frame_pixels)} pixels"
-                        )
-
-                        if current_surface:
-                            # Scale the frame up to 64x64 for the preview
-                            scaled_surface = pygame.transform.scale(current_surface, (64, 64))
-                            self.image = scaled_surface
-                            self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
-                            self.dirty = 1  # Only dirty when frame changes
-                            self.log.debug(
-                                f"Live preview updated with frame {frame_index} at actual size "
-                                f"{frame_size[0]}x{frame_size[1]}"
-                            )
-                        else:
-                            self.log.debug("Failed to create surface from frame data")
-                    else:
-                        self.log.debug("Frame has no get_pixel_data method")
-                else:
-                    self.log.debug(f"Animation {current_animation} not found in frames")
-
-                self.log.debug("=== END FRAME TRANSITION ===")
-            else:
-                self.log.debug(f"Frame {frame_index} unchanged, skipping update")
-        else:
-            self.log.debug("No animated sprite or _animations attribute")
-
-    def update(self):
-        """Update the preview frame."""
-        self.log.debug("LivePreviewSprite.update called")
-        self._update_frame()
-        # dirty is set in _update_frame() only when frame changes
-        self.log.debug("LivePreviewSprite.update completed")
-
-    def force_redraw(self):
-        """Force a redraw of the preview."""
-        self._update_frame()
-        return self.image
-
-    def _update_frame_from_canvas(self, canvas):
-        """Update the preview with the canvas's current frame directly."""
-        self.log.debug("LivePreviewSprite._update_frame_from_canvas called")
-
-        # Get the canvas's current frame data
-        current_animation = canvas.current_animation
-        current_frame = canvas.current_frame
-
-        self.log.debug(
-            f"LivePreviewSprite._update_frame_from_canvas: "
-            f"Animation: {current_animation}, Frame: {current_frame}"
-        )
-
-        # Get the frame from the canvas's animated sprite
-        if current_animation in canvas.animated_sprite._animations and current_frame < len(
-            canvas.animated_sprite._animations[current_animation]
-        ):
-            frame = canvas.animated_sprite._animations[current_animation][current_frame]
-
-            if hasattr(frame, "get_pixel_data"):
-                frame_pixels = frame.get_pixel_data()
-                # Create a fresh surface from the pixel data
-                frame_size = frame.get_size()
-                current_surface = pygame.Surface(frame_size)
-
-                # Draw each pixel to the surface
-                for i, pixel in enumerate(frame_pixels):
-                    x = i % frame_size[0]
-                    y = i // frame_size[0]
-                    current_surface.set_at((x, y), pixel)
-
-                if current_surface:
-                    # Display the frame at its actual dimensions
-                    self.image = current_surface
-                    self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
-                    self.dirty = 1
-                    self.log.debug(
-                        f"Live preview updated with canvas frame {current_frame} at actual size "
-                        f"{frame_size[0]}x{frame_size[1]}"
-                    )
-                else:
-                    self.log.debug("Failed to create surface from canvas frame data")
-            else:
-                self.log.debug("Canvas frame has no get_pixel_data method")
-        else:
-            self.log.debug(
-                f"Canvas frame {current_frame} not found in animation {current_animation}"
-            )
-
-
 class FilmStripSprite(BitmappySprite):
     """Sprite wrapper for the film strip widget."""
 
@@ -792,9 +635,26 @@ class FilmStripSprite(BitmappySprite):
 
     def update(self):
         """Update the film strip sprite."""
-        if self.dirty:
+        # Always redraw if dirty or if animations are running
+        should_redraw = self.dirty
+
+        # Check if animations are running and force redraw
+        animations_running = (
+            hasattr(self, "film_strip_widget")
+            and hasattr(self.film_strip_widget, "animated_sprite")
+            and self.film_strip_widget.animated_sprite
+            and len(self.film_strip_widget.animated_sprite._animations) > 0
+        )
+
+        if animations_running:
+            should_redraw = True
+
+        if should_redraw:
             self.force_redraw()
-            self.dirty = 0
+            # Only reset dirty flag if animations are not running
+            # This ensures continuous updates when animations are present
+            if not animations_running:
+                self.dirty = 0
 
     def force_redraw(self):
         """Force a redraw of the film strip."""
@@ -1213,14 +1073,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "film_strip_sprite"):
                 self.film_strip_sprite.dirty = 1
 
-            # Update live preview to show the new animation
-            if hasattr(self, "live_preview"):
-                # Clear the frame tracking to force an update
-                if hasattr(self.live_preview, "_last_frame_index"):
-                    delattr(self.live_preview, "_last_frame_index")
-                # Force update the live preview
-                self.live_preview._update_frame()
-                self.live_preview.dirty = 1
+            # Note: Live preview functionality is now integrated into the film strip
 
     def next_frame(self) -> None:
         """Move to the next frame in the current animation."""
@@ -1292,14 +1145,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self.log.debug("Animation restarted")
                 self.log.debug(f"New animation state: is_playing={self.animated_sprite.is_playing}")
 
-                # Update live preview when animation state changes
-                if hasattr(self, "live_preview") and self.live_preview is not None:
-                    # Force live preview to update by clearing its frame tracking
-                    if hasattr(self.live_preview, "_last_frame_index"):
-                        delattr(self.live_preview, "_last_frame_index")
-
-                    # Force the live preview to show the canvas's current frame directly
-                    self.live_preview._update_frame_from_canvas(self)
+                # Note: Live preview functionality is now integrated into the film strip
         else:
             self.log.debug(f"Unhandled key: {key}")
 
@@ -1423,21 +1269,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Update miniview with current frame data
             self._update_mini_view_from_current_frame()
 
-            # Update live preview to reflect the changes
-            if hasattr(self, "live_preview") and self.live_preview is not None:
-                self.log.debug(f"Live preview exists: {self.live_preview}")
-                # Force live preview to update by clearing its frame tracking
-                if hasattr(self.live_preview, "_last_frame_index"):
-                    delattr(self.live_preview, "_last_frame_index")
-
-                # Update the live preview directly from the canvas's current frame
-                try:
-                    self.log.debug("Calling _update_frame_from_canvas")
-                    self.live_preview._update_frame_from_canvas(self)
-                except (AttributeError, ValueError, RuntimeError):
-                    self.log.exception("Error updating live preview")
-            else:
-                self.log.debug("No live preview available for update")
+            # Note: Live preview functionality is now integrated into the film strip
 
             # Update miniview
             if hasattr(self, "mini_view"):
@@ -1607,16 +1439,10 @@ class AnimatedCanvasSprite(BitmappySprite):
         loaded_sprite.load(filename)
 
         # Debug: Check what was loaded
-        self.log.debug(
-            f"Loaded sprite has _animations: {hasattr(loaded_sprite, '_animations')}"
-        )
+        self.log.debug(f"Loaded sprite has _animations: {hasattr(loaded_sprite, '_animations')}")
         if hasattr(loaded_sprite, "_animations"):
-            self.log.debug(
-                f"Loaded sprite _animations: {list(loaded_sprite._animations.keys())}"
-            )
-            self.log.debug(
-                f"Loaded sprite current_animation: {loaded_sprite.current_animation}"
-            )
+            self.log.debug(f"Loaded sprite _animations: {list(loaded_sprite._animations.keys())}")
+            self.log.debug(f"Loaded sprite current_animation: {loaded_sprite.current_animation}")
             self.log.debug(f"Loaded sprite is_playing: {loaded_sprite.is_playing}")
 
         return loaded_sprite
@@ -1675,21 +1501,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.log.debug("Updating mini view after animation change")
             self._update_mini_view_from_current_frame()
 
-        # Update the live preview to reference the new animated sprite
-        if hasattr(self, "live_preview") and self.live_preview is not None:
-            self.log.debug(
-                f"Updating live preview with new animated sprite: {loaded_sprite}"
-            )
-            self.live_preview.animated_sprite = loaded_sprite
-
-            # Force the live preview to update by clearing its frame tracking
-            if hasattr(self.live_preview, "_last_frame_index"):
-                delattr(self.live_preview, "_last_frame_index")
-
-            # Force update the live preview
-            self.live_preview._update_frame()
-            self.live_preview.dirty = 1  # Force redraw
-            self.log.debug("Updated live preview with new animated sprite")
+        # Note: Live preview functionality is now integrated into the film strip
 
         # Update the film strip widget with the new animated sprite
         if hasattr(self, "film_strip") and self.film_strip is not None:
@@ -1715,9 +1527,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Debug: Print available animations
         available_animations = (
-            list(loaded_sprite._animations.keys())
-            if hasattr(loaded_sprite, "_animations")
-            else []
+            list(loaded_sprite._animations.keys()) if hasattr(loaded_sprite, "_animations") else []
         )
         self.log.info(f"AVAILABLE ANIMATIONS: {available_animations}")
         self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
@@ -1728,8 +1538,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             loaded_sprite._is_looping = True
             loaded_sprite.play()
             self.log.debug(
-                f"Started animation '{loaded_sprite.current_animation}' "
-                f"using play() method"
+                f"Started animation '{loaded_sprite.current_animation}' using play() method"
             )
             # Verify animation state immediately after starting
             self.log.debug(
@@ -1764,9 +1573,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Reset AI textbox to prompt string after successful sprite loading
         if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-            self.parent.debug_text.text = (
-                "Enter a description of the sprite you want to create:"
-            )
+            self.parent.debug_text.text = "Enter a description of the sprite you want to create:"
 
     def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
         """Resize the canvas to match the sprite dimensions."""
@@ -1906,9 +1713,10 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Create a new AnimatedSprite with the frame data
         animated_sprite = AnimatedSprite()
 
-        # Set up the frame data
-        animated_sprite._animations = {"idle": [frame]}
-        animated_sprite.frame_manager.current_animation = "idle"
+        # Set up the frame data using the sprite's name or a default
+        animation_name = getattr(frame, "name", "frame") or "frame"
+        animated_sprite._animations = {animation_name: [frame]}
+        animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
 
         # Update the sprite's image to match the frame
@@ -1995,10 +1803,14 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def _update_animated_sprite_frame(self):
         """Update the animated sprite's current frame with canvas data."""
-        if hasattr(self, "animated_sprite") and hasattr(self, "frame_manager"):
+        if (
+            hasattr(self, "animated_sprite")
+            and hasattr(self, "current_animation")
+            and hasattr(self, "current_frame")
+        ):
             # Get current animation and frame
-            current_anim = self.frame_manager.current_animation
-            current_frame = self.frame_manager.current_frame
+            current_anim = self.current_animation
+            current_frame = self.current_frame
 
             if (
                 current_anim
@@ -2297,9 +2109,6 @@ class BitmapEditorScene(Scene):
         # Create the main canvas sprite
         self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
 
-        # Create live preview sprite
-        self._create_live_preview(animated_sprite)
-
         # Finalize setup and start animation
         self._finalize_canvas_setup(animated_sprite, options)
 
@@ -2353,12 +2162,13 @@ class BitmapEditorScene(Scene):
         # Create animated sprite using proper initialization - single frame
         animated_sprite = AnimatedSprite()
         # Use the proper method to set up animations with single frame
-        animated_sprite._animations = {"idle": [frame1]}
+        animation_name = "frame"  # Use a generic name for new sprites
+        animated_sprite._animations = {animation_name: [frame1]}
         animated_sprite._frame_interval = 0.5
         animated_sprite._is_looping = True  # Enable looping for the animation
 
         # Set up the frame manager properly
-        animated_sprite.frame_manager.current_animation = "idle"
+        animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
 
         # Initialize the sprite properly like a loaded sprite would be
@@ -2402,80 +2212,6 @@ class BitmapEditorScene(Scene):
             f"({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}"
         )
         self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
-
-    def _create_live_preview(self, animated_sprite: AnimatedSprite) -> None:
-        """Create live preview sprite.
-
-        Args:
-            animated_sprite: The animated sprite to preview
-
-        """
-        try:
-            self.log.debug(f"Creating LivePreviewSprite with all_sprites: {self.all_sprites}")
-
-            # Calculate position to the right of the film strip, centered with canvas
-            live_preview_x = (
-                self.canvas.film_strip_sprite.rect.right + 20
-            )  # 20px to the right of film strip
-            live_preview_y = (
-                self.canvas.rect.centery - 32
-            )  # Center vertically with canvas (assuming 64px preview height)
-
-            self.live_preview = LivePreviewSprite(
-                animated_sprite=animated_sprite,
-                name="Live Preview",
-                x=live_preview_x,
-                y=live_preview_y,
-                groups=self.all_sprites,
-            )
-            self.log.info(
-                f"LivePreviewSprite created at position "
-                f"({self.live_preview.rect.x}, {self.live_preview.rect.y})"
-            )
-
-            # Force initial update of the live preview to show frame 0
-            self.log.debug(
-                f"Live preview initialization - "
-                f"animated_sprite.current_frame={animated_sprite.current_frame}"
-            )
-
-            # Ensure the live preview uses the same animated sprite as the canvas
-            self.live_preview.animated_sprite = animated_sprite
-
-            # Force the live preview to update by clearing its frame tracking
-            if hasattr(self.live_preview, "_last_frame_index"):
-                delattr(self.live_preview, "_last_frame_index")
-
-            # Update the live preview to show the current frame
-            self.log.debug(
-                f"Before live preview update - canvas.current_frame="
-                f"{self.canvas.current_frame}, animated_sprite.current_frame="
-                f"{animated_sprite.current_frame}"
-            )
-
-            # Force the animated sprite to match the canvas's current frame
-            animated_sprite.set_frame(self.canvas.current_frame)
-
-            # Create a temporary animated sprite that uses the canvas's current frame
-            temp_animated_sprite = AnimatedSprite()
-            temp_animated_sprite._animations = animated_sprite._animations.copy()
-            temp_animated_sprite._current_animation = self.canvas.current_animation
-            temp_animated_sprite._current_frame = self.canvas.current_frame
-            temp_animated_sprite._frame_interval = animated_sprite._frame_interval
-
-            self.live_preview._update_frame(animated_sprite=temp_animated_sprite)
-            self.log.debug(
-                f"After live preview update - live_preview._last_frame_index="
-                f"{getattr(self.live_preview, '_last_frame_index', 'None')}"
-            )
-
-            # Connect the live preview to the canvas
-            self.canvas.live_preview = self.live_preview
-            self.log.debug("Connected live preview to canvas")
-        except (ImportError, AttributeError, ValueError) as e:
-            self.log.warning(f"Cannot create LivePreviewSprite: {type(e).__name__}: {e}")
-            self.log.exception("Full traceback for LivePreviewSprite creation error:")
-            self.live_preview = None
 
     @staticmethod
     def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict) -> None:
@@ -3297,11 +3033,7 @@ class BitmapEditorScene(Scene):
             )
             self.log.debug(f"AI sprite animations: {animations}")
 
-            # Also ensure the live preview is updated
-            if hasattr(self.canvas, "live_preview") and self.canvas.live_preview:
-                self.canvas.live_preview._update_frame()
-                self.canvas.live_preview.dirty = 1
-                self.log.debug("Updated live preview after AI sprite load")
+            # Note: Live preview functionality is now integrated into the film strip
 
         # Force canvas redraw to show the new sprite
         self.canvas.dirty = 1
@@ -3440,14 +3172,26 @@ class BitmapEditorScene(Scene):
                     f"Animation update - is_playing={self.canvas.animated_sprite.is_playing}, "
                     f"current_frame={self.canvas.animated_sprite.current_frame}"
                 )
-                # Also check if animation is being paused/stopped
-                if not self.canvas.animated_sprite.is_playing:
-                    self.log.debug(
-                        "WARNING: Animation is not playing! Checking for pause/stop calls..."
-                    )
 
             # Pass delta time to the canvas for animation updates
             self.canvas.update_animation(self.dt)
+
+            # Update film strip preview animations
+            if (
+                hasattr(self.canvas, "film_strip")
+                and self.canvas.film_strip
+                and hasattr(self.canvas, "film_strip_sprite")
+                and self.canvas.film_strip_sprite
+            ):
+                self.canvas.film_strip.update_animations(self.dt)
+                # Mark film strip sprite as dirty to redraw with new animation frames
+                # Always mark as dirty when animations are present to ensure continuous updates
+                if (
+                    hasattr(self.canvas.film_strip, "animated_sprite")
+                    and self.canvas.film_strip.animated_sprite
+                    and len(self.canvas.film_strip.animated_sprite._animations) > 0
+                ):
+                    self.canvas.film_strip_sprite.dirty = 2
 
             # Check for frame transitions
             frame_index = self.canvas.animated_sprite.current_frame
@@ -3461,13 +3205,7 @@ class BitmapEditorScene(Scene):
                 # Don't update the canvas frame - it should stay on the frame being edited
                 # Only the live preview should animate
 
-                # Update live preview on frame transition
-                # Pass the canvas's animated sprite to ensure they're in sync
-                if hasattr(self, "live_preview") and self.live_preview is not None:
-                    self.live_preview._update_frame(animated_sprite=self.canvas.animated_sprite)
-
-                # Don't update the canvas - it should stay on the current frame being edited
-                # Only the live preview should animate
+                # Note: Live preview functionality is now integrated into the film strip
 
         # Check for AI responses
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:

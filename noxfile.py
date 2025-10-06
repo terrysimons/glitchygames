@@ -6,7 +6,7 @@ from nox_poetry import Session, session
 # @session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
 @session(python=["3.13"], reuse_venv=False)
 def lint_and_test(session: Session) -> None:
-    session.run("poetry", "install", "--no-root", external=True)
+    session.run("poetry", "install", external=True)
 
     session.run("pytest", external=True)
 

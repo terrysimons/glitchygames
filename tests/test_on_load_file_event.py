@@ -379,17 +379,17 @@ pixels = \"\"\"
                     self.scene.canvas.film_strip.set_animated_sprite = Mock()
 
                     # Mock helper methods to prevent real loading
-                    with patch.object(
-                        self.scene.canvas, "_load_sprite_from_file"
-                    ) as mock_load_sprite, patch.object(
-                        self.scene.canvas, "_check_and_resize_canvas"
-                    ) as mock_resize, patch.object(
-                        self.scene.canvas, "_setup_animation_state"
-                    ) as mock_setup, patch.object(
-                        self.scene.canvas, "_update_ui_components"
-                    ) as mock_update_ui, patch.object(
-                        self.scene.canvas, "_finalize_sprite_loading"
-                    ) as mock_finalize:
+                    with (
+                        patch.object(
+                            self.scene.canvas, "_load_sprite_from_file"
+                        ) as mock_load_sprite,
+                        patch.object(self.scene.canvas, "_check_and_resize_canvas") as mock_resize,
+                        patch.object(self.scene.canvas, "_setup_animation_state") as mock_setup,
+                        patch.object(self.scene.canvas, "_update_ui_components") as mock_update_ui,
+                        patch.object(
+                            self.scene.canvas, "_finalize_sprite_loading"
+                        ) as mock_finalize,
+                    ):
                         # Set up the mock for _load_sprite_from_file to return our mock sprite
                         mock_load_sprite.return_value = mock_loaded_sprite
 
@@ -477,10 +477,9 @@ pixels = \"\"\"
                     mock_load.return_value = mock_loaded_sprite
 
                     # Mock helper methods
-                    with patch.object(
-                        self.scene.canvas, "_copy_sprite_to_canvas"
-                    ), patch.object(
-                        self.scene.canvas, "_update_mini_view_from_current_frame"
+                    with (
+                        patch.object(self.scene.canvas, "_copy_sprite_to_canvas"),
+                        patch.object(self.scene.canvas, "_update_mini_view_from_current_frame"),
                     ):
                         # Call the method
                         self.scene.canvas.on_load_file_event(event)
@@ -543,10 +542,9 @@ pixels = \"\"\"
                     mock_load.side_effect = mock_load_side_effect
 
                     # Mock helper methods
-                    with patch.object(
-                        self.scene.canvas, "_copy_sprite_to_canvas"
-                    ), patch.object(
-                        self.scene.canvas, "_update_mini_view_from_current_frame"
+                    with (
+                        patch.object(self.scene.canvas, "_copy_sprite_to_canvas"),
+                        patch.object(self.scene.canvas, "_update_mini_view_from_current_frame"),
                     ):
                         # Call the method with string parameter
                         self.scene.canvas.on_load_file_event(sprite_file)
