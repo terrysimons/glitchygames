@@ -45,6 +45,12 @@ pyperclip = "*"
 nox = "*"
 nox-poetry = "*"
 pytest = "*"
+pytest-cov = "*"
+pytest-xdist = "*"
+pytest-benchmark = "*"
+coverage = "*"
+bandit = "*"
+safety = "*"
 ruff = "*"
 pre-commit = "*"
 poetry-plugin-export = "*"
@@ -64,7 +70,7 @@ mkdocstrings-python = "^1.18"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
+dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -73,6 +79,32 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Exclude examples directory from test collection
 norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
+addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["glitchygames"]
+omit = [
+    "*/tests/*",
+    "*/examples/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/__pycache__/*",
+    "*/migrations/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod"
+]
 
 [tool.ruff]
 preview = true

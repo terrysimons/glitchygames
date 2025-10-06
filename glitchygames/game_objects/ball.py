@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import random
+import secrets
 from typing import Self
 
 import pygame
@@ -114,14 +114,14 @@ class BallSprite(Sprite):
             None
 
         """
-        self.x = random.randrange(50, 750)
-        self.y = random.randrange(25, 400)
+        self.x = secrets.randbelow(700) + 50  # 50-749 range
+        self.y = secrets.randbelow(375) + 25  # 25-399 range
 
         # Direction of ball (in degrees)
-        self.direction = random.randrange(-45, 45)
+        self.direction = secrets.randbelow(90) - 45  # -45 to 44 range
 
         # Flip a 'coin'
-        if random.randrange(2) == 0:
+        if secrets.randbelow(2) == 0:
             # Reverse ball direction, let the other guy get it first
             self.direction += 180
 

@@ -226,6 +226,7 @@ class TestSpriteLoadingHardware(unittest.TestCase):
     def _get_test_sprites(self, count: int = 2) -> list[str]:
         """Get a random selection of sprites for testing."""
         # Use a different seed for each test to get variety
+        import random
         random.seed(hash(self._testMethodName) % 1000)
         return random.sample(self.available_sprites, min(count, len(self.available_sprites)))
 

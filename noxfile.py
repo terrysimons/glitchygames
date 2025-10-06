@@ -8,7 +8,8 @@ from nox_poetry import Session, session
 def lint_and_test(session: Session) -> None:
     session.run("poetry", "install", external=True)
 
-    session.run("pytest", external=True)
+    # Run tests with coverage
+    session.run("pytest", "--cov=glitchygames", "--cov-report=term-missing", "--cov-report=html", external=True)
 
     # Sort imports (not supported by ruff format yet)
     session.run("ruff", "check", "--select", "I", "--fix", "noxfile.py", external=True)
@@ -32,3 +33,39 @@ def lint_and_test(session: Session) -> None:
 
     # Lint docs
     session.run("mkdocs", "build", "--strict", external=True)
+
+
+@session(python=["3.13"], reuse_venv=False)
+def security_scan(session: Session) -> None:
+    """Run security scanning tools."""
+    session.run("poetry", "install", external=True)
+    
+    # Run bandit security scan
+    session.run("bandit", "-r", "glitchygames", "-f", "json", "-o", "bandit-report.json", external=True)
+    session.run("bandit", "-r", "glitchygames", external=True)
+    
+    # Run safety check for known vulnerabilities
+    session.run("safety", "check", "--json", "--output", "safety-report.json", external=True)
+    session.run("safety", "check", external=True)
+
+
+@session(python=["3.13"], reuse_venv=False)
+def performance_test(session: Session) -> None:
+    """Run performance benchmarks."""
+    session.run("poetry", "install", external=True)
+    
+    # Run performance tests with pytest-benchmark
+    session.run("pytest", "--benchmark-only", "--benchmark-save=baseline", "tests/", external=True)
+
+
+@session(python=["3.13"], reuse_venv=False)
+def coverage_report(session: Session) -> None:
+    """Generate detailed coverage report."""
+    session.run("poetry", "install", external=True)
+    
+    # Run tests with coverage
+    session.run("pytest", "--cov=glitchygames", "--cov-report=html", "--cov-report=term-missing", external=True)
+    
+    # Generate coverage report
+    session.run("coverage", "report", "--show-missing", external=True)
+    session.run("coverage", "html", external=True)

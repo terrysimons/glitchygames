@@ -7,7 +7,7 @@ This is a simple game where you try to keep the ball from hitting your side of t
 from __future__ import annotations
 
 import logging
-import random
+import secrets
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -235,9 +235,9 @@ class Game(Scene):
         ]
 
         for ball in self.balls:
-            red = random.randint(0, 255)
-            green = random.randint(0, 255)
-            blue = random.randint(0, 255)
+            red = secrets.randbelow(256)
+            green = secrets.randbelow(256)
+            blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
 
         self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
