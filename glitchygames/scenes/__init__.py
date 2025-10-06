@@ -190,7 +190,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.clock.tick(self.target_fps)
 
             now: float = time.perf_counter()
-            self.dt: float = (now - previous_time) * 10.0
+            self.dt: float = now - previous_time
             previous_time = current_time
 
             self.active_scene.dt_tick(self.dt)
@@ -202,7 +202,11 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene.render(self.screen)
 
             if self.update_type == "update":
-                pygame.display.update(self.active_scene.rects)
+                # If no dirty rects, update the entire screen to show background
+                if not self.active_scene.rects:
+                    pygame.display.update()
+                else:
+                    pygame.display.update(self.active_scene.rects)
             elif self.update_type == "flip":
                 pygame.display.flip()
 
@@ -552,7 +556,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             None
 
         """
-        self.rects = self.all_sprites.draw(self.screen)
+        # Use LayeredDirty's clear method for proper background clearing and dirty rect management
+        self.all_sprites.clear(screen, self.background)
+        self.rects = self.all_sprites.draw(screen)
 
     def sprites_at_position(self: Self, pos: tuple) -> list[pygame.sprite.Sprite] | None:
         """Return the sprites at a given position.

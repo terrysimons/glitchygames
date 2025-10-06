@@ -38,6 +38,16 @@ class BitrotAdventures(Scene):
         """
         super().__init__(options=options)
 
+        self.dirty = 1
+        # draw a pixel to the screen
+        self.screen.fill((255, 0, 0))
+        self.dirty = 1
+        self.rects = self.screen.get_rect()
+        self.rects.x = 0
+        self.rects.y = 0
+        self.rects.width = 100
+        self.rects.height = 100
+
     # This is called by glitchygames.GameEngine before
     # the class is instantiated.
     #

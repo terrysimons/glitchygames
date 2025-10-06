@@ -1,0 +1,74 @@
+[sprite]
+name = "flower_tile3_32.bg"
+pixels = """
+FF>>>::5BBBBBMMMMBBBBB5::>>>FFFE
+FFF>>::5BBBBBMMMMBBBBB5::>>FFFFE
+>FFF>>:5BBBBBMMMMBBBBB5:>>FFF>>E
+>>FFF>:MBB;BBBBBBBB;BBM:>FFF>>>E
+>>>FFF>MBBBBBBBBBBBBBBM>FFF>>>>E
+::>>F>>:MBBBBBBBBBBBBM:>>F>>:::E
+:5:::>::MBBMMMMMMMMBBM::>:::555E
+55555::5B;;BM5555MB;;B5::555555E
+JBBBBMBB:FF5B5::5B5FF:BBMBBBBJJE
+BBBBBBB;F@9:;KAAK;:9@F;BBBBBBBBE
+BBB;BBB;F9?7=6<<6=7?9F;BBB;BBBBE
+BBBBBBBB5:P13C44C31P:5BBBBBBBBBE
+BBBBBB55B;:3GQLLQG3:;BM5BBBBBMME
+MMBBBBM5506CDH88HDC6055MBBBBMMME
+MMBBBBM5:ONILR22RLINO:5MBBBBMMME
+MMBBBBM5:ONILR22RLINO:5MBBBBMMME
+MMBBBBM5506CDH88HDC6055MBBBBMMME
+BBBBBB55B;:3GQLLQG3:;BM5BBBBBMME
+BBBBBBBB5:P13C44C31P:5BBBBBBBBBE
+BBB;BBB;F9?7=6<<6=7?9F;BBB;BBBBE
+BBBBBBB;F@9:;KAAK;:9@F;BBBBBBBBE
+JBBBBMBB:FF5B5::5B5FF:BBMBBBBJJE
+55555::5B;;BM5555MB;;B5::555555E
+:5:::>::MBBMMMMMMMMBBM::>:::555E
+::>>F>>:MBBBBBBBBBBBBM:>>F>>:::E
+>>>FFF>MBBBBBBBBBBBBBBM>FFF>>>>E
+>>FFF>:MBB;BBBBBBBB;BBM:>FFF>>>E
+>FFF>>:5BBBBBMMMMBBBBB5:>>FFF>>E
+FFF>>::5BBBBBMMMMBBBBB5::>>FFFFE
+FF>>>::5BBBBBMMMMBBBBB5::>>>FFFE
+FF>>>::5BBBBBMMMMBBBBB5::>>>FFFE
+F>>>::5BBBBBMMMMBBBBB5::>>>FFFEE
+"""
+
+[colors]
+# Flower tile 3 colors - warm and earthy tones
+"F" = { red = 255, green = 200, blue = 100 }  # Golden yellow
+">" = { red = 255, green = 150, blue = 50 }   # Orange
+":" = { red = 200, green = 100, blue = 50 }   # Dark orange
+"5" = { red = 150, green = 100, blue = 50 }    # Brown
+"B" = { red = 100, green = 50, blue = 25 }    # Dark brown
+"M" = { red = 200, green = 200, blue = 200 }  # Light gray
+"E" = { red = 255, green = 255, blue = 255 }  # White
+"@" = { red = 255, green = 200, blue = 50 }   # Gold
+"9" = { red = 200, green = 150, blue = 100 }  # Tan
+"?" = { red = 150, green = 100, blue = 200 }  # Purple
+"7" = { red = 100, green = 150, blue = 255 }  # Light blue
+"=" = { red = 255, green = 100, blue = 100 }  # Light red
+"6" = { red = 100, green = 200, blue = 100 }  # Light green
+"<" = { red = 200, green = 200, blue = 100 }  # Light yellow
+"G" = { red = 100, green = 255, blue = 100 }  # Bright green
+"Q" = { red = 255, green = 255, blue = 200 }  # Cream
+"L" = { red = 200, green = 255, blue = 100 }  # Lime
+"3" = { red = 150, green = 255, blue = 150 } # Light green
+"P" = { red = 200, green = 100, blue = 200 }  # Pink
+"1" = { red = 255, green = 255, blue = 100 }  # Yellow
+"C" = { red = 200, green = 200, blue = 200 }  # Light gray
+"4" = { red = 255, green = 200, blue = 150 }  # Light orange
+"8" = { red = 100, green = 200, blue = 255 }  # Sky blue
+"H" = { red = 255, green = 200, blue = 100 }  # Golden yellow
+"D" = { red = 200, green = 50, blue = 100 }   # Pink
+"O" = { red = 255, green = 150, blue = 100 }  # Peach
+"N" = { red = 255, green = 100, blue = 100 }  # Light red
+"I" = { red = 200, green = 200, blue = 255 }  # Light purple
+"R" = { red = 255, green = 150, blue = 50 }   # Orange-red
+"2" = { red = 255, green = 255, blue = 200 }  # Cream
+"J" = { red = 100, green = 255, blue = 200 }  # Mint
+"K" = { red = 50, green = 50, blue = 50 }     # Dark gray
+"A" = { red = 100, green = 255, blue = 100 }  # Bright green
+";" = { red = 150, green = 150, blue = 255 }  # Light blue
+"0" = { red = 100, green = 150, blue = 255 }  # Light blue

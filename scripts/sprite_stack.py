@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Sprite Stack prototype script."""
+"""Sprite Stack prototype script.
+
+This module now uses the official animated sprite implementations
+from glitchygames.sprites.animated.
+"""
 
 import abc
 import argparse
@@ -7,6 +11,9 @@ import logging
 from typing import Self
 
 import pygame
+
+# Import the official animated sprite classes
+from glitchygames.sprites import SpriteFrame
 
 # For cached objects look at:
 # https://docs.python.org/dev/faq/programming.html#faq-cache-method-calls
@@ -26,9 +33,13 @@ class SpriteStackInterface(abc.ABC):
         """Override the default __subclasshook__ to create an interface."""
         # Note: This accounts for under/dunder methods in addition to regular methods.
         interface_attributes = set(cls.__abstractmethods__)
-        subclass_attributes = set(subclass.__abstractmethods__)
 
-        interface_is_implemented = False
+        # Check if subclass has __abstractmethods__ attribute
+        if hasattr(subclass, "__abstractmethods__"):
+            subclass_attributes = set(subclass.__abstractmethods__)
+        else:
+            subclass_attributes = set()
+
         methods = []
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
@@ -44,11 +55,7 @@ class SpriteStackInterface(abc.ABC):
         # all([]) returns True, so mask it
         #
         # This protects against an empty attribute list
-        # which would be a misconfiguration of the interface
-        if len(methods) > 0 and all(methods):
-            interface_is_implemented = all(methods)
-
-        return interface_is_implemented
+        return False if not interface_attributes else all(methods)
 
     @property
     @abc.abstractmethod
@@ -75,112 +82,83 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __getitem__(self: Self, index: int) -> pygame.Surface:
+    def __getitem__(self: Self, index: int) -> "SpriteFrame":
         """Return a sprite from the stack."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def intentionally_missing_method(self: Self) -> pygame.Surface:
-        """Return a sprite from the stack."""
+    def get_size(self: Self) -> tuple[int, int]:
+        """Return the size of the surface."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_alpha(self: Self) -> int:
+        """Return the alpha value of the surface."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_colorkey(self: Self) -> int | None:
+        """Return the colorkey of the surface."""
         raise NotImplementedError
 
 
-class SpriteFrame(SpriteStackInterface):
-    """A prototype Sprite Frame class."""
-
-    def __init__(self: Self, sprite: pygame.sprite.Sprite) -> None:
-        """Initialize the Sprite Frame prototype."""
-        super().__init__()
-        self._image = None
-        self._rect = pygame.Rect((0, 0), (0, 0))
-
-    def image(self: Self) -> pygame.Surface:
-        """Return the flattened sprite stack image."""
-        return self._image
-
-    def rect(self: Self) -> pygame.Rect:
-        """Return the sprite stack pygame.Rect."""
-        return self._rect
+# SpriteFrame is now imported from glitchygames.sprites
 
 
 class SpriteStack(SpriteStackInterface):
     """A prototype Sprite Stack class."""
 
-    def __init__(self: Self, sprites: list[SpriteFrame] | list[pygame.Surface]) -> Self:
+    def __init__(self: Self, sprites: list["SpriteFrame"] | list[pygame.Surface]) -> Self:
         """Initialize the Sprite Stack prototype."""
-        self.stack = [
-            SpriteFrame(sprite) if isinstance(sprite, pygame.Surface) else sprite
-            for sprite in sprites
-        ]
+        super().__init__()
+        self.stack = []
         self.frame_index = 0
 
-        assert self.stack, "Sprite stack cannot be empty."
-        assert isinstance(self.stack, list), "Sprite stack must be a list."
-        assert all(isinstance(sprite, SpriteFrame) for sprite in self.stack), (
-            "Sprite stack must be a list of SpriteFrame objects."
-        )
-        assert len(self.stack) > 0, "Sprite stack must at least one sprite."
-        assert all(sprite.get_size() == self.stack[0].get_size() for sprite in self.stack), (
-            "All sprites in the stack must be the same size."
-        )
-        assert all(sprite.get_alpha() == self.stack[0].get_alpha() for sprite in self.stack), (
-            "All sprites in the stack must have the same alpha value."
-        )
-        assert all(
-            sprite.get_colorkey() == self.stack[0].get_colorkey() for sprite in self.stack
-        ), "All sprites in the stack must have the same colorkey."
+        for sprite in sprites:
+            if isinstance(sprite, SpriteFrame):
+                self.stack.append(sprite)
+            else:
+                self.stack.append(SpriteFrame(sprite))
 
     @property
     def image(self: Self) -> pygame.Surface:
-        """Returns the flattened sprite stack image."""
-        return self[self.frame_index].image
+        """Return the flattened sprite stack image."""
+        return self.stack[self.frame_index].image
 
     @image.setter
     def image(self: Self, new_image: pygame.Surface) -> None:
         """Set the image."""
-        self[self.frame_index].image = new_image
+        self.stack[self.frame_index].image = new_image
 
     @property
     def rect(self: Self) -> pygame.Rect:
-        """Returns the sprite stack pygame.Rect."""
-        return self[self.frame_index].rect
+        """Return the sprite stack pygame.Rect."""
+        return self.stack[self.frame_index].rect
 
     @rect.setter
     def rect(self: Self, new_rect: pygame.Rect) -> None:
         """Set the rect."""
-        self[self.frame_index].rect = new_rect
+        self.stack[self.frame_index].rect = new_rect
 
-    def __getitem__(self: Self, index: int) -> SpriteFrame:
+    def __getitem__(self: Self, index: int) -> "SpriteFrame":
         """Return a sprite from the stack."""
         return self.stack[index]
 
-    # def flatten(self: Self) -> pygame.Surface:
-    #     """Return a fully collapsed sprite stack."""
-    #     self._image = pygame.Surface(self.stack[0].get_size(), pygame.SRCALPHA)
-    #     self._image.set_alpha(self.stack[0].get_alpha())
-    #     self._image.set_colorkey(self.stack[0].get_colorkey())
+    def get_size(self: Self) -> tuple[int, int]:
+        """Return the size of the surface."""
+        return self.stack[self.frame_index].get_size()
 
-    #     for sprite in self.stack:
-    #         self._image.blit(sprite, (0, 0))
+    def get_alpha(self: Self) -> int:
+        """Return the alpha value of the surface."""
+        return self.stack[self.frame_index].get_alpha()
 
-    #     return self._image
-
-
-class AnimatedSpriteInterface(SpriteStackInterface, abc.ABC):
-    """A formal interface for the Sprite Animation prototype."""
+    def get_colorkey(self: Self) -> int | None:
+        """Return the colorkey of the surface."""
+        return self.stack[self.frame_index].get_colorkey()
 
 
-class AnimatedSprite(AnimatedSpriteInterface):
-    """A prototype Sprite Animation class."""
-
-    def __init__(self: Self) -> None:
-        """Initialize the Sprite Animation prototype."""
-        super().__init__()
-        self._frames = []
-
-    def __getitem__(self: Self, index: int) -> SpriteFrame:
-        """Return a sprite from the stack."""
-        return self._frames[index]
+# AnimatedSpriteInterface and AnimatedSprite are now imported from glitchygames.sprites
+# The official implementations are used instead of the old incomplete ones
 
 
 if __name__ == "__main__":

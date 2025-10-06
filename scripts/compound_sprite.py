@@ -13,6 +13,7 @@ import pygame
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
+from glitchygames.tools.bitmappy import resource_path
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
 log = logging.getLogger("game")
@@ -59,8 +60,14 @@ class GameScene(Scene):
         )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
+
         self.menu_icon = MenuItem(
-            name=None, filename="raspberry.cfg", x=0, y=0, width=16, height=self.menu_bar.height
+            name=None,
+            filename=resource_path("glitchygames", "assets", "raspberry.toml"),
+            x=0,
+            y=0,
+            width=16,
+            height=self.menu_bar.height,
         )
 
         # When we load the sprite, we set a name.
@@ -90,7 +97,7 @@ class GameScene(Scene):
         self.save_menu_item = MenuItem(
             name="Save",
             x=self.menu_icon.width + 5,
-            y=self.menu_icon.y,
+            y=self.menu_icon.rect.y,
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -98,7 +105,7 @@ class GameScene(Scene):
         self.load_menu_item = MenuItem(
             name="Load",
             x=self.menu_icon.width + self.save_menu_item.width + 5,
-            y=self.menu_icon.y,
+            y=self.menu_icon.rect.y,
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -106,7 +113,7 @@ class GameScene(Scene):
         self.quit_menu_item = MenuItem(
             name="Quit",
             x=self.menu_icon.width + self.save_menu_item.width + self.load_menu_item.width + 5,
-            y=self.menu_icon.y,
+            y=self.menu_icon.rect.y,
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,

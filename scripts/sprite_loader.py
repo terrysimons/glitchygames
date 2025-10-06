@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import pygame
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
-from glitchygames.sprites import Sprite
+from glitchygames.sprites import Sprite, SpriteFactory
 
 log = logging.getLogger("game")
 log.setLevel(logging.DEBUG)
@@ -274,7 +274,7 @@ class GameScene(Scene):
         self.screen_height = self.screen.get_height()
         self.filename = filename
 
-        self.sprite = BitmappySprite(filename=self.filename)
+        self.sprite = SpriteFactory.load_sprite(filename=self.filename)
 
         self.all_sprites = pygame.sprite.LayeredDirty(tuple(self.sprite))
 

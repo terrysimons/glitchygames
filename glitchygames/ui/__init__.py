@@ -2469,6 +2469,62 @@ class MultiLineTextBox(BitmappySprite):
         # pygame.font.Font - size() is a method
         return self.font.size(text)[0]
 
+    def _wrap_text(self, text: str, max_width: int) -> str:
+        """Wrap text to fit within the specified width."""
+        if not text:
+            return text
+
+        lines = text.split("\n")
+        wrapped_lines = []
+
+        for line in lines:
+            if not line:  # Empty line
+                wrapped_lines.append("")
+                continue
+
+            # If line already fits, keep it as is
+            if self._get_text_width(line) <= max_width:
+                wrapped_lines.append(line)
+                continue
+
+            # Split line into words and wrap
+            words = line.split(" ")
+            current_line = ""
+
+            for word in words:
+                test_line = current_line + (" " if current_line else "") + word
+                if self._get_text_width(test_line) <= max_width:
+                    current_line = test_line
+                elif current_line:
+                    # Current line is full, start a new one
+                    wrapped_lines.append(current_line)
+                    current_line = word
+                else:
+                    # Single word is too long, force it on its own line
+                    wrapped_lines.append(word)
+                    current_line = ""
+
+            # Add the last line if there's content
+            if current_line:
+                wrapped_lines.append(current_line)
+
+        return "\n".join(wrapped_lines)
+
+    @property
+    def text(self) -> str:
+        """Get the text content."""
+        return self._text
+
+    @text.setter
+    def text(self, value: str) -> None:
+        """Set the text content with automatic wrapping."""
+        if value != self._text:
+            # Calculate available width for text (accounting for padding)
+            available_width = self.width - 10  # 5px padding on each side
+            wrapped_text = self._wrap_text(str(value), available_width)
+            self._text = wrapped_text
+            self.dirty = 2
+
     def update(self) -> None:  # noqa: PLR0912, PLR0915, PLR0914
         """Update the multi-line text box."""
         self._frame_count += 1
@@ -2613,6 +2669,12 @@ class MultiLineTextBox(BitmappySprite):
         is_copy = event.key == pygame.K_c and (
             (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
         )
+        is_cut = event.key == pygame.K_x and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
+        is_select_all = event.key == pygame.K_a and (
+            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
+        )
         is_shift = bool(mods & pygame.KMOD_SHIFT)
         is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
 
@@ -2666,11 +2728,59 @@ class MultiLineTextBox(BitmappySprite):
                 if clipboard_text:
                     before_cursor = self._text[: self.cursor_pos]
                     after_cursor = self._text[self.cursor_pos :]
-                    self._text = before_cursor + clipboard_text + after_cursor
+                    self.text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
-                    self.text = self._text
             except (ImportError, AttributeError):
                 self.log.exception("Error pasting text")
+            return
+
+        # Handle cut (Ctrl+X)
+        if is_cut and self._text:
+            try:
+                if (
+                    pyperclip
+                    and self.selection_start is not None
+                    and self.selection_end is not None
+                ):
+                    start = min(self.selection_start, self.selection_end)
+                    end = max(self.selection_start, self.selection_end)
+                    selected_text = self._text[start:end]
+                    pyperclip.copy(selected_text)
+                    # Remove selected text
+                    before_selection = self._text[:start]
+                    after_selection = self._text[end:]
+                    self.text = before_selection + after_selection
+                    self.cursor_pos = start
+                    self.selection_start = None
+                    self.selection_end = None
+                else:
+                    # Cut all text
+                    pyperclip.copy(self._text)
+                    self.text = ""
+                    self.cursor_pos = 0
+            except (ImportError, AttributeError):
+                self.log.exception("Error cutting text")
+            return
+
+        # Handle select all (Ctrl+A)
+        if is_select_all:
+            self.selection_start = 0
+            self.selection_end = len(self._text)
+            self.cursor_pos = len(self._text)
+            return
+
+        # Handle delete with selection
+        if event.key == pygame.K_DELETE and (
+            self.selection_start is not None and self.selection_end is not None
+        ):
+            start = min(self.selection_start, self.selection_end)
+            end = max(self.selection_start, self.selection_end)
+            before_selection = self._text[:start]
+            after_selection = self._text[end:]
+            self.text = before_selection + after_selection
+            self.cursor_pos = start
+            self.selection_start = None
+            self.selection_end = None
             return
 
         # Handle regular key events
@@ -2678,18 +2788,15 @@ class MultiLineTextBox(BitmappySprite):
             # Handle newline
             before_cursor = self._text[: self.cursor_pos]
             after_cursor = self._text[self.cursor_pos :]
-            self._text = before_cursor + "\n" + after_cursor
+            self.text = before_cursor + "\n" + after_cursor
             self.cursor_pos += 1
-            self.text = self._text
         elif event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
-                self._text = self._text[: self.cursor_pos - 1] + self._text[self.cursor_pos :]
+                self.text = self._text[: self.cursor_pos - 1] + self._text[self.cursor_pos :]
                 self.cursor_pos -= 1
-                self.text = self._text
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._text):
-                self._text = self._text[: self.cursor_pos] + self._text[self.cursor_pos + 1 :]
-                self.text = self._text
+                self.text = self._text[: self.cursor_pos] + self._text[self.cursor_pos + 1 :]
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
         elif event.key == pygame.K_RIGHT:
@@ -2697,10 +2804,30 @@ class MultiLineTextBox(BitmappySprite):
         elif event.unicode and event.unicode >= " ":
             before_cursor = self._text[: self.cursor_pos]
             after_cursor = self._text[self.cursor_pos :]
-            self._text = before_cursor + event.unicode + after_cursor
+            self.text = before_cursor + event.unicode + after_cursor
             self.cursor_pos += 1
-            self.text = self._text
 
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
         self.dirty = 1
+
+    def on_mouse_up_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse up events to activate text input."""
+        if self.rect.collidepoint(event.pos):
+            self.activate()
+        else:
+            self.deactivate()
+
+    def activate(self) -> None:
+        """Activate the text box for input."""
+        self.active = True
+        pygame.key.start_text_input()
+        pygame.key.set_repeat(200)  # Enable key repeat
+        self.log.debug("MultiLineTextBox activated")
+
+    def deactivate(self) -> None:
+        """Deactivate the text box."""
+        self.active = False
+        pygame.key.stop_text_input()
+        pygame.key.set_repeat()  # Disable key repeat
+        self.log.debug("MultiLineTextBox deactivated")
