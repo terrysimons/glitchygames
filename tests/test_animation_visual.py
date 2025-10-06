@@ -5,6 +5,7 @@ transition between frames correctly, and maintain pixel integrity during
 the complete animation pipeline.
 """
 
+import os
 import time
 import unittest
 from pathlib import Path
@@ -339,8 +340,6 @@ class TestAnimationVisual(unittest.TestCase):
 
         # Adjust performance threshold for headless environments
         # In CI/headless environments, rendering is much slower due to software rendering
-        import os
-
         is_headless = os.environ.get("DISPLAY") is None or os.environ.get("CI") == "true"
         max_time = 10.0 if is_headless else 1.0
 
