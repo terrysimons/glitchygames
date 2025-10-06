@@ -12,6 +12,18 @@ import pygame
 from glitchygames.sprites import SpriteFactory
 
 
+def get_resource_path(filename: str) -> str:
+    """Get the full path to a resource file."""
+    return str(
+        Path(__file__).parent.parent
+        / "glitchygames"
+        / "examples"
+        / "resources"
+        / "sprites"
+        / filename
+    )
+
+
 class TestSpritePixelIntegrity(unittest.TestCase):
     """Test sprite pixel data integrity across various sprite files."""
 
@@ -34,10 +46,8 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
     def test_static_sprite_pixel_integrity(self):
         """Test that static sprites maintain pixel data integrity."""
-        # Test with static.toml
-        sprite_file = "static.toml"
-        if not Path(sprite_file).exists():
-            self.skipTest(f"Sprite file {sprite_file} not found")
+        # Test with a static sprite from package resources
+        sprite_file = get_resource_path("brick_wall.toml")
 
         # Load the sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
@@ -72,9 +82,7 @@ class TestSpritePixelIntegrity(unittest.TestCase):
     def test_animated_sprite_pixel_integrity(self):
         """Test that animated sprites maintain pixel data integrity."""
         # Test with colors.toml (animated sprite)
-        sprite_file = "colors.toml"
-        if not Path(sprite_file).exists():
-            self.skipTest(f"Sprite file {sprite_file} not found")
+        sprite_file = get_resource_path("colors.toml")
 
         # Load the animated sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
@@ -132,15 +140,17 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
     def test_multiple_sprite_files(self):
         """Test pixel integrity across multiple sprite files."""
-        # List of sprite files to test (excluding circle.toml which has no color definitions)
-        sprite_files = ["static.toml", "colors.toml", "single.toml", "red.toml"]
+        # List of sprite files to test from package resources
+        sprite_files = [
+            get_resource_path("brick_wall.toml"),
+            get_resource_path("colors.toml"),
+            get_resource_path("gold.toml"),
+            get_resource_path("sword.toml"),
+        ]
 
         results = []
 
         for sprite_file in sprite_files:
-            if not Path(sprite_file).exists():
-                continue
-
             try:
                 # Load sprite
                 sprite = SpriteFactory.load_sprite(filename=sprite_file)
@@ -177,9 +187,7 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
     def test_animated_sprite_frame_consistency(self):
         """Test that animated sprite frames maintain consistency."""
-        sprite_file = "colors.toml"
-        if not Path(sprite_file).exists():
-            self.skipTest(f"Sprite file {sprite_file} not found")
+        sprite_file = get_resource_path("colors.toml")
 
         # Load animated sprite
         sprite = SpriteFactory.load_sprite(filename=sprite_file)
