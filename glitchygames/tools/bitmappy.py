@@ -1552,157 +1552,24 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.log.debug("=== Starting on_load_file_event for animated sprite ===")
         try:
             filename = event if isinstance(event, str) else event.text
-            self.log.debug(f"Loading animated sprite from {filename}")
 
-            # Load the animated sprite using the sprite serializer
+            # Load the sprite from file
+            loaded_sprite = self._load_sprite_from_file(filename)
 
-            # Detect file format and load the sprite
-            file_format = detect_file_format(filename)
-            self.log.debug(f"Detected file format: {file_format}")
+            # Set the loaded sprite as the current animated sprite
+            self.animated_sprite = loaded_sprite
 
-            # Create a new animated sprite and load it
-            loaded_sprite = AnimatedSprite()
-            loaded_sprite.load(filename)
+            # Check if canvas needs resizing and resize if necessary
+            self._check_and_resize_canvas(loaded_sprite)
 
-            # Debug: Check what was loaded
-            self.log.debug(
-                f"Loaded sprite has _animations: {hasattr(loaded_sprite, '_animations')}"
-            )
-            if hasattr(loaded_sprite, "_animations"):
-                self.log.debug(
-                    f"Loaded sprite _animations: {list(loaded_sprite._animations.keys())}"
-                )
-                self.log.debug(
-                    f"Loaded sprite current_animation: {loaded_sprite.current_animation}"
-                )
-                self.log.debug(f"Loaded sprite is_playing: {loaded_sprite.is_playing}")
+            # Set up animation state
+            self._setup_animation_state(loaded_sprite)
 
-            # Check if the loaded sprite has different dimensions than the canvas
-            if (
-                loaded_sprite._animations
-                and loaded_sprite.current_animation in loaded_sprite._animations
-            ):
-                first_frame = loaded_sprite._animations[loaded_sprite.current_animation][0]
-                sprite_width, sprite_height = first_frame.get_size()
-                self.log.debug(f"Loaded sprite dimensions: {sprite_width}x{sprite_height}")
-                self.log.debug(f"Canvas dimensions: {self.pixels_across}x{self.pixels_tall}")
+            # Update UI components
+            self._update_ui_components(loaded_sprite)
 
-                # If sprite has different dimensions than canvas, resize canvas to match
-                if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
-                    self.log.info(
-                        f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
-                        f"{sprite_width}x{sprite_height}"
-                    )
-                    self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
-
-                # Use the loaded sprite as-is
-                self.animated_sprite = loaded_sprite
-
-                # Copy sprite data to canvas and force redraw after resize
-                self._copy_sprite_to_canvas()
-                self.dirty = 1
-                self.force_redraw()
-            else:
-                # No frames or animation - but the animated sprite loader already converted it
-                self.log.info("Using already-converted animated sprite from static sprite")
-                self.animated_sprite = loaded_sprite
-
-                # Check if we need to resize the canvas
-                if hasattr(loaded_sprite, "get_size"):
-                    sprite_width, sprite_height = loaded_sprite.get_size()
-                    self.log.debug(f"Static sprite dimensions: {sprite_width}x{sprite_height}")
-                    self.log.debug(f"Canvas dimensions: {self.pixels_across}x{self.pixels_tall}")
-
-                    # If sprite has different dimensions than canvas, resize canvas to match
-                    if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
-                        self.log.info(
-                            f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
-                            f"{sprite_width}x{sprite_height}"
-                        )
-                        self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
-
-            # Update the canvas sprite's current animation to match the loaded sprite
-            self.current_animation = self.animated_sprite.current_animation
-            self.log.debug(f"Updated canvas animation to: {self.current_animation}")
-
-            # Now copy the sprite data to canvas with the correct animation
-            self._copy_sprite_to_canvas()
-            self.dirty = 1
-            self.force_redraw()
-
-            # Debug: Print available animations
-            available_animations = (
-                list(self.animated_sprite._animations.keys())
-                if hasattr(self.animated_sprite, "_animations")
-                else []
-            )
-            self.log.info(f"AVAILABLE ANIMATIONS: {available_animations}")
-            self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
-
-            # Update the current frame display - this happens after the sprite is fully loaded
-            if hasattr(self, "mini_view"):
-                self.log.debug("Updating mini view after animation change")
-                self._update_mini_view_from_current_frame()
-
-            # Update the live preview to reference the new animated sprite
-            if hasattr(self, "live_preview") and self.live_preview is not None:
-                self.log.debug(
-                    f"Updating live preview with new animated sprite: {self.animated_sprite}"
-                )
-                self.live_preview.animated_sprite = self.animated_sprite
-
-                # Force the live preview to update by clearing its frame tracking
-                if hasattr(self.live_preview, "_last_frame_index"):
-                    delattr(self.live_preview, "_last_frame_index")
-
-                # Force update the live preview
-                self.live_preview._update_frame()
-                self.live_preview.dirty = 1  # Force redraw
-                self.log.debug("Updated live preview with new animated sprite")
-
-            # Update the film strip widget with the new animated sprite
-            if hasattr(self, "film_strip") and self.film_strip is not None:
-                self.log.debug("Updating film strip with new animated sprite")
-                self.film_strip.set_animated_sprite(self.animated_sprite)
-                self.log.debug("Film strip updated with new animated sprite")
-
-            # Update the film strip sprite to force redraw
-            if hasattr(self, "film_strip_sprite") and self.film_strip_sprite is not None:
-                self.film_strip_sprite.dirty = 1
-                self.log.debug("Film strip sprite marked for redraw")
-
-            # Start the animation after loading
-            if self.animated_sprite.current_animation:
-                # Ensure looping is enabled before starting
-                self.animated_sprite._is_looping = True
-                self.animated_sprite.play()
-                self.log.debug(
-                    f"Started animation '{self.animated_sprite.current_animation}' "
-                    f"using play() method"
-                )
-                # Verify animation state immediately after starting
-                self.log.debug(
-                    f"Animation state after play(): is_playing={self.animated_sprite.is_playing}, "
-                    f"is_looping={self.animated_sprite._is_looping}, "
-                    f"current_frame={self.animated_sprite.current_frame}"
-                )
-
-            # Force a complete redraw
-            self.dirty = 1
-            self.force_redraw()
-
-            self.log.info(f"Successfully loaded animated sprite from {filename}")
-
-            # Final mini view update to ensure it has the correct data
-            if hasattr(self, "mini_view"):
-                self.log.debug("Final mini view update after sprite load")
-                self._update_mini_view_from_current_frame()
-
-            # Reset AI textbox to prompt string after successful sprite loading
-            if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-                self.parent.debug_text.text = (
-                    "Enter a description of the sprite you want to create:"
-                )
+            # Finalize the loading process
+            self._finalize_sprite_loading(loaded_sprite, filename)
 
         except FileNotFoundError as e:
             self.log.exception("File not found")
@@ -1714,6 +1581,192 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error loading sprite: {e}"
+
+    def _load_sprite_from_file(self, filename: str) -> AnimatedSprite:
+        """Load an animated sprite from a file.
+
+        Args:
+            filename: Path to the sprite file to load
+
+        Returns:
+            Loaded AnimatedSprite instance
+
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            Exception: For other loading errors
+
+        """
+        self.log.debug(f"Loading animated sprite from {filename}")
+
+        # Detect file format and load the sprite
+        file_format = detect_file_format(filename)
+        self.log.debug(f"Detected file format: {file_format}")
+
+        # Create a new animated sprite and load it
+        loaded_sprite = AnimatedSprite()
+        loaded_sprite.load(filename)
+
+        # Debug: Check what was loaded
+        self.log.debug(
+            f"Loaded sprite has _animations: {hasattr(loaded_sprite, '_animations')}"
+        )
+        if hasattr(loaded_sprite, "_animations"):
+            self.log.debug(
+                f"Loaded sprite _animations: {list(loaded_sprite._animations.keys())}"
+            )
+            self.log.debug(
+                f"Loaded sprite current_animation: {loaded_sprite.current_animation}"
+            )
+            self.log.debug(f"Loaded sprite is_playing: {loaded_sprite.is_playing}")
+
+        return loaded_sprite
+
+    def _check_and_resize_canvas(self, loaded_sprite: AnimatedSprite) -> None:
+        """Check if canvas needs resizing and resize if necessary.
+
+        Args:
+            loaded_sprite: The loaded sprite to check dimensions against
+
+        """
+        # Check if the loaded sprite has different dimensions than the canvas
+        if (
+            loaded_sprite._animations
+            and loaded_sprite.current_animation in loaded_sprite._animations
+        ):
+            first_frame = loaded_sprite._animations[loaded_sprite.current_animation][0]
+            sprite_width, sprite_height = first_frame.get_size()
+            self.log.debug(f"Loaded sprite dimensions: {sprite_width}x{sprite_height}")
+            self.log.debug(f"Canvas dimensions: {self.pixels_across}x{self.pixels_tall}")
+
+            # If sprite has different dimensions than canvas, resize canvas to match
+            if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
+                self.log.info(
+                    f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
+                    f"{sprite_width}x{sprite_height}"
+                )
+                self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
+        else:
+            # No frames or animation - but the animated sprite loader already converted it
+            self.log.info("Using already-converted animated sprite from static sprite")
+
+            # Check if we need to resize the canvas
+            if hasattr(loaded_sprite, "get_size"):
+                sprite_width, sprite_height = loaded_sprite.get_size()
+                self.log.debug(f"Static sprite dimensions: {sprite_width}x{sprite_height}")
+                self.log.debug(f"Canvas dimensions: {self.pixels_across}x{self.pixels_tall}")
+
+                # If sprite has different dimensions than canvas, resize canvas to match
+                if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
+                    self.log.info(
+                        f"Resizing canvas from {self.pixels_across}x{self.pixels_tall} to "
+                        f"{sprite_width}x{sprite_height}"
+                    )
+                    self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
+
+    def _update_ui_components(self, loaded_sprite: AnimatedSprite) -> None:
+        """Update UI components after loading a sprite.
+
+        Args:
+            loaded_sprite: The loaded sprite to update UI components with
+
+        """
+        # Update the current frame display - this happens after the sprite is fully loaded
+        if hasattr(self, "mini_view"):
+            self.log.debug("Updating mini view after animation change")
+            self._update_mini_view_from_current_frame()
+
+        # Update the live preview to reference the new animated sprite
+        if hasattr(self, "live_preview") and self.live_preview is not None:
+            self.log.debug(
+                f"Updating live preview with new animated sprite: {loaded_sprite}"
+            )
+            self.live_preview.animated_sprite = loaded_sprite
+
+            # Force the live preview to update by clearing its frame tracking
+            if hasattr(self.live_preview, "_last_frame_index"):
+                delattr(self.live_preview, "_last_frame_index")
+
+            # Force update the live preview
+            self.live_preview._update_frame()
+            self.live_preview.dirty = 1  # Force redraw
+            self.log.debug("Updated live preview with new animated sprite")
+
+        # Update the film strip widget with the new animated sprite
+        if hasattr(self, "film_strip") and self.film_strip is not None:
+            self.log.debug("Updating film strip with new animated sprite")
+            self.film_strip.set_animated_sprite(loaded_sprite)
+            self.log.debug("Film strip updated with new animated sprite")
+
+        # Update the film strip sprite to force redraw
+        if hasattr(self, "film_strip_sprite") and self.film_strip_sprite is not None:
+            self.film_strip_sprite.dirty = 1
+            self.log.debug("Film strip sprite marked for redraw")
+
+    def _setup_animation_state(self, loaded_sprite: AnimatedSprite) -> None:
+        """Set up animation state after loading a sprite.
+
+        Args:
+            loaded_sprite: The loaded sprite to set up animation for
+
+        """
+        # Update the canvas sprite's current animation to match the loaded sprite
+        self.current_animation = loaded_sprite.current_animation
+        self.log.debug(f"Updated canvas animation to: {self.current_animation}")
+
+        # Debug: Print available animations
+        available_animations = (
+            list(loaded_sprite._animations.keys())
+            if hasattr(loaded_sprite, "_animations")
+            else []
+        )
+        self.log.info(f"AVAILABLE ANIMATIONS: {available_animations}")
+        self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
+
+        # Start the animation after loading
+        if loaded_sprite.current_animation:
+            # Ensure looping is enabled before starting
+            loaded_sprite._is_looping = True
+            loaded_sprite.play()
+            self.log.debug(
+                f"Started animation '{loaded_sprite.current_animation}' "
+                f"using play() method"
+            )
+            # Verify animation state immediately after starting
+            self.log.debug(
+                f"Animation state after play(): is_playing={loaded_sprite.is_playing}, "
+                f"is_looping={loaded_sprite._is_looping}, "
+                f"current_frame={loaded_sprite.current_frame}"
+            )
+
+    def _finalize_sprite_loading(self, loaded_sprite: AnimatedSprite, filename: str) -> None:
+        """Finalize sprite loading process.
+
+        Args:
+            loaded_sprite: The loaded sprite
+            filename: The filename that was loaded
+
+        """
+        # Now copy the sprite data to canvas with the correct animation
+        self._copy_sprite_to_canvas()
+        self.dirty = 1
+        self.force_redraw()
+
+        # Force a complete redraw
+        self.dirty = 1
+        self.force_redraw()
+
+        self.log.info(f"Successfully loaded animated sprite from {filename}")
+
+        # Final mini view update to ensure it has the correct data
+        if hasattr(self, "mini_view"):
+            self.log.debug("Final mini view update after sprite load")
+            self._update_mini_view_from_current_frame()
+
+        # Reset AI textbox to prompt string after successful sprite loading
+        if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
+            self.parent.debug_text.text = (
+                "Enter a description of the sprite you want to create:"
+            )
 
     def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
         """Resize the canvas to match the sprite dimensions."""
@@ -3144,8 +3197,8 @@ class BitmapEditorScene(Scene):
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
 
-    def _load_ai_sprite(self, request_id: str, content: str) -> None:
-        """Load sprite from AI content using SpriteFactory APIs."""
+    def _log_ai_response_content(self, content: str) -> None:
+        """Log AI response content for debugging."""
         self.log.info(f"AI response received, content length: {len(content)}")
 
         # Debug: Dump the sprite content
@@ -3158,6 +3211,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"... (content continues, total length: {len(content)})")
         self.log.info("=== END SPRITE CONTENT ===")
 
+    def _prepare_ai_content(self, request_id: str, content: str) -> str:
+        """Clean AI response content and add description if needed."""
         # Get the original user prompt from the request
         original_prompt = ""
         if request_id in self.pending_ai_requests:
@@ -3180,17 +3235,121 @@ class BitmapEditorScene(Scene):
             except (toml.TomlDecodeError, KeyError, ValueError) as e:
                 self.log.warning(f"Failed to add description to TOML content: {e}")
 
+        return cleaned_content
+
+    def _create_temp_file_from_content(self, content: str) -> str:
+        """Create temporary file from AI content and return the path."""
         # Determine file extension based on training format
         file_extension = f".{AI_TRAINING_FORMAT}" if AI_TRAINING_FORMAT else ".toml"
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=file_extension, delete=False, encoding="utf-8"
         ) as tmp:
-            tmp.write(cleaned_content)
+            tmp.write(content)
             tmp_path = tmp.name
             self.log.info(f"Saved AI response to temp file: {tmp_path}")
+            return tmp_path
 
-        # Detect sprite type and create appropriate canvas
+    def _load_animated_ai_sprite(self, tmp_path: str) -> None:
+        """Load animated AI sprite into canvas."""
+        self.log.info("Loading animated sprite into existing animated canvas...")
+
+        class MockEvent:
+            def __init__(self, text):
+                self.text = text
+
+        mock_event = MockEvent(tmp_path)
+        self.canvas.on_load_file_event(mock_event)
+
+        # Ensure mini map is updated for animated sprites
+        if hasattr(self.canvas, "mini_view"):
+            self.canvas._update_mini_view_from_current_frame()
+            self.canvas.mini_view.dirty = 1
+            self.canvas.mini_view.force_redraw()
+
+        # Animation will be started by on_load_file_event, no need to start here
+        self.log.info("AI animated sprite loaded successfully")
+
+    def _load_static_ai_sprite(self, tmp_path: str) -> None:
+        """Load static AI sprite into canvas."""
+        self.log.info("Loading static sprite into animated canvas...")
+
+        # Load the static sprite into the current animated canvas
+        class MockEvent:
+            def __init__(self, text):
+                self.text = text
+
+        mock_event = MockEvent(tmp_path)
+        self.canvas.on_load_file_event(mock_event)
+
+        # Animation will be started by on_load_file_event, no need to start here
+        # Just verify the state after loading
+        if hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            self.log.debug(
+                f"AI sprite loaded - animated_sprite state: "
+                f"current_animation='{self.canvas.animated_sprite.current_animation}', "
+                f"is_playing={self.canvas.animated_sprite.is_playing}"
+            )
+            animations = (
+                list(self.canvas.animated_sprite._animations.keys())
+                if hasattr(self.canvas.animated_sprite, "_animations")
+                else "No _animations"
+            )
+            self.log.debug(f"AI sprite animations: {animations}")
+
+            # Also ensure the live preview is updated
+            if hasattr(self.canvas, "live_preview") and self.canvas.live_preview:
+                self.canvas.live_preview._update_frame()
+                self.canvas.live_preview.dirty = 1
+                self.log.debug("Updated live preview after AI sprite load")
+
+        # Force canvas redraw to show the new sprite
+        self.canvas.dirty = 1
+        self.canvas.force_redraw()
+
+        # Update mini view to match the new canvas size
+        if hasattr(self.canvas, "mini_view"):
+            self.log.debug("Updating mini view for resized canvas")
+            self.canvas.mini_view.pixels = self.canvas.pixels.copy()
+            self.canvas.mini_view.dirty_pixels = [True] * len(self.canvas.pixels)
+            self.canvas.mini_view.dirty = 1
+            self.canvas.mini_view.force_redraw()
+
+        # Also force a scene update to ensure everything is redrawn
+        if hasattr(self, "all_sprites"):
+            for sprite in self.all_sprites:
+                if hasattr(sprite, "dirty"):
+                    sprite.dirty = 1
+
+        self.log.info("AI static sprite loaded successfully into animated canvas")
+
+    def _update_ui_after_ai_load(self, request_id: str) -> None:
+        """Update UI components after AI sprite load."""
+        if hasattr(self, "debug_text"):
+            # Restore the original prompt text that was submitted
+            original_prompt = self.pending_ai_requests.get(
+                request_id, "Enter a description of the sprite you want to create:"
+            )
+            self.debug_text.text = original_prompt
+
+    def _cleanup_ai_request(self, request_id: str) -> None:
+        """Clean up pending AI request."""
+        # Clean up the pending request
+        if request_id in self.pending_ai_requests:
+            del self.pending_ai_requests[request_id]
+
+    def _load_ai_sprite(self, request_id: str, content: str) -> None:
+        """Load sprite from AI content using SpriteFactory APIs."""
+        # Log AI response content for debugging
+        self._log_ai_response_content(content)
+
+        # Prepare AI content (clean and add description if needed)
+        cleaned_content = self._prepare_ai_content(request_id, content)
+
+        # Create temporary file from content
+        tmp_path = self._create_temp_file_from_content(cleaned_content)
+
+        # Detect sprite type and load appropriately
         try:
             self.log.info("Detecting AI sprite type...")
 
@@ -3204,92 +3363,17 @@ class BitmapEditorScene(Scene):
                 self.log.debug(f"AI sprite current_animation: {sprite.current_animation}")
                 self.log.debug(f"AI sprite is_playing: {sprite.is_playing}")
 
-            # Description is now embedded in the TOML content, so it will be loaded automatically
-
+            # Load sprite based on type
             if is_animated:
-                # For animated sprites, use the existing animated canvas load method
-                self.log.info("Loading animated sprite into existing animated canvas...")
-
-                class MockEvent:
-                    def __init__(self, text):
-                        self.text = text
-
-                mock_event = MockEvent(tmp_path)
-                self.canvas.on_load_file_event(mock_event)
-
-                # Ensure mini map is updated for animated sprites
-                if hasattr(self.canvas, "mini_view"):
-                    self.canvas._update_mini_view_from_current_frame()
-                    self.canvas.mini_view.dirty = 1
-                    self.canvas.mini_view.force_redraw()
-
-                # Animation will be started by on_load_file_event, no need to start here
-
-                self.log.info("AI animated sprite loaded successfully")
+                self._load_animated_ai_sprite(tmp_path)
             else:
-                # For static sprites, load them into the animated canvas
-                # The animated canvas will handle resizing to match the sprite
-                self.log.info("Loading static sprite into animated canvas...")
+                self._load_static_ai_sprite(tmp_path)
 
-                # Load the static sprite into the current animated canvas
-                class MockEvent:
-                    def __init__(self, text):
-                        self.text = text
+            # Update UI components
+            self._update_ui_after_ai_load(request_id)
 
-                mock_event = MockEvent(tmp_path)
-                self.canvas.on_load_file_event(mock_event)
-
-                # Animation will be started by on_load_file_event, no need to start here
-                # Just verify the state after loading
-                if hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
-                    self.log.debug(
-                        f"AI sprite loaded - animated_sprite state: "
-                        f"current_animation='{self.canvas.animated_sprite.current_animation}', "
-                        f"is_playing={self.canvas.animated_sprite.is_playing}"
-                    )
-                    animations = (
-                        list(self.canvas.animated_sprite._animations.keys())
-                        if hasattr(self.canvas.animated_sprite, "_animations")
-                        else "No _animations"
-                    )
-                    self.log.debug(f"AI sprite animations: {animations}")
-
-                    # Also ensure the live preview is updated
-                    if hasattr(self.canvas, "live_preview") and self.canvas.live_preview:
-                        self.canvas.live_preview._update_frame()
-                        self.canvas.live_preview.dirty = 1
-                        self.log.debug("Updated live preview after AI sprite load")
-
-                # Force canvas redraw to show the new sprite
-                self.canvas.dirty = 1
-                self.canvas.force_redraw()
-
-                # Update mini view to match the new canvas size
-                if hasattr(self.canvas, "mini_view"):
-                    self.log.debug("Updating mini view for resized canvas")
-                    self.canvas.mini_view.pixels = self.canvas.pixels.copy()
-                    self.canvas.mini_view.dirty_pixels = [True] * len(self.canvas.pixels)
-                    self.canvas.mini_view.dirty = 1
-                    self.canvas.mini_view.force_redraw()
-
-                # Also force a scene update to ensure everything is redrawn
-                if hasattr(self, "all_sprites"):
-                    for sprite in self.all_sprites:
-                        if hasattr(sprite, "dirty"):
-                            sprite.dirty = 1
-
-                self.log.info("AI static sprite loaded successfully into animated canvas")
-
-            if hasattr(self, "debug_text"):
-                # Restore the original prompt text that was submitted
-                original_prompt = self.pending_ai_requests.get(
-                    request_id, "Enter a description of the sprite you want to create:"
-                )
-                self.debug_text.text = original_prompt
-
-            # Clean up the pending request
-            if request_id in self.pending_ai_requests:
-                del self.pending_ai_requests[request_id]
+            # Clean up pending request
+            self._cleanup_ai_request(request_id)
 
         except Exception as sprite_error:
             self.log.exception("Failed to load AI sprite")
