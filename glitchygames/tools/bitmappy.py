@@ -39,12 +39,16 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 from glitchygames.ui import (
     ColorWellSprite,
-    InputDialog,
     MenuBar,
     MenuItem,
     MultiLineTextBox,
     SliderSprite,
     TextSprite,
+)
+from glitchygames.ui.dialogs import (
+    LoadDialogScene,
+    NewCanvasDialogScene,
+    SaveDialogScene,
 )
 
 from .canvas_interfaces import (
@@ -249,395 +253,6 @@ LOG.debug(f"AI training data: {AI_TRAINING_DATA}")
 
 class GGUnhandledMenuItemError(Exception):
     """Glitchy Games Unhandled Menu Item Error."""
-
-
-class InputConfirmationDialogScene(Scene):
-    """Input Confirmation Dialog Scene."""
-
-    log = LOG
-    NAME = "InputConfirmationDialog"
-    DIALOG_TEXT = "Would you like to do a thing?"
-    CONFIRMATION_TEXT = "Confirm"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
-
-    def __init__(
-        self: Self,
-        previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the Input Confirmation Dialog Scene.
-
-        Args:
-            previous_scene (Scene): The previous scene.
-            options (dict, optional): Options for the scene. Defaults to None.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if groups is None:
-            # Create a new LayeredDirty group specifically for the dialog
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(options=options, groups=groups)
-        self.previous_scene = previous_scene
-
-        # Create dialog with its own sprite group
-        dialog_width = self.screen_width // 2
-        dialog_height = self.screen_height // 2
-
-        self.dialog = InputDialog(
-            name=self.NAME,
-            dialog_text=self.DIALOG_TEXT,  # Use this instance's DIALOG_TEXT
-            confirm_text=self.CONFIRMATION_TEXT,
-            cancel_text=self.CANCEL_TEXT,
-            x=self.screen.get_rect().center[0] - (dialog_width // 2),
-            y=self.screen.get_rect().center[1] - (dialog_height // 2),
-            width=dialog_width,
-            height=dialog_height,
-            parent=self,
-            groups=self.all_sprites,
-        )
-        # Set the dialog text
-        # Use this instance's DIALOG_TEXT
-        self.dialog.dialog_text_sprite.text_box.text = self.DIALOG_TEXT
-        self.dialog.dialog_text_sprite.border_width = 0
-
-    def setup(self: Self) -> None:
-        """Set up the scene.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.dialog.cancel_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_cancel_event
-        }
-        self.dialog.confirm_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_confirm_event
-        }
-
-        self.dialog.add(self.all_sprites)
-
-    def cleanup(self: Self) -> None:
-        """Cleanup the scene.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.next_scene = self
-
-    def dismiss(self: Self) -> None:
-        """Dismiss the dialog.
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        # Set next scene before cleanup
-        self.previous_scene.next_scene = self.previous_scene
-        self.next_scene = self.previous_scene
-
-        # Clear all sprites from our group
-        self.all_sprites.empty()
-
-        # Force the previous scene to redraw completely
-        for sprite in self.previous_scene.all_sprites:
-            sprite.dirty = 1
-
-    def on_cancel_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the cancel event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.log.info(f"Cancel: event: {event}, trigger: {trigger}")
-        self.dismiss()
-
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle confirm events."""
-        self.log.info(f"Confirm: event: {event}, trigger: {trigger}")
-        # Get the text from input box before dismissing
-        filename = self.dialog.input_box.text
-        # Dismiss first to restore previous scene
-        self.dismiss()
-        # Then trigger appropriate canvas event based on dialog type
-        if isinstance(self, SaveDialogScene):
-            self.previous_scene.canvas.on_save_file_event(filename)
-        elif isinstance(self, LoadDialogScene):
-            self.previous_scene.canvas.on_load_file_event(filename)
-        elif isinstance(self, NewCanvasDialogScene):
-            self.previous_scene.canvas.on_new_file_event(filename)
-
-    def on_input_box_submit_event(self: Self, control: object) -> None:
-        """Handle the input box submit event.
-
-        Args:
-            control (object): The control object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
-
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle the mouse button up event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.dialog.input_box.activate()
-
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle the key up event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if self.dialog.input_box.active:
-            self.dialog.on_key_up_event(event)
-        elif event.key == pygame.K_TAB:
-            self.dialog.input_box.activate()
-        else:
-            super().on_key_up_event(event)
-
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle the key down event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if self.dialog.input_box.active:
-            self.dialog.on_key_down_event(event)
-        else:
-            super().on_key_up_event(event)
-
-
-class NewCanvasDialogScene(InputConfirmationDialogScene):
-    """New Canvas Dialog Scene."""
-
-    log = LOG
-    NAME = "New Canvas Dialog"
-    DIALOG_TEXT = "Enter canvas size (WxH):"
-    CONFIRMATION_TEXT = "Create"
-    CANCEL_TEXT = "Cancel"
-
-    def __init__(
-        self: Self,
-        previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the New Canvas Dialog Scene.
-
-        Args:
-            previous_scene (Scene): The previous scene.
-            options (dict, optional): Options for the scene. Defaults to None.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
-
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the confirm event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.log.info(f"New Canvas: event: {event}, trigger: {trigger}")
-        # Extract the text from the input box
-        dimensions = self.dialog.input_box.text
-        self.log.info(f"New Canvas dimensions: {dimensions}")
-        self.log.info(f"Calling scene.on_new_file_event with dimensions: {dimensions}")
-        self.previous_scene.on_new_file_event(dimensions)
-        self.log.info("Scene.on_new_file_event completed")
-        self.dismiss()
-
-
-class LoadDialogScene(InputConfirmationDialogScene):
-    """Load Dialog Scene."""
-
-    log = LOG
-    NAME = "Load Dialog"
-    DIALOG_TEXT = "Enter filename to load:"
-    CONFIRMATION_TEXT = "Load"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
-
-    def __init__(
-        self: Self,
-        previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the Load Dialog Scene.
-
-        Args:
-            previous_scene (Scene): The previous scene.
-            options (dict, optional): Options for the scene. Defaults to None.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
-
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the confirm event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        self.log.info(f"Load File: event: {event}, trigger: {trigger}")
-        self.previous_scene.canvas.on_load_file_event(self.dialog.input_box, self.dialog.input_box)
-        self.dismiss()
-
-
-class SaveDialogScene(InputConfirmationDialogScene):
-    """Save Dialog Scene."""
-
-    log = LOG
-    NAME = "Save Dialog"
-    DIALOG_TEXT = "Enter filename to save:"
-    CONFIRMATION_TEXT = "Save"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
-
-    def __init__(
-        self: Self,
-        previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
-    ) -> None:
-        """Initialize the Save Dialog Scene.
-
-        Args:
-            previous_scene (Scene): The previous scene.
-            options (dict, optional): Options for the scene. Defaults to None.
-            groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
-                   Defaults to pygame.sprite.LayeredDirty().
-
-        Returns:
-            None
-
-        Raises:
-            None
-
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
-
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
-        """Handle the confirm event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Returns:
-            None
-
-        """
-        self.log.info(f"Save File: event: {event}, trigger: {trigger}")
-        # Get the filename from the input box
-        filename = self.dialog.input_box.text
-        # Call save with just the filename
-        self.previous_scene.canvas.on_save_file_event(filename)
-        self.dismiss()
 
 
 class BitmapPixelSprite(BitmappySprite):
@@ -1228,13 +843,10 @@ class AnimatedCanvasSprite(BitmappySprite):
         groups=None,
     ):
         """Initialize the Animated Canvas Sprite."""
-        # Calculate dimensions first
-        self.pixels_across = pixels_across
-        self.pixels_tall = pixels_tall
-        self.pixel_width = pixel_width
-        self.pixel_height = pixel_height
-        width = self.pixels_across * self.pixel_width
-        height = pixels_tall * pixel_height
+        # Initialize dimensions and get canvas size
+        width, height = self._initialize_dimensions(
+            pixels_across, pixels_tall, pixel_width, pixel_height
+        )
 
         # Initialize parent class first to create rect
         super().__init__(
@@ -1246,7 +858,45 @@ class AnimatedCanvasSprite(BitmappySprite):
             groups=groups,
         )
 
-        # Store animated sprite and current frame info
+        # Initialize sprite data and frame management
+        self._initialize_sprite_data(animated_sprite)
+
+        # Initialize pixel arrays and color settings
+        self._initialize_pixel_arrays()
+
+        # Initialize canvas surface and UI components
+        self._initialize_canvas_surface(x, y, width, height, groups)
+
+    def _initialize_dimensions(
+        self, pixels_across: int, pixels_tall: int, pixel_width: int, pixel_height: int
+    ) -> tuple[int, int]:
+        """Initialize canvas dimensions and pixel sizing.
+
+        Args:
+            pixels_across: Number of pixels across the canvas
+            pixels_tall: Number of pixels tall the canvas
+            pixel_width: Width of each pixel in screen coordinates
+            pixel_height: Height of each pixel in screen coordinates
+
+        Returns:
+            Tuple of (width, height) for the canvas surface
+
+        """
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
+        self.pixel_width = pixel_width
+        self.pixel_height = pixel_height
+        width = self.pixels_across * self.pixel_width
+        height = self.pixels_tall * self.pixel_height
+        return width, height
+
+    def _initialize_sprite_data(self, animated_sprite) -> None:
+        """Initialize animated sprite and frame data.
+
+        Args:
+            animated_sprite: The animated sprite to associate with this canvas
+
+        """
         self.animated_sprite = animated_sprite
         self.current_animation = (
             next(iter(animated_sprite._animations.keys()))
@@ -1263,12 +913,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Initialize manual frame selection flag to allow automatic animation updates
         self._manual_frame_selected = False
 
-        # Store pixel-related attributes
-        self.pixels_across = pixels_across
-        self.pixels_tall = pixels_tall
-        self.pixel_width = pixel_width
-        self.pixel_height = pixel_height
-
+    def _initialize_pixel_arrays(self) -> None:
+        """Initialize pixel arrays and color settings."""
         # Initialize pixels with magenta as the transparent/background color
         self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
         self.dirty_pixels = [True] * len(self.pixels)
@@ -1276,6 +922,17 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.active_color = (0, 0, 0)
         self.border_thickness = 1
 
+    def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
+        """Initialize canvas surface and interface components.
+
+        Args:
+            x: X position of the canvas
+            y: Y position of the canvas
+            width: Width of the canvas surface
+            height: Height of the canvas surface
+            groups: Sprite groups to add components to
+
+        """
         # Create initial surface
         self.image = pygame.Surface((self.width, self.height))
         self.rect = self.image.get_rect(x=x, y=y)
@@ -1298,7 +955,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.film_strip = FilmStripWidget(
             x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100
         )
-        self.film_strip.set_animated_sprite(animated_sprite)
+        self.film_strip.set_animated_sprite(self.animated_sprite)
 
         # Create film strip sprite for rendering (height will be updated dynamically)
         self.film_strip_sprite = FilmStripSprite(
@@ -1327,7 +984,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         screen_width = screen_info.current_w
 
         # Calculate mini map size using the same logic as MiniView
-        pixel_width, pixel_height = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
+        pixel_width, _ = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
         mini_map_width = self.pixels_across * pixel_width
 
         # Position mini map flush to the right edge and top
@@ -2048,7 +1705,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 )
 
         except FileNotFoundError as e:
-            self.log.exception(f"File not found: {e}")
+            self.log.exception("File not found")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
@@ -2290,34 +1947,37 @@ class AnimatedCanvasSprite(BitmappySprite):
             current_anim = self.frame_manager.current_animation
             current_frame = self.frame_manager.current_frame
 
-            if current_anim and current_frame is not None:
+            if (
+                current_anim
+                and current_frame is not None
+                and current_anim in self.animated_sprite._animations
+                and 0 <= current_frame < len(self.animated_sprite._animations[current_anim])
+                and hasattr(self.animated_sprite._animations[current_anim][current_frame], "image")
+            ):
                 # Update the frame's pixel data
-                if current_anim in self.animated_sprite._animations:
-                    frames = self.animated_sprite._animations[current_anim]
-                    if 0 <= current_frame < len(frames):
-                        # Update the frame's image with current canvas data
-                        frame = frames[current_frame]
-                        if hasattr(frame, "image"):
-                            # Create a new surface from the canvas pixels
-                            surface = pygame.Surface((self.pixels_across, self.pixels_tall))
-                            for y in range(self.pixels_tall):
-                                for x in range(self.pixels_across):
-                                    pixel_num = y * self.pixels_across + x
-                                    if pixel_num < len(self.pixels):
-                                        color = self.pixels[pixel_num]
-                                        surface.set_at((x, y), color)
+                frames = self.animated_sprite._animations[current_anim]
+                # Update the frame's image with current canvas data
+                frame = frames[current_frame]
+                # Create a new surface from the canvas pixels
+                surface = pygame.Surface((self.pixels_across, self.pixels_tall))
+                for y in range(self.pixels_tall):
+                    for x in range(self.pixels_across):
+                        pixel_num = y * self.pixels_across + x
+                        if pixel_num < len(self.pixels):
+                            color = self.pixels[pixel_num]
+                            surface.set_at((x, y), color)
 
-                            # Update the frame's image
-                            frame.image = surface
+                # Update the frame's image
+                frame.image = surface
 
-                            # Update the film strip
-                            if hasattr(self, "film_strip"):
-                                self.film_strip.update_layout()
-                                self.film_strip.mark_dirty()
+                # Update the film strip
+                if hasattr(self, "film_strip"):
+                    self.film_strip.update_layout()
+                    self.film_strip.mark_dirty()
 
-                            # Update film strip sprite
-                            if hasattr(self, "film_strip_sprite"):
-                                self.film_strip_sprite.dirty = 1
+                # Update film strip sprite
+                if hasattr(self, "film_strip_sprite"):
+                    self.film_strip_sprite.dirty = 1
 
     def get_canvas_surface(self):
         """Get the current canvas surface for the film strip."""
@@ -2575,6 +2235,31 @@ class BitmapEditorScene(Scene):
 
     def _setup_canvas(self, options: dict) -> None:
         """Set up the canvas sprite."""
+        # Calculate canvas dimensions and pixel size
+        pixels_across, pixels_tall, pixel_size = self._calculate_canvas_dimensions(options)
+
+        # Create animated sprite with single frame
+        animated_sprite = self._create_animated_sprite(pixels_across, pixels_tall)
+
+        # Create the main canvas sprite
+        self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
+
+        # Create live preview sprite
+        self._create_live_preview(animated_sprite)
+
+        # Finalize setup and start animation
+        self._finalize_canvas_setup(animated_sprite, options)
+
+    def _calculate_canvas_dimensions(self, options: dict) -> tuple[int, int, int]:
+        """Calculate canvas dimensions and pixel size.
+
+        Args:
+            options: Dictionary containing canvas configuration
+
+        Returns:
+            Tuple of (pixels_across, pixels_tall, pixel_size)
+
+        """
         menu_bar_height = 24
         bottom_margin = 100  # Space needed for sliders and color well
         available_height = (
@@ -2592,7 +2277,20 @@ class BitmapEditorScene(Scene):
             (self.screen_width * 2 // 3) // pixels_across,
         )
 
-        # Create a simple animated sprite for testing - single frame mode
+        return pixels_across, pixels_tall, pixel_size
+
+    @staticmethod
+    def _create_animated_sprite(pixels_across: int, pixels_tall: int) -> AnimatedSprite:
+        """Create animated sprite with single frame.
+
+        Args:
+            pixels_across: Number of pixels across the canvas
+            pixels_tall: Number of pixels tall the canvas
+
+        Returns:
+            Configured AnimatedSprite instance
+
+        """
         # Create single test frame
         surface1 = pygame.Surface((pixels_across, pixels_tall))
         surface1.fill((255, 0, 255))  # Magenta frame (transparent)
@@ -2616,7 +2314,21 @@ class BitmapEditorScene(Scene):
         # Start in a paused state initially
         animated_sprite.pause()
 
-        # Don't start animation immediately - let the scene handle it
+        return animated_sprite
+
+    def _create_canvas_sprite(
+        self, animated_sprite: AnimatedSprite, pixels_across: int, pixels_tall: int, pixel_size: int
+    ) -> None:
+        """Create the main animated canvas sprite.
+
+        Args:
+            animated_sprite: The animated sprite to use
+            pixels_across: Number of pixels across the canvas
+            pixels_tall: Number of pixels tall the canvas
+            pixel_size: Size of each pixel in screen coordinates
+
+        """
+        menu_bar_height = 24
 
         # Create the animated canvas with the calculated pixel dimensions
         self.canvas = AnimatedCanvasSprite(
@@ -2638,7 +2350,13 @@ class BitmapEditorScene(Scene):
         )
         self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
 
-        # Create a live preview surface positioned to the right of the film strip
+    def _create_live_preview(self, animated_sprite: AnimatedSprite) -> None:
+        """Create live preview sprite.
+
+        Args:
+            animated_sprite: The animated sprite to preview
+
+        """
         try:
             self.log.debug(f"Creating LivePreviewSprite with all_sprites: {self.all_sprites}")
 
@@ -2706,6 +2424,15 @@ class BitmapEditorScene(Scene):
             self.log.exception("Full traceback for LivePreviewSprite creation error:")
             self.live_preview = None
 
+    @staticmethod
+    def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict) -> None:
+        """Finalize canvas setup and start animation.
+
+        Args:
+            animated_sprite: The animated sprite to finalize
+            options: Dictionary containing canvas configuration
+
+        """
         # Start the animation after everything is set up
         animated_sprite.play()
 
