@@ -176,8 +176,13 @@ class TestSpritePixelIntegrity(unittest.TestCase):
 
                 results.append((sprite_file, match_percentage))
 
-            except (ValueError, FileNotFoundError, AttributeError):
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and record as failed
+                self.log.warning(f"Failed to process sprite {sprite_file}: {e}")
                 results.append((sprite_file, 0.0))
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
         # Verify all results are acceptable
         for sprite_file, match_percentage in results:

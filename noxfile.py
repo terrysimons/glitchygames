@@ -45,7 +45,7 @@ def security_scan(session: Session) -> None:
     session.run("bandit", "-r", "glitchygames", external=True)
     
     # Run safety check for known vulnerabilities
-    session.run("safety", "check", "--json", "--output", "safety-report.json", external=True)
+    session.run("safety", "check", "--json", external=True)
     session.run("safety", "check", external=True)
 
 

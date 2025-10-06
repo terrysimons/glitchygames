@@ -97,8 +97,13 @@ class TestExampleSprites(unittest.TestCase):
 
                 loaded_count += 1
 
-            except (ValueError, FileNotFoundError, AttributeError):
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and record as failed
+                self.log.warning(f"Failed to load sprite {sprite_file}: {e}")
                 failed_count += 1
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error loading sprite {sprite_file}: {e}")
 
         # Verify we loaded at least some sprites
         assert loaded_count > 0, "Should load at least one example sprite"
@@ -140,9 +145,13 @@ class TestExampleSprites(unittest.TestCase):
                                 f"Frame {i} in {anim_name} should be a Surface"
                             )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     def test_sprite_rendering_quality(self):
         """Test that sprites render with good quality."""
@@ -165,9 +174,13 @@ class TestExampleSprites(unittest.TestCase):
                 # Verify we have some color diversity
                 assert len(unique_colors) > 0, f"Sprite {sprite_file} should have colors"
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     def test_sprite_save_load_roundtrip(self):
         """Test that sprites can be saved and loaded back correctly."""
@@ -210,9 +223,13 @@ class TestExampleSprites(unittest.TestCase):
                     f"Pixel data mismatch for {sprite_file}: {match_percentage:.1f}%"
                 )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     def test_sprite_dimensions_consistency(self):
         """Test that sprite dimensions are consistent and reasonable."""
@@ -235,9 +252,13 @@ class TestExampleSprites(unittest.TestCase):
                 assert aspect_ratio < MAX_ASPECT_RATIO, f"{sprite_file} aspect ratio too wide"
                 assert aspect_ratio > MIN_ASPECT_RATIO, f"{sprite_file} aspect ratio too tall"
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     def test_sprite_color_analysis(self):
         """Test sprite color analysis and validation."""
@@ -269,9 +290,13 @@ class TestExampleSprites(unittest.TestCase):
                     if sprite_file not in single_color_sprites:
                         raise AssertionError(f"{sprite_file} should not be mostly one color")
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     @staticmethod
     def test_sprite_performance():
@@ -302,9 +327,13 @@ class TestExampleSprites(unittest.TestCase):
                     f"{sprite_file} rendering too slow: {render_time:.3f}s"
                 )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
     @staticmethod
     def _extract_pixel_data(surface):

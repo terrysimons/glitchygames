@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
+from test_mock_factory import MockFactory, create_8x8_sprite_mock, create_10x10_sprite_mock
 
 
 class TestOnLoadFileEvent(unittest.TestCase):
@@ -91,9 +92,7 @@ class TestOnLoadFileEvent(unittest.TestCase):
     @staticmethod
     def _create_mock_event(filename: str):
         """Create a mock pygame event for file loading."""
-        event = Mock()
-        event.text = filename
-        return event
+        return MockFactory.create_event_mock(filename)
 
     @staticmethod
     def _get_first_animation_name(sprite: AnimatedSprite) -> str:
@@ -273,17 +272,8 @@ pixels = \"\"\"
             with patch("glitchygames.tools.bitmappy.detect_file_format") as mock_detect:
                 mock_detect.return_value = "toml"
 
-                # Create a mock loaded sprite with different dimensions
-                mock_loaded_sprite = Mock(spec=AnimatedSprite)
-                mock_loaded_sprite._animations = {"idle": [Mock()]}
-                mock_loaded_sprite.current_animation = "idle"
-                mock_loaded_sprite.current_frame = 0
-                mock_loaded_sprite.is_playing = False
-
-                # Mock the first frame to have different dimensions
-                mock_frame = Mock()
-                mock_frame.get_size.return_value = (10, 10)  # Different from 8x8
-                mock_loaded_sprite._animations["idle"][0] = mock_frame
+                # Create a mock loaded sprite with different dimensions using the factory
+                mock_loaded_sprite = create_10x10_sprite_mock(animation_name="idle")
 
                 # Mock the entire loading process by patching the method that loads the sprite
                 with patch.object(self.scene.canvas, "_load_sprite_from_file") as mock_load:
@@ -456,21 +446,12 @@ pixels = \"\"\"
             with patch("glitchygames.tools.bitmappy.detect_file_format") as mock_detect:
                 mock_detect.return_value = "toml"
 
-                # Create a mock loaded sprite that mimics the actual loading behavior
-                mock_loaded_sprite = Mock(spec=AnimatedSprite)
-                # Use a realistic animation name that would come from sprite conversion
-                animation_name = "test_sprite"  # Based on the sprite name in TOML
-                mock_loaded_sprite._animations = {animation_name: [Mock()]}
-                mock_loaded_sprite._animation_order = [animation_name]  # File order
-                mock_loaded_sprite.current_animation = animation_name
-                mock_loaded_sprite.current_frame = 0
-                mock_loaded_sprite.is_playing = False
-                mock_loaded_sprite._is_looping = True
-
-                # Mock the first frame
-                mock_frame = Mock()
-                mock_frame.get_size.return_value = (8, 8)
-                mock_loaded_sprite._animations[animation_name][0] = mock_frame
+                # Create a mock loaded sprite using the centralized factory
+                mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
+                    animation_name="test_sprite",
+                    frame_size=(8, 8),
+                    pixel_color=(255, 0, 0)
+                )
 
                 # Mock the entire loading process by patching the method that loads the sprite
                 with patch.object(self.scene.canvas, "_load_sprite_from_file") as mock_load:

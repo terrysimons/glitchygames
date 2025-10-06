@@ -57,9 +57,13 @@ class SpriteLoadingTestScene(Scene):
                 self.all_sprites.add(sprite)
                 self.loaded_sprites.append(sprite)
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Continue loading other sprites even if one fails
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors but continue loading other sprites
+                self.log.warning(f"Failed to load sprite {sprite_file}: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error loading sprite {sprite_file}: {e}")
 
     def update(self) -> None:
         """Update the scene and all sprites."""

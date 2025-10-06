@@ -75,8 +75,13 @@ class TestExamplesSprites(unittest.TestCase):
                 results.append((sprite_file.name, "SUCCESS", f"{width}x{height}"))
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and record as failed
+                self.log.warning(f"Failed to load sprite {sprite_file.name}: {e}")
                 failed_count += 1
                 results.append((sprite_file.name, "FAILED", str(e)))
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error loading sprite {sprite_file.name}: {e}")
 
         # Verify we loaded at least some sprites
         assert loaded_count > 0, "Should load at least one example sprite"
@@ -126,9 +131,13 @@ class TestExamplesSprites(unittest.TestCase):
                     f"Pixel integrity too low for {sprite_name}: {match_percentage:.1f}%"
                 )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_sprite_dimensions_consistency(self):
         """Test that sprite dimensions are consistent and reasonable."""
@@ -170,9 +179,13 @@ class TestExamplesSprites(unittest.TestCase):
                 assert aspect_ratio < MAX_ASPECT_RATIO, f"{sprite_name} aspect ratio too wide"
                 assert aspect_ratio > MIN_ASPECT_RATIO, f"{sprite_name} aspect ratio too tall"
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_animated_sprites(self):
         """Test animated sprites in the examples directory."""
@@ -215,9 +228,13 @@ class TestExamplesSprites(unittest.TestCase):
                                 f"Frame {i} in {anim_name} should be a Surface"
                             )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_sprite_performance(self):
         """Test sprite loading and rendering performance."""
@@ -258,9 +275,13 @@ class TestExamplesSprites(unittest.TestCase):
                     f"{sprite_name} rendering too slow: {render_time:.3f}s"
                 )
 
-            except (ValueError, FileNotFoundError, AttributeError):
-                # Skip sprites that can't be loaded
-                pass
+            except (ValueError, FileNotFoundError, AttributeError) as e:
+                # Log expected errors and skip
+                self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
+                continue
+            except Exception as e:
+                # Fail fast on unexpected errors
+                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     @staticmethod
     def _extract_pixel_data(surface):
