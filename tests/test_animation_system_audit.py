@@ -5,6 +5,7 @@ in the animation system before implementing fixes.
 """
 
 import unittest
+from pathlib import Path
 
 import pygame
 from glitchygames.sprites import SpriteFactory
@@ -13,6 +14,18 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 # Constants for test thresholds
 DEFAULT_FRAME_INTERVAL = 0.5
 EXPECTED_FRAME_COUNT = 2
+
+
+def get_resource_path(filename: str) -> str:
+    """Get the full path to a resource file."""
+    return str(
+        Path(__file__).parent.parent
+        / "glitchygames"
+        / "examples"
+        / "resources"
+        / "sprites"
+        / filename
+    )
 
 
 class TestAnimationSystemAudit(unittest.TestCase):
@@ -37,7 +50,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
         when animation state is managed through frame_manager.
         """
         # Load an animated sprite
-        sprite = SpriteFactory.load_sprite(filename="colors.toml")
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
 
         # Set animation through frame_manager
         sprite.frame_manager.current_animation = "timing_demo"
@@ -58,7 +71,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
         BUG: animations property returns dict[str, list] but interface
         expects dict[str, dict] (metadata, not frames).
         """
-        sprite = SpriteFactory.load_sprite(filename="colors.toml")
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
 
         # Test discrete property accessors for metadata
         assert isinstance(sprite.animation_count, int)
@@ -130,7 +143,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
 
         MISSING: Proper error handling for invalid animation names and frame indices.
         """
-        sprite = SpriteFactory.load_sprite(filename="colors.toml")
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
 
         # Test invalid animation name
         try:
@@ -207,7 +220,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
 
         MISSING: Methods to get and set animation metadata.
         """
-        sprite = SpriteFactory.load_sprite(filename="colors.toml")
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
 
         # Test getting animation metadata
         try:

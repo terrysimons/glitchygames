@@ -14,6 +14,19 @@ from pathlib import Path
 import pygame
 from glitchygames.sprites import SpriteFactory
 
+
+def get_resource_path(filename: str) -> str:
+    """Get the full path to a resource file."""
+    return str(
+        Path(__file__).parent.parent
+        / "glitchygames"
+        / "examples"
+        / "resources"
+        / "sprites"
+        / filename
+    )
+
+
 # Constants for test thresholds
 PIXEL_MATCH_THRESHOLD = 90.0
 MAX_SPRITE_DIMENSION = 2000
@@ -36,20 +49,20 @@ class TestExampleSprites(unittest.TestCase):
 
         # List of example sprite files to test
         self.example_sprites = [
-            "colors.toml",  # Animated sprite
-            "static.toml",  # Static sprite
-            "circle.toml",  # Simple shape
-            "single.toml",  # Single pixel
-            "red.toml",  # Color test
-            "green-x-8x8-static.toml",  # Static with specific size
-            "butterfly.toml",  # Butterfly sprite
-            "butterfly-animation-8x8.toml",  # Animated butterfly
-            "mario-running.toml",  # Mario animation
-            "ghetto_mario.toml",  # Another Mario variant
-            "yin-yang.toml",  # Yin-yang symbol
-            "swirl.toml",  # Swirl pattern
-            "mosaic.toml",  # Mosaic pattern
-            "squirgle.toml",  # Squiggle pattern
+            get_resource_path("colors.toml"),  # Animated sprite
+            get_resource_path("static.toml"),  # Static sprite
+            get_resource_path("circle.toml"),  # Simple shape
+            get_resource_path("single.toml"),  # Single pixel
+            get_resource_path("red.toml"),  # Color test
+            get_resource_path("green-x-8x8-static.toml"),  # Static with specific size
+            get_resource_path("butterfly.toml"),  # Butterfly sprite
+            get_resource_path("butterfly-animation-8x8.toml"),  # Animated butterfly
+            get_resource_path("mario-running.toml"),  # Mario animation
+            get_resource_path("ghetto_mario.toml"),  # Another Mario variant
+            get_resource_path("yin-yang.toml"),  # Yin-yang symbol
+            get_resource_path("swirl.toml"),  # Swirl pattern
+            get_resource_path("mosaic.toml"),  # Mosaic pattern
+            get_resource_path("squirgle.toml"),  # Squiggle pattern
         ]
 
     @staticmethod

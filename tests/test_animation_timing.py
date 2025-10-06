@@ -11,6 +11,19 @@ from pathlib import Path
 import pygame
 from glitchygames.sprites import SpriteFactory
 
+
+def get_resource_path(filename: str) -> str:
+    """Get the full path to a resource file."""
+    return str(
+        Path(__file__).parent.parent
+        / "glitchygames"
+        / "examples"
+        / "resources"
+        / "sprites"
+        / filename
+    )
+
+
 # Constants for test thresholds
 TIMING_TOLERANCE = 0.5
 MAX_FRAME_COUNT = 3
@@ -30,9 +43,7 @@ class TestAnimationTiming(unittest.TestCase):
         pygame.display.set_mode((800, 600))
 
         # Load the colors.toml animation for testing
-        self.animation_file = "colors.toml"
-        if not Path(self.animation_file).exists():
-            self.skipTest(f"Animation file {self.animation_file} not found")
+        self.animation_file = get_resource_path("colors.toml")
 
     @staticmethod
     def tearDown():
