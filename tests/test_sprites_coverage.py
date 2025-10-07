@@ -1739,5 +1739,43 @@ class TestBitmappySpriteErrorHandling(unittest.TestCase):
     # Removed INI-based tests; project migrated fully to TOML
 
 
+class TestSpritesTopOffCoverage:
+    """Additional tests to improve coverage for missing lines."""
+
+    def test_sprite_factory_load_sprite_invalid_file(self):  # noqa: PLR6301
+        """Test SpriteFactory.load_sprite with invalid file content."""
+        with patch("pathlib.Path.open") as mock_open, \
+             patch("toml.load") as mock_toml_load:
+            mock_file = Mock()
+            mock_file.__enter__ = Mock(return_value=mock_file)
+            mock_file.__exit__ = Mock(return_value=None)
+            mock_file.read.return_value = "test content"
+            mock_open.return_value = mock_file
+            # Mock toml.load to return invalid content (no sprite data)
+            mock_toml_load.return_value = {}
+
+            with pytest.raises(ValueError, match="Invalid sprite file"):
+                SpriteFactory.load_sprite(filename="test_invalid.toml")
+
+    def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self):  # noqa: PLR6301
+        """Test SpriteFactory._analyze_toml_file with sprite pixels."""
+        with patch("pathlib.Path.open") as mock_open, \
+             patch("toml.load") as mock_toml_load:
+            mock_file = Mock()
+            mock_file.__enter__ = Mock(return_value=mock_file)
+            mock_file.__exit__ = Mock(return_value=None)
+            mock_file.read.return_value = "test content"
+            mock_open.return_value = mock_file
+            # Mock toml.load to return sprite data
+            mock_toml_load.return_value = {
+                "sprite": {"pixels": "test", "name": "test_sprite"}
+            }
+
+            result = SpriteFactory._analyze_toml_file("test_sprite.toml")
+            assert result["has_sprite_pixels"] is True
+            assert result["has_animation_sections"] is False
+            assert result["has_frame_sections"] is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

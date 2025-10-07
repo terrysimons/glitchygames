@@ -249,7 +249,7 @@ class TestSpriteFactory(unittest.TestCase):
             mock_open.return_value = mock_file
             mock_toml_load.return_value = {}
 
-            with pytest.raises(ValueError, match="Unsupported format: unsupported"):
+            with pytest.raises(ValueError, match="Unsupported format: unsupported. Only TOML is currently supported."):
                 SpriteFactory._analyze_file("test.unsupported")
 
     def test_analyze_toml_file_basic(self):  # noqa: PLR6301
