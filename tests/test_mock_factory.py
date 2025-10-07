@@ -4,7 +4,7 @@ This module provides reusable mock factories for creating consistent test object
 across all test files, reducing code duplication and ensuring proper mock configuration.
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from glitchygames.sprites import AnimatedSprite
 
@@ -96,21 +96,26 @@ class MockFactory:
         return mock_event
 
     @staticmethod
-    def create_pygame_surface_mock() -> Mock:
+    def create_pygame_surface_mock(width: int = 8, height: int = 8) -> Mock:
         """Create a pygame.Surface-like mock suitable for Sprite tests."""
         surface = Mock()
         surface.convert.return_value = surface
         surface.set_colorkey.return_value = None
+        surface.get_size.return_value = (width, height)
+        surface.get_width.return_value = width
+        surface.get_height.return_value = height
+        surface.get_pixel_data.return_value = [(255, 0, 0)] * (width * height)
+
         # Rect mock supports attribute mutation in tests
         rect = Mock()
         rect.x = 0
         rect.y = 0
-        rect.width = 0
-        rect.height = 0
+        rect.width = width
+        rect.height = height
         rect.top = 0
-        rect.bottom = 0
+        rect.bottom = height
         rect.left = 0
-        rect.right = 0
+        rect.right = width
         surface.get_rect.return_value = rect
         return surface
 
@@ -120,12 +125,64 @@ class MockFactory:
         screen = Mock()
         screen.get_width.return_value = width
         screen.get_height.return_value = height
+        screen.get_size.return_value = (width, height)
         # Provide a minimal screen rect-like attributes used by paddles
         screen.left = 0
         screen.right = width
         screen.top = 0
         screen.bottom = height
         return screen
+
+    @staticmethod
+    def create_pygame_display_mock() -> Mock:
+        """Create a comprehensive pygame.display mock with initialization."""
+        display_mock = Mock()
+        display_mock.init.return_value = None
+        display_mock.quit.return_value = None
+        display_mock.get_surface.return_value = MockFactory.create_display_mock()
+        display_mock.set_mode.return_value = MockFactory.create_display_mock()
+        display_mock.flip.return_value = None
+        display_mock.update.return_value = None
+        display_mock.set_icon.return_value = None
+        display_mock.get_caption.return_value = ("Test Game", "Test Game")
+        return display_mock
+
+    @staticmethod
+    def setup_pygame_mocks():
+        """Set up comprehensive pygame mocks for testing.
+
+        Returns:
+            tuple: (display_patcher, surface_patcher, event_patcher)
+
+        """
+        # Create comprehensive mocks
+        display_mock = MockFactory.create_pygame_display_mock()
+        surface_mock = MockFactory.create_pygame_surface_mock()
+
+        # Set up patches
+        display_patcher = patch("pygame.display", display_mock)
+        surface_patcher = patch("pygame.Surface", return_value=surface_mock)
+        event_patcher = patch("pygame.event.get", return_value=[])
+
+        # Start patches
+        display_patcher.start()
+        surface_patcher.start()
+        event_patcher.start()
+
+        return display_patcher, surface_patcher, event_patcher
+
+    @staticmethod
+    def teardown_pygame_mocks(patchers):
+        """Tear down pygame mocks to prevent test interference.
+
+        Args:
+            patchers: Tuple of patchers returned by setup_pygame_mocks()
+
+        """
+        display_patcher, surface_patcher, event_patcher = patchers
+        display_patcher.stop()
+        surface_patcher.stop()
+        event_patcher.stop()
 
 
 # Convenience functions for common use cases

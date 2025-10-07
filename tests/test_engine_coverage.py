@@ -872,26 +872,21 @@ class TestGameEngineProcessMethods(unittest.TestCase):
 
         self.mock_game_class = MockGame
 
-        # Use centralized MockFactory for pygame.display.get_surface
-        self.mock_surface = MockFactory.create_display_mock()
-        self.mock_surface.get_size.return_value = (800, 600)
+        # Use centralized MockFactory for comprehensive pygame mocking
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
-        # Mock pygame.Surface creation
-        self.mock_pygame_surface = MockFactory.create_pygame_surface_mock()
-
-        self.get_surface_patcher = patch(
-            "pygame.display.get_surface", return_value=self.mock_surface
-        )
-        self.surface_patcher = patch("pygame.Surface", return_value=self.mock_pygame_surface)
+        self.display_patcher = patch("pygame.display", self.mock_display)
+        self.surface_patcher = patch("pygame.Surface", return_value=self.mock_surface)
         self.sys_argv_patcher = patch("sys.argv", ["test_game.py"])
 
-        self.get_surface_patcher.start()
+        self.display_patcher.start()
         self.surface_patcher.start()
         self.sys_argv_patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
-        self.get_surface_patcher.stop()
+        self.display_patcher.stop()
         self.surface_patcher.stop()
         self.sys_argv_patcher.stop()
 
@@ -1176,26 +1171,21 @@ class TestGameEngineNonManagerMethods(unittest.TestCase):
 
         self.mock_game_class = MockGame
 
-        # Use centralized MockFactory for pygame.display.get_surface
-        self.mock_surface = MockFactory.create_display_mock()
-        self.mock_surface.get_size.return_value = (800, 600)
+        # Use centralized MockFactory for comprehensive pygame mocking
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
-        # Mock pygame.Surface creation
-        self.mock_pygame_surface = MockFactory.create_pygame_surface_mock()
-
-        self.get_surface_patcher = patch(
-            "pygame.display.get_surface", return_value=self.mock_surface
-        )
-        self.surface_patcher = patch("pygame.Surface", return_value=self.mock_pygame_surface)
+        self.display_patcher = patch("pygame.display", self.mock_display)
+        self.surface_patcher = patch("pygame.Surface", return_value=self.mock_surface)
         self.sys_argv_patcher = patch("sys.argv", ["test_game.py"])
 
-        self.get_surface_patcher.start()
+        self.display_patcher.start()
         self.surface_patcher.start()
         self.sys_argv_patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
-        self.get_surface_patcher.stop()
+        self.display_patcher.stop()
         self.surface_patcher.stop()
         self.sys_argv_patcher.stop()
 
@@ -1319,8 +1309,17 @@ class TestGameEngineNonManagerMethods(unittest.TestCase):
         """Test setting custom cursor."""
         # Arrange
         engine = GameEngine(self.mock_game_class())
-        # Cursor strings must be divisible by 8
-        custom_cursor = ["XXXXXXXX", "XXXXXXXX", "XXXXXXXX"]
+        # Cursor strings must be divisible by 8 (width and height)
+        custom_cursor = [
+            "XXXXXXXX",
+            "X......X",
+            "X......X",
+            "X......X",
+            "X......X",
+            "X......X",
+            "X......X",
+            "XXXXXXXX",
+        ]
 
         # Act
         cursor = engine.set_cursor(cursor=custom_cursor)
@@ -1342,27 +1341,30 @@ class TestGameEngineNonManagerMethods(unittest.TestCase):
     def test_initialize_icon_with_surface(self):  # noqa: PLR6301
         """Test icon initialization with pygame surface."""
         # Arrange
-        mock_icon = Mock()
-        mock_icon.get_width.return_value = 32
-        mock_icon.get_height.return_value = 32
+        # Create a real type for isinstance check
+        surface_type = type("Surface", (), {})
+        mock_icon = surface_type()
+        mock_icon.get_width = Mock(return_value=32)
+        mock_icon.get_height = Mock(return_value=32)
 
-        with patch("pygame.Surface", return_value=mock_icon):
-            # Act
+        # Act
+        with patch("pygame.Surface", new=surface_type):
             GameEngine.initialize_icon(icon=mock_icon)
 
-            # Assert - should complete without error
-            assert True
+        # Assert - should complete without error
+        assert True
 
     def test_initialize_icon_with_path(self):  # noqa: PLR6301
         """Test icon initialization with file path."""
         # Arrange
         icon_path = Path("test_icon.png")
+        # Create a real type for isinstance check
+        surface_type = type("Surface", (), {})
 
         with patch("pygame.image.load") as mock_load, \
-             patch("pygame.Surface") as mock_surface_class:
-            mock_surface = Mock()
+             patch("pygame.Surface", new=surface_type):
+            mock_surface = surface_type()
             mock_load.return_value = mock_surface
-            mock_surface_class.return_value = mock_surface
 
             # Act
             GameEngine.initialize_icon(icon=icon_path)
@@ -1382,13 +1384,12 @@ class TestGameEngineNonManagerMethods(unittest.TestCase):
         """Test icon initialization with non-existent file."""
         # Arrange
         icon_path = Path("nonexistent_icon.png")
+        # Create a real type for isinstance check
+        surface_type = type("Surface", (), {})
 
         with patch("pygame.image.load", side_effect=FileNotFoundError), \
-             patch("pygame.Surface") as mock_surface_class:
-            mock_surface = Mock()
-            mock_surface_class.return_value = mock_surface
-
-            # Act
+             patch("pygame.Surface", new=surface_type):
+            # Act (should swallow the error and continue)
             GameEngine.initialize_icon(icon=icon_path)
 
             # Assert - should complete without error (suppressed exception)

@@ -239,11 +239,18 @@ class TestSpriteFactory(unittest.TestCase):
 
     def test_analyze_file_unsupported_format(self):  # noqa: PLR6301
         """Test SpriteFactory._analyze_file raises ValueError for unsupported formats."""
-        with (
-            patch.object(SpriteFactory, "_detect_file_format", return_value="unsupported"),
-            pytest.raises(ValueError, match="Unsupported format: unsupported"),
-        ):
-            SpriteFactory._analyze_file("test.unsupported")
+        with patch.object(SpriteFactory, "_detect_file_format", return_value="unsupported"), \
+             patch("pathlib.Path.open") as mock_open, \
+             patch("toml.load") as mock_toml_load:
+            mock_file = Mock()
+            mock_file.__enter__ = Mock(return_value=mock_file)
+            mock_file.__exit__ = Mock(return_value=None)
+            mock_file.read.return_value = "test content"
+            mock_open.return_value = mock_file
+            mock_toml_load.return_value = {}
+
+            with pytest.raises(ValueError, match="Unsupported format: unsupported"):
+                SpriteFactory._analyze_file("test.unsupported")
 
     def test_analyze_toml_file_basic(self):  # noqa: PLR6301
         """Test SpriteFactory._analyze_toml_file with basic file structure."""
@@ -310,24 +317,40 @@ class TestSpriteFactory(unittest.TestCase):
 
     def test_load_sprite_invalid_file(self):  # noqa: PLR6301
         """Test SpriteFactory.load_sprite raises ValueError for invalid file."""
-        with patch.object(SpriteFactory, "_analyze_file") as mock_analyze:
+        with patch.object(SpriteFactory, "_analyze_file") as mock_analyze, \
+             patch("pathlib.Path.open") as mock_open, \
+             patch("toml.load") as mock_toml_load:
             mock_analyze.return_value = {
                 "has_sprite_pixels": False,
                 "has_animation_sections": False,
                 "has_frame_sections": False
             }
+            mock_file = Mock()
+            mock_file.__enter__ = Mock(return_value=mock_file)
+            mock_file.__exit__ = Mock(return_value=None)
+            mock_file.read.return_value = "test content"
+            mock_open.return_value = mock_file
+            mock_toml_load.return_value = {}
 
             with pytest.raises(ValueError, match="Invalid sprite file"):
                 SpriteFactory.load_sprite(filename="invalid.toml")
 
     def test_load_sprite_mixed_content(self):  # noqa: PLR6301
         """Test SpriteFactory.load_sprite raises ValueError for mixed content."""
-        with patch.object(SpriteFactory, "_analyze_file") as mock_analyze:
+        with patch.object(SpriteFactory, "_analyze_file") as mock_analyze, \
+             patch("pathlib.Path.open") as mock_open, \
+             patch("toml.load") as mock_toml_load:
             mock_analyze.return_value = {
                 "has_sprite_pixels": True,
                 "has_animation_sections": True,
                 "has_frame_sections": False
             }
+            mock_file = Mock()
+            mock_file.__enter__ = Mock(return_value=mock_file)
+            mock_file.__exit__ = Mock(return_value=None)
+            mock_file.read.return_value = "test content"
+            mock_open.return_value = mock_file
+            mock_toml_load.return_value = {}
 
             with pytest.raises(ValueError, match="Invalid sprite file"):
                 SpriteFactory.load_sprite(filename="mixed.toml")

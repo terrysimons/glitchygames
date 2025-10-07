@@ -10,6 +10,7 @@ import pygame
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import glitchygames.scenes
 from glitchygames.scenes import Scene, SceneManager
 
 # Constants for test values
@@ -220,7 +221,7 @@ class TestSceneSimple(unittest.TestCase):
         assert self.scene.dt_timer == 0
         assert self.scene.dirty == 1
         assert self.scene.options == {}
-        assert isinstance(self.scene.scene_manager, SceneManager)
+        assert isinstance(self.scene.scene_manager, glitchygames.scenes.SceneManager)
         assert self.scene.name is type(self.scene)
         # Background color is set to BLACK during initialization
         assert self.scene._background_color == (0, 0, 0, 0)
