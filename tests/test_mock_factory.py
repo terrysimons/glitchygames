@@ -5,23 +5,25 @@ across all test files, reducing code duplication and ensuring proper mock config
 """
 
 from unittest.mock import Mock
+
 from glitchygames.sprites import AnimatedSprite
 
 
 class MockFactory:
     """Factory class for creating properly configured mock objects."""
-    
+
     @staticmethod
     def create_animated_sprite_mock(
         animation_name: str = "idle",
         frame_size: tuple = (8, 8),
         pixel_color: tuple = (255, 0, 0),
         current_frame: int = 0,
+        *,
         is_playing: bool = False,
         is_looping: bool = True
     ) -> Mock:
         """Create a properly configured AnimatedSprite mock.
-        
+
         Args:
             animation_name: Name of the animation (default: "idle")
             frame_size: Size of the frame as (width, height) (default: (8, 8))
@@ -29,20 +31,21 @@ class MockFactory:
             current_frame: Current frame index (default: 0)
             is_playing: Whether animation is playing (default: False)
             is_looping: Whether animation is looping (default: True)
-            
+
         Returns:
             Properly configured AnimatedSprite mock
+
         """
         # Create the mock sprite
         mock_sprite = Mock(spec=AnimatedSprite)
-        
+
         # Create properly configured frame
         mock_frame = Mock()
         mock_frame.get_size.return_value = frame_size
         # Calculate pixel count and create pixel data
         pixel_count = frame_size[0] * frame_size[1]
         mock_frame.get_pixel_data.return_value = [pixel_color] * pixel_count
-        
+
         # Configure sprite properties
         mock_sprite._animations = {animation_name: [mock_frame]}
         mock_sprite._animation_order = [animation_name]
@@ -50,45 +53,79 @@ class MockFactory:
         mock_sprite.current_frame = current_frame
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
-        
+
         # Add frames attribute that canvas_interfaces.py expects
         mock_sprite.frames = {animation_name: [mock_frame]}
-        
+
         return mock_sprite
-    
+
     @staticmethod
     def create_sprite_frame_mock(
         size: tuple = (8, 8),
         pixel_color: tuple = (255, 0, 0)
     ) -> Mock:
         """Create a properly configured SpriteFrame mock.
-        
+
         Args:
             size: Frame size as (width, height) (default: (8, 8))
             pixel_color: RGB color tuple for pixels (default: (255, 0, 0))
-            
+
         Returns:
             Properly configured SpriteFrame mock
+
         """
         mock_frame = Mock()
         mock_frame.get_size.return_value = size
         pixel_count = size[0] * size[1]
         mock_frame.get_pixel_data.return_value = [pixel_color] * pixel_count
         return mock_frame
-    
+
     @staticmethod
     def create_event_mock(file_path: str) -> Mock:
         """Create a mock event object for file loading.
-        
+
         Args:
             file_path: Path to the file being loaded
-            
+
         Returns:
             Mock event object with text attribute
+
         """
         mock_event = Mock()
         mock_event.text = file_path
         return mock_event
+
+    @staticmethod
+    def create_pygame_surface_mock() -> Mock:
+        """Create a pygame.Surface-like mock suitable for Sprite tests."""
+        surface = Mock()
+        surface.convert.return_value = surface
+        surface.set_colorkey.return_value = None
+        # Rect mock supports attribute mutation in tests
+        rect = Mock()
+        rect.x = 0
+        rect.y = 0
+        rect.width = 0
+        rect.height = 0
+        rect.top = 0
+        rect.bottom = 0
+        rect.left = 0
+        rect.right = 0
+        surface.get_rect.return_value = rect
+        return surface
+
+    @staticmethod
+    def create_display_mock(width: int = 800, height: int = 600) -> Mock:
+        """Create a mock for pygame.display.get_surface()."""
+        screen = Mock()
+        screen.get_width.return_value = width
+        screen.get_height.return_value = height
+        # Provide a minimal screen rect-like attributes used by paddles
+        screen.left = 0
+        screen.right = width
+        screen.top = 0
+        screen.bottom = height
+        return screen
 
 
 # Convenience functions for common use cases

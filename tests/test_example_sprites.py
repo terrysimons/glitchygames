@@ -101,15 +101,14 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and record as failed
                 self.log.warning(f"Failed to load sprite {sprite_file}: {e}")
                 failed_count += 1
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error loading sprite {sprite_file}: {e}")
 
         # Verify we loaded at least some sprites
         assert loaded_count > 0, "Should load at least one example sprite"
 
-    @staticmethod
-    def test_animated_sprites_have_animations():
+    def test_animated_sprites_have_animations(self):
         """Test that animated sprites have proper animation data."""
         animated_sprites = ["colors.toml", "butterfly-animation-8x8.toml", "mario-running.toml"]
 
@@ -149,7 +148,7 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
@@ -178,7 +177,7 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
@@ -227,7 +226,7 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
@@ -256,7 +255,7 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
@@ -288,18 +287,19 @@ class TestExampleSprites(unittest.TestCase):
                     # For single-color sprites, this is expected behavior
                     single_color_sprites = {"red.toml", "colors.toml", "circle.toml"}
                     if sprite_file not in single_color_sprites:
-                        raise AssertionError(f"{sprite_file} should not be mostly one color")
+                        def _raise_color_dominance_error(filename):
+                            raise AssertionError(f"{filename} should not be mostly one color")
+                        _raise_color_dominance_error(sprite_file)
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
-    @staticmethod
-    def test_sprite_performance():
+    def test_sprite_performance(self):
         """Test sprite loading and rendering performance."""
         test_sprites = ["static.toml", "colors.toml", "circle.toml"]
 
@@ -331,7 +331,7 @@ class TestExampleSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 

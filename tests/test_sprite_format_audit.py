@@ -82,7 +82,7 @@ class SpriteFormatAudit(unittest.TestCase):
                 self.log.warning(f"Failed to load sprite {sprite_file.name}: {e}")
                 failed_sprites.append({"name": sprite_file.name, "error": str(e)})
                 format_stats["failed"] += 1
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error loading sprite {sprite_file.name}: {e}")
 
@@ -176,7 +176,7 @@ class SpriteFormatAudit(unittest.TestCase):
                 # Log expected errors and categorize as failed
                 self.log.warning(f"Failed to categorize sprite {sprite_file.name}: {e}")
                 categories["other"].append(f"{sprite_file.name} (failed)")
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error categorizing sprite {sprite_file.name}: {e}")
 

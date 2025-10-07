@@ -79,7 +79,7 @@ class TestExamplesSprites(unittest.TestCase):
                 self.log.warning(f"Failed to load sprite {sprite_file.name}: {e}")
                 failed_count += 1
                 results.append((sprite_file.name, "FAILED", str(e)))
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error loading sprite {sprite_file.name}: {e}")
 
@@ -135,7 +135,7 @@ class TestExamplesSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
@@ -183,7 +183,7 @@ class TestExamplesSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
@@ -232,7 +232,7 @@ class TestExamplesSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
@@ -279,7 +279,7 @@ class TestExamplesSprites(unittest.TestCase):
                 # Log expected errors and skip
                 self.log.warning(f"Skipping sprite {sprite_file.name} due to expected error: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 

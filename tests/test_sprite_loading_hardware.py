@@ -61,7 +61,7 @@ class SpriteLoadingTestScene(Scene):
                 # Log expected errors but continue loading other sprites
                 self.log.warning(f"Failed to load sprite {sprite_file}: {e}")
                 continue
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error loading sprite {sprite_file}: {e}")
 
@@ -230,7 +230,6 @@ class TestSpriteLoadingHardware(unittest.TestCase):
     def _get_test_sprites(self, count: int = 2) -> list[str]:
         """Get a random selection of sprites for testing."""
         # Use a different seed for each test to get variety
-        import random
         random.seed(hash(self._testMethodName) % 1000)
         return random.sample(self.available_sprites, min(count, len(self.available_sprites)))
 

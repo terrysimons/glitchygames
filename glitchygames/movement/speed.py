@@ -64,3 +64,29 @@ class Speed:
 
         """
         self.y += self.increment if self.y >= 0 else self.increment * -1
+
+    def __mul__(self: Self, scalar: float) -> Speed:
+        """Multiply speed by a scalar value.
+
+        Args:
+            scalar (float): The scalar to multiply by.
+
+        Returns:
+            Speed: A new Speed instance with multiplied values.
+
+        """
+        return Speed(x=self.x * scalar, y=self.y * scalar, increment=self.increment)
+
+    def __imul__(self: Self, scalar: float) -> Self:
+        """In-place multiplication by a scalar value.
+
+        Args:
+            scalar (float): The scalar to multiply by.
+
+        Returns:
+            Speed: Self after multiplication.
+
+        """
+        self.x *= scalar
+        self.y *= scalar
+        return self

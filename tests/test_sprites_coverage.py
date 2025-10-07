@@ -1,0 +1,1475 @@
+"""Comprehensive test coverage for sprites module to reach 80%+ coverage."""
+
+import sys
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pygame
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from glitchygames.sprites import (
+    BitmappySprite,
+    FocusableSingletonBitmappySprite,
+    RootSprite,
+    Singleton,
+    SingletonBitmappySprite,
+    Sprite,
+    SpriteFactory,
+)
+
+
+class TestRootSprite:
+    """Test RootSprite class functionality."""
+
+    def test_root_sprite_initialization_with_groups(self):  # noqa: PLR6301
+        """Test RootSprite initialization with groups."""
+        mock_groups = Mock()
+
+        # Create a concrete subclass to avoid abstract method issues
+        class ConcreteRootSprite(RootSprite):
+            def on_left_mouse_button_down_event(self, event): pass
+            def on_left_mouse_button_up_event(self, event): pass
+            def on_left_mouse_drag_event(self, event, trigger): pass
+            def on_left_mouse_drop_event(self, event, trigger): pass
+            def on_middle_mouse_button_down_event(self, event): pass
+            def on_middle_mouse_button_up_event(self, event): pass
+            def on_middle_mouse_drag_event(self, event, trigger): pass
+            def on_middle_mouse_drop_event(self, event, trigger): pass
+            def on_mouse_button_down_event(self, event): pass
+            def on_mouse_button_up_event(self, event): pass
+            def on_mouse_drag_event(self, event, trigger): pass
+            def on_mouse_drop_event(self, event, trigger): pass
+            def on_mouse_focus_event(self, event, old_focus): pass
+            def on_mouse_motion_event(self, event): pass
+            def on_mouse_scroll_down_event(self, event): pass
+            def on_mouse_scroll_up_event(self, event): pass
+            def on_mouse_unfocus_event(self, event): pass
+            def on_mouse_wheel_event(self, event, trigger): pass
+            def on_right_mouse_button_down_event(self, event): pass
+            def on_right_mouse_button_up_event(self, event): pass
+            def on_right_mouse_drag_event(self, event, trigger): pass
+            def on_right_mouse_drop_event(self, event, trigger): pass
+
+        sprite = ConcreteRootSprite(groups=mock_groups)
+
+        assert sprite.rect == pygame.Rect(0, 0, 0, 0)
+        assert sprite.image is None
+        # The add method is called in the parent constructor, not in our test
+        # So we just verify the sprite was created correctly
+
+    def test_root_sprite_initialization_without_groups(self):  # noqa: PLR6301
+        """Test RootSprite initialization without groups."""
+        with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+            mock_group = Mock()
+            mock_group_cls.return_value = mock_group
+
+            # Create a concrete subclass to avoid abstract method issues
+            class ConcreteRootSprite(RootSprite):
+                def on_left_mouse_button_down_event(self, event): pass
+                def on_left_mouse_button_up_event(self, event): pass
+                def on_left_mouse_drag_event(self, event, trigger): pass
+                def on_left_mouse_drop_event(self, event, trigger): pass
+                def on_middle_mouse_button_down_event(self, event): pass
+                def on_middle_mouse_button_up_event(self, event): pass
+                def on_middle_mouse_drag_event(self, event, trigger): pass
+                def on_middle_mouse_drop_event(self, event, trigger): pass
+                def on_mouse_button_down_event(self, event): pass
+                def on_mouse_button_up_event(self, event): pass
+                def on_mouse_drag_event(self, event, trigger): pass
+                def on_mouse_drop_event(self, event, trigger): pass
+                def on_mouse_focus_event(self, event, old_focus): pass
+                def on_mouse_motion_event(self, event): pass
+                def on_mouse_scroll_down_event(self, event): pass
+                def on_mouse_scroll_up_event(self, event): pass
+                def on_mouse_unfocus_event(self, event): pass
+                def on_mouse_wheel_event(self, event, trigger): pass
+                def on_right_mouse_button_down_event(self, event): pass
+                def on_right_mouse_button_up_event(self, event): pass
+                def on_right_mouse_drag_event(self, event, trigger): pass
+                def on_right_mouse_drop_event(self, event, trigger): pass
+
+            sprite = ConcreteRootSprite()
+
+            assert sprite.rect == pygame.Rect(0, 0, 0, 0)
+            assert sprite.image is None
+            # The add method is called in the parent constructor, not in our test
+            # So we just verify the sprite was created correctly
+
+
+class TestSpriteInitialization:
+    """Test Sprite class initialization and basic functionality."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        # Reset SPRITE_BREAKPOINTS to None to avoid triggering breakpoint()
+        Sprite.SPRITE_BREAKPOINTS = None
+
+    def test_sprite_initialization_with_all_parameters(self):
+        """Test Sprite initialization with all parameters."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    expected_x = 10
+                    expected_y = 20
+                    expected_width = 100
+                    expected_height = 50
+                    expected_screen_width = 800
+                    expected_screen_height = 600
+
+                    sprite = Sprite(
+                        x=expected_x, y=expected_y, width=expected_width, height=expected_height,
+                        name="TestSprite", parent="parent", groups=group_instance
+                    )
+
+                    assert sprite.rect.x == expected_x
+                    assert sprite.rect.y == expected_y
+                    assert sprite.rect.width == expected_width
+                    assert sprite.rect.height == expected_height
+                    assert sprite.name == "TestSprite"
+                    assert sprite.parent == "parent"
+                    assert sprite.screen_width == expected_screen_width
+                    assert sprite.screen_height == expected_screen_height
+
+    def test_sprite_initialization_without_name(self):
+        """Test Sprite initialization without name."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+
+                    assert sprite.name == type(sprite)  # noqa: E721
+
+    def test_sprite_initialization_with_zero_dimensions(self):
+        """Test Sprite initialization with zero dimensions."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=0, height=0)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    with patch.object(Sprite, "log") as mock_log:
+                        Sprite(x=10, y=20, width=0, height=0)
+
+                        # Should log error for zero width and height
+                        expected_min_errors = 2
+                        assert mock_log.error.call_count >= expected_min_errors
+
+    def test_sprite_breakpoints_enabled_empty_list(self):
+        """Test Sprite initialization with breakpoints enabled (empty list)."""
+        self.setUp()
+        Sprite.SPRITE_BREAKPOINTS = []
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    with patch("builtins.breakpoint") as mock_breakpoint:
+                        Sprite(x=10, y=20, width=100, height=50)
+
+                        # Should call breakpoint for empty list
+                        mock_breakpoint.assert_called()
+
+    def test_sprite_breakpoints_enabled_with_specific_type(self):
+        """Test Sprite initialization with breakpoints enabled (specific type)."""
+        self.setUp()
+        Sprite.SPRITE_BREAKPOINTS = ["<class 'glitchygames.sprites.Sprite'>"]
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    with patch("builtins.breakpoint") as mock_breakpoint:
+                        Sprite(x=10, y=20, width=100, height=50)
+
+                        # Should call breakpoint for matching type
+                        mock_breakpoint.assert_called()
+
+
+class TestSpriteProperties:
+    """Test Sprite property getters and setters."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+
+    def test_width_property_getter(self):
+        """Test width property getter."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    expected_width = 100
+                    sprite = Sprite(x=10, y=20, width=expected_width, height=50)
+
+                    assert sprite.width == expected_width
+
+    def test_width_property_setter(self):
+        """Test width property setter."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    expected_width = 200
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    sprite.width = expected_width
+
+                    assert sprite.width == expected_width
+                    assert sprite.dirty == 1
+
+    def test_height_property_getter(self):
+        """Test height property getter."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    expected_height = 50
+                    sprite = Sprite(x=10, y=20, width=100, height=expected_height)
+
+                    assert sprite.height == expected_height
+
+    def test_height_property_setter(self):
+        """Test height property setter."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    expected_height = 75
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    sprite.height = expected_height
+
+                    assert sprite.height == expected_height
+                    assert sprite.dirty == 1
+
+
+class TestSpriteEventHandlers:
+    """Test Sprite event handler methods."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+
+    def test_joystick_event_handlers(self):
+        """Test joystick event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test joystick event handlers
+                    sprite.on_joy_axis_motion_event(mock_event)
+                    sprite.on_joy_button_down_event(mock_event)
+                    sprite.on_joy_button_up_event(mock_event)
+                    sprite.on_joy_hat_motion_event(mock_event)
+                    sprite.on_joy_ball_motion_event(mock_event)
+
+    def test_mouse_event_handlers(self):
+        """Test mouse event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse event handlers
+                    sprite.on_mouse_motion_event(mock_event)
+                    sprite.on_mouse_focus_event(mock_event, None)
+                    sprite.on_mouse_unfocus_event(mock_event)
+                    sprite.on_mouse_enter_event(mock_event)
+                    sprite.on_mouse_exit_event(mock_event)
+                    sprite.on_mouse_drag_down_event(mock_event, None)
+                    sprite.on_mouse_drag_up_event(mock_event)
+
+    def test_mouse_button_event_handlers(self):
+        """Test mouse button event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse button event handlers
+                    sprite.on_mouse_button_down_event(mock_event)
+                    sprite.on_mouse_button_up_event(mock_event)
+                    sprite.on_left_mouse_button_down_event(mock_event)
+                    sprite.on_left_mouse_button_up_event(mock_event)
+                    sprite.on_middle_mouse_button_down_event(mock_event)
+                    sprite.on_middle_mouse_button_up_event(mock_event)
+                    sprite.on_right_mouse_button_down_event(mock_event)
+                    sprite.on_right_mouse_button_up_event(mock_event)
+
+    def test_mouse_button_event_handlers_with_callbacks(self):
+        """Test mouse button event handlers with callbacks."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+                    mock_callback = Mock()
+
+                    # Set up callbacks
+                    sprite.callbacks = {
+                        "on_left_mouse_button_up_event": mock_callback,
+                        "on_right_mouse_button_up_event": mock_callback,
+                        "on_left_mouse_button_down_event": mock_callback,
+                        "on_right_mouse_button_down_event": mock_callback
+                    }
+
+                    # Test mouse button event handlers with callbacks
+                    sprite.on_left_mouse_button_up_event(mock_event)
+                    sprite.on_right_mouse_button_up_event(mock_event)
+                    sprite.on_left_mouse_button_down_event(mock_event)
+                    sprite.on_right_mouse_button_down_event(mock_event)
+
+                    # Verify callbacks were called
+                    expected_callback_calls = 4
+                    assert mock_callback.call_count == expected_callback_calls
+
+    def test_keyboard_event_handlers(self):
+        """Test keyboard event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test keyboard event handlers
+                    sprite.on_key_down_event(mock_event)
+                    sprite.on_key_up_event(mock_event)
+                    sprite.on_key_chord_down_event(mock_event, [])
+                    sprite.on_key_chord_up_event(mock_event, [])
+
+    def test_system_event_handlers(self):
+        """Test system event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Add terminate method to sprite
+                    sprite.terminate = Mock()
+
+                    # Test system event handlers
+                    sprite.on_quit_event(mock_event)
+                    sprite.on_active_event(mock_event)
+                    sprite.on_video_resize_event(mock_event)
+                    sprite.on_video_expose_event(mock_event)
+                    sprite.on_sys_wm_event(mock_event)
+                    sprite.on_user_event(mock_event)
+
+                    # Verify terminate was called for quit event
+                    sprite.terminate.assert_called_once()
+
+    def test_mouse_drag_event_handlers(self):
+        """Test mouse drag event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse drag event handlers
+                    sprite.on_left_mouse_drag_down_event(mock_event, None)
+                    sprite.on_left_mouse_drag_up_event(mock_event, None)
+                    sprite.on_middle_mouse_drag_down_event(mock_event, None)
+                    sprite.on_middle_mouse_drag_up_event(mock_event, None)
+                    sprite.on_right_mouse_drag_down_event(mock_event, None)
+                    sprite.on_right_mouse_drag_up_event(mock_event, None)
+
+    def test_mouse_scroll_event_handlers(self):
+        """Test mouse scroll event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse scroll event handlers
+                    sprite.on_mouse_scroll_down_event(mock_event)
+                    sprite.on_mouse_scroll_up_event(mock_event)
+
+    def test_mouse_chord_event_handlers(self):
+        """Test mouse chord event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse chord event handlers
+                    sprite.on_mouse_chord_down_event(mock_event)
+                    sprite.on_mouse_chord_up_event(mock_event)
+
+    def test_mouse_drag_drop_event_handlers(self):
+        """Test mouse drag and drop event handlers."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50)
+                    mock_event = Mock()
+
+                    # Test mouse drag and drop event handlers
+                    sprite.on_left_mouse_drag_event(mock_event, None)
+                    sprite.on_middle_mouse_drag_event(mock_event, None)
+                    sprite.on_right_mouse_drag_event(mock_event, None)
+                    sprite.on_left_mouse_drop_event(mock_event, None)
+                    sprite.on_middle_mouse_drop_event(mock_event, None)
+                    sprite.on_right_mouse_drop_event(mock_event, None)
+                    sprite.on_mouse_drag_event(mock_event, None)
+                    sprite.on_mouse_drop_event(mock_event, None)
+                    sprite.on_mouse_wheel_event(mock_event, None)
+
+    def test_sprite_str_representation(self):
+        """Test Sprite string representation."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = Sprite(x=10, y=20, width=100, height=50, name="TestSprite")
+                    str_repr = str(sprite)
+
+                    assert "TestSprite" in str_repr
+
+
+class TestBitmappySprite:
+    """Test BitmappySprite class functionality."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+
+    def test_bitmappy_sprite_initialization_with_filename(self):
+        """Test BitmappySprite initialization with filename."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    with patch.object(BitmappySprite, "load") as mock_load:
+                        mock_load.return_value = (surface_instance, rect_mock, "TestSprite")
+
+                        sprite = BitmappySprite(
+                            x=10, y=20, width=100, height=50,
+                            name="TestSprite", filename="test.toml"
+                        )
+
+                        assert sprite.filename == "test.toml"
+                        assert sprite.focusable is False
+                        mock_load.assert_called_once_with(filename="test.toml")
+
+    def test_bitmappy_sprite_initialization_without_filename(self):
+        """Test BitmappySprite initialization without filename."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(
+                        x=10, y=20, width=100, height=50,
+                        name="TestSprite"
+                    )
+
+                    assert sprite.filename is None
+                    assert sprite.focusable is False
+
+    def test_bitmappy_sprite_initialization_with_focusable(self):
+        """Test BitmappySprite initialization with focusable=True."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(
+                        x=10, y=20, width=100, height=50,
+                        name="TestSprite", focusable=True
+                    )
+
+                    assert sprite.focusable is True
+
+    def test_bitmappy_sprite_initialization_with_zero_dimensions(self):
+        """Test BitmappySprite initialization with zero dimensions."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=0, height=0)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    with pytest.raises(pygame.error):
+                        BitmappySprite(x=10, y=20, width=0, height=0)
+
+    def test_bitmappy_sprite_load_method(self):
+        """Test BitmappySprite load method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    with patch.object(SpriteFactory, "load_sprite") as mock_factory_load:
+                        mock_animated_sprite = Mock()
+                        mock_animated_sprite.name = "TestSprite"
+                        mock_animated_sprite.image = surface_instance
+                        mock_animated_sprite.get_current_frame.return_value = None
+                        mock_factory_load.return_value = mock_animated_sprite
+
+                        # Mock the copy method to return the same surface
+                        surface_instance.copy.return_value = surface_instance
+
+                        result = sprite.load("test.toml")
+
+                        assert result == (surface_instance, rect_mock, "TestSprite")
+                        mock_factory_load.assert_called_once_with(filename="test.toml")
+
+    def test_bitmappy_sprite_load_method_with_frame(self):
+        """Test BitmappySprite load method with frame."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    with patch.object(SpriteFactory, "load_sprite") as mock_factory_load:
+                        mock_animated_sprite = Mock()
+                        mock_animated_sprite.name = "TestSprite"
+                        mock_animated_sprite.image = surface_instance
+                        mock_frame = Mock()
+                        mock_frame.surface = surface_instance
+                        mock_animated_sprite.get_current_frame.return_value = mock_frame
+                        mock_factory_load.return_value = mock_animated_sprite
+
+                        result = sprite.load("test.toml")
+
+                        assert result == (surface_instance, rect_mock, "TestSprite")
+
+    def test_bitmappy_sprite_load_method_fallback(self):
+        """Test BitmappySprite load method with factory fallback."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    with patch.object(SpriteFactory, "load_sprite") as mock_factory_load:
+                        mock_factory_load.side_effect = ValueError("Factory failed")
+
+                        with patch.object(sprite, "_load_static_only") as mock_static_load:
+                            mock_static_load.return_value = (
+                                surface_instance, rect_mock, "TestSprite"
+                            )
+
+                            result = sprite.load("test.toml")
+
+                            assert result == (surface_instance, rect_mock, "TestSprite")
+                            mock_static_load.assert_called_once_with("test.toml")
+
+    def test_bitmappy_sprite_save_method(self):
+        """Test BitmappySprite save method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    with patch.object(SpriteFactory, "save_sprite") as mock_factory_save:
+                        sprite.save("test.toml", "toml")
+
+                        mock_factory_save.assert_called_once_with(
+                            sprite=sprite, filename="test.toml",
+                            file_format="toml"
+                        )
+
+    def test_bitmappy_sprite_deflate_method(self):
+        """Test BitmappySprite deflate method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.name = "TestSprite"
+                    # 4 pixels for 2x2
+                    sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+                    sprite.pixels_across = 2
+                    sprite.pixels_tall = 2
+
+                    result = sprite.deflate("toml")
+
+                    assert "sprite" in result
+                    assert "colors" in result
+                    assert result["sprite"]["name"] == "TestSprite"
+
+    def test_bitmappy_sprite_deflate_method_unsupported_format(self):
+        """Test BitmappySprite deflate method with unsupported format."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.name = "TestSprite"
+                    sprite.pixels = [(255, 0, 0), (0, 255, 0)]
+                    sprite.pixels_across = 2
+                    sprite.pixels_tall = 1
+
+                    with pytest.raises(ValueError, match="Unsupported format: json"):
+                        sprite.deflate("json")
+
+    def test_bitmappy_sprite_deflate_method_too_many_colors(self):
+        """Test BitmappySprite deflate method with too many colors."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.name = "TestSprite"
+                    # Create too many unique colors
+                    sprite.pixels = [(i, i, i) for i in range(100)]
+                    sprite.pixels_across = 10
+                    sprite.pixels_tall = 10
+
+                    with pytest.raises(ValueError, match="Too many colors"):
+                        sprite.deflate("toml")
+
+    def test_bitmappy_sprite_inflate_method(self):
+        """Test BitmappySprite inflate method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    with patch("pygame.draw.rect") as mock_draw_rect:
+                        expected_pixel_count = 4  # 2x2 pixels
+                        result = sprite.inflate(2, 2, ["..", ".."], {".": (255, 255, 255)})
+
+                        assert result == (surface_instance, rect_mock)
+                        assert mock_draw_rect.call_count == expected_pixel_count
+
+    def test_bitmappy_sprite_save_static_only_method(self):
+        """Test BitmappySprite _save_static_only method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface, \
+                patch("pygame.Surface") as mock_surface_cls, \
+                patch("pygame.sprite.LayeredDirty") as mock_group_cls, \
+                patch("pathlib.Path.open") as mock_open, \
+                patch("toml.dump") as mock_toml_dump:
+
+            # Setup mocks
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            surface_instance = Mock()
+            rect_mock = Mock(x=0, y=0, width=100, height=50)
+            surface_instance.get_rect.return_value = rect_mock
+            mock_surface_cls.return_value = surface_instance
+
+            group_instance = Mock()
+            mock_group_cls.return_value = group_instance
+
+            sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+            with patch.object(sprite, "deflate") as mock_deflate:
+                mock_deflate.return_value = {"sprite": {"name": "TestSprite"}}
+
+                mock_file = Mock()
+                mock_file.__enter__ = Mock(return_value=mock_file)
+                mock_file.__exit__ = Mock(return_value=None)
+                mock_open.return_value = mock_file
+
+                sprite._save_static_only("test.toml", "toml")
+
+                mock_deflate.assert_called_once_with(file_format="toml")
+                mock_toml_dump.assert_called_once()
+
+    def test_bitmappy_sprite_save_static_only_method_unsupported_format(self):
+        """Test BitmappySprite _save_static_only method with unsupported format."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.name = "TestSprite"
+                    sprite.pixels = [(255, 0, 0), (0, 255, 0)]
+                    sprite.pixels_across = 2
+                    sprite.pixels_tall = 1
+
+                    with pytest.raises(ValueError, match="Unsupported format: json"):
+                        sprite._save_static_only("test.json", "json")
+
+
+class TestSingleton:
+    """Test Singleton class functionality."""
+
+    def test_singleton_creation(self):  # noqa: PLR6301
+        """Test Singleton creation and instance management."""
+        # Reset singleton instance
+        Singleton.__instance__ = None
+
+        # Create first instance
+        instance1 = Singleton("arg1", "arg2", kwarg1="value1")
+        assert Singleton.__instance__ is not None
+        assert instance1.args == ("arg1", "arg2")
+        assert instance1.kwargs == {"kwarg1": "value1"}
+
+        # Create second instance (should return same instance)
+        instance2 = Singleton("arg3", "arg4", kwarg2="value2")
+        assert instance1 is instance2
+        assert instance2.args == ("arg3", "arg4")
+        assert instance2.kwargs == {"kwarg2": "value2"}
+
+
+class TestSingletonBitmappySprite:
+    """Test SingletonBitmappySprite class functionality."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+        # Reset singleton instance
+        SingletonBitmappySprite.__instance__ = None
+
+    def test_singleton_bitmappy_sprite_creation(self):
+        """Test SingletonBitmappySprite creation and instance management."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    # Create first instance
+                    instance1 = SingletonBitmappySprite(10, 20, 100, 50, "TestSprite")
+                    assert SingletonBitmappySprite.__instance__ is not None
+                    assert instance1.args == (10, 20, 100, 50, "TestSprite")
+
+                    # Create second instance (should return same instance)
+                    instance2 = SingletonBitmappySprite(30, 40, 200, 75, "TestSprite2")
+                    assert instance1 is instance2
+                    assert instance2.args == (30, 40, 200, 75, "TestSprite2")
+
+
+class TestFocusableSingletonBitmappySprite:
+    """Test FocusableSingletonBitmappySprite class functionality."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+        # Reset singleton instance
+        FocusableSingletonBitmappySprite.__instance__ = None
+
+    def test_focusable_singleton_bitmappy_sprite_creation(self):
+        """Test FocusableSingletonBitmappySprite creation and instance management."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    # Create first instance
+                    instance1 = FocusableSingletonBitmappySprite(10, 20, 100, 50, "TestSprite")
+                    assert FocusableSingletonBitmappySprite.__instance__ is not None
+                    assert instance1.args == (10, 20, 100, 50, "TestSprite")
+                    assert instance1.focusable is True
+
+                    # Create second instance (should return same instance)
+                    instance2 = FocusableSingletonBitmappySprite(30, 40, 200, 75, "TestSprite2")
+                    assert instance1 is instance2
+                    assert instance2.args == (30, 40, 200, 75, "TestSprite2")
+
+
+class TestSpriteFactory:
+    """Test SpriteFactory class functionality."""
+
+    def test_get_default_sprite_path(self):  # noqa: PLR6301
+        """Test SpriteFactory._get_default_sprite_path method."""
+        path = SpriteFactory._get_default_sprite_path()
+        assert path.endswith("raspberry.toml")
+        assert "assets" in path
+
+    def test_determine_type_animated(self):  # noqa: PLR6301
+        """Test SpriteFactory._determine_type with animated content."""
+        analysis = {
+            "has_sprite_pixels": False,
+            "has_animation_sections": True,
+            "has_frame_sections": True
+        }
+        result = SpriteFactory._determine_type(analysis)
+        assert result == "animated"
+
+    def test_determine_type_static(self):  # noqa: PLR6301
+        """Test SpriteFactory._determine_type with static content."""
+        analysis = {
+            "has_sprite_pixels": True,
+            "has_animation_sections": False,
+            "has_frame_sections": False
+        }
+        result = SpriteFactory._determine_type(analysis)
+        assert result == "static"
+
+    def test_determine_type_error(self):  # noqa: PLR6301
+        """Test SpriteFactory._determine_type with no content."""
+        analysis = {
+            "has_sprite_pixels": False,
+            "has_animation_sections": False,
+            "has_frame_sections": False
+        }
+        result = SpriteFactory._determine_type(analysis)
+        assert result == "error"
+
+    def test_save_sprite_animated(self):  # noqa: PLR6301
+        """Test SpriteFactory.save_sprite with AnimatedSprite."""
+        mock_animated_sprite = Mock()
+        mock_animated_sprite.animations = True
+
+        with patch.object(SpriteFactory, "_save_animated_sprite") as mock_save_animated:
+            SpriteFactory.save_sprite(
+                sprite=mock_animated_sprite, filename="test.toml",
+                file_format="toml"
+            )
+            mock_save_animated.assert_called_once_with(
+                mock_animated_sprite, "test.toml", "toml"
+            )
+
+    def test_save_sprite_static(self):  # noqa: PLR6301
+        """Test SpriteFactory.save_sprite with BitmappySprite."""
+        mock_bitmappy_sprite = Mock()
+        # Remove animations attribute to simulate BitmappySprite
+        del mock_bitmappy_sprite.animations
+
+        with patch.object(SpriteFactory, "_save_static_sprite") as mock_save_static:
+            SpriteFactory.save_sprite(
+                sprite=mock_bitmappy_sprite, filename="test.toml",
+                file_format="toml"
+            )
+            mock_save_static.assert_called_once_with(
+                mock_bitmappy_sprite, "test.toml", "toml"
+            )
+
+    def test_save_static_sprite(self):  # noqa: PLR6301
+        """Test SpriteFactory._save_static_sprite method."""
+        mock_sprite = Mock()
+
+        with patch.object(mock_sprite, "_save") as mock_save:
+            SpriteFactory._save_static_sprite(mock_sprite, "test.toml", "toml")
+            mock_save.assert_called_once_with("test.toml", "toml")
+
+    def test_save_animated_sprite(self):  # noqa: PLR6301
+        """Test SpriteFactory._save_animated_sprite method."""
+        mock_sprite = Mock()
+
+        with patch.object(mock_sprite, "save") as mock_save:
+            SpriteFactory._save_animated_sprite(mock_sprite, "test.toml", "toml")
+            mock_save.assert_called_once_with("test.toml", "toml")
+
+
+class TestBitmappySpriteHelperMethods:
+    """Test BitmappySprite helper methods for AI training data extraction."""
+
+    def setUp(self):  # noqa: PLR6301
+        """Set up test fixtures."""
+        Sprite.SPRITE_BREAKPOINTS = None
+
+    def test_get_pixel_string_method(self):
+        """Test _get_pixel_string helper method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+                    sprite.pixels_across = 2
+                    sprite.pixels_tall = 2
+
+                    result = sprite._get_pixel_string()
+
+                    assert result == "..\n.."
+
+    def test_get_pixel_string_method_no_pixels(self):
+        """Test _get_pixel_string helper method with no pixels."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    result = sprite._get_pixel_string()
+
+                    assert not result
+
+    def test_get_color_map_method(self):
+        """Test _get_color_map helper method."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+                    sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+
+                    result = sprite._get_color_map()
+
+                    max_colors = 8  # Limited to 8 colors
+                    assert len(result) <= max_colors
+                    assert "0" in result
+                    assert "1" in result
+                    assert "2" in result
+
+    def test_get_color_map_method_no_pixels(self):
+        """Test _get_color_map helper method with no pixels."""
+        self.setUp()
+
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            display_surface = Mock()
+            display_surface.get_width.return_value = 800
+            display_surface.get_height.return_value = 600
+            mock_get_surface.return_value = display_surface
+
+            with patch("pygame.Surface") as mock_surface_cls:
+                surface_instance = Mock()
+                rect_mock = Mock(x=0, y=0, width=100, height=50)
+                surface_instance.get_rect.return_value = rect_mock
+                mock_surface_cls.return_value = surface_instance
+
+                with patch("pygame.sprite.LayeredDirty") as mock_group_cls:
+                    group_instance = Mock()
+                    mock_group_cls.return_value = group_instance
+
+                    sprite = BitmappySprite(x=10, y=20, width=100, height=50)
+
+                    result = sprite._get_color_map()
+
+                    assert result == {}
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

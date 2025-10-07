@@ -180,7 +180,7 @@ class TestSpritePixelIntegrity(unittest.TestCase):
                 # Log expected errors and record as failed
                 self.log.warning(f"Failed to process sprite {sprite_file}: {e}")
                 results.append((sprite_file, 0.0))
-            except Exception as e:
+            except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
                 self.fail(f"Unexpected error processing sprite {sprite_file}: {e}")
 
