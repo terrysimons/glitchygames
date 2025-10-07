@@ -1707,6 +1707,30 @@ class MidiEvents(EventInterface):
 class MidiEventStubs(EventInterface):
     """Mixin for midi events."""
 
+    def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi input events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        unhandled_event(self, event)
+
+    def on_midi_out_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi output events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        unhandled_event(self, event)
+
 
 # Mixin
 class MouseEvents(EventInterface):
