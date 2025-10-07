@@ -1,5 +1,6 @@
 """Test coverage for the fonts module."""
 
+import argparse
 from unittest.mock import Mock, patch
 
 import pygame
@@ -301,3 +302,132 @@ class TestFontManagerCoverage:
 
             assert result == mock_font
             assert "pygame_arial_16" in FontManager._font_cache
+
+    def test_args_method(self):  # noqa: PLR6301
+        """Test args class method."""
+        parser = argparse.ArgumentParser()
+        result = FontManager.args(parser)
+
+        assert result is parser
+        # Check that the Font Options group was added
+        group_titles = [group.title for group in parser._action_groups]
+        assert "Font Options" in group_titles
+
+    def test_font_method_with_default_config(self):
+        """Test font method with default configuration."""
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font):
+
+            result = FontManager.font()
+
+            assert result == mock_font
+            assert "arial_16" in FontManager._font_cache
+
+    def test_font_method_with_partial_config(self):
+        """Test font method with partial configuration."""
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font):
+
+            # Test with partial config (missing font_size)
+            result = FontManager.font({"font_name": "times"})
+
+            assert result == mock_font
+            assert "times_14" in FontManager._font_cache  # Should use default size
+
+    def test_pygame_font_method_with_partial_config(self):
+        """Test pygame_font method with partial configuration."""
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.font.SysFont", return_value=mock_font):
+
+            # Test with partial config (missing font_size)
+            result = FontManager.pygame_font({"font_name": "times"})
+
+            assert result == mock_font
+            assert "pygame_times_14" in FontManager._font_cache  # Should use default size
+
+
+class TestFontsFinalCoverage:
+    """Test coverage for final missing lines in fonts module."""
+
+    def test_font_method_with_missing_font_name_config(self):  # noqa: PLR6301
+        """Test font method with missing font_name in config."""
+        # Create config without font_name to trigger line 189
+        config = {"font_size": 16}
+
+        with patch("pygame.freetype.SysFont") as mock_sysfont:
+            mock_font = Mock()
+            mock_sysfont.return_value = mock_font
+
+            FontManager.font(config)
+
+            # Verify that font_name was set to default "arial"
+            assert config["font_name"] == "arial"
+            font_size = 16
+            assert config["font_size"] == font_size
+            mock_sysfont.assert_called_once()
+
+    def test_font_method_cache_hit(self):  # noqa: PLR6301
+        """Test font method cache hit to cover line 198."""
+        # Pre-populate cache
+        cache_key = "arial_14"
+        mock_cached_font = Mock()
+        FontManager._font_cache[cache_key] = mock_cached_font
+
+        config = {"font_name": "arial", "font_size": 14}
+
+        result = FontManager.font(config)
+
+        # Verify cache hit
+        assert result == mock_cached_font
+
+    def test_type_checking_import_coverage(self):  # noqa: PLR6301
+        """Test TYPE_CHECKING import coverage."""
+        # This test covers the TYPE_CHECKING import by reloading the module
+        import sys  # noqa: PLC0415, F401
+        import types  # noqa: PLC0415, F401
+        import typing  # noqa: PLC0415
+        from importlib import reload  # noqa: PLC0415
+
+        import glitchygames.fonts  # noqa: PLC0415
+
+        # Save original state
+        original_type_checking = typing.TYPE_CHECKING
+
+        try:
+            # Temporarily set TYPE_CHECKING to True
+            typing.TYPE_CHECKING = True
+            # Reload the module to re-execute the TYPE_CHECKING block
+            reload(glitchygames.fonts)
+
+            # If we get here without error, the TYPE_CHECKING block executed
+            assert True
+
+        finally:
+            # Restore original state
+            typing.TYPE_CHECKING = original_type_checking
+            # Reload the module again to ensure it's back to its original runtime state
+            reload(glitchygames.fonts)

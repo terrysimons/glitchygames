@@ -208,6 +208,72 @@ class TestSceneManagerCoverage(unittest.TestCase):
             mock_post.assert_called_once()
 
 
+class TestSceneManagerProperties(unittest.TestCase):
+    """Targeted coverage for SceneManager properties."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        with patch("pygame.display.get_surface") as mock_get_surface:
+            mock_surface = Mock()
+            mock_surface.get_size.return_value = (800, 600)
+            mock_get_surface.return_value = mock_surface
+            self.sm = SceneManager()
+
+    def test_game_engine_getter_setter_updates_options(self):
+        """Test game_engine property setter updates options."""
+        mock_engine = Mock()
+        mock_engine.OPTIONS = {
+            "update_type": "dirty",
+            "fps_refresh_rate": 500,
+            "target_fps": 75,
+        }
+        self.sm.game_engine = mock_engine
+        assert self.sm.game_engine is mock_engine
+        assert self.sm.OPTIONS is mock_engine.OPTIONS
+        assert self.sm.update_type == "dirty"
+        fps_refresh_rate = 500
+        target_fps = 75
+        assert self.sm.fps_refresh_rate == fps_refresh_rate
+        assert self.sm.target_fps == target_fps
+
+    def test_all_sprites_none_without_active_scene(self):
+        """Test all_sprites property returns None when no active scene."""
+        self.sm.active_scene = None
+        assert self.sm.all_sprites is None
+
+    def test_all_sprites_returns_active_scene_group(self):
+        """Test all_sprites property returns active scene's sprite group."""
+        mock_scene = Mock()
+        mock_group = Mock()
+        mock_scene.all_sprites = mock_group
+        self.sm.active_scene = mock_scene
+        assert self.sm.all_sprites is mock_group
+
+    def test_switch_to_scene_early_return_same_scene(self):
+        """Test switch_to_scene early return when next_scene == active_scene."""
+        mock_scene = Mock()
+        self.sm.active_scene = mock_scene
+
+        # Should return early without logging or cleanup
+        with patch.object(self.sm, "log") as mock_log:
+            self.sm.switch_to_scene(mock_scene)
+            # No logging should occur for same scene
+            mock_log.info.assert_not_called()
+
+    def test_switch_to_scene_dt_timer_reset(self):
+        """Test that dt and timer are reset when switching scenes."""
+        mock_old_scene = Mock()
+        mock_new_scene = Mock()
+        self.sm.active_scene = mock_old_scene
+        self.sm.dt = 5.0
+        self.sm.timer = 10.0
+
+        with patch("pygame.event.get_blocked", return_value=False):
+            self.sm.switch_to_scene(mock_new_scene)
+            assert self.sm.dt == 0
+            assert self.sm.timer == 0
+
+
 class TestSceneCoverage(unittest.TestCase):
     """Test Scene comprehensive coverage."""
 
@@ -849,6 +915,33 @@ class TestSceneCoverage(unittest.TestCase):
         # Test that the method can be called without error
         # Debug logging may not work due to missing OPTIONS
         self.scene.on_drop_text_event(mock_event)
+
+
+class TestScenesTypeCheckingCoverage:
+    """Test coverage for TYPE_CHECKING imports in scenes module."""
+
+    def test_type_checking_imports_coverage(self):  # noqa: PLR6301
+        """Test that TYPE_CHECKING imports are covered."""
+        import importlib  # noqa: PLC0415
+        import typing  # noqa: PLC0415
+
+        # Import the scenes module
+        import glitchygames.scenes  # noqa: PLC0415
+
+        # Temporarily set TYPE_CHECKING to True to force import execution
+        original_type_checking = typing.TYPE_CHECKING
+        typing.TYPE_CHECKING = True
+
+        try:
+            # Reload the module to trigger TYPE_CHECKING imports
+            importlib.reload(glitchygames.scenes)
+        finally:
+            # Restore original TYPE_CHECKING value
+            typing.TYPE_CHECKING = original_type_checking
+
+        # Verify the module is still functional
+        assert hasattr(glitchygames.scenes, "SceneManager")
+        assert hasattr(glitchygames.scenes, "Scene")
 
 
 if __name__ == "__main__":

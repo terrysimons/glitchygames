@@ -96,11 +96,13 @@ class BallSprite(Sprite):
 
         """
         if self.rect.y <= 0:
-            self.snd.play()
+            if hasattr(self, "snd") and self.snd is not None:
+                self.snd.play()
             self.rect.y = 0
             self.speed.y *= -1
         if self.rect.y + self.height >= self.screen_height:
-            self.snd.play()
+            if hasattr(self, "snd") and self.snd is not None:
+                self.snd.play()
             self.rect.y = self.screen_height - self.height
             self.speed.y *= -1
 
@@ -114,8 +116,9 @@ class BallSprite(Sprite):
             None
 
         """
-        self.x = secrets.randbelow(700) + 50  # 50-749 range
-        self.y = secrets.randbelow(375) + 25  # 25-399 range
+        # Set position directly to rect, maintaining consistency
+        self.rect.x = secrets.randbelow(700) + 50  # 50-749 range
+        self.rect.y = secrets.randbelow(375) + 25  # 25-399 range
 
         # Direction of ball (in degrees)
         self.direction = secrets.randbelow(90) - 45  # -45 to 44 range
@@ -125,10 +128,10 @@ class BallSprite(Sprite):
             # Reverse ball direction, let the other guy get it first
             self.direction += 180
 
-        # self.rally.reset()
+        # Ensure direction is in 0-360 range
+        self.direction %= 360
 
-        self.rect.x = self.x
-        self.rect.y = self.y
+        # self.rally.reset()
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self: Self, diff: int) -> None:
@@ -157,6 +160,14 @@ class BallSprite(Sprite):
             None
 
         """
+        # Check for wall bounces before moving
+        if self.rect.x <= 0:
+            self.direction = (360 - self.direction) % 360
+            self.rect.x = 1
+
+        if self.rect.x > self.screen_width - self.width:
+            self.direction = (360 - self.direction) % 360
+
         self.rect.y += self.speed.y
         self.rect.x += self.speed.x
 
@@ -165,14 +176,5 @@ class BallSprite(Sprite):
         if self.rect.x > self.screen_width or self.rect.x < 0:
             self.reset()
 
-        if self.y > self.screen_height or self.rect.y < 0:
+        if self.rect.y > self.screen_height or self.rect.y < 0:
             self.reset()
-
-        # Do we bounce off the left of the screen?
-        if self.x <= 0:
-            self.direction = (360 - self.direction) % 360
-            self.x = 1
-
-        # Do we bounce of the right side of the screen?
-        if self.x > self.screen_width - self.width:
-            self.direction = (360 - self.direction) % 360
