@@ -163,13 +163,15 @@ class MockFactory:
         display_patcher = patch("pygame.display", display_mock)
         surface_patcher = patch("pygame.Surface", return_value=surface_mock)
         event_patcher = patch("pygame.event.get", return_value=[])
+        event_blocked_patcher = patch("pygame.event.get_blocked", return_value=False)
 
         # Start patches
         display_patcher.start()
         surface_patcher.start()
         event_patcher.start()
+        event_blocked_patcher.start()
 
-        return display_patcher, surface_patcher, event_patcher
+        return display_patcher, surface_patcher, event_patcher, event_blocked_patcher
 
     @staticmethod
     def teardown_pygame_mocks(patchers):
@@ -179,10 +181,11 @@ class MockFactory:
             patchers: Tuple of patchers returned by setup_pygame_mocks()
 
         """
-        display_patcher, surface_patcher, event_patcher = patchers
+        display_patcher, surface_patcher, event_patcher, event_blocked_patcher = patchers
         display_patcher.stop()
         surface_patcher.stop()
         event_patcher.stop()
+        event_blocked_patcher.stop()
 
 
 # Convenience functions for common use cases

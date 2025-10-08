@@ -11,6 +11,7 @@ import pygame
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
+from test_mock_factory import MockFactory
 
 
 class TestSceneManagerCoverage(unittest.TestCase):
@@ -946,6 +947,296 @@ class TestScenesTypeCheckingCoverage:
 
 # Removed complex scenes tests due to pygame initialization issues
 # Focus on simpler coverage improvements in other modules
+
+
+class TestSceneLifecycleCoverage:
+    """Test scene lifecycle methods that are missing coverage."""
+
+    def test_scene_cleanup_method(self):
+        """Test scene cleanup method."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            scene = Scene()
+            
+            # Test cleanup method
+            scene.cleanup()
+            
+            # Verify cleanup was called (method exists and is callable)
+            assert hasattr(scene, 'cleanup')
+            assert callable(scene.cleanup)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_setup_method(self):
+        """Test scene setup method."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            scene = Scene()
+            
+            # Test setup method
+            scene.setup()
+            
+            # Verify setup was called (method exists and is callable)
+            assert hasattr(scene, 'setup')
+            assert callable(scene.setup)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_fps_event_handling(self):
+        """Test FPS event handling in scene manager."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Create a mock active scene
+            mock_scene = Mock()
+            mock_scene.on_fps_event = Mock()
+            manager.active_scene = mock_scene
+            
+            # Create FPS event
+            fps_event = Mock()
+            fps_event.type = pygame.USEREVENT + 1  # FPSEVENT
+            
+            # Test FPS event handling
+            manager.on_fps_event(fps_event)
+            
+            # Verify the scene's on_fps_event was called
+            mock_scene.on_fps_event.assert_called_once_with(fps_event)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_game_event_handling(self):
+        """Test game event handling in scene manager."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Mock game engine with registered events
+            mock_engine = Mock()
+            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            mock_callback = Mock()
+            mock_engine.registered_events = {'test_event': mock_callback}
+            manager.game_engine = mock_engine
+            
+            # Create game event
+            game_event = Mock()
+            game_event.type = pygame.USEREVENT + 2  # GAMEEVENT
+            game_event.subtype = 'test_event'
+            
+            # Test game event handling
+            manager.on_game_event(game_event)
+            
+            # Verify the callback was called
+            mock_callback.assert_called_once_with(game_event)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_game_event_unregistered(self):
+        """Test game event handling with unregistered event."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Mock game engine with empty registered events
+            mock_engine = Mock()
+            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            mock_engine.registered_events = {}
+            manager.game_engine = mock_engine
+            
+            # Create game event
+            game_event = Mock()
+            game_event.type = pygame.USEREVENT + 2  # GAMEEVENT
+            game_event.subtype = 'unregistered_event'
+            
+            # Test game event handling (should log exception)
+            with patch('glitchygames.scenes.LOG.exception') as mock_log:
+                manager.on_game_event(game_event)
+                mock_log.assert_called_once()
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_register_game_event(self):
+        """Test game event registration."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Mock game engine
+            mock_engine = Mock()
+            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            manager.game_engine = mock_engine
+            
+            # Test event registration
+            event_type = pygame.USEREVENT + 3
+            callback = Mock()
+            
+            manager.register_game_event(event_type, callback)
+            
+            # Verify the engine's register_game_event was called
+            mock_engine.register_game_event.assert_called_once_with(
+                event_type=event_type, callback=callback
+            )
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_quit_event_handling(self):
+        """Test quit event handling in scene manager."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Test quit event handling
+            manager.on_quit_event(Mock())
+            
+            # Verify quit_requested is set
+            assert manager.quit_requested is True
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_mouse_drag_event_handling(self):
+        """Test mouse drag event handling in scene."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            scene = Scene()
+            
+            # Mock sprites_at_position to return some sprites
+            mock_sprite = Mock()
+            mock_sprite.on_mouse_drag_event = Mock()
+            scene.sprites_at_position = Mock(return_value=[mock_sprite])
+            
+            # Create mouse drag event
+            drag_event = Mock()
+            drag_event.pos = (100, 100)
+            trigger = Mock()
+            
+            # Test mouse drag event handling
+            scene.on_mouse_drag_event(drag_event, trigger)
+            
+            # Verify sprite's on_mouse_drag_event was called
+            mock_sprite.on_mouse_drag_event.assert_called_once_with(drag_event, trigger)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_mouse_drop_event_handling(self):
+        """Test mouse drop event handling in scene."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            scene = Scene()
+            
+            # Mock sprites_at_position to return some sprites
+            mock_sprite = Mock()
+            mock_sprite.on_mouse_drop_event = Mock()
+            scene.sprites_at_position = Mock(return_value=[mock_sprite])
+            
+            # Create mouse drop event
+            drop_event = Mock()
+            drop_event.pos = (100, 100)
+            trigger = Mock()
+            
+            # Test mouse drop event handling
+            scene.on_mouse_drop_event(drop_event, trigger)
+            
+            # Verify sprite's on_mouse_drop_event was called
+            mock_sprite.on_mouse_drop_event.assert_called_once_with(drop_event, trigger)
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_menu_item_event_handling(self):
+        """Test menu item event handling in scene."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            scene = Scene()
+            
+            # Create menu item event
+            menu_event = Mock()
+            
+            # Test menu item event handling
+            with patch('glitchygames.scenes.LOG.debug') as mock_log:
+                scene.on_menu_item_event(menu_event)
+                mock_log.assert_called_once()
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_switch_to_scene_edge_cases(self):
+        """Test scene switching edge cases."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Test switching to None scene
+            manager.switch_to_scene(None)
+            assert manager.active_scene is None
+            
+            # Test switching to same scene (should return early)
+            scene = Scene()
+            manager.active_scene = scene
+            manager.switch_to_scene(scene)
+            assert manager.active_scene is scene
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_switch_to_scene_with_screenshot(self):
+        """Test scene switching with screenshot handling."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Create scenes
+            old_scene = Scene()
+            new_scene = Scene()
+            
+            # Set up old scene with screenshot (use _screenshot directly)
+            old_scene._screenshot = Mock()
+            manager.active_scene = old_scene
+            
+            # Mock the cleanup and setup methods
+            old_scene.cleanup = Mock()
+            new_scene.setup = Mock()
+            
+            # Test switching (centralized mock should handle pygame.event.get_blocked)
+            manager.switch_to_scene(new_scene)
+            
+            # Verify screenshot was set
+            assert old_scene._screenshot is not None
+            assert manager.active_scene is new_scene
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_switch_to_scene_blocked_events(self):
+        """Test scene switching with blocked events logging."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Create new scene
+            new_scene = Scene()
+            new_scene.setup = Mock()
+            
+            # Test switching with blocked events (centralized mock handles pygame.event.get_blocked)
+            with patch('glitchygames.scenes.LOG.info') as mock_log:
+                manager.switch_to_scene(new_scene)
+                # Should log blocked events
+                assert mock_log.call_count > 0
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
+
+    def test_scene_manager_switch_to_scene_no_blocked_events(self):
+        """Test scene switching with no blocked events."""
+        patchers = MockFactory.setup_pygame_mocks()
+        try:
+            manager = SceneManager()
+            
+            # Create new scene
+            new_scene = Scene()
+            new_scene.setup = Mock()
+            
+            # Test switching with no blocked events (centralized mock handles pygame.event.get_blocked)
+            with patch('glitchygames.scenes.LOG.info') as mock_log:
+                manager.switch_to_scene(new_scene)
+                # Should log "None" for blocked events
+                mock_log.assert_any_call("None")
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
 
 
 if __name__ == "__main__":
