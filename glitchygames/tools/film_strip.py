@@ -195,6 +195,18 @@ class FilmStripWidget:
         # This ensures that frame thumbnails and preview are updated
         self._force_redraw = True
 
+    def _calculate_scroll_offset(self, frame_index: int, frames: list) -> int:
+        """Calculate the scroll offset to center a frame.
+        
+        Returns the scroll offset that centers the specified frame.
+        """
+        frame_width = self.frame_width + self.frame_spacing
+        selected_frame_x = frame_index * frame_width
+        visible_center = self.rect.width // 2
+        target_scroll = selected_frame_x - visible_center + (self.frame_width // 2)
+        max_scroll = max(0, len(frames) * frame_width - self.rect.width)
+        return max(0, min(target_scroll, max_scroll))
+
     def update_scroll_for_frame(self, frame_index: int) -> None:
         """Update scroll offset to keep the selected frame visible and centered."""
         if (
@@ -207,19 +219,7 @@ class FilmStripWidget:
         if frame_index >= len(frames):
             return
 
-        # Calculate the position of the selected frame
-        frame_width = self.frame_width + self.frame_spacing
-        selected_frame_x = frame_index * frame_width
-
-        # Calculate the center of the visible area
-        visible_center = self.rect.width // 2
-
-        # Calculate the scroll offset to center the selected frame
-        target_scroll = selected_frame_x - visible_center + (self.frame_width // 2)
-
-        # Clamp the scroll offset to reasonable bounds
-        max_scroll = max(0, len(frames) * frame_width - self.rect.width)
-        self.scroll_offset = max(0, min(target_scroll, max_scroll))
+        self.scroll_offset = self._calculate_scroll_offset(frame_index, frames)
 
         # Recalculate layout with new scroll offset
         self._calculate_layout()
@@ -265,23 +265,40 @@ class FilmStripWidget:
         if not self.animated_sprite:
             return
 
+        self._clear_layouts()
+        self._calculate_animation_layouts()
+        self._calculate_frame_layouts()
+        self._calculate_preview_layouts()
+        self._calculate_sprocket_layouts()
+
+    def _clear_layouts(self) -> None:
+        """Clear all layout caches."""
         self.frame_layouts.clear()
         self.animation_layouts.clear()
         self.sprocket_layouts.clear()
         self.preview_rects.clear()
 
-        # Calculate available width for frames (total width minus preview area)
+    def _calculate_animation_layouts(self) -> None:
+        """Calculate layout for animation labels."""
+        if not self.animated_sprite:
+            return
+        
         available_width = self.rect.width - self.preview_width - self.preview_padding
-
-        x_offset = 0
         y_offset = 0
-        for anim_name, frames in self.animated_sprite._animations.items():
-            # Calculate animation label area for this row (limited to available width)
+        
+        for anim_name in self.animated_sprite._animations.keys():
             self.animation_layouts[anim_name] = pygame.Rect(
                 0, y_offset, available_width, self.animation_label_height
             )
+            y_offset += self.animation_label_height + self.frame_height + 10
 
-            # Calculate frame positions with scroll offset for this row
+    def _calculate_frame_layouts(self) -> None:
+        """Calculate layout for frame positions."""
+        if not self.animated_sprite:
+            return
+        
+        y_offset = 0
+        for anim_name, frames in self.animated_sprite._animations.items():
             for frame_idx, _frame in enumerate(frames):
                 frame_x = frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset
                 frame_rect = pygame.Rect(
@@ -291,9 +308,18 @@ class FilmStripWidget:
                     self.frame_height,
                 )
                 self.frame_layouts[anim_name, frame_idx] = frame_rect
+            
+            y_offset += self.animation_label_height + self.frame_height + 10
 
-            # Calculate individual preview for this animation
-            preview_x = self.rect.width - self.preview_width
+    def _calculate_preview_layouts(self) -> None:
+        """Calculate layout for preview areas."""
+        if not self.animated_sprite:
+            return
+        
+        y_offset = 0
+        preview_x = self.rect.width - self.preview_width
+        
+        for anim_name in self.animated_sprite._animations.keys():
             # Center the preview vertically with this animation's frames
             frame_visual_start_y = y_offset + self.animation_label_height + 4  # 4px padding
             frame_visual_height = self.frame_height - 8  # 4px padding top and bottom
@@ -305,14 +331,21 @@ class FilmStripWidget:
             self.preview_rects[anim_name] = pygame.Rect(
                 preview_x, preview_y, self.preview_width, self.preview_height
             )
+            
+            y_offset += self.animation_label_height + self.frame_height + 10
 
-            # Move to next row
-            y_offset += (
-                self.animation_label_height + self.frame_height + 10
-            )  # 10px spacing between animations
-
+    def _calculate_sprocket_layouts(self) -> None:
+        """Calculate layout for sprocket separators."""
+        if not self.animated_sprite:
+            return
+        
+        x_offset = 0
+        y_offset = 0
+        animation_names = list(self.animated_sprite._animations.keys())
+        
+        for anim_name in animation_names:
             # Add sprocket separator (except for last animation)
-            if anim_name != list(self.animated_sprite._animations.keys())[-1]:
+            if anim_name != animation_names[-1]:
                 sprocket_rect = pygame.Rect(
                     x_offset,
                     0,
@@ -321,6 +354,8 @@ class FilmStripWidget:
                 )
                 self.sprocket_layouts.append(sprocket_rect)
                 x_offset += self.sprocket_width
+            
+            y_offset += self.animation_label_height + self.frame_height + 10
 
     def get_frame_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Get the animation and frame at the given position."""
@@ -375,10 +410,31 @@ class FilmStripWidget:
         self, frame, *, is_selected: bool = False, is_hovered: bool = False
     ) -> pygame.Surface:
         """Render a single frame thumbnail with film strip styling."""
-        # Create frame surface with yellow film strip background
+        frame_surface = self._create_frame_surface()
+        frame_img = self._get_frame_image_for_rendering(frame, is_selected)
+        
+        if frame_img:
+            self._draw_scaled_image(frame_surface, frame_img)
+        else:
+            self._draw_placeholder(frame_surface)
+        
+        self._add_film_strip_styling(frame_surface)
+        
+        if is_selected:
+            return self._create_selection_border(frame_surface)
+        elif is_hovered:
+            self._add_hover_highlighting(frame_surface)
+        
+        return frame_surface
+
+    def _create_frame_surface(self) -> pygame.Surface:
+        """Create the base frame surface with background color."""
         frame_surface = pygame.Surface((self.frame_width, self.frame_height))
         frame_surface.fill(self.frame_background)  # Yellow film strip background
+        return frame_surface
 
+    def _get_frame_image_for_rendering(self, frame, is_selected: bool):
+        """Get the appropriate frame image for rendering."""
         # Draw the actual frame image - use current canvas content for selected frame,
         # stored data for others
         if is_selected and hasattr(self, "parent_canvas") and self.parent_canvas:
@@ -402,34 +458,41 @@ class FilmStripWidget:
             # Reset the force redraw flag after getting fresh data
             self._force_redraw = False
 
-        if frame_img:
-            # Calculate scaling to fit within the frame area (leaving some padding)
-            max_width = self.frame_width - 8  # Leave 4px padding on each side
-            max_height = self.frame_height - 8  # Leave 4px padding on top/bottom
+        return frame_img
 
-            # Calculate scale factor to fit the image
-            scale_x = max_width / frame_img.get_width()
-            scale_y = max_height / frame_img.get_height()
-            scale = min(scale_x, scale_y)  # Use the smaller scale to fit both dimensions
+    def _draw_scaled_image(self, frame_surface: pygame.Surface, frame_img) -> None:
+        """Draw a scaled image onto the frame surface."""
+        # Calculate scaling to fit within the frame area (leaving some padding)
+        max_width = self.frame_width - 8  # Leave 4px padding on each side
+        max_height = self.frame_height - 8  # Leave 4px padding on top/bottom
 
-            # Scale the image
-            new_width = int(frame_img.get_width() * scale)
-            new_height = int(frame_img.get_height() * scale)
-            scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
+        # Calculate scale factor to fit the image
+        scale_x = max_width / frame_img.get_width()
+        scale_y = max_height / frame_img.get_height()
+        scale = min(scale_x, scale_y)  # Use the smaller scale to fit both dimensions
 
-            # Center the scaled image within the frame
-            x_offset = (self.frame_width - new_width) // 2
-            y_offset = (self.frame_height - new_height) // 2
-            frame_surface.blit(scaled_image, (x_offset, y_offset))
-        else:
-            # If no frame data, create a placeholder
-            placeholder = pygame.Surface((self.frame_width - 8, self.frame_height - 8))
-            placeholder.fill((128, 128, 128))  # Gray placeholder
-            # Center the placeholder
-            x_offset = (self.frame_width - placeholder.get_width()) // 2
-            y_offset = (self.frame_height - placeholder.get_height()) // 2
-            frame_surface.blit(placeholder, (x_offset, y_offset))
+        # Scale the image
+        new_width = int(frame_img.get_width() * scale)
+        new_height = int(frame_img.get_height() * scale)
+        scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
 
+        # Center the scaled image within the frame
+        x_offset = (self.frame_width - new_width) // 2
+        y_offset = (self.frame_height - new_height) // 2
+        frame_surface.blit(scaled_image, (x_offset, y_offset))
+
+    def _draw_placeholder(self, frame_surface: pygame.Surface) -> None:
+        """Draw a placeholder when no frame data is available."""
+        # If no frame data, create a placeholder
+        placeholder = pygame.Surface((self.frame_width - 8, self.frame_height - 8))
+        placeholder.fill((128, 128, 128))  # Gray placeholder
+        # Center the placeholder
+        x_offset = (self.frame_width - placeholder.get_width()) // 2
+        y_offset = (self.frame_height - placeholder.get_height()) // 2
+        frame_surface.blit(placeholder, (x_offset, y_offset))
+
+    def _add_film_strip_styling(self, frame_surface: pygame.Surface) -> None:
+        """Add film strip perforations and edges to the frame surface."""
         # Add film strip perforations (top and bottom)
         for hole_x in range(4, self.frame_width - 4, 8):
             # Top row holes
@@ -449,28 +512,26 @@ class FilmStripWidget:
             1,
         )
 
-        # Add selection highlighting
-        if is_selected:
-            # Yellow film leader color for selection
-            selection_border = pygame.Surface((self.frame_width + 4, self.frame_height + 4))
-            selection_border.fill(self.selection_color)
-            # Add film strip perforations to selection border
-            for hole_x in range(4, self.frame_width, 8):
-                pygame.draw.circle(selection_border, (200, 200, 0), (hole_x, 2), 1)
-                pygame.draw.circle(
-                    selection_border, (200, 200, 0), (hole_x, self.frame_height + 1), 1
-                )
-            # Blit the frame content onto the selection border (centered)
-            selection_border.blit(frame_surface, (2, 2))
-            return selection_border
-
-        # Add hover highlighting
-        if is_hovered:
-            pygame.draw.rect(
-                frame_surface, self.hover_color, (0, 0, self.frame_width, self.frame_height), 2
+    def _create_selection_border(self, frame_surface: pygame.Surface) -> pygame.Surface:
+        """Create a selection border for the selected frame."""
+        # Yellow film leader color for selection
+        selection_border = pygame.Surface((self.frame_width + 4, self.frame_height + 4))
+        selection_border.fill(self.selection_color)
+        # Add film strip perforations to selection border
+        for hole_x in range(4, self.frame_width, 8):
+            pygame.draw.circle(selection_border, (200, 200, 0), (hole_x, 2), 1)
+            pygame.draw.circle(
+                selection_border, (200, 200, 0), (hole_x, self.frame_height + 1), 1
             )
+        # Blit the frame content onto the selection border (centered)
+        selection_border.blit(frame_surface, (2, 2))
+        return selection_border
 
-        return frame_surface
+    def _add_hover_highlighting(self, frame_surface: pygame.Surface) -> None:
+        """Add hover highlighting to the frame surface."""
+        pygame.draw.rect(
+            frame_surface, self.hover_color, (0, 0, self.frame_width, self.frame_height), 2
+        )
 
     def render_sprocket_separator(self, x: int, y: int, height: int) -> pygame.Surface:
         """Render a sprocket separator between animations."""
@@ -523,25 +584,7 @@ class FilmStripWidget:
                 frame_img = self._get_frame_image(frame)
 
                 if frame_img:
-                    # Calculate scaling to fit within the preview area
-                    preview_inner_width = self.preview_width - (self.preview_padding * 2)
-                    preview_inner_height = self.preview_height - (self.preview_padding * 2)
-
-                    # Calculate scale factor
-                    scale_x = preview_inner_width / frame_img.get_width()
-                    scale_y = preview_inner_height / frame_img.get_height()
-                    scale = min(scale_x, scale_y)
-
-                    # Scale the image
-                    new_width = int(frame_img.get_width() * scale)
-                    new_height = int(frame_img.get_height() * scale)
-                    scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
-
-                    # Center the scaled image within the preview area
-                    center_x = preview_rect.x + (self.preview_width - new_width) // 2
-                    center_y = preview_rect.y + (self.preview_height - new_height) // 2
-
-                    surface.blit(scaled_image, (center_x, center_y))
+                    self._draw_scaled_preview_image(surface, frame_img, preview_rect)
                 else:
                     # Draw placeholder if no frame data
                     placeholder_rect = pygame.Rect(
@@ -552,6 +595,28 @@ class FilmStripWidget:
                     )
                     pygame.draw.rect(surface, (128, 128, 128), placeholder_rect)
                     pygame.draw.rect(surface, (200, 200, 200), placeholder_rect, 1)
+
+    def _draw_scaled_preview_image(self, surface: pygame.Surface, frame_img: pygame.Surface, preview_rect: pygame.Rect) -> None:
+        """Draw a scaled and centered image within a preview area."""
+        # Calculate scaling to fit within the preview area
+        preview_inner_width = self.preview_width - (self.preview_padding * 2)
+        preview_inner_height = self.preview_height - (self.preview_padding * 2)
+
+        # Calculate scale factor
+        scale_x = preview_inner_width / frame_img.get_width()
+        scale_y = preview_inner_height / frame_img.get_height()
+        scale = min(scale_x, scale_y)
+
+        # Scale the image
+        new_width = int(frame_img.get_width() * scale)
+        new_height = int(frame_img.get_height() * scale)
+        scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
+
+        # Center the scaled image within the preview area
+        center_x = preview_rect.x + (self.preview_width - new_width) // 2
+        center_y = preview_rect.y + (self.preview_height - new_height) // 2
+
+        surface.blit(scaled_image, (center_x, center_y))
 
     def render(self, surface: pygame.Surface) -> None:
         """Render the film strip to the given surface."""
@@ -625,18 +690,23 @@ class FilmStripWidget:
         # Render the animated preview
         self.render_preview(surface)
 
+    def _calculate_frames_width(self) -> int:
+        """Calculate the total width needed for all frames and sprockets."""
+        frames_width = 0
+        animation_names = list(self.animated_sprite._animations.keys())
+        for i, (anim_name, frames) in enumerate(self.animated_sprite._animations.items()):
+            frames_width += len(frames) * (self.frame_width + self.frame_spacing)
+            # Add sprocket width between animations (not after the last one)
+            if i < len(animation_names) - 1:
+                frames_width += self.sprocket_width
+        return frames_width
+
     def get_total_width(self) -> int:
         """Get the total width needed for the film strip."""
         if not self.animated_sprite:
             return 0
 
-        # Calculate width needed for frames
-        frames_width = 0
-        for anim_name, frames in self.animated_sprite._animations.items():
-            frames_width += len(frames) * (self.frame_width + self.frame_spacing)
-            if anim_name != list(self.animated_sprite._animations.keys())[-1]:
-                frames_width += self.sprocket_width
-
+        frames_width = self._calculate_frames_width()
         # Add individual preview area width and padding
         return frames_width + self.preview_width + self.preview_padding
 
@@ -657,6 +727,16 @@ class FilmStripWidget:
                 self.current_animation, frame_index
             )
 
+    def _find_clicked_frame(self, local_x: int, local_y: int) -> tuple[str, int] | None:
+        """Find which frame was clicked at the given coordinates.
+        
+        Returns (animation, frame) if a frame was clicked, None otherwise.
+        """
+        for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
+            if frame_rect.collidepoint(local_x, local_y):
+                return (anim_name, frame_idx)
+        return None
+
     def handle_frame_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Handle mouse click on the film strip.
 
@@ -672,10 +752,4 @@ class FilmStripWidget:
         if not (0 <= local_x < self.rect.width and 0 <= local_y < self.rect.height):
             return None
 
-        # Check if click is on a frame
-        for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
-            if frame_rect.collidepoint(local_x, local_y):
-                # Frame was clicked - return the animation and frame info
-                return (anim_name, frame_idx)
-
-        return None
+        return self._find_clicked_frame(local_x, local_y)

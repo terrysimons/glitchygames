@@ -164,14 +164,32 @@ class MockFactory:
         surface_patcher = patch("pygame.Surface", return_value=surface_mock)
         event_patcher = patch("pygame.event.get", return_value=[])
         event_blocked_patcher = patch("pygame.event.get_blocked", return_value=False)
+        
+        # Additional pygame mocks for Film Strip and other modules
+        draw_circle_patcher = patch("pygame.draw.circle")
+        draw_line_patcher = patch("pygame.draw.line")
+        draw_rect_patcher = patch("pygame.draw.rect")
+        transform_scale_patcher = patch("pygame.transform.scale")
+        
+        # FontManager mock - create a mock font that returns a mock surface
+        mock_font = Mock()
+        mock_font.render = Mock(return_value=Mock())
+        font_manager_patcher = patch("glitchygames.fonts.FontManager.get_font", return_value=mock_font)
 
         # Start patches
         display_patcher.start()
         surface_patcher.start()
         event_patcher.start()
         event_blocked_patcher.start()
+        draw_circle_patcher.start()
+        draw_line_patcher.start()
+        draw_rect_patcher.start()
+        transform_scale_patcher.start()
+        font_manager_patcher.start()
 
-        return display_patcher, surface_patcher, event_patcher, event_blocked_patcher
+        return (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
+                draw_circle_patcher, draw_line_patcher, draw_rect_patcher, 
+                transform_scale_patcher, font_manager_patcher)
 
     @staticmethod
     def teardown_pygame_mocks(patchers):
@@ -181,11 +199,19 @@ class MockFactory:
             patchers: Tuple of patchers returned by setup_pygame_mocks()
 
         """
-        display_patcher, surface_patcher, event_patcher, event_blocked_patcher = patchers
+        (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
+         draw_circle_patcher, draw_line_patcher, draw_rect_patcher, 
+         transform_scale_patcher, font_manager_patcher) = patchers
+        
         display_patcher.stop()
         surface_patcher.stop()
         event_patcher.stop()
         event_blocked_patcher.stop()
+        draw_circle_patcher.stop()
+        draw_line_patcher.stop()
+        draw_rect_patcher.stop()
+        transform_scale_patcher.stop()
+        font_manager_patcher.stop()
 
 
 # Convenience functions for common use cases
