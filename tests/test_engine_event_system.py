@@ -7,7 +7,7 @@ and tests the complete event flow through the engine.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pygame
 import pytest
@@ -15,8 +15,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.engine import GameEngine
+from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT, HashableEvent
 from glitchygames.scenes import Scene
-from glitchygames.events import HashableEvent, FPSEVENT, GAMEEVENT, MENUEVENT
+
 from test_mock_factory import MockFactory
 
 
@@ -304,7 +305,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Verify EVENT_HANDLERS is populated
@@ -338,7 +339,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the audio manager
@@ -374,7 +375,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the controller manager
@@ -412,7 +413,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the keyboard manager
@@ -442,7 +443,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the mouse manager
@@ -488,7 +489,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the game manager
@@ -536,7 +537,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock pygame.event.get to return test events
@@ -546,7 +547,7 @@ class TestEngineEventSystem:
                     pygame.event.Event(FPSEVENT, fps=60),
                 ]
                 
-                with patch('pygame.event.get', return_value=test_events):
+                with patch("pygame.event.get", return_value=test_events):
                     # Mock all the managers
                     engine.audio_manager = Mock()
                     engine.controller_manager = Mock()
@@ -582,7 +583,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the scene manager
@@ -604,7 +605,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the scene manager
@@ -615,7 +616,7 @@ class TestEngineEventSystem:
                 event = HashableEvent(type=9999)  # Unknown event type
                 
                 # Mock pygame.event.get to return the unknown event
-                with patch('pygame.event.get', return_value=[pygame.event.Event(9999)]):
+                with patch("pygame.event.get", return_value=[pygame.event.Event(9999)]):
                     result = engine.process_events()
                     
                     # Should return False for unimplemented events
@@ -629,7 +630,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the mouse manager
@@ -671,7 +672,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the mouse manager
@@ -713,7 +714,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the mouse manager with real synthesized event handling
@@ -751,7 +752,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the keyboard manager
@@ -779,7 +780,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the touch manager
@@ -827,7 +828,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock the game manager
@@ -859,7 +860,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Mock UI managers
@@ -906,7 +907,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=ComprehensiveEventScene)
                 
                 # Create a comprehensive scene that tracks all synthesized events
@@ -972,7 +973,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=EventRoutingTestScene)
                 
                 # Create the scene instance
@@ -1007,7 +1008,7 @@ class TestEngineEventSystem:
                 
                 # Process each event
                 for event in test_events:
-                    with patch('pygame.event.get', return_value=[event]):
+                    with patch("pygame.event.get", return_value=[event]):
                         engine.process_events()
                 
                 # When managers are mocked, they don't actually call the scene's event handlers
@@ -1023,7 +1024,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=EventRoutingTestScene)
                 
                 # Create the scene instance
@@ -1067,7 +1068,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=EventRoutingTestScene)
                 
                 # Create the scene instance
@@ -1077,16 +1078,16 @@ class TestEngineEventSystem:
                 
                 # Test that the scene has all the necessary event handlers
                 required_handlers = [
-                    'on_fps_event', 'on_game_event', 'on_quit_event',
-                    'on_key_down_event', 'on_key_up_event',
-                    'on_mouse_motion_event', 'on_mouse_button_down_event', 'on_mouse_button_up_event',
-                    'on_mouse_drag_event', 'on_mouse_drop_event',
-                    'on_left_mouse_drag_event', 'on_left_mouse_drop_event',
-                    'on_audio_device_added_event', 'on_audio_device_removed_event',
-                    'on_controller_axis_motion_event', 'on_controller_button_down_event', 'on_controller_button_up_event',
-                    'on_joy_axis_motion_event', 'on_joy_button_down_event', 'on_joy_button_up_event',
-                    'on_window_close_event', 'on_window_focus_gained_event', 'on_window_focus_lost_event',
-                    'on_text_input_event'
+                    "on_fps_event", "on_game_event", "on_quit_event",
+                    "on_key_down_event", "on_key_up_event",
+                    "on_mouse_motion_event", "on_mouse_button_down_event", "on_mouse_button_up_event",
+                    "on_mouse_drag_event", "on_mouse_drop_event",
+                    "on_left_mouse_drag_event", "on_left_mouse_drop_event",
+                    "on_audio_device_added_event", "on_audio_device_removed_event",
+                    "on_controller_axis_motion_event", "on_controller_button_down_event", "on_controller_button_up_event",
+                    "on_joy_axis_motion_event", "on_joy_button_down_event", "on_joy_button_up_event",
+                    "on_window_close_event", "on_window_focus_gained_event", "on_window_focus_lost_event",
+                    "on_text_input_event"
                 ]
                 
                 # Verify all required handlers exist
@@ -1111,7 +1112,7 @@ class TestEngineEventSystem:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 engine = GameEngine(game=EventRoutingTestScene)
                 
                 # Create a scene that will raise an error

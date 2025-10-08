@@ -1,10 +1,10 @@
 """Comprehensive tests for all event classes and interfaces in the events module."""
 
+import inspect
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import inspect
+from unittest.mock import MagicMock, Mock, patch
 
 import pygame
 import pytest
@@ -12,16 +12,43 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.events import (
-    HashableEvent, EventInterface, ResourceManager, EventManager,
-    AudioEvents, AudioEventStubs, ControllerEvents, ControllerEventStubs,
-    DropEvents, DropEventStubs, TouchEvents, TouchEventStubs,
-    FontEvents, FontEventStubs, GameEvents, GameEventStubs,
-    JoystickEvents, JoystickEventStubs, KeyboardEvents, KeyboardEventStubs,
-    MidiEvents, MidiEventStubs, MouseEvents, MouseEventStubs,
-    TextEvents, TextEventStubs, WindowEvents, WindowEventStubs,
-    AllEvents, AllEventStubs, supported_events, unhandled_event,
-    FPSEVENT, GAMEEVENT, MENUEVENT
+    FPSEVENT,
+    GAMEEVENT,
+    MENUEVENT,
+    AllEvents,
+    AllEventStubs,
+    AudioEvents,
+    AudioEventStubs,
+    ControllerEvents,
+    ControllerEventStubs,
+    DropEvents,
+    DropEventStubs,
+    EventInterface,
+    EventManager,
+    FontEvents,
+    FontEventStubs,
+    GameEvents,
+    GameEventStubs,
+    HashableEvent,
+    JoystickEvents,
+    JoystickEventStubs,
+    KeyboardEvents,
+    KeyboardEventStubs,
+    MidiEvents,
+    MidiEventStubs,
+    MouseEvents,
+    MouseEventStubs,
+    ResourceManager,
+    TextEvents,
+    TextEventStubs,
+    TouchEvents,
+    TouchEventStubs,
+    WindowEvents,
+    WindowEventStubs,
+    supported_events,
+    unhandled_event,
 )
+
 from test_mock_factory import MockFactory
 
 
@@ -33,39 +60,39 @@ class TestHashableEventComprehensive:
         # Test basic initialization
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         assert event.type == pygame.KEYDOWN
-        assert event['key'] == pygame.K_SPACE
+        assert event["key"] == pygame.K_SPACE
         
         # Test with multiple attributes
         event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100), extra="test")
         assert event.type == pygame.MOUSEBUTTONDOWN
-        assert event['button'] == 1
-        assert event['pos'] == (100, 100)
-        assert event['extra'] == "test"
+        assert event["button"] == 1
+        assert event["pos"] == (100, 100)
+        assert event["extra"] == "test"
 
     def test_hashable_event_dict_property(self):
         """Test HashableEvent dict property."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_dict = event.dict
         assert isinstance(event_dict, dict)
-        assert event_dict['key'] == pygame.K_SPACE
-        assert event_dict['mod'] == pygame.KMOD_CTRL
+        assert event_dict["key"] == pygame.K_SPACE
+        assert event_dict["mod"] == pygame.KMOD_CTRL
 
     def test_hashable_event_item_access(self):
         """Test HashableEvent item access methods."""
         event = HashableEvent(pygame.MOUSEMOTION, pos=(200, 200), rel=(10, 10))
         
         # Test __getitem__
-        assert event['pos'] == (200, 200)
-        assert event['rel'] == (10, 10)
+        assert event["pos"] == (200, 200)
+        assert event["rel"] == (10, 10)
         
         # Test __setitem__
-        event['new_attr'] = "test_value"
-        assert event['new_attr'] == "test_value"
+        event["new_attr"] = "test_value"
+        assert event["new_attr"] == "test_value"
         
         # Test __delitem__
-        del event['new_attr']
+        del event["new_attr"]
         with pytest.raises(KeyError):
-            _ = event['new_attr']
+            _ = event["new_attr"]
 
     def test_hashable_event_length(self):
         """Test HashableEvent length."""
@@ -73,7 +100,7 @@ class TestHashableEventComprehensive:
         # HashableEvent includes type, key, and __hash attributes
         assert len(event) >= 1  # At least 'key' attribute
         
-        event['mod'] = pygame.KMOD_CTRL
+        event["mod"] = pygame.KMOD_CTRL
         assert len(event) >= 2  # At least 'key' and 'mod' attributes
 
     def test_hashable_event_clear(self):
@@ -90,12 +117,12 @@ class TestHashableEventComprehensive:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_copy = event.copy()
         
-        assert event_copy['key'] == pygame.K_SPACE
-        assert event_copy['mod'] == pygame.KMOD_CTRL
+        assert event_copy["key"] == pygame.K_SPACE
+        assert event_copy["mod"] == pygame.KMOD_CTRL
         
         # Modify copy and ensure original is unchanged
-        event_copy['key'] = pygame.K_RETURN
-        assert event['key'] == pygame.K_SPACE  # Original unchanged
+        event_copy["key"] = pygame.K_RETURN
+        assert event["key"] == pygame.K_SPACE  # Original unchanged
 
     def test_hashable_event_hash(self):
         """Test HashableEvent hash functionality."""
@@ -118,15 +145,15 @@ class TestHashableEventComprehensive:
         # Test __getstate__
         state = event.__getstate__()
         assert isinstance(state, dict)
-        assert state['type'] == pygame.MOUSEBUTTONDOWN
-        assert state['button'] == 1
-        assert state['pos'] == (100, 100)
+        assert state["type"] == pygame.MOUSEBUTTONDOWN
+        assert state["button"] == 1
+        assert state["pos"] == (100, 100)
         
         # Test __setstate__ with simple values to avoid hash issues
         # We'll just test that __getstate__ works and returns the expected structure
-        assert state['type'] == pygame.MOUSEBUTTONDOWN
-        assert state['button'] == 1
-        assert state['pos'] == (100, 100)
+        assert state["type"] == pygame.MOUSEBUTTONDOWN
+        assert state["button"] == 1
+        assert state["pos"] == (100, 100)
 
 
 class TestEventInterfaceComprehensive:
@@ -135,7 +162,7 @@ class TestEventInterfaceComprehensive:
     def test_event_interface_subclasshook_valid_implementation(self):
         """Test EventInterface.__subclasshook__ with valid implementation."""
         # Test that the subclasshook method exists and can be called
-        assert hasattr(EventInterface, '__subclasshook__')
+        assert hasattr(EventInterface, "__subclasshook__")
         assert callable(EventInterface.__subclasshook__)
         
         # Test that it can be called with a simple class
@@ -182,7 +209,7 @@ class TestResourceManagerComprehensive:
         """Test ResourceManager initialization."""
         mock_game = Mock()
         manager = ResourceManager(game=mock_game)
-        assert hasattr(manager, 'proxies')
+        assert hasattr(manager, "proxies")
         assert isinstance(manager.proxies, list)
 
     def test_resource_manager_getattr(self):
@@ -201,7 +228,7 @@ class TestEventManagerComprehensive:
     def test_event_manager_initialization(self):
         """Test EventManager initialization."""
         manager = EventManager()
-        assert hasattr(manager, 'log')
+        assert hasattr(manager, "log")
         assert manager.log is not None
 
     def test_event_manager_initialization_with_game(self):
@@ -209,7 +236,7 @@ class TestEventManagerComprehensive:
         mock_game = Mock()
         manager = EventManager(game=mock_game)
         # EventManager stores game in a different way - check that it's accessible
-        assert hasattr(manager, 'game')
+        assert hasattr(manager, "game")
 
     def test_event_proxy_initialization(self):
         """Test EventManager.EventProxy initialization."""
@@ -217,7 +244,7 @@ class TestEventManagerComprehensive:
         proxy = EventManager.EventProxy(mock_event_source)
         
         assert proxy.event_source == mock_event_source
-        assert hasattr(proxy, 'proxies')
+        assert hasattr(proxy, "proxies")
         assert isinstance(proxy.proxies, list)
         assert len(proxy.proxies) == 0
 
@@ -227,10 +254,10 @@ class TestEventManagerComprehensive:
         proxy = EventManager.EventProxy(mock_event_source)
         
         # Mock the log to avoid actual logging
-        with patch.object(proxy, 'log') as mock_log:
+        with patch.object(proxy, "log") as mock_log:
             # Mock inspect.stack to return a predictable result
-            with patch('inspect.stack') as mock_stack:
-                mock_stack.return_value = [None, Mock(function='test_handler')]
+            with patch("inspect.stack") as mock_stack:
+                mock_stack.return_value = [None, Mock(function="test_handler")]
                 
                 event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
                 proxy.unhandled_event(event=event, trigger="test_trigger")
@@ -255,8 +282,8 @@ class TestEventInterfaceClasses:
         """Helper method to setup mock game object for event stubs."""
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': False,
-            'no_unhandled_events': False
+            "debug_events": False,
+            "no_unhandled_events": False
         }
         stub.options = mock_game.options
         return mock_game
@@ -264,18 +291,18 @@ class TestEventInterfaceClasses:
     def test_audio_events_interface(self):
         """Test AudioEvents interface methods."""
         # Test that AudioEvents has required abstract methods
-        assert hasattr(AudioEvents, 'on_audio_device_added_event')
-        assert hasattr(AudioEvents, 'on_audio_device_removed_event')
+        assert hasattr(AudioEvents, "on_audio_device_added_event")
+        assert hasattr(AudioEvents, "on_audio_device_removed_event")
         
         # Test that methods are abstract
-        assert getattr(AudioEvents.on_audio_device_added_event, '__isabstractmethod__', False)
+        assert getattr(AudioEvents.on_audio_device_added_event, "__isabstractmethod__", False)
 
     def test_audio_event_stubs_implementation(self):
         """Test AudioEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = AudioEventStubs()
-        assert hasattr(stub, 'on_audio_device_added_event')
-        assert hasattr(stub, 'on_audio_device_removed_event')
+        assert hasattr(stub, "on_audio_device_added_event")
+        assert hasattr(stub, "on_audio_device_removed_event")
         
         # Test that methods are callable
         assert callable(stub.on_audio_device_added_event)
@@ -295,23 +322,23 @@ class TestEventInterfaceClasses:
     def test_controller_events_interface(self):
         """Test ControllerEvents interface methods."""
         # Test that ControllerEvents has required abstract methods
-        assert hasattr(ControllerEvents, 'on_controller_axis_motion_event')
-        assert hasattr(ControllerEvents, 'on_controller_button_down_event')
-        assert hasattr(ControllerEvents, 'on_controller_button_up_event')
-        assert hasattr(ControllerEvents, 'on_controller_device_added_event')
-        assert hasattr(ControllerEvents, 'on_controller_device_remapped_event')
-        assert hasattr(ControllerEvents, 'on_controller_device_removed_event')
-        assert hasattr(ControllerEvents, 'on_controller_touchpad_down_event')
-        assert hasattr(ControllerEvents, 'on_controller_touchpad_motion_event')
-        assert hasattr(ControllerEvents, 'on_controller_touchpad_up_event')
+        assert hasattr(ControllerEvents, "on_controller_axis_motion_event")
+        assert hasattr(ControllerEvents, "on_controller_button_down_event")
+        assert hasattr(ControllerEvents, "on_controller_button_up_event")
+        assert hasattr(ControllerEvents, "on_controller_device_added_event")
+        assert hasattr(ControllerEvents, "on_controller_device_remapped_event")
+        assert hasattr(ControllerEvents, "on_controller_device_removed_event")
+        assert hasattr(ControllerEvents, "on_controller_touchpad_down_event")
+        assert hasattr(ControllerEvents, "on_controller_touchpad_motion_event")
+        assert hasattr(ControllerEvents, "on_controller_touchpad_up_event")
 
     def test_controller_event_stubs_implementation(self):
         """Test ControllerEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = ControllerEventStubs()
-        assert hasattr(stub, 'on_controller_axis_motion_event')
-        assert hasattr(stub, 'on_controller_button_down_event')
-        assert hasattr(stub, 'on_controller_button_up_event')
+        assert hasattr(stub, "on_controller_axis_motion_event")
+        assert hasattr(stub, "on_controller_button_down_event")
+        assert hasattr(stub, "on_controller_button_up_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -327,19 +354,19 @@ class TestEventInterfaceClasses:
     def test_drop_events_interface(self):
         """Test DropEvents interface methods."""
         # Test that DropEvents has required abstract methods
-        assert hasattr(DropEvents, 'on_drop_begin_event')
-        assert hasattr(DropEvents, 'on_drop_file_event')
-        assert hasattr(DropEvents, 'on_drop_text_event')
-        assert hasattr(DropEvents, 'on_drop_complete_event')
+        assert hasattr(DropEvents, "on_drop_begin_event")
+        assert hasattr(DropEvents, "on_drop_file_event")
+        assert hasattr(DropEvents, "on_drop_text_event")
+        assert hasattr(DropEvents, "on_drop_complete_event")
 
     def test_drop_event_stubs_implementation(self):
         """Test DropEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = DropEventStubs()
-        assert hasattr(stub, 'on_drop_begin_event')
-        assert hasattr(stub, 'on_drop_file_event')
-        assert hasattr(stub, 'on_drop_text_event')
-        assert hasattr(stub, 'on_drop_complete_event')
+        assert hasattr(stub, "on_drop_begin_event")
+        assert hasattr(stub, "on_drop_file_event")
+        assert hasattr(stub, "on_drop_text_event")
+        assert hasattr(stub, "on_drop_complete_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -355,20 +382,20 @@ class TestEventInterfaceClasses:
     def test_touch_events_interface(self):
         """Test TouchEvents interface methods."""
         # Test that TouchEvents has required abstract methods
-        assert hasattr(TouchEvents, 'on_touch_down_event')
-        assert hasattr(TouchEvents, 'on_touch_motion_event')
-        assert hasattr(TouchEvents, 'on_touch_up_event')
-        assert hasattr(TouchEvents, 'on_multi_touch_down_event')
-        assert hasattr(TouchEvents, 'on_multi_touch_motion_event')
-        assert hasattr(TouchEvents, 'on_multi_touch_up_event')
+        assert hasattr(TouchEvents, "on_touch_down_event")
+        assert hasattr(TouchEvents, "on_touch_motion_event")
+        assert hasattr(TouchEvents, "on_touch_up_event")
+        assert hasattr(TouchEvents, "on_multi_touch_down_event")
+        assert hasattr(TouchEvents, "on_multi_touch_motion_event")
+        assert hasattr(TouchEvents, "on_multi_touch_up_event")
 
     def test_touch_event_stubs_implementation(self):
         """Test TouchEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = TouchEventStubs()
-        assert hasattr(stub, 'on_touch_down_event')
-        assert hasattr(stub, 'on_touch_motion_event')
-        assert hasattr(stub, 'on_touch_up_event')
+        assert hasattr(stub, "on_touch_down_event")
+        assert hasattr(stub, "on_touch_motion_event")
+        assert hasattr(stub, "on_touch_up_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -384,13 +411,13 @@ class TestEventInterfaceClasses:
     def test_font_events_interface(self):
         """Test FontEvents interface methods."""
         # Test that FontEvents has required abstract methods
-        assert hasattr(FontEvents, 'on_font_changed_event')
+        assert hasattr(FontEvents, "on_font_changed_event")
 
     def test_font_event_stubs_implementation(self):
         """Test FontEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = FontEventStubs()
-        assert hasattr(stub, 'on_font_changed_event')
+        assert hasattr(stub, "on_font_changed_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -406,24 +433,24 @@ class TestEventInterfaceClasses:
     def test_game_events_interface(self):
         """Test GameEvents interface methods."""
         # Test that GameEvents has required abstract methods
-        assert hasattr(GameEvents, 'on_active_event')
-        assert hasattr(GameEvents, 'on_fps_event')
-        assert hasattr(GameEvents, 'on_game_event')
-        assert hasattr(GameEvents, 'on_menu_item_event')
-        assert hasattr(GameEvents, 'on_sys_wm_event')
-        assert hasattr(GameEvents, 'on_user_event')
-        assert hasattr(GameEvents, 'on_video_expose_event')
-        assert hasattr(GameEvents, 'on_video_resize_event')
-        assert hasattr(GameEvents, 'on_quit_event')
+        assert hasattr(GameEvents, "on_active_event")
+        assert hasattr(GameEvents, "on_fps_event")
+        assert hasattr(GameEvents, "on_game_event")
+        assert hasattr(GameEvents, "on_menu_item_event")
+        assert hasattr(GameEvents, "on_sys_wm_event")
+        assert hasattr(GameEvents, "on_user_event")
+        assert hasattr(GameEvents, "on_video_expose_event")
+        assert hasattr(GameEvents, "on_video_resize_event")
+        assert hasattr(GameEvents, "on_quit_event")
 
     def test_game_event_stubs_implementation(self):
         """Test GameEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = GameEventStubs()
-        assert hasattr(stub, 'on_active_event')
-        assert hasattr(stub, 'on_fps_event')
-        assert hasattr(stub, 'on_game_event')
-        assert hasattr(stub, 'on_quit_event')
+        assert hasattr(stub, "on_active_event")
+        assert hasattr(stub, "on_fps_event")
+        assert hasattr(stub, "on_game_event")
+        assert hasattr(stub, "on_quit_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -439,21 +466,21 @@ class TestEventInterfaceClasses:
     def test_joystick_events_interface(self):
         """Test JoystickEvents interface methods."""
         # Test that JoystickEvents has required abstract methods
-        assert hasattr(JoystickEvents, 'on_joy_axis_motion_event')
-        assert hasattr(JoystickEvents, 'on_joy_button_down_event')
-        assert hasattr(JoystickEvents, 'on_joy_button_up_event')
-        assert hasattr(JoystickEvents, 'on_joy_device_added_event')
-        assert hasattr(JoystickEvents, 'on_joy_device_removed_event')
-        assert hasattr(JoystickEvents, 'on_joy_hat_motion_event')
-        assert hasattr(JoystickEvents, 'on_joy_ball_motion_event')
+        assert hasattr(JoystickEvents, "on_joy_axis_motion_event")
+        assert hasattr(JoystickEvents, "on_joy_button_down_event")
+        assert hasattr(JoystickEvents, "on_joy_button_up_event")
+        assert hasattr(JoystickEvents, "on_joy_device_added_event")
+        assert hasattr(JoystickEvents, "on_joy_device_removed_event")
+        assert hasattr(JoystickEvents, "on_joy_hat_motion_event")
+        assert hasattr(JoystickEvents, "on_joy_ball_motion_event")
 
     def test_joystick_event_stubs_implementation(self):
         """Test JoystickEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = JoystickEventStubs()
-        assert hasattr(stub, 'on_joy_axis_motion_event')
-        assert hasattr(stub, 'on_joy_button_down_event')
-        assert hasattr(stub, 'on_joy_button_up_event')
+        assert hasattr(stub, "on_joy_axis_motion_event")
+        assert hasattr(stub, "on_joy_button_down_event")
+        assert hasattr(stub, "on_joy_button_up_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -469,19 +496,19 @@ class TestEventInterfaceClasses:
     def test_keyboard_events_interface(self):
         """Test KeyboardEvents interface methods."""
         # Test that KeyboardEvents has required abstract methods
-        assert hasattr(KeyboardEvents, 'on_key_down_event')
-        assert hasattr(KeyboardEvents, 'on_key_up_event')
-        assert hasattr(KeyboardEvents, 'on_key_chord_up_event')
-        assert hasattr(KeyboardEvents, 'on_key_chord_down_event')
+        assert hasattr(KeyboardEvents, "on_key_down_event")
+        assert hasattr(KeyboardEvents, "on_key_up_event")
+        assert hasattr(KeyboardEvents, "on_key_chord_up_event")
+        assert hasattr(KeyboardEvents, "on_key_chord_down_event")
 
     def test_keyboard_event_stubs_implementation(self):
         """Test KeyboardEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = KeyboardEventStubs()
-        assert hasattr(stub, 'on_key_down_event')
-        assert hasattr(stub, 'on_key_up_event')
-        assert hasattr(stub, 'on_key_chord_up_event')
-        assert hasattr(stub, 'on_key_chord_down_event')
+        assert hasattr(stub, "on_key_down_event")
+        assert hasattr(stub, "on_key_up_event")
+        assert hasattr(stub, "on_key_chord_up_event")
+        assert hasattr(stub, "on_key_chord_down_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -497,15 +524,15 @@ class TestEventInterfaceClasses:
     def test_midi_events_interface(self):
         """Test MidiEvents interface methods."""
         # Test that MidiEvents has required abstract methods
-        assert hasattr(MidiEvents, 'on_midi_in_event')
-        assert hasattr(MidiEvents, 'on_midi_out_event')
+        assert hasattr(MidiEvents, "on_midi_in_event")
+        assert hasattr(MidiEvents, "on_midi_out_event")
 
     def test_midi_event_stubs_implementation(self):
         """Test MidiEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = MidiEventStubs()
-        assert hasattr(stub, 'on_midi_in_event')
-        assert hasattr(stub, 'on_midi_out_event')
+        assert hasattr(stub, "on_midi_in_event")
+        assert hasattr(stub, "on_midi_out_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -521,29 +548,29 @@ class TestEventInterfaceClasses:
     def test_mouse_events_interface(self):
         """Test MouseEvents interface methods."""
         # Test that MouseEvents has required abstract methods
-        assert hasattr(MouseEvents, 'on_mouse_motion_event')
-        assert hasattr(MouseEvents, 'on_mouse_drag_event')
-        assert hasattr(MouseEvents, 'on_mouse_drop_event')
-        assert hasattr(MouseEvents, 'on_left_mouse_drag_event')
-        assert hasattr(MouseEvents, 'on_left_mouse_drop_event')
-        assert hasattr(MouseEvents, 'on_middle_mouse_drag_event')
-        assert hasattr(MouseEvents, 'on_middle_mouse_drop_event')
-        assert hasattr(MouseEvents, 'on_right_mouse_drag_event')
-        assert hasattr(MouseEvents, 'on_right_mouse_drop_event')
-        assert hasattr(MouseEvents, 'on_mouse_button_down_event')
-        assert hasattr(MouseEvents, 'on_mouse_button_up_event')
-        assert hasattr(MouseEvents, 'on_mouse_wheel_event')
+        assert hasattr(MouseEvents, "on_mouse_motion_event")
+        assert hasattr(MouseEvents, "on_mouse_drag_event")
+        assert hasattr(MouseEvents, "on_mouse_drop_event")
+        assert hasattr(MouseEvents, "on_left_mouse_drag_event")
+        assert hasattr(MouseEvents, "on_left_mouse_drop_event")
+        assert hasattr(MouseEvents, "on_middle_mouse_drag_event")
+        assert hasattr(MouseEvents, "on_middle_mouse_drop_event")
+        assert hasattr(MouseEvents, "on_right_mouse_drag_event")
+        assert hasattr(MouseEvents, "on_right_mouse_drop_event")
+        assert hasattr(MouseEvents, "on_mouse_button_down_event")
+        assert hasattr(MouseEvents, "on_mouse_button_up_event")
+        assert hasattr(MouseEvents, "on_mouse_wheel_event")
 
     def test_mouse_event_stubs_implementation(self):
         """Test MouseEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = MouseEventStubs()
-        assert hasattr(stub, 'on_mouse_motion_event')
-        assert hasattr(stub, 'on_mouse_drag_event')
-        assert hasattr(stub, 'on_mouse_drop_event')
-        assert hasattr(stub, 'on_mouse_button_down_event')
-        assert hasattr(stub, 'on_mouse_button_up_event')
-        assert hasattr(stub, 'on_mouse_wheel_event')
+        assert hasattr(stub, "on_mouse_motion_event")
+        assert hasattr(stub, "on_mouse_drag_event")
+        assert hasattr(stub, "on_mouse_drop_event")
+        assert hasattr(stub, "on_mouse_button_down_event")
+        assert hasattr(stub, "on_mouse_button_up_event")
+        assert hasattr(stub, "on_mouse_wheel_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -559,15 +586,15 @@ class TestEventInterfaceClasses:
     def test_text_events_interface(self):
         """Test TextEvents interface methods."""
         # Test that TextEvents has required abstract methods
-        assert hasattr(TextEvents, 'on_text_input_event')
-        assert hasattr(TextEvents, 'on_text_editing_event')
+        assert hasattr(TextEvents, "on_text_input_event")
+        assert hasattr(TextEvents, "on_text_editing_event")
 
     def test_text_event_stubs_implementation(self):
         """Test TextEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = TextEventStubs()
-        assert hasattr(stub, 'on_text_input_event')
-        assert hasattr(stub, 'on_text_editing_event')
+        assert hasattr(stub, "on_text_input_event")
+        assert hasattr(stub, "on_text_editing_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -583,32 +610,32 @@ class TestEventInterfaceClasses:
     def test_window_events_interface(self):
         """Test WindowEvents interface methods."""
         # Test that WindowEvents has required abstract methods
-        assert hasattr(WindowEvents, 'on_window_close_event')
-        assert hasattr(WindowEvents, 'on_window_enter_event')
-        assert hasattr(WindowEvents, 'on_window_exposed_event')
-        assert hasattr(WindowEvents, 'on_window_focus_gained_event')
-        assert hasattr(WindowEvents, 'on_window_focus_lost_event')
-        assert hasattr(WindowEvents, 'on_window_hidden_event')
-        assert hasattr(WindowEvents, 'on_window_hit_test_event')
-        assert hasattr(WindowEvents, 'on_window_leave_event')
-        assert hasattr(WindowEvents, 'on_window_maximized_event')
-        assert hasattr(WindowEvents, 'on_window_minimized_event')
-        assert hasattr(WindowEvents, 'on_window_moved_event')
-        assert hasattr(WindowEvents, 'on_window_resized_event')
-        assert hasattr(WindowEvents, 'on_window_restored_event')
-        assert hasattr(WindowEvents, 'on_window_shown_event')
-        assert hasattr(WindowEvents, 'on_window_size_changed_event')
-        assert hasattr(WindowEvents, 'on_window_take_focus_event')
+        assert hasattr(WindowEvents, "on_window_close_event")
+        assert hasattr(WindowEvents, "on_window_enter_event")
+        assert hasattr(WindowEvents, "on_window_exposed_event")
+        assert hasattr(WindowEvents, "on_window_focus_gained_event")
+        assert hasattr(WindowEvents, "on_window_focus_lost_event")
+        assert hasattr(WindowEvents, "on_window_hidden_event")
+        assert hasattr(WindowEvents, "on_window_hit_test_event")
+        assert hasattr(WindowEvents, "on_window_leave_event")
+        assert hasattr(WindowEvents, "on_window_maximized_event")
+        assert hasattr(WindowEvents, "on_window_minimized_event")
+        assert hasattr(WindowEvents, "on_window_moved_event")
+        assert hasattr(WindowEvents, "on_window_resized_event")
+        assert hasattr(WindowEvents, "on_window_restored_event")
+        assert hasattr(WindowEvents, "on_window_shown_event")
+        assert hasattr(WindowEvents, "on_window_size_changed_event")
+        assert hasattr(WindowEvents, "on_window_take_focus_event")
 
     def test_window_event_stubs_implementation(self):
         """Test WindowEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = WindowEventStubs()
-        assert hasattr(stub, 'on_window_close_event')
-        assert hasattr(stub, 'on_window_enter_event')
-        assert hasattr(stub, 'on_window_exposed_event')
-        assert hasattr(stub, 'on_window_focus_gained_event')
-        assert hasattr(stub, 'on_window_focus_lost_event')
+        assert hasattr(stub, "on_window_close_event")
+        assert hasattr(stub, "on_window_enter_event")
+        assert hasattr(stub, "on_window_exposed_event")
+        assert hasattr(stub, "on_window_focus_gained_event")
+        assert hasattr(stub, "on_window_focus_lost_event")
         
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -664,18 +691,18 @@ class TestCompositeEventClasses:
         stub = AllEventStubs()
         
         # Test that all event methods are available
-        assert hasattr(stub, 'on_audio_device_added_event')
-        assert hasattr(stub, 'on_controller_axis_motion_event')
-        assert hasattr(stub, 'on_drop_begin_event')
-        assert hasattr(stub, 'on_touch_down_event')
-        assert hasattr(stub, 'on_font_changed_event')  # Fixed: was on_fonts_changed_event
-        assert hasattr(stub, 'on_fps_event')
-        assert hasattr(stub, 'on_joy_axis_motion_event')
-        assert hasattr(stub, 'on_key_down_event')
-        assert hasattr(stub, 'on_midi_in_event')  # Now available after implementing MidiEventStubs
-        assert hasattr(stub, 'on_mouse_motion_event')
-        assert hasattr(stub, 'on_text_input_event')
-        assert hasattr(stub, 'on_window_close_event')
+        assert hasattr(stub, "on_audio_device_added_event")
+        assert hasattr(stub, "on_controller_axis_motion_event")
+        assert hasattr(stub, "on_drop_begin_event")
+        assert hasattr(stub, "on_touch_down_event")
+        assert hasattr(stub, "on_font_changed_event")  # Fixed: was on_fonts_changed_event
+        assert hasattr(stub, "on_fps_event")
+        assert hasattr(stub, "on_joy_axis_motion_event")
+        assert hasattr(stub, "on_key_down_event")
+        assert hasattr(stub, "on_midi_in_event")  # Now available after implementing MidiEventStubs
+        assert hasattr(stub, "on_mouse_motion_event")
+        assert hasattr(stub, "on_text_input_event")
+        assert hasattr(stub, "on_window_close_event")
         
         # Test that methods are callable
         assert callable(stub.on_audio_device_added_event)
@@ -700,8 +727,8 @@ class TestEventStubFunctionality:
         # Create a mock game object with proper options
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': False,
-            'no_unhandled_events': False
+            "debug_events": False,
+            "no_unhandled_events": False
         }
         
         stub = AllEventStubs()
@@ -727,8 +754,8 @@ class TestEventStubFunctionality:
         # Create a mock game object with proper options
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': False,
-            'no_unhandled_events': False
+            "debug_events": False,
+            "no_unhandled_events": False
         }
         
         stub = AllEventStubs()
@@ -751,8 +778,8 @@ class TestEventStubFunctionality:
         # Create a mock game object with proper options
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': False,
-            'no_unhandled_events': False
+            "debug_events": False,
+            "no_unhandled_events": False
         }
         
         stub = AllEventStubs()
@@ -796,14 +823,14 @@ class TestEventSystemIntegration:
         # Mock a game object with options
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': True,
-            'no_unhandled_events': False
+            "debug_events": True,
+            "no_unhandled_events": False
         }
         
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         
         # Test with debug_events enabled
-        with patch('glitchygames.events.LOG') as mock_log:
+        with patch("glitchygames.events.LOG") as mock_log:
             try:
                 unhandled_event(mock_game, event)
             except SystemExit:
@@ -817,8 +844,8 @@ class TestEventSystemIntegration:
         # Mock a game object with options
         mock_game = Mock()
         mock_game.options = {
-            'debug_events': False,
-            'no_unhandled_events': True
+            "debug_events": False,
+            "no_unhandled_events": True
         }
         
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
@@ -836,7 +863,7 @@ class TestEventSystemIntegration:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         
         # Test with missing options (should log errors but not necessarily raise SystemExit)
-        with patch('glitchygames.events.LOG') as mock_log:
+        with patch("glitchygames.events.LOG") as mock_log:
             unhandled_event(mock_game, event)
             # Verify that error logging was called
             mock_log.error.assert_called()

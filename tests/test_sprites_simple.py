@@ -12,8 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.sprites import Sprite, SpriteFactory
 
-
-
 # Constants for test values
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600

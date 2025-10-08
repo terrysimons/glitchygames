@@ -2310,8 +2310,9 @@ class TestEventsTopOffCoverage:
 
     def test_dump_cache_info_function(self):
         """Test dump_cache_info function."""
-        from glitchygames.events import dump_cache_info
         from unittest.mock import Mock
+
+        from glitchygames.events import dump_cache_info
         
         # Create a mock function with cache_info that accepts arguments
         def mock_func(game, *args, **kwargs):
@@ -2377,8 +2378,9 @@ class TestEventsTopOffCoverage:
 
     def test_unhandled_event_function(self):
         """Test unhandled_event function."""
-        from glitchygames.events import unhandled_event, HashableEvent
         from unittest.mock import Mock
+
+        from glitchygames.events import HashableEvent, unhandled_event
         
         # Create a mock scene
         mock_scene = Mock()

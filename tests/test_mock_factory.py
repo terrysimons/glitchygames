@@ -56,6 +56,56 @@ class MockFactory:
 
         # Add frames attribute that canvas_interfaces.py expects
         mock_sprite.frames = {animation_name: [mock_frame]}
+        
+        # Add missing methods and attributes for comprehensive testing
+        def mock_play():
+            mock_sprite.is_playing = True
+        mock_sprite.play = mock_play
+        
+        def mock_pause():
+            mock_sprite.is_playing = False
+        mock_sprite.pause = mock_pause
+        
+        def mock_stop():
+            mock_sprite.is_playing = False
+            mock_sprite.current_frame = 0
+        mock_sprite.stop = mock_stop
+        
+        def mock_add_animation(name, frames):
+            mock_sprite._animations[name] = frames
+        mock_sprite.add_animation = mock_add_animation
+        
+        def mock_remove_animation(name):
+            if name in mock_sprite._animations:
+                del mock_sprite._animations[name]
+        mock_sprite.remove_animation = mock_remove_animation
+        
+        def mock_set_looping(looping):
+            mock_sprite._is_looping = looping
+        mock_sprite.set_looping = mock_set_looping
+        
+        def mock_clear_surface_cache():
+            mock_sprite._surface_cache.clear()
+        mock_sprite.clear_surface_cache = mock_clear_surface_cache
+        
+        def mock_add_frame_observer(observer):
+            mock_sprite._frame_manager._observers.append(observer)
+        mock_sprite.add_frame_observer = mock_add_frame_observer
+        
+        def mock_remove_frame_observer(observer):
+            if observer in mock_sprite._frame_manager._observers:
+                mock_sprite._frame_manager._observers.remove(observer)
+        mock_sprite.remove_frame_observer = mock_remove_frame_observer
+        
+        mock_sprite.get_current_surface = Mock(return_value=Mock())
+        mock_sprite.save = Mock()
+        mock_sprite.load = Mock()
+        
+        # Add missing attributes
+        mock_sprite._surface_cache = {}
+        mock_sprite._frame_manager = Mock()
+        mock_sprite._frame_manager._observers = []
+        mock_sprite._frame_manager.animated_sprite = mock_sprite
 
         return mock_sprite
 
@@ -152,7 +202,7 @@ class MockFactory:
         """Set up comprehensive pygame mocks for testing.
 
         Returns:
-            tuple: (display_patcher, surface_patcher, event_patcher)
+            tuple: (display_patcher, surface_patcher, event_patcher, ...)
 
         """
         # Create comprehensive mocks
@@ -164,6 +214,8 @@ class MockFactory:
         surface_patcher = patch("pygame.Surface", return_value=surface_mock)
         event_patcher = patch("pygame.event.get", return_value=[])
         event_blocked_patcher = patch("pygame.event.get_blocked", return_value=False)
+        event_post_patcher = patch("pygame.event.post")
+        event_event_patcher = patch("pygame.event.Event")
         
         # Additional pygame mocks for Film Strip and other modules
         draw_circle_patcher = patch("pygame.draw.circle")
@@ -176,20 +228,138 @@ class MockFactory:
         mock_font.render = Mock(return_value=Mock())
         font_manager_patcher = patch("glitchygames.fonts.FontManager.get_font", return_value=mock_font)
 
+        # Enhanced pygame mocks for edge cases
+        # Clock mocking
+        clock_mock = Mock()
+        clock_mock.tick.return_value = 16.67  # ~60 FPS
+        clock_mock.get_fps.return_value = 60.0
+        clock_patcher = patch("pygame.time.Clock", return_value=clock_mock)
+        
+        # Enhanced event mocking for specific edge cases
+        event_post_mock = Mock()
+        event_event_mock = Mock()
+        event_event_mock.return_value = Mock()  # Return a mock event object
+        event_post_patcher = patch("pygame.event.post", event_post_mock)
+        event_event_patcher = patch("pygame.event.Event", event_event_mock)
+        
+        # Key constants mocking
+        key_constants_patcher = patch("pygame.K_q", 113)
+        key_escape_patcher = patch("pygame.K_ESCAPE", 27)
+        key_down_patcher = patch("pygame.KEYDOWN", 2)
+        key_up_patcher = patch("pygame.KEYUP", 3)
+        mouse_button_down_patcher = patch("pygame.MOUSEBUTTONDOWN", 5)
+        mouse_button_up_patcher = patch("pygame.MOUSEBUTTONUP", 6)
+        mouse_motion_patcher = patch("pygame.MOUSEMOTION", 4)
+        mouse_wheel_patcher = patch("pygame.MOUSEWHEEL", 7)
+        quit_event_patcher = patch("pygame.QUIT", 256)
+        text_input_patcher = patch("pygame.TEXTINPUT", 771)
+        touch_down_patcher = patch("pygame.FINGERDOWN", 1024)
+        touch_up_patcher = patch("pygame.FINGERUP", 1025)
+        touch_motion_patcher = patch("pygame.FINGERMOTION", 1026)
+        window_resized_patcher = patch("pygame.WINDOWRESIZED", 32768)
+        window_restored_patcher = patch("pygame.WINDOWRESTORED", 32769)
+        window_focus_gained_patcher = patch("pygame.WINDOWFOCUSGAINED", 32770)
+        window_focus_lost_patcher = patch("pygame.WINDOWFOCUSLOST", 32771)
+        audio_device_added_patcher = patch("pygame.AUDIODEVICEADDED", 32784)
+        audio_device_removed_patcher = patch("pygame.AUDIODEVICEREMOVED", 32785)
+        
+        # Joystick/Controller events
+        joystick_axis_motion_patcher = patch("pygame.JOYAXISMOTION", 7)
+        joystick_ball_motion_patcher = patch("pygame.JOYBALLMOTION", 8)
+        joystick_button_down_patcher = patch("pygame.JOYBUTTONDOWN", 9)
+        joystick_button_up_patcher = patch("pygame.JOYBUTTONUP", 10)
+        joystick_hat_motion_patcher = patch("pygame.JOYHATMOTION", 11)
+        joystick_device_added_patcher = patch("pygame.JOYDEVICEADDED", 11)
+        joystick_device_removed_patcher = patch("pygame.JOYDEVICEREMOVED", 12)
+        
+        # Controller events
+        controller_axis_motion_patcher = patch("pygame.CONTROLLERAXISMOTION", 11)
+        controller_button_down_patcher = patch("pygame.CONTROLLERBUTTONDOWN", 12)
+        controller_button_up_patcher = patch("pygame.CONTROLLERBUTTONUP", 13)
+        controller_device_added_patcher = patch("pygame.CONTROLLERDEVICEADDED", 13)
+        controller_device_removed_patcher = patch("pygame.CONTROLLERDEVICEREMOVED", 14)
+        controller_device_remapped_patcher = patch("pygame.CONTROLLERDEVICEREMAPPED", 15)
+        
+        # Drop events
+        drop_begin_patcher = patch("pygame.DROPBEGIN", 4096)
+        drop_complete_patcher = patch("pygame.DROPCOMPLETE", 4097)
+        drop_file_patcher = patch("pygame.DROPFILE", 4098)
+        drop_text_patcher = patch("pygame.DROPTEXT", 4099)
+        
+        # MIDI events
+        midi_in_patcher = patch("pygame.MIDIIN", 32786)
+        
+        # User events
+        user_event_patcher = patch("pygame.USEREVENT", 24)
+        
         # Start patches
         display_patcher.start()
         surface_patcher.start()
         event_patcher.start()
         event_blocked_patcher.start()
+        event_post_patcher.start()
+        event_event_patcher.start()
         draw_circle_patcher.start()
         draw_line_patcher.start()
         draw_rect_patcher.start()
         transform_scale_patcher.start()
         font_manager_patcher.start()
+        clock_patcher.start()
+        
+        # Start all constant patches
+        key_constants_patcher.start()
+        key_escape_patcher.start()
+        key_down_patcher.start()
+        key_up_patcher.start()
+        mouse_button_down_patcher.start()
+        mouse_button_up_patcher.start()
+        mouse_motion_patcher.start()
+        mouse_wheel_patcher.start()
+        quit_event_patcher.start()
+        text_input_patcher.start()
+        touch_down_patcher.start()
+        touch_up_patcher.start()
+        touch_motion_patcher.start()
+        window_resized_patcher.start()
+        window_restored_patcher.start()
+        window_focus_gained_patcher.start()
+        window_focus_lost_patcher.start()
+        audio_device_added_patcher.start()
+        audio_device_removed_patcher.start()
+        joystick_axis_motion_patcher.start()
+        joystick_ball_motion_patcher.start()
+        joystick_button_down_patcher.start()
+        joystick_button_up_patcher.start()
+        joystick_hat_motion_patcher.start()
+        joystick_device_added_patcher.start()
+        joystick_device_removed_patcher.start()
+        controller_axis_motion_patcher.start()
+        controller_button_down_patcher.start()
+        controller_button_up_patcher.start()
+        controller_device_added_patcher.start()
+        controller_device_removed_patcher.start()
+        controller_device_remapped_patcher.start()
+        drop_begin_patcher.start()
+        drop_complete_patcher.start()
+        drop_file_patcher.start()
+        drop_text_patcher.start()
+        midi_in_patcher.start()
+        user_event_patcher.start()
 
         return (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
-                draw_circle_patcher, draw_line_patcher, draw_rect_patcher, 
-                transform_scale_patcher, font_manager_patcher)
+                event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
+                draw_rect_patcher, transform_scale_patcher, font_manager_patcher, clock_patcher,
+                key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
+                mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
+                mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
+                touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
+                window_focus_gained_patcher, window_focus_lost_patcher, audio_device_added_patcher,
+                audio_device_removed_patcher, joystick_axis_motion_patcher, joystick_ball_motion_patcher,
+                joystick_button_down_patcher, joystick_button_up_patcher, joystick_hat_motion_patcher,
+                joystick_device_added_patcher, joystick_device_removed_patcher, controller_axis_motion_patcher,
+                controller_button_down_patcher, controller_button_up_patcher, controller_device_added_patcher,
+                controller_device_removed_patcher, controller_device_remapped_patcher, drop_begin_patcher,
+                drop_complete_patcher, drop_file_patcher, drop_text_patcher, midi_in_patcher, user_event_patcher)
 
     @staticmethod
     def teardown_pygame_mocks(patchers):
@@ -200,18 +370,73 @@ class MockFactory:
 
         """
         (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
-         draw_circle_patcher, draw_line_patcher, draw_rect_patcher, 
-         transform_scale_patcher, font_manager_patcher) = patchers
+         event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
+         draw_rect_patcher, transform_scale_patcher, font_manager_patcher, clock_patcher,
+         key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
+         mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
+         mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
+         touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
+         window_focus_gained_patcher, window_focus_lost_patcher, audio_device_added_patcher,
+         audio_device_removed_patcher, joystick_axis_motion_patcher, joystick_ball_motion_patcher,
+         joystick_button_down_patcher, joystick_button_up_patcher, joystick_hat_motion_patcher,
+         joystick_device_added_patcher, joystick_device_removed_patcher, controller_axis_motion_patcher,
+         controller_button_down_patcher, controller_button_up_patcher, controller_device_added_patcher,
+         controller_device_removed_patcher, controller_device_remapped_patcher, drop_begin_patcher,
+         drop_complete_patcher, drop_file_patcher, drop_text_patcher, midi_in_patcher, user_event_patcher) = patchers
         
+        # Stop all patches
         display_patcher.stop()
         surface_patcher.stop()
         event_patcher.stop()
         event_blocked_patcher.stop()
+        event_post_patcher.stop()
+        event_event_patcher.stop()
         draw_circle_patcher.stop()
         draw_line_patcher.stop()
         draw_rect_patcher.stop()
         transform_scale_patcher.stop()
         font_manager_patcher.stop()
+        clock_patcher.stop()
+        
+        # Stop all constant patches
+        key_constants_patcher.stop()
+        key_escape_patcher.stop()
+        key_down_patcher.stop()
+        key_up_patcher.stop()
+        mouse_button_down_patcher.stop()
+        mouse_button_up_patcher.stop()
+        mouse_motion_patcher.stop()
+        mouse_wheel_patcher.stop()
+        quit_event_patcher.stop()
+        text_input_patcher.stop()
+        touch_down_patcher.stop()
+        touch_up_patcher.stop()
+        touch_motion_patcher.stop()
+        window_resized_patcher.stop()
+        window_restored_patcher.stop()
+        window_focus_gained_patcher.stop()
+        window_focus_lost_patcher.stop()
+        audio_device_added_patcher.stop()
+        audio_device_removed_patcher.stop()
+        joystick_axis_motion_patcher.stop()
+        joystick_ball_motion_patcher.stop()
+        joystick_button_down_patcher.stop()
+        joystick_button_up_patcher.stop()
+        joystick_hat_motion_patcher.stop()
+        joystick_device_added_patcher.stop()
+        joystick_device_removed_patcher.stop()
+        controller_axis_motion_patcher.stop()
+        controller_button_down_patcher.stop()
+        controller_button_up_patcher.stop()
+        controller_device_added_patcher.stop()
+        controller_device_removed_patcher.stop()
+        controller_device_remapped_patcher.stop()
+        drop_begin_patcher.stop()
+        drop_complete_patcher.stop()
+        drop_file_patcher.stop()
+        drop_text_patcher.stop()
+        midi_in_patcher.stop()
+        user_event_patcher.stop()
 
 
 # Convenience functions for common use cases

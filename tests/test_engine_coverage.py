@@ -1,10 +1,10 @@
 """Comprehensive test coverage for engine module to reach 80%+ coverage."""
 
+import argparse
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import argparse
+from unittest.mock import MagicMock, Mock, patch
 
 import pygame
 import pytest
@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.engine import GameEngine, GameManager
 from glitchygames.scenes import Scene
+
 from test_mock_factory import MockFactory
 
 
@@ -148,7 +149,7 @@ class TestGameEngineTopOffCoverage:
         
         # Test that we can parse the arguments without --version (which doesn't exist)
         args = parser.parse_args([])
-        assert hasattr(args, 'profile')  # Should have profile option
+        assert hasattr(args, "profile")  # Should have profile option
 
     def test_quit_game_class_method(self):
         """Test GameEngine.quit_game class method."""
@@ -161,7 +162,7 @@ class TestGameEngineTopOffCoverage:
                 mock_post.assert_called_once()
                 # Verify the event posted is a HashableEvent with pygame.QUIT
                 call_args = mock_post.call_args[0][0]
-                assert hasattr(call_args, 'type')
+                assert hasattr(call_args, "type")
                 assert call_args.type == pygame.QUIT
         finally:
             MockFactory.teardown_pygame_mocks(patchers)
@@ -173,7 +174,7 @@ class TestGameEngineTopOffCoverage:
         
         try:
             # Mock argparse to avoid SystemExit
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 # Create GameEngine with mock game
                 engine = GameEngine(game=MockGame)
                 
@@ -181,7 +182,7 @@ class TestGameEngineTopOffCoverage:
                 assert engine.game == MockGame
                 
                 # Verify scene_manager is created
-                assert hasattr(engine, 'scene_manager')
+                assert hasattr(engine, "scene_manager")
                 
         finally:
             MockFactory.teardown_pygame_mocks(patchers)
@@ -193,13 +194,13 @@ class TestGameEngineTopOffCoverage:
         
         try:
             # Mock argparse to avoid SystemExit
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 # Create engine with mock game
                 engine = GameEngine(game=MockGame)
                 
                 # Mock all the manager classes
                 with patch.multiple(
-                    'glitchygames.engine',
+                    "glitchygames.engine",
                     AudioManager=Mock,
                     DropManager=Mock,
                     ControllerManager=Mock,
@@ -213,7 +214,7 @@ class TestGameEngineTopOffCoverage:
                     WindowManager=Mock
                 ):
                     # Mock the game initialization
-                    with patch.object(engine, 'game') as mock_game_class:
+                    with patch.object(engine, "game") as mock_game_class:
                         mock_game_instance = Mock()
                         mock_game_class.return_value = mock_game_instance
                         
@@ -251,9 +252,9 @@ class TestGameEngineTopOffCoverage:
         
         try:
             # Mock argparse to avoid SystemExit and provide --profile argument
-            with patch('sys.argv', ['test', '--profile']):
+            with patch("sys.argv", ["test", "--profile"]):
                 # Mock profiler before creating engine
-                with patch('cProfile.Profile') as mock_profiler_class:
+                with patch("cProfile.Profile") as mock_profiler_class:
                     mock_profiler = Mock()
                     mock_profiler_class.return_value = mock_profiler
                     
@@ -262,7 +263,7 @@ class TestGameEngineTopOffCoverage:
                 
                     # Mock all the manager classes
                     with patch.multiple(
-                        'glitchygames.engine',
+                        "glitchygames.engine",
                         AudioManager=Mock,
                         DropManager=Mock,
                         ControllerManager=Mock,
@@ -276,7 +277,7 @@ class TestGameEngineTopOffCoverage:
                         WindowManager=Mock
                     ):
                         # Mock the game initialization
-                        with patch.object(engine, 'game') as mock_game_class:
+                        with patch.object(engine, "game") as mock_game_class:
                             mock_game_instance = Mock()
                             mock_game_class.return_value = mock_game_instance
 
@@ -316,12 +317,12 @@ class TestGameEngineTopOffCoverage:
         
         try:
             # Mock argparse to avoid SystemExit
-            with patch('sys.argv', ['test']):
+            with patch("sys.argv", ["test"]):
                 # Create engine with mock game
                 engine = GameEngine(game=MockGame)
                 
                 # Mock the game initialization to raise an exception
-                with patch.object(engine, 'game') as mock_game_class:
+                with patch.object(engine, "game") as mock_game_class:
                     mock_game_class.side_effect = Exception("Test exception")
                     
                     # Mock scene manager
@@ -365,37 +366,37 @@ class TestGameEngineTopOffCoverage:
 
         # Test that we can parse the arguments
         args = parser.parse_args([])
-        assert hasattr(args, 'profile')  # Should have profile option
+        assert hasattr(args, "profile")  # Should have profile option
 
     def test_engine_options_initialization(self):
         """Test that engine options are properly initialized."""
         # Test that OPTIONS dict exists and has expected keys
-        assert hasattr(GameEngine, 'OPTIONS')
+        assert hasattr(GameEngine, "OPTIONS")
         assert isinstance(GameEngine.OPTIONS, dict)
         
         # Test that profile option exists
-        assert 'profile' in GameEngine.OPTIONS
+        assert "profile" in GameEngine.OPTIONS
 
     def test_engine_constants(self):
         """Test that engine constants are properly set."""
         # Test class constants
         assert GameEngine.NAME == "Boilerplate Adventures"
         assert GameEngine.VERSION == "1.0"
-        assert hasattr(GameEngine, 'icon')
-        assert hasattr(GameEngine, 'log')
+        assert hasattr(GameEngine, "icon")
+        assert hasattr(GameEngine, "log")
 
     def test_engine_event_handlers(self):
         """Test that event handlers are properly defined."""
         # Test that EVENT_HANDLERS exists
-        assert hasattr(GameEngine, 'EVENT_HANDLERS')
+        assert hasattr(GameEngine, "EVENT_HANDLERS")
         assert isinstance(GameEngine.EVENT_HANDLERS, dict)
 
     def test_engine_missing_events_tracking(self):
         """Test missing events tracking."""
         # Test that missing events tracking exists
-        assert hasattr(GameEngine, 'LAST_EVENT_MISS')
-        assert hasattr(GameEngine, 'MISSING_EVENTS')
-        assert hasattr(GameEngine, 'UNIMPLEMENTED_EVENTS')
+        assert hasattr(GameEngine, "LAST_EVENT_MISS")
+        assert hasattr(GameEngine, "MISSING_EVENTS")
+        assert hasattr(GameEngine, "UNIMPLEMENTED_EVENTS")
         
         # Test that they are properly initialized
         assert isinstance(GameEngine.MISSING_EVENTS, list)

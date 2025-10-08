@@ -102,74 +102,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         if next_scene != self.active_scene:
-            self.dt = 0
-            self.timer = 0
-            self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
-
-            if self.active_scene:
-                self.active_scene._screenshot = self.active_scene.screenshot
-                self.log.info(f"Cleaning up active scene {self.active_scene}.")
-                self.active_scene.cleanup()
-
-            if next_scene:
-                self.log.info(f"Setting up new scene {next_scene}.")
-                next_scene.setup()
-
-                self.log.info(f"Scene {next_scene.name} event block list: ")
-
-                blocked_events = []
-
-                [
-                    blocked_events.append(event) if pygame.event.get_blocked(event) else None
-                    for event in events.ALL_EVENTS
-                ]
-
-                if not blocked_events:
-                    self.log.info("None")
-
-                for event in blocked_events:
-                    self.log.info(f"{pygame.event.event_name(event)}: Blocked")
-
+            self._reset_scene_timers()
+            self._log_scene_switch(next_scene)
+            self._cleanup_current_scene()
+            self._setup_new_scene(next_scene)
+            self._log_blocked_events(next_scene)
             self.active_scene = next_scene
-
-            if self.active_scene:
-                self.active_scene.dt = self.dt
-                self.active_scene.timer = self.timer
-                self.active_scene.setup()
-
-                caption = ""
-
-                if self.active_scene.NAME:
-                    caption = f"{self.active_scene.NAME}"
-
-                if self.active_scene.VERSION:
-                    caption += f" v{self.active_scene.VERSION}"
-
-                pygame.display.set_caption(caption, caption)
-
-                self.active_scene.load_resources()
-
-                # Infinite refresh is the default; override it if FPS was configured
-                # on the command line, unless the active scene has specific FPS requirements
-                if self.target_fps > 0 and self.active_scene.target_fps == 0:
-                    self.active_scene.target_fps = self.target_fps
-
-                self.log.info(
-                    f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-                    f" at {self.active_scene.target_fps} FPS"
-                )
-
-                # This controls how events are marshalled
-                self.proxies = [self, self.active_scene]
-
-                # Force a scene redraw
-                self.active_scene.dirty = 1
-
-                # Redraw the new scene's background to clear out any artifacts
-                self.screen.blit(self.active_scene.background, (0, 0))
-
-                # Per-scene FPS configurability
-                self.target_fps = self.active_scene.target_fps
+            self._configure_active_scene()
 
     def play(self: Self) -> None:
         """Play the game."""
@@ -187,45 +126,40 @@ class SceneManager(SceneInterface, events.EventManager):
         current_time: float = previous_time
 
         while self.active_scene is not None and self.quit_requested is False:
-            self.clock.tick(self.target_fps)
-
+            self._tick_clock()
+            
             now: float = time.perf_counter()
             self.dt: float = now - previous_time
             previous_time = current_time
 
-            self.active_scene.dt_tick(self.dt)
-
-            self.game_engine.process_events()
-
-            self.active_scene.update()
-
-            self.active_scene.render(self.screen)
-
-            if self.update_type == "update":
-                # If no dirty rects, update the entire screen to show background
-                if not self.active_scene.rects:
-                    pygame.display.update()
-                else:
-                    pygame.display.update(self.active_scene.rects)
-            elif self.update_type == "flip":
-                pygame.display.flip()
-
-            if (current_time - previous_fps_time) * 1000 >= self.OPTIONS["fps_refresh_rate"]:
-                pygame.event.post(
-                    pygame.event.Event(events.FPSEVENT, {"fps": self.clock.get_fps()})
-                )
-
+            self._update_scene()
+            self._process_events()
+            self._render_scene()
+            self._update_display()
+            
+            if self._should_post_fps_event(current_time, previous_fps_time):
+                self._post_fps_event()
                 previous_fps_time = current_time
 
             self.switch_to_scene(self.active_scene.next_scene)
-
             current_time = time.perf_counter()
 
-        self.log.info(
-            f"Game Quitting: Active Scene: {self.active_scene}, "
-            f"Quit Requested: {self.quit_requested}"
-        )
+        self._log_quit_info()
         return self.terminate()
+
+    def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
+        """Update timing variables for the game loop.
+        
+        Args:
+            previous_time: Previous frame time
+            current_time: Current frame time
+            
+        Returns:
+            Tuple of (updated_previous_time, updated_current_time)
+        """
+        now: float = time.perf_counter()
+        self.dt: float = now - previous_time
+        return current_time, now
 
     def stop(self: Self) -> None:
         """Stop the game."""
@@ -380,6 +314,163 @@ class SceneManager(SceneInterface, events.EventManager):
         elif self.active_scene:
             # Pass to active scene if we have one
             self.active_scene.handle_event(event)
+
+    def _should_post_fps_event(self, current_time: float, previous_fps_time: float) -> bool:
+        """Check if FPS event should be posted.
+        
+        Args:
+            current_time: Current time in seconds
+            previous_fps_time: Previous FPS time in seconds
+            
+        Returns:
+            True if FPS event should be posted
+
+        """
+        return (current_time - previous_fps_time) * 1000 >= self.OPTIONS["fps_refresh_rate"]
+    
+    def _post_fps_event(self) -> None:
+        """Post FPS event."""
+        pygame.event.post(
+            pygame.event.Event(events.FPSEVENT, {"fps": self.clock.get_fps()})
+        )
+
+    def _tick_clock(self) -> None:
+        """Tick the clock for FPS control."""
+        self.clock.tick(self.target_fps)
+
+    def _update_scene(self) -> None:
+        """Update the active scene."""
+        self.active_scene.dt_tick(self.dt)
+
+    def _process_events(self) -> None:
+        """Process game engine events."""
+        self.game_engine.process_events()
+
+    def _render_scene(self) -> None:
+        """Render the active scene."""
+        self.active_scene.update()
+        self.active_scene.render(self.screen)
+
+    def _update_display(self) -> None:
+        """Update the display based on update type."""
+        if self.update_type == "update":
+            # If no dirty rects, update the entire screen to show background
+            if not self.active_scene.rects:
+                pygame.display.update()
+            else:
+                pygame.display.update(self.active_scene.rects)
+        elif self.update_type == "flip":
+            pygame.display.flip()
+
+    def _log_quit_info(self) -> None:
+        """Log quit information."""
+        self.log.info(
+            f"Game Quitting: Active Scene: {self.active_scene}, "
+            f"Quit Requested: {self.quit_requested}"
+        )
+
+    def _reset_scene_timers(self) -> None:
+        """Reset scene timers."""
+        self.dt = 0
+        self.timer = 0
+
+    def _log_scene_switch(self, next_scene: Scene) -> None:
+        """Log scene switch information."""
+        self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
+
+    def _cleanup_current_scene(self) -> None:
+        """Cleanup the current active scene."""
+        if self.active_scene:
+            self.active_scene._screenshot = self.active_scene.screenshot
+            self.log.info(f"Cleaning up active scene {self.active_scene}.")
+            self.active_scene.cleanup()
+
+    def _setup_new_scene(self, next_scene: Scene) -> None:
+        """Setup the new scene."""
+        if next_scene:
+            self.log.info(f"Setting up new scene {next_scene}.")
+            next_scene.setup()
+
+    def _log_blocked_events(self, next_scene: Scene) -> None:
+        """Log blocked events for the scene."""
+        if next_scene:
+            self.log.info(f"Scene {next_scene.name} event block list: ")
+
+            blocked_events = []
+
+            [
+                blocked_events.append(event) if pygame.event.get_blocked(event) else None
+                for event in events.ALL_EVENTS
+            ]
+
+            if not blocked_events:
+                self.log.info("None")
+
+            for event in blocked_events:
+                self.log.info(f"{pygame.event.event_name(event)}: Blocked")
+
+    def _configure_active_scene(self) -> None:
+        """Configure the active scene after switching."""
+        if self.active_scene:
+            self.active_scene.dt = self.dt
+            self.active_scene.timer = self.timer
+            self.active_scene.setup()
+
+            self._set_display_caption()
+            self.active_scene.load_resources()
+            self._configure_scene_fps()
+            self._log_scene_rendering_info()
+            self._setup_event_proxies()
+            self._force_scene_redraw()
+            self._redraw_scene_background()
+            self._apply_scene_fps()
+
+    def _set_display_caption(self) -> None:
+        """Set the display caption for the active scene."""
+        caption = ""
+
+        if self.active_scene.NAME:
+            caption = f"{self.active_scene.NAME}"
+
+        if self.active_scene.VERSION:
+            caption += f" v{self.active_scene.VERSION}"
+
+        pygame.display.set_caption(caption, caption)
+
+    def _configure_scene_fps(self) -> None:
+        """Configure FPS for the scene."""
+        # Infinite refresh is the default; override it if FPS was configured
+        # on the command line, unless the active scene has specific FPS requirements
+        if self.target_fps > 0 and self.active_scene.target_fps == 0:
+            self.active_scene.target_fps = self.target_fps
+
+    def _log_scene_rendering_info(self) -> None:
+        """Log scene rendering information."""
+        self.log.info(
+            f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
+            f" at {self.active_scene.target_fps} FPS"
+        )
+
+    def _setup_event_proxies(self) -> None:
+        """Setup event proxies for the scene."""
+        # This controls how events are marshalled
+        self.proxies = [self, self.active_scene]
+
+    def _force_scene_redraw(self) -> None:
+        """Force a scene redraw."""
+        self.active_scene.dirty = 1
+
+    def _redraw_scene_background(self) -> None:
+        """Redraw the scene background."""
+        # Redraw the new scene's background to clear out any artifacts
+        self.screen.blit(self.active_scene.background, (0, 0))
+
+    def _apply_scene_fps(self) -> None:
+        """Apply scene-specific FPS configuration."""
+        # Per-scene FPS configurability
+        self.target_fps = self.active_scene.target_fps
+
+
 
 
 class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
@@ -573,6 +664,83 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         mouse = MousePointer(pos=pos)
 
         return pygame.sprite.spritecollide(sprite=mouse, group=self.all_sprites, dokill=False)
+
+    def _get_collided_sprites(self, position: tuple[int, int]) -> list:
+        """Get sprites at the given position.
+        
+        Args:
+            position: The position to check for sprites
+            
+        Returns:
+            List of sprites at the position
+        """
+        return self.sprites_at_position(pos=position)
+
+    def _get_focusable_sprites(self, collided_sprites: list) -> list:
+        """Get focusable sprites from the collided sprites.
+        
+        Args:
+            collided_sprites: List of sprites that were collided with
+            
+        Returns:
+            List of focusable sprites
+        """
+        return [s for s in collided_sprites if hasattr(s, "focusable") and s.focusable]
+
+    def _get_focused_sprites(self) -> list:
+        """Get currently focused sprites.
+        
+        Returns:
+            List of currently focused sprites
+        """
+        return [
+            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
+        ]
+
+    def _has_focusable_sprites(self, collided_sprites: list) -> bool:
+        """Check if any of the collided sprites are focusable.
+        
+        Args:
+            collided_sprites: List of sprites that were collided with
+            
+        Returns:
+            True if any sprite is focusable, False otherwise
+        """
+        return any(
+            hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites
+        )
+
+    def _unfocus_sprites(self, focused_sprites: list) -> None:
+        """Unfocus the given sprites.
+        
+        Args:
+            focused_sprites: List of sprites to unfocus
+        """
+        for sprite in focused_sprites:
+            if hasattr(sprite, "active"):
+                self.log.debug(f"Unfocusing {type(sprite).__name__}")
+                sprite.active = False
+                if hasattr(sprite, "on_focus_lost"):
+                    sprite.on_focus_lost()
+
+    def _handle_focus_management(self, collided_sprites: list) -> None:
+        """Handle focus management for mouse clicks.
+        
+        Args:
+            collided_sprites: List of sprites that were collided with
+        """
+        focused_sprites = self._get_focused_sprites()
+        
+        # If we clicked outside all sprites that can be focused, unfocus them
+        if not self._has_focusable_sprites(collided_sprites):
+            self.log.debug("Click outside focusable sprites - unfocusing")
+            self._unfocus_sprites(focused_sprites)
+
+    def _handle_quit_key_press(self) -> None:
+        """Handle quit key press when no sprites are focused."""
+        self.log.info("Quit requested")
+        # Post a QUIT event to ensure proper cleanup
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
 
     # def on_active_event(self: Self, event: events.HashableEvent) -> None:
     #     """Handle active events.
@@ -896,15 +1064,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"{type(self)}: On Key Up Event {event}")
 
         # Check for focused sprites first
-        focused_sprites = [
-            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
-        ]
+        focused_sprites = self._get_focused_sprites()
 
         # Only process quit keys if no sprites are focused
         if not focused_sprites and event.key in {pygame.K_q, pygame.K_ESCAPE}:
-            self.log.info("Quit requested")
-            # Post a QUIT event to ensure proper cleanup
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
+            self._handle_quit_key_press()
 
     # def on_key_chord_down_event(self: Self, event: events.HashableEvent, keys_down: list) -> None:
     #     """Handle key chord down events.
@@ -957,29 +1121,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"Click position: {event.pos}")
 
         # Get sprites at click position
-        collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self._get_collided_sprites(event.pos)
         self.log.debug(f"Collided sprites: {[type(s).__name__ for s in collided_sprites]}")
-        focusable_sprites = [s for s in collided_sprites if hasattr(s, "focusable") and s.focusable]
+        focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
         # Find currently focused sprites
-        focused_sprites = [
-            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
-        ]
+        focused_sprites = self._get_focused_sprites()
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
 
-        # If we clicked outside all sprites that can be focused, unfocus them
-        has_focusable = any(
-            hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites
-        )
-        if not has_focusable:
-            self.log.debug("Click outside focusable sprites - unfocusing")
-            for sprite in focused_sprites:
-                if hasattr(sprite, "active"):
-                    self.log.debug(f"Unfocusing {type(sprite).__name__}")
-                    sprite.active = False
-                    if hasattr(sprite, "on_focus_lost"):
-                        sprite.on_focus_lost()
+        # Handle focus management
+        self._handle_focus_management(collided_sprites)
 
         # Process the click for collided sprites
         for sprite in collided_sprites:
@@ -1217,29 +1369,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug(f"Click position: {event.pos}")
 
         # Get sprites at click position
-        collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self._get_collided_sprites(event.pos)
         self.log.debug(f"Collided sprites: {[type(s).__name__ for s in collided_sprites]}")
-        focusable_sprites = [s for s in collided_sprites if hasattr(s, "focusable") and s.focusable]
+        focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
         # Find currently focused sprites
-        focused_sprites = [
-            sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
-        ]
+        focused_sprites = self._get_focused_sprites()
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
 
-        # If we clicked outside all sprites that can be focused, unfocus them
-        has_focusable = any(
-            hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites
-        )
-        if not has_focusable:
-            self.log.debug("Click outside focusable sprites - unfocusing")
-            for sprite in focused_sprites:
-                if hasattr(sprite, "active"):
-                    self.log.debug(f"Unfocusing {type(sprite).__name__}")
-                    sprite.active = False
-                    if hasattr(sprite, "on_focus_lost"):
-                        sprite.on_focus_lost()
+        # Handle focus management
+        self._handle_focus_management(collided_sprites)
 
         # Process the click for collided sprites
         for sprite in collided_sprites:
@@ -1277,7 +1417,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # MOUSEBUTTONDOWN  pos, button
         self.log.info(f"{type(self)}: Right Mouse Button Down Event: {event}")
 
-        collided_sprites = self.sprites_at_position(pos=event.pos)
+        collided_sprites = self._get_collided_sprites(event.pos)
 
         for sprite in collided_sprites:
             sprite.on_right_mouse_button_down_event(event)
@@ -1737,6 +1877,23 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """Handle key down events."""
         self.log.debug(f"{type(self)}: On Key Down Event {event}")
 
+        # Check if focused sprites handle the event
+        if self._handle_focused_sprite_events(event):
+            return
+
+        # Only process scene-level key events if no focused sprite handled it
+        self._handle_scene_key_events(event)
+
+    def _handle_focused_sprite_events(self, event: events.HashableEvent) -> bool:
+        """Handle events for focused sprites.
+        
+        Args:
+            event: The event to handle
+            
+        Returns:
+            True if a focused sprite handled the event, False otherwise
+
+        """
         # Find the currently focused sprite
         focused_sprites = [
             sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
@@ -1747,9 +1904,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             for sprite in focused_sprites:
                 if hasattr(sprite, "on_key_down_event"):
                     sprite.on_key_down_event(event)
-                    return  # Stop event propagation after handling
+                    return True  # Stop event propagation after handling
+        
+        return False
 
-        # Only process scene-level key events if no focused sprite handled it
+    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
+        """Handle scene-level key events.
+        
+        Args:
+            event: The event to handle
+
+        """
         if event.key == pygame.K_q:
             self.log.info("Quit requested")
             self.quit_requested = True

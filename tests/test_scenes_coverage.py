@@ -11,6 +11,7 @@ import pygame
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
+
 from test_mock_factory import MockFactory
 
 
@@ -962,7 +963,7 @@ class TestSceneLifecycleCoverage:
             scene.cleanup()
             
             # Verify cleanup was called (method exists and is callable)
-            assert hasattr(scene, 'cleanup')
+            assert hasattr(scene, "cleanup")
             assert callable(scene.cleanup)
         finally:
             MockFactory.teardown_pygame_mocks(patchers)
@@ -977,7 +978,7 @@ class TestSceneLifecycleCoverage:
             scene.setup()
             
             # Verify setup was called (method exists and is callable)
-            assert hasattr(scene, 'setup')
+            assert hasattr(scene, "setup")
             assert callable(scene.setup)
         finally:
             MockFactory.teardown_pygame_mocks(patchers)
@@ -1013,15 +1014,15 @@ class TestSceneLifecycleCoverage:
             
             # Mock game engine with registered events
             mock_engine = Mock()
-            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            mock_engine.OPTIONS = {"update_type": "update", "fps_refresh_rate": 1000}
             mock_callback = Mock()
-            mock_engine.registered_events = {'test_event': mock_callback}
+            mock_engine.registered_events = {"test_event": mock_callback}
             manager.game_engine = mock_engine
             
             # Create game event
             game_event = Mock()
             game_event.type = pygame.USEREVENT + 2  # GAMEEVENT
-            game_event.subtype = 'test_event'
+            game_event.subtype = "test_event"
             
             # Test game event handling
             manager.on_game_event(game_event)
@@ -1039,17 +1040,17 @@ class TestSceneLifecycleCoverage:
             
             # Mock game engine with empty registered events
             mock_engine = Mock()
-            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            mock_engine.OPTIONS = {"update_type": "update", "fps_refresh_rate": 1000}
             mock_engine.registered_events = {}
             manager.game_engine = mock_engine
             
             # Create game event
             game_event = Mock()
             game_event.type = pygame.USEREVENT + 2  # GAMEEVENT
-            game_event.subtype = 'unregistered_event'
+            game_event.subtype = "unregistered_event"
             
             # Test game event handling (should log exception)
-            with patch('glitchygames.scenes.LOG.exception') as mock_log:
+            with patch("glitchygames.scenes.LOG.exception") as mock_log:
                 manager.on_game_event(game_event)
                 mock_log.assert_called_once()
         finally:
@@ -1063,7 +1064,7 @@ class TestSceneLifecycleCoverage:
             
             # Mock game engine
             mock_engine = Mock()
-            mock_engine.OPTIONS = {'update_type': 'update', 'fps_refresh_rate': 1000}
+            mock_engine.OPTIONS = {"update_type": "update", "fps_refresh_rate": 1000}
             manager.game_engine = mock_engine
             
             # Test event registration
@@ -1151,7 +1152,7 @@ class TestSceneLifecycleCoverage:
             menu_event = Mock()
             
             # Test menu item event handling
-            with patch('glitchygames.scenes.LOG.debug') as mock_log:
+            with patch("glitchygames.scenes.LOG.debug") as mock_log:
                 scene.on_menu_item_event(menu_event)
                 mock_log.assert_called_once()
         finally:
@@ -1213,7 +1214,7 @@ class TestSceneLifecycleCoverage:
             new_scene.setup = Mock()
             
             # Test switching with blocked events (centralized mock handles pygame.event.get_blocked)
-            with patch('glitchygames.scenes.LOG.info') as mock_log:
+            with patch("glitchygames.scenes.LOG.info") as mock_log:
                 manager.switch_to_scene(new_scene)
                 # Should log blocked events
                 assert mock_log.call_count > 0
@@ -1231,7 +1232,7 @@ class TestSceneLifecycleCoverage:
             new_scene.setup = Mock()
             
             # Test switching with no blocked events (centralized mock handles pygame.event.get_blocked)
-            with patch('glitchygames.scenes.LOG.info') as mock_log:
+            with patch("glitchygames.scenes.LOG.info") as mock_log:
                 manager.switch_to_scene(new_scene)
                 # Should log "None" for blocked events
                 mock_log.assert_any_call("None")
