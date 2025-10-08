@@ -867,6 +867,9 @@ class GameEngine(events.EventManager):
             # Initialize the game instance
             self.game = self.game(options=GameEngine.OPTIONS)
 
+            # Set the scene manager's OPTIONS class variable for managers that expect it
+            self.scene_manager.OPTIONS = GameEngine.OPTIONS
+
             self.scene_manager.game_engine = self
 
             self.registered_events = {}

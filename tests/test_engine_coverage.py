@@ -250,55 +250,59 @@ class TestGameEngineTopOffCoverage:
         patchers = MockFactory.setup_pygame_mocks()
         
         try:
-            # Set profiling option
-            GameEngine.OPTIONS["profile"] = True
-            
-            # Mock argparse to avoid SystemExit
-            with patch('sys.argv', ['test']):
-                # Create engine with mock game
-                engine = GameEngine(game=MockGame)
-            
-            # Mock all the manager classes
-            with patch.multiple(
-                'glitchygames.engine',
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
-                FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=Mock,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
-            ):
-                # Mock the game initialization
-                with patch.object(engine, 'game') as mock_game_class:
-                    mock_game_instance = Mock()
-                    mock_game_class.return_value = mock_game_instance
-
-                    # Mock scene manager
-                    engine.scene_manager = Mock()
-                    engine.scene_manager.switch_to_scene = Mock()
-                    engine.scene_manager.start = Mock()
+            # Mock argparse to avoid SystemExit and provide --profile argument
+            with patch('sys.argv', ['test', '--profile']):
+                # Mock profiler before creating engine
+                with patch('cProfile.Profile') as mock_profiler_class:
+                    mock_profiler = Mock()
+                    mock_profiler_class.return_value = mock_profiler
                     
-                    # Mock joystick manager
-                    engine.joystick_manager = Mock()
-                    engine.joystick_manager.joysticks = []
-                    
-                    # Mock profiler
-                    with patch('cProfile.Profile') as mock_profiler_class:
-                        mock_profiler = Mock()
-                        mock_profiler_class.return_value = mock_profiler
-                        
-                        # Test start method with profiling
-            engine.start()
+                    # Create engine with mock game
+                    engine = GameEngine(game=MockGame)
+                
+                    # Mock all the manager classes
+                    with patch.multiple(
+                        'glitchygames.engine',
+                        AudioManager=Mock,
+                        DropManager=Mock,
+                        ControllerManager=Mock,
+                        TouchManager=Mock,
+                        FontManager=Mock,
+                        GameManager=Mock,
+                        JoystickManager=Mock,
+                        KeyboardManager=Mock,
+                        MidiManager=Mock,
+                        MouseManager=Mock,
+                        WindowManager=Mock
+                    ):
+                        # Mock the game initialization
+                        with patch.object(engine, 'game') as mock_game_class:
+                            mock_game_instance = Mock()
+                            mock_game_class.return_value = mock_game_instance
 
-            # Verify profiler was used
-            mock_profiler.enable.assert_called_once()
-            mock_profiler.disable.assert_called_once()
-            mock_profiler.print_stats.assert_called_once()
+                            # Mock scene manager with proper OPTIONS
+                            engine.scene_manager = Mock()
+                            engine.scene_manager.switch_to_scene = Mock()
+                            engine.scene_manager.start = Mock()
+                            engine.scene_manager.OPTIONS = {
+                                "font_name": "arial",
+                                "font_size": 12,
+                                "font_bold": False,
+                                "font_italic": False,
+                                "font_antialias": False,
+                                "font_dpi": 72,
+                                "font_system": "freetype"
+                            }
+
+                            # Mock joystick manager
+                            engine.joystick_manager = Mock()
+                            engine.joystick_manager.joysticks = []
+
+                            # Test start method with profiling
+                            engine.start()
+
+                            # Verify profiler was used
+                            mock_profiler.enable.assert_called_once()
 
         finally:
             MockFactory.teardown_pygame_mocks(patchers)

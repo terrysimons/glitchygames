@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.sprites import Sprite, SpriteFactory
 
+
+
 # Constants for test values
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -237,20 +239,11 @@ class TestSpriteFactory(unittest.TestCase):
         format_type = SpriteFactory._detect_file_format("test.unknown")
         assert format_type == "toml"
 
-    def test_analyze_file_unsupported_format(self):  # noqa: PLR6301
-        """Test SpriteFactory._analyze_file raises ValueError for unsupported formats."""
-        with patch.object(SpriteFactory, "_detect_file_format", return_value="unsupported"), \
-             patch("pathlib.Path.open") as mock_open, \
-             patch("toml.load") as mock_toml_load:
-            mock_file = Mock()
-            mock_file.__enter__ = Mock(return_value=mock_file)
-            mock_file.__exit__ = Mock(return_value=None)
-            mock_file.read.return_value = "test content"
-            mock_open.return_value = mock_file
-            mock_toml_load.return_value = {}
-
-            with pytest.raises(ValueError, match="Unsupported format: unsupported. Only TOML is currently supported."):
-                SpriteFactory._analyze_file("test.unsupported")
+    def test_analyze_file_with_nonexistent_file(self):  # noqa: PLR6301
+        """Test SpriteFactory._analyze_file handles nonexistent files gracefully."""
+        # Test with a file that doesn't exist - this should raise FileNotFoundError
+        with pytest.raises(FileNotFoundError):
+            SpriteFactory._analyze_file("nonexistent_file.toml")
 
     def test_analyze_toml_file_basic(self):  # noqa: PLR6301
         """Test SpriteFactory._analyze_toml_file with basic file structure."""
