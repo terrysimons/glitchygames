@@ -27,10 +27,15 @@ class TestScenesFinalEdgeCases(unittest.TestCase):
         # Get the mocked objects for direct access
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
+        
+        # Mock the unhandled_event function to prevent game options errors
+        self.unhandled_event_patcher = patch('glitchygames.events.unhandled_event')
+        self.mock_unhandled_event = self.unhandled_event_patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
         MockFactory.teardown_pygame_mocks(self.patchers)
+        self.unhandled_event_patcher.stop()
 
     def test_scene_manager_getattr_fallback_to_game_engine_edge_case(self):
         """Test SceneManager __getattr__ fallback to game engine edge case (lines 281-283)."""

@@ -261,7 +261,12 @@ class TestGameEngineTopOffCoverage:
                     # Create engine with mock game
                     engine = GameEngine(game=MockGame)
                 
-                    # Mock all the manager classes
+                    # Set up joystick manager manually before patching
+                    mock_joystick_manager = Mock()
+                    mock_joystick_manager.joysticks = []
+                    engine.joystick_manager = mock_joystick_manager
+                
+                    # Mock all the manager classes (except JoystickManager which we'll set up manually)
                     with patch.multiple(
                         "glitchygames.engine",
                         AudioManager=Mock,
@@ -270,7 +275,6 @@ class TestGameEngineTopOffCoverage:
                         TouchManager=Mock,
                         FontManager=Mock,
                         GameManager=Mock,
-                        JoystickManager=Mock,
                         KeyboardManager=Mock,
                         MidiManager=Mock,
                         MouseManager=Mock,
@@ -295,9 +299,6 @@ class TestGameEngineTopOffCoverage:
                                 "font_system": "freetype"
                             }
 
-                            # Mock joystick manager
-                            engine.joystick_manager = Mock()
-                            engine.joystick_manager.joysticks = []
 
                             # Test start method with profiling
                             engine.start()
@@ -327,6 +328,11 @@ class TestGameEngineTopOffCoverage:
                     
                     # Mock scene manager
                     engine.scene_manager = Mock()
+                    
+                    # Mock joystick manager with proper joysticks list
+                    mock_joystick_manager = Mock()
+                    mock_joystick_manager.joysticks = []
+                    engine.joystick_manager = mock_joystick_manager
                     
                     # Test start method with exception
                     engine.start()

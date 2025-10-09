@@ -3,7 +3,7 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -15,10 +15,10 @@ class TestUISimpleCoverage(unittest.TestCase):
     def test_menubar_menu_item_methods(self):
         """Test MenuBar menu item management methods."""
         # Create a mock MenuBar instance without pygame dependencies
-        with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__'):
-            with patch('pygame.sprite.LayeredDirty'):
-                with patch('pygame.Surface'):
-                    with patch('pygame.draw.rect'):
+        with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__"):
+            with patch("pygame.sprite.LayeredDirty"):
+                with patch("pygame.Surface"):
+                    with patch("pygame.draw.rect"):
                         from glitchygames.ui import MenuBar
                         
                         # Create a mock rect
@@ -97,10 +97,10 @@ class TestUISimpleCoverage(unittest.TestCase):
 
     def test_menubar_properties(self):
         """Test MenuBar properties."""
-        with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__'):
-            with patch('pygame.sprite.LayeredDirty'):
-                with patch('pygame.Surface'):
-                    with patch('pygame.draw.rect'):
+        with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__"):
+            with patch("pygame.sprite.LayeredDirty"):
+                with patch("pygame.Surface"):
+                    with patch("pygame.draw.rect"):
                         from glitchygames.ui import MenuBar
                         
                         # Create a mock rect
@@ -151,10 +151,10 @@ class TestUISimpleCoverage(unittest.TestCase):
 
     def test_menubar_edge_cases(self):
         """Test MenuBar edge cases."""
-        with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__'):
-            with patch('pygame.sprite.LayeredDirty'):
-                with patch('pygame.Surface'):
-                    with patch('pygame.draw.rect'):
+        with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__"):
+            with patch("pygame.sprite.LayeredDirty"):
+                with patch("pygame.Surface"):
+                    with patch("pygame.draw.rect"):
                         from glitchygames.ui import MenuBar
                         
                         # Create a mock rect
@@ -189,5 +189,5 @@ class TestUISimpleCoverage(unittest.TestCase):
                         self.assertEqual(menubar.get_menu_item_items(), [])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

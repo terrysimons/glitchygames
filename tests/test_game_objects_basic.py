@@ -17,7 +17,7 @@ class TestGameObjectsBasicCoverage(unittest.TestCase):
 
     def test_load_sound_function(self):
         """Test load_sound function."""
-        with patch('pygame.mixer.Sound') as mock_sound:
+        with patch("pygame.mixer.Sound") as mock_sound:
             result = load_sound("test.wav")
             # The function converts the filename to a full path
             expected_path = Path(__file__).parent.parent / "glitchygames" / "game_objects" / "snd_files" / "test.wav"
@@ -26,7 +26,7 @@ class TestGameObjectsBasicCoverage(unittest.TestCase):
 
     def test_load_sound_default_volume(self):
         """Test load_sound function with default volume."""
-        with patch('pygame.mixer.Sound') as mock_sound:
+        with patch("pygame.mixer.Sound") as mock_sound:
             mock_sound_instance = Mock()
             mock_sound.return_value = mock_sound_instance
             
@@ -44,5 +44,5 @@ class TestGameObjectsBasicCoverage(unittest.TestCase):
         self.assertEqual(SFX.SLAP, "sfx_slap.wav")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

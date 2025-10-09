@@ -761,29 +761,29 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     #     # ACTIVEEVENT      gain, state
     #     self.log.debug(f'{type(self)}: On Active Event {event}')
 
-    # def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:
-    #     """Handle audio device added events.
+    def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle audio device added events.
 
-    #     Args:
-    #         event (pygame.event.Event): The event to handle.
+        Args:
+            event (pygame.event.Event): The event to handle.
 
-    #     Returns:
-    #         None
-    #     """
-    #     # AUDIODEVICEADDED which, iscapture
-    #     self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
+        Returns:
+            None
+        """
+        # AUDIODEVICEADDED which, iscapture
+        self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
 
-    # def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
-    #     """Handle audio device removed events.
+    def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle audio device removed events.
 
-    #     Args:
-    #         event (pygame.event.Event): The event to handle.
+        Args:
+            event (pygame.event.Event): The event to handle.
 
-    #     Returns:
-    #         None
-    #     """
-    #     # AUDIODEVICEREMOVED which, iscapture
-    #     self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
+        Returns:
+            None
+        """
+        # AUDIODEVICEREMOVED which, iscapture
+        self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
 
     # def on_controller_axis_motion_event(self: Self, event: events.HashableEvent) -> None:
     #     """Handle controller axis motion events.

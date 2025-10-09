@@ -16,10 +16,10 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_initialization(self):
         """Test MenuBar initialization."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
-                with patch('pygame.Surface') as mock_surface:
-                    with patch('pygame.draw.rect') as mock_draw_rect:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
+                with patch("pygame.Surface") as mock_surface:
+                    with patch("pygame.draw.rect") as mock_draw_rect:
                         mock_super_init.return_value = None
                         
                         # Create a mock rect
@@ -53,8 +53,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_add_menu_item(self):
         """Test adding menu items to MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -67,8 +67,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_remove_menu_item(self):
         """Test removing menu items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -83,8 +83,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_clear_menu_items(self):
         """Test clearing all menu items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -101,8 +101,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_get_menu_item(self):
         """Test getting menu items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -121,8 +121,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_has_menu_item(self):
         """Test checking if MenuBar has a menu item."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -137,8 +137,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_get_menu_item_count(self):
         """Test getting menu item count from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -154,8 +154,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_get_menu_item_names(self):
         """Test getting menu item names from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -173,8 +173,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_get_menu_item_values(self):
         """Test getting menu item values from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -192,8 +192,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_get_menu_item_items(self):
         """Test getting menu item items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -211,8 +211,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_update_menu_item(self):
         """Test updating menu items in MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -228,8 +228,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_set_menu_item(self):
         """Test setting menu items in MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -245,8 +245,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_pop_menu_item(self):
         """Test popping menu items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -267,8 +267,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_copy_menu_items(self):
         """Test copying menu items from MenuBar."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -285,8 +285,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_menu_items_property(self):
         """Test MenuBar menu_items property."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -302,8 +302,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_menu_offset_properties(self):
         """Test MenuBar menu offset properties."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -321,8 +321,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_background_color_property(self):
         """Test MenuBar background_color property."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -337,8 +337,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_border_width_property(self):
         """Test MenuBar border_width property."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -353,8 +353,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_has_focus_property(self):
         """Test MenuBar has_focus property."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -369,8 +369,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_all_sprites_property(self):
         """Test MenuBar all_sprites property."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -381,8 +381,8 @@ class TestUIBasicCoverage(unittest.TestCase):
 
     def test_menubar_width_height_properties(self):
         """Test MenuBar width and height properties."""
-        with patch('pygame.sprite.LayeredDirty') as mock_layered_dirty:
-            with patch('glitchygames.ui.FocusableSingletonBitmappySprite.__init__') as mock_super_init:
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
+            with patch("glitchygames.ui.FocusableSingletonBitmappySprite.__init__") as mock_super_init:
                 mock_super_init.return_value = None
                 
                 groups = Mock()
@@ -399,5 +399,5 @@ class TestUIBasicCoverage(unittest.TestCase):
                 self.assertEqual(menubar.height, 100)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

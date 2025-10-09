@@ -9,7 +9,8 @@ import pygame
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from glitchygames.game_objects import load_sound, SFX
+from glitchygames.game_objects import load_sound
+from glitchygames.game_objects.sounds import SFX
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement import Horizontal, Vertical, Speed
@@ -385,7 +386,6 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
         with patch.object(self.paddle, 'is_at_left_of_screen', return_value=True):
             with patch.object(self.paddle, 'stop') as mock_stop:
                 self.paddle.update()
-                
                 self.assertEqual(self.paddle.rect.x, 0)
                 mock_stop.assert_called_once()
 
@@ -397,7 +397,6 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
         with patch.object(self.paddle, 'is_at_right_of_screen', return_value=True):
             with patch.object(self.paddle, 'stop') as mock_stop:
                 self.paddle.update()
-                
                 self.assertEqual(self.paddle.rect.x, 800 - self.paddle.rect.width)
                 mock_stop.assert_called_once()
 
@@ -431,16 +430,14 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
         """Test horizontal paddle stop."""
         with patch.object(self.paddle._move, 'stop') as mock_stop:
             self.paddle.stop()
-
-                mock_stop.assert_called_once()
+            mock_stop.assert_called_once()
             self.assertEqual(self.paddle.dirty, 1)
 
     def test_horizontal_paddle_speed_up(self):
         """Test horizontal paddle speed up."""
         with patch.object(self.paddle._move.speed, 'speed_up_horizontal') as mock_speed_up:
             self.paddle.speed_up()
-
-                mock_speed_up.assert_called_once()
+            mock_speed_up.assert_called_once()
 
 
 class TestVerticalPaddleCoverage(unittest.TestCase):
@@ -485,7 +482,6 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
         with patch.object(self.paddle, 'is_at_top_of_screen', return_value=True):
             with patch.object(self.paddle, 'stop') as mock_stop:
                 self.paddle.update()
-                
                 self.assertEqual(self.paddle.rect.y, 0)
                 mock_stop.assert_called_once()
 
@@ -497,7 +493,6 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
         with patch.object(self.paddle, 'is_at_bottom_of_screen', return_value=True):
             with patch.object(self.paddle, 'stop') as mock_stop:
                 self.paddle.update()
-                
                 self.assertEqual(self.paddle.rect.y, 600 - self.paddle.rect.height)
                 mock_stop.assert_called_once()
 
@@ -513,31 +508,27 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
         """Test vertical paddle up movement."""
         with patch.object(self.paddle._move, 'up') as mock_up:
             self.paddle.up()
-
-                mock_up.assert_called_once()
+            mock_up.assert_called_once()
             self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_down(self):
         """Test vertical paddle down movement."""
         with patch.object(self.paddle._move, 'down') as mock_down:
             self.paddle.down()
-
-                mock_down.assert_called_once()
+            mock_down.assert_called_once()
             self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_stop(self):
         """Test vertical paddle stop."""
         with patch.object(self.paddle._move, 'stop') as mock_stop:
             self.paddle.stop()
-
-                mock_stop.assert_called_once()
+            mock_stop.assert_called_once()
             self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_speed_up(self):
         """Test vertical paddle speed up."""
         with patch.object(self.paddle._move.speed, 'speed_up_vertical') as mock_speed_up:
             self.paddle.speed_up()
-            
             mock_speed_up.assert_called_once()
 
 

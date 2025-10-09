@@ -3,18 +3,28 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 import pygame
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from test_mock_factory import MockFactory
 from glitchygames.ui import (
-    MenuBar, MenuItem, TextSprite, ButtonSprite, CheckboxSprite,
-    InputBox, TextBoxSprite, SliderSprite, ColorWellSprite,
-    InputDialog, MultiLineTextBox
+    ButtonSprite,
+    CheckboxSprite,
+    ColorWellSprite,
+    InputBox,
+    InputDialog,
+    MenuBar,
+    MenuItem,
+    MultiLineTextBox,
+    SliderSprite,
+    TextBoxSprite,
+    TextSprite,
 )
+
+from test_mock_factory import MockFactory
 
 # Remove module-level setup to avoid conflicts with other UI test files
 
@@ -25,10 +35,10 @@ class TestMenuBarCoverage(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Use simple mocking instead of MockFactory to avoid conflicts
-        self.display_patcher = patch('pygame.display')
-        self.surface_patcher = patch('pygame.Surface')
-        self.sprite_patcher = patch('pygame.sprite.LayeredDirty')
-        self.draw_patcher = patch('pygame.draw.rect')
+        self.display_patcher = patch("pygame.display")
+        self.surface_patcher = patch("pygame.Surface")
+        self.sprite_patcher = patch("pygame.sprite.LayeredDirty")
+        self.draw_patcher = patch("pygame.draw.rect")
         
         self.mock_display = self.display_patcher.start()
         self.mock_surface = self.surface_patcher.start()
@@ -55,8 +65,8 @@ class TestMenuBarCoverage(unittest.TestCase):
         self.draw_patcher.stop()
         
         # Clean up pygame.freetype mock
-        if hasattr(pygame, 'freetype'):
-            delattr(pygame, 'freetype')
+        if hasattr(pygame, "freetype"):
+            delattr(pygame, "freetype")
 
     def test_menubar_initialization(self):
         """Test MenuBar initialization."""
@@ -362,5 +372,5 @@ class TestMenuBarCoverage(unittest.TestCase):
         self.assertEqual(menubar.height, 100)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

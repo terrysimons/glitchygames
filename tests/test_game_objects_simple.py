@@ -4,17 +4,19 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
 import pygame
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from test_mock_factory import MockFactory
 from glitchygames.game_objects import load_sound
-from glitchygames.game_objects.sounds import SFX
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
-from glitchygames.movement import Horizontal, Vertical, Speed
+from glitchygames.game_objects.sounds import SFX
+from glitchygames.movement import Horizontal, Speed, Vertical
+
+from test_mock_factory import MockFactory
 
 # Global setup for all test classes
 _patchers = None
@@ -38,7 +40,7 @@ class TestGameObjectsInitCoverage(unittest.TestCase):
 
     def test_load_sound_function(self):
         """Test load_sound function."""
-        with patch('pygame.mixer.Sound') as mock_sound_class:
+        with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
             
@@ -56,7 +58,7 @@ class TestGameObjectsInitCoverage(unittest.TestCase):
 
     def test_load_sound_default_volume(self):
         """Test load_sound function with default volume."""
-        with patch('pygame.mixer.Sound') as mock_sound_class:
+        with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
             
@@ -78,7 +80,7 @@ class TestBallSpriteCoverage(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures for each test."""
         # Create ball sprite with mocked pygame
-        with patch('glitchygames.game_objects.load_sound'):
+        with patch("glitchygames.game_objects.load_sound"):
             self.ball = BallSprite()
 
     def test_ball_initialization_default(self):
@@ -104,7 +106,7 @@ class TestBallSpriteCoverage(unittest.TestCase):
 
     def test_ball_color_setter_with_drawing(self):
         """Test ball color setter triggers drawing."""
-        with patch('pygame.draw.circle') as mock_draw:
+        with patch("pygame.draw.circle") as mock_draw:
             new_color = (0, 255, 0)
             self.ball.color = new_color
             
@@ -117,7 +119,7 @@ class TestBallSpriteCoverage(unittest.TestCase):
         self.ball.rect.y = -1  # Above top wall
         self.ball.speed.y = -2  # Moving up
         
-        with patch.object(self.ball, 'snd', Mock()) as mock_sound:
+        with patch.object(self.ball, "snd", Mock()) as mock_sound:
             self.ball._do_bounce()
             
             self.assertEqual(self.ball.rect.y, 0)
@@ -129,7 +131,7 @@ class TestBallSpriteCoverage(unittest.TestCase):
         self.ball.rect.y = 600  # At bottom wall
         self.ball.speed.y = 2  # Moving down
         
-        with patch.object(self.ball, 'snd', Mock()) as mock_sound:
+        with patch.object(self.ball, "snd", Mock()) as mock_sound:
             self.ball._do_bounce()
             
             self.assertEqual(self.ball.rect.y, 600 - self.ball.height)
@@ -138,7 +140,7 @@ class TestBallSpriteCoverage(unittest.TestCase):
 
     def test_ball_reset(self):
         """Test ball reset method."""
-        with patch('secrets.randbelow') as mock_rand:
+        with patch("secrets.randbelow") as mock_rand:
             mock_rand.side_effect = [350, 200, 30, 0]  # x, y, direction, coin flip
             
             self.ball.reset()
@@ -182,7 +184,7 @@ class TestBasePaddleCoverage(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures for each test."""
         # Create paddle with mocked pygame
-        with patch('glitchygames.game_objects.load_sound'):
+        with patch("glitchygames.game_objects.load_sound"):
             self.horizontal_axis = Horizontal(Speed(5, 0))
             self.paddle = BasePaddle(
                 axis=self.horizontal_axis,
@@ -270,7 +272,7 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures for each test."""
         # Create paddle with mocked pygame
-        with patch('glitchygames.game_objects.load_sound'):
+        with patch("glitchygames.game_objects.load_sound"):
             self.paddle = HorizontalPaddle(
                 name="horizontal_paddle",
                 size=(100, 20),
@@ -290,7 +292,7 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
 
     def test_horizontal_paddle_left(self):
         """Test horizontal paddle left movement."""
-        with patch.object(self.paddle._move, 'left') as mock_left:
+        with patch.object(self.paddle._move, "left") as mock_left:
             self.paddle.left()
             
             mock_left.assert_called_once()
@@ -298,7 +300,7 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
 
     def test_horizontal_paddle_right(self):
         """Test horizontal paddle right movement."""
-        with patch.object(self.paddle._move, 'right') as mock_right:
+        with patch.object(self.paddle._move, "right") as mock_right:
             self.paddle.right()
             
             mock_right.assert_called_once()
@@ -306,7 +308,7 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
 
     def test_horizontal_paddle_stop(self):
         """Test horizontal paddle stop."""
-        with patch.object(self.paddle._move, 'stop') as mock_stop:
+        with patch.object(self.paddle._move, "stop") as mock_stop:
             self.paddle.stop()
             
             mock_stop.assert_called_once()
@@ -314,7 +316,7 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
 
     def test_horizontal_paddle_speed_up(self):
         """Test horizontal paddle speed up."""
-        with patch.object(self.paddle._move.speed, 'speed_up_horizontal') as mock_speed_up:
+        with patch.object(self.paddle._move.speed, "speed_up_horizontal") as mock_speed_up:
             self.paddle.speed_up()
             
             mock_speed_up.assert_called_once()
@@ -326,7 +328,7 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures for each test."""
         # Create paddle with mocked pygame
-        with patch('glitchygames.game_objects.load_sound'):
+        with patch("glitchygames.game_objects.load_sound"):
             self.paddle = VerticalPaddle(
                 name="vertical_paddle",
                 size=(20, 100),
@@ -346,7 +348,7 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
 
     def test_vertical_paddle_up(self):
         """Test vertical paddle up movement."""
-        with patch.object(self.paddle._move, 'up') as mock_up:
+        with patch.object(self.paddle._move, "up") as mock_up:
             self.paddle.up()
             
             mock_up.assert_called_once()
@@ -354,7 +356,7 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
 
     def test_vertical_paddle_down(self):
         """Test vertical paddle down movement."""
-        with patch.object(self.paddle._move, 'down') as mock_down:
+        with patch.object(self.paddle._move, "down") as mock_down:
             self.paddle.down()
             
             mock_down.assert_called_once()
@@ -362,7 +364,7 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
 
     def test_vertical_paddle_stop(self):
         """Test vertical paddle stop."""
-        with patch.object(self.paddle._move, 'stop') as mock_stop:
+        with patch.object(self.paddle._move, "stop") as mock_stop:
             self.paddle.stop()
             
             mock_stop.assert_called_once()
@@ -370,7 +372,7 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
 
     def test_vertical_paddle_speed_up(self):
         """Test vertical paddle speed up."""
-        with patch.object(self.paddle._move.speed, 'speed_up_vertical') as mock_speed_up:
+        with patch.object(self.paddle._move.speed, "speed_up_vertical") as mock_speed_up:
             self.paddle.speed_up()
             
             mock_speed_up.assert_called_once()

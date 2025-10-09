@@ -3,19 +3,19 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.pixels import (
+    image_from_pixels,
     indexed_rgb_triplet_generator,
+    pixels_from_data,
+    pixels_from_path,
     rgb_555_triplet_generator,
     rgb_565_triplet_generator,
     rgb_triplet_generator,
-    image_from_pixels,
-    pixels_from_data,
-    pixels_from_path
 )
 
 
@@ -95,7 +95,7 @@ class TestPixelsCoverage(unittest.TestCase):
     def test_rgb_triplet_generator(self):
         """Test rgb_triplet_generator function."""
         # Test with valid bytes data
-        pixel_data = b'\xff\x00\x00\x00\xff\x00\x00\x00\xff'  # RGB triplets
+        pixel_data = b"\xff\x00\x00\x00\xff\x00\x00\x00\xff"  # RGB triplets
         result = list(rgb_triplet_generator(pixel_data))
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0], (255, 0, 0))
@@ -104,17 +104,17 @@ class TestPixelsCoverage(unittest.TestCase):
         
         # Test with empty data - should raise ValueError
         with self.assertRaises(ValueError):
-            list(rgb_triplet_generator(b''))
+            list(rgb_triplet_generator(b""))
         
         # Test with single triplet
-        pixel_data = b'\x80\x40\x20'  # Single RGB triplet
+        pixel_data = b"\x80\x40\x20"  # Single RGB triplet
         result = list(rgb_triplet_generator(pixel_data))
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], (128, 64, 32))
 
     def test_image_from_pixels(self):
         """Test image_from_pixels function."""
-        with patch('pygame.Surface') as mock_surface:
+        with patch("pygame.Surface") as mock_surface:
             # Mock the surface
             mock_surface_instance = Mock()
             mock_surface.return_value = mock_surface_instance
@@ -162,18 +162,18 @@ class TestPixelsCoverage(unittest.TestCase):
 
     def test_pixels_from_path(self):
         """Test pixels_from_path function."""
-        with patch('pathlib.Path.open', unittest.mock.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00\x00\x00\xff')):
+        with patch("pathlib.Path.open", unittest.mock.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00\x00\x00\xff")):
             # Test with valid file path
-            result = pixels_from_path('test_file.txt')
+            result = pixels_from_path("test_file.txt")
             self.assertEqual(len(result), 3)
             self.assertEqual(result[0], (255, 0, 0))
             self.assertEqual(result[1], (0, 255, 0))
             self.assertEqual(result[2], (0, 0, 255))
         
         # Test with empty file - should raise ValueError
-        with patch('pathlib.Path.open', unittest.mock.mock_open(read_data=b'')):
+        with patch("pathlib.Path.open", unittest.mock.mock_open(read_data=b"")):
             with self.assertRaises(ValueError):
-                pixels_from_path('empty_file.txt')
+                pixels_from_path("empty_file.txt")
 
     def test_edge_cases(self):
         """Test edge cases for all functions."""
@@ -194,13 +194,13 @@ class TestPixelsCoverage(unittest.TestCase):
         self.assertEqual(result[0], (0, 0, 0))
         
         # Test rgb_triplet_generator with odd number of bytes - should raise ValueError
-        pixel_data = b'\xff\x00'  # Only 2 bytes, need 3 for RGB
+        pixel_data = b"\xff\x00"  # Only 2 bytes, need 3 for RGB
         with self.assertRaises(ValueError):
             list(rgb_triplet_generator(pixel_data))
         
         # Test image_from_pixels with zero dimensions
-        with patch('pygame.Surface') as mock_surface:
-            with patch('pygame.PixelArray') as mock_pixel_array:
+        with patch("pygame.Surface") as mock_surface:
+            with patch("pygame.PixelArray") as mock_pixel_array:
                 mock_surface_instance = Mock()
                 mock_surface.return_value = mock_surface_instance
                 mock_pixel_array_instance = Mock()
@@ -267,19 +267,19 @@ class TestPixelsCoverage(unittest.TestCase):
     def test_pixels_from_path_edge_cases(self):
         """Test pixels_from_path edge cases."""
         # Test with file containing invalid data (not divisible by 3)
-        with patch('pathlib.Path.open', unittest.mock.mock_open(read_data=b'\xff\x00')):  # Only 2 bytes
-            with patch('pathlib.Path.exists', return_value=True):
+        with patch("pathlib.Path.open", unittest.mock.mock_open(read_data=b"\xff\x00")):  # Only 2 bytes
+            with patch("pathlib.Path.exists", return_value=True):
                 with self.assertRaises(ValueError):
-                    pixels_from_path('invalid_file.txt')
+                    pixels_from_path("invalid_file.txt")
         
         # Test with file containing valid data
-        with patch('pathlib.Path.open', unittest.mock.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00')):  # 6 bytes = 2 pixels
-            with patch('pathlib.Path.exists', return_value=True):
-                result = pixels_from_path('valid_file.txt')
+        with patch("pathlib.Path.open", unittest.mock.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00")):  # 6 bytes = 2 pixels
+            with patch("pathlib.Path.exists", return_value=True):
+                result = pixels_from_path("valid_file.txt")
                 self.assertEqual(len(result), 2)
                 self.assertEqual(result[0], (255, 0, 0))
                 self.assertEqual(result[1], (0, 255, 0))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

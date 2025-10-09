@@ -44,6 +44,20 @@ class SpriteLoadingTestScene(Scene):
             try:
                 sprite = SpriteFactory.load_sprite(filename=sprite_file)
 
+                # Validate sprite before adding
+                if not hasattr(sprite, 'rect') or not sprite.rect:
+                    self.log.warning(f"Sprite {sprite_file} has no valid rect, skipping")
+                    continue
+                
+                # Check sprite dimensions to prevent memory issues
+                if sprite.rect.width > 200 or sprite.rect.height > 200:
+                    self.log.warning(f"Sprite {sprite_file} too large ({sprite.rect.width}x{sprite.rect.height}), skipping")
+                    continue
+                
+                if sprite.rect.width <= 0 or sprite.rect.height <= 0:
+                    self.log.warning(f"Sprite {sprite_file} has invalid dimensions, skipping")
+                    continue
+
                 # Position sprites in a grid pattern
                 cols = 4  # 4 sprites per row
                 row = i // cols
@@ -80,11 +94,16 @@ class SpriteLoadingTestScene(Scene):
         # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
 
-        # Extract pixel data from hardware buffer
+        # Extract pixel data from hardware buffer with bounds checking
         width, height = display_surface.get_size()
+        
+        # Limit capture size to prevent memory issues
+        max_width = min(width, 800)
+        max_height = min(height, 600)
+        
         pixels = []
-        for y in range(height):
-            for x in range(width):
+        for y in range(max_height):
+            for x in range(max_width):
                 color = display_surface.get_at((x, y))
                 pixels.append((color.r, color.g, color.b))
 
@@ -101,11 +120,16 @@ class SpriteLoadingTestScene(Scene):
         # Draw all sprites to the test surface
         self.all_sprites.draw(self.test_surface)
 
-        # Extract pixel data
+        # Extract pixel data with bounds checking
         width, height = self.test_surface.get_size()
+        
+        # Limit capture size to prevent memory issues
+        max_width = min(width, 800)
+        max_height = min(height, 600)
+        
         pixels = []
-        for y in range(height):
-            for x in range(width):
+        for y in range(max_height):
+            for x in range(max_width):
                 color = self.test_surface.get_at((x, y))
                 pixels.append((color.r, color.g, color.b))
 
@@ -120,12 +144,33 @@ class SpriteLoadingTestScene(Scene):
         sprite = self.loaded_sprites[sprite_index]
         sprite_rect = sprite.rect
 
+        # Validate sprite rectangle to prevent memory issues
+        if not sprite_rect or sprite_rect.width <= 0 or sprite_rect.height <= 0:
+            return []
+        
+        # Limit sprite area size to prevent excessive memory usage
+        max_sprite_size = 200  # Maximum 200x200 pixels per sprite
+        if sprite_rect.width > max_sprite_size or sprite_rect.height > max_sprite_size:
+            return []
+
+        # Clamp sprite rectangle to display bounds
+        display_width = display_surface.get_width()
+        display_height = display_surface.get_height()
+        
+        left = max(0, min(sprite_rect.left, display_width))
+        top = max(0, min(sprite_rect.top, display_height))
+        right = max(left, min(sprite_rect.right, display_width))
+        bottom = max(top, min(sprite_rect.bottom, display_height))
+        
+        # Additional safety check
+        if right - left <= 0 or bottom - top <= 0:
+            return []
+
         pixels = []
-        for y in range(sprite_rect.top, sprite_rect.bottom):
-            for x in range(sprite_rect.left, sprite_rect.right):
-                if 0 <= x < display_surface.get_width() and 0 <= y < display_surface.get_height():
-                    color = display_surface.get_at((x, y))
-                    pixels.append((color.r, color.g, color.b))
+        for y in range(top, bottom):
+            for x in range(left, right):
+                color = display_surface.get_at((x, y))
+                pixels.append((color.r, color.g, color.b))
 
         return pixels
 
@@ -159,8 +204,18 @@ class SpriteLoadingTestScene(Scene):
         else:
             return []
 
-        # Extract pixel data from the sprite surface
+        # Extract pixel data from the sprite surface with bounds checking
         width, height = surface.get_size()
+        
+        # Limit sprite surface size to prevent memory issues
+        max_sprite_size = 200  # Maximum 200x200 pixels per sprite
+        if width > max_sprite_size or height > max_sprite_size:
+            return []
+        
+        # Additional safety check
+        if width <= 0 or height <= 0:
+            return []
+
         pixels = []
         for y in range(height):
             for x in range(width):

@@ -200,63 +200,64 @@ class TestEngineComprehensive(unittest.TestCase):
         # Enable profiling
         GameEngine.OPTIONS["profile"] = True
         
-        with patch("cProfile.Profile") as mock_profiler_class, \
-             patch("glitchygames.engine.FontManager") as mock_font_manager, \
-             patch("glitchygames.engine.GameManager") as mock_game_manager, \
-             patch("glitchygames.engine.JoystickManager") as mock_joystick_manager, \
-             patch("glitchygames.engine.KeyboardManager") as mock_keyboard_manager, \
-             patch("glitchygames.engine.MidiManager") as mock_midi_manager, \
-             patch("glitchygames.engine.MouseManager") as mock_mouse_manager, \
-             patch("glitchygames.engine.WindowManager") as mock_window_manager, \
-             patch("glitchygames.engine.AudioManager") as mock_audio_manager, \
-             patch("glitchygames.engine.ControllerManager") as mock_controller_manager, \
-             patch("glitchygames.engine.DropManager") as mock_drop_manager, \
-             patch("glitchygames.engine.TouchManager") as mock_touch_manager, \
-             patch.object(engine, "scene_manager") as mock_scene_manager, \
-             patch("pygame.init") as mock_init, \
-             patch("pygame.display.init") as mock_display_init, \
-             patch("pygame.display.set_mode") as mock_set_mode, \
-             patch("pygame.display.set_caption") as mock_set_caption, \
-             patch("pygame.display.set_icon") as mock_set_icon, \
-             patch("pygame.display.quit") as mock_display_quit, \
-             patch("pygame.quit") as mock_pygame_quit:
-            
+        # Set up patches
+        patches = [
+            patch("cProfile.Profile"),
+            patch("glitchygames.engine.FontManager"),
+            patch("glitchygames.engine.GameManager"),
+            patch("glitchygames.engine.JoystickManager"),
+            patch("glitchygames.engine.KeyboardManager"),
+            patch("glitchygames.engine.MidiManager"),
+            patch("glitchygames.engine.MouseManager"),
+            patch("glitchygames.engine.WindowManager"),
+            patch("glitchygames.engine.AudioManager"),
+            patch("glitchygames.engine.ControllerManager"),
+            patch("glitchygames.engine.DropManager"),
+            patch("glitchygames.engine.TouchManager"),
+            patch.object(engine, "scene_manager"),
+            patch("pygame.init"),
+            patch("pygame.display.init"),
+            patch("pygame.display.set_mode"),
+            patch("pygame.display.set_caption"),
+            patch("pygame.display.set_icon"),
+            patch("pygame.display.quit"),
+            patch("pygame.quit")
+        ]
+        
+        # Start all patches
+        started_patches = []
+        for p in patches:
+            started_patches.append(p.start())
+        
+        try:
             # Configure profiler mock
             mock_profiler = Mock()
-            mock_profiler_class.return_value = mock_profiler
+            patches[0].return_value = mock_profiler
             mock_profiler.enable = Mock()
             mock_profiler.disable = Mock()
             mock_profiler.print_stats = Mock()
             
             # Configure mocks
-            mock_scene_manager.switch_to_scene = Mock()
-            mock_scene_manager.start = Mock()
+            started_patches[12].switch_to_scene = Mock()  # scene_manager
+            started_patches[12].start = Mock()
             
             # Mock joystick manager with proper joysticks list
             mock_joystick_manager_instance = Mock()
             mock_joystick_manager_instance.joysticks = []  # Empty list
-            mock_joystick_manager.return_value = mock_joystick_manager_instance
+            patches[3].return_value = mock_joystick_manager_instance
             
             # Mock other managers
-            mock_font_manager.return_value = Mock()
-            mock_game_manager.return_value = Mock()
-            mock_keyboard_manager.return_value = Mock()
-            mock_midi_manager.return_value = Mock()
-            mock_mouse_manager.return_value = Mock()
-            mock_window_manager.return_value = Mock()
-            mock_audio_manager.return_value = Mock()
-            mock_controller_manager.return_value = Mock()
-            mock_drop_manager.return_value = Mock()
-            mock_touch_manager.return_value = Mock()
+            for i in range(1, 12):  # Skip profiler and scene_manager
+                patches[i].return_value = Mock()
             
             # Configure pygame mocks
-            mock_init.return_value = (8, 0, 0)  # Success
-            mock_display_init.return_value = None
-            mock_set_mode.return_value = Mock()
-            mock_set_caption.return_value = None
-            mock_set_icon.return_value = None
-            mock_display_quit.return_value = None
-            mock_pygame_quit.return_value = None
+            patches[13].return_value = (8, 0, 0)  # pygame.init success
+            patches[14].return_value = None  # display.init
+            patches[15].return_value = Mock()  # set_mode
+            patches[16].return_value = None  # set_caption
+            patches[17].return_value = None  # set_icon
+            patches[18].return_value = None  # display.quit
+            patches[19].return_value = None  # pygame.quit
             
             # Test the start method
             try:
@@ -268,6 +269,11 @@ class TestEngineComprehensive(unittest.TestCase):
             mock_profiler.enable.assert_called_once()
             mock_profiler.disable.assert_called_once()
             mock_profiler.print_stats.assert_called_once()
+            
+        finally:
+            # Stop all patches
+            for p in patches:
+                p.stop()
 
     def test_game_engine_start_with_exception(self):
         """Test GameEngine.start method with exception handling."""
