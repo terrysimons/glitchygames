@@ -327,7 +327,7 @@ class SceneManager(SceneInterface, events.EventManager):
             True if FPS event should be posted
 
         """
-        return (current_time - previous_fps_time) * 1000 >= self.OPTIONS["fps_refresh_rate"]
+        return (current_time - previous_fps_time) * 1000 >= float(self.OPTIONS["fps_refresh_rate"])
 
     def _post_fps_event(self) -> None:
         """Post FPS event."""
@@ -440,9 +440,8 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _configure_scene_fps(self) -> None:
         """Configure FPS for the scene."""
-        # Infinite refresh is the default; override it if FPS was configured
-        # on the command line, unless the active scene has specific FPS requirements
-        if self.target_fps > 0 and self.active_scene.target_fps == 0:
+        # Command line FPS takes precedence over scene FPS
+        if self.target_fps > 0:
             self.active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:

@@ -7,11 +7,12 @@ import logging
 from typing import Self
 
 import pygame
-from glitchygames.game_objects import load_sound
 from glitchygames.movement import Horizontal, Vertical
 from glitchygames.movement.speed import Speed
 from glitchygames.sprites import Sprite
 from pygame import draw
+
+from .sounds import load_sound
 
 log = logging.getLogger("game.paddle")
 log.setLevel(logging.INFO)
@@ -258,6 +259,7 @@ class HorizontalPaddle(BasePaddle):
 
         """
         self._move.speed.speed_up_horizontal()
+        self._move.current_speed = self._move.speed.x
 
 
 class VerticalPaddle(BasePaddle):
@@ -373,3 +375,4 @@ class VerticalPaddle(BasePaddle):
 
         """
         self._move.speed.speed_up_vertical()
+        self._move.current_speed = self._move.speed.y

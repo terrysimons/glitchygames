@@ -211,7 +211,7 @@ class Game(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.fps = 0
+        # FPS will be set by command line arguments or default to 60
 
         v_center = self.screen_height / 2
         self.player1 = VerticalPaddle(
@@ -230,9 +230,12 @@ class Game(Scene):
             Speed(y=10, increment=1),
             collision_sound=SFX.SLAP,
         )
-        self.balls = [
-            BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get("balls", 1))
-        ]
+        self.balls = []
+        for _ in range(self.options.get("balls", 1)):
+            ball = BallSprite(collision_sound=SFX.BOUNCE)
+            # Set a more reasonable speed for the ball
+            ball.speed = Speed(2, 1)  # Much slower than default Speed(4, 2)
+            self.balls.append(ball)
 
         for ball in self.balls:
             red = secrets.randbelow(256)
@@ -273,7 +276,9 @@ class Game(Scene):
             None
 
         """
-        self.fps = 60
+        # Set default FPS to 60 if not specified by command line
+        if self.target_fps == 0:
+            self.target_fps = 60
         pygame.key.set_repeat(1)
 
     def dt_tick(self: Self, dt: float) -> None:

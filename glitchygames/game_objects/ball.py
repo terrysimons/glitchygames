@@ -47,7 +47,7 @@ class BallSprite(Sprite):
         self.image.convert()
         self.image.set_colorkey(0)
         self.direction = 0
-        self.speed = Speed(4, 2)
+        self.speed = Speed(2, 1)  # More reasonable default speed
         if collision_sound:
             self.snd = game_objects.load_sound(collision_sound)
         self.color = WHITE

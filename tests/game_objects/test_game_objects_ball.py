@@ -24,8 +24,8 @@ class TestBallSpriteInitialization:
         # Direction is set by reset() during initialization, so it will be random
         assert 0 <= ball.direction <= 360  # Reset sets random direction
         assert isinstance(ball.speed, Speed)
-        assert ball.speed.x == 4
-        assert ball.speed.y == 2
+        assert ball.speed.x == 2  # Updated default speed
+        assert ball.speed.y == 1  # Updated default speed
         assert ball.dirty == 2
 
     def test_ball_sprite_initialization_custom(self, mock_pygame_patches):
