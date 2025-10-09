@@ -268,7 +268,7 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import MagicMock, Mock
 
         from glitchygames.tools.canvas_interfaces import StaticCanvasInterface
-        
+
         # Create a comprehensive mock canvas sprite
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
@@ -280,49 +280,49 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         interface = StaticCanvasInterface(mock_canvas_sprite)
-        
+
         # Test get_dimensions
         dimensions = interface.get_dimensions()
         assert dimensions == (2, 2)
-        
+
         # Test get_pixel_at with valid coordinates
         pixel = interface.get_pixel_at(0, 0)
         assert pixel == (255, 0, 0)
-        
+
         pixel = interface.get_pixel_at(1, 1)
         assert pixel == (255, 255, 0)
-        
+
         # Test get_pixel_at with out-of-bounds coordinates
         pixel = interface.get_pixel_at(5, 5)
         assert pixel == (255, 0, 255)  # Magenta for out-of-bounds
-        
+
         pixel = interface.get_pixel_at(-1, 0)
         assert pixel == (255, 0, 255)  # Magenta for out-of-bounds
-        
+
         # Test set_pixel_at with valid coordinates
         interface.set_pixel_at(1, 0, (128, 128, 128))
         assert mock_canvas_sprite.pixels[1] == (128, 128, 128)
         assert mock_canvas_sprite.dirty_pixels[1] is True
         assert mock_canvas_sprite.dirty == 1
-        
+
         # Test set_pixel_at with out-of-bounds coordinates (should not modify)
         original_pixels = mock_canvas_sprite.pixels.copy()
         interface.set_pixel_at(5, 5, (0, 0, 0))
         assert mock_canvas_sprite.pixels == original_pixels
-        
+
         # Test set_pixel_data
         new_pixels = [(100, 100, 100), (200, 200, 200), (50, 50, 50), (75, 75, 75)]
         interface.set_pixel_data(new_pixels)
         assert mock_canvas_sprite.pixels == new_pixels
         assert mock_canvas_sprite.dirty_pixels == [True, True, True, True]
         assert mock_canvas_sprite.dirty == 1
-        
+
         # Test get_surface
         surface = interface.get_surface()
         assert surface == mock_canvas_sprite.image
-        
+
         # Test mark_dirty
         interface.mark_dirty()
         assert mock_canvas_sprite.dirty == 1
@@ -332,12 +332,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock
 
         from glitchygames.tools.canvas_interfaces import StaticSpriteSerializer
-        
+
         # Test static method save
         mock_sprite = Mock()
         StaticSpriteSerializer.save(mock_sprite, "test.toml", "toml")
         mock_sprite.save.assert_called_once_with("test.toml", "toml")
-        
+
         # Test load method (should not raise exception)
         serializer = StaticSpriteSerializer()
         # The load method is designed to be handled by CanvasSprite's load method
@@ -352,7 +352,7 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import MagicMock, Mock, patch
 
         from glitchygames.tools.canvas_interfaces import StaticCanvasRenderer
-        
+
         # Create a comprehensive mock canvas sprite
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
@@ -367,13 +367,13 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         renderer = StaticCanvasRenderer(mock_canvas_sprite)
-        
+
         # Test get_pixel_size
         pixel_size = renderer.get_pixel_size()
         assert pixel_size == (10, 10)
-        
+
         # Test render method (calls force_redraw)
         mock_sprite = Mock()
         with patch.object(renderer, "force_redraw") as mock_force_redraw:
@@ -382,20 +382,20 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
             result = renderer.render(mock_sprite)
             mock_force_redraw.assert_called_once_with(mock_sprite)
             assert result == mock_surface
-        
+
         # Test force_redraw method
         with patch("pygame.draw.rect") as mock_draw_rect:
             result = renderer.force_redraw(mock_sprite)
-            
+
             # Verify image.fill was called
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify draw.rect was called for each pixel (2 calls per pixel: fill + border)
             assert mock_draw_rect.call_count == 8  # 4 pixels * 2 calls each
-            
+
             # Verify dirty_pixels were all set to False
             assert mock_canvas_sprite.dirty_pixels == [False, False, False, False]
-            
+
             assert result == mock_canvas_sprite.image
 
     def test_animated_canvas_interface_comprehensive(self):
@@ -405,14 +405,14 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
 
         from test_mock_factory import MockFactory
-        
+
         # Create a mock animated sprite using MockFactory
         mock_animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="walk",
             frame_size=(2, 1),
             pixel_color=(255, 0, 0)
         )
-        
+
         # Create canvas sprite with animated sprite
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
@@ -427,49 +427,49 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test initialization with animated sprite
         assert interface.current_animation == "walk"
         assert interface.current_frame == 0
-        
+
         # Test get_pixel_data with animated sprite
         pixels = interface.get_pixel_data()
         assert pixels == [(255, 0, 0), (255, 0, 0)]  # 2 pixels from frame
-        
+
         # Test set_pixel_data with animated sprite
         new_pixels = [(50, 50, 50), (75, 75, 75)]
         interface.set_pixel_data(new_pixels)
         # Verify the frame's set_pixel_data was called
         mock_animated_sprite._animations["walk"][0].set_pixel_data.assert_called_once_with(new_pixels)
-        
+
         # Test get_dimensions
         dimensions = interface.get_dimensions()
         assert dimensions == (2, 1)
-        
+
         # Test get_pixel_at with animated sprite
         pixel = interface.get_pixel_at(0, 0)
         assert pixel == (255, 0, 0)
-        
+
         # Test set_pixel_at with animated sprite
         interface.set_pixel_at(1, 0, (128, 128, 128))
         # Verify the frame's set_pixel_data was called
         mock_animated_sprite._animations["walk"][0].set_pixel_data.assert_called()
-        
+
         # Test get_surface
         surface = interface.get_surface()
         assert surface == mock_canvas_sprite.image
-        
+
         # Test mark_dirty
         interface.mark_dirty()
         assert mock_canvas_sprite.dirty == 1
-        
+
         # Test set_current_frame
         interface.set_current_frame("jump", 0)
         assert interface.current_animation == "jump"
         assert interface.current_frame == 0
-        
+
         # Test get_current_frame
         frame_info = interface.get_current_frame()
         assert frame_info == ("jump", 0)
@@ -499,18 +499,18 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         # Test get_pixel_data without animated sprite (covers line 247)
         pixels = interface.get_pixel_data()
         assert pixels == [(255, 0, 0), (0, 255, 0)]
-        
+
         # Test set_pixel_data without animated sprite (covers lines 257-260)
         new_pixels = [(50, 50, 50), (75, 75, 75)]
         interface.set_pixel_data(new_pixels)
         assert mock_canvas_sprite.pixels == new_pixels
         assert mock_canvas_sprite.dirty_pixels == [True, True]
         assert mock_canvas_sprite.dirty == 1
-        
+
         # Test get_pixel_at without animated sprite (covers line 281)
         pixel_color = interface.get_pixel_at(0, 0)
         assert pixel_color == (50, 50, 50)
-        
+
         # Test set_pixel_at without animated sprite (covers lines 327-329)
         interface.set_pixel_at(1, 0, (128, 128, 128))
         assert mock_canvas_sprite.pixels[1] == (128, 128, 128)
@@ -522,12 +522,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock
 
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
-        
+
         # Create animated sprite with empty animations
         mock_animated_sprite = Mock()
         mock_animated_sprite._animations = {}
         mock_animated_sprite._animation_order = []
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.pixels = [(255, 0, 0), (0, 255, 0)]
@@ -535,9 +535,9 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.pixels_tall = 1
         mock_canvas_sprite.dirty_pixels = [False, False]
         mock_canvas_sprite.dirty = 0
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test initialization with empty animations
         assert interface.current_animation == ""
         assert interface.current_frame == 0
@@ -547,12 +547,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock
 
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
-        
+
         # Create animated sprite without animation order
         mock_animated_sprite = Mock()
         mock_animated_sprite._animations = {"walk": [Mock()]}
         mock_animated_sprite._animation_order = None
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.pixels = [(255, 0, 0), (0, 255, 0)]
@@ -560,9 +560,9 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.pixels_tall = 1
         mock_canvas_sprite.dirty_pixels = [False, False]
         mock_canvas_sprite.dirty = 0
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test initialization without animation order (should use first key)
         assert interface.current_animation == "walk"
         assert interface.current_frame == 0
@@ -572,12 +572,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock
 
         from glitchygames.tools.canvas_interfaces import AnimatedSpriteSerializer
-        
+
         # Test static method save
         mock_sprite = Mock()
         AnimatedSpriteSerializer.save(mock_sprite, "test.toml", "toml")
         mock_sprite.save.assert_called_once_with("test.toml", "toml")
-        
+
         # Test load method (should not raise exception)
         serializer = AnimatedSpriteSerializer()
         # The load method is designed to be handled by CanvasSprite's load method
@@ -593,14 +593,14 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
 
         from test_mock_factory import MockFactory
-        
+
         # Create a comprehensive mock canvas sprite with animated sprite using MockFactory
         mock_animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="walk",
             frame_size=(2, 1),
             pixel_color=(255, 0, 0)
         )
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -618,13 +618,13 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         renderer = AnimatedCanvasRenderer(mock_canvas_sprite)
-        
+
         # Test get_pixel_size
         pixel_size = renderer.get_pixel_size()
         assert pixel_size == (10, 10)
-        
+
         # Test render method (calls force_redraw)
         mock_sprite = Mock()
         with patch.object(renderer, "force_redraw") as mock_force_redraw:
@@ -633,17 +633,17 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
             result = renderer.render(mock_sprite)
             mock_force_redraw.assert_called_once_with(mock_sprite)
             assert result == mock_surface
-        
+
         # Test force_redraw with animated sprite
         with patch("pygame.draw.rect") as mock_draw_rect:
             result = renderer.force_redraw(mock_sprite)
-            
+
             # Verify image.fill was called
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify draw.rect was called for each pixel
             assert mock_draw_rect.call_count == 4  # 2 pixels * 2 calls each
-            
+
             assert result == mock_canvas_sprite.image
 
     def test_animated_canvas_renderer_fallback(self):
@@ -651,7 +651,7 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock, patch
 
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
-        
+
         # Test without animated sprite
         mock_canvas_sprite = Mock()
         # Don't set animated_sprite attribute at all to avoid hasattr check
@@ -669,19 +669,19 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         renderer = AnimatedCanvasRenderer(mock_canvas_sprite)
-        
+
         mock_sprite = Mock()
         with patch("pygame.draw.rect") as mock_draw_rect:
             result = renderer.force_redraw(mock_sprite)
-            
+
             # Verify image.fill was called
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify draw.rect was called for each pixel
             assert mock_draw_rect.call_count == 4  # 2 pixels * 2 calls each
-            
+
             assert result == mock_canvas_sprite.image
 
     def test_animated_canvas_renderer_invalid_frame(self):
@@ -689,12 +689,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock, patch
 
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
-        
+
         # Create animated sprite with invalid frame
         mock_animated_sprite = Mock()
         mock_animated_sprite.frames = {"walk": []}  # Empty frames
         mock_animated_sprite._animations = {"walk": []}
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -712,19 +712,19 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         renderer = AnimatedCanvasRenderer(mock_canvas_sprite)
-        
+
         mock_sprite = Mock()
         with patch("pygame.draw.rect") as mock_draw_rect:
             result = renderer.force_redraw(mock_sprite)
-            
+
             # Should fall back to static rendering
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify draw.rect was called for each pixel
             assert mock_draw_rect.call_count == 4  # 2 pixels * 2 calls each
-            
+
             assert result == mock_canvas_sprite.image
 
     def test_animated_canvas_renderer_frame_without_get_pixel_data(self):
@@ -732,19 +732,19 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from unittest.mock import Mock, patch
 
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
-        
+
         # Create animated sprite with frame without get_pixel_data
         mock_animated_sprite = Mock()
         mock_animated_sprite.frames = {"walk": [Mock()]}
         mock_animated_sprite._animations = {"walk": [Mock()]}
-        
+
         # Create frame without get_pixel_data method
         mock_frame = Mock()
         del mock_frame.get_pixel_data  # Remove the method
         mock_frame.pixels = [(255, 0, 0), (0, 255, 0)]  # Direct pixels attribute
         mock_animated_sprite._animations["walk"][0] = mock_frame
         mock_animated_sprite.frames["walk"][0] = mock_frame
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -762,19 +762,19 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.image.fill = Mock()
         # Ensure the fill method is properly mocked
         mock_canvas_sprite.image.fill.return_value = None
-        
+
         renderer = AnimatedCanvasRenderer(mock_canvas_sprite)
-        
+
         mock_sprite = Mock()
         with patch("pygame.draw.rect") as mock_draw_rect:
             result = renderer.force_redraw(mock_sprite)
-            
+
             # Verify image.fill was called
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify draw.rect was called for each pixel
             assert mock_draw_rect.call_count == 4  # 2 pixels * 2 calls each
-            
+
             assert result == mock_canvas_sprite.image
 
     def test_animated_canvas_renderer_fallback_case(self):
@@ -804,10 +804,10 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         # Mock pygame.draw.rect to avoid import issues
         with patch("glitchygames.tools.canvas_interfaces.pygame.draw.rect") as mock_draw_rect:
             renderer.render(mock_sprite)
-            
+
             # Verify fallback rendering was called (covers lines 440-449)
             mock_canvas_sprite.image.fill.assert_called_once_with((0, 0, 0))
-            
+
             # Verify pygame.draw.rect was called for each pixel
             assert mock_draw_rect.call_count == 4  # 2 pixels * 2 calls each (pixel + border)
 
@@ -818,14 +818,14 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
 
         from test_mock_factory import MockFactory
-        
+
         # Create a comprehensive mock animated sprite using MockFactory
         mock_animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="walk",
             frame_size=(2, 1),
             pixel_color=(255, 0, 0)
         )
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -835,23 +835,23 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.dirty_pixels = [False, False]
         mock_canvas_sprite.dirty = 0
         mock_canvas_sprite.on_pixel_update_event = Mock()
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test get_pixel_at with animated sprite
         pixel = interface.get_pixel_at(0, 0)
         assert pixel == (255, 0, 0)
-        
+
         # Test set_pixel_at with animated sprite
         interface.set_pixel_at(1, 0, (128, 128, 128))
-        
+
         # Verify the frame's set_pixel_data was called
         mock_animated_sprite._animations["walk"][0].set_pixel_data.assert_called_once()
-        
+
         # Verify dirty_pixels was set
         assert mock_canvas_sprite.dirty_pixels[1] is True
         assert mock_canvas_sprite.dirty == 1
-        
+
         # Verify on_pixel_update_event was called
         mock_canvas_sprite.on_pixel_update_event.assert_called_once()
 
@@ -862,7 +862,7 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
 
         from test_mock_factory import MockFactory
-        
+
         # Create animated sprite with surface cache using MockFactory
         mock_animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="walk",
@@ -870,7 +870,7 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
             pixel_color=(255, 0, 0)
         )
         mock_animated_sprite._surface_cache = {"walk_0": Mock()}
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -880,12 +880,12 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.dirty_pixels = [False, False]
         mock_canvas_sprite.dirty = 0
         mock_canvas_sprite.on_pixel_update_event = Mock()
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test set_pixel_at with surface cache
         interface.set_pixel_at(1, 0, (128, 128, 128))
-        
+
         # Verify surface cache was cleared
         assert "walk_0" not in mock_animated_sprite._surface_cache
 
@@ -896,14 +896,14 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasInterface
 
         from test_mock_factory import MockFactory
-        
+
         # Create canvas sprite with animated sprite using MockFactory
         mock_animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="walk",
             frame_size=(2, 1),
             pixel_color=(255, 0, 0)
         )
-        
+
         mock_canvas_sprite = Mock()
         mock_canvas_sprite.animated_sprite = mock_animated_sprite
         mock_canvas_sprite.current_animation = "walk"
@@ -912,13 +912,13 @@ class TestCanvasInterfacesCoverage(unittest.TestCase):
         mock_canvas_sprite.pixels_tall = 1
         mock_canvas_sprite.dirty_pixels = [False, False]
         mock_canvas_sprite.dirty = 0
-        
+
         interface = AnimatedCanvasInterface(mock_canvas_sprite)
-        
+
         # Test get_pixel_at with out-of-bounds coordinates
         pixel = interface.get_pixel_at(5, 5)
         assert pixel == (255, 0, 255)  # Magenta for out-of-bounds
-        
+
         # Test set_pixel_at with out-of-bounds coordinates (should not modify)
         original_dirty = mock_canvas_sprite.dirty
         interface.set_pixel_at(5, 5, (128, 128, 128))

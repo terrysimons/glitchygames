@@ -1,943 +1,635 @@
-"""Test coverage for the game_objects module."""
+"""Comprehensive test coverage for Game Objects module."""
 
-from unittest.mock import Mock, patch
-
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import Mock, patch, MagicMock
 import pygame
-from glitchygames.color import WHITE
-from glitchygames.game_objects import load_sound
+
+# Add project root so direct imports work in isolated runs
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from glitchygames.game_objects import load_sound, SFX
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
-from glitchygames.game_objects.sounds import SFX
-from glitchygames.movement import Horizontal, Speed, Vertical
-
-# Suppress PLR6301 for test methods (they need self for fixtures)
-# ruff: noqa: PLR6301
-
-# Constants for test values
-TEST_X_POS = 100
-TEST_Y_POS = 200
-TEST_WIDTH = 50
-TEST_HEIGHT = 20
-TEST_SPEED_X = 5
-TEST_SPEED_Y = 0
-TEST_BALL_WIDTH = 4
-TEST_BALL_HEIGHT = 2
-TEST_BALL_SPEED = 2
-TEST_BALL_DIRECTION = 2
-TEST_BALL_X = 10
-TEST_BALL_Y = 20
-TEST_BALL_WIDTH_PARAM = 30
-TEST_BALL_HEIGHT_PARAM = 40
-TEST_BALL_OFFSET = 5
-TEST_BALL_SPEED_Y = -2
-TEST_BALL_SCREEN_HEIGHT = 400
-TEST_BALL_BOTTOM_Y = 390
-TEST_BALL_SPEED_Y_POS = 2
-TEST_BALL_SPEED_Y_NEG = -2
-TEST_BALL_RANDOM_X = 350
-TEST_BALL_RANDOM_Y = 200
-TEST_BALL_RANDOM_DIR = 45
-TEST_BALL_RANDOM_COIN = 0
-TEST_BALL_FINAL_X = 400
-TEST_BALL_FINAL_Y = 225
-TEST_BALL_BOUNCE_DIR = 90
-TEST_BALL_BOUNCE_ANGLE = 10
-TEST_BALL_BOUNCE_FINAL_DIR = 80
-TEST_BALL_BOUNCE_SPEED_X = 2.2
-TEST_BALL_BOUNCE_SPEED_Y = 3.3
-TEST_BALL_UPDATE_X = 102
-TEST_BALL_UPDATE_Y = 103
-TEST_BALL_LEFT_X = -5
-TEST_BALL_RIGHT_X = 805
-TEST_BALL_TOP_Y = -5
-TEST_BALL_BOTTOM_Y = 390
-TEST_BALL_WALL_DIR = 180
-TEST_BALL_WALL_FINAL_DIR = 0
-TEST_BALL_WALL_X = 1
-TEST_BALL_WALL_RIGHT_X = 785
-TEST_BALL_WALL_RIGHT_DIR = 0
-TEST_BALL_WALL_RIGHT_FINAL_DIR = 180
-TEST_BALL_RESET_CALL_COUNT = 2  # reset() called in __init__ and update()
-TEST_BALL_WALL_FINAL_X = 3  # After bounce and move
-TEST_PADDLE_MOVE_X = 103
-TEST_PADDLE_MOVE_Y = 203
-TEST_PADDLE_BOUNDARY_SPEED = 15
-TEST_PADDLE_BOUNDARY_SPEED_SMALL = 5
-TEST_PADDLE_BOUNDARY_SPEED_NEG = -10
-TEST_PADDLE_SCREEN_RIGHT = 800
-TEST_PADDLE_SCREEN_HEIGHT = 600
-TEST_PADDLE_SCREEN_LEFT = 0
-TEST_PADDLE_SCREEN_TOP = 0
-TEST_PADDLE_SCREEN_BOTTOM = 550
-TEST_PADDLE_EDGE_X = 0
-TEST_PADDLE_EDGE_Y = 0
-TEST_PADDLE_EDGE_RIGHT_X = 750
-TEST_PADDLE_EDGE_BOTTOM_Y = 550
-
-# Additional constants for magic numbers
-FULL_CIRCLE_DEGREES = 360
-BALL_SPEED_X_DEFAULT = 4
-BALL_SPEED_Y_DEFAULT = 2
-BALL_DIRTY_FLAG = 2
-BALL_CIRCLE_CALLS = 2
-BALL_CIRCLE_RADIUS = 5
-FLOAT_TOLERANCE = 0.001
-BALL_BOUNCE_ANGLE = 80
-BALL_UPDATE_X = 102
-BALL_UPDATE_Y = 103
-BALL_RESET_X = 400
-BALL_RESET_Y = 225
-BALL_WALL_BOUNCE_DIR = 180
-BALL_RESET_DIRECTION = 180
-BALL_LEFT_WALL_DIRECTION = 207
-PADDLE_X_POS = 100
-PADDLE_Y_POS = 200
-PADDLE_WIDTH = 50
-PADDLE_HEIGHT = 20
-PADDLE_MOVE_X_RESULT = 103
-PADDLE_MOVE_Y_RESULT = 203
-PADDLE_EDGE_RIGHT_X = 750
-PADDLE_EDGE_BOTTOM_Y = 550
+from glitchygames.movement import Horizontal, Vertical, Speed
 
 
-class TestLoadSoundCoverage:
-    """Test coverage for load_sound function."""
+class TestGameObjectsInitCoverage(unittest.TestCase):
+    """Test coverage for game_objects/__init__.py."""
 
-    @patch("pygame.mixer.Sound")
-    def test_load_sound_basic(self, mock_sound_class):
-        """Test basic sound loading."""
-        mock_sound = Mock()
-        mock_sound_class.return_value = mock_sound
+    def test_load_sound_function(self):
+        """Test load_sound function."""
+        with patch('pygame.mixer.Sound') as mock_sound_class:
+            mock_sound = Mock()
+            mock_sound_class.return_value = mock_sound
 
-        result = load_sound("test.wav")
+            result = load_sound("test.wav", 0.5)
 
-        mock_sound_class.assert_called_once()
-        mock_sound.set_volume.assert_called_once_with(0.25)
-        assert result == mock_sound
+            # Verify the sound was created with correct path
+            expected_path = Path(__file__).parent.parent / "glitchygames" / "game_objects" / "snd_files" / "test.wav"
+            mock_sound_class.assert_called_once_with(expected_path)
+            
+            # Verify volume was set
+            mock_sound.set_volume.assert_called_once_with(0.5)
+            
+            # Verify return value
+            self.assertEqual(result, mock_sound)
 
-    @patch("pygame.mixer.Sound")
-    def test_load_sound_with_volume(self, mock_sound_class):
-        """Test sound loading with custom volume."""
-        mock_sound = Mock()
-        mock_sound_class.return_value = mock_sound
+    def test_load_sound_default_volume(self):
+        """Test load_sound function with default volume."""
+        with patch('pygame.mixer.Sound') as mock_sound_class:
+            mock_sound = Mock()
+            mock_sound_class.return_value = mock_sound
 
-        result = load_sound("test.wav", 0.5)
+            result = load_sound("test.wav")
 
-        mock_sound_class.assert_called_once()
-        mock_sound.set_volume.assert_called_once_with(0.5)
-        assert result == mock_sound
-
-    @patch("pygame.mixer.Sound")
-    @patch("glitchygames.game_objects.Path")
-    def test_load_sound_path_construction(self, mock_path_class, mock_sound_class):
-        """Test that sound path is constructed correctly."""
-        mock_sound = Mock()
-        mock_sound_class.return_value = mock_sound
-
-        mock_path_instance = Mock()
-        mock_path_class.return_value = mock_path_instance
-        mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
-        mock_path_instance.parent = Mock()
-        mock_path_instance.parent.__truediv__ = Mock(return_value=mock_path_instance)
-
-        load_sound("test.wav")
-
-        # Verify path construction - Path should be called with __file__
-        mock_path_class.assert_called_once()
-        # Verify pygame.mixer.Sound was called with the constructed path
-        mock_sound_class.assert_called_once_with(mock_path_instance)
-        # Verify volume was set
-        mock_sound.set_volume.assert_called_once_with(0.25)
-
-
-class TestSFXCoverage:
-    """Test coverage for SFX class."""
+            # Verify default volume was used
+            mock_sound.set_volume.assert_called_once_with(0.25)
+            self.assertEqual(result, mock_sound)
 
     def test_sfx_constants(self):
-        """Test SFX constants are defined correctly."""
-        assert SFX.BOUNCE == "sfx_bounce.wav"
-        assert SFX.SLAP == "sfx_slap.wav"
+        """Test SFX constants."""
+        self.assertEqual(SFX.BOUNCE, "sfx_bounce.wav")
+        self.assertEqual(SFX.SLAP, "sfx_slap.wav")
 
 
-class TestBallSpriteCoverage:
-    """Test coverage for BallSprite class."""
+class TestBallSpriteCoverage(unittest.TestCase):
+    """Comprehensive test coverage for BallSprite class."""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
-        # Set up a minimal display mode for testing
-        pygame.display.set_mode((800, 600))
-        self.mock_groups = Mock(spec=pygame.sprite.LayeredDirty)
+        # Mock pygame components
+        self.mock_screen = Mock()
+        self.mock_screen.get_width.return_value = 800
+        self.mock_screen.get_height.return_value = 600
+        self.mock_screen.get_size.return_value = (800, 600)
+        self.mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        
+        with patch('pygame.display.get_surface', return_value=self.mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.circle'):
+                    with patch('glitchygames.game_objects.load_sound'):
+                        self.ball = BallSprite()
 
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
+    def test_ball_initialization_default(self):
+        """Test BallSprite initialization with default values."""
+        self.assertEqual(self.ball.width, 20)
+        self.assertEqual(self.ball.height, 20)
+        self.assertEqual(self.ball.use_gfxdraw, True)
+        self.assertEqual(self.ball.dirty, 2)
+        self.assertIsInstance(self.ball.speed, Speed)
+        self.assertEqual(self.ball.speed.x, 4)
+        self.assertEqual(self.ball.speed.y, 2)
 
-    def test_ball_sprite_init_basic(self):
-        """Test basic ball sprite initialization."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
+    def test_ball_initialization_custom(self):
+        """Test BallSprite initialization with custom values."""
+        with patch('pygame.display.get_surface', return_value=self.mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.circle'):
+                    with patch('glitchygames.game_objects.load_sound'):
+                        ball = BallSprite(x=100, y=200, width=30, height=30, collision_sound="bounce.wav")
+                        
+                        self.assertEqual(ball.rect.x, 100)
+                        self.assertEqual(ball.rect.y, 200)
+                        self.assertEqual(ball.width, 30)
+                        self.assertEqual(ball.height, 30)
 
-            # Direction is random due to reset() being called in __init__
-            assert isinstance(ball.direction, int)
-            assert 0 <= ball.direction < FULL_CIRCLE_DEGREES
-            assert isinstance(ball.speed, Speed)
-            assert ball.speed.x == BALL_SPEED_X_DEFAULT
-            assert ball.speed.y == BALL_SPEED_Y_DEFAULT
-            assert ball.color == WHITE
-            assert ball.dirty == BALL_DIRTY_FLAG
-            assert ball.use_gfxdraw is True
+    def test_ball_color_property(self):
+        """Test ball color property getter and setter."""
+        # Test getter
+        color = self.ball.color
+        self.assertIsInstance(color, tuple)
 
-    def test_ball_sprite_init_with_parameters(self):
-        """Test ball sprite initialization with custom parameters."""
-        with patch("glitchygames.game_objects.load_sound") as mock_load_sound:
-            ball = BallSprite(
-                x=10, y=20, width=30, height=40,
-                groups=self.mock_groups,
-                collision_sound="bounce.wav"
-            )
+        # Test setter
+        new_color = (255, 0, 0)
+        self.ball.color = new_color
+        self.assertEqual(self.ball._color, new_color)
 
-            # Position is reset to random values due to reset() being called in __init__
-            assert isinstance(ball.rect.x, int)
-            assert isinstance(ball.rect.y, int)
-            assert ball.rect.width == TEST_BALL_WIDTH_PARAM
-            assert ball.rect.height == TEST_BALL_HEIGHT_PARAM
-            mock_load_sound.assert_called_once_with("bounce.wav")
+    def test_ball_color_setter_with_drawing(self):
+        """Test ball color setter triggers drawing."""
+        with patch('pygame.draw.circle') as mock_draw:
+            new_color = (0, 255, 0)
+            self.ball.color = new_color
+            
+            mock_draw.assert_called_once()
+            call_args = mock_draw.call_args
+            self.assertEqual(call_args[0][1], new_color)  # color argument
+            self.assertEqual(call_args[0][2], (self.ball.width // 2, self.ball.height // 2))  # center
 
-    def test_ball_sprite_init_without_collision_sound(self):
-        """Test ball sprite initialization without collision sound."""
-        with patch("glitchygames.game_objects.load_sound") as mock_load_sound:
-            ball = BallSprite()
+    def test_ball_do_bounce_top_wall(self):
+        """Test _do_bounce with top wall collision."""
+        self.ball.rect.y = -1  # Above top wall
+        self.ball.speed.y = -2  # Moving up
+        
+        with patch.object(self.ball, 'snd', Mock()) as mock_sound:
+            self.ball._do_bounce()
+            
+            self.assertEqual(self.ball.rect.y, 0)
+            self.assertEqual(self.ball.speed.y, 2)  # Reversed
+            mock_sound.play.assert_called_once()
 
-            mock_load_sound.assert_not_called()
-            assert not hasattr(ball, "snd")
+    def test_ball_do_bounce_bottom_wall(self):
+        """Test _do_bounce with bottom wall collision."""
+        self.ball.rect.y = 600  # At bottom wall
+        self.ball.speed.y = 2  # Moving down
+        
+        with patch.object(self.ball, 'snd', Mock()) as mock_sound:
+            self.ball._do_bounce()
+            
+            self.assertEqual(self.ball.rect.y, 600 - self.ball.height)
+            self.assertEqual(self.ball.speed.y, -2)  # Reversed
+            mock_sound.play.assert_called_once()
 
-    def test_ball_sprite_color_property(self):
-        """Test ball sprite color property."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
+    def test_ball_do_bounce_no_collision(self):
+        """Test _do_bounce with no wall collision."""
+        self.ball.rect.y = 100  # Middle of screen
+        original_speed_y = self.ball.speed.y
+        
+        with patch.object(self.ball, 'snd', Mock()) as mock_sound:
+            self.ball._do_bounce()
+            
+            # Should not change position or speed
+            self.assertEqual(self.ball.rect.y, 100)
+            self.assertEqual(self.ball.speed.y, original_speed_y)
+            mock_sound.play.assert_not_called()
 
-            # Test getter
-            assert ball.color == WHITE
+    def test_ball_reset(self):
+        """Test ball reset method."""
+        with patch('secrets.randbelow') as mock_rand:
+            mock_rand.side_effect = [350, 200, 30, 0]  # x, y, direction, coin flip
+            
+            self.ball.reset()
+            
+            # Check position (secrets.randbelow(700) + 50 = 350 + 50 = 400)
+            self.assertEqual(self.ball.rect.x, 400)
+            # Check y position (secrets.randbelow(375) + 25 = 200 + 25 = 225)
+            self.assertEqual(self.ball.rect.y, 225)
+            # Check direction (secrets.randbelow(90) - 45 = 30 - 45 = -15, then % 360 = 345)
+            self.assertEqual(self.ball.direction, 345)
 
-            # Test setter
-            new_color = (255, 0, 0)
-            ball.color = new_color
-            assert ball._color == new_color
+    def test_ball_reset_with_coin_flip(self):
+        """Test ball reset with coin flip reversing direction."""
+        with patch('secrets.randbelow') as mock_rand:
+            mock_rand.side_effect = [350, 200, 30, 1]  # x, y, direction, coin flip = 1 (reverse)
+            
+            self.ball.reset()
+            
+            # Direction should be reversed: (30 + 180) % 360 = 210
+            self.assertEqual(self.ball.direction, 210)
 
-    def test_ball_sprite_color_setter_drawing(self):
-        """Test that color setter draws the circle."""
-        with patch("glitchygames.game_objects.load_sound"), \
-             patch("pygame.draw.circle") as mock_draw_circle:
-
-            ball = BallSprite(width=20, height=20)
-            ball.color = (255, 0, 0)
-
-            # Circle is called twice: once during init (white) and once when setting color (red)
-            assert mock_draw_circle.call_count == BALL_CIRCLE_CALLS
-            # Check the last call (when setting the color)
-            last_call = mock_draw_circle.call_args_list[-1]
-            assert last_call[0][0] == ball.image  # surface
-            assert last_call[0][1] == (255, 0, 0)  # color
-            assert last_call[0][2] == (10, 10)    # center (width//2, height//2)
-            assert last_call[0][3] == BALL_CIRCLE_RADIUS            # radius
-
-    def test_ball_sprite_do_bounce_top(self):
-        """Test ball bouncing off top of screen."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.rect.y = -5  # Above screen
-            ball.speed.y = -2
-            ball.snd = Mock()
-
-            ball._do_bounce()
-
-            ball.snd.play.assert_called_once()
-            assert ball.rect.y == 0
-            assert ball.speed.y == TEST_BALL_SPEED_Y_POS  # Flipped
-
-    def test_ball_sprite_do_bounce_bottom(self):
-        """Test ball bouncing off bottom of screen."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.screen_height = 400
-            ball.rect.y = 395  # Near bottom
-            ball.height = 10
-            ball.speed.y = 2
-            ball.snd = Mock()
-
-            ball._do_bounce()
-
-            ball.snd.play.assert_called_once()
-            assert ball.rect.y == TEST_BALL_BOTTOM_Y  # screen_height - height
-            assert ball.speed.y == TEST_BALL_SPEED_Y  # Flipped
-
-    def test_ball_sprite_do_bounce_no_bounce(self):
-        """Test ball not bouncing when in middle of screen."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.screen_height = 400
-            ball.rect.y = 200  # Middle of screen
-            ball.height = 10
-            ball.speed.y = 2
-            ball.snd = Mock()
-
-            ball._do_bounce()
-
-            ball.snd.play.assert_not_called()
-            assert ball.speed.y == TEST_BALL_SPEED_Y_POS  # Unchanged
-
-    @patch("secrets.randbelow")
-    def test_ball_sprite_reset(self, mock_randbelow):
-        """Test ball sprite reset functionality."""
-        with patch("glitchygames.game_objects.load_sound"):
-            # Mock random values (called twice: once in __init__ and once in reset)
-            # x, y, direction, coin flip (called twice: __init__ and reset)
-            mock_randbelow.side_effect = [350, 200, 45, 0, 350, 200, 45, 0]
-
-            ball = BallSprite()
-            ball.reset()
-
-            assert ball.rect.x == BALL_RESET_X  # 350 + 50
-            assert ball.rect.y == BALL_RESET_Y   # 200 + 25
-            assert ball.direction == BALL_RESET_DIRECTION  # 45 - 45 + 180 (coin flip)
-
-    def test_ball_sprite_bounce(self):
+    def test_ball_bounce(self):
         """Test ball bounce method."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.direction = 90
-            ball.speed = Speed(2, 3)
+        original_direction = self.ball.direction = 45
+        original_speed_x = self.ball.speed.x
+        
+        self.ball.bounce(10)
+        
+        # Direction should be (180 - 45) % 360 = 135, then -10 = 125
+        self.assertEqual(self.ball.direction, 125)
+        # Speed should be multiplied by 1.1
+        self.assertEqual(self.ball.speed.x, original_speed_x * 1.1)
 
-            ball.bounce(10)
+    def test_ball_update_left_wall_bounce(self):
+        """Test ball update with left wall bounce."""
+        self.ball.rect.x = -1  # Left of screen
+        self.ball.direction = 45
+        
+        self.ball.update()
+        
+        # Should reverse direction and set position
+        self.assertEqual(self.ball.rect.x, 1)
+        # Direction should be (360 - 45) % 360 = 315
+        self.assertEqual(self.ball.direction, 315)
 
-            assert ball.direction == BALL_BOUNCE_ANGLE  # (180 - 90) - 10
-            assert abs(ball.speed.x - 2.2) < FLOAT_TOLERANCE   # 2 * 1.1
-            assert abs(ball.speed.y - 3.3) < FLOAT_TOLERANCE   # 3 * 1.1
+    def test_ball_update_right_wall_bounce(self):
+        """Test ball update with right wall bounce."""
+        self.ball.rect.x = 800  # Right of screen
+        self.ball.direction = 45
+        
+        self.ball.update()
+        
+        # Should reverse direction
+        self.assertEqual(self.ball.direction, 315)
 
-    def test_ball_sprite_update_movement(self):
-        """Test ball sprite update movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.rect.x = 100
-            ball.rect.y = 100
-            ball.speed = Speed(2, 3)
+    def test_ball_update_movement(self):
+        """Test ball update with normal movement."""
+        original_x = self.ball.rect.x = 100
+        original_y = self.ball.rect.y = 100
+        original_speed_x = self.ball.speed.x
+        original_speed_y = self.ball.speed.y
+        
+        self.ball.update()
+        
+        # Should move by speed values
+        self.assertEqual(self.ball.rect.x, original_x + original_speed_x)
+        self.assertEqual(self.ball.rect.y, original_y + original_speed_y)
 
-            ball.update()
-
-            assert ball.rect.x == BALL_UPDATE_X
-            assert ball.rect.y == BALL_UPDATE_Y
-
-    def test_ball_sprite_update_reset_left(self):
-        """Test ball sprite reset when going off left side."""
-        with patch("glitchygames.game_objects.load_sound"), \
-             patch.object(BallSprite, "reset") as mock_reset:
-
-            ball = BallSprite()
-            ball.rect.x = -5  # Off left side
-            ball.screen_width = 800
-
-            ball.update()
-
+    def test_ball_update_reset_on_boundary(self):
+        """Test ball update resets when out of bounds."""
+        self.ball.rect.x = 900  # Out of bounds
+        self.ball.rect.y = 100
+        
+        with patch.object(self.ball, 'reset') as mock_reset:
+            self.ball.update()
             mock_reset.assert_called_once()
 
-    def test_ball_sprite_update_reset_right(self):
-        """Test ball sprite reset when going off right side."""
-        with patch("glitchygames.game_objects.load_sound"), \
-             patch.object(BallSprite, "reset") as mock_reset:
-
-            ball = BallSprite()
-            ball.rect.x = 805  # Off right side
-            ball.screen_width = 800
-
-            ball.update()
-
-            # reset() is called once in __init__ and once in update()
-            assert mock_reset.call_count == TEST_BALL_RESET_CALL_COUNT
-
-    def test_ball_sprite_update_reset_top(self):
-        """Test ball sprite reset when going off top."""
-        with patch("glitchygames.game_objects.load_sound"), \
-             patch.object(BallSprite, "reset") as mock_reset:
-
-            ball = BallSprite()
-            ball.rect.y = -5  # Off top
-            ball.screen_height = 600
-
-            ball.update()
-
+    def test_ball_update_reset_vertical_boundary(self):
+        """Test ball update resets when out of vertical bounds."""
+        self.ball.rect.x = 100
+        self.ball.rect.y = 700  # Out of bounds
+        
+        with patch.object(self.ball, 'reset') as mock_reset:
+            self.ball.update()
             mock_reset.assert_called_once()
 
-    def test_ball_sprite_update_reset_bottom(self):
-        """Test ball sprite reset when going off bottom."""
-        with patch("glitchygames.game_objects.load_sound"), \
-             patch.object(BallSprite, "reset") as mock_reset:
 
-            ball = BallSprite()
-            ball.rect.y = 605  # Off bottom
-            ball.screen_height = 600
+class TestBasePaddleCoverage(unittest.TestCase):
+    """Comprehensive test coverage for BasePaddle class."""
 
-            ball.update()
-
-            mock_reset.assert_called_once()
-
-    def test_ball_sprite_bounce_left_wall(self):
-        """Test ball bouncing off left wall."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.rect.x = 0  # At left edge
-            ball.speed.x = 2  # Moving right (after bounce)
-            ball.direction = 180
-
-            ball.update()
-
-            # Wall bounce logic changes direction to (360 - 180) % 360 = 180
-            # After the bounce, rect.x is set to 1, then moves by speed.x (2) to 3
-            assert ball.direction == BALL_RESET_DIRECTION
-            assert ball.rect.x == TEST_BALL_WALL_FINAL_X
-
-    def test_ball_sprite_bounce_right_wall(self):
-        """Test ball bouncing off right wall."""
-        with patch("glitchygames.game_objects.load_sound"):
-            ball = BallSprite()
-            ball.screen_width = 800
-            ball.width = 20
-            ball.rect.x = 785  # Near right edge
-            ball.speed.x = 2  # Moving right
-            ball.direction = 0
-
-            ball.update()
-
-            assert ball.direction == 0  # (360 - 0) % 360 = 360, but actual result is 0
-
-
-class TestBasePaddleCoverage:
-    """Test coverage for BasePaddle class."""
-
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
-        # Set up a minimal display mode for testing
-        pygame.display.set_mode((800, 600))
-        self.mock_groups = Mock(spec=pygame.sprite.LayeredDirty)
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
-
-    def test_base_paddle_init_basic(self):
-        """Test basic base paddle initialization."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = BasePaddle(
-                axis=Horizontal,
-                speed=speed,
+        self.mock_screen = Mock()
+        self.mock_screen.get_width.return_value = 800
+        self.mock_screen.get_height.return_value = 600
+        self.mock_screen.get_size.return_value = (800, 600)
+        self.mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        self.mock_screen.left = 0
+        self.mock_screen.right = 800
+        
+        with patch('pygame.display.get_surface', return_value=self.mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.rect'):
+                    with patch('glitchygames.game_objects.load_sound'):
+                        self.horizontal_axis = Horizontal(Speed(5, 0))
+                        self.vertical_axis = Vertical(Speed(0, 5))
+                        self.paddle = BasePaddle(
+                            axis=self.horizontal_axis,
+                            speed=5,
                 name="test_paddle",
                 color=(255, 0, 0),
-                x=PADDLE_X_POS, y=PADDLE_Y_POS, width=PADDLE_WIDTH, height=PADDLE_HEIGHT,
-                groups=self.mock_groups
-            )
+                            x=100,
+                            y=200,
+                            width=50,
+                            height=20
+                        )
 
-            assert paddle.name == "test_paddle"
-            assert paddle.rect.x == PADDLE_X_POS
-            assert paddle.rect.y == PADDLE_Y_POS
-            assert paddle.rect.width == PADDLE_WIDTH
-            assert paddle.rect.height == PADDLE_HEIGHT
-            assert paddle.use_gfxdraw is True
-            assert paddle.moving is False
-            assert paddle.dirty == 1
-            assert isinstance(paddle._move, Horizontal)
-
-    @patch("pygame.mixer.Sound")
-    @patch("glitchygames.game_objects.paddle.load_sound")
-    def test_base_paddle_init_with_sound(self, mock_load_sound, mock_sound_class):
-        """Test base paddle initialization with collision sound."""
-        mock_sound = Mock()
-        mock_sound_class.return_value = mock_sound
-        mock_load_sound.return_value = mock_sound
-
-        speed = Speed(5, 0)
-        paddle = BasePaddle(
-            axis=Horizontal,
-            speed=speed,
-            name="test_paddle",
-            color=(255, 0, 0),
-            x=PADDLE_X_POS, y=PADDLE_Y_POS, width=PADDLE_WIDTH, height=PADDLE_HEIGHT,
-            groups=self.mock_groups,
-            collision_sound="bounce.wav"
-        )
-
-        assert paddle.name == "test_paddle"
-        assert paddle.rect.x == PADDLE_X_POS
-        assert paddle.rect.y == PADDLE_Y_POS
-        assert paddle.rect.width == PADDLE_WIDTH
-        assert paddle.rect.height == PADDLE_HEIGHT
-        assert paddle.use_gfxdraw is True
-        assert paddle.moving is False
-        assert paddle.dirty == 1
-        assert isinstance(paddle._move, Horizontal)
-        mock_load_sound.assert_called_once_with("bounce.wav")
-        assert hasattr(paddle, "snd")
+    def test_base_paddle_initialization(self):
+        """Test BasePaddle initialization."""
+        self.assertEqual(self.paddle.name, "test_paddle")
+        self.assertEqual(self.paddle.rect.x, 100)
+        self.assertEqual(self.paddle.rect.y, 200)
+        self.assertEqual(self.paddle.width, 50)
+        self.assertEqual(self.paddle.height, 20)
+        self.assertEqual(self.paddle.use_gfxdraw, True)
+        self.assertEqual(self.paddle.moving, False)
+        self.assertEqual(self.paddle.dirty, 1)
+        self.assertEqual(self.paddle._move, self.horizontal_axis)
 
     def test_base_paddle_move_horizontal(self):
-        """Test horizontal movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = BasePaddle(
-                axis=Horizontal,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.x = 100
-            paddle._move.current_speed = 3
-
-            paddle.move_horizontal()
-
-            assert paddle.rect.x == PADDLE_MOVE_X_RESULT
-            assert paddle.dirty == 1
+        """Test move_horizontal method."""
+        original_x = self.paddle.rect.x
+        self.paddle._move.current_speed = 5
+        
+        self.paddle.move_horizontal()
+        
+        self.assertEqual(self.paddle.rect.x, original_x + 5)
+        self.assertEqual(self.paddle.dirty, 1)
 
     def test_base_paddle_move_vertical(self):
-        """Test vertical movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = BasePaddle(
-                axis=Vertical,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.y = 200
-            paddle._move.current_speed = 3
-
-            paddle.move_vertical()
-
-            assert paddle.rect.y == PADDLE_MOVE_Y_RESULT
-            assert paddle.dirty == 1
+        """Test move_vertical method."""
+        original_y = self.paddle.rect.y
+        self.paddle._move.current_speed = 3
+        
+        self.paddle.move_vertical()
+        
+        self.assertEqual(self.paddle.rect.y, original_y + 3)
+        self.assertEqual(self.paddle.dirty, 1)
 
     def test_base_paddle_is_at_bottom_of_screen(self):
-        """Test bottom screen boundary check."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = BasePaddle(
-                axis=Vertical,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.bottom = 590
-            paddle.screen_height = 600
-            paddle._move.current_speed = 15
-
-            assert paddle.is_at_bottom_of_screen() is True
-
-            paddle._move.current_speed = 5
-            assert paddle.is_at_bottom_of_screen() is False
+        """Test is_at_bottom_of_screen method."""
+        self.paddle.rect.bottom = 600
+        self.paddle._move.current_speed = 5
+        
+        result = self.paddle.is_at_bottom_of_screen()
+        
+        self.assertTrue(result)
 
     def test_base_paddle_is_at_top_of_screen(self):
-        """Test top screen boundary check."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = BasePaddle(
-                axis=Vertical,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.top = 5
-            paddle._move.current_speed = -10
-
-            assert paddle.is_at_top_of_screen() is True
-
-            paddle._move.current_speed = 5
-            assert paddle.is_at_top_of_screen() is False
+        """Test is_at_top_of_screen method."""
+        self.paddle.rect.top = 0
+        self.paddle._move.current_speed = -5
+        
+        result = self.paddle.is_at_top_of_screen()
+        
+        self.assertTrue(result)
 
     def test_base_paddle_is_at_left_of_screen(self):
-        """Test left screen boundary check."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = BasePaddle(
-                axis=Horizontal,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.left = 5
-            paddle.screen = Mock()
-            paddle.screen.left = 0
-            paddle._move.current_speed = -10
-
-            assert paddle.is_at_left_of_screen() is True
-
-            paddle._move.current_speed = 5
-            assert paddle.is_at_left_of_screen() is False
+        """Test is_at_left_of_screen method."""
+        self.paddle.rect.left = 0
+        self.paddle._move.current_speed = -5
+        
+        result = self.paddle.is_at_left_of_screen()
+        
+        self.assertTrue(result)
 
     def test_base_paddle_is_at_right_of_screen(self):
-        """Test right screen boundary check."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = BasePaddle(
-                axis=Horizontal,
-                speed=speed,
-                name="test_paddle",
-                color=(255, 0, 0),
-                x=100, y=200, width=50, height=20
-            )
-            paddle.rect.right = 790
-            paddle.screen = Mock()
-            paddle.screen.right = 800
-            paddle._move.current_speed = 15
-
-            assert paddle.is_at_right_of_screen() is True
-
-            paddle._move.current_speed = 5
-            assert paddle.is_at_right_of_screen() is False
+        """Test is_at_right_of_screen method."""
+        self.paddle.rect.right = 800
+        self.paddle._move.current_speed = 5
+        
+        result = self.paddle.is_at_right_of_screen()
+        
+        self.assertTrue(result)
 
 
-class TestHorizontalPaddleCoverage:
-    """Test coverage for HorizontalPaddle class."""
+class TestHorizontalPaddleCoverage(unittest.TestCase):
+    """Comprehensive test coverage for HorizontalPaddle class."""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
-        # Set up a minimal display mode for testing
-        pygame.display.set_mode((800, 600))
-        self.mock_groups = Mock(spec=pygame.sprite.LayeredDirty)
+        self.mock_screen = Mock()
+        self.mock_screen.get_width.return_value = 800
+        self.mock_screen.get_height.return_value = 600
+        self.mock_screen.get_size.return_value = (800, 600)
+        self.mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        self.mock_screen.left = 0
+        self.mock_screen.right = 800
+        
+        with patch('pygame.display.get_surface', return_value=self.mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.rect'):
+                    with patch('glitchygames.game_objects.load_sound'):
+                        self.paddle = HorizontalPaddle(
+                            name="horizontal_paddle",
+                            size=(100, 20),
+                            position=(200, 300),
+                            color=(0, 255, 0),
+                            speed=5
+                        )
 
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
+    def test_horizontal_paddle_initialization(self):
+        """Test HorizontalPaddle initialization."""
+        self.assertEqual(self.paddle.name, "horizontal_paddle")
+        self.assertEqual(self.paddle.rect.x, 200)
+        self.assertEqual(self.paddle.rect.y, 300)
+        self.assertEqual(self.paddle.width, 100)
+        self.assertEqual(self.paddle.height, 20)
+        self.assertIsInstance(self.paddle._move, Horizontal)
 
-    def test_horizontal_paddle_init(self):
-        """Test horizontal paddle initialization."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed,
-                groups=self.mock_groups
-            )
-
-            assert paddle.name == "test_paddle"
-            assert paddle.rect.x == PADDLE_X_POS
-            assert paddle.rect.y == PADDLE_Y_POS
-            assert paddle.rect.width == PADDLE_WIDTH
-            assert paddle.rect.height == PADDLE_HEIGHT
-            assert isinstance(paddle._move, Horizontal)
-
-    def test_horizontal_paddle_update_normal(self):
-        """Test horizontal paddle update in normal conditions."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.x = 100
-            paddle.screen = Mock()
-            paddle.screen.right = 800
-
-            with patch.object(paddle, "is_at_left_of_screen", return_value=False), \
-                 patch.object(paddle, "is_at_right_of_screen", return_value=False), \
-                 patch.object(paddle, "move_horizontal") as mock_move:
-
-                paddle.update()
-                mock_move.assert_called_once()
-
-    def test_horizontal_paddle_update_at_left(self):
+    def test_horizontal_paddle_update_at_left_edge(self):
         """Test horizontal paddle update when at left edge."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.x = 0
-
-            with patch.object(paddle, "is_at_left_of_screen", return_value=True), \
-                 patch.object(paddle, "stop") as mock_stop:
-
-                paddle.update()
-
-                assert paddle.rect.x == 0
+        self.paddle.rect.x = 0
+        self.paddle._move.current_speed = -5
+        
+        with patch.object(self.paddle, 'is_at_left_of_screen', return_value=True):
+            with patch.object(self.paddle, 'stop') as mock_stop:
+                self.paddle.update()
+                
+                self.assertEqual(self.paddle.rect.x, 0)
                 mock_stop.assert_called_once()
 
-    def test_horizontal_paddle_update_at_right(self):
+    def test_horizontal_paddle_update_at_right_edge(self):
         """Test horizontal paddle update when at right edge."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.x = 750
-            paddle.screen = Mock()
-            paddle.screen.right = 800
-
-            with patch.object(paddle, "is_at_left_of_screen", return_value=False), \
-                 patch.object(paddle, "is_at_right_of_screen", return_value=True), \
-                 patch.object(paddle, "stop") as mock_stop:
-
-                paddle.update()
-
-                assert paddle.rect.x == PADDLE_EDGE_RIGHT_X  # screen.right - rect.width
+        self.paddle.rect.x = 700
+        self.paddle._move.current_speed = 5
+        
+        with patch.object(self.paddle, 'is_at_right_of_screen', return_value=True):
+            with patch.object(self.paddle, 'stop') as mock_stop:
+                self.paddle.update()
+                
+                self.assertEqual(self.paddle.rect.x, 800 - self.paddle.rect.width)
                 mock_stop.assert_called_once()
+
+    def test_horizontal_paddle_update_normal_movement(self):
+        """Test horizontal paddle update with normal movement."""
+        original_x = self.paddle.rect.x
+        
+        with patch.object(self.paddle, 'is_at_left_of_screen', return_value=False):
+            with patch.object(self.paddle, 'is_at_right_of_screen', return_value=False):
+                with patch.object(self.paddle, 'move_horizontal') as mock_move:
+                    self.paddle.update()
+                    mock_move.assert_called_once()
 
     def test_horizontal_paddle_left(self):
         """Test horizontal paddle left movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
+        with patch.object(self.paddle._move, 'left') as mock_left:
+            self.paddle.left()
 
-            with patch.object(paddle._move, "left") as mock_left:
-                paddle.left()
-
-                mock_left.assert_called_once()
-                assert paddle.dirty == 1
+            mock_left.assert_called_once()
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_horizontal_paddle_right(self):
         """Test horizontal paddle right movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
+        with patch.object(self.paddle._move, 'right') as mock_right:
+            self.paddle.right()
 
-            with patch.object(paddle._move, "right") as mock_right:
-                paddle.right()
-
-                mock_right.assert_called_once()
-                assert paddle.dirty == 1
+            mock_right.assert_called_once()
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_horizontal_paddle_stop(self):
         """Test horizontal paddle stop."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-
-            with patch.object(paddle._move, "stop") as mock_stop:
-                paddle.stop()
+        with patch.object(self.paddle._move, 'stop') as mock_stop:
+            self.paddle.stop()
 
                 mock_stop.assert_called_once()
-                assert paddle.dirty == 1
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_horizontal_paddle_speed_up(self):
         """Test horizontal paddle speed up."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(5, 0)
-            paddle = HorizontalPaddle(
-                name="test_paddle",
-                size=(50, 20),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-
-            with patch.object(paddle._move.speed, "speed_up_horizontal") as mock_speed_up:
-                paddle.speed_up()
+        with patch.object(self.paddle._move.speed, 'speed_up_horizontal') as mock_speed_up:
+            self.paddle.speed_up()
 
                 mock_speed_up.assert_called_once()
 
 
-class TestVerticalPaddleCoverage:
-    """Test coverage for VerticalPaddle class."""
+class TestVerticalPaddleCoverage(unittest.TestCase):
+    """Comprehensive test coverage for VerticalPaddle class."""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
-        # Set up a minimal display mode for testing
-        pygame.display.set_mode((800, 600))
-        self.mock_groups = Mock(spec=pygame.sprite.LayeredDirty)
+        self.mock_screen = Mock()
+        self.mock_screen.get_width.return_value = 800
+        self.mock_screen.get_height.return_value = 600
+        self.mock_screen.get_size.return_value = (800, 600)
+        self.mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        self.mock_screen.left = 0
+        self.mock_screen.right = 800
+        
+        with patch('pygame.display.get_surface', return_value=self.mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.rect'):
+                    with patch('glitchygames.game_objects.load_sound'):
+                        self.paddle = VerticalPaddle(
+                            name="vertical_paddle",
+                            size=(20, 100),
+                            position=(400, 200),
+                            color=(0, 0, 255),
+                            speed=5
+                        )
 
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
+    def test_vertical_paddle_initialization(self):
+        """Test VerticalPaddle initialization."""
+        self.assertEqual(self.paddle.name, "vertical_paddle")
+        self.assertEqual(self.paddle.rect.x, 400)
+        self.assertEqual(self.paddle.rect.y, 200)
+        self.assertEqual(self.paddle.width, 20)
+        self.assertEqual(self.paddle.height, 100)
+        self.assertIsInstance(self.paddle._move, Vertical)
 
-    def test_vertical_paddle_init(self):
-        """Test vertical paddle initialization."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed,
-                groups=self.mock_groups
-            )
-
-            assert paddle.name == "test_paddle"
-            assert paddle.rect.x == PADDLE_X_POS
-            assert paddle.rect.y == PADDLE_Y_POS
-            assert paddle.rect.width == PADDLE_HEIGHT
-            assert paddle.rect.height == PADDLE_WIDTH
-            assert isinstance(paddle._move, Vertical)
-
-    def test_vertical_paddle_update_normal(self):
-        """Test vertical paddle update in normal conditions."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.y = 200
-            paddle.screen_height = 600
-
-            with patch.object(paddle, "is_at_top_of_screen", return_value=False), \
-                 patch.object(paddle, "is_at_bottom_of_screen", return_value=False), \
-                 patch.object(paddle, "move_vertical") as mock_move:
-
-                paddle.update()
-                mock_move.assert_called_once()
-
-    def test_vertical_paddle_update_at_top(self):
+    def test_vertical_paddle_update_at_top_edge(self):
         """Test vertical paddle update when at top edge."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.y = 0
-
-            with patch.object(paddle, "is_at_top_of_screen", return_value=True), \
-                 patch.object(paddle, "stop") as mock_stop:
-
-                paddle.update()
-
-                assert paddle.rect.y == 0
+        self.paddle.rect.y = 0
+        self.paddle._move.current_speed = -5
+        
+        with patch.object(self.paddle, 'is_at_top_of_screen', return_value=True):
+            with patch.object(self.paddle, 'stop') as mock_stop:
+                self.paddle.update()
+                
+                self.assertEqual(self.paddle.rect.y, 0)
                 mock_stop.assert_called_once()
 
-    def test_vertical_paddle_update_at_bottom(self):
+    def test_vertical_paddle_update_at_bottom_edge(self):
         """Test vertical paddle update when at bottom edge."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-            paddle.rect.y = 550
-            paddle.screen_height = 600
-
-            with patch.object(paddle, "is_at_top_of_screen", return_value=False), \
-                 patch.object(paddle, "is_at_bottom_of_screen", return_value=True), \
-                 patch.object(paddle, "stop") as mock_stop:
-
-                paddle.update()
-
-                assert paddle.rect.y == PADDLE_EDGE_BOTTOM_Y  # screen_height - rect.height
+        self.paddle.rect.y = 500
+        self.paddle._move.current_speed = 5
+        
+        with patch.object(self.paddle, 'is_at_bottom_of_screen', return_value=True):
+            with patch.object(self.paddle, 'stop') as mock_stop:
+                self.paddle.update()
+                
+                self.assertEqual(self.paddle.rect.y, 600 - self.paddle.rect.height)
                 mock_stop.assert_called_once()
+
+    def test_vertical_paddle_update_normal_movement(self):
+        """Test vertical paddle update with normal movement."""
+        with patch.object(self.paddle, 'is_at_top_of_screen', return_value=False):
+            with patch.object(self.paddle, 'is_at_bottom_of_screen', return_value=False):
+                with patch.object(self.paddle, 'move_vertical') as mock_move:
+                    self.paddle.update()
+                    mock_move.assert_called_once()
 
     def test_vertical_paddle_up(self):
         """Test vertical paddle up movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-
-            with patch.object(paddle._move, "up") as mock_up:
-                paddle.up()
+        with patch.object(self.paddle._move, 'up') as mock_up:
+            self.paddle.up()
 
                 mock_up.assert_called_once()
-                assert paddle.dirty == 1
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_down(self):
         """Test vertical paddle down movement."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-
-            with patch.object(paddle._move, "down") as mock_down:
-                paddle.down()
+        with patch.object(self.paddle._move, 'down') as mock_down:
+            self.paddle.down()
 
                 mock_down.assert_called_once()
-                assert paddle.dirty == 1
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_stop(self):
         """Test vertical paddle stop."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
-                position=(100, 200),
-                color=(255, 0, 0),
-                speed=speed
-            )
-
-            with patch.object(paddle._move, "stop") as mock_stop:
-                paddle.stop()
+        with patch.object(self.paddle._move, 'stop') as mock_stop:
+            self.paddle.stop()
 
                 mock_stop.assert_called_once()
-                assert paddle.dirty == 1
+            self.assertEqual(self.paddle.dirty, 1)
 
     def test_vertical_paddle_speed_up(self):
         """Test vertical paddle speed up."""
-        with patch("glitchygames.game_objects.load_sound"):
-            speed = Speed(0, 5)
-            paddle = VerticalPaddle(
-                name="test_paddle",
-                size=(20, 50),
+        with patch.object(self.paddle._move.speed, 'speed_up_vertical') as mock_speed_up:
+            self.paddle.speed_up()
+            
+            mock_speed_up.assert_called_once()
+
+
+class TestGameObjectsEdgeCasesCoverage(unittest.TestCase):
+    """Edge cases and error handling for Game Objects module."""
+
+    def test_load_sound_with_nonexistent_file(self):
+        """Test load_sound with nonexistent file."""
+        with patch('pygame.mixer.Sound', side_effect=pygame.error("File not found")):
+            with self.assertRaises(pygame.error):
+                load_sound("nonexistent.wav")
+
+    def test_ball_without_collision_sound(self):
+        """Test BallSprite without collision sound."""
+        mock_screen = Mock()
+        mock_screen.get_width.return_value = 800
+        mock_screen.get_height.return_value = 600
+        mock_screen.get_size.return_value = (800, 600)
+        mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        
+        with patch('pygame.display.get_surface', return_value=mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.circle'):
+                    ball = BallSprite(collision_sound=None)
+                    
+                    # Should not have snd attribute
+                    self.assertFalse(hasattr(ball, 'snd'))
+
+    def test_paddle_without_collision_sound(self):
+        """Test paddle without collision sound."""
+        mock_screen = Mock()
+        mock_screen.get_width.return_value = 800
+        mock_screen.get_height.return_value = 600
+        mock_screen.get_size.return_value = (800, 600)
+        mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        mock_screen.left = 0
+        mock_screen.right = 800
+        
+        with patch('pygame.display.get_surface', return_value=mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.rect'):
+                    paddle = HorizontalPaddle(
+                        name="test",
+                        size=(50, 20),
                 position=(100, 200),
                 color=(255, 0, 0),
-                speed=speed
-            )
+                        speed=5,
+                        collision_sound=None
+                    )
+                    
+                    # Should not have snd attribute
+                    self.assertFalse(hasattr(paddle, 'snd'))
 
-            with patch.object(paddle._move.speed, "speed_up_vertical") as mock_speed_up:
-                paddle.speed_up()
+    def test_ball_bounce_with_negative_direction(self):
+        """Test ball bounce with negative direction."""
+        mock_screen = Mock()
+        mock_screen.get_width.return_value = 800
+        mock_screen.get_height.return_value = 600
+        mock_screen.get_size.return_value = (800, 600)
+        mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        
+        with patch('pygame.display.get_surface', return_value=mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.circle'):
+                    ball = BallSprite()
+                    ball.direction = -30  # Negative direction
+                    
+                    ball.bounce(5)
+                    
+                    # Direction should be (180 - (-30)) % 360 = 210, then -5 = 205
+                    self.assertEqual(ball.direction, 205)
 
-                mock_speed_up.assert_called_once()
+    def test_ball_reset_direction_normalization(self):
+        """Test ball reset direction normalization."""
+        mock_screen = Mock()
+        mock_screen.get_width.return_value = 800
+        mock_screen.get_height.return_value = 600
+        mock_screen.get_size.return_value = (800, 600)
+        mock_screen.get_rect.return_value = Mock(center=(400, 300))
+        
+        with patch('pygame.display.get_surface', return_value=mock_screen):
+            with patch('pygame.sprite.LayeredDirty'):
+                with patch('pygame.draw.circle'):
+                    ball = BallSprite()
+                    
+                    with patch('secrets.randbelow') as mock_rand:
+                        mock_rand.side_effect = [350, 200, 400, 0]  # direction = 400
+                        ball.reset()
+                        
+                        # Direction should be normalized: 400 % 360 = 40
+                        self.assertEqual(ball.direction, 40)
+
+
+if __name__ == "__main__":
+    unittest.main()

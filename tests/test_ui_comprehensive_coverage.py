@@ -35,7 +35,7 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         self.mock_display = Mock()
         self.mock_display.get_width.return_value = 800
         self.mock_display.get_height.return_value = 600
-        
+
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         self.mock_rect = Mock()
         self.mock_rect.x = 0
@@ -57,7 +57,7 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         # Test MenuBar creation
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
         self.assertIsNotNone(menubar)
@@ -73,13 +73,13 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Verify menu item was added
         self.assertIn("TestMenu", menubar.menu_items)
 
@@ -93,12 +93,12 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Test update method
         menubar.update()
-        
+
         # Verify update completed without error
         self.assertIsNotNone(menubar)
 
@@ -112,10 +112,10 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         # Test TextSprite creation
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
         self.assertIsNotNone(text_sprite)
@@ -131,7 +131,7 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         # Test ButtonSprite creation
         button = ButtonSprite(x=10, y=20, width=100, height=50, name="TestButton")
         self.assertIsNotNone(button)
@@ -147,7 +147,7 @@ class TestUIPygameDisplayMocking(unittest.TestCase):
         mock_get_display.return_value = self.mock_display
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = Mock()
-        
+
         # Test InputBox creation
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
         self.assertIsNotNone(input_box)
@@ -179,18 +179,18 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add a menu item to test the update loop
         menu_item = Mock()
         menu_item.image = self.mock_surface
         menu_item.rect = self.mock_rect
         menubar.menu_items = {"test": menu_item}
-        
+
         # Test update method
         menubar.update()
-        
+
         # Verify blit was called
         self.mock_surface.blit.assert_called()
 
@@ -202,13 +202,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
         menubar.has_focus = True
-        
+
         # Test update with focus
         menubar.update()
-        
+
         # Verify focus rendering was attempted
         self.mock_surface.blit.assert_called()
 
@@ -220,17 +220,17 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add first menu item
         menu1 = MenuItem(x=0, y=0, width=50, height=20, name="Menu1")
         menubar.add_menu_item(menu1)
-        
+
         # Add second menu item (should trigger the else branch)
         menu2 = MenuItem(x=0, y=0, width=50, height=20, name="Menu2")
         menubar.add_menu_item(menu2)
-        
+
         # Verify menu items were added
         self.assertIn("Menu1", menubar.menu_items)
         self.assertIn("Menu2", menubar.menu_items)
@@ -243,13 +243,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item to trigger image creation
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Verify menu image was created
         self.assertIsNotNone(menubar.menu_image)
         self.assertIsNotNone(menubar.menu_rect)
@@ -262,14 +262,14 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add multiple menu items to test width/height calculation
         for i in range(3):
             menu = MenuItem(x=0, y=0, width=50, height=20, name=f"Menu{i}")
             menubar.add_menu_item(menu)
-        
+
         # Verify calculations were performed
         self.assertIsNotNone(menubar.menu_image)
 
@@ -281,13 +281,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu items to trigger heights calculation
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Verify the method completed without error
         self.assertIsNotNone(menubar.menu_items)
 
@@ -299,13 +299,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu positioning logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -317,13 +317,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu visibility logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -335,13 +335,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu hiding logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -353,13 +353,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu cleanup logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -371,13 +371,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu rendering logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -389,13 +389,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu interaction logic
         self.assertIsNotNone(menubar.menu_items)
 
@@ -407,13 +407,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test menu event handling
         self.assertIsNotNone(menubar.menu_items)
 
@@ -425,13 +425,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test advanced menu cleanup
         self.assertIsNotNone(menubar.menu_items)
 
@@ -443,13 +443,13 @@ class TestUIMissingLinesCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         menubar = MenuBar(x=0, y=0, width=200, height=50, name="TestMenu")
-        
+
         # Add menu item
         menu = MenuItem(x=0, y=0, width=50, height=20, name="TestMenu")
         menubar.add_menu_item(menu)
-        
+
         # Test final menu cleanup
         self.assertIsNotNone(menubar.menu_items)
 
@@ -479,16 +479,16 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
-        
+
         # Test property access
         self.assertEqual(text_sprite.x, 10)
         self.assertEqual(text_sprite.y, 20)
-        
+
         # Test property setting
         text_sprite.x = 30
         text_sprite.y = 40
@@ -503,12 +503,12 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
-        
+
         # Test missing methods
         self.assertIsNotNone(text_sprite)
 
@@ -520,12 +520,12 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
-        
+
         # Test rendering methods
         self.assertIsNotNone(text_sprite)
 
@@ -537,12 +537,12 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
-        
+
         # Test event handling
         self.assertIsNotNone(text_sprite)
 
@@ -554,12 +554,12 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         text_sprite = TextSprite(
-            x=10, y=20, width=100, height=50, 
+            x=10, y=20, width=100, height=50,
             name="TestText", text="Hello World"
         )
-        
+
         # Test interaction methods
         self.assertIsNotNone(text_sprite)
 
@@ -571,9 +571,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         button = ButtonSprite(x=10, y=20, width=100, height=50, name="TestButton")
-        
+
         # Test missing functionality
         self.assertIsNotNone(button)
 
@@ -585,9 +585,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         button = ButtonSprite(x=10, y=20, width=100, height=50, name="TestButton")
-        
+
         # Test missing rendering
         self.assertIsNotNone(button)
 
@@ -599,9 +599,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         button = ButtonSprite(x=10, y=20, width=100, height=50, name="TestButton")
-        
+
         # Test missing events
         self.assertIsNotNone(button)
 
@@ -613,9 +613,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         button = ButtonSprite(x=10, y=20, width=100, height=50, name="TestButton")
-        
+
         # Test missing interactions
         self.assertIsNotNone(button)
 
@@ -627,9 +627,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test missing functionality
         self.assertIsNotNone(input_box)
 
@@ -641,9 +641,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test missing events
         self.assertIsNotNone(input_box)
 
@@ -655,9 +655,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test missing rendering
         self.assertIsNotNone(input_box)
 
@@ -669,9 +669,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test missing interactions
         self.assertIsNotNone(input_box)
 
@@ -683,9 +683,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test advanced missing events
         self.assertIsNotNone(input_box)
 
@@ -697,9 +697,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test advanced missing rendering
         self.assertIsNotNone(input_box)
 
@@ -711,9 +711,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test final missing events
         self.assertIsNotNone(input_box)
 
@@ -725,9 +725,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test final missing rendering
         self.assertIsNotNone(input_box)
 
@@ -739,9 +739,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test final missing interactions
         self.assertIsNotNone(input_box)
 
@@ -753,9 +753,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test complete missing events
         self.assertIsNotNone(input_box)
 
@@ -767,9 +767,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test complete missing rendering
         self.assertIsNotNone(input_box)
 
@@ -781,9 +781,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test final complete missing events
         self.assertIsNotNone(input_box)
 
@@ -795,9 +795,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test final complete missing rendering
         self.assertIsNotNone(input_box)
 
@@ -809,9 +809,9 @@ class TestUIMissingFunctionalityCoverage(unittest.TestCase):
         # Setup
         mock_surface.return_value = self.mock_surface
         mock_group.return_value = self.mock_groups
-        
+
         input_box = InputBox(x=10, y=20, width=100, height=50, name="TestInput")
-        
+
         # Test ultimate missing events
         self.assertIsNotNone(input_box)
 

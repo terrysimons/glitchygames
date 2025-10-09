@@ -127,7 +127,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         while self.active_scene is not None and self.quit_requested is False:
             self._tick_clock()
-            
+
             now: float = time.perf_counter()
             self.dt: float = now - previous_time
             previous_time = current_time
@@ -136,7 +136,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self._process_events()
             self._render_scene()
             self._update_display()
-            
+
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()
                 previous_fps_time = current_time
@@ -149,13 +149,14 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
         """Update timing variables for the game loop.
-        
+
         Args:
             previous_time: Previous frame time
             current_time: Current frame time
-            
+
         Returns:
             Tuple of (updated_previous_time, updated_current_time)
+
         """
         now: float = time.perf_counter()
         self.dt: float = now - previous_time
@@ -317,17 +318,17 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _should_post_fps_event(self, current_time: float, previous_fps_time: float) -> bool:
         """Check if FPS event should be posted.
-        
+
         Args:
             current_time: Current time in seconds
             previous_fps_time: Previous FPS time in seconds
-            
+
         Returns:
             True if FPS event should be posted
 
         """
         return (current_time - previous_fps_time) * 1000 >= self.OPTIONS["fps_refresh_rate"]
-    
+
     def _post_fps_event(self) -> None:
         """Post FPS event."""
         pygame.event.post(
@@ -667,31 +668,34 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def _get_collided_sprites(self, position: tuple[int, int]) -> list:
         """Get sprites at the given position.
-        
+
         Args:
             position: The position to check for sprites
-            
+
         Returns:
             List of sprites at the position
+
         """
         return self.sprites_at_position(pos=position)
 
     def _get_focusable_sprites(self, collided_sprites: list) -> list:
         """Get focusable sprites from the collided sprites.
-        
+
         Args:
             collided_sprites: List of sprites that were collided with
-            
+
         Returns:
             List of focusable sprites
+
         """
         return [s for s in collided_sprites if hasattr(s, "focusable") and s.focusable]
 
     def _get_focused_sprites(self) -> list:
         """Get currently focused sprites.
-        
+
         Returns:
             List of currently focused sprites
+
         """
         return [
             sprite for sprite in self.all_sprites if hasattr(sprite, "active") and sprite.active
@@ -699,12 +703,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def _has_focusable_sprites(self, collided_sprites: list) -> bool:
         """Check if any of the collided sprites are focusable.
-        
+
         Args:
             collided_sprites: List of sprites that were collided with
-            
+
         Returns:
             True if any sprite is focusable, False otherwise
+
         """
         return any(
             hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites
@@ -712,9 +717,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def _unfocus_sprites(self, focused_sprites: list) -> None:
         """Unfocus the given sprites.
-        
+
         Args:
             focused_sprites: List of sprites to unfocus
+
         """
         for sprite in focused_sprites:
             if hasattr(sprite, "active"):
@@ -725,12 +731,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def _handle_focus_management(self, collided_sprites: list) -> None:
         """Handle focus management for mouse clicks.
-        
+
         Args:
             collided_sprites: List of sprites that were collided with
+
         """
         focused_sprites = self._get_focused_sprites()
-        
+
         # If we clicked outside all sprites that can be focused, unfocus them
         if not self._has_focusable_sprites(collided_sprites):
             self.log.debug("Click outside focusable sprites - unfocusing")
@@ -1886,10 +1893,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def _handle_focused_sprite_events(self, event: events.HashableEvent) -> bool:
         """Handle events for focused sprites.
-        
+
         Args:
             event: The event to handle
-            
+
         Returns:
             True if a focused sprite handled the event, False otherwise
 
@@ -1905,12 +1912,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 if hasattr(sprite, "on_key_down_event"):
                     sprite.on_key_down_event(event)
                     return True  # Stop event propagation after handling
-        
+
         return False
 
     def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
         """Handle scene-level key events.
-        
+
         Args:
             event: The event to handle
 

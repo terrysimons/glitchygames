@@ -181,7 +181,46 @@ class MockFactory:
         screen.right = width
         screen.top = 0
         screen.bottom = height
+        
+        # Add get_rect method that returns a mock with center attribute
+        rect_mock = Mock()
+        rect_mock.center = (width // 2, height // 2)
+        screen.get_rect.return_value = rect_mock
+        
         return screen
+
+    @staticmethod
+    def _mock_sprite_init(self, x=0, y=0, width=32, height=32, name="", parent=None, groups=None):
+        """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
+        # Set basic attributes
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.name = name
+        self.parent = parent
+        self.groups = groups or []
+        
+        # Mock screen with proper methods
+        self.screen = MockFactory.create_display_mock()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        
+        # Mock other sprite attributes
+        self.image = Mock()
+        self.rect = Mock()
+        self.rect.x = x
+        self.rect.y = y
+        self.rect.width = width
+        self.rect.height = height
+        self.rect.center = (x + width // 2, y + height // 2)
+        self.rect.left = x
+        self.rect.right = x + width
+        self.rect.top = y
+        self.rect.bottom = y + height
+        
+        self.dirty = 1
+        self.visible = 1
 
     @staticmethod
     def create_pygame_display_mock() -> Mock:
@@ -241,6 +280,9 @@ class MockFactory:
         event_event_mock.return_value = Mock()  # Return a mock event object
         event_post_patcher = patch("pygame.event.post", event_post_mock)
         event_event_patcher = patch("pygame.event.Event", event_event_mock)
+        
+        # Sprite class mocking - patch the Sprite constructor to handle pygame.display.get_surface()
+        sprite_patcher = patch("glitchygames.sprites.Sprite.__init__", side_effect=MockFactory._mock_sprite_init)
         
         # Key constants mocking
         key_constants_patcher = patch("pygame.K_q", 113)
@@ -349,7 +391,7 @@ class MockFactory:
         return (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
                 draw_rect_patcher, transform_scale_patcher, font_manager_patcher, clock_patcher,
-                key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
+                sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
                 touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
@@ -372,7 +414,7 @@ class MockFactory:
         (display_patcher, surface_patcher, event_patcher, event_blocked_patcher,
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
          draw_rect_patcher, transform_scale_patcher, font_manager_patcher, clock_patcher,
-         key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
+         sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
          touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
@@ -397,6 +439,7 @@ class MockFactory:
         transform_scale_patcher.stop()
         font_manager_patcher.stop()
         clock_patcher.stop()
+        sprite_patcher.stop()
         
         # Stop all constant patches
         key_constants_patcher.stop()
