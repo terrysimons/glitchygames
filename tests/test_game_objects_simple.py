@@ -18,25 +18,21 @@ from glitchygames.movement import Horizontal, Speed, Vertical
 
 from test_mock_factory import MockFactory
 
-# Global setup for all test classes
-_patchers = None
-
-def setUpModule():
-    """Set up pygame mocks for the entire test module."""
-    global _patchers
-    _patchers = MockFactory.setup_pygame_mocks()
-    for patcher in _patchers:
-        patcher.start()
-
-def tearDownModule():
-    """Clean up pygame mocks for the entire test module."""
-    global _patchers
-    if _patchers:
-        MockFactory.teardown_pygame_mocks(_patchers)
+# Remove module-level setup to avoid patch conflicts
 
 
 class TestGameObjectsInitCoverage(unittest.TestCase):
     """Test coverage for game_objects/__init__.py."""
+
+    def setUp(self):
+        """Set up test fixtures using centralized mocks."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_load_sound_function(self):
         """Test load_sound function."""
@@ -78,10 +74,18 @@ class TestBallSpriteCoverage(unittest.TestCase):
     """Test coverage for BallSprite class."""
 
     def setUp(self):
-        """Set up test fixtures for each test."""
+        """Set up test fixtures using centralized mocks."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+        
         # Create ball sprite with mocked pygame
         with patch("glitchygames.game_objects.load_sound"):
             self.ball = BallSprite()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_ball_initialization_default(self):
         """Test BallSprite initialization with default values."""
@@ -182,7 +186,11 @@ class TestBasePaddleCoverage(unittest.TestCase):
     """Test coverage for BasePaddle class."""
 
     def setUp(self):
-        """Set up test fixtures for each test."""
+        """Set up test fixtures using centralized mocks."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+        
         # Create paddle with mocked pygame
         with patch("glitchygames.game_objects.load_sound"):
             self.horizontal_axis = Horizontal(Speed(5, 0))
@@ -196,6 +204,10 @@ class TestBasePaddleCoverage(unittest.TestCase):
                 width=50,
                 height=20
             )
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_base_paddle_initialization(self):
         """Test BasePaddle initialization."""
@@ -270,7 +282,11 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
     """Test coverage for HorizontalPaddle class."""
 
     def setUp(self):
-        """Set up test fixtures for each test."""
+        """Set up test fixtures using centralized mocks."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+        
         # Create paddle with mocked pygame
         with patch("glitchygames.game_objects.load_sound"):
             self.paddle = HorizontalPaddle(
@@ -280,6 +296,10 @@ class TestHorizontalPaddleCoverage(unittest.TestCase):
                 color=(0, 255, 0),
                 speed=5
             )
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_horizontal_paddle_initialization(self):
         """Test HorizontalPaddle initialization."""
@@ -326,7 +346,11 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
     """Test coverage for VerticalPaddle class."""
 
     def setUp(self):
-        """Set up test fixtures for each test."""
+        """Set up test fixtures using centralized mocks."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+        
         # Create paddle with mocked pygame
         with patch("glitchygames.game_objects.load_sound"):
             self.paddle = VerticalPaddle(
@@ -336,6 +360,10 @@ class TestVerticalPaddleCoverage(unittest.TestCase):
                 color=(0, 0, 255),
                 speed=5
             )
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_vertical_paddle_initialization(self):
         """Test VerticalPaddle initialization."""

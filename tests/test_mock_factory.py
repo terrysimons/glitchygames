@@ -148,13 +148,24 @@ class MockFactory:
     @staticmethod
     def create_pygame_surface_mock(width: int = 8, height: int = 8) -> Mock:
         """Create a pygame.Surface-like mock suitable for Sprite tests."""
+        # Create a mock that will be recognized as a pygame.Surface instance
         surface = Mock()
         surface.convert.return_value = surface
+        surface.convert_alpha.return_value = surface
         surface.set_colorkey.return_value = None
         surface.get_size.return_value = (width, height)
         surface.get_width.return_value = width
         surface.get_height.return_value = height
         surface.get_pixel_data.return_value = [(255, 0, 0)] * (width * height)
+        
+        # Add fill method that UI dialogs need
+        surface.fill.return_value = None
+        
+        # Add blit method for surface operations
+        surface.blit.return_value = None
+        
+        # Add copy method
+        surface.copy.return_value = surface
 
         # Rect mock supports attribute mutation in tests
         rect = Mock()
@@ -166,8 +177,32 @@ class MockFactory:
         rect.bottom = height
         rect.left = 0
         rect.right = width
+        rect.center = (width // 2, height // 2)
         surface.get_rect.return_value = rect
+        
         return surface
+
+    @staticmethod
+    def create_pygame_surface_class_mock():
+        """Create a pygame.Surface class mock that works with isinstance checks."""
+        # Create a mock class that can be used with isinstance
+        class MockSurfaceClass:
+            def __init__(self, *args, **kwargs):
+                # Return a properly configured surface mock
+                self._mock_surface = MockFactory.create_pygame_surface_mock()
+                # Copy all attributes from the mock surface
+                for attr in dir(self._mock_surface):
+                    if not attr.startswith('_'):
+                        setattr(self, attr, getattr(self._mock_surface, attr))
+        
+        # Make it look like a proper class
+        MockSurfaceClass.__name__ = "Surface"
+        MockSurfaceClass.__module__ = "pygame"
+        
+        # Store the class for isinstance checks
+        MockFactory._surface_class = MockSurfaceClass
+        
+        return MockSurfaceClass
 
     @staticmethod
     def create_display_mock(width: int = 800, height: int = 600) -> Mock:
@@ -190,37 +225,37 @@ class MockFactory:
         return screen
 
     @staticmethod
-    def _mock_sprite_init(self, x=0, y=0, width=32, height=32, name="", parent=None, groups=None):
+    def _mock_sprite_init(sprite_instance, x=0, y=0, width=32, height=32, name="", parent=None, groups=None):
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Set basic attributes
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.name = name
-        self.parent = parent
-        self.groups = groups or []
+        sprite_instance.x = x
+        sprite_instance.y = y
+        sprite_instance.width = width
+        sprite_instance.height = height
+        sprite_instance.name = name
+        sprite_instance.parent = parent
+        sprite_instance.groups = groups or []
         
         # Mock screen with proper methods
-        self.screen = MockFactory.create_display_mock()
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
+        sprite_instance.screen = MockFactory.create_display_mock()
+        sprite_instance.screen_width = sprite_instance.screen.get_width()
+        sprite_instance.screen_height = sprite_instance.screen.get_height()
         
         # Mock other sprite attributes
-        self.image = Mock()
-        self.rect = Mock()
-        self.rect.x = x
-        self.rect.y = y
-        self.rect.width = width
-        self.rect.height = height
-        self.rect.center = (x + width // 2, y + height // 2)
-        self.rect.left = x
-        self.rect.right = x + width
-        self.rect.top = y
-        self.rect.bottom = y + height
+        sprite_instance.image = Mock()
+        sprite_instance.rect = Mock()
+        sprite_instance.rect.x = x
+        sprite_instance.rect.y = y
+        sprite_instance.rect.width = width
+        sprite_instance.rect.height = height
+        sprite_instance.rect.center = (x + width // 2, y + height // 2)
+        sprite_instance.rect.left = x
+        sprite_instance.rect.right = x + width
+        sprite_instance.rect.top = y
+        sprite_instance.rect.bottom = y + height
         
-        self.dirty = 1
-        self.visible = 1
+        sprite_instance.dirty = 1
+        sprite_instance.visible = 1
 
     @staticmethod
     def create_pygame_display_mock() -> Mock:
@@ -246,11 +281,11 @@ class MockFactory:
         """
         # Create comprehensive mocks
         display_mock = MockFactory.create_pygame_display_mock()
-        surface_mock = MockFactory.create_pygame_surface_mock()
 
         # Set up patches
         display_patcher = patch("pygame.display", display_mock)
-        surface_patcher = patch("pygame.Surface", return_value=surface_mock)
+        surface_class_mock = MockFactory.create_pygame_surface_class_mock()
+        surface_patcher = patch("pygame.Surface", surface_class_mock)
         event_patcher = patch("pygame.event.get", return_value=[])
         event_blocked_patcher = patch("pygame.event.get_blocked", return_value=False)
         event_post_patcher = patch("pygame.event.post")
