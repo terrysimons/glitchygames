@@ -38,7 +38,7 @@ class TestSceneLifecycle:
         assert scene.fps == 0
         assert scene.dt == 0
         assert scene.dirty == 1
-        assert scene.options == {}
+        assert scene.options == {"debug_events": False, "no_unhandled_events": False}
         assert scene.name == type(scene)
 
     def test_scene_cleanup(self, mock_pygame_patches):

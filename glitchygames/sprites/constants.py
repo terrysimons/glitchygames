@@ -4,6 +4,4 @@
 DEFAULT_FILE_FORMAT = "toml"
 
 # Universal character set for sprite encoding
-SPRITE_GLYPHS = """
-.aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@
-"""
+SPRITE_GLYPHS = ".aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@"

@@ -854,6 +854,9 @@ class GameEngine(events.EventManager):
             None
 
         """
+        # This ensures that logging is enabled as soon as the game object is created.
+        logging.getLogger("game")
+        self.log.info("Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
                 "Game not initialized.  Pass a game class to the GameEngine constructor."
@@ -889,13 +892,16 @@ class GameEngine(events.EventManager):
             # Get count of joysticks
             self.joysticks = []
             if self.joystick_manager:
-                self.joysticks = self.joystick_manager.joysticks
+                # JoystickManager.joysticks is a dictionary, convert to list of values
+                self.joysticks = list(self.joystick_manager.joysticks.values())
             self.joystick_count = len(self.joysticks)
 
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
-        except Exception:
+        except Exception as e:
             self.log.exception("Error starting game.")
+            # In production, handle exceptions gracefully
+            # Tests can override this behavior if needed
         finally:
             pygame.display.quit()
             pygame.quit()

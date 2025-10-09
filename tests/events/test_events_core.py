@@ -24,7 +24,7 @@ from glitchygames.events import (
     unhandled_event,
 )
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 class TestHashableEvent:
@@ -612,3 +612,171 @@ class TestEventSystemUtilities:
         mock_game = Mock()
         wrapper(mock_game)
         mock_func.cache_info.assert_called_once()
+
+    def test_unhandled_event_debug_events_true(self, mock_pygame_patches):
+        """Test unhandled_event with debug_events=True."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": True, "no_unhandled_events": False}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("pygame.event.event_name", return_value="KEYDOWN") as mock_event_name, \
+             patch("glitchygames.events.LOG") as mock_log:
+
+            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+
+            mock_event_name.assert_called_once_with(pygame.KEYDOWN)
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: KEYDOWN" in call_args
+            assert "arg1" in call_args
+            assert "'kwarg1': 'value1'" in call_args
+
+    def test_unhandled_event_debug_events_none(self, mock_pygame_patches):
+        """Test unhandled_event with debug_events=None."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": None, "no_unhandled_events": False}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("glitchygames.events.LOG") as mock_log:
+            unhandled_event(mock_game, mock_event)
+
+            mock_log.error.assert_called_once_with(
+                "Error: debug_events is missing from the game options. This shouldn't be possible."
+            )
+
+    def test_unhandled_event_no_unhandled_events_true(self, mock_pygame_patches):
+        """Test unhandled_event with no_unhandled_events=True."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("pygame.event.event_name", return_value="KEYDOWN") as mock_event_name, \
+             patch("glitchygames.events.LOG") as mock_log, \
+             patch("sys.exit") as mock_exit:
+
+            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+
+            mock_event_name.assert_called_once_with(pygame.KEYDOWN)
+            mock_log.error.assert_called_once()
+            mock_exit.assert_called_once_with(-1)
+
+    def test_unhandled_event_no_unhandled_events_none(self, mock_pygame_patches):
+        """Test unhandled_event with no_unhandled_events=None."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": False, "no_unhandled_events": None}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("glitchygames.events.LOG") as mock_log:
+            unhandled_event(mock_game, mock_event)
+
+            mock_log.error.assert_called_once_with(
+                "Error: no_unhandled_events is missing from the game options. "
+                "This shouldn't be possible."
+            )
+
+    def test_unhandled_event_both_false(self, mock_pygame_patches):
+        """Test unhandled_event with both options False."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": False, "no_unhandled_events": False}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("glitchygames.events.LOG") as mock_log:
+            unhandled_event(mock_game, mock_event)
+
+            # Should not log anything when both are False
+            mock_log.error.assert_not_called()
+
+    def test_unhandled_event_both_true(self, mock_pygame_patches):
+        """Test unhandled_event with both options True."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": True, "no_unhandled_events": True}
+
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+
+        with patch("pygame.event.event_name", return_value="KEYDOWN"), \
+             patch("glitchygames.events.LOG") as mock_log, \
+             patch("sys.exit") as mock_exit:
+
+            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+
+            # Should log debug message AND exit (logs twice: once for debug_events,
+            # once for no_unhandled_events)
+            expected_call_count = 2
+            assert mock_log.error.call_count == expected_call_count
+            mock_exit.assert_called_once_with(-1)
+
+    def test_supported_events_filters_and_patches(self, mock_pygame_patches):
+        """supported_events should filter by regex and patch known names."""
+        # Craft a tiny namespace of pygame constants and event names
+        def fake_event_name(idx):
+            mapping = {
+                0: "KEYDOWN",
+                1: "JOYAXISMOTION",
+                2: "WINDOWSHOWN",
+                3: "UNKNOWN",
+                4: "CONTROLLERDEVICEMAPPED",
+            }
+            return mapping.get(idx, "UNKNOWN")
+
+        with patch.object(pygame, "NUMEVENTS", 5), \
+             patch("pygame.event.event_name", side_effect=fake_event_name), \
+             patch.multiple(
+                 pygame,
+                 KEYDOWN=1,
+                 JOYAXISMOTION=2,
+                 WINDOWSHOWN=3,
+                 CONTROLLERDEVICEREMAPPED=4,
+                 K_UNKNOWN=0,
+             ):
+            keys = supported_events(like="KEY.*?")
+            joys = supported_events(like="JOY.*?")
+            wins = supported_events(like="WINDOW.*?")
+            ctrls = supported_events(like="CONTROLLER.*?")
+
+        # Expect the patched numeric constants returned by supported_events
+        assert keys == [1]
+        assert joys == [2]
+        assert wins == [3]
+        # Patched name should map to REMAPPED constant value we provided
+        assert ctrls == [4]
+
+    def test_resourcemanager_getattr_delegation_and_missing(self, mock_pygame_patches):
+        """ResourceManager should delegate to proxies or raise AttributeError."""
+
+        class Dummy:
+            def foo(self):  # noqa: PLR6301
+                return "bar"
+
+        class DummyManager(ResourceManager):
+            pass
+
+        mgr = DummyManager(game=None)
+        mgr.proxies = [Dummy()]
+        # Delegation
+        assert mgr.foo() == "bar"
+
+        # Missing path raises
+        mgr.proxies = []
+        with pytest.raises(AttributeError):
+            _ = mgr.nonexistent()
+
+    def test_eventmanager_eventproxy_unhandled_attr(self, mock_pygame_patches):
+        """EventProxy should return unhandled_event callable for unknown attrs."""
+        mgr = EventManager(game=None)
+        proxy = mgr.proxies[0]
+        handler = proxy.some_unknown_handler
+        assert callable(handler)
+        # Call handler; should not raise
+        handler(event=Mock(), trigger=None)

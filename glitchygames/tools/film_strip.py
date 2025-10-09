@@ -455,8 +455,7 @@ class FilmStripWidget:
             and self.parent_canvas
         ):
             frame_img = self.parent_canvas.get_canvas_surface()
-            # Reset the force redraw flag after getting fresh data
-            self._force_redraw = False
+            # Don't reset the force redraw flag here - let it persist for all frames
 
         return frame_img
 
@@ -689,6 +688,10 @@ class FilmStripWidget:
 
         # Render the animated preview
         self.render_preview(surface)
+        
+        # Reset the force redraw flag after all frames have been rendered
+        if hasattr(self, "_force_redraw") and self._force_redraw:
+            self._force_redraw = False
 
     def _calculate_frames_width(self) -> int:
         """Calculate the total width needed for all frames and sprockets."""

@@ -12,7 +12,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 @pytest.fixture
@@ -57,7 +57,10 @@ def mock_game():
 
         def __init__(self, options=None, groups=None):
             if options is None:
-                options = {}
+                options = {
+                    "debug_events": False,
+                    "no_unhandled_events": False
+                }
             if groups is None:
                 groups = Mock()  # Mock pygame.sprite.Group
             super().__init__(options=options, groups=groups)
@@ -103,9 +106,8 @@ def mock_surface():
 @pytest.fixture
 def mock_joystick_manager():
     """Create a mock joystick manager for testing."""
-    mock_manager = Mock()
-    mock_manager.joysticks = [Mock(), Mock()]  # 2 joysticks
-    return mock_manager
+    from tests.mocks.test_mock_factory import MockFactory
+    return MockFactory.create_joystick_manager_mock(joystick_count=0)  # No joysticks by default
 
 
 @pytest.fixture

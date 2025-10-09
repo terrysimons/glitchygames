@@ -144,3 +144,28 @@ class TestGameManager:
             # If we get here without errors, the handlers work
             assert True
 
+    def test_game_manager_initialization(self, mock_pygame_patches):
+        """Test GameManager initialization."""
+        # Create mock scene manager
+        mock_scene_manager = Mock()
+        
+        # Test GameManager initialization
+        game_manager = GameManager(game=mock_scene_manager)
+        
+        # Verify game is set
+        assert game_manager.game == mock_scene_manager
+
+    def test_game_manager_args(self, mock_pygame_patches):
+        """Test GameManager.args method."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        
+        # Test that args method returns the parser
+        result = GameManager.args(parser)
+        
+        assert result is parser
+        
+        # Test that we can parse the arguments
+        args = parser.parse_args([])
+        assert hasattr(args, "profile")  # Should have profile option
+

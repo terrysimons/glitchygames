@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.engine import GameEngine, GameManager
 from glitchygames.scenes import Scene
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 class TestEngineInitialization(unittest.TestCase):
@@ -156,6 +156,108 @@ class TestEngineInitialization(unittest.TestCase):
         # Test that logger is properly configured
         self.assertIsNotNone(GameEngine.log)
         self.assertEqual(GameEngine.log.name, "game.engine")
+
+    def test_initialize_icon_with_path(self):
+        """Test GameEngine.initialize_icon with Path object."""
+        from pathlib import Path
+        
+        # Create a mock icon file
+        mock_icon_path = Path("test_icon.png")
+        
+        with patch("pygame.image.load") as mock_load:
+            mock_surface = Mock()
+            mock_load.return_value = mock_surface
+            
+            # Test with Path object
+            GameEngine.initialize_icon(mock_icon_path)
+            
+            # Verify pygame.image.load was called with the path
+            mock_load.assert_called_once_with(mock_icon_path)
+            self.assertEqual(GameEngine.icon, mock_surface)
+
+    def test_initialize_icon_with_none(self):
+        """Test GameEngine.initialize_icon with None."""
+        original_icon = GameEngine.icon
+        
+        # Test with None (should not change icon)
+        GameEngine.initialize_icon(None)
+        
+        # Verify icon was not changed
+        self.assertEqual(GameEngine.icon, original_icon)
+
+    def test_initialize_icon_file_not_found(self):
+        """Test GameEngine.initialize_icon with non-existent file."""
+        from pathlib import Path
+        
+        mock_icon_path = Path("nonexistent_icon.png")
+        
+        with patch("pygame.image.load") as mock_load:
+            mock_load.side_effect = FileNotFoundError()
+            
+            # Test with non-existent file (should suppress error)
+            GameEngine.initialize_icon(mock_icon_path)
+            
+            # Verify pygame.image.load was called but error was suppressed
+            mock_load.assert_called_once_with(mock_icon_path)
+
+    def test_set_cursor_basic(self):
+        """Test GameEngine.set_cursor with basic cursor."""
+        # Use cursor data that's divisible by 8
+        cursor_data = ["........", "XXXXXXXX", "........", "........", "........", "........", "........", "........"]
+        
+        # Mock pygame.mouse.set_cursor to avoid video system initialization
+        with patch("pygame.mouse.set_cursor") as mock_set_cursor:
+            result = GameEngine.set_cursor(cursor_data)
+            
+            # Verify cursor was set and returned
+            self.assertEqual(result, cursor_data)
+            mock_set_cursor.assert_called_once()
+
+    def test_set_cursor_with_colors(self):
+        """Test GameEngine.set_cursor with custom colors."""
+        # Use cursor data that's divisible by 8
+        cursor_data = ["BBBBBBBB", "WWWWWWWW", "OOOOOOOO", "BBBBBBBB", "WWWWWWWW", "OOOOOOOO", "BBBBBBBB", "WWWWWWWW"]
+        
+        # Mock pygame.mouse.set_cursor to avoid video system initialization
+        with patch("pygame.mouse.set_cursor") as mock_set_cursor:
+            result = GameEngine.set_cursor(
+                cursor_data,
+                cursor_black="B",
+                cursor_white="W", 
+                cursor_xor="O"
+            )
+            
+            # Verify cursor was set with custom colors
+            self.assertEqual(result, cursor_data)
+            mock_set_cursor.assert_called_once()
+
+    def test_engine_options_initialization(self):
+        """Test that engine options are properly initialized."""
+        # Test that OPTIONS dict exists and has expected keys
+        self.assertTrue(hasattr(GameEngine, "OPTIONS"))
+        self.assertIsInstance(GameEngine.OPTIONS, dict)
+        
+        # Test that profile option exists
+        self.assertIn("profile", GameEngine.OPTIONS)
+
+    def test_engine_constants(self):
+        """Test that engine constants are properly set."""
+        # Test class constants
+        self.assertEqual(GameEngine.NAME, "Boilerplate Adventures")
+        self.assertEqual(GameEngine.VERSION, "1.0")
+        self.assertTrue(hasattr(GameEngine, "icon"))
+        self.assertTrue(hasattr(GameEngine, "log"))
+
+    def test_engine_missing_events_tracking(self):
+        """Test missing events tracking."""
+        # Test that missing events tracking exists
+        self.assertTrue(hasattr(GameEngine, "LAST_EVENT_MISS"))
+        self.assertTrue(hasattr(GameEngine, "MISSING_EVENTS"))
+        self.assertTrue(hasattr(GameEngine, "UNIMPLEMENTED_EVENTS"))
+        
+        # Test that they are properly initialized
+        self.assertIsInstance(GameEngine.MISSING_EVENTS, list)
+        self.assertIsInstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
 
 
 if __name__ == "__main__":

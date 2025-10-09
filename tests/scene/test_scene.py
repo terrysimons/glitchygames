@@ -19,7 +19,7 @@ class TestScene:
         assert scene.dt == 0
         assert scene.dt_timer == 0
         assert scene.dirty == 1
-        assert scene.options == {}
+        assert scene.options == {"debug_events": False, "no_unhandled_events": False}
         assert scene.name == type(scene)
         assert scene._background_color == (0, 0, 0, 0)  # BLACK color
         assert scene.next_scene == scene

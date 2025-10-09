@@ -22,6 +22,7 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedSpriteSerializer,
 )
 from glitchygames.tools.film_strip import FilmStripWidget
+from mocks.test_mock_factory import MockFactory
 
 
 class TestAnimatedCanvasSprite(unittest.TestCase):
@@ -31,9 +32,10 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        # Initialize pygame with display for each test
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Set up centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
         # Create a test animated sprite
         self.animated_sprite = self._create_test_animated_sprite()
@@ -50,10 +52,9 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
             pixel_height=16,
         )
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def _create_test_animated_sprite():
@@ -239,7 +240,7 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
         """Test saving and loading animated sprites."""
         # Create a temporary file
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".ini", delete=False, encoding="utf-8"
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
         ) as f:
             temp_filename = f.name
 
@@ -282,16 +283,16 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
 class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
     """Test edge cases for AnimatedCanvasSprite."""
 
-    @staticmethod
-    def setUp():
+    def setUp(self):
         """Set up test fixtures before each test method."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Set up centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def test_empty_animated_sprite():

@@ -19,7 +19,7 @@ from glitchygames.events import (
     DropEventStubs,
 )
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 class TestDropEvents:
@@ -253,3 +253,118 @@ class TestDropEvents:
         }
         stub.options = mock_game.options
         return mock_game
+
+
+class TestDropManagerCoverage:
+    """Test coverage for drop manager functionality."""
+
+    def test_drop_manager_initialization(self, mock_pygame_patches):
+        """Test DropManager initialization."""
+        from glitchygames.events.drop import DropManager
+        
+        mock_game = Mock()
+        manager = DropManager(game=mock_game)
+        
+        assert manager.game == mock_game
+
+    def test_drop_manager_initialization_no_game(self, mock_pygame_patches):
+        """Test DropManager initialization without game."""
+        from glitchygames.events.drop import DropManager
+        
+        manager = DropManager(game=None)
+        assert manager.game is None
+
+    def test_drop_manager_args(self, mock_pygame_patches):
+        """Test DropManager args method."""
+        from glitchygames.events.drop import DropManager
+        import argparse
+        
+        parser = argparse.ArgumentParser()
+        result = DropManager.args(parser)
+        
+        assert result is parser
+
+    def test_drop_proxy_initialization(self, mock_pygame_patches):
+        """Test drop proxy initialization."""
+        from glitchygames.events.drop import DropManager
+        
+        mock_game = Mock()
+        manager = DropManager(game=mock_game)
+        
+        # Test that proxy is created
+        assert hasattr(manager, 'proxies')
+        assert len(manager.proxies) > 0
+
+    def test_drop_proxy_initialization_no_game(self, mock_pygame_patches):
+        """Test drop proxy initialization without game."""
+        from glitchygames.events.drop import DropManager
+        
+        manager = DropManager(game=None)
+        
+        # Test that proxy is created even without game
+        assert hasattr(manager, 'proxies')
+        assert len(manager.proxies) > 0
+
+    def test_drop_proxy_on_drop_begin_event(self, mock_pygame_patches):
+        """Test drop proxy on_drop_begin_event."""
+        from glitchygames.events.drop import DropManager
+        
+        # Create a mock game with the required methods
+        mock_game = Mock()
+        mock_game.on_drop_begin_event = Mock()
+        
+        manager = DropManager(game=mock_game)
+        proxy = manager.proxies[0]
+        
+        event = HashableEvent(pygame.DROPBEGIN)
+        # Should not raise exception
+        proxy.on_drop_begin_event(event)
+        mock_game.on_drop_begin_event.assert_called_once_with(event)
+
+    def test_drop_proxy_on_drop_complete_event(self, mock_pygame_patches):
+        """Test drop proxy on_drop_complete_event."""
+        from glitchygames.events.drop import DropManager
+        
+        # Create a mock game with the required methods
+        mock_game = Mock()
+        mock_game.on_drop_complete_event = Mock()
+        
+        manager = DropManager(game=mock_game)
+        proxy = manager.proxies[0]
+        
+        event = HashableEvent(pygame.DROPCOMPLETE)
+        # Should not raise exception
+        proxy.on_drop_complete_event(event)
+        mock_game.on_drop_complete_event.assert_called_once_with(event)
+
+    def test_drop_proxy_on_drop_file_event(self, mock_pygame_patches):
+        """Test drop proxy on_drop_file_event."""
+        from glitchygames.events.drop import DropManager
+        
+        # Create a mock game with the required methods
+        mock_game = Mock()
+        mock_game.on_drop_file_event = Mock()
+        
+        manager = DropManager(game=mock_game)
+        proxy = manager.proxies[0]
+        
+        event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt")
+        # Should not raise exception
+        proxy.on_drop_file_event(event)
+        mock_game.on_drop_file_event.assert_called_once_with(event)
+
+    def test_drop_proxy_on_drop_text_event(self, mock_pygame_patches):
+        """Test drop proxy on_drop_text_event."""
+        from glitchygames.events.drop import DropManager
+        
+        # Create a mock game with the required methods
+        mock_game = Mock()
+        mock_game.on_drop_text_event = Mock()
+        
+        manager = DropManager(game=mock_game)
+        proxy = manager.proxies[0]
+        
+        event = HashableEvent(pygame.DROPTEXT, text="dropped text")
+        # Should not raise exception
+        proxy.on_drop_text_event(event)
+        mock_game.on_drop_text_event.assert_called_once_with(event)

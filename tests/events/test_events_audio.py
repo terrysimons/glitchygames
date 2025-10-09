@@ -19,7 +19,7 @@ from glitchygames.events import (
     AudioEventStubs,
 )
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 class TestAudioEvents:

@@ -97,15 +97,14 @@ CRITICAL RULES:
       "0", only define [colors.0])
 """
 
-LOG = logging.getLogger("game.bitmappy")
+LOG = logging.getLogger("game.tools.bitmappy")
 
 # Set up logging
-LOG.setLevel(logging.DEBUG)
-if not LOG.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    LOG.addHandler(handler)
+# if not LOG.handlers:
+#     handler = logging.StreamHandler()
+#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+#     handler.setFormatter(formatter)
+#     LOG.addHandler(handler)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -166,87 +165,91 @@ AI_TRAINING_FORMAT = None  # Will be detected from training files
 
 # Load sprite configuration files for AI training
 SPRITE_CONFIG_DIR = resource_path("glitchygames", "examples", "resources", "sprites")
-LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
-LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
+def load_ai_training_data():
+    """Load AI training data from sprite config files."""
+    global AI_TRAINING_DATA, AI_TRAINING_FORMAT
 
-if SPRITE_CONFIG_DIR.exists():
-    # Look for TOML files first (preferred), then fall back to INI
-    toml_files = list(SPRITE_CONFIG_DIR.glob("*.toml"))
-    ini_files = list(SPRITE_CONFIG_DIR.glob("*.ini"))
+    LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
+    LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
 
-    if toml_files:
-        config_files = toml_files
-        AI_TRAINING_FORMAT = "toml"
-        LOG.info(f"Found {len(config_files)} TOML sprite config files")
-    elif ini_files:
-        config_files = ini_files
-        AI_TRAINING_FORMAT = "ini"
-        LOG.info(f"Found {len(config_files)} INI sprite config files")
+    if SPRITE_CONFIG_DIR.exists():
+        # Look for TOML files first (preferred), then fall back to INI
+        toml_files = list(SPRITE_CONFIG_DIR.glob("*.toml"))
+        ini_files = list(SPRITE_CONFIG_DIR.glob("*.ini"))
+
+        if toml_files:
+            config_files = toml_files
+            AI_TRAINING_FORMAT = "toml"
+            LOG.info(f"Found {len(config_files)} TOML sprite config files")
+        elif ini_files:
+            config_files = ini_files
+            AI_TRAINING_FORMAT = "ini"
+            LOG.info(f"Found {len(config_files)} INI sprite config files")
+        else:
+            config_files = []
+            LOG.warning("No sprite config files found")
+
+        for config_file in config_files:
+            LOG.debug(f"Processing config file: {config_file}")
+            try:
+                # Parse the file directly instead of using SpriteFactory to avoid display requirements
+                if AI_TRAINING_FORMAT == "toml":
+                    with config_file.open(encoding="utf-8") as f:
+                        config_data = toml.load(f)
+
+                    # Extract sprite data from TOML structure
+                    sprite_data = {
+                        "name": config_data.get("sprite", {}).get("name", "Unknown"),
+                        "format": AI_TRAINING_FORMAT,
+                        "sprite_type": "animated" if "animation" in config_data else "static",
+                    }
+
+                    # For static sprites, extract pixel data and colors
+                    if "sprite" in config_data:
+                        sprite_data["pixels"] = config_data["sprite"].get("pixels", "")
+                        sprite_data["colors"] = config_data.get("colors", {})
+
+                    # For animated sprites, extract animation data
+                    if "animation" in config_data:
+                        sprite_data["animations"] = config_data["animation"]
+
+                else:  # INI format
+                    config = configparser.ConfigParser()
+                    config.read(config_file)
+
+                    # Extract sprite data from INI structure
+                    sprite_data = {
+                        "name": config.get("sprite", "name", fallback="Unknown"),
+                        "format": AI_TRAINING_FORMAT,
+                        "sprite_type": "animated" if "animation" in config.sections() else "static",
+                    }
+
+                    # For static sprites, extract pixel data and colors
+                    if "sprite" in config:
+                        sprite_data["pixels"] = config.get("sprite", "pixels", fallback="")
+                        sprite_data["colors"] = {}
+                        for i in range(8):
+                            if str(i) in config:
+                                sprite_data["colors"][str(i)] = {
+                                    "red": config.getint(str(i), "red", fallback=0),
+                                    "green": config.getint(str(i), "green", fallback=0),
+                                    "blue": config.getint(str(i), "blue", fallback=0),
+                                }
+
+                    # For animated sprites, extract animation data
+                    if "animation" in config:
+                        sprite_data["animations"] = dict(config["animation"])
+
+                AI_TRAINING_DATA.append(sprite_data)
+                LOG.info(f"Successfully loaded sprite config: {config_file.name}")
+
+            except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
+                LOG.warning(f"Error loading sprite config {config_file}: {e}")
     else:
-        config_files = []
-        LOG.warning("No sprite config files found")
+        LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
-    for config_file in config_files:
-        LOG.debug(f"Processing config file: {config_file}")
-        try:
-            # Parse the file directly instead of using SpriteFactory to avoid display requirements
-            if AI_TRAINING_FORMAT == "toml":
-                with config_file.open(encoding="utf-8") as f:
-                    config_data = toml.load(f)
-
-                # Extract sprite data from TOML structure
-                sprite_data = {
-                    "name": config_data.get("sprite", {}).get("name", "Unknown"),
-                    "format": AI_TRAINING_FORMAT,
-                    "sprite_type": "animated" if "animation" in config_data else "static",
-                }
-
-                # For static sprites, extract pixel data and colors
-                if "sprite" in config_data:
-                    sprite_data["pixels"] = config_data["sprite"].get("pixels", "")
-                    sprite_data["colors"] = config_data.get("colors", {})
-
-                # For animated sprites, extract animation data
-                if "animation" in config_data:
-                    sprite_data["animations"] = config_data["animation"]
-
-            else:  # INI format
-                config = configparser.ConfigParser()
-                config.read(config_file)
-
-                # Extract sprite data from INI structure
-                sprite_data = {
-                    "name": config.get("sprite", "name", fallback="Unknown"),
-                    "format": AI_TRAINING_FORMAT,
-                    "sprite_type": "animated" if "animation" in config.sections() else "static",
-                }
-
-                # For static sprites, extract pixel data and colors
-                if "sprite" in config:
-                    sprite_data["pixels"] = config.get("sprite", "pixels", fallback="")
-                    sprite_data["colors"] = {}
-                    for i in range(8):
-                        if str(i) in config:
-                            sprite_data["colors"][str(i)] = {
-                                "red": config.getint(str(i), "red", fallback=0),
-                                "green": config.getint(str(i), "green", fallback=0),
-                                "blue": config.getint(str(i), "blue", fallback=0),
-                            }
-
-                # For animated sprites, extract animation data
-                if "animation" in config:
-                    sprite_data["animations"] = dict(config["animation"])
-
-            AI_TRAINING_DATA.append(sprite_data)
-            LOG.info(f"Successfully loaded sprite config: {config_file.name}")
-
-        except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
-            LOG.warning(f"Error loading sprite config {config_file}: {e}")
-else:
-    LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
-
-LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
-LOG.debug(f"AI training data: {AI_TRAINING_DATA}")
+    LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
+    LOG.debug(f"AI training data: {AI_TRAINING_DATA}")
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -493,7 +496,7 @@ def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIRe
     # Check if AI client is available
     if client is None:
         log.warning("AI client not available, returning empty response")
-        return AIResponse(content="AI features not available", usage=None)
+        return AIResponse(content="AI features not available")
 
     log.info("Making API call to AI service...")
     response = client.chat.completions.create(
@@ -717,6 +720,11 @@ class AnimatedCanvasSprite(BitmappySprite):
             name=name,
             groups=groups,
         )
+
+        # Override pixels_across and pixels_tall with correct pixel dimensions
+        # (BitmappySprite.__init__ sets them to screen dimensions)
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
 
         # Initialize sprite data and frame management
         self._initialize_sprite_data(animated_sprite)
@@ -2809,7 +2817,7 @@ class BitmapEditorScene(Scene):
                     game content for game developers. You can create both static
                     single-frame sprites and animated multi-frame sprites.
 
-                    Available character set for sprite pixels: {SPRITE_GLYPHS.strip()}
+                    Available character set for sprite pixels: {SPRITE_GLYPHS}
                 """.strip(),
             },
             {
@@ -2820,7 +2828,7 @@ class BitmapEditorScene(Scene):
 
                             {"\n".join([str(data) for data in relevant_examples])}
 
-                            Available character set: {SPRITE_GLYPHS.strip()}
+                            Available character set: {SPRITE_GLYPHS}
                         """.strip(),
             },
             {
@@ -2830,7 +2838,7 @@ class BitmapEditorScene(Scene):
                     that each sprite consists of:
 
                     1. A name
-                    2. A pixel layout using characters from: {SPRITE_GLYPHS.strip()}
+                    2. A pixel layout using characters from: {SPRITE_GLYPHS}
                     3. A color palette mapping characters to RGB values
                     4. For animated sprites: multiple frames with timing information
 
@@ -2940,11 +2948,9 @@ class BitmapEditorScene(Scene):
         # Debug: Dump the sprite content
         self.log.info("=== AI GENERATED SPRITE CONTENT ===")
         self.log.info(
-            f"Content preview (first {CONTENT_PREVIEW_LENGTH} chars):\n"
-            f"{content[:CONTENT_PREVIEW_LENGTH]}"
+            f"AI Generated Content:\n"
+            f"{content}"
         )
-        if len(content) > CONTENT_PREVIEW_LENGTH:
-            self.log.info(f"... (content continues, total length: {len(content)})")
         self.log.info("=== END SPRITE CONTENT ===")
 
     def _prepare_ai_content(self, request_id: str, content: str) -> str:
@@ -2957,6 +2963,11 @@ class BitmapEditorScene(Scene):
 
         # Clean up any markdown formatting from AI response
         cleaned_content = self._clean_ai_response(content)
+
+        # Check if this is an error message - if so, return it as-is
+        if cleaned_content.strip() in ["AI features not available", "AI features not available."]:
+            self.log.warning("AI returned error message, skipping TOML processing")
+            return cleaned_content
 
         # Add description to the content if we have an original prompt
         if original_prompt and AI_TRAINING_FORMAT == "toml":
@@ -3075,6 +3086,15 @@ class BitmapEditorScene(Scene):
         # Log AI response content for debugging
         self._log_ai_response_content(content)
 
+        # Check if this is an error message
+        if content.strip() in ["AI features not available", "AI features not available."]:
+            self.log.warning("AI returned error message, cannot load sprite")
+            if hasattr(self, "debug_text"):
+                self.debug_text.text = "AI features not available. Please check your AI configuration."
+            # Clean up pending request
+            self._cleanup_ai_request(request_id)
+            return
+
         # Prepare AI content (clean and add description if needed)
         cleaned_content = self._prepare_ai_content(request_id, content)
 
@@ -3115,6 +3135,11 @@ class BitmapEditorScene(Scene):
 
     def _clean_ai_response(self, content: str) -> str:
         """Clean up markdown formatting from AI response."""
+        # Check if this is an error message instead of valid content
+        if content.strip() in ["AI features not available", "AI features not available."]:
+            self.log.warning("AI returned error message instead of sprite content")
+            return content  # Return as-is for error handling upstream
+
         cleaned_content = content
 
         # Handle various markdown code block patterns
@@ -3394,6 +3419,8 @@ def main() -> None:
 
     """
 
+    LOG.setLevel(logging.INFO)
+
     # Set up signal handling to prevent multiprocessing issues on macOS
     def signal_handler(signum):
         """Handle shutdown signals gracefully."""
@@ -3403,6 +3430,8 @@ def main() -> None:
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    load_ai_training_data()
 
     # Set multiprocessing start method to avoid macOS issues
     with contextlib.suppress(RuntimeError):

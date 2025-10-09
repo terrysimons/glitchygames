@@ -5,7 +5,7 @@ This module tests font event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -19,7 +19,7 @@ from glitchygames.events import (
     FontEventStubs,
 )
 
-from test_mock_factory import MockFactory
+from mocks.test_mock_factory import MockFactory
 
 
 class TestFontEvents:
@@ -221,3 +221,253 @@ class TestFontEvents:
         }
         stub.options = mock_game.options
         return mock_game
+
+
+class TestFontManagerCoverage:
+    """Test coverage for FontManager class."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        from glitchygames.fonts import FontManager
+        
+        # Mock game object with required options
+        self.mock_game = Mock()
+        self.mock_game.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 14,
+            "font_bold": False,
+            "font_italic": False,
+            "font_antialias": True,
+            "font_dpi": 72,
+            "font_system": "freetype"
+        }
+
+        # Clear any existing cache
+        FontManager._font_cache.clear()
+        FontManager.OPTIONS.clear()
+
+    def test_font_manager_initialization(self, mock_pygame_patches):
+        """Test FontManager initialization."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        expected_font_size = 14
+
+        with patch("pygame.freetype.init") as mock_init, \
+             patch("pygame.freetype.get_cache_size", return_value=100), \
+             patch("pygame.freetype.get_default_resolution", return_value=72):
+
+            FontManager(self.mock_game)
+
+            mock_init.assert_called_once()
+            assert FontManager.OPTIONS["font_name"] == "arial"
+            assert FontManager.OPTIONS["font_size"] == expected_font_size
+            assert FontManager.OPTIONS["use_freetype"] is True
+
+    def test_font_proxy_initialization(self, mock_pygame_patches):
+        """Test FontProxy initialization."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Create a concrete subclass that implements the abstract method
+        class ConcreteFontProxy(FontManager.FontProxy):
+            def on_font_changed_event(self, event):
+                pass
+
+        with patch("pygame.freetype.init"):
+            FontManager(self.mock_game)
+            proxy = ConcreteFontProxy(self.mock_game)
+
+            assert proxy.game == self.mock_game
+            assert pygame.freetype in proxy.proxies
+
+    def test_font_method_freetype_success(self, mock_pygame_patches):
+        """Test font method with successful freetype loading."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font) as mock_sysfont:
+
+            font_config = {"font_name": "arial", "font_size": 16}
+            result = FontManager.font(font_config)
+
+            mock_sysfont.assert_called_once_with(name="arial", size=16)
+            assert result == mock_font
+            assert "arial_16" in FontManager._font_cache
+
+    def test_font_method_freetype_fallback(self, mock_pygame_patches):
+        """Test font method with freetype fallback to built-in font."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", side_effect=TypeError("Font not found")), \
+             patch("pygame.freetype.Font", return_value=mock_font) as mock_font_class, \
+             patch("pathlib.Path") as mock_path:
+
+            mock_path.return_value.parent = Mock()
+            mock_path.return_value.parent.__truediv__ = Mock(return_value="path/to/font.ttf")
+
+            font_config = {"font_name": "arial", "font_size": 16}
+            result = FontManager.font(font_config)
+
+            mock_font_class.assert_called_once()
+            assert result == mock_font
+
+    def test_pygame_font_method_success(self, mock_pygame_patches):
+        """Test pygame_font method with successful loading."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        mock_font = Mock()
+        with patch("pygame.font.Font", return_value=mock_font) as mock_font_class, \
+             patch("pathlib.Path") as mock_path, \
+             patch("pygame.font.SysFont", return_value=mock_font) as mock_sysfont:
+
+            mock_path.return_value.parent = Mock()
+            mock_path.return_value.parent.__truediv__ = Mock(return_value="path/to/font.ttf")
+
+            font_config = {"font_name": "arial", "font_size": 16}
+            result = FontManager.pygame_font(font_config)
+
+            # Should use SysFont as fallback when Font fails
+            mock_sysfont.assert_called_once_with("arial", 16)
+            assert result == mock_font
+            assert "pygame_arial_16" in FontManager._font_cache
+
+    def test_pygame_font_method_fallback(self, mock_pygame_patches):
+        """Test pygame_font method with fallback to default font."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        mock_font = Mock()
+        with patch("pygame.font.Font", side_effect=FileNotFoundError("Font not found")), \
+             patch("pygame.font.SysFont", return_value=mock_font) as mock_sysfont:
+
+            font_config = {"font_name": "arial", "font_size": 16}
+            result = FontManager.pygame_font(font_config)
+
+            mock_sysfont.assert_called_once_with("arial", 16)
+            assert result == mock_font
+
+    def test_pygame_font_method_default_config(self, mock_pygame_patches):
+        """Test pygame_font method with default configuration."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.font.Font", return_value=mock_font), \
+             patch("pygame.font.SysFont", return_value=mock_font) as mock_sysfont:
+
+            result = FontManager.pygame_font(None)
+
+            # Should use SysFont as fallback when Font fails
+            mock_sysfont.assert_called_once_with("arial", 16)
+            assert result == mock_font
+            assert "pygame_arial_16" in FontManager._font_cache
+
+    def test_args_method(self, mock_pygame_patches):
+        """Test args class method."""
+        from glitchygames.fonts import FontManager
+        import argparse
+        
+        parser = argparse.ArgumentParser()
+        result = FontManager.args(parser)
+
+        assert result is parser
+        # Check that the Font Options group was added
+        group_titles = [group.title for group in parser._action_groups]
+        assert "Font Options" in group_titles
+
+    def test_font_method_with_default_config(self, mock_pygame_patches):
+        """Test font method with default configuration."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font):
+
+            result = FontManager.font()
+
+            assert result == mock_font
+            assert "arial_16" in FontManager._font_cache
+
+    def test_font_method_with_partial_config(self, mock_pygame_patches):
+        """Test font method with partial configuration."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font):
+
+            # Test with partial config (missing font_size)
+            result = FontManager.font({"font_name": "times"})
+
+            assert result == mock_font
+            assert "times_14" in FontManager._font_cache  # Uses default size from OPTIONS
+
+    def test_font_method_with_missing_font_name_config(self, mock_pygame_patches):
+        """Test font method with missing font name in config."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Set up OPTIONS
+        FontManager.OPTIONS = {
+            "font_name": "arial",
+            "font_size": 16
+        }
+
+        mock_font = Mock()
+        with patch("pygame.freetype.SysFont", return_value=mock_font):
+
+            # Test with config missing font_name
+            result = FontManager.font({"font_size": 20})
+
+            assert result == mock_font
+            assert "arial_20" in FontManager._font_cache
+
+    def test_font_method_cache_hit(self, mock_pygame_patches):
+        """Test font method cache hit behavior."""
+        from glitchygames.fonts import FontManager
+        
+        self.setUp()
+
+        # Pre-populate cache
+        mock_cached_font = Mock()
+        FontManager._font_cache["arial_14"] = mock_cached_font
+
+        config = {"font_name": "arial", "font_size": 14}
+
+        result = FontManager.font(config)
+
+        # Verify cache hit
+        assert result == mock_cached_font

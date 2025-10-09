@@ -20,5 +20,5 @@ def build(template: str) -> None:
         with Path.open(Path(path) / template / ".repo") as fh:
             template_loc = fh.readline()
     except FileNotFoundError:
-        template_loc = Path(path) / template
+        template_loc = str(Path(path) / template)
     cookiecutter(template_loc)

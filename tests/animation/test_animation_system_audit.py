@@ -19,7 +19,7 @@ EXPECTED_FRAME_COUNT = 2
 def get_resource_path(filename: str) -> str:
     """Get the full path to a resource file."""
     return str(
-        Path(__file__).parent.parent
+        Path(__file__).parent.parent.parent
         / "glitchygames"
         / "examples"
         / "resources"

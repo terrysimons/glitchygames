@@ -499,7 +499,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         if options is None:
-            options = {}
+            options = {
+                "debug_events": False,
+                "no_unhandled_events": False
+            }
 
         if groups is None:
             groups = pygame.sprite.LayeredDirty()

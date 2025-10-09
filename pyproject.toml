@@ -40,6 +40,7 @@ pygame = "*"
 future = "*"
 cookiecutter = "*"
 pyperclip = "*"
+aisuite = {extras = ["all"], version = "^0.1.12"}
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"

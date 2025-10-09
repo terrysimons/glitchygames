@@ -1124,6 +1124,7 @@ class ButtonSprite(BitmappySprite):
         self.active_color = (128, 128, 128)
         self.inactive_color = (0, 0, 0)
         self.background_color = self.inactive_color
+        self.callbacks = None  # Initialize callbacks attribute
 
         self.text = TextSprite(
             background_color=self.background_color,
@@ -1131,6 +1132,7 @@ class ButtonSprite(BitmappySprite):
             y=self.parent.rect.centery if parent else self.y,
             width=self.width,
             height=self.height,
+            name=self.name,
             text=self.name,
             parent=self,
             groups=groups,
@@ -2046,6 +2048,9 @@ class ColorWellSprite(BitmappySprite):
         self.red = 0
         self.green = 0
         self.blue = 0
+        # Ensure callbacks attribute is initialized (inheritance issue fix)
+        if not hasattr(self, 'callbacks'):
+            self.callbacks = {}
 
         self.text_sprite = TextBoxSprite(
             x=self.rect.midleft[0] + width,

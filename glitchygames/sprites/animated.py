@@ -811,7 +811,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for y in range(height):
             for x in range(width):
                 color = surface.get_at((x, y))
-                frame.pixels.append((color.r, color.g, color.b))
+                frame.pixels.append((color[0], color[1], color[2]))
 
         # Create a single animation with one frame
         animation_name = sprite_data.get("name", "idle")
@@ -1099,7 +1099,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         See LOADER_README.md for detailed implementation guide.
         """
         color_map = {}
-        universal_chars = SPRITE_GLYPHS.strip()
+        universal_chars = SPRITE_GLYPHS
         char_index = 0
 
         for frames in self._animations.values():
