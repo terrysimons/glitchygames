@@ -129,8 +129,6 @@ def detect_file_format(filename: str) -> str:
     filename_lower = filename.lower()
     if filename_lower.endswith((".yaml", ".yml")):
         return "yaml"
-    if filename_lower.endswith(".ini"):
-        return "ini"
     return "toml"  # Default to toml
 
 
@@ -173,18 +171,13 @@ def load_ai_training_data():
     LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
 
     if SPRITE_CONFIG_DIR.exists():
-        # Look for TOML files first (preferred), then fall back to INI
+        # Look for TOML files
         toml_files = list(SPRITE_CONFIG_DIR.glob("*.toml"))
-        ini_files = list(SPRITE_CONFIG_DIR.glob("*.ini"))
 
         if toml_files:
             config_files = toml_files
             AI_TRAINING_FORMAT = "toml"
             LOG.info(f"Found {len(config_files)} TOML sprite config files")
-        elif ini_files:
-            config_files = ini_files
-            AI_TRAINING_FORMAT = "ini"
-            LOG.info(f"Found {len(config_files)} INI sprite config files")
         else:
             config_files = []
             LOG.warning("No sprite config files found")
@@ -213,32 +206,6 @@ def load_ai_training_data():
                     if "animation" in config_data:
                         sprite_data["animations"] = config_data["animation"]
 
-                else:  # INI format
-                    config = configparser.ConfigParser()
-                    config.read(config_file)
-
-                    # Extract sprite data from INI structure
-                    sprite_data = {
-                        "name": config.get("sprite", "name", fallback="Unknown"),
-                        "format": AI_TRAINING_FORMAT,
-                        "sprite_type": "animated" if "animation" in config.sections() else "static",
-                    }
-
-                    # For static sprites, extract pixel data and colors
-                    if "sprite" in config:
-                        sprite_data["pixels"] = config.get("sprite", "pixels", fallback="")
-                        sprite_data["colors"] = {}
-                        for i in range(8):
-                            if str(i) in config:
-                                sprite_data["colors"][str(i)] = {
-                                    "red": config.getint(str(i), "red", fallback=0),
-                                    "green": config.getint(str(i), "green", fallback=0),
-                                    "blue": config.getint(str(i), "blue", fallback=0),
-                                }
-
-                    # For animated sprites, extract animation data
-                    if "animation" in config:
-                        sprite_data["animations"] = dict(config["animation"])
 
                 AI_TRAINING_DATA.append(sprite_data)
                 LOG.info(f"Successfully loaded sprite config: {config_file.name}")

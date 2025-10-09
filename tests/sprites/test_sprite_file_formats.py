@@ -40,9 +40,9 @@ class TestTOMLOnlySupport(unittest.TestCase):
         yaml_format = SpriteFactory._detect_file_format("test.yaml")
         assert yaml_format == "yaml"
 
-        # Test INI detection
+        # Test INI detection (should return unknown since INI support removed)
         ini_format = SpriteFactory._detect_file_format("test.ini")
-        assert ini_format == "ini"
+        assert ini_format == "unknown"
 
         # Test unknown format
         unknown_format = SpriteFactory._detect_file_format("test.unknown")

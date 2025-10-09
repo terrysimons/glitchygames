@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import collections
-import configparser
 import logging
 from pathlib import Path
 from typing import Any, ClassVar, Self, cast
@@ -1114,71 +1113,9 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._load_static_toml(filename)
-        return self._load_static_ini(filename)
-
-    def _load_static_ini(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a static sprite from an INI file."""
-        config = configparser.RawConfigParser(
-            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
-        )
-
-        # Read the raw file content first
-        raw_content = Path(filename).read_text(encoding="utf-8")
-        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
-
-        # Try parsing with configparser
-        config.read_string(raw_content)
-        self.log.debug(f"ConfigParser sections: {config.sections()}")
-
-        try:
-            name = config.get(section="sprite", option="name")
-            self.log.debug(f"Sprite name: {name}")
-
-            # Get raw pixel data with explicit raw=True to preserve newlines
-            pixel_text = config.get(section="sprite", option="pixels", raw=True)
-            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
-
-            # Split into rows and process each row
-            rows = []
-            for i, raw_row in enumerate(pixel_text.split("\n")):
-                row = raw_row.strip()
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
-
-            self.log.debug(f"Total rows processed: {len(rows)}")
-
-            # Calculate dimensions
-            width = len(rows[0]) if rows else 0
-            height = len(rows)
-            self.log.debug(f"Calculated dimensions: {width}x{height}")
-
-            # Get color definitions with detailed logging
-            color_map = {}
-            for section in config.sections():
-                if len(section) == 1:  # Color sections are single characters
-                    red = config.getint(section=section, option="red")
-                    green = config.getint(section=section, option="green")
-                    blue = config.getint(section=section, option="blue")
-                    color_map[section] = (red, green, blue)
-                    self.log.debug(f"Color map entry: '{section}' -> RGB({red}, {green}, {blue})")
-
-            self.log.debug(f"Total colors in map: {len(color_map)}")
-
-            # Create image and rect
-            self.log.debug("Creating image and rect...")
-            (image, rect) = self.inflate(
-                width=width, height=height, pixels=rows, color_map=color_map
-            )
-            self.log.debug(f"Created image size: {image.get_size()}")
-            self.log.debug(f"Created rect: {rect}")
-
-        except Exception:
-            self.log.exception("Error in load")
-            raise
         else:
-            # Return the successfully loaded sprite data
-            return (image, rect, name)
+            raise ValueError(f"Unsupported file format: {file_format}. Only TOML format is supported.")
+
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file."""
@@ -1946,8 +1883,6 @@ class SpriteFactory:
 
         if filename_str.endswith('.toml'):
             return 'toml'
-        elif filename_str.endswith('.ini'):
-            return 'ini'
         elif filename_str.endswith('.yaml') or filename_str.endswith('.yml'):
             return 'yaml'
         else:
