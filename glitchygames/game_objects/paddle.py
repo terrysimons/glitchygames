@@ -261,6 +261,19 @@ class HorizontalPaddle(BasePaddle):
         self._move.speed.speed_up_horizontal()
         self._move.current_speed = self._move.speed.x
 
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the horizontal paddle with delta time.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+
+        """
+        self.rect.x += self._move.current_speed * dt
+        self.dirty = 1
+
 
 class VerticalPaddle(BasePaddle):
     """Vertical Paddle."""
@@ -376,3 +389,16 @@ class VerticalPaddle(BasePaddle):
         """
         self._move.speed.speed_up_vertical()
         self._move.current_speed = self._move.speed.y
+
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the vertical paddle with delta time.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+
+        """
+        self.rect.y += self._move.current_speed * dt
+        self.dirty = 1

@@ -130,7 +130,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
             now: float = time.perf_counter()
             self.dt: float = now - previous_time
-            previous_time = current_time
+            previous_time = now
 
             self._update_scene()
             self._process_events()
