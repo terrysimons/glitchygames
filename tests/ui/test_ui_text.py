@@ -12,8 +12,18 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.ui import TextSprite, TextBoxSprite, MultiLineTextBox
+from glitchygames.ui import MultiLineTextBox, TextBoxSprite, TextSprite
+
 from mocks.test_mock_factory import MockFactory
+
+# Test constants to avoid magic values
+TEST_X_POS = 10
+TEST_Y_POS = 20
+TEST_WIDTH = 200
+TEST_HEIGHT = 30
+TEST_MULTILINE_WIDTH = 300
+TEST_MULTILINE_HEIGHT = 100
+TEST_SCROLL_OFFSET = 10
 
 
 class TestTextSpriteFunctionality(unittest.TestCase):
@@ -44,13 +54,20 @@ class TestTextSpriteFunctionality(unittest.TestCase):
             mock_get_font.return_value = font
 
             # Act
-            text_sprite = TextSprite(x=10, y=20, width=200, height=30, text="Hello World", name="TestText")
+            text_sprite = TextSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                text="Hello World",
+                name="TestText"
+            )
 
             # Assert
-            self.assertEqual(text_sprite.rect.x, 10)
-            self.assertEqual(text_sprite.rect.y, 20)
-            self.assertEqual(text_sprite.text, "Hello World")
-            self.assertEqual(text_sprite.name, "TestText")
+            assert text_sprite.rect.x == TEST_X_POS
+            assert text_sprite.rect.y == TEST_Y_POS
+            assert text_sprite.text == "Hello World"
+            assert text_sprite.name == "TestText"
 
     def test_text_sprite_text_update(self):
         """Test TextSprite text update functionality."""
@@ -62,13 +79,20 @@ class TestTextSpriteFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            text_sprite = TextSprite(x=10, y=20, width=200, height=30, text="Hello", name="TestText")
+            text_sprite = TextSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                text="Hello",
+                name="TestText"
+            )
 
             # Act
             text_sprite.text = "Updated Text"
 
             # Assert
-            self.assertEqual(text_sprite.text, "Updated Text")
+            assert text_sprite.text == "Updated Text"
             font.render.assert_called()
 
 
@@ -100,14 +124,20 @@ class TestTextBoxSpriteFunctionality(unittest.TestCase):
             mock_get_font.return_value = font
 
             # Act
-            textbox = TextBoxSprite(x=10, y=20, width=200, height=30, name="TestTextBox")
+            textbox = TextBoxSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                name="TestTextBox"
+            )
 
             # Assert
-            self.assertEqual(textbox.rect.x, 10)
-            self.assertEqual(textbox.rect.y, 20)
-            self.assertEqual(textbox.rect.width, 200)
-            self.assertEqual(textbox.rect.height, 30)
-            self.assertEqual(textbox.name, "TestTextBox")
+            assert textbox.rect.x == TEST_X_POS
+            assert textbox.rect.y == TEST_Y_POS
+            assert textbox.rect.width == TEST_WIDTH
+            assert textbox.rect.height == TEST_HEIGHT
+            assert textbox.name == "TestTextBox"
 
     def test_textbox_text_input(self):
         """Test TextBoxSprite text input handling."""
@@ -119,13 +149,19 @@ class TestTextBoxSpriteFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            textbox = TextBoxSprite(x=10, y=20, width=200, height=30, name="TestTextBox")
+            textbox = TextBoxSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                name="TestTextBox"
+            )
 
             # Act: simulate text input by directly setting the text_box text
             textbox.text_box.text = "Hello"
 
             # Assert - TextBoxSprite has text_box attribute that contains the text
-            self.assertEqual(textbox.text_box.text, "Hello")
+            assert textbox.text_box.text == "Hello"
 
     def test_textbox_backspace(self):
         """Test TextBoxSprite backspace functionality."""
@@ -137,14 +173,20 @@ class TestTextBoxSpriteFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            textbox = TextBoxSprite(x=10, y=20, width=200, height=30, name="TestTextBox")
+            textbox = TextBoxSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                name="TestTextBox"
+            )
             textbox.text = "Hello"
 
             # Act: simulate backspace by directly modifying text
             textbox.text = "Hell"  # Simulate backspace effect
 
             # Assert
-            self.assertEqual(textbox.text, "Hell")
+            assert textbox.text == "Hell"
 
     def test_textbox_focus_handling(self):
         """Test TextBoxSprite focus handling."""
@@ -156,7 +198,13 @@ class TestTextBoxSpriteFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            textbox = TextBoxSprite(x=10, y=20, width=200, height=30, name="TestTextBox")
+            textbox = TextBoxSprite(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_WIDTH,
+                height=TEST_HEIGHT,
+                name="TestTextBox"
+            )
 
             # Act: gain focus by clicking on the textbox
             event = Mock()
@@ -164,13 +212,13 @@ class TestTextBoxSpriteFunctionality(unittest.TestCase):
             textbox.on_left_mouse_button_down_event(event)
 
             # Assert - TextBoxSprite doesn't have has_focus, check if it was clicked
-            self.assertEqual(textbox.background_color, (128, 128, 128))  # Changed on click
+            assert textbox.background_color == (128, 128, 128)  # Changed on click
 
             # Act: lose focus by clicking outside
             textbox.on_left_mouse_button_up_event(event)
 
             # Assert - check if background color changed back
-            self.assertEqual(textbox.background_color, (0, 0, 0))  # Changed back on release
+            assert textbox.background_color == (0, 0, 0)  # Changed back on release
 
 
 class TestMultiLineTextBoxFunctionality(unittest.TestCase):
@@ -203,14 +251,20 @@ class TestMultiLineTextBoxFunctionality(unittest.TestCase):
             mock_get_font.return_value = font
 
             # Act
-            multiline = MultiLineTextBox(x=10, y=20, width=300, height=100, name="TestMultiLine")
+            multiline = MultiLineTextBox(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_MULTILINE_WIDTH,
+                height=TEST_MULTILINE_HEIGHT,
+                name="TestMultiLine"
+            )
 
             # Assert
-            self.assertEqual(multiline.rect.x, 10)
-            self.assertEqual(multiline.rect.y, 20)
-            self.assertEqual(multiline.rect.width, 300)
-            self.assertEqual(multiline.rect.height, 100)
-            self.assertEqual(multiline.name, "TestMultiLine")
+            assert multiline.rect.x == TEST_X_POS
+            assert multiline.rect.y == TEST_Y_POS
+            assert multiline.rect.width == TEST_MULTILINE_WIDTH
+            assert multiline.rect.height == TEST_MULTILINE_HEIGHT
+            assert multiline.name == "TestMultiLine"
 
     def test_multiline_textbox_line_breaks(self):
         """Test MultiLineTextBox line break handling."""
@@ -227,14 +281,20 @@ class TestMultiLineTextBoxFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            multiline = MultiLineTextBox(x=10, y=20, width=300, height=100, name="TestMultiLine")
+            multiline = MultiLineTextBox(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_MULTILINE_WIDTH,
+                height=TEST_MULTILINE_HEIGHT,
+                name="TestMultiLine"
+            )
 
             # Act: simulate text input with line breaks by setting text directly
             multiline.text = "Line 1\nLine 2"
 
             # Assert
-            self.assertIn("Line 1", multiline.text)
-            self.assertIn("Line 2", multiline.text)
+            assert "Line 1" in multiline.text
+            assert "Line 2" in multiline.text
 
     def test_multiline_textbox_scrolling(self):
         """Test MultiLineTextBox scrolling functionality."""
@@ -248,21 +308,27 @@ class TestMultiLineTextBoxFunctionality(unittest.TestCase):
             font.render = Mock(return_value=rendered_surface)
             mock_get_font.return_value = font
 
-            multiline = MultiLineTextBox(x=10, y=20, width=300, height=100, name="TestMultiLine")
+            multiline = MultiLineTextBox(
+                x=TEST_X_POS,
+                y=TEST_Y_POS,
+                width=TEST_MULTILINE_WIDTH,
+                height=TEST_MULTILINE_HEIGHT,
+                name="TestMultiLine"
+            )
 
             # Act: test scrolling by modifying scroll_offset directly
-            multiline.scroll_offset = 10
+            multiline.scroll_offset = TEST_SCROLL_OFFSET
 
             # Assert: should handle scrolling without errors
-            self.assertIsNotNone(multiline)
-            self.assertEqual(multiline.scroll_offset, 10)
+            assert multiline is not None
+            assert multiline.scroll_offset == TEST_SCROLL_OFFSET
 
             # Act: scroll up by modifying scroll_offset
             multiline.scroll_offset = 0
 
             # Assert: should handle scrolling without errors
-            self.assertIsNotNone(multiline)
-            self.assertEqual(multiline.scroll_offset, 0)
+            assert multiline is not None
+            assert multiline.scroll_offset == 0
 
 
 if __name__ == "__main__":

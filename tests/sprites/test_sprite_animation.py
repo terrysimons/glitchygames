@@ -16,6 +16,7 @@ from glitchygames.sprites.animated import (
     FrameManager,
     SpriteFrame,
 )
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -91,9 +92,9 @@ class TestAnimatedSpriteInterface(unittest.TestCase):
     def test_animated_sprite_interface_abstract_methods(self):
         """Test that AnimatedSpriteInterface has required methods."""
         # Check that the interface exists and has required methods
-        self.assertTrue(hasattr(AnimatedSpriteInterface, 'play'))
-        self.assertTrue(hasattr(AnimatedSpriteInterface, 'pause'))
-        self.assertTrue(hasattr(AnimatedSpriteInterface, 'stop'))
+        self.assertTrue(hasattr(AnimatedSpriteInterface, "play"))
+        self.assertTrue(hasattr(AnimatedSpriteInterface, "pause"))
+        self.assertTrue(hasattr(AnimatedSpriteInterface, "stop"))
 
 
 class TestSpriteFrame(unittest.TestCase):
@@ -270,7 +271,7 @@ class TestAnimatedSprite(unittest.TestCase):
         sprite = AnimatedSprite(filename="test.toml")
         
         # Test save functionality
-        with patch('pathlib.Path.open') as mock_open:
+        with patch("pathlib.Path.open") as mock_open:
             sprite.save("test.toml")
             mock_open.assert_called_once()
 

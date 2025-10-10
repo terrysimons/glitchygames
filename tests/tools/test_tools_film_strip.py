@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import film_strip
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -21,10 +22,10 @@ class TestFilmStripFunctionality(unittest.TestCase):
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         
         # Test basic properties
-        assert hasattr(strip, 'rect')
-        assert hasattr(strip, 'animated_sprite')
-        assert hasattr(strip, 'current_animation')
-        assert hasattr(strip, 'current_frame')
+        assert hasattr(strip, "rect")
+        assert hasattr(strip, "animated_sprite")
+        assert hasattr(strip, "current_animation")
+        assert hasattr(strip, "current_frame")
         
         # Test default values
         assert strip.animated_sprite is None
@@ -42,20 +43,20 @@ class TestFilmStripFunctionality(unittest.TestCase):
         assert strip.rect.height == 150
         
         # Test styling properties
-        assert hasattr(strip, 'frame_width')
-        assert hasattr(strip, 'frame_height')
-        assert hasattr(strip, 'sprocket_width')
-        assert hasattr(strip, 'frame_spacing')
+        assert hasattr(strip, "frame_width")
+        assert hasattr(strip, "frame_height")
+        assert hasattr(strip, "sprocket_width")
+        assert hasattr(strip, "frame_spacing")
 
     def test_film_strip_widget_methods(self):
         """Test film strip widget methods."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         
         # Test that widget has expected methods (based on actual implementation)
-        assert hasattr(strip, 'set_animated_sprite')
-        assert hasattr(strip, 'update_animations')
-        assert hasattr(strip, 'get_current_preview_frame')
-        assert hasattr(strip, 'get_frame_at_position')
+        assert hasattr(strip, "set_animated_sprite")
+        assert hasattr(strip, "update_animations")
+        assert hasattr(strip, "get_current_preview_frame")
+        assert hasattr(strip, "get_frame_at_position")
         
         # Test methods are callable
         assert callable(strip.set_animated_sprite)
@@ -83,8 +84,8 @@ class TestFilmStripFunctionality(unittest.TestCase):
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         
         # Test hover properties
-        assert hasattr(strip, 'hovered_frame')
-        assert hasattr(strip, 'hovered_animation')
+        assert hasattr(strip, "hovered_frame")
+        assert hasattr(strip, "hovered_animation")
         
         # Test initial hover state
         assert strip.hovered_frame is None
@@ -95,9 +96,9 @@ class TestFilmStripFunctionality(unittest.TestCase):
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         
         # Test rendering methods exist (based on actual implementation)
-        assert hasattr(strip, 'update_layout')
-        assert hasattr(strip, 'mark_dirty')
-        assert hasattr(strip, 'set_parent_canvas')
+        assert hasattr(strip, "update_layout")
+        assert hasattr(strip, "mark_dirty")
+        assert hasattr(strip, "set_parent_canvas")
         
         # Test methods are callable
         assert callable(strip.update_layout)
@@ -109,9 +110,9 @@ class TestFilmStripFunctionality(unittest.TestCase):
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         
         # Test interaction methods exist (based on actual implementation)
-        assert hasattr(strip, 'get_frame_at_position')
-        assert hasattr(strip, 'update_scroll_for_frame')
-        assert hasattr(strip, '_calculate_scroll_offset')
+        assert hasattr(strip, "get_frame_at_position")
+        assert hasattr(strip, "update_scroll_for_frame")
+        assert hasattr(strip, "_calculate_scroll_offset")
         
         # Test methods are callable
         assert callable(strip.get_frame_at_position)

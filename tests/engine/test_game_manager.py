@@ -60,7 +60,7 @@ class TestGameManager:
     def test_game_manager_init(self, mock_pygame_patches, mock_game_args):
         """Test GameManager initialization."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -83,7 +83,7 @@ class TestGameManager:
     def test_game_manager_process_events(self, mock_pygame_patches, mock_game_args):
         """Test GameManager event processing."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -103,7 +103,7 @@ class TestGameManager:
             ]
             
             # Mock the process_events method to avoid actual event processing
-            with patch.object(manager, 'process_events') as mock_process_events:
+            with patch.object(manager, "process_events") as mock_process_events:
                 mock_process_events.return_value = None
                 
                 # Test that process_events can be called
@@ -115,7 +115,7 @@ class TestGameManager:
     def test_game_manager_event_handlers(self, mock_pygame_patches, mock_game_args):
         """Test GameManager event handler methods."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game

@@ -40,7 +40,7 @@ class TestEngineInitialization(unittest.TestCase):
     def test_game_engine_initialize_icon_with_surface(self):
         """Test GameEngine.initialize_icon with pygame.Surface."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self._create_mock_args()
             
             # Create a mock surface using the centralized mock factory
@@ -60,7 +60,7 @@ class TestEngineInitialization(unittest.TestCase):
     def test_game_engine_initialize_icon_with_path(self):
         """Test GameEngine.initialize_icon with Path."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self._create_mock_args()
             
             # Create a mock path
@@ -79,7 +79,7 @@ class TestEngineInitialization(unittest.TestCase):
     def test_game_engine_initialize_icon_with_none(self):
         """Test GameEngine.initialize_icon with None."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self._create_mock_args()
             
             # Test the class method with None
@@ -91,7 +91,7 @@ class TestEngineInitialization(unittest.TestCase):
     def test_game_engine_icon_file_not_found(self):
         """Test GameEngine.initialize_icon when file is not found."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self._create_mock_args()
             
             # Create a mock path that will cause FileNotFoundError
@@ -109,7 +109,7 @@ class TestEngineInitialization(unittest.TestCase):
     def test_game_engine_icon_with_string_path(self):
         """Test GameEngine.initialize_icon with string path."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = self._create_mock_args()
             
             # Mock pygame.image.load to return a mock surface

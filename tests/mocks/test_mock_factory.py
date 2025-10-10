@@ -243,7 +243,7 @@ class MockFactory:
                 self._mock_surface = MockFactory.create_pygame_surface_mock(width, height)
                 # Copy all attributes from the mock surface
                 for attr in dir(self._mock_surface):
-                    if not attr.startswith('_'):
+                    if not attr.startswith("_"):
                         setattr(self, attr, getattr(self._mock_surface, attr))
         
         # Make it look like a proper class
@@ -284,21 +284,21 @@ class MockFactory:
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed
-        x = kwargs.get('x', 0)
-        y = kwargs.get('y', 0)
-        width = kwargs.get('width', 32)
-        height = kwargs.get('height', 32)
-        name = kwargs.get('name', "")
-        parent = kwargs.get('parent', None)
-        groups = kwargs.get('groups', None)
+        x = kwargs.get("x", 0)
+        y = kwargs.get("y", 0)
+        width = kwargs.get("width", 32)
+        height = kwargs.get("height", 32)
+        name = kwargs.get("name", "")
+        parent = kwargs.get("parent", None)
+        groups = kwargs.get("groups", None)
         
         # Set essential identifiers early
         self.name = name
         self.parent = parent
         
         # BitmappySprite-specific attributes
-        self.filename = kwargs.get('filename', "")
-        self.focusable = kwargs.get('focusable', False)
+        self.filename = kwargs.get("filename", "")
+        self.focusable = kwargs.get("focusable", False)
         
         # Initialize pixel data attributes
         self.pixels = []
@@ -307,7 +307,7 @@ class MockFactory:
         
         # Ensure proper inheritance by setting __class__ if needed
         # This helps with isinstance() checks in tests
-        if hasattr(self, '__class__'):
+        if hasattr(self, "__class__"):
             # Make sure the class hierarchy is preserved
             pass
         
@@ -474,13 +474,13 @@ class MockFactory:
         def mock_image_tostring(surface, format_str):
             """Mock pygame.image.tostring that returns mock pixel data."""
             # Return mock pixel data based on surface size
-            if hasattr(surface, 'get_width') and hasattr(surface, 'get_height'):
+            if hasattr(surface, "get_width") and hasattr(surface, "get_height"):
                 width = surface.get_width()
                 height = surface.get_height()
                 
                 # Check if this is a single-color surface (for legacy sprite tests)
                 # If the surface has a single color, return consistent pixel data
-                if hasattr(surface, '_test_single_color') and surface._test_single_color:
+                if hasattr(surface, "_test_single_color") and surface._test_single_color:
                     # Return all pixels as red (255, 0, 0) for single color tests
                     pixel_data = bytearray()
                     for y in range(height):
@@ -500,7 +500,7 @@ class MockFactory:
                             b = ((x + y * width) * 3) % 256
                             pixel_data.extend([r, g, b])
                     return bytes(pixel_data)
-            return b'\x00' * 100  # Default mock data
+            return b"\x00" * 100  # Default mock data
         image_tostring_patcher = patch("pygame.image.tostring", side_effect=mock_image_tostring)
         mock_font.get_linesize.return_value = 24  # Default line height
         mock_font.size = 24  # For freetype fonts

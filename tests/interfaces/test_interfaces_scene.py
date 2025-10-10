@@ -66,7 +66,7 @@ class TestSceneInterface:
         # Check switch_to_scene signature
         switch_sig = inspect.signature(SceneInterface.switch_to_scene)
         assert len(switch_sig.parameters) == 2  # self, next_scene
-        assert 'next_scene' in switch_sig.parameters
+        assert "next_scene" in switch_sig.parameters
 
         # Check terminate signature
         terminate_sig = inspect.signature(SceneInterface.terminate)
@@ -84,27 +84,27 @@ class TestSceneInterface:
         """Test that SceneInterface methods have correct return type annotations."""
         # Check switch_to_scene return type
         switch_annotations = SceneInterface.switch_to_scene.__annotations__
-        assert 'return' in switch_annotations
-        assert switch_annotations['return'] == 'None'
+        assert "return" in switch_annotations
+        assert switch_annotations["return"] == "None"
 
         # Check terminate return type
         terminate_annotations = SceneInterface.terminate.__annotations__
-        assert 'return' in terminate_annotations
-        assert terminate_annotations['return'] == 'None'
+        assert "return" in terminate_annotations
+        assert terminate_annotations["return"] == "None"
 
         # Check play return type
         play_annotations = SceneInterface.play.__annotations__
-        assert 'return' in play_annotations
-        assert play_annotations['return'] == 'None'
+        assert "return" in play_annotations
+        assert play_annotations["return"] == "None"
 
         # Check pause return type
         pause_annotations = SceneInterface.pause.__annotations__
-        assert 'return' in pause_annotations
-        assert pause_annotations['return'] == 'None'
+        assert "return" in pause_annotations
+        assert pause_annotations["return"] == "None"
 
     def test_scene_interface_parameter_types(self):
         """Test that SceneInterface method parameters have correct type annotations."""
         # Check switch_to_scene parameter type
         switch_sig = inspect.signature(SceneInterface.switch_to_scene)
-        next_scene_param = switch_sig.parameters['next_scene']
-        assert next_scene_param.annotation == 'SceneInterface'
+        next_scene_param = switch_sig.parameters["next_scene"]
+        assert next_scene_param.annotation == "SceneInterface"

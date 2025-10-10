@@ -351,7 +351,7 @@ class TestResourceManager:
         mock_game = Mock()
         resource_manager = ResourceManager(game=mock_game)
         # ResourceManager doesn't store the game directly, it's a singleton
-        assert hasattr(resource_manager, 'proxies')
+        assert hasattr(resource_manager, "proxies")
         assert isinstance(resource_manager.proxies, list)
 
     def test_resource_manager_init_without_game(self, mock_pygame_patches):

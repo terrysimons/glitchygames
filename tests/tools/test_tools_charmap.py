@@ -67,7 +67,7 @@ class TestCharmapFunctionality(unittest.TestCase):
     def test_emoji_ranges_constant(self):
         """Test emoji ranges constant."""
         # Test that emoji ranges are defined
-        assert hasattr(charmap, 'EMOJI_RANGES')
+        assert hasattr(charmap, "EMOJI_RANGES")
         assert isinstance(charmap.EMOJI_RANGES, list)
         assert len(charmap.EMOJI_RANGES) > 0
 
@@ -84,7 +84,7 @@ class TestCharmapFunctionality(unittest.TestCase):
     def test_max_chars_constant(self):
         """Test max_chars constant."""
         # Test that MAX_CHARS_TO_DISPLAY is defined (actual constant name)
-        assert hasattr(charmap, 'MAX_CHARS_TO_DISPLAY')
+        assert hasattr(charmap, "MAX_CHARS_TO_DISPLAY")
         assert isinstance(charmap.MAX_CHARS_TO_DISPLAY, int)
         assert charmap.MAX_CHARS_TO_DISPLAY > 0
 

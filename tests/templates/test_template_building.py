@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
+
 from mocks.test_mock_factory import create_template_path_mock, create_template_repo_file_mock
 
 

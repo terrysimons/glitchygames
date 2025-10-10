@@ -1270,12 +1270,12 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Starting deflate for {self.name} in {file_format} format")
 
             # Ensure pixels attribute exists
-            if not hasattr(self, 'pixels'):
+            if not hasattr(self, "pixels"):
                 self.pixels = []
 
             # Validate pixels list
-            pixels_across = getattr(self, 'pixels_across', self.width)
-            pixels_tall = getattr(self, 'pixels_tall', self.height)
+            pixels_across = getattr(self, "pixels_across", self.width)
+            pixels_tall = getattr(self, "pixels_tall", self.height)
             expected_pixels = pixels_across * pixels_tall
             if len(self.pixels) != expected_pixels:
                 self.log.error(
@@ -1331,9 +1331,9 @@ class BitmappySprite(Sprite):
 
         """
         if pixels_across is None:
-            pixels_across = getattr(self, 'pixels_across', self.width)
+            pixels_across = getattr(self, "pixels_across", self.width)
         if pixels_tall is None:
-            pixels_tall = getattr(self, 'pixels_tall', self.height)
+            pixels_tall = getattr(self, "pixels_tall", self.height)
 
         pixel_rows = []
         for y in range(pixels_tall):
@@ -1369,7 +1369,7 @@ class BitmappySprite(Sprite):
         """
         # Generate pixel_rows and color_map if not provided
         if pixel_rows is None:
-            if not hasattr(self, 'pixels') or not self.pixels:
+            if not hasattr(self, "pixels") or not self.pixels:
                 pixel_rows = []
             else:
                 # Create color map if not provided
@@ -1379,8 +1379,8 @@ class BitmappySprite(Sprite):
                 # Process pixels into rows
                 pixel_rows = []
                 # Use height and width if pixels_tall/pixels_across not available
-                pixels_tall = getattr(self, 'pixels_tall', self.height)
-                pixels_across = getattr(self, 'pixels_across', self.width)
+                pixels_tall = getattr(self, "pixels_tall", self.height)
+                pixels_across = getattr(self, "pixels_across", self.width)
 
                 for y in range(pixels_tall):
                     row = ""
@@ -1423,8 +1423,9 @@ class BitmappySprite(Sprite):
 
         Returns:
             dict: Mapping of colors to characters
+
         """
-        if not hasattr(self, 'pixels') or not self.pixels:
+        if not hasattr(self, "pixels") or not self.pixels:
             return {}
 
         # Get unique colors from the pixels list
@@ -1462,6 +1463,7 @@ class BitmappySprite(Sprite):
 
         Returns:
             dict: Sprite data dictionary
+
         """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding="utf-8")
@@ -1517,10 +1519,10 @@ class BitmappySprite(Sprite):
                         pixels.append((255, 0, 255))
 
             return {
-                'pixels': pixels,
-                'width': width,
-                'height': height,
-                'name': name
+                "pixels": pixels,
+                "width": width,
+                "height": height,
+                "name": name
             }
 
         except Exception:
@@ -1535,6 +1537,7 @@ class BitmappySprite(Sprite):
 
         Returns:
             dict: Sprite data dictionary
+
         """
         # Detect file format and handle accordingly
         file_format = SpriteFactory._detect_file_format(filename)
@@ -1881,12 +1884,12 @@ class SpriteFactory:
         # Convert Path objects to strings
         filename_str = str(filename)
 
-        if filename_str.endswith('.toml'):
-            return 'toml'
-        elif filename_str.endswith('.yaml') or filename_str.endswith('.yml'):
-            return 'yaml'
+        if filename_str.endswith(".toml"):
+            return "toml"
+        elif filename_str.endswith(".yaml") or filename_str.endswith(".yml"):
+            return "yaml"
         else:
-            return 'unknown'
+            return "unknown"
 
     @staticmethod
     def _analyze_file(filename) -> dict:

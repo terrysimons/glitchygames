@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import canvas_interfaces
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -18,25 +19,25 @@ class TestCanvasInterfaces(unittest.TestCase):
     def test_canvas_interface_protocol(self):
         """Test canvas interface protocol."""
         # Test that CanvasInterface protocol is defined
-        assert hasattr(canvas_interfaces, 'CanvasInterface')
+        assert hasattr(canvas_interfaces, "CanvasInterface")
         
         # Test protocol methods exist
         protocol = canvas_interfaces.CanvasInterface
-        assert hasattr(protocol, '__abstractmethods__')
+        assert hasattr(protocol, "__abstractmethods__")
 
     def test_sprite_serializer_abstract_base(self):
         """Test sprite serializer abstract base."""
         # Test that SpriteSerializer is defined
-        assert hasattr(canvas_interfaces, 'SpriteSerializer')
+        assert hasattr(canvas_interfaces, "SpriteSerializer")
         
         # Test abstract methods exist
         serializer = canvas_interfaces.SpriteSerializer
-        assert hasattr(serializer, '__abstractmethods__')
+        assert hasattr(serializer, "__abstractmethods__")
 
     def test_animated_canvas_interface_protocol(self):
         """Test animated canvas interface protocol."""
         # Test that AnimatedCanvasInterface protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedCanvasInterface')
+        assert hasattr(canvas_interfaces, "AnimatedCanvasInterface")
         
         # Test that it's a class (not necessarily abstract)
         protocol = canvas_interfaces.AnimatedCanvasInterface
@@ -45,20 +46,20 @@ class TestCanvasInterfaces(unittest.TestCase):
     def test_animated_canvas_renderer_protocol(self):
         """Test animated canvas renderer protocol."""
         # Test that AnimatedCanvasRenderer protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedCanvasRenderer')
+        assert hasattr(canvas_interfaces, "AnimatedCanvasRenderer")
         
         # Test protocol methods exist
         protocol = canvas_interfaces.AnimatedCanvasRenderer
-        assert hasattr(protocol, '__abstractmethods__')
+        assert hasattr(protocol, "__abstractmethods__")
 
     def test_animated_sprite_serializer_protocol(self):
         """Test animated sprite serializer protocol."""
         # Test that AnimatedSpriteSerializer protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedSpriteSerializer')
+        assert hasattr(canvas_interfaces, "AnimatedSpriteSerializer")
         
         # Test protocol methods exist
         protocol = canvas_interfaces.AnimatedSpriteSerializer
-        assert hasattr(protocol, '__abstractmethods__')
+        assert hasattr(protocol, "__abstractmethods__")
 
     def test_static_canvas_interface_initialization(self):
         """Test static canvas interface initialization."""
@@ -67,7 +68,7 @@ class TestCanvasInterfaces(unittest.TestCase):
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
         
         # Test basic properties
-        assert hasattr(interface, 'canvas_sprite')
+        assert hasattr(interface, "canvas_sprite")
         assert interface.canvas_sprite == mock_sprite
 
     def test_static_canvas_interface_pixel_operations(self):
@@ -76,9 +77,9 @@ class TestCanvasInterfaces(unittest.TestCase):
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
         
         # Test that interface has expected methods
-        assert hasattr(interface, 'get_pixel_data')
-        assert hasattr(interface, 'set_pixel_data')
-        assert hasattr(interface, 'get_dimensions')
+        assert hasattr(interface, "get_pixel_data")
+        assert hasattr(interface, "set_pixel_data")
+        assert hasattr(interface, "get_dimensions")
         assert callable(interface.get_pixel_data)
         assert callable(interface.set_pixel_data)
         assert callable(interface.get_dimensions)
@@ -94,7 +95,7 @@ class TestCanvasInterfaces(unittest.TestCase):
         interface = canvas_interfaces.AnimatedCanvasInterface(mock_sprite)
         
         # Test basic properties
-        assert hasattr(interface, 'canvas_sprite')
+        assert hasattr(interface, "canvas_sprite")
         assert interface.canvas_sprite == mock_sprite
 
     def test_static_canvas_interface_comprehensive(self):
@@ -103,9 +104,9 @@ class TestCanvasInterfaces(unittest.TestCase):
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
         
         # Test that interface has expected methods
-        assert hasattr(interface, 'get_pixel_data')
-        assert hasattr(interface, 'set_pixel_data')
-        assert hasattr(interface, 'get_dimensions')
+        assert hasattr(interface, "get_pixel_data")
+        assert hasattr(interface, "set_pixel_data")
+        assert hasattr(interface, "get_dimensions")
         assert callable(interface.get_pixel_data)
         assert callable(interface.set_pixel_data)
         assert callable(interface.get_dimensions)
@@ -126,7 +127,7 @@ class TestCanvasInterfaces(unittest.TestCase):
         renderer = canvas_interfaces.StaticCanvasRenderer(mock_sprite)
         
         # Test basic properties
-        assert hasattr(renderer, 'canvas_sprite')
+        assert hasattr(renderer, "canvas_sprite")
         assert renderer.canvas_sprite == mock_sprite
 
 

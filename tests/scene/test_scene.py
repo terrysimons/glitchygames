@@ -1,8 +1,8 @@
 """Tests for Scene class functionality."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
 from glitchygames.scenes import Scene, SceneManager
 
 
@@ -53,7 +53,7 @@ class TestScene:
         # Test screenshot property
         screenshot = scene.screenshot
         assert screenshot is not None
-        assert hasattr(screenshot, 'get_size')
+        assert hasattr(screenshot, "get_size")
 
     def test_scene_background_color_property(self, mock_pygame_patches):
         """Test Scene background_color property."""

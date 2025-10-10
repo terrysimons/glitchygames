@@ -69,8 +69,8 @@ class TestInterfaceMeta:
         """Test that TYPE_CHECKING imports work correctly."""
         # This test ensures that the TYPE_CHECKING import in interfaces works
         # and doesn't cause import issues during runtime
-        assert hasattr(interfaces_module, 'SpriteInterface')
-        assert hasattr(interfaces_module, 'SceneInterface')
+        assert hasattr(interfaces_module, "SpriteInterface")
+        assert hasattr(interfaces_module, "SceneInterface")
 
     def test_reload_with_type_checking_true(self):
         """Test that interfaces module can be reloaded with type checking enabled."""
@@ -79,12 +79,12 @@ class TestInterfaceMeta:
         reload(interfaces_module)
         
         # Verify interfaces are still accessible after reload
-        assert hasattr(interfaces_module, 'SpriteInterface')
-        assert hasattr(interfaces_module, 'SceneInterface')
+        assert hasattr(interfaces_module, "SpriteInterface")
+        assert hasattr(interfaces_module, "SceneInterface")
         
         # Verify they can still be instantiated
         sprite = interfaces_module.SpriteInterface()
         scene = interfaces_module.SceneInterface()
         # After reload, the classes are different objects, so we check by name
-        assert sprite.__class__.__name__ == 'SpriteInterface'
-        assert scene.__class__.__name__ == 'SceneInterface'
+        assert sprite.__class__.__name__ == "SpriteInterface"
+        assert scene.__class__.__name__ == "SceneInterface"

@@ -44,7 +44,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         # Prevent re-initialization of singleton
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
         
         super().__init__()
@@ -429,7 +429,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if next_scene:
             self.log.info(f"Setting up new scene {next_scene}.")
             # Ensure the new scene has access to the game engine
-            if hasattr(self, 'game_engine') and self.game_engine:
+            if hasattr(self, "game_engine") and self.game_engine:
                 next_scene.game_engine = self.game_engine
             next_scene.setup()
 
@@ -819,9 +819,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
+
         """
         # AUDIODEVICEADDED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
+        self.log.debug(f"{type(self)}: On Audio Device Added Event {event}")
 
     def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
         """Handle audio device removed events.
@@ -831,9 +832,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Returns:
             None
+
         """
         # AUDIODEVICEREMOVED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
+        self.log.debug(f"{type(self)}: On Audio Device Removed Event {event}")
 
     # def on_controller_axis_motion_event(self: Self, event: events.HashableEvent) -> None:
     #     """Handle controller axis motion events.
@@ -1920,7 +1922,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # FPSEVENT is pygame.USEREVENT + 1
         # Only log FPS once per second to reduce log spam
         current_time = time.perf_counter()
-        if not hasattr(self, '_last_fps_log_time'):
+        if not hasattr(self, "_last_fps_log_time"):
             self._last_fps_log_time = 0
         
         if current_time - self._last_fps_log_time >= 1.0:  # Log once per second

@@ -12,12 +12,9 @@ import time
 from unittest.mock import Mock, patch
 
 import pytest
-
 from glitchygames.game_objects import BallSprite, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement import Speed
 from tests.mocks import MockFactory
-
-
 
 
 class TestWallCollisions:

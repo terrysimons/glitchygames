@@ -1,17 +1,33 @@
 """Tests for BallSprite game object."""
 
-import pytest
+import sys
+import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
 
+# Add the project root to the path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-class TestBallSpriteInitialization:
+
+class TestBallSpriteInitialization(unittest.TestCase):
     """Test BallSprite initialization and basic properties."""
 
-    def test_ball_sprite_initialization_defaults(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_sprite_initialization_defaults(self):
         """Test BallSprite initialization with default parameters."""
         ball = BallSprite()
         
@@ -28,10 +44,10 @@ class TestBallSpriteInitialization:
         assert ball.speed.y == 1  # Updated default speed
         assert ball.dirty == 2
 
-    def test_ball_sprite_initialization_custom(self, mock_pygame_patches):
+    def test_ball_sprite_initialization_custom(self):
         """Test BallSprite initialization with custom parameters."""
         groups = Mock()
-        with patch('pygame.mixer.Sound') as mock_sound:
+        with patch("pygame.mixer.Sound") as mock_sound:
             ball = BallSprite(
                 x=100, 
                 y=200, 
@@ -49,46 +65,57 @@ class TestBallSpriteInitialization:
             # groups() returns a list, so we need to check the content
             assert groups in ball.groups()
 
-    def test_ball_sprite_initialization_without_groups(self, mock_pygame_patches):
+    def test_ball_sprite_initialization_without_groups(self):
         """Test BallSprite initialization creates default groups when None provided."""
         ball = BallSprite()
         
         # Should create a LayeredDirty group
         assert ball.groups() is not None
 
-    def test_ball_sprite_initialization_with_collision_sound(self, mock_pygame_patches):
+    def test_ball_sprite_initialization_with_collision_sound(self):
         """Test BallSprite initialization with collision sound."""
-        with patch('pygame.mixer.Sound') as mock_sound_class:
+        with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
             
             ball = BallSprite(collision_sound="bounce.wav")
             
             mock_sound_class.assert_called_once()
-            assert hasattr(ball, 'snd')
+            assert hasattr(ball, "snd")
             assert ball.snd == mock_sound
 
-    def test_ball_sprite_initialization_without_collision_sound(self, mock_pygame_patches):
+    def test_ball_sprite_initialization_without_collision_sound(self):
         """Test BallSprite initialization without collision sound."""
         ball = BallSprite()
         
         # Should not have snd attribute when no collision sound provided
-        assert not hasattr(ball, 'snd')
+        assert not hasattr(ball, "snd")
 
 
-class TestBallSpriteColor:
+class TestBallSpriteColor(unittest.TestCase):
     """Test BallSprite color property and setter."""
 
-    def test_ball_color_getter(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_color_getter(self):
         """Test ball color getter returns correct color."""
         ball = BallSprite()
         ball._color = (255, 0, 0)
         
         assert ball.color == (255, 0, 0)
 
-    def test_ball_color_setter(self, mock_pygame_patches):
+    def test_ball_color_setter(self):
         """Test ball color setter updates color and redraws."""
-        with patch('pygame.draw.circle') as mock_draw_circle:
+        with patch("pygame.draw.circle") as mock_draw_circle:
             ball = BallSprite()
             ball.width = 20
             ball.height = 20
@@ -108,12 +135,23 @@ class TestBallSpriteColor:
             )
 
 
-class TestBallSpriteBounce:
+class TestBallSpriteBounce(unittest.TestCase):
     """Test BallSprite bounce functionality."""
 
-    def test_do_bounce_top_wall(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_do_bounce_top_wall(self):
         """Test ball bounces off top wall."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.y = -5  # Above screen
             ball.speed.y = -2
@@ -125,9 +163,9 @@ class TestBallSpriteBounce:
             assert ball.speed.y == 2  # Reversed
             ball.snd.play.assert_called_once()
 
-    def test_do_bounce_bottom_wall(self, mock_pygame_patches):
+    def test_do_bounce_bottom_wall(self):
         """Test ball bounces off bottom wall."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.screen_height = 600
             ball.height = 20
@@ -141,9 +179,9 @@ class TestBallSpriteBounce:
             assert ball.speed.y == -2  # Reversed
             ball.snd.play.assert_called_once()
 
-    def test_do_bounce_no_sound(self, mock_pygame_patches):
+    def test_do_bounce_no_sound(self):
         """Test ball bounces without sound when no sound loaded."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.y = -5
             ball.speed.y = -2
@@ -154,9 +192,9 @@ class TestBallSpriteBounce:
             assert ball.rect.y == 0
             assert ball.speed.y == 2
 
-    def test_do_bounce_no_collision(self, mock_pygame_patches):
+    def test_do_bounce_no_collision(self):
         """Test ball doesn't bounce when not at walls."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.y = 100
             ball.speed.y = 2
@@ -168,12 +206,23 @@ class TestBallSpriteBounce:
             assert ball.speed.y == original_speed
 
 
-class TestBallSpriteReset:
+class TestBallSpriteReset(unittest.TestCase):
     """Test BallSprite reset functionality."""
 
-    def test_ball_reset_position(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_reset_position(self):
         """Test ball reset sets random position within bounds."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_x = ball.rect.x
             original_y = ball.rect.y
@@ -186,9 +235,9 @@ class TestBallSpriteReset:
             # Should be different from original (very likely)
             assert ball.rect.x != original_x or ball.rect.y != original_y
 
-    def test_ball_reset_direction(self, mock_pygame_patches):
+    def test_ball_reset_direction(self):
         """Test ball reset sets random direction."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_direction = ball.direction
             
@@ -199,9 +248,9 @@ class TestBallSpriteReset:
             # Should be different from original (very likely)
             assert ball.direction != original_direction
 
-    def test_ball_reset_direction_range(self, mock_pygame_patches):
+    def test_ball_reset_direction_range(self):
         """Test ball reset direction is within expected range."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             
             # Test multiple resets to ensure direction is in valid range
@@ -210,12 +259,23 @@ class TestBallSpriteReset:
                 assert 0 <= ball.direction <= 360
 
 
-class TestBallSpriteBounceMethod:
+class TestBallSpriteBounceMethod(unittest.TestCase):
     """Test BallSprite bounce method."""
 
-    def test_ball_bounce_direction_change(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_bounce_direction_change(self):
         """Test ball bounce changes direction correctly."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.direction = 45
             original_speed_x = ball.speed.x
@@ -229,9 +289,9 @@ class TestBallSpriteBounceMethod:
             assert ball.speed.x == original_speed_x * 1.1
             assert ball.speed.y == original_speed_y * 1.1
 
-    def test_ball_bounce_speed_increase(self, mock_pygame_patches):
+    def test_ball_bounce_speed_increase(self):
         """Test ball bounce increases speed."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_speed_x = ball.speed.x
             original_speed_y = ball.speed.y
@@ -241,9 +301,9 @@ class TestBallSpriteBounceMethod:
             assert ball.speed.x == original_speed_x * 1.1
             assert ball.speed.y == original_speed_y * 1.1
 
-    def test_ball_bounce_direction_wrapping(self, mock_pygame_patches):
+    def test_ball_bounce_direction_wrapping(self):
         """Test ball bounce handles direction wrapping correctly."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.direction = 200
             
@@ -253,12 +313,23 @@ class TestBallSpriteBounceMethod:
             assert ball.direction == 340
 
 
-class TestBallSpriteUpdate:
+class TestBallSpriteUpdate(unittest.TestCase):
     """Test BallSprite update functionality."""
 
-    def test_ball_update_movement(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_update_movement(self):
         """Test ball update moves the ball."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.x = 100
             ball.rect.y = 100
@@ -270,15 +341,15 @@ class TestBallSpriteUpdate:
             assert ball.rect.x == 102
             assert ball.rect.y == 103
 
-    def test_ball_update_left_wall_bounce(self, mock_pygame_patches):
+    def test_ball_update_left_wall_bounce(self):
         """Test ball bounces off left wall."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.x = -5  # Left of screen
             ball.direction = 45
             ball.speed.x = -2
             
-            with patch.object(ball, 'reset') as mock_reset:
+            with patch.object(ball, "reset") as mock_reset:
                 ball.update()
                 
                 # Should reverse direction and set x to 1, then move by speed.x
@@ -286,9 +357,9 @@ class TestBallSpriteUpdate:
                 mock_reset.assert_called_once()
                 assert ball.direction == 315  # (360 - 45) % 360
 
-    def test_ball_update_right_wall_bounce(self, mock_pygame_patches):
+    def test_ball_update_right_wall_bounce(self):
         """Test ball bounces off right wall."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.screen_width = 800
             ball.width = 20
@@ -296,27 +367,27 @@ class TestBallSpriteUpdate:
             ball.direction = 45
             ball.speed.x = 2
             
-            with patch.object(ball, 'reset') as mock_reset:
+            with patch.object(ball, "reset") as mock_reset:
                 ball.update()
                 
                 # Should reverse direction and then reset() is called due to off-screen
                 mock_reset.assert_called_once()
                 assert ball.direction == 315  # (360 - 45) % 360
 
-    def test_ball_update_reset_on_exit(self, mock_pygame_patches):
+    def test_ball_update_reset_on_exit(self):
         """Test ball resets when exiting screen."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.x = 1000  # Way off screen
             ball.rect.y = 100
             
-            with patch.object(ball, 'reset') as mock_reset:
+            with patch.object(ball, "reset") as mock_reset:
                 ball.update()
                 mock_reset.assert_called_once()
 
-    def test_ball_update_reset_on_vertical_exit(self, mock_pygame_patches):
+    def test_ball_update_reset_on_vertical_exit(self):
         """Test ball resets when exiting screen vertically."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.x = 100
             ball.rect.y = 1000  # Way off screen
@@ -324,27 +395,38 @@ class TestBallSpriteUpdate:
             ball.speed.y = 0  # Don't move vertically to ensure reset is called
             
             # Mock _do_bounce to not interfere with the test
-            with patch.object(ball, '_do_bounce'):
-                with patch.object(ball, 'reset') as mock_reset:
+            with patch.object(ball, "_do_bounce"):
+                with patch.object(ball, "reset") as mock_reset:
                     ball.update()
                     mock_reset.assert_called_once()
 
-    def test_ball_update_calls_do_bounce(self, mock_pygame_patches):
+    def test_ball_update_calls_do_bounce(self):
         """Test ball update calls _do_bounce."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             
-            with patch.object(ball, '_do_bounce') as mock_do_bounce:
+            with patch.object(ball, "_do_bounce") as mock_do_bounce:
                 ball.update()
                 mock_do_bounce.assert_called_once()
 
 
-class TestBallSpriteIntegration:
+class TestBallSpriteIntegration(unittest.TestCase):
     """Test BallSprite integration scenarios."""
 
-    def test_ball_full_game_cycle(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all patchers
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_ball_full_game_cycle(self):
         """Test complete ball game cycle."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             
             # Initial state
@@ -358,10 +440,10 @@ class TestBallSpriteIntegration:
             # Ball should have moved
             assert ball.rect.x != original_x or ball.rect.y != original_y
 
-    def test_ball_with_sound_integration(self, mock_pygame_patches):
+    def test_ball_with_sound_integration(self):
         """Test ball with sound integration."""
-        with patch('pygame.draw.circle'):
-            with patch('glitchygames.game_objects.ball.game_objects.load_sound') as mock_load_sound:
+        with patch("pygame.draw.circle"):
+            with patch("glitchygames.game_objects.ball.game_objects.load_sound") as mock_load_sound:
                 mock_sound = Mock()
                 mock_load_sound.return_value = mock_sound
                 
@@ -374,9 +456,9 @@ class TestBallSpriteIntegration:
                 # Sound should have been played
                 mock_sound.play.assert_called()
 
-    def test_ball_speed_progression(self, mock_pygame_patches):
+    def test_ball_speed_progression(self):
         """Test ball speed increases with bounces."""
-        with patch('pygame.draw.circle'):
+        with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_speed = ball.speed.x
             

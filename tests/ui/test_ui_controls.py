@@ -12,7 +12,8 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.ui import SliderSprite, CheckboxSprite, ColorWellSprite
+from glitchygames.ui import CheckboxSprite, ColorWellSprite, SliderSprite
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -104,7 +105,7 @@ class TestSliderSpriteFunctionality(unittest.TestCase):
 
         # Test that slider can be created and responds to mouse events
         self.assertIsNotNone(slider)
-        
+
         # Act: simulate mouse motion
         event = Mock()
         event.pos = (110, 30)  # Middle of slider
@@ -367,7 +368,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
 
         # Test that colorwell can be created and responds to mouse events
         self.assertIsNotNone(colorwell)
-        
+
         # Act: simulate click
         event = Mock()
         event.pos = (35, 35)  # Within color well
@@ -383,14 +384,14 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
 
         # Test that colorwell can be created and responds to mouse events
         self.assertIsNotNone(colorwell)
-        
+
         # Act: simulate mouse enter
         event = Mock()
         colorwell.on_mouse_enter_event(event)
 
         # Assert: should handle mouse enter without error
         self.assertIsNotNone(colorwell)
-        
+
         # Act: simulate mouse exit (correct method name)
         colorwell.on_mouse_exit_event(event)
 
@@ -419,7 +420,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         # Test that colorwell can be created
         self.assertIsNotNone(colorwell)
         self.assertEqual(colorwell.name, "TestColorWell")
-        
+
         # Test that it has default color properties
         self.assertIsNotNone(colorwell.active_color)
         self.assertIsNotNone(colorwell.red)

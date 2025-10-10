@@ -14,9 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
-    HashableEvent,
     FontEvents,
     FontEventStubs,
+    HashableEvent,
 )
 
 from mocks.test_mock_factory import MockFactory
@@ -382,8 +382,9 @@ class TestFontManagerCoverage:
 
     def test_args_method(self, mock_pygame_patches):
         """Test args class method."""
-        from glitchygames.fonts import FontManager
         import argparse
+
+        from glitchygames.fonts import FontManager
         
         parser = argparse.ArgumentParser()
         result = FontManager.args(parser)

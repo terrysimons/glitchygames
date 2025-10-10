@@ -114,15 +114,15 @@ def mock_joystick_manager():
 def mock_managers():
     """Create mock managers for testing."""
     return {
-        'joystick_manager': Mock(),
-        'font_manager': Mock(),
-        'game_manager': Mock(),
-        'keyboard_manager': Mock(),
-        'midi_manager': Mock(),
-        'mouse_manager': Mock(),
-        'window_manager': Mock(),
-        'audio_manager': Mock(),
-        'controller_manager': Mock(),
-        'drop_manager': Mock(),
-        'touch_manager': Mock(),
+        "joystick_manager": Mock(),
+        "font_manager": Mock(),
+        "game_manager": Mock(),
+        "keyboard_manager": Mock(),
+        "midi_manager": Mock(),
+        "mouse_manager": Mock(),
+        "window_manager": Mock(),
+        "audio_manager": Mock(),
+        "controller_manager": Mock(),
+        "drop_manager": Mock(),
+        "touch_manager": Mock(),
     }

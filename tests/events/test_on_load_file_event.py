@@ -7,11 +7,11 @@ the on_load_file_event method that handles loading animated sprites from files.
 import sys
 import tempfile
 import unittest
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pygame
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))

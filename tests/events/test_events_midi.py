@@ -262,8 +262,9 @@ class TestMidiManagerCoverage:
 
     def test_midi_manager_args(self, mock_pygame_patches):
         """Test MidiManager args method."""
-        from glitchygames.events.midi import MidiManager
         import argparse
+
+        from glitchygames.events.midi import MidiManager
         
         parser = argparse.ArgumentParser()
         result = MidiManager.args(parser)

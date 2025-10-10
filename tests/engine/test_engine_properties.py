@@ -60,7 +60,7 @@ class TestEngineProperties:
     def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine game property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create GameEngine instance with mock game
@@ -78,7 +78,7 @@ class TestEngineProperties:
     def test_game_engine_scene_manager_property(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine scene_manager property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create GameEngine instance with mock game
@@ -95,7 +95,7 @@ class TestEngineProperties:
     def test_game_engine_joystick_count_property(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine joystick_count property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create GameEngine instance with mock game
@@ -117,7 +117,7 @@ class TestEngineProperties:
     def test_game_engine_joysticks_property(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine joysticks property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create GameEngine instance with mock game

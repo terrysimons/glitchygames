@@ -8,6 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
 import pygame
 
 # Add project root so direct imports work in isolated runs
@@ -19,6 +20,7 @@ from glitchygames.ui.dialogs import (
     NewCanvasDialogScene,
     SaveDialogScene,
 )
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -42,76 +44,76 @@ class TestInputConfirmationDialogScene(unittest.TestCase):
     def test_input_confirmation_dialog_scene_init(self):
         """Test InputConfirmationDialogScene initialization."""
         # Mock the screen and groups
-        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
-            with patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
-                # Create mock groups
-                mock_groups = Mock()
-                mock_layered_dirty.return_value = mock_groups
-                
-                # Create mock dialog
-                mock_dialog = Mock()
-                mock_dialog.dialog_text_sprite = Mock()
-                mock_input_dialog.return_value = mock_dialog
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty, \
+             patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
+            # Create mock groups
+            mock_groups = Mock()
+            mock_layered_dirty.return_value = mock_groups
 
-                # Act
-                scene = InputConfirmationDialogScene(
-                    previous_scene=Mock(),
-                    groups=mock_groups
-                )
+            # Create mock dialog
+            mock_dialog = Mock()
+            mock_dialog.dialog_text_sprite = Mock()
+            mock_input_dialog.return_value = mock_dialog
 
-                # Assert
-                self.assertIsNotNone(scene)
-                mock_input_dialog.assert_called_once()
+            # Act
+            scene = InputConfirmationDialogScene(
+                previous_scene=Mock(),
+                groups=mock_groups
+            )
+
+            # Assert
+            assert scene is not None
+            mock_input_dialog.assert_called_once()
 
     def test_input_confirmation_dialog_text_submission(self):
         """Test InputConfirmationDialogScene text submission."""
-        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
-            with patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
-                # Create mock groups
-                mock_groups = Mock()
-                mock_layered_dirty.return_value = mock_groups
-                
-                # Create mock dialog
-                mock_dialog = Mock()
-                mock_dialog.dialog_text_sprite = Mock()
-                mock_input_dialog.return_value = mock_dialog
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty, \
+             patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
+            # Create mock groups
+            mock_groups = Mock()
+            mock_layered_dirty.return_value = mock_groups
 
-                scene = InputConfirmationDialogScene(
-                    previous_scene=Mock(),
-                    groups=mock_groups
-                )
+            # Create mock dialog
+            mock_dialog = Mock()
+            mock_dialog.dialog_text_sprite = Mock()
+            mock_input_dialog.return_value = mock_dialog
 
-                # Act: simulate text submission
-                scene.on_text_submit_event("Submitted Text")
+            scene = InputConfirmationDialogScene(
+                previous_scene=Mock(),
+                groups=mock_groups
+            )
 
-                # Assert: should handle text submission
-                self.assertIsNotNone(scene)
+            # Act: simulate text submission
+            scene.on_text_submit_event("Submitted Text")
+
+            # Assert: should handle text submission
+            assert scene is not None
 
     def test_input_confirmation_dialog_cancellation(self):
         """Test InputConfirmationDialogScene cancellation."""
-        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty:
-            with patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
-                # Create mock groups
-                mock_groups = Mock()
-                mock_layered_dirty.return_value = mock_groups
-                
-                # Create mock dialog
-                mock_dialog = Mock()
-                mock_dialog.dialog_text_sprite = Mock()
-                mock_input_dialog.return_value = mock_dialog
+        with patch("pygame.sprite.LayeredDirty") as mock_layered_dirty, \
+             patch("glitchygames.ui.dialogs.InputDialog") as mock_input_dialog:
+            # Create mock groups
+            mock_groups = Mock()
+            mock_layered_dirty.return_value = mock_groups
 
-                scene = InputConfirmationDialogScene(
-                    previous_scene=Mock(),
-                    groups=mock_groups
-                )
+            # Create mock dialog
+            mock_dialog = Mock()
+            mock_dialog.dialog_text_sprite = Mock()
+            mock_input_dialog.return_value = mock_dialog
 
-                # Act: simulate cancellation via key down event
-                event = Mock()
-                event.key = pygame.K_ESCAPE
-                scene.on_key_down_event(event)
+            scene = InputConfirmationDialogScene(
+                previous_scene=Mock(),
+                groups=mock_groups
+            )
 
-                # Assert: should handle cancellation
-                self.assertIsNotNone(scene)
+            # Act: simulate cancellation via key down event
+            event = Mock()
+            event.key = pygame.K_ESCAPE
+            scene.on_key_down_event(event)
+
+            # Assert: should handle cancellation
+            assert scene is not None
 
 
 class TestLoadDialogScene(unittest.TestCase):
@@ -145,14 +147,14 @@ class TestLoadDialogScene(unittest.TestCase):
             )
 
             # Assert
-            self.assertIsNotNone(scene)
+            assert scene is not None
 
     def test_load_dialog_file_selection(self):
         """Test LoadDialogScene file selection."""
         # Create mock groups using centralized mocks
         mock_groups = Mock()
         mock_groups.__iter__ = Mock(return_value=iter([]))  # Make it iterable
-        
+
         # Create mock previous scene with iterable all_sprites
         mock_previous_scene = Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
@@ -168,14 +170,14 @@ class TestLoadDialogScene(unittest.TestCase):
         scene.on_confirm_event(event, Mock())
 
         # Assert: should handle file selection
-        self.assertIsNotNone(scene)
+        assert scene is not None
 
     def test_load_dialog_cancellation(self):
         """Test LoadDialogScene cancellation."""
         # Create mock groups using centralized mocks
         mock_groups = Mock()
         mock_groups.__iter__ = Mock(return_value=iter([]))  # Make it iterable
-        
+
         # Create mock previous scene with iterable all_sprites
         mock_previous_scene = Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
@@ -192,7 +194,7 @@ class TestLoadDialogScene(unittest.TestCase):
         scene.on_key_down_event(event)
 
         # Assert: should handle cancellation
-        self.assertIsNotNone(scene)
+        assert scene is not None
 
 
 class TestSaveDialogScene(unittest.TestCase):
@@ -226,7 +228,7 @@ class TestSaveDialogScene(unittest.TestCase):
             )
 
             # Assert
-            self.assertIsNotNone(scene)
+            assert scene is not None
 
     def test_save_dialog_filename_input(self):
         """Test SaveDialogScene filename input."""
@@ -251,14 +253,14 @@ class TestSaveDialogScene(unittest.TestCase):
             scene.on_text_input_event("e")
 
             # Assert: should handle filename input
-            self.assertIsNotNone(scene)
+            assert scene is not None
 
     def test_save_dialog_save_confirmation(self):
         """Test SaveDialogScene save confirmation."""
         # Create mock groups using centralized mocks
         mock_groups = Mock()
         mock_groups.__iter__ = Mock(return_value=iter([]))  # Make it iterable
-        
+
         # Create mock previous scene with iterable all_sprites
         mock_previous_scene = Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
@@ -274,7 +276,7 @@ class TestSaveDialogScene(unittest.TestCase):
         scene.on_confirm_event(event, Mock())
 
         # Assert: should handle save confirmation
-        self.assertIsNotNone(scene)
+        assert scene is not None
 
 
 class TestNewCanvasDialogScene(unittest.TestCase):
@@ -308,7 +310,7 @@ class TestNewCanvasDialogScene(unittest.TestCase):
             )
 
             # Assert
-            self.assertIsNotNone(scene)
+            assert scene is not None
 
     def test_new_canvas_dialog_dimension_input(self):
         """Test NewCanvasDialogScene dimension input."""
@@ -329,14 +331,14 @@ class TestNewCanvasDialogScene(unittest.TestCase):
             scene.on_text_input_event("4")
 
             # Assert: should handle dimension input
-            self.assertIsNotNone(scene)
+            assert scene is not None
 
     def test_new_canvas_dialog_creation_confirmation(self):
         """Test NewCanvasDialogScene creation confirmation."""
         # Create mock groups using centralized mocks
         mock_groups = Mock()
         mock_groups.__iter__ = Mock(return_value=iter([]))  # Make it iterable
-        
+
         # Create mock previous scene with iterable all_sprites
         mock_previous_scene = Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
@@ -352,7 +354,7 @@ class TestNewCanvasDialogScene(unittest.TestCase):
         scene.on_confirm_event(event, Mock())
 
         # Assert: should handle creation confirmation
-        self.assertIsNotNone(scene)
+        assert scene is not None
 
     def test_new_canvas_dialog_dimension_validation(self):
         """Test NewCanvasDialogScene dimension validation."""
@@ -370,13 +372,13 @@ class TestNewCanvasDialogScene(unittest.TestCase):
             scene.dialog.input_box.text = "1024x768"
 
             # Assert: should accept valid dimensions
-            self.assertEqual(scene.dialog.input_box.text, "1024x768")
+            assert scene.dialog.input_box.text == "1024x768"
 
             # Act: test invalid dimensions (should be handled by input validation)
             scene.dialog.input_box.text = "invalid"
 
             # Assert: should handle invalid input
-            self.assertEqual(scene.dialog.input_box.text, "invalid")
+            assert scene.dialog.input_box.text == "invalid"
 
 
 if __name__ == "__main__":

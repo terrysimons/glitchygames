@@ -2049,7 +2049,7 @@ class ColorWellSprite(BitmappySprite):
         self.green = 0
         self.blue = 0
         # Ensure callbacks attribute is initialized (inheritance issue fix)
-        if not hasattr(self, 'callbacks'):
+        if not hasattr(self, "callbacks"):
             self.callbacks = {}
 
         self.text_sprite = TextBoxSprite(

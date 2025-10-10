@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -18,11 +19,11 @@ class TestBitmappyFunctionality(unittest.TestCase):
     def test_bitmappy_classes_exist(self):
         """Test that bitmappy classes exist."""
         # Test that main classes are available
-        assert hasattr(bitmappy, 'BitmapPixelSprite')
-        assert hasattr(bitmappy, 'FilmStripSprite')
-        assert hasattr(bitmappy, 'AnimatedCanvasSprite')
-        assert hasattr(bitmappy, 'MiniView')
-        assert hasattr(bitmappy, 'BitmapEditorScene')
+        assert hasattr(bitmappy, "BitmapPixelSprite")
+        assert hasattr(bitmappy, "FilmStripSprite")
+        assert hasattr(bitmappy, "AnimatedCanvasSprite")
+        assert hasattr(bitmappy, "MiniView")
+        assert hasattr(bitmappy, "BitmapEditorScene")
         
         # Test that classes are callable
         assert callable(bitmappy.BitmapPixelSprite)
@@ -34,7 +35,7 @@ class TestBitmappyFunctionality(unittest.TestCase):
     def test_bitmappy_exceptions(self):
         """Test bitmappy exception classes."""
         # Test that exception classes exist
-        assert hasattr(bitmappy, 'GGUnhandledMenuItemError')
+        assert hasattr(bitmappy, "GGUnhandledMenuItemError")
         assert callable(bitmappy.GGUnhandledMenuItemError)
         
         # Test exception can be raised
@@ -44,8 +45,8 @@ class TestBitmappyFunctionality(unittest.TestCase):
     def test_bitmappy_ai_classes(self):
         """Test bitmappy AI classes."""
         # Test that AI classes exist
-        assert hasattr(bitmappy, 'AIRequest')
-        assert hasattr(bitmappy, 'AIResponse')
+        assert hasattr(bitmappy, "AIRequest")
+        assert hasattr(bitmappy, "AIResponse")
         
         # Test that classes are callable
         assert callable(bitmappy.AIRequest)
@@ -71,16 +72,16 @@ class TestBitmappyFunctionality(unittest.TestCase):
         import toml
         
         # Test that bitmappy module exists and has expected attributes
-        assert hasattr(bitmappy, '__file__')
-        assert hasattr(bitmappy, '__name__')
-        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'
+        assert hasattr(bitmappy, "__file__")
+        assert hasattr(bitmappy, "__name__")
+        assert bitmappy.__name__ == "glitchygames.tools.bitmappy"
 
     def test_bitmappy_module_structure(self):
         """Test bitmappy module structure."""
         # Test that module has expected attributes
-        assert hasattr(bitmappy, '__file__')
-        assert hasattr(bitmappy, '__name__')
-        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'
+        assert hasattr(bitmappy, "__file__")
+        assert hasattr(bitmappy, "__name__")
+        assert bitmappy.__name__ == "glitchygames.tools.bitmappy"
 
 
 if __name__ == "__main__":

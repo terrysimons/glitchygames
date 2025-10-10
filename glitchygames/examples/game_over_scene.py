@@ -3,9 +3,9 @@ Game Over scene for the paddleslap game.
 """
 
 import logging
-import pygame
 from typing import Self
 
+import pygame
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 

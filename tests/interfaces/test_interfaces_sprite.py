@@ -67,24 +67,24 @@ class TestSpriteInterface:
         # Check render signature
         render_sig = inspect.signature(SpriteInterface.render)
         assert len(render_sig.parameters) == 2  # self, screen
-        assert 'screen' in render_sig.parameters
+        assert "screen" in render_sig.parameters
 
     def test_sprite_interface_method_return_types(self):
         """Test that SpriteInterface methods have correct return type annotations."""
         # Check update_nested_sprites return type
         update_nested_sprites_annotations = SpriteInterface.update_nested_sprites.__annotations__
-        assert 'return' in update_nested_sprites_annotations
-        assert update_nested_sprites_annotations['return'] == 'None'
+        assert "return" in update_nested_sprites_annotations
+        assert update_nested_sprites_annotations["return"] == "None"
 
         # Check update return type
         update_annotations = SpriteInterface.update.__annotations__
-        assert 'return' in update_annotations
-        assert update_annotations['return'] == 'None'
+        assert "return" in update_annotations
+        assert update_annotations["return"] == "None"
 
         # Check render return type
         render_annotations = SpriteInterface.render.__annotations__
-        assert 'return' in render_annotations
-        assert render_annotations['return'] == 'None'
+        assert "return" in render_annotations
+        assert render_annotations["return"] == "None"
 
     def test_type_annotations_with_pygame_surface(self):
         """Test that type annotations work correctly with pygame.Surface."""
@@ -98,5 +98,5 @@ class TestSpriteInterface:
         
         # Verify the method signature includes pygame.Surface
         render_sig = inspect.signature(SpriteInterface.render)
-        screen_param = render_sig.parameters['screen']
-        assert screen_param.annotation == 'pygame.Surface'
+        screen_param = render_sig.parameters["screen"]
+        assert screen_param.annotation == "pygame.Surface"

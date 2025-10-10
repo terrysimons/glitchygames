@@ -23,7 +23,7 @@ class TestEngineEventSystem:
     def test_game_engine_event_handlers_registration(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine event handler registration."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -36,7 +36,7 @@ class TestEngineEventSystem:
             engine = GameEngine(game=mock_game)
             
             # Test that event handlers are registered
-            assert hasattr(engine, 'EVENT_HANDLERS')
+            assert hasattr(engine, "EVENT_HANDLERS")
             assert isinstance(engine.EVENT_HANDLERS, dict)
             
             # Test that the EVENT_HANDLERS dictionary is not empty
@@ -52,7 +52,7 @@ class TestEngineEventSystem:
     def test_game_engine_event_processing(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine event processing."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -73,7 +73,7 @@ class TestEngineEventSystem:
             ]
             
             # Mock the process_events method to avoid actual event processing
-            with patch.object(engine, 'process_events') as mock_process_events:
+            with patch.object(engine, "process_events") as mock_process_events:
                 mock_process_events.return_value = None
                 
                 # Test that process_events can be called
@@ -85,7 +85,7 @@ class TestEngineEventSystem:
     def test_game_engine_quit_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine quit event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -101,7 +101,7 @@ class TestEngineEventSystem:
             quit_event = Mock(type=pygame.QUIT)
             
             # Test quit event handler
-            with patch.object(engine, 'on_quit_event') as mock_quit_handler:
+            with patch.object(engine, "on_quit_event") as mock_quit_handler:
                 mock_quit_handler.return_value = None
                 
                 # Call the quit event handler
@@ -113,7 +113,7 @@ class TestEngineEventSystem:
     def test_game_engine_keyboard_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine keyboard event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -130,8 +130,8 @@ class TestEngineEventSystem:
             keyup_event = Mock(type=pygame.KEYUP, key=pygame.K_SPACE)
             
             # Test keyboard event handlers
-            with patch.object(engine, 'on_keydown_event') as mock_keydown_handler, \
-                 patch.object(engine, 'on_keyup_event') as mock_keyup_handler:
+            with patch.object(engine, "on_keydown_event") as mock_keydown_handler, \
+                 patch.object(engine, "on_keyup_event") as mock_keyup_handler:
                 
                 mock_keydown_handler.return_value = None
                 mock_keyup_handler.return_value = None
@@ -147,7 +147,7 @@ class TestEngineEventSystem:
     def test_game_engine_mouse_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine mouse event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -165,9 +165,9 @@ class TestEngineEventSystem:
             mousemotion_event = Mock(type=pygame.MOUSEMOTION, pos=(100, 100), rel=(5, 5))
             
             # Test mouse event handlers
-            with patch.object(engine, 'on_mousebuttondown_event') as mock_mousedown_handler, \
-                 patch.object(engine, 'on_mousebuttonup_event') as mock_mouseup_handler, \
-                 patch.object(engine, 'on_mousemotion_event') as mock_mousemotion_handler:
+            with patch.object(engine, "on_mousebuttondown_event") as mock_mousedown_handler, \
+                 patch.object(engine, "on_mousebuttonup_event") as mock_mouseup_handler, \
+                 patch.object(engine, "on_mousemotion_event") as mock_mousemotion_handler:
                 
                 mock_mousedown_handler.return_value = None
                 mock_mouseup_handler.return_value = None
@@ -186,7 +186,7 @@ class TestEngineEventSystem:
     def test_game_engine_joystick_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine joystick event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -206,11 +206,11 @@ class TestEngineEventSystem:
             joyballmotion_event = Mock(type=pygame.JOYBALLMOTION, ball=0, rel=(5, 5), joy=0)
             
             # Test joystick event handlers
-            with patch.object(engine, 'on_joybuttondown_event') as mock_joybuttondown_handler, \
-                 patch.object(engine, 'on_joybuttonup_event') as mock_joybuttonup_handler, \
-                 patch.object(engine, 'on_joyaxismotion_event') as mock_joyaxismotion_handler, \
-                 patch.object(engine, 'on_joyhatmotion_event') as mock_joyhatmotion_handler, \
-                 patch.object(engine, 'on_joyballmotion_event') as mock_joyballmotion_handler:
+            with patch.object(engine, "on_joybuttondown_event") as mock_joybuttondown_handler, \
+                 patch.object(engine, "on_joybuttonup_event") as mock_joybuttonup_handler, \
+                 patch.object(engine, "on_joyaxismotion_event") as mock_joyaxismotion_handler, \
+                 patch.object(engine, "on_joyhatmotion_event") as mock_joyhatmotion_handler, \
+                 patch.object(engine, "on_joyballmotion_event") as mock_joyballmotion_handler:
                 
                 mock_joybuttondown_handler.return_value = None
                 mock_joybuttonup_handler.return_value = None
@@ -235,7 +235,7 @@ class TestEngineEventSystem:
     def test_game_engine_active_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine active event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -251,7 +251,7 @@ class TestEngineEventSystem:
             active_event = Mock(type=pygame.ACTIVEEVENT, gain=1, state=1)
             
             # Test active event handler
-            with patch.object(engine, 'on_active_event') as mock_active_handler:
+            with patch.object(engine, "on_active_event") as mock_active_handler:
                 mock_active_handler.return_value = None
                 
                 # Call the active event handler
@@ -263,7 +263,7 @@ class TestEngineEventSystem:
     def test_game_engine_user_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine user event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -281,9 +281,9 @@ class TestEngineEventSystem:
             menu_event = Mock(type=pygame.USEREVENT + 3)  # MENUEVENT
             
             # Test user event handlers
-            with patch.object(engine, 'on_fps_event') as mock_fps_handler, \
-                 patch.object(engine, 'on_game_event') as mock_game_handler, \
-                 patch.object(engine, 'on_menu_item_event') as mock_menu_handler:
+            with patch.object(engine, "on_fps_event") as mock_fps_handler, \
+                 patch.object(engine, "on_game_event") as mock_game_handler, \
+                 patch.object(engine, "on_menu_item_event") as mock_menu_handler:
                 
                 mock_fps_handler.return_value = None
                 mock_game_handler.return_value = None
@@ -302,7 +302,7 @@ class TestEngineEventSystem:
     def test_game_engine_sys_wm_event_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine sys wm event handling."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -318,7 +318,7 @@ class TestEngineEventSystem:
             sys_wm_event = Mock(type=pygame.SYSWMEVENT, msg="test_message")
             
             # Test sys wm event handler
-            with patch.object(engine, 'on_sys_wm_event') as mock_sys_wm_handler:
+            with patch.object(engine, "on_sys_wm_event") as mock_sys_wm_handler:
                 mock_sys_wm_handler.return_value = None
                 
                 # Call the sys wm event handler
@@ -330,7 +330,7 @@ class TestEngineEventSystem:
     def test_game_engine_event_manager_integration(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine event manager integration."""
         # Mock argument parsing to prevent command line argument issues
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
             
             # Create mock game
@@ -343,9 +343,9 @@ class TestEngineEventSystem:
             engine = GameEngine(game=mock_game)
             
             # Test that engine has the basic attributes that are set during __init__
-            assert hasattr(engine, 'game')
-            assert hasattr(engine, 'scene_manager')
-            assert hasattr(engine, 'EVENT_HANDLERS')
+            assert hasattr(engine, "game")
+            assert hasattr(engine, "scene_manager")
+            assert hasattr(engine, "EVENT_HANDLERS")
             
             # Test that the game attribute is set correctly
             assert engine.game == mock_game

@@ -10,7 +10,12 @@ import pygame
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.sprites import BitmappySprite, SingletonBitmappySprite, FocusableSingletonBitmappySprite
+from glitchygames.sprites import (
+    BitmappySprite,
+    FocusableSingletonBitmappySprite,
+    SingletonBitmappySprite,
+)
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -59,8 +64,8 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite load method."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite._load_static_only') as mock_load:
-            with patch('glitchygames.sprites.SpriteFactory.load_sprite') as mock_factory:
+        with patch("glitchygames.sprites.BitmappySprite._load_static_only") as mock_load:
+            with patch("glitchygames.sprites.SpriteFactory.load_sprite") as mock_factory:
                 mock_factory.side_effect = ValueError("Factory failed")
                 sprite.load("test.toml")
                 mock_load.assert_called_once_with("test.toml")
@@ -69,8 +74,8 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite load method with frame."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite._load_static_only') as mock_load:
-            with patch('glitchygames.sprites.SpriteFactory.load_sprite') as mock_factory:
+        with patch("glitchygames.sprites.BitmappySprite._load_static_only") as mock_load:
+            with patch("glitchygames.sprites.SpriteFactory.load_sprite") as mock_factory:
                 mock_factory.side_effect = ValueError("Factory failed")
                 sprite.load("test.toml")
                 mock_load.assert_called_once_with("test.toml")
@@ -79,8 +84,8 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite load method fallback."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite._load_static_only') as mock_load:
-            with patch('glitchygames.sprites.SpriteFactory.load_sprite') as mock_factory:
+        with patch("glitchygames.sprites.BitmappySprite._load_static_only") as mock_load:
+            with patch("glitchygames.sprites.SpriteFactory.load_sprite") as mock_factory:
                 mock_factory.side_effect = ValueError("Factory failed")
                 mock_load.side_effect = Exception("Load failed")
                 with self.assertRaises(Exception):
@@ -90,7 +95,7 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite save method."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite._save_static_only') as mock_save:
+        with patch("glitchygames.sprites.BitmappySprite._save_static_only") as mock_save:
             sprite.save("test.toml")
             mock_save.assert_called_once_with("test.toml", "toml")
 
@@ -99,8 +104,8 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite()
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)}
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
             result = sprite.deflate("toml")
             self.assertIsNotNone(result)
 
@@ -125,8 +130,8 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite()
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'B': (0, 255, 0), 'C': (0, 0, 255), 'X': (255, 0, 255)}
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)}
             result = sprite.deflate("toml")
             self.assertIsNotNone(result)
 
@@ -135,8 +140,8 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite()
         sprite.pixels = [(1, 1, 1)]  # Dangerous character
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (1, 1, 1), 'X': (255, 0, 255)}
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (1, 1, 1), "X": (255, 0, 255)}
             result = sprite.deflate("toml")
             self.assertIsNotNone(result)
 
@@ -145,8 +150,8 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite()
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'X': (255, 0, 255)}  # Missing second color
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "X": (255, 0, 255)}  # Missing second color
             result = sprite.deflate("toml")
             self.assertIsNotNone(result)
 
@@ -154,8 +159,8 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite inflate method."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite._inflate_toml') as mock_inflate:
-            mock_inflate.return_value = {'pixels': [(255, 0, 0)]}
+        with patch("glitchygames.sprites.BitmappySprite._inflate_toml") as mock_inflate:
+            mock_inflate.return_value = {"pixels": [(255, 0, 0)]}
             result = sprite.inflate("test.toml")
             self.assertIsNotNone(result)
 
@@ -163,9 +168,9 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite save_static_only method."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite.deflate') as mock_deflate:
-            mock_deflate.return_value = {'sprite': {'pixels': []}}
-            with patch('pathlib.Path.open') as mock_open:
+        with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
+            mock_deflate.return_value = {"sprite": {"pixels": []}}
+            with patch("pathlib.Path.open") as mock_open:
                 sprite._save_static_only("test.toml")
                 mock_open.assert_called_once()
 
@@ -173,7 +178,7 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite save_static_only method with unsupported format."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite.deflate') as mock_deflate:
+        with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
             with self.assertRaises(ValueError):
                 sprite._save_static_only("test.xml")
@@ -183,18 +188,18 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite()
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)}
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
             result = sprite._create_toml_config()
-            self.assertIn('sprite', result)
+            self.assertIn("sprite", result)
 
     def test_bitmappy_sprite_process_pixel_rows_missing_color(self):
         """Test BitmappySprite process_pixel_rows with missing color."""
         sprite = BitmappySprite(width=2, height=2)  # 2x2 = 4 pixels
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]  # 4 pixels
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'X': (255, 0, 255)}  # Missing second color
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "X": (255, 0, 255)}  # Missing second color
             color_map = mock_color_map.return_value
             result = sprite._process_pixel_rows(color_map)
             self.assertIsNotNone(result)
@@ -203,7 +208,7 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite save_static_only with unsupported format error."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite.deflate') as mock_deflate:
+        with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
             with self.assertRaises(ValueError):
                 sprite._save_static_only("test.xml")
@@ -212,7 +217,7 @@ class TestBitmappySprite(unittest.TestCase):
         """Test BitmappySprite save_static_only method with unsupported format."""
         sprite = BitmappySprite()
         
-        with patch('glitchygames.sprites.BitmappySprite.deflate') as mock_deflate:
+        with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: json")
             with self.assertRaises(ValueError):
                 sprite._save_static_only("test.json")
@@ -222,8 +227,8 @@ class TestBitmappySprite(unittest.TestCase):
         sprite = BitmappySprite(width=2, height=2)  # 2x2 = 4 pixels
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]  # 4 pixels
         
-        with patch('glitchygames.sprites.BitmappySprite._create_color_map') as mock_color_map:
-            mock_color_map.return_value = {'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)}
+        with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
+            mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
             result = sprite._get_pixel_string()
             self.assertIsNotNone(result)
 
@@ -283,11 +288,11 @@ class TestSingletonBitmappySprite(unittest.TestCase):
         self.assertIsInstance(sprite, SingletonBitmappySprite)
         # Test that it has BitmappySprite attributes instead of isinstance check
         # (Centralized mocks interfere with isinstance() checks)
-        self.assertTrue(hasattr(sprite, 'filename'))
-        self.assertTrue(hasattr(sprite, 'focusable'))
-        self.assertTrue(hasattr(sprite, 'pixels'))
-        self.assertTrue(hasattr(sprite, 'pixels_across'))
-        self.assertTrue(hasattr(sprite, 'pixels_tall'))
+        self.assertTrue(hasattr(sprite, "filename"))
+        self.assertTrue(hasattr(sprite, "focusable"))
+        self.assertTrue(hasattr(sprite, "pixels"))
+        self.assertTrue(hasattr(sprite, "pixels_across"))
+        self.assertTrue(hasattr(sprite, "pixels_tall"))
 
 
 class TestFocusableSingletonBitmappySprite(unittest.TestCase):
@@ -310,11 +315,11 @@ class TestFocusableSingletonBitmappySprite(unittest.TestCase):
         self.assertIsInstance(sprite, FocusableSingletonBitmappySprite)
         # Test that it has BitmappySprite attributes instead of isinstance check
         # (Centralized mocks interfere with isinstance() checks)
-        self.assertTrue(hasattr(sprite, 'filename'))
-        self.assertTrue(hasattr(sprite, 'focusable'))
-        self.assertTrue(hasattr(sprite, 'pixels'))
-        self.assertTrue(hasattr(sprite, 'pixels_across'))
-        self.assertTrue(hasattr(sprite, 'pixels_tall'))
+        self.assertTrue(hasattr(sprite, "filename"))
+        self.assertTrue(hasattr(sprite, "focusable"))
+        self.assertTrue(hasattr(sprite, "pixels"))
+        self.assertTrue(hasattr(sprite, "pixels_across"))
+        self.assertTrue(hasattr(sprite, "pixels_tall"))
         self.assertTrue(sprite.focusable)
 
 

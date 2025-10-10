@@ -1,12 +1,12 @@
 """Test paddle game objects with simplified approach."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
-from glitchygames.movement.vertical import Vertical
 from glitchygames.movement.speed import Speed
+from glitchygames.movement.vertical import Vertical
 
 
 class TestPaddleBasicFunctionality:
@@ -70,7 +70,7 @@ class TestPaddleBasicFunctionality:
 
     def test_base_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test BasePaddle initialization with collision sound."""
-        with patch('glitchygames.game_objects.paddle.load_sound') as mock_load_sound:
+        with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
             
@@ -103,7 +103,7 @@ class TestPaddleBasicFunctionality:
         )
         
         # Should not have collision sound
-        assert not hasattr(paddle, 'snd')
+        assert not hasattr(paddle, "snd")
 
 
 class TestPaddleMovement:
@@ -302,7 +302,7 @@ class TestHorizontalPaddle:
 
     def test_horizontal_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test HorizontalPaddle initialization with collision sound."""
-        with patch('glitchygames.game_objects.paddle.load_sound') as mock_load_sound:
+        with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
             
@@ -354,7 +354,7 @@ class TestVerticalPaddle:
 
     def test_vertical_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test VerticalPaddle initialization with collision sound."""
-        with patch('glitchygames.game_objects.paddle.load_sound') as mock_load_sound:
+        with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
             

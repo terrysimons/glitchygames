@@ -11,6 +11,7 @@ import pygame
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.sprites import RootSprite, Sprite
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -105,7 +106,7 @@ class TestSpriteInitialization(unittest.TestCase):
         """Test that break_when creates a list when passed None."""
         # break_when is a class method, not an instance attribute
         # Test that the class method exists and can be called
-        self.assertTrue(hasattr(Sprite, 'break_when'))
+        self.assertTrue(hasattr(Sprite, "break_when"))
         self.assertTrue(callable(Sprite.break_when))
 
     def test_break_when_specific_type_appends(self):
@@ -168,9 +169,9 @@ class TestSpriteProperties(unittest.TestCase):
         sprite = Sprite(x=0, y=0, width=10, height=10)
         
         # Test that event handlers exist (using correct method names)
-        self.assertTrue(hasattr(sprite, 'on_mouse_motion_event'))
-        self.assertTrue(hasattr(sprite, 'on_mouse_button_down_event'))
-        self.assertTrue(hasattr(sprite, 'on_key_down_event'))
+        self.assertTrue(hasattr(sprite, "on_mouse_motion_event"))
+        self.assertTrue(hasattr(sprite, "on_mouse_button_down_event"))
+        self.assertTrue(hasattr(sprite, "on_key_down_event"))
 
     def test_sprite_update(self):
         """Test sprite update method."""

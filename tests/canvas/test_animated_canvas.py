@@ -22,6 +22,7 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedSpriteSerializer,
 )
 from glitchygames.tools.film_strip import FilmStripWidget
+
 from mocks.test_mock_factory import MockFactory
 
 

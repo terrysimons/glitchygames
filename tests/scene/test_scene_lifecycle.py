@@ -9,15 +9,39 @@ This module tests the lifecycle of scenes including:
 - Scene state management
 """
 
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from glitchygames.scenes import SceneManager, Scene
+
+# Add project root so direct imports work in isolated runs
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from glitchygames.scenes import Scene, SceneManager
+
+from mocks.test_mock_factory import MockFactory
 
 
-class TestSceneLifecycle:
+class TestSceneLifecycle(unittest.TestCase):
     """Test scene lifecycle functionality."""
 
-    def test_scene_creation(self, mock_pygame_patches):
+    def setUp(self):
+        """Set up test fixtures."""
+        # Use centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all the patchers
+        for patcher in self.patchers:
+            patcher.start()
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_scene_creation(self):
         """Test scene creation and initialization."""
         # Create a scene
         scene = Scene()
@@ -29,7 +53,7 @@ class TestSceneLifecycle:
         assert scene.dt == 0
         assert scene.dirty == 1
 
-    def test_scene_initialization(self, mock_pygame_patches):
+    def test_scene_initialization(self):
         """Test scene initialization."""
         scene = Scene()
         
@@ -41,14 +65,14 @@ class TestSceneLifecycle:
         assert scene.options == {"debug_events": False, "no_unhandled_events": False}
         assert scene.name == type(scene)
 
-    def test_scene_cleanup(self, mock_pygame_patches):
+    def test_scene_cleanup(self):
         """Test scene cleanup."""
         scene = Scene()
         
         # Test cleanup method (should not raise exceptions)
         scene.cleanup()
 
-    def test_scene_lifecycle_with_manager(self, mock_pygame_patches):
+    def test_scene_lifecycle_with_manager(self):
         """Test complete scene lifecycle with manager."""
         manager = SceneManager()
         scene = Scene()
@@ -57,7 +81,7 @@ class TestSceneLifecycle:
         manager.switch_to_scene(scene)
         assert manager.active_scene == scene
 
-    def test_scene_transition(self, mock_pygame_patches):
+    def test_scene_transition(self):
         """Test scene transition."""
         manager = SceneManager()
         scene1 = Scene()
@@ -71,14 +95,14 @@ class TestSceneLifecycle:
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
 
-    def test_scene_destruction(self, mock_pygame_patches):
+    def test_scene_destruction(self):
         """Test scene destruction and cleanup."""
         scene = Scene()
         
         # Test cleanup method
         scene.cleanup()
 
-    def test_scene_state_persistence(self, mock_pygame_patches):
+    def test_scene_state_persistence(self):
         """Test scene state persistence during transitions."""
         manager = SceneManager()
         scene1 = Scene()
@@ -104,7 +128,7 @@ class TestSceneLifecycle:
         assert manager.active_scene == scene1
         assert scene1.custom_data == "test_data"
 
-    def test_scene_lifecycle_with_custom_methods(self, mock_pygame_patches):
+    def test_scene_lifecycle_with_custom_methods(self):
         """Test scene lifecycle with custom methods."""
         class CustomScene(Scene):
             def __init__(self):
@@ -131,7 +155,7 @@ class TestSceneLifecycle:
         # Test standard lifecycle still works
         scene.cleanup()
 
-    def test_scene_lifecycle_with_manager_integration(self, mock_pygame_patches):
+    def test_scene_lifecycle_with_manager_integration(self):
         """Test scene lifecycle with full manager integration."""
         manager = SceneManager()
         

@@ -507,7 +507,7 @@ class GameEngine(events.EventManager):
         (desired_width, desired_height) = self.desired_resolution.split("x")
 
         if self.windowed:
-            self.mode_flags: int = 0
+            self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
             self.mode_flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
 

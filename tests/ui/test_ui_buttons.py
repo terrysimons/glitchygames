@@ -5,14 +5,16 @@ mouse interactions, and visual state changes.
 """
 
 import sys
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import ButtonSprite
+
 from mocks.test_mock_factory import MockFactory
 
 

@@ -14,9 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
-    HashableEvent,
     DropEvents,
     DropEventStubs,
+    HashableEvent,
 )
 
 from mocks.test_mock_factory import MockFactory
@@ -276,8 +276,9 @@ class TestDropManagerCoverage:
 
     def test_drop_manager_args(self, mock_pygame_patches):
         """Test DropManager args method."""
-        from glitchygames.events.drop import DropManager
         import argparse
+
+        from glitchygames.events.drop import DropManager
         
         parser = argparse.ArgumentParser()
         result = DropManager.args(parser)
@@ -292,7 +293,7 @@ class TestDropManagerCoverage:
         manager = DropManager(game=mock_game)
         
         # Test that proxy is created
-        assert hasattr(manager, 'proxies')
+        assert hasattr(manager, "proxies")
         assert len(manager.proxies) > 0
 
     def test_drop_proxy_initialization_no_game(self, mock_pygame_patches):
@@ -302,7 +303,7 @@ class TestDropManagerCoverage:
         manager = DropManager(game=None)
         
         # Test that proxy is created even without game
-        assert hasattr(manager, 'proxies')
+        assert hasattr(manager, "proxies")
         assert len(manager.proxies) > 0
 
     def test_drop_proxy_on_drop_begin_event(self, mock_pygame_patches):
