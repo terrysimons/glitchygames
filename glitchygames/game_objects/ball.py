@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-import random
+import math
+import secrets
 from typing import Self
 
 import pygame
@@ -47,7 +48,7 @@ class BallSprite(Sprite):
         self.image.convert()
         self.image.set_colorkey(0)
         self.direction = 0
-        self.speed = Speed(4, 2)
+        self.speed = Speed(3.0, 1.5)  # Balanced default speed
         if collision_sound:
             self.snd = game_objects.load_sound(collision_sound)
         self.color = WHITE
@@ -95,14 +96,19 @@ class BallSprite(Sprite):
             None
 
         """
+        # Top edge bounce
         if self.rect.y <= 0:
-            self.snd.play()
-            self.rect.y = 0
-            self.speed.y *= -1
+            if hasattr(self, "snd") and self.snd is not None:
+                self.snd.play()
+            self.rect.y = 1  # Small buffer to prevent sticking
+            self.speed.y = abs(self.speed.y)  # Ensure positive speed (downward)
+        
+        # Bottom edge bounce
         if self.rect.y + self.height >= self.screen_height:
-            self.snd.play()
-            self.rect.y = self.screen_height - self.height
-            self.speed.y *= -1
+            if hasattr(self, "snd") and self.snd is not None:
+                self.snd.play()
+            self.rect.y = self.screen_height - self.height - 1  # Small buffer to prevent sticking
+            self.speed.y = -abs(self.speed.y)  # Ensure negative speed (upward)
 
     def reset(self: Self) -> None:
         """Reset the ball.
@@ -114,21 +120,26 @@ class BallSprite(Sprite):
             None
 
         """
-        self.x = random.randrange(50, 750)
-        self.y = random.randrange(25, 400)
+        # Set position directly to rect, maintaining consistency
+        self.rect.x = secrets.randbelow(700) + 50  # 50-749 range
+        self.rect.y = secrets.randbelow(375) + 25  # 25-399 range
 
-        # Direction of ball (in degrees)
-        self.direction = random.randrange(-45, 45)
-
-        # Flip a 'coin'
-        if random.randrange(2) == 0:
-            # Reverse ball direction, let the other guy get it first
-            self.direction += 180
+        # Direction of ball (in degrees) - avoid pure vertical movement
+        # Use ranges that ensure horizontal movement
+        if secrets.randbelow(2) == 0:
+            # Left side: aim right (0-90 or 270-360 degrees)
+            self.direction = secrets.randbelow(90) + 270  # 270-359 degrees
+        else:
+            # Right side: aim left (90-270 degrees)  
+            self.direction = secrets.randbelow(180) + 90  # 90-269 degrees
+        
+        # Convert direction to speed components
+        radians = math.radians(self.direction)
+        speed_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)  # Preserve original speed magnitude
+        self.speed.x = speed_magnitude * math.cos(radians)
+        self.speed.y = speed_magnitude * math.sin(radians)
 
         # self.rally.reset()
-
-        self.rect.x = self.x
-        self.rect.y = self.y
 
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self: Self, diff: int) -> None:
@@ -147,6 +158,55 @@ class BallSprite(Sprite):
         # Speed the ball up
         self.speed *= 1.1
 
+    def speed_up(self: Self, multiplier: float = 1.1) -> None:
+        """Increase the ball's speed logarithmically.
+
+        Args:
+            multiplier (float): The base speed multiplier to apply.
+
+        Returns:
+            None
+
+        """
+        import math
+        
+        # Calculate current speed magnitude
+        current_speed = math.sqrt(self.speed.x**2 + self.speed.y**2)
+        
+        # Logarithmic scaling: faster balls get smaller increases
+        # Base multiplier decreases as speed increases
+        log_multiplier = multiplier * (1.0 - math.log(current_speed / 3.0) * 0.1)
+        
+        # Ensure minimum multiplier of 1.05 (5% minimum increase)
+        log_multiplier = max(log_multiplier, 1.05)
+        
+        self.speed.x *= log_multiplier
+        self.speed.y *= log_multiplier
+
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the ball with delta time.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+
+        """
+        self.rect.y += self.speed.y * dt
+        self.rect.x += self.speed.x * dt
+
+        self._do_bounce()
+
+        # Only reset if ball goes completely off screen (after bounce handling)
+        if self.rect.x > self.screen_width or self.rect.x < -self.width:
+            # Mark ball for deletion instead of resetting
+            self.kill()
+
+        # Don't reset for vertical boundaries - let bounce handle them
+        # if self.rect.y > self.screen_height or self.rect.y < 0:
+        #     self.reset()
+
     def update(self: Self) -> None:
         """Update the ball.
 
@@ -162,17 +222,10 @@ class BallSprite(Sprite):
 
         self._do_bounce()
 
-        if self.rect.x > self.screen_width or self.rect.x < 0:
-            self.reset()
+        if self.rect.x > self.screen_width or self.rect.x < -self.width:
+            # Mark ball for deletion instead of resetting
+            self.kill()
 
-        if self.y > self.screen_height or self.rect.y < 0:
-            self.reset()
-
-        # Do we bounce off the left of the screen?
-        if self.x <= 0:
-            self.direction = (360 - self.direction) % 360
-            self.x = 1
-
-        # Do we bounce of the right side of the screen?
-        if self.x > self.screen_width - self.width:
-            self.direction = (360 - self.direction) % 360
+        # Don't reset for vertical boundaries - let bounce handle them
+        # if self.rect.y > self.screen_height or self.rect.y < 0:
+        #     self.reset()

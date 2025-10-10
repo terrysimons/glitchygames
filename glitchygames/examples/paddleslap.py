@@ -7,7 +7,10 @@ This is a simple game where you try to keep the ball from hitting your side of t
 from __future__ import annotations
 
 import logging
+import math
 import random
+import secrets
+import time
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -211,7 +214,12 @@ class Game(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.fps = 0
+        # FPS will be set by command line arguments or default to 60
+
+        # Set random seed for reproducible randomness
+        seed = int(time.perf_counter() * 1000000) % 2**32
+        random.seed(seed)
+        log.info(f"Random seed set to: {seed}")
 
         v_center = self.screen_height / 2
         self.player1 = VerticalPaddle(
@@ -230,14 +238,19 @@ class Game(Scene):
             Speed(y=10, increment=1),
             collision_sound=SFX.SLAP,
         )
-        self.balls = [
-            BallSprite(collision_sound=SFX.BOUNCE) for _ in range(self.options.get("balls", 1))
-        ]
+        self.balls = []
+        for _ in range(self.options.get("balls", 1)):
+            ball = BallSprite(collision_sound=SFX.BOUNCE)
+            # Set a more reasonable speed for the ball
+            ball.speed = Speed(3.0, 1.5)  # Balanced starting speed
+            # Add collision cooldown tracking
+            ball.collision_cooldowns = {}
+            self.balls.append(ball)
 
         for ball in self.balls:
-            red = random.randint(0, 255)
-            green = random.randint(0, 255)
-            blue = random.randint(0, 255)
+            red = secrets.randbelow(256)
+            green = secrets.randbelow(256)
+            blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
 
         self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
@@ -273,7 +286,9 @@ class Game(Scene):
             None
 
         """
-        self.fps = 60
+        # Set default FPS to 60 if not specified by command line
+        if self.target_fps == 0:
+            self.target_fps = 60
         pygame.key.set_repeat(1)
 
     def dt_tick(self: Self, dt: float) -> None:
@@ -304,22 +319,179 @@ class Game(Scene):
         """
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
-                # ball.rally.hit()
-                # if ball.rally.do_rally():
-                #     ball.rally.reset()
-
                 self.player1.snd.play()
+                log.debug(f"PADDLE 1 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 ball.speed.x *= -1
+                # Tell the ball to speed up
+                ball.speed_up(1.15)  # 15% speed increase
+                log.debug(f"PADDLE 1 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                # Spawn a new ball at default speed
+                self._spawn_new_ball()
 
             if pygame.sprite.collide_rect(self.player2, ball) and ball.speed.x > 0:
-                # ball.rally.hit()
-                # if ball.rally.do_rally():
-                #     ball.rally.reset()
-
                 self.player2.snd.play()
+                log.debug(f"PADDLE 2 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 ball.speed.x *= -1
+                # Tell the ball to speed up
+                ball.speed_up(1.15)  # 15% speed increase
+                log.debug(f"PADDLE 2 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                # Spawn a new ball at default speed
+                self._spawn_new_ball()
+
+        # Check for ball-to-ball collisions
+        self._handle_ball_collisions()
+
+        # Remove dead balls from our list
+        balls_to_remove = []
+        for ball in self.balls:
+            if not ball.alive():
+                balls_to_remove.append(ball)
+
+        for ball in balls_to_remove:
+            self.balls.remove(ball)
+
+        # Check for Game Over condition
+        if len(self.balls) == 0:
+            self._show_game_over()
 
         super().update()
+
+    def _show_game_over(self: Self) -> None:
+        """Show the Game Over scene.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
+        from glitchygames.examples.game_over_scene import GameOverScene
+        self.next_scene = GameOverScene(options=self.options)
+        self.previous_scene = self
+
+    def _spawn_new_ball(self: Self) -> None:
+        """Spawn a new ball at default speed.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
+        # Create new ball at default speed
+        new_ball = BallSprite(collision_sound=SFX.BOUNCE)
+        new_ball.speed = Speed(3.0, 1.5)  # Balanced starting speed
+        new_ball.color = (secrets.randbelow(256), secrets.randbelow(256), secrets.randbelow(256))
+        # Add collision cooldown tracking
+        new_ball.collision_cooldowns = {}
+
+        # Add to balls list and sprite group
+        self.balls.append(new_ball)
+        self.all_sprites.add(new_ball)
+
+    def _handle_ball_collisions(self: Self) -> None:
+        """Handle ball-to-ball collisions with proper physics.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
+        import math
+
+        # Check all pairs of balls for collisions
+        for i in range(len(self.balls)):
+            for j in range(i + 1, len(self.balls)):
+                ball1 = self.balls[i]
+                ball2 = self.balls[j]
+
+                # Calculate distance between ball centers
+                dx = ball2.rect.centerx - ball1.rect.centerx
+                dy = ball2.rect.centery - ball1.rect.centery
+                distance = math.sqrt(dx*dx + dy*dy)
+
+                # Check if balls are colliding (sum of radii)
+                collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
+
+                # Calculate overlap percentage
+                overlap_percentage = (collision_distance - distance) / collision_distance if collision_distance > 0 else 0
+
+                # Require 0% overlap for billiards-style collision (touch to bounce)
+                if distance < collision_distance and distance > 0 and overlap_percentage >= 0.0:
+                    import time
+                    current_time = time.time()
+
+                    # Check if balls are in cooldown period
+                    ball1_id = id(ball1)
+                    ball2_id = id(ball2)
+
+                    # Check if ball1 has cooldown with ball2
+                    if ball1_id in ball1.collision_cooldowns and ball1.collision_cooldowns[ball1_id] > current_time - 2.0:
+                        continue
+
+                    # Check if ball2 has cooldown with ball1
+                    if ball2_id in ball2.collision_cooldowns and ball2.collision_cooldowns[ball2_id] > current_time - 2.0:
+                        continue
+
+                    # Play collision sound
+                    if hasattr(ball1, "snd") and ball1.snd is not None:
+                        ball1.snd.play()
+
+                    log.debug(f"BALL-TO-BALL: ball1 speed before={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed before={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+
+                    # Simple billiards-style collision
+                    # Calculate collision normal
+                    nx = dx / distance
+                    ny = dy / distance
+
+                    # Calculate relative velocity
+                    dvx = ball2.speed.x - ball1.speed.x
+                    dvy = ball2.speed.y - ball1.speed.y
+
+                    # Calculate relative velocity along collision normal
+                    dvn = dvx * nx + dvy * ny
+
+                    # Do not resolve if velocities are separating
+                    if dvn > 0:
+                        continue
+
+                    # Proper elastic collision physics for equal mass balls
+                    # For equal mass elastic collision, each ball gets the other's velocity
+                    # component along the collision normal
+                    # This ensures both energy and momentum conservation
+
+                    # Calculate velocity components along collision normal
+                    v1n = ball1.speed.x * nx + ball1.speed.y * ny
+                    v2n = ball2.speed.x * nx + ball2.speed.y * ny
+
+                    # Exchange velocity components along normal
+                    # Each ball gets the other's normal velocity component
+                    ball1.speed.x += (v2n - v1n) * nx
+                    ball1.speed.y += (v2n - v1n) * ny
+                    ball2.speed.x += (v1n - v2n) * nx
+                    ball2.speed.y += (v1n - v2n) * ny
+
+                    log.debug(f"BALL-TO-BALL: ball1 speed after={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed after={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+
+                    # Separate balls to prevent sticking
+                    overlap = collision_distance - distance
+                    separation_distance = max(overlap, 2.0)  # Minimum 2px separation
+
+                    separation_x = nx * separation_distance * 0.5
+                    separation_y = ny * separation_distance * 0.5
+
+                    ball1.rect.x -= separation_x
+                    ball1.rect.y -= separation_y
+                    ball2.rect.x += separation_x
+                    ball2.rect.y += separation_y
+
+                    # Set cooldown timestamps to prevent immediate re-collision
+                    ball1.collision_cooldowns[ball2_id] = current_time
+                    ball2.collision_cooldowns[ball1_id] = current_time
 
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button down events.

@@ -1355,55 +1355,59 @@ class FontEventStubs(EventInterface):
 class KeyboardEvents(EventInterface):
     """Mixin for keyboard events."""
 
-    # @abc.abstractmethod
-    # def on_key_down_event(self: Self, event: HashableEvent) -> None:
-    #     """Handle key down events.
+    @abc.abstractmethod
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Handle key down events.
 
-    #     Args:
-    #         event (HashableEvent): The event to handle.
+        Args:
+            event (HashableEvent): The event to handle.
 
-    #     Returns:
-    #         None
-    #     """
-    #     # KEYDOWN          unicode, key, mod
+        Returns:
+            None
 
-    # @abc.abstractmethod
-    # def on_key_up_event(self: Self, event: HashableEvent) -> None:
-    #     """Handle key up events.
+        """
+        # KEYDOWN          unicode, key, mod
 
-    #     Args:
-    #         event (HashableEvent): The event to handle.
+    @abc.abstractmethod
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+        """Handle key up events.
 
-    #     Returns:
-    #         None
-    #     """
-    #     # KEYUP            key, mod
+        Args:
+            event (HashableEvent): The event to handle.
 
-    # @abc.abstractmethod
-    # def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
-    #     """Handle key chord up events.
+        Returns:
+            None
 
-    #     Args:
-    #         event (HashableEvent): The event to handle.
-    #         keys (list): The keys in the chord.
+        """
+        # KEYUP            key, mod
 
-    #     Returns:
-    #         None
-    #     """
-    #     # Synthesized event.
+    @abc.abstractmethod
+    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
+        """Handle key chord up events.
 
-    # @abc.abstractmethod
-    # def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
-    #     """Handle key chord down events.
+        Args:
+            event (HashableEvent): The event to handle.
+            keys (list): The keys in the chord.
 
-    #     Args:
-    #         event (HashableEvent): The event to handle.
-    #         keys (list): The keys in the chord.
+        Returns:
+            None
 
-    #     Returns:
-    #         None
-    #     """
-    #     # Synthesized event.
+        """
+        # Synthesized event.
+
+    @abc.abstractmethod
+    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
+        """Handle key chord down events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+            keys (list): The keys in the chord.
+
+        Returns:
+            None
+
+        """
+        # Synthesized event.
 
 
 # Mixin
@@ -1672,10 +1676,60 @@ class JoystickEventStubs(EventInterface):
 class MidiEvents(EventInterface):
     """Mixin for midi events."""
 
+    @abc.abstractmethod
+    def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi input events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # MIDIIN           device_id, status, data1, data2
+
+    @abc.abstractmethod
+    def on_midi_out_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi output events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # MIDIOUT          device_id, status, data1, data2
+
 
 # Mixin
 class MidiEventStubs(EventInterface):
     """Mixin for midi events."""
+
+    def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi input events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        unhandled_event(self, event)
+
+    def on_midi_out_event(self: Self, event: HashableEvent) -> None:
+        """Handle midi output events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        unhandled_event(self, event)
 
 
 # Mixin

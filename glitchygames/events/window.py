@@ -6,10 +6,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Self
 
-if TYPE_CHECKING:
-    import argparse
+if TYPE_CHECKING:  # pragma: no cover
+    import argparse  # pragma: no cover
 
-    import pygame
+    import pygame  # pragma: no cover
 
 from glitchygames.events import ResourceManager, WindowEvents
 

@@ -169,7 +169,7 @@ class BitmappyLegacySprite(Sprite):
         config.set("sprite", "name", self.name)
 
         # Generate the color key using universal character set
-        universal_chars = SPRITE_GLYPHS.strip()
+        universal_chars = SPRITE_GLYPHS
 
         # Assign characters sequentially from SPRITE_GLYPHS
         for char_index, color in enumerate(colors):

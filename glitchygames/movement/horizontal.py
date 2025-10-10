@@ -8,15 +8,17 @@ from __future__ import annotations
 
 from typing import Self
 
+from .speed import Speed
+
 
 class Horizontal:
     """Horizontal movement."""
 
-    def __init__(self: Self, speed: int) -> None:
+    def __init__(self: Self, speed: Speed) -> None:
         """Initialize the horizontal movement.
 
         Args:
-            speed (int): The speed to move at.
+            speed (Speed): The speed object to move at.
 
         Returns:
             None

@@ -7,10 +7,12 @@ import logging
 from typing import Self
 
 import pygame
-from glitchygames.game_objects import load_sound
 from glitchygames.movement import Horizontal, Vertical
+from glitchygames.movement.speed import Speed
 from glitchygames.sprites import Sprite
 from pygame import draw
+
+from .sounds import load_sound
 
 log = logging.getLogger("game.paddle")
 log.setLevel(logging.INFO)
@@ -62,7 +64,12 @@ class BasePaddle(Sprite):
         draw.rect(self.image, color, (0, 0, self.width, self.height))
         if collision_sound:
             self.snd = load_sound(collision_sound)
-        self._move = axis(speed)
+        # Create Speed object based on axis type
+        if axis == Horizontal:
+            speed_obj = Speed(speed, 0)
+        else:  # Vertical
+            speed_obj = Speed(0, speed)
+        self._move = axis(speed_obj)
         self.dirty = 1
 
     def move_horizontal(self: Self) -> None:
@@ -252,6 +259,20 @@ class HorizontalPaddle(BasePaddle):
 
         """
         self._move.speed.speed_up_horizontal()
+        self._move.current_speed = self._move.speed.x
+
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the horizontal paddle with delta time.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+
+        """
+        self.rect.x += self._move.current_speed * dt
+        self.dirty = 1
 
 
 class VerticalPaddle(BasePaddle):
@@ -367,3 +388,17 @@ class VerticalPaddle(BasePaddle):
 
         """
         self._move.speed.speed_up_vertical()
+        self._move.current_speed = self._move.speed.y
+
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the vertical paddle with delta time.
+
+        Args:
+            dt (float): The delta time.
+
+        Returns:
+            None
+
+        """
+        self.rect.y += self._move.current_speed * dt
+        self.dirty = 1

@@ -66,7 +66,7 @@ def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
             LOG.info(f"Green: {green}")
             LOG.info(f"Blue: {blue}")
 
-            yield tuple(red, green, blue)
+            yield (red, green, blue)
     except StopIteration:
         pass
 
@@ -113,7 +113,7 @@ def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
             LOG.info(f"Green: {green}")
             LOG.info(f"Blue: {blue}")
 
-            yield tuple(red, green, blue)
+            yield (red, green, blue)
     except StopIteration:
         pass
 

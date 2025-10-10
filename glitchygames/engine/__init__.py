@@ -507,12 +507,13 @@ class GameEngine(events.EventManager):
         (desired_width, desired_height) = self.desired_resolution.split("x")
 
         if self.windowed:
-            self.mode_flags: int = 0
+            self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
-            self.mode_flags = pygame.FULLSCREEN
+            self.mode_flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
 
         self.desired_resolution: tuple[int, int] = self.suggested_resolution(
-            desired_width, desired_height
+            desired_width,
+            desired_height,
         )
 
         # window icon and system tray/dock icon
@@ -560,7 +561,8 @@ class GameEngine(events.EventManager):
         #
         # Note that you can also get the screen with pygame.display.get_surface()
         self.screen: pygame.Surface = pygame.display.set_mode(
-            self.desired_resolution, self.mode_flags
+            self.desired_resolution,
+            self.mode_flags
         )
 
     def initialize_event_handlers(self: Self) -> None:
@@ -854,6 +856,9 @@ class GameEngine(events.EventManager):
             None
 
         """
+        # This ensures that logging is enabled as soon as the game object is created.
+        logging.getLogger("game")
+        self.log.info("Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
                 "Game not initialized.  Pass a game class to the GameEngine constructor."
@@ -866,6 +871,9 @@ class GameEngine(events.EventManager):
 
             # Initialize the game instance
             self.game = self.game(options=GameEngine.OPTIONS)
+
+            # Set the scene manager's OPTIONS class variable for managers that expect it
+            self.scene_manager.OPTIONS = GameEngine.OPTIONS
 
             self.scene_manager.game_engine = self
 
@@ -886,13 +894,16 @@ class GameEngine(events.EventManager):
             # Get count of joysticks
             self.joysticks = []
             if self.joystick_manager:
-                self.joysticks = self.joystick_manager.joysticks
+                # JoystickManager.joysticks is a dictionary, convert to list of values
+                self.joysticks = list(self.joystick_manager.joysticks.values())
             self.joystick_count = len(self.joysticks)
 
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
-        except Exception:
+        except Exception as e:
             self.log.exception("Error starting game.")
+            # In production, handle exceptions gracefully
+            # Tests can override this behavior if needed
         finally:
             pygame.display.quit()
             pygame.quit()
