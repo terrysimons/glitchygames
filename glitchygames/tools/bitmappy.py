@@ -953,7 +953,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.mini_view.force_redraw()
                 self.log.debug("Mini view updated successfully with frame pixels")
             else:
-                self.log.warning(
+                self.log.debug(
                     f"Frame pixels don't match mini view dimensions: "
                     f"{len(current_frame_pixels)} vs "
                     f"{self.mini_view.pixels_across * self.mini_view.pixels_tall}"
@@ -1223,11 +1223,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         """Handle the left mouse button down event."""
-        self.log.info(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
+        self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
-            self.log.info(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
+            self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
 
             # Mark that user is editing (manual frame selection)
             self._manual_frame_selected = True
@@ -1280,7 +1280,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(trigger, "pixel_number"):
             pixel_num = trigger.pixel_number
             new_color = trigger.pixel_color
-            self.log.info(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
+            self.log.debug(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
 
             self.pixels[pixel_num] = new_color
             self.dirty_pixels[pixel_num] = True
@@ -1932,7 +1932,7 @@ class MiniView(BitmappySprite):
         if hasattr(trigger, "pixel_number"):
             pixel_num = trigger.pixel_number
             new_color = trigger.pixel_color
-            self.log.info(f"MiniView updating pixel {pixel_num} to color {new_color}")
+            self.log.debug(f"MiniView updating pixel {pixel_num} to color {new_color}")
 
             self.pixels[pixel_num] = new_color
             self.dirty_pixels[pixel_num] = True
@@ -1940,7 +1940,7 @@ class MiniView(BitmappySprite):
 
     def force_redraw(self):
         """Force a complete redraw of the miniview."""
-        self.log.info(f"Starting force_redraw with background color {self.background_color}")
+        self.log.debug(f"Starting force_redraw with background color {self.background_color}")
         self.image.fill(self.background_color)
         pixel_width, pixel_height = self.pixels_per_pixel(self.pixels_across, self.pixels_tall)
 
@@ -3158,12 +3158,16 @@ class BitmapEditorScene(Scene):
             else:
                 self._debug_animation_counter = 1
 
-            # Log animation state every 60 frames (about once per second at 60fps)
-            if self._debug_animation_counter % 60 == 0:
+            # Log animation state approximately once per second, regardless of fps
+            if not hasattr(self, "_last_animation_log_time"):
+                self._last_animation_log_time = time.time()
+            current_time = time.time()
+            if current_time - self._last_animation_log_time >= 1.0:
                 self.log.debug(
                     f"Animation update - is_playing={self.canvas.animated_sprite.is_playing}, "
                     f"current_frame={self.canvas.animated_sprite.current_frame}"
                 )
+                self._last_animation_log_time = current_time
 
             # Pass delta time to the canvas for animation updates
             self.canvas.update_animation(self.dt)

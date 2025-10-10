@@ -509,10 +509,11 @@ class GameEngine(events.EventManager):
         if self.windowed:
             self.mode_flags: int = 0
         else:
-            self.mode_flags = pygame.FULLSCREEN
+            self.mode_flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
 
         self.desired_resolution: tuple[int, int] = self.suggested_resolution(
-            desired_width, desired_height
+            desired_width,
+            desired_height,
         )
 
         # window icon and system tray/dock icon
@@ -560,7 +561,8 @@ class GameEngine(events.EventManager):
         #
         # Note that you can also get the screen with pygame.display.get_surface()
         self.screen: pygame.Surface = pygame.display.set_mode(
-            self.desired_resolution, self.mode_flags
+            self.desired_resolution,
+            self.mode_flags
         )
 
     def initialize_event_handlers(self: Self) -> None:
