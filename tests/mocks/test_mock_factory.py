@@ -448,6 +448,17 @@ class MockFactory:
         draw_line_patcher = patch("pygame.draw.line")
         draw_rect_patcher = patch("pygame.draw.rect")
         
+        # Sound/mixer mocking
+        mixer_mock = Mock()
+        mixer_mock.Sound.return_value = Mock()
+        mixer_patcher = patch("pygame.mixer", mixer_mock)
+        mixer_sound_patcher = patch("pygame.mixer.Sound", return_value=Mock())
+        
+        # Keyboard mocking
+        key_mock = Mock()
+        key_mock.set_repeat.return_value = None
+        key_patcher = patch("pygame.key", key_mock)
+        
         # Transform mocking - create a mock that returns a real surface
         def mock_transform_scale(surface, size):
             """Mock pygame.transform.scale that returns a real surface."""
@@ -566,7 +577,7 @@ class MockFactory:
 
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
-                draw_rect_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
+                draw_rect_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
                 sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -588,8 +599,8 @@ class MockFactory:
 
         """
         (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,
-         event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
-         draw_rect_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
+         event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
+         draw_rect_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
          sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,

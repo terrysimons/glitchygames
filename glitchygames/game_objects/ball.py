@@ -222,8 +222,10 @@ class BallSprite(Sprite):
 
         self._do_bounce()
 
-        if self.rect.x > self.screen_width or self.rect.x < 0:
-            self.reset()
+        if self.rect.x > self.screen_width or self.rect.x < -self.width:
+            # Mark ball for deletion instead of resetting
+            self.kill()
 
-        if self.rect.y > self.screen_height or self.rect.y < 0:
-            self.reset()
+        # Don't reset for vertical boundaries - let bounce handle them
+        # if self.rect.y > self.screen_height or self.rect.y < 0:
+        #     self.reset()

@@ -27,8 +27,14 @@ class SceneManager(SceneInterface, events.EventManager):
     and for processing events.
     """
 
+    _instance = None
     log: ClassVar = LOG
     OPTIONS: ClassVar = {}
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self: Self) -> None:
         """Initialize the scene manager.
@@ -37,10 +43,17 @@ class SceneManager(SceneInterface, events.EventManager):
             None
 
         """
+        # Prevent re-initialization of singleton
+        if hasattr(self, '_initialized'):
+            return
+        
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
         self.screen = pygame.display.get_surface()
+        if self.screen is None:
+            # Display not initialized yet, will be set later
+            self.screen = None
         self.update_type = "update"
         self.fps_refresh_rate = 1000
         self.target_fps = 0
@@ -53,6 +66,14 @@ class SceneManager(SceneInterface, events.EventManager):
         self.quit_requested = False
 
         self.clock = pygame.time.Clock()
+        
+        # Mark as initialized to prevent re-initialization
+        self._initialized = True
+
+    def update_screen(self) -> None:
+        """Update the screen reference when display becomes available."""
+        if self.screen is None:
+            self.screen = pygame.display.get_surface()
 
     @property
     def game_engine(self: Self) -> object:
@@ -107,6 +128,12 @@ class SceneManager(SceneInterface, events.EventManager):
             self._cleanup_current_scene()
             self._setup_new_scene(next_scene)
             self._log_blocked_events(next_scene)
+            # Track the previous scene before switching
+            # Set previous_scene to the running scene if it's None
+            if self.previous_scene is None and self.active_scene is not None:
+                self.previous_scene = self.active_scene
+            else:
+                self.previous_scene = self.active_scene
             self.active_scene = next_scene
             self._configure_active_scene()
 
@@ -141,7 +168,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 self._post_fps_event()
                 previous_fps_time = current_time
 
-            self.switch_to_scene(self.active_scene.next_scene)
+            # Only switch scenes if the current scene has a different next_scene
+            if self.active_scene.next_scene is not None and self.active_scene.next_scene != self.active_scene:
+                self.switch_to_scene(self.active_scene.next_scene)
             current_time = time.perf_counter()
 
         self._log_quit_info()
@@ -337,7 +366,12 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _tick_clock(self) -> None:
         """Tick the clock for FPS control."""
-        self.clock.tick(self.target_fps)
+        # If target_fps is 0, don't limit the frame rate (unlimited FPS)
+        if self.target_fps > 0:
+            self.clock.tick(self.target_fps)
+        else:
+            # For unlimited FPS, just tick without limiting
+            self.clock.tick()
 
     def _update_scene(self) -> None:
         """Update the active scene."""
@@ -345,12 +379,16 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _process_events(self) -> None:
         """Process game engine events."""
-        self.game_engine.process_events()
+        if self.game_engine is not None:
+            self.game_engine.process_events()
 
     def _render_scene(self) -> None:
         """Render the active scene."""
+        # Update screen reference if needed
+        self.update_screen()
         self.active_scene.update()
-        self.active_scene.render(self.screen)
+        if self.screen is not None:
+            self.active_scene.render(self.screen)
 
     def _update_display(self) -> None:
         """Update the display based on update type."""
@@ -390,6 +428,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """Setup the new scene."""
         if next_scene:
             self.log.info(f"Setting up new scene {next_scene}.")
+            # Ensure the new scene has access to the game engine
+            if hasattr(self, 'game_engine') and self.game_engine:
+                next_scene.game_engine = self.game_engine
             next_scene.setup()
 
     def _log_blocked_events(self, next_scene: Scene) -> None:
@@ -415,7 +456,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.active_scene:
             self.active_scene.dt = self.dt
             self.active_scene.timer = self.timer
-            self.active_scene.setup()
+            # Don't call setup() here - it's already called in _setup_new_scene()
 
             self._set_display_caption()
             self.active_scene.load_resources()
@@ -441,14 +482,16 @@ class SceneManager(SceneInterface, events.EventManager):
     def _configure_scene_fps(self) -> None:
         """Configure FPS for the scene."""
         # Command line FPS takes precedence over scene FPS
-        if self.target_fps > 0:
-            self.active_scene.target_fps = self.target_fps
+        # Set the scene's target_fps to match the scene manager's target_fps
+        # (which comes from OPTIONS)
+        self.active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:
         """Log scene rendering information."""
+        fps_display = "unlimited" if self.active_scene.target_fps == 0 else f"{self.active_scene.target_fps}"
         self.log.info(
             f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-            f" at {self.active_scene.target_fps} FPS"
+            f" at {fps_display} FPS"
         )
 
     def _setup_event_proxies(self) -> None:
@@ -462,13 +505,18 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _redraw_scene_background(self) -> None:
         """Redraw the scene background."""
+        # Update screen reference if needed
+        self.update_screen()
         # Redraw the new scene's background to clear out any artifacts
-        self.screen.blit(self.active_scene.background, (0, 0))
+        if self.screen is not None:
+            self.screen.blit(self.active_scene.background, (0, 0))
 
     def _apply_scene_fps(self) -> None:
         """Apply scene-specific FPS configuration."""
-        # Per-scene FPS configurability
-        self.target_fps = self.active_scene.target_fps
+        # Don't override the scene manager's target_fps with the scene's target_fps
+        # The scene manager's target_fps comes from OPTIONS and should be maintained
+        # The scene's target_fps is already set by _configure_scene_fps()
+        pass
 
 
 
@@ -1870,7 +1918,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
-        self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
+        # Only log FPS once per second to reduce log spam
+        current_time = time.perf_counter()
+        if not hasattr(self, '_last_fps_log_time'):
+            self._last_fps_log_time = 0
+        
+        if current_time - self._last_fps_log_time >= 1.0:  # Log once per second
+            self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
+            self._last_fps_log_time = current_time
+        
         self.fps = event.fps
 
     def load_resources(self: Self) -> None:
