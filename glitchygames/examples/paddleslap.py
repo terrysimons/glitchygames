@@ -320,21 +320,21 @@ class Game(Scene):
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
                 self.player1.snd.play()
-                print(f"PADDLE 1 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(f"PADDLE 1 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 ball.speed.x *= -1
                 # Tell the ball to speed up
                 ball.speed_up(1.15)  # 15% speed increase
-                print(f"PADDLE 1 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(f"PADDLE 1 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 # Spawn a new ball at default speed
                 self._spawn_new_ball()
 
             if pygame.sprite.collide_rect(self.player2, ball) and ball.speed.x > 0:
                 self.player2.snd.play()
-                print(f"PADDLE 2 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(f"PADDLE 2 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 ball.speed.x *= -1
                 # Tell the ball to speed up
                 ball.speed_up(1.15)  # 15% speed increase
-                print(f"PADDLE 2 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(f"PADDLE 2 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
                 # Spawn a new ball at default speed
                 self._spawn_new_ball()
 
@@ -423,7 +423,7 @@ class Game(Scene):
                     if hasattr(ball1, "snd") and ball1.snd is not None:
                         ball1.snd.play()
                     
-                    print(f"BALL-TO-BALL: ball1 speed before={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed before={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+                    log.debug(f"BALL-TO-BALL: ball1 speed before={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed before={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
                     
                     # Simple billiards-style collision
                     # Calculate collision normal
@@ -457,7 +457,7 @@ class Game(Scene):
                     ball2.speed.x += (v1n - v2n) * nx
                     ball2.speed.y += (v1n - v2n) * ny
                     
-                    print(f"BALL-TO-BALL: ball1 speed after={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed after={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+                    log.debug(f"BALL-TO-BALL: ball1 speed after={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed after={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
                     
                     # Separate balls to prevent sticking
                     overlap = collision_distance - distance
