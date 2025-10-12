@@ -41,6 +41,7 @@ future = "*"
 cookiecutter = "*"
 pyperclip = "*"
 aisuite = {extras = ["all"], version = "^0.1.12"}
+numpy = "^2.3.3"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"

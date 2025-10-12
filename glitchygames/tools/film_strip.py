@@ -57,7 +57,8 @@ class FilmStripWidget:
         self.film_background = (100, 70, 55)  # Darker copper brown color
         self.sprocket_color = (20, 20, 20)
         self.frame_border = (120, 90, 70)  # Copper brown frame borders
-        self.selection_color = (160, 120, 90)  # Copper brown selection border
+        self.selection_color = (255, 0, 0)  # Red selection border
+        self.first_frame_color = (255, 0, 0)  # Red border for first frame
         self.hover_color = (140, 110, 85)  # Lighter copper brown for hover
         self.frame_background = (100, 70, 55)  # Copper brown film strip background
         self.preview_background = (120, 90, 70)  # Copper brown background for preview area
@@ -124,6 +125,9 @@ class FilmStripWidget:
         if not self.animated_sprite:
             return
 
+        # Update the animated sprite with delta time to advance frames
+        self.animated_sprite.update(dt)
+        
         # Always mark as dirty when animations are running to ensure continuous updates
         # This ensures the film strip redraws even when animations are smoothly transitioning
         has_animations = len(self.animated_sprite._animations) > 0
@@ -207,12 +211,8 @@ class FilmStripWidget:
         self._force_redraw = True
         
         # Propagate dirty flags through sprite groups
-        if (
-            hasattr(self, "parent_canvas")
-            and self.parent_canvas
-            and hasattr(self.parent_canvas, "film_strip_sprite")
-        ):
-            film_strip_sprite = self.parent_canvas.film_strip_sprite
+        if hasattr(self, "film_strip_sprite") and self.film_strip_sprite:
+            film_strip_sprite = self.film_strip_sprite
             self._propagate_dirty_to_sprite_groups(film_strip_sprite)
             
             # Mark the film strip sprite itself as dirty
@@ -380,7 +380,10 @@ class FilmStripWidget:
     def _calculate_frame_layouts(self) -> None:
         """Calculate layout for frame positions."""
         if not self.animated_sprite:
+            print("FilmStripWidget: No animated sprite, skipping frame layout calculation")
             return
+        
+        print(f"FilmStripWidget: Calculating frame layouts for {len(self.animated_sprite._animations)} animations")
         
         y_offset = 0
         
@@ -492,10 +495,16 @@ class FilmStripWidget:
             and animation in self.animated_sprite._animations
             and 0 <= frame < len(self.animated_sprite._animations[animation])
         ):
+            print(f"FilmStripWidget: Setting current frame to {animation}, {frame}")
             self.current_animation = animation
             self.current_frame = frame
             # Mark as dirty to trigger preview update
             self.mark_dirty()
+            print(f"FilmStripWidget: Current selection is now {self.current_animation}, {self.current_frame}")
+            
+            # Notify parent scene about the selection change
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.parent_scene._on_film_strip_frame_selected(self, animation, frame)
 
     def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Handle a click on the film strip."""
@@ -512,7 +521,6 @@ class FilmStripWidget:
             # Switch to first frame of that animation
             self.set_current_frame(clicked_animation, 0)
             return (clicked_animation, 0)
-
         return None
 
     def handle_hover(self, pos: tuple[int, int]) -> None:
@@ -534,7 +542,7 @@ class FilmStripWidget:
         return None
 
     def render_frame_thumbnail(
-        self, frame, *, is_selected: bool = False, is_hovered: bool = False
+        self, frame, *, is_selected: bool = False, is_hovered: bool = False, frame_index: int = 0, animation_name: str = ""
     ) -> pygame.Surface:
         """Render a single frame thumbnail with 3D beveled border."""
         frame_surface = self._create_frame_surface()
@@ -553,6 +561,19 @@ class FilmStripWidget:
         # Add 3D beveled border like the right side animation frame
         self._add_3d_beveled_border(frame_surface)
         
+        # Add red border for selected frame - check global selection state
+        is_selected_frame = False
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            is_selected_frame = (
+                hasattr(self.parent_scene, "selected_animation") and 
+                hasattr(self.parent_scene, "selected_frame") and
+                self.parent_scene.selected_animation == animation_name and 
+                self.parent_scene.selected_frame == frame_index
+            )
+        
+        if is_selected_frame:
+            pygame.draw.rect(frame_surface, self.selection_color, (0, 0, self.frame_width, self.frame_height), 3)
+        
         return frame_surface
 
     def _create_frame_surface(self) -> pygame.Surface:
@@ -563,29 +584,15 @@ class FilmStripWidget:
 
     def _get_frame_image_for_rendering(self, frame, is_selected: bool):
         """Get the appropriate frame image for rendering."""
-        # Draw the actual frame image - use current canvas content for selected frame,
-        # stored data for others
-        if is_selected and hasattr(self, "parent_canvas") and self.parent_canvas:
-            # For the selected frame, use current canvas content
-            frame_img = self.parent_canvas.get_canvas_surface()
-        elif hasattr(frame, "image") and frame.image:
-            # For non-selected frames, use stored frame data
+        # Always use the actual animation frame data, not canvas content
+        if hasattr(frame, "image") and frame.image:
+            # Use stored frame data for all frames
             frame_img = frame.image
-            print(f"Film strip using stored frame data: {frame_img.get_size() if frame_img else 'None'}")
         else:
             frame_img = None
             print("Film strip: No frame data available")
 
-        # If we're forcing a redraw, always get fresh data for the selected frame
-        if (
-            is_selected
-            and hasattr(self, "_force_redraw")
-            and self._force_redraw
-            and hasattr(self, "parent_canvas")
-            and self.parent_canvas
-        ):
-            frame_img = self.parent_canvas.get_canvas_surface()
-            # Don't reset the force redraw flag here - let it persist for all frames
+        # Always use animation frame data, never canvas content
 
         return frame_img
 
@@ -802,7 +809,7 @@ class FilmStripWidget:
 
                 # Render frame thumbnail for ALL frames (not just selected ones)
                 frame_thumbnail = self.render_frame_thumbnail(
-                    frame, is_selected=is_selected, is_hovered=is_hovered
+                    frame, is_selected=is_selected, is_hovered=is_hovered, frame_index=frame_idx, animation_name=anim_name
                 )
 
                 # Blit to surface - use consistent positioning for all frames
@@ -903,8 +910,6 @@ class FilmStripWidget:
                 rect = pygame.Rect(x - 3, bottom_y - 3, 6, 6)  # 6x6 rectangle centered at (x, bottom_y)
                 pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
         
-        # Debug: Draw a cyan circle after all sprockets to see if they're being cleared
-        pygame.draw.circle(surface, (0, 255, 255), (self.rect.x + 50, self.rect.y + 20), 5)
 
     def _calculate_frames_width(self) -> int:
         """Calculate the total width needed for all frames and sprockets."""
