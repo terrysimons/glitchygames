@@ -183,17 +183,61 @@ class FilmStripWidget:
 
     def mark_dirty(self):
         """Mark the film strip widget as needing a re-render."""
-        # This will be called when the canvas changes to force a re-render
+        # Force a complete re-render by clearing any cached data
+        # This ensures that frame thumbnails and preview are updated
+        self._force_redraw = True
+        
+        # Propagate dirty flags through sprite groups
         if (
             hasattr(self, "parent_canvas")
             and self.parent_canvas
             and hasattr(self.parent_canvas, "film_strip_sprite")
         ):
-            self.parent_canvas.film_strip_sprite.dirty = 2
+            film_strip_sprite = self.parent_canvas.film_strip_sprite
+            self._propagate_dirty_to_sprite_groups(film_strip_sprite)
+            
+            # Mark the film strip sprite itself as dirty
+            film_strip_sprite.dirty = 2
+            
+            # Note: Not propagating dirty up the parent chain to avoid circular dirty propagation
 
-        # Force a complete re-render by clearing any cached data
-        # This ensures that frame thumbnails and preview are updated
-        self._force_redraw = True
+    def _propagate_dirty_to_sprite_groups(self, sprite, visited=None):
+        """Propagate dirty flags to all sprites in the sprite's groups."""
+        if visited is None:
+            visited = set()
+        
+        # Prevent infinite recursion by tracking visited sprites
+        if sprite in visited:
+            return
+        visited.add(sprite)
+        
+        if hasattr(sprite, 'groups'):
+            try:
+                # Handle both function and list cases
+                groups = sprite.groups() if callable(sprite.groups) else sprite.groups
+                if groups:
+                    for group in groups:
+                        for other_sprite in group:
+                            if other_sprite != sprite:  # Don't dirty ourselves
+                                other_sprite.dirty = 1
+                                # Recursively propagate to other sprite's groups with visited set
+                                self._propagate_dirty_to_sprite_groups(other_sprite, visited)
+            except (TypeError, AttributeError):
+                # If groups is not iterable or doesn't exist, skip propagation
+                pass
+
+    def _propagate_dirty_up_parent_chain(self, parent):
+        """Propagate dirty flags up the parent chain until parent=None or parent=parent."""
+        if parent is None:
+            return
+            
+        # Mark parent as dirty
+        if hasattr(parent, 'dirty'):
+            parent.dirty = 1
+            
+        # If parent has a parent and it's not the same object (avoid infinite loops)
+        if hasattr(parent, 'parent') and parent.parent is not None and parent.parent != parent:
+            self._propagate_dirty_up_parent_chain(parent.parent)
 
     def _calculate_scroll_offset(self, frame_index: int, frames: list) -> int:
         """Calculate the scroll offset to center a frame.
@@ -286,9 +330,28 @@ class FilmStripWidget:
         available_width = self.rect.width - self.preview_width - self.preview_padding
         y_offset = 0
         
+        # Calculate the center position between sprocket groups
+        # Left group ends at x=61, right group starts at preview_start_x + 10
+        preview_start_x = available_width + self.preview_padding
+        left_group_end = 61
+        right_group_start = preview_start_x + 10
+        center_x = (left_group_end + right_group_start) // 2
+        
+        # Calculate label width dynamically for each animation
         for anim_name in self.animated_sprite._animations.keys():
+            # Get text width for this animation
+            font = FontManager.get_font()
+            text_surface = font.render(anim_name, fgcolor=(255, 255, 255), size=16)
+            if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
+                text_surface, text_rect = text_surface
+            else:  # pygame.font returns surface
+                text_rect = text_surface.get_rect()
+            
+            label_width = text_rect.width + 20  # Add padding
+            label_x = center_x - (label_width // 2)  # Center the label
+            
             self.animation_layouts[anim_name] = pygame.Rect(
-                0, y_offset, available_width, self.animation_label_height
+                label_x, y_offset, label_width, self.animation_label_height
             )
             y_offset += self.animation_label_height + self.frame_height + 10
 
@@ -491,17 +554,8 @@ class FilmStripWidget:
         frame_surface.blit(placeholder, (x_offset, y_offset))
 
     def _add_film_strip_styling(self, frame_surface: pygame.Surface) -> None:
-        """Add film strip perforations and edges to the frame surface."""
-        # Add film strip perforations (top and bottom)
-        for hole_x in range(4, self.frame_width - 4, 8):
-            # Top row holes
-            pygame.draw.circle(frame_surface, self.sprocket_color, (hole_x, 2), 1)
-            # Bottom row holes
-            pygame.draw.circle(
-                frame_surface, self.sprocket_color, (hole_x, self.frame_height - 3), 1
-            )
-
-        # Add film strip edges
+        """Add film strip edges to the frame surface."""
+        # Add film strip edges (no sprockets on individual frames)
         pygame.draw.line(frame_surface, self.frame_border, (0, 0), (0, self.frame_height), 1)
         pygame.draw.line(
             frame_surface,
@@ -692,6 +746,91 @@ class FilmStripWidget:
         # Reset the force redraw flag after all frames have been rendered
         if hasattr(self, "_force_redraw") and self._force_redraw:
             self._force_redraw = False
+        
+        # Draw film strip sprockets after everything else
+        self._draw_film_sprockets(surface)
+        
+        
+        # Mark as dirty to ensure sprockets are redrawn
+        self.mark_dirty()
+
+    def _draw_film_sprockets(self, surface: pygame.Surface) -> None:
+        """Draw film strip sprockets on the main background."""
+        
+        
+        sprocket_color = (255, 0, 0)  # Bright red for testing
+        
+        # Draw sprockets along the top edge - aligned with bottom sprockets, avoiding label area
+        # Calculate the label area to avoid overlapping
+        available_width = self.rect.width - self.preview_width - self.preview_padding
+        preview_start_x = available_width + self.preview_padding
+        
+        # Calculate label boundaries to avoid
+        left_group_end = 61
+        right_group_start = preview_start_x + 10
+        center_x = (left_group_end + right_group_start) // 2
+        
+        # Get label width for current animation
+        label_left = center_x
+        label_right = center_x
+        if self.animated_sprite and self.current_animation:
+            font = FontManager.get_font()
+            text_surface = font.render(self.current_animation, fgcolor=(255, 255, 255), size=16)
+            if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
+                text_surface, text_rect = text_surface
+            else:  # pygame.font returns surface
+                text_rect = text_surface.get_rect()
+            label_width = text_rect.width + 20  # Add padding
+            label_left = center_x - (label_width // 2)
+            label_right = center_x + (label_width // 2)
+        
+        # Draw top sprockets aligned with bottom sprockets, avoiding label area
+        # Use the same calculation as bottom sprockets to ensure perfect alignment
+        sprocket_spacing = 17
+        total_width = self.rect.width - 20  # Leave 10px margin on each side
+        
+        # Calculate how many sprockets fit and center them (same as bottom)
+        num_sprockets = (total_width // sprocket_spacing) + 1
+        if num_sprockets > 0:
+            # Calculate the total space the sprockets will occupy
+            sprockets_width = (num_sprockets - 1) * sprocket_spacing
+            # Center the sprockets within the available space
+            start_x = 10 + (total_width - sprockets_width) // 2
+            
+            # Draw sprockets across the entire width, skipping label area
+            for i in range(num_sprockets):
+                x = start_x + (i * sprocket_spacing)
+                # Skip the label area
+                if x < label_left or x > label_right:
+                    # Draw rounded rectangle instead of circle
+                    rect = pygame.Rect(x - 3, 7, 6, 6)  # 6x6 rectangle centered at (x, 10)
+                    pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        
+        
+        # Draw sprockets along the bottom edge - span the entire width
+        bottom_y = self.rect.height - 10 - 5  # height - 10 - radius
+        
+        # Calculate how many sprockets we can fit across the full width
+        sprocket_spacing = 17
+        total_width = self.rect.width - 20  # Leave 10px margin on each side
+        
+        # Calculate how many sprockets fit and center them (add one more)
+        num_sprockets = (total_width // sprocket_spacing) + 1
+        if num_sprockets > 0:
+            # Calculate the total space the sprockets will occupy
+            sprockets_width = (num_sprockets - 1) * sprocket_spacing
+            # Center the sprockets within the available space
+            start_x = 10 + (total_width - sprockets_width) // 2
+            
+            # Draw sprockets across the entire width
+            for i in range(num_sprockets):
+                x = start_x + (i * sprocket_spacing)
+                # Draw rounded rectangle instead of circle
+                rect = pygame.Rect(x - 3, bottom_y - 3, 6, 6)  # 6x6 rectangle centered at (x, bottom_y)
+                pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        
+        # Debug: Draw a cyan circle after all sprockets to see if they're being cleared
+        pygame.draw.circle(surface, (0, 255, 255), (self.rect.x + 50, self.rect.y + 20), 5)
 
     def _calculate_frames_width(self) -> int:
         """Calculate the total width needed for all frames and sprockets."""

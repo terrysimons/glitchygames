@@ -89,6 +89,8 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
             "idle": [idle_frame1, idle_frame2],
             "walk": [walk_frame1, walk_frame2],
         }
+        # Set the current animation to idle (first available animation)
+        animated_sprite.frame_manager.current_animation = "idle"
 
         return animated_sprite
 
@@ -313,8 +315,8 @@ class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
             pixel_height=16,
         )
 
-        # Should handle empty sprite gracefully
-        assert canvas.current_animation == "idle"
+        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)
+        assert canvas.current_animation == ""
         assert canvas.current_frame == 0
 
     @staticmethod
@@ -327,6 +329,8 @@ class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
 
         single_sprite = AnimatedSprite()
         single_sprite._animations = {"idle": [frame]}
+        # Set the current animation to idle
+        single_sprite.frame_manager.current_animation = "idle"
 
         canvas = AnimatedCanvasSprite(
             animated_sprite=single_sprite,

@@ -42,15 +42,45 @@ class MockFactory:
         # Create properly configured frame
         mock_frame = Mock()
         mock_frame.get_size.return_value = frame_size
+        mock_frame.get_width.return_value = frame_size[0]
+        mock_frame.get_height.return_value = frame_size[1]
         # Calculate pixel count and create pixel data
         pixel_count = frame_size[0] * frame_size[1]
         mock_frame.get_pixel_data.return_value = [pixel_color] * pixel_count
+        
+        # Create frame image with proper methods
+        mock_frame_image = Mock()
+        mock_frame_image.get_width.return_value = frame_size[0]
+        mock_frame_image.get_height.return_value = frame_size[1]
+        mock_frame.image = mock_frame_image
+        
+        # Add duration attribute for animation timing
+        mock_frame.duration = 1.0  # 1 second duration
 
         # Configure sprite properties
-        mock_sprite._animations = {animation_name: [mock_frame]}
+        # Create multiple frames for testing (3 frames per animation)
+        mock_frames = []
+        for i in range(3):  # Create 3 frames
+            frame = Mock()
+            frame.get_size.return_value = frame_size
+            frame.get_width.return_value = frame_size[0]
+            frame.get_height.return_value = frame_size[1]
+            frame.get_pixel_data.return_value = [pixel_color] * pixel_count
+            
+            # Create frame image with proper methods
+            frame_image = Mock()
+            frame_image.get_width.return_value = frame_size[0]
+            frame_image.get_height.return_value = frame_size[1]
+            frame.image = frame_image
+            
+            # Add duration attribute for animation timing
+            frame.duration = 1.0  # 1 second duration
+            mock_frames.append(frame)
+        
+        mock_sprite._animations = {animation_name: mock_frames}
         mock_sprite._animation_order = [animation_name]
-        mock_sprite.current_animation = animation_name
-        mock_sprite.current_frame = current_frame
+        mock_sprite.current_animation = ""  # Start with empty animation
+        mock_sprite.current_frame = 0  # Start with frame 0
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
 
@@ -70,6 +100,24 @@ class MockFactory:
             mock_sprite.is_playing = False
             mock_sprite.current_frame = 0
         mock_sprite.stop = mock_stop
+        
+        def mock_set_animation(animation_name):
+            mock_sprite.current_animation = animation_name
+        mock_sprite.set_animation = mock_set_animation
+        
+        def mock_set_frame(frame_idx):
+            mock_sprite.current_frame = frame_idx
+        mock_sprite.set_frame = mock_set_frame
+        
+        def mock_get_pixel_data():
+            # Return pixel data for the current frame
+            current_anim = mock_sprite.current_animation
+            current_frame = mock_sprite.current_frame
+            if current_anim in mock_sprite._animations and current_frame < len(mock_sprite._animations[current_anim]):
+                frame = mock_sprite._animations[current_anim][current_frame]
+                return frame.get_pixel_data()
+            return [pixel_color] * pixel_count
+        mock_sprite.get_pixel_data = mock_get_pixel_data
         
         def mock_add_animation(name, frames):
             mock_sprite._animations[name] = frames
@@ -172,17 +220,21 @@ class MockFactory:
         surface.get_at.return_value = (0, 0, 0, 255)
 
         # Rect mock supports attribute mutation in tests
-        rect = Mock()
-        rect.x = 0
-        rect.y = 0
-        rect.width = width
-        rect.height = height
-        rect.top = 0
-        rect.bottom = height
-        rect.left = 0
-        rect.right = width
-        rect.center = (width // 2, height // 2)
-        surface.get_rect.return_value = rect
+        def mock_get_rect(x=0, y=0, **kwargs):
+            """Mock get_rect that properly handles x, y positioning."""
+            rect = Mock()
+            rect.x = x
+            rect.y = y
+            rect.width = width
+            rect.height = height
+            rect.top = y
+            rect.bottom = y + height
+            rect.left = x
+            rect.right = x + width
+            rect.center = (x + width // 2, y + height // 2)
+            return rect
+        
+        surface.get_rect = mock_get_rect
         
         return surface
 

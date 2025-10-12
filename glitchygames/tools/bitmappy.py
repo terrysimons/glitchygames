@@ -636,7 +636,7 @@ class FilmStripSprite(BitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         """Handle mouse clicks on the film strip."""
-        if self.rect.collidepoint(event.pos):
+        if self.rect.collidepoint(event.pos) and self.film_strip_widget:
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
@@ -733,11 +733,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         """
         self.animated_sprite = animated_sprite
-        self.current_animation = (
-            next(iter(animated_sprite._animations.keys()))
-            if animated_sprite._animations
-            else "idle"
-        )
+        # Use the sprite's current animation if set and not empty, otherwise start empty
+        if hasattr(animated_sprite, 'current_animation') and animated_sprite.current_animation and animated_sprite.current_animation != "":
+            self.current_animation = animated_sprite.current_animation
+        else:
+            self.current_animation = ""  # Start with empty animation
         # Sync the canvas frame with the animated sprite's current frame
         self.current_frame = animated_sprite.current_frame
         self.log.debug(
