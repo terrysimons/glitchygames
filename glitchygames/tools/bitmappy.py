@@ -2316,6 +2316,36 @@ class BitmapEditorScene(Scene):
         
         # Update visibility to show only 2 strips at a time
         self._update_film_strip_visibility()
+        
+        # Select the first film strip and set its frame 0 as active
+        self._select_initial_film_strip()
+    
+    def _select_initial_film_strip(self):
+        """Select the first film strip and set its frame 0 as active on initialization."""
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            return
+            
+        # Get all animation names in order
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+            animation_names = list(self.canvas.animated_sprite._animations.keys())
+        else:
+            animation_names = list(self.film_strips.keys())
+        
+        if animation_names:
+            first_animation = animation_names[0]
+            
+            # Select this animation and frame 0
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.show_frame(first_animation, 0)
+            
+            # Update global selection state
+            self.selected_animation = first_animation
+            self.selected_frame = 0
+            
+            # Mark all film strips as dirty so they redraw with correct selection state
+            if hasattr(self, "film_strips") and self.film_strips:
+                for strip_name, strip_widget in self.film_strips.items():
+                    strip_widget.mark_dirty()
     
     def _update_film_strip_visibility(self):
         """Update which film strips are visible based on scroll offset."""
@@ -2410,10 +2440,19 @@ class BitmapEditorScene(Scene):
         
         # Show down arrow or plus sign
         if hasattr(self, "scroll_down_arrow") and self.scroll_down_arrow:
-            max_scroll = max(0, total_animations - self.max_visible_strips)
+            # Use the correct count of film strips, not just animations
+            if hasattr(self, "film_strips") and self.film_strips:
+                total_film_strips = len(self.film_strips)
+            else:
+                total_film_strips = total_animations
+                
+            # Calculate max scroll - allow scrolling to show the last strip
+            max_scroll = max(0, total_film_strips - 1)
+            
+            # Only show down arrow if we're not at the bottom
             can_scroll_down = (self.film_strip_scroll_offset < max_scroll)
             
-            print(f"Scroll arrow update: offset={self.film_strip_scroll_offset}, max_scroll={max_scroll}, can_scroll_down={can_scroll_down}")
+            print(f"Scroll arrow update: offset={self.film_strip_scroll_offset}, total_film_strips={total_film_strips}, max_scroll={max_scroll}, can_scroll_down={can_scroll_down}")
             
             if can_scroll_down:
                 # Show down arrow
@@ -2463,8 +2502,9 @@ class BitmapEditorScene(Scene):
             max_scroll = max(0, total_animations - self.max_visible_strips)
             self.film_strip_scroll_offset = max_scroll
             
-            # Update visibility
+            # Update visibility and scroll arrows with the new offset
             self._update_film_strip_visibility()
+            self._update_scroll_arrows()
             
             # Select the new frame
             self.selected_animation = new_animation_name
@@ -2654,15 +2694,89 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strip_scroll_offset") and self.film_strip_scroll_offset > 0:
             self.film_strip_scroll_offset -= 1
             self._update_film_strip_visibility()
+            
+            # Select the first visible film strip
+            self._select_first_visible_film_strip()
+        else:
+            # No scrolling needed, just select the first visible film strip
+            self._select_first_visible_film_strip()
+    
+    def _select_first_visible_film_strip(self):
+        """Select the first visible film strip and set its frame 0 as active."""
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            return
+            
+        # Get all animation names in order
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+            animation_names = list(self.canvas.animated_sprite._animations.keys())
+        else:
+            animation_names = list(self.film_strips.keys())
+        
+        # Find the first visible animation
+        start_index = self.film_strip_scroll_offset
+        if start_index < len(animation_names):
+            first_visible_animation = animation_names[start_index]
+            
+            # Select this animation and frame 0
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.show_frame(first_visible_animation, 0)
+            
+            # Update global selection state
+            self.selected_animation = first_visible_animation
+            self.selected_frame = 0
+            
+            # Mark all film strips as dirty so they redraw with correct selection state
+            if hasattr(self, "film_strips") and self.film_strips:
+                for strip_name, strip_widget in self.film_strips.items():
+                    strip_widget.mark_dirty()
     
     def scroll_film_strips_down(self):
         """Scroll film strips down (show later animations)."""
         if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
             total_animations = len(self.canvas.animated_sprite._animations)
             max_scroll = max(0, total_animations - self.max_visible_strips)
+            
+            # Check if there are more strips below that we can scroll to
             if hasattr(self, "film_strip_scroll_offset") and self.film_strip_scroll_offset < max_scroll:
                 self.film_strip_scroll_offset += 1
                 self._update_film_strip_visibility()
+                
+                # Select the last visible film strip
+                self._select_last_visible_film_strip()
+            else:
+                # No scrolling needed, just select the last visible film strip
+                self._select_last_visible_film_strip()
+    
+    def _select_last_visible_film_strip(self):
+        """Select the last visible film strip and set its frame 0 as active."""
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            return
+            
+        # Get all animation names in order
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+            animation_names = list(self.canvas.animated_sprite._animations.keys())
+        else:
+            animation_names = list(self.film_strips.keys())
+        
+        # Find the last visible animation
+        start_index = self.film_strip_scroll_offset
+        end_index = min(start_index + self.max_visible_strips, len(animation_names))
+        
+        if end_index > start_index:
+            last_visible_animation = animation_names[end_index - 1]
+            
+            # Select this animation and frame 0
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.show_frame(last_visible_animation, 0)
+            
+            # Update global selection state
+            self.selected_animation = last_visible_animation
+            self.selected_frame = 0
+            
+            # Mark all film strips as dirty so they redraw with correct selection state
+            if hasattr(self, "film_strips") and self.film_strips:
+                for strip_name, strip_widget in self.film_strips.items():
+                    strip_widget.mark_dirty()
 
     def _update_film_strips_for_frame(self, animation: str, frame: int) -> None:
         """Update film strips when frame changes."""
