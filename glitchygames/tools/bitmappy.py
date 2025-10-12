@@ -779,40 +779,57 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.sprite_serializer = AnimatedSpriteSerializer()
         self.canvas_renderer = AnimatedCanvasRenderer(self)
 
-        # Create film strip widget - position to the right of the canvas
+        # Create multiple independent film strips - one for each animation
         film_strip_x = self.rect.right + 20  # 20px to the right of canvas
-        film_strip_y = self.rect.y  # Same vertical position as canvas
+        film_strip_y = self.rect.y  # Start at same vertical position as canvas
 
-        # Calculate required width for film strip (5.0 frames + spacing)
-        required_width = int(5.0 * (64 + 2)) + 20  # 5.0 frames * (width + spacing) + padding
-        film_strip_width = max(300, required_width)
+        # Calculate required width for film strip - extend to end of screen
+        screen_width = pygame.display.get_surface().get_width()
+        available_width = screen_width - film_strip_x - 20  # Leave 20px margin from right edge
+        film_strip_width = max(300, available_width)
 
-        self.film_strip = FilmStripWidget(
-            x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100
-        )
-        self.film_strip.set_animated_sprite(self.animated_sprite)
+        # Multiple film strips disabled - only showing first animation
+        
+        # Create a single film strip for all sprites - only show the first animation
+        if self.animated_sprite and self.animated_sprite._animations:
+            # Create a single animated sprite with just the first animation
+            first_anim_name = list(self.animated_sprite._animations.keys())[0]
+            single_anim_sprite = AnimatedSprite()
+            single_anim_sprite._animations = {first_anim_name: self.animated_sprite._animations[first_anim_name]}
+            single_anim_sprite.frame_manager.current_animation = first_anim_name
+            single_anim_sprite.frame_manager.current_frame = 0
+            
+            self.film_strip = FilmStripWidget(
+                x=film_strip_x, y=film_strip_y, width=film_strip_width, height=100
+            )
+            self.film_strip.set_animated_sprite(single_anim_sprite)
 
-        # Create film strip sprite for rendering (height will be updated dynamically)
-        self.film_strip_sprite = FilmStripSprite(
-            film_strip_widget=self.film_strip,
-            x=film_strip_x,
-            y=film_strip_y,
-            width=film_strip_width,
-            height=self.film_strip.rect.height,
-            groups=groups,
-        )
+            # Create film strip sprite for rendering (height will be updated dynamically)
+            self.film_strip_sprite = FilmStripSprite(
+                film_strip_widget=self.film_strip,
+                x=film_strip_x,
+                y=film_strip_y,
+                width=film_strip_width,
+                height=self.film_strip.rect.height,
+                groups=groups,
+            )
 
-        # Connect the film strip to this canvas
-        self.film_strip_sprite.set_parent_canvas(self)
-        self.film_strip.set_parent_canvas(self)
+            # Connect the film strip to this canvas
+            self.film_strip_sprite.set_parent_canvas(self)
+            self.film_strip.set_parent_canvas(self)
+        
+        # Don't create multiple film strips - only show first animation
+        # self._create_multiple_film_strips(groups)
 
-        # Add FilmStripSprite to the sprite groups explicitly
-        if groups:
+        # Add FilmStripSprite to the sprite groups explicitly (for single film strip)
+        if hasattr(self, "film_strip_sprite") and groups:
             if isinstance(groups, (list, tuple)):
                 for group in groups:
                     group.add(self.film_strip_sprite)
             else:
                 groups.add(self.film_strip_sprite)
+
+    # _create_multiple_film_strips method removed - only showing first animation now
 
         # Get screen dimensions from pygame
         screen_info = pygame.display.Info()
@@ -1038,7 +1055,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.mini_view.dirty_pixels = [True] * len(self.pixels)
                 self.mini_view.dirty = 1
 
-            # Update film strip
+            # Update film strip (for single film strip)
             if hasattr(self, "film_strip"):
                 self.film_strip.current_animation = animation
                 self.film_strip.current_frame = frame
@@ -1047,9 +1064,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Force film strip to redraw with current canvas data
                 self.film_strip.mark_dirty()
 
-            # Update film strip sprite
+            # Update film strip sprite (for single film strip)
             if hasattr(self, "film_strip_sprite"):
                 self.film_strip_sprite.dirty = 1
+                
+            # Multiple film strips disabled - only showing first animation
 
             # Note: Live preview functionality is now integrated into the film strip
 
@@ -1289,11 +1308,13 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.dirty_pixels[pixel_num] = True
             self.dirty = 1
 
-            # Update film strip when canvas content changes
+            # Update film strip when canvas content changes (for single film strip)
             if hasattr(self, "film_strip_sprite"):
                 self.film_strip_sprite.dirty = 1
             if hasattr(self, "film_strip"):
                 self.film_strip.mark_dirty()
+                
+            # Multiple film strips disabled - only showing first animation
 
             # Update the animated sprite's frame data
             if hasattr(self, "animated_sprite"):
@@ -1482,23 +1503,37 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             # Mini view is disabled, update film strip instead
             self.log.debug("Mini view disabled, updating film strip instead")
+            # Update single film strip
             if hasattr(self, "film_strip"):
                 self.film_strip.mark_dirty()
             if hasattr(self, "film_strip_sprite"):
                 self.film_strip_sprite.dirty = 1
+                
+            # Multiple film strips disabled - only showing first animation
 
         # Note: Live preview functionality is now integrated into the film strip
 
-        # Update the film strip widget with the new animated sprite
+        # Update the film strip widget with the new animated sprite (for single film strip)
         if hasattr(self, "film_strip") and self.film_strip is not None:
             self.log.debug("Updating film strip with new animated sprite")
-            self.film_strip.set_animated_sprite(loaded_sprite)
+            # Create a single animated sprite with just the first animation
+            if loaded_sprite and loaded_sprite._animations:
+                first_anim_name = list(loaded_sprite._animations.keys())[0]
+                single_anim_sprite = AnimatedSprite()
+                single_anim_sprite._animations = {first_anim_name: loaded_sprite._animations[first_anim_name]}
+                single_anim_sprite.frame_manager.current_animation = first_anim_name
+                single_anim_sprite.frame_manager.current_frame = 0
+                self.film_strip.set_animated_sprite(single_anim_sprite)
+            else:
+                self.film_strip.set_animated_sprite(loaded_sprite)
             self.log.debug("Film strip updated with new animated sprite")
 
-        # Update the film strip sprite to force redraw
+        # Update the film strip sprite to force redraw (for single film strip)
         if hasattr(self, "film_strip_sprite") and self.film_strip_sprite is not None:
             self.film_strip_sprite.dirty = 1
             self.log.debug("Film strip sprite marked for redraw")
+            
+        # Multiple film strips disabled - only showing first animation
 
     def _setup_animation_state(self, loaded_sprite: AnimatedSprite) -> None:
         """Set up animation state after loading a sprite.
@@ -1821,14 +1856,16 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Update the frame's image
                 frame.image = surface
 
-                # Update the film strip
+                # Update the film strip (for single film strip)
                 if hasattr(self, "film_strip"):
                     self.film_strip.update_layout()
                     self.film_strip.mark_dirty()
 
-                # Update film strip sprite
+                # Update film strip sprite (for single film strip)
                 if hasattr(self, "film_strip_sprite"):
                     self.film_strip_sprite.dirty = 1
+                    
+                # Multiple film strips disabled - only showing first animation
 
     def get_canvas_surface(self):
         """Get the current canvas surface for the film strip."""

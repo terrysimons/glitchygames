@@ -62,6 +62,7 @@ class FilmStripWidget:
         self.frame_background = (100, 70, 55)  # Copper brown film strip background
         self.preview_background = (120, 90, 70)  # Copper brown background for preview area
         self.preview_border = (140, 110, 85)  # Lighter copper brown border for preview
+        self.animation_border = (80, 60, 45)  # Even darker copper brown border for animation frame only
 
         # Layout cache
         self.frame_layouts: dict[tuple[str, int], pygame.Rect] = {}
@@ -302,8 +303,8 @@ class FilmStripWidget:
 
         # Calculate height: (label_height + frame_height + spacing) * num_animations + padding
         required_height = (
-            self.animation_label_height + self.frame_height + 10
-        ) * visible_animations + 20
+            self.animation_label_height + self.frame_height + 20
+        ) * visible_animations + 0
 
         # Update the rect height
         self.rect.height = required_height
@@ -371,7 +372,10 @@ class FilmStripWidget:
             self.animation_layouts[anim_name] = pygame.Rect(
                 label_x, y_offset, label_width, self.animation_label_height
             )
-            y_offset += self.animation_label_height + self.frame_height + 10
+            # Only increment Y offset if there are multiple animations
+            # For single animation, all elements should be at the same Y position
+            if len(self.animated_sprite._animations) > 1:
+                y_offset += self.animation_label_height + self.frame_height + 20
 
     def _calculate_frame_layouts(self) -> None:
         """Calculate layout for frame positions."""
@@ -379,18 +383,41 @@ class FilmStripWidget:
             return
         
         y_offset = 0
+        
+        # Calculate sprocket start position to align frames with sprockets
+        sprocket_spacing = 17
+        total_width = self.rect.width - 20  # Leave 10px margin on each side
+        num_sprockets = (total_width // sprocket_spacing) + 1
+        sprockets_width = (num_sprockets - 1) * sprocket_spacing
+        sprocket_start_x = 10 + (total_width - sprockets_width) // 2
+        
+        # Calculate how many frames can fit before overlapping the animation box
+        available_width_for_frames = self.rect.width - self.preview_width - self.preview_padding - 20  # Total width minus preview area minus margins
+        frame_width_with_spacing = self.frame_width + self.frame_spacing  # 64 + 2 = 66 pixels
+        max_frames_before_overlap = available_width_for_frames // frame_width_with_spacing
+        print(f"Max frames before overlapping animation box: {max_frames_before_overlap}")
+        
         for anim_name, frames in self.animated_sprite._animations.items():
-            for frame_idx, _frame in enumerate(frames):
-                frame_x = frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset
+            # Show frames up to the maximum that can fit before overlapping animation box
+            # Always show at least 1 frame, but limit to max_frames_before_overlap
+            frames_to_show = frames[:max_frames_before_overlap] if max_frames_before_overlap > 0 else frames[:1]
+            for frame_idx, _frame in enumerate(frames_to_show):
+                frame_x = sprocket_start_x + frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset - 1
+                # For single animation, all frames should be at the same Y position
+                # Nudge up by 2 pixels to align with the right-side animation frame
+                frame_y = self.animation_label_height - 2 if len(self.animated_sprite._animations) == 1 else y_offset + self.animation_label_height
                 frame_rect = pygame.Rect(
                     frame_x,
-                    y_offset + self.animation_label_height,
+                    frame_y,
                     self.frame_width,
                     self.frame_height,
                 )
                 self.frame_layouts[anim_name, frame_idx] = frame_rect
             
-            y_offset += self.animation_label_height + self.frame_height + 10
+            # Only increment Y offset if there are multiple animations
+            # For single animation, all frames should be at the same Y position
+            if len(self.animated_sprite._animations) > 1:
+                y_offset += self.animation_label_height + self.frame_height + 20
 
     def _calculate_preview_layouts(self) -> None:
         """Calculate layout for preview areas."""
@@ -398,22 +425,25 @@ class FilmStripWidget:
             return
         
         y_offset = 0
-        preview_x = self.rect.width - self.preview_width
+        preview_x = self.rect.width - self.preview_width - 1
         
         for anim_name in self.animated_sprite._animations.keys():
             # Center the preview vertically with this animation's frames
-            frame_visual_start_y = y_offset + self.animation_label_height + 4  # 4px padding
+            frame_visual_start_y = y_offset + self.animation_label_height + 4  # Match per-frame Y position
             frame_visual_height = self.frame_height - 8  # 4px padding top and bottom
             frame_visual_center_y = frame_visual_start_y + frame_visual_height // 2
             preview_center_y = self.preview_height // 2
-            preview_y = frame_visual_center_y - preview_center_y
+            preview_y = frame_visual_center_y - preview_center_y - 2  # Move up 2 pixels to match per-frame Y
             # Ensure preview doesn't go above the film strip
             preview_y = max(0, preview_y)
             self.preview_rects[anim_name] = pygame.Rect(
                 preview_x, preview_y, self.preview_width, self.preview_height
             )
             
-            y_offset += self.animation_label_height + self.frame_height + 10
+            # Only increment Y offset if there are multiple animations
+            # For single animation, all elements should be at the same Y position
+            if len(self.animated_sprite._animations) > 1:
+                y_offset += self.animation_label_height + self.frame_height + 20
 
     def _calculate_sprocket_layouts(self) -> None:
         """Calculate layout for sprocket separators."""
@@ -436,7 +466,10 @@ class FilmStripWidget:
                 self.sprocket_layouts.append(sprocket_rect)
                 x_offset += self.sprocket_width
             
-            y_offset += self.animation_label_height + self.frame_height + 10
+            # Only increment Y offset if there are multiple animations
+            # For single animation, all elements should be at the same Y position
+            if len(self.animated_sprite._animations) > 1:
+                y_offset += self.animation_label_height + self.frame_height + 20
 
     def get_frame_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Get the animation and frame at the given position."""
@@ -535,7 +568,6 @@ class FilmStripWidget:
         if is_selected and hasattr(self, "parent_canvas") and self.parent_canvas:
             # For the selected frame, use current canvas content
             frame_img = self.parent_canvas.get_canvas_surface()
-            print(f"Film strip getting canvas surface for selected frame: {frame_img.get_size() if frame_img else 'None'}")
         elif hasattr(frame, "image") and frame.image:
             # For non-selected frames, use stored frame data
             frame_img = frame.image
@@ -626,8 +658,8 @@ class FilmStripWidget:
 
     def _add_3d_beveled_border(self, frame_surface: pygame.Surface) -> None:
         """Add 3D beveled border like the right side animation frame."""
-        # Draw the same border as preview, nudged right by 1 pixel
-        pygame.draw.rect(frame_surface, self.preview_border, (1, 0, self.frame_width, self.frame_height), 2)
+        # Draw the same border as preview, aligned with sprockets
+        pygame.draw.rect(frame_surface, self.preview_border, (0, 0, self.frame_width, self.frame_height), 2)
 
     def render_sprocket_separator(self, x: int, y: int, height: int) -> pygame.Surface:
         """Render a sprocket separator between animations."""
@@ -664,8 +696,8 @@ class FilmStripWidget:
             # Clear the preview area with cycling background color
             surface.fill(self.background_color, preview_rect)
 
-            # Draw preview border
-            pygame.draw.rect(surface, self.preview_border, preview_rect, 2)
+            # Draw preview border (animation frame only - use darker border)
+            pygame.draw.rect(surface, self.animation_border, preview_rect, 2)
 
             # Get the current animated frame for this animation's preview
             if (
@@ -724,9 +756,6 @@ class FilmStripWidget:
 
         # Clear the film strip area
         surface.fill(self.film_background, self.rect)
-        
-        # Debug: Draw a bright red rectangle to see the film strip area
-        pygame.draw.rect(surface, (255, 0, 0), self.rect, 2)
 
         # Check if we need to force a complete redraw
         force_redraw = getattr(self, "_force_redraw", False)
@@ -776,13 +805,8 @@ class FilmStripWidget:
                     frame, is_selected=is_selected, is_hovered=is_hovered
                 )
 
-                # Blit to surface
-                if is_selected:
-                    # For selected frames, the thumbnail already includes the selection border
-                    # so we need to center it properly
-                    surface.blit(frame_thumbnail, (frame_rect.x - 2, frame_rect.y - 2))
-                else:
-                    surface.blit(frame_thumbnail, frame_rect)
+                # Blit to surface - use consistent positioning for all frames
+                surface.blit(frame_thumbnail, frame_rect)
 
         # Render sprocket separators
         for sprocket_rect in self.sprocket_layouts:
@@ -799,6 +823,8 @@ class FilmStripWidget:
         # Draw film strip sprockets after everything else
         self._draw_film_sprockets(surface)
         
+        # Draw white border around the entire film strip as the very last thing
+        # pygame.draw.rect(surface, (255, 255, 255), self.rect, 2)
         
         # Mark as dirty to ensure sprockets are redrawn
         self.mark_dirty()
