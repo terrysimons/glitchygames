@@ -14,6 +14,20 @@ from glitchygames.sprites import AnimatedSprite
 class FilmStripWidget:
     """Film reel-style widget for frame selection in animated sprites."""
 
+    # Color cycling background colors (refactored from MiniView)
+    BACKGROUND_COLORS: list[tuple[int, int, int]] = [
+        (0, 255, 255),  # Cyan
+        (0, 0, 0),  # Black
+        (128, 128, 128),  # Gray
+        (255, 255, 255),  # White
+        (255, 0, 255),  # Magenta
+        (0, 255, 0),  # Green
+        (0, 0, 255),  # Blue
+        (255, 255, 0),  # Yellow
+        (64, 64, 64),  # Dark Gray
+        (192, 192, 192),  # Light Gray
+    ]
+
     def __init__(self, x: int, y: int, width: int, height: int):
         """Initialize the film strip widget."""
         self.rect = pygame.Rect(x, y, width, height)
@@ -22,6 +36,10 @@ class FilmStripWidget:
         self.current_frame = 0
         self.hovered_frame: tuple[str, int] | None = None
         self.hovered_animation: str | None = None
+        
+        # Color cycling state
+        self.background_color_index = 0
+        self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
 
         # Film strip styling
         self.frame_width = 64
@@ -36,14 +54,14 @@ class FilmStripWidget:
         self.preview_padding = 4  # Padding around each preview
 
         # Colors
-        self.film_background = (40, 40, 40)
+        self.film_background = (100, 70, 55)  # Darker copper brown color
         self.sprocket_color = (20, 20, 20)
-        self.frame_border = (60, 60, 60)
-        self.selection_color = (0, 255, 255)  # Bright cyan for good contrast against yellow
-        self.hover_color = (100, 100, 100)
-        self.frame_background = (255, 255, 0)  # Yellow film strip background
-        self.preview_background = (60, 60, 60)  # Darker background for preview area
-        self.preview_border = (100, 100, 100)  # Border color for preview
+        self.frame_border = (120, 90, 70)  # Copper brown frame borders
+        self.selection_color = (160, 120, 90)  # Copper brown selection border
+        self.hover_color = (140, 110, 85)  # Lighter copper brown for hover
+        self.frame_background = (100, 70, 55)  # Copper brown film strip background
+        self.preview_background = (120, 90, 70)  # Copper brown background for preview area
+        self.preview_border = (140, 110, 85)  # Lighter copper brown border for preview
 
         # Layout cache
         self.frame_layouts: dict[tuple[str, int], pygame.Rect] = {}
@@ -469,11 +487,29 @@ class FilmStripWidget:
         self.hovered_frame = self.get_frame_at_position(pos)
         self.hovered_animation = self.get_animation_at_position(pos)
 
+    def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
+        """Handle mouse click on the film strip. Returns (animation, frame_idx) if click was handled."""
+        # Check if click is on the animated preview frame (right side)
+        for anim_name, preview_rect in self.preview_rects.items():
+            if preview_rect.collidepoint(pos):
+                # Cycle background color for all frames in this animation
+                self.background_color_index = (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
+                self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
+                print(f"Film strip background color changed to {self.background_color}")
+                # Return the animation name and frame 0 to indicate selection
+                return (anim_name, 0)
+        return None
+
     def render_frame_thumbnail(
         self, frame, *, is_selected: bool = False, is_hovered: bool = False
     ) -> pygame.Surface:
-        """Render a single frame thumbnail with film strip styling."""
+        """Render a single frame thumbnail with 3D beveled border."""
         frame_surface = self._create_frame_surface()
+        
+        # Fill with cycling background color
+        frame_surface.fill(self.background_color)
+        
+        
         frame_img = self._get_frame_image_for_rendering(frame, is_selected)
         
         if frame_img:
@@ -481,19 +517,15 @@ class FilmStripWidget:
         else:
             self._draw_placeholder(frame_surface)
         
-        self._add_film_strip_styling(frame_surface)
-        
-        if is_selected:
-            return self._create_selection_border(frame_surface)
-        elif is_hovered:
-            self._add_hover_highlighting(frame_surface)
+        # Add 3D beveled border like the right side animation frame
+        self._add_3d_beveled_border(frame_surface)
         
         return frame_surface
 
     def _create_frame_surface(self) -> pygame.Surface:
-        """Create the base frame surface with background color."""
-        frame_surface = pygame.Surface((self.frame_width, self.frame_height))
-        frame_surface.fill(self.frame_background)  # Yellow film strip background
+        """Create the base frame surface with transparent background."""
+        frame_surface = pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
+        # No background fill - transparent so only the 3D beveled border shows
         return frame_surface
 
     def _get_frame_image_for_rendering(self, frame, is_selected: bool):
@@ -503,11 +535,14 @@ class FilmStripWidget:
         if is_selected and hasattr(self, "parent_canvas") and self.parent_canvas:
             # For the selected frame, use current canvas content
             frame_img = self.parent_canvas.get_canvas_surface()
+            print(f"Film strip getting canvas surface for selected frame: {frame_img.get_size() if frame_img else 'None'}")
         elif hasattr(frame, "image") and frame.image:
             # For non-selected frames, use stored frame data
             frame_img = frame.image
+            print(f"Film strip using stored frame data: {frame_img.get_size() if frame_img else 'None'}")
         else:
             frame_img = None
+            print("Film strip: No frame data available")
 
         # If we're forcing a redraw, always get fresh data for the selected frame
         if (
@@ -538,16 +573,19 @@ class FilmStripWidget:
         new_height = int(frame_img.get_height() * scale)
         scaled_image = pygame.transform.scale(frame_img, (new_width, new_height))
 
-        # Center the scaled image within the frame
-        x_offset = (self.frame_width - new_width) // 2
+        # Center the scaled image within the frame, nudged right by 1 pixel
+        x_offset = (self.frame_width - new_width) // 2 + 1
         y_offset = (self.frame_height - new_height) // 2
+        
+        # Make magenta (255, 0, 255) transparent for testing
+        scaled_image.set_colorkey((255, 0, 255))
         frame_surface.blit(scaled_image, (x_offset, y_offset))
 
     def _draw_placeholder(self, frame_surface: pygame.Surface) -> None:
         """Draw a placeholder when no frame data is available."""
         # If no frame data, create a placeholder
         placeholder = pygame.Surface((self.frame_width - 8, self.frame_height - 8))
-        placeholder.fill((128, 128, 128))  # Gray placeholder
+        placeholder.fill((120, 90, 70))  # Copper brown placeholder
         # Center the placeholder
         x_offset = (self.frame_width - placeholder.get_width()) // 2
         y_offset = (self.frame_height - placeholder.get_height()) // 2
@@ -586,6 +624,11 @@ class FilmStripWidget:
             frame_surface, self.hover_color, (0, 0, self.frame_width, self.frame_height), 2
         )
 
+    def _add_3d_beveled_border(self, frame_surface: pygame.Surface) -> None:
+        """Add 3D beveled border like the right side animation frame."""
+        # Draw the same border as preview, nudged right by 1 pixel
+        pygame.draw.rect(frame_surface, self.preview_border, (1, 0, self.frame_width, self.frame_height), 2)
+
     def render_sprocket_separator(self, x: int, y: int, height: int) -> pygame.Surface:
         """Render a sprocket separator between animations."""
         separator = pygame.Surface((self.sprocket_width, height))
@@ -618,8 +661,8 @@ class FilmStripWidget:
 
         # Render preview for each animation
         for anim_name, preview_rect in self.preview_rects.items():
-            # Clear the preview area
-            surface.fill(self.preview_background, preview_rect)
+            # Clear the preview area with cycling background color
+            surface.fill(self.background_color, preview_rect)
 
             # Draw preview border
             pygame.draw.rect(surface, self.preview_border, preview_rect, 2)
@@ -669,6 +712,9 @@ class FilmStripWidget:
         center_x = preview_rect.x + (self.preview_width - new_width) // 2
         center_y = preview_rect.y + (self.preview_height - new_height) // 2
 
+
+        # Make magenta (255, 0, 255) transparent for testing
+        scaled_image.set_colorkey((255, 0, 255))
         surface.blit(scaled_image, (center_x, center_y))
 
     def render(self, surface: pygame.Surface) -> None:
@@ -678,6 +724,9 @@ class FilmStripWidget:
 
         # Clear the film strip area
         surface.fill(self.film_background, self.rect)
+        
+        # Debug: Draw a bright red rectangle to see the film strip area
+        pygame.draw.rect(surface, (255, 0, 0), self.rect, 2)
 
         # Check if we need to force a complete redraw
         force_redraw = getattr(self, "_force_redraw", False)
@@ -757,8 +806,7 @@ class FilmStripWidget:
     def _draw_film_sprockets(self, surface: pygame.Surface) -> None:
         """Draw film strip sprockets on the main background."""
         
-        
-        sprocket_color = (255, 0, 0)  # Bright red for testing
+        sprocket_color = (60, 50, 40)  # Even darker grey-brown color
         
         # Draw sprockets along the top edge - aligned with bottom sprockets, avoiding label area
         # Calculate the label area to avoid overlapping

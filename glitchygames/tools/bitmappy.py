@@ -628,8 +628,8 @@ class FilmStripSprite(BitmappySprite):
 
     def force_redraw(self):
         """Force a redraw of the film strip."""
-        # Clear the surface
-        self.image.fill((40, 40, 40))  # Film background color
+        # Clear the surface with copper brown to match film strip
+        self.image.fill((100, 70, 55))  # Copper brown background
 
         # Render the film strip widget
         self.film_strip_widget.render(self.image)
@@ -834,17 +834,18 @@ class AnimatedCanvasSprite(BitmappySprite):
         current_frame_pixels = self._get_current_frame_pixels()
 
         # Create miniview - position in top right corner
-        self.mini_view = MiniView(
-            pixels=current_frame_pixels,
-            x=mini_map_x,
-            y=mini_map_y,
-            width=self.pixels_across,
-            height=self.pixels_tall,
-            groups=groups,
-        )
+        # self.mini_view = MiniView(
+        #     pixels=current_frame_pixels,
+        #     x=mini_map_x,
+        #     y=mini_map_y,
+        #     width=self.pixels_across,
+        #     height=self.pixels_tall,
+        #     groups=groups,
+        # )
+        self.mini_view = None
 
         # Add MiniView to the sprite groups explicitly
-        if groups:
+        if groups and self.mini_view is not None:
             if isinstance(groups, (list, tuple)):
                 for group in groups:
                     group.add(self.mini_view)
@@ -930,7 +931,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def _update_mini_view_from_current_frame(self) -> None:
         """Update the mini view with pixel data from the current frame."""
-        if hasattr(self, "mini_view"):
+        if hasattr(self, "mini_view") and self.mini_view is not None:
             current_frame_pixels = self._get_current_frame_pixels()
             self.log.debug(
                 f"Updating mini view with {len(current_frame_pixels)} pixels, "
@@ -1032,7 +1033,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.dirty = 1
 
             # Update mini view
-            if hasattr(self, "mini_view"):
+            if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.pixels = self.pixels.copy()
                 self.mini_view.dirty_pixels = [True] * len(self.pixels)
                 self.mini_view.dirty = 1
@@ -1043,6 +1044,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.film_strip.current_frame = frame
                 self.film_strip.update_scroll_for_frame(frame)
                 self.film_strip.update_layout()
+                # Force film strip to redraw with current canvas data
+                self.film_strip.mark_dirty()
 
             # Update film strip sprite
             if hasattr(self, "film_strip_sprite"):
@@ -1200,7 +1203,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # If mouse is outside window or canvas, clear cursor
         if (
             not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
-        ) and hasattr(self, "mini_view"):
+        ) and hasattr(self, "mini_view") and self.mini_view is not None:
             self.log.info("Mouse outside canvas/window, clearing miniview cursor")
             self.mini_view.clear_cursor()
 
@@ -1247,7 +1250,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Note: Live preview functionality is now integrated into the film strip
 
             # Update miniview
-            if hasattr(self, "mini_view"):
+            if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.on_pixel_update_event(event, self)
         else:
             self.log.info(
@@ -1268,11 +1271,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Check if the coordinates are within valid range
             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-                if hasattr(self, "mini_view"):
+                if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.update_canvas_cursor(x, y, self.active_color)
-            elif hasattr(self, "mini_view"):
+            elif hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.clear_cursor()
-        elif hasattr(self, "mini_view"):
+        elif hasattr(self, "mini_view") and self.mini_view is not None:
             self.mini_view.clear_cursor()
 
     def on_pixel_update_event(self, event, trigger):
@@ -1297,12 +1300,13 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self._update_animated_sprite_frame()
 
             # Update miniview
-            self.mini_view.on_pixel_update_event(event, trigger)
+            if hasattr(self, "mini_view") and self.mini_view is not None:
+                self.mini_view.on_pixel_update_event(event, trigger)
 
     def on_mouse_leave_window_event(self, event):
         """Handle mouse leaving window event."""
         self.log.info("Mouse left window, clearing miniview cursor")
-        if hasattr(self, "mini_view"):
+        if hasattr(self, "mini_view") and self.mini_view is not None:
             self.mini_view.clear_cursor()
 
     def on_mouse_enter_sprite_event(self, event):
@@ -1472,9 +1476,16 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         """
         # Update the current frame display - this happens after the sprite is fully loaded
-        if hasattr(self, "mini_view"):
+        if hasattr(self, "mini_view") and self.mini_view is not None:
             self.log.debug("Updating mini view after animation change")
             self._update_mini_view_from_current_frame()
+        else:
+            # Mini view is disabled, update film strip instead
+            self.log.debug("Mini view disabled, updating film strip instead")
+            if hasattr(self, "film_strip"):
+                self.film_strip.mark_dirty()
+            if hasattr(self, "film_strip_sprite"):
+                self.film_strip_sprite.dirty = 1
 
         # Note: Live preview functionality is now integrated into the film strip
 
