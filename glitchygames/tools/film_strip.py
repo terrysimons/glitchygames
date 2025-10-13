@@ -108,7 +108,7 @@ class FilmStripWidget:
         
         # Initialize film tabs for frame insertion
         self.film_tabs = []  # List of FilmTabWidget instances
-        self.tab_width = 12  # Width of each tab (narrower)
+        self.tab_width = 13  # Width of each tab (narrower)
         self.tab_height = 30  # Height of each tab
 
         # Animation change detection threshold
@@ -210,6 +210,60 @@ class FilmStripWidget:
         """
         if not self.animated_sprite:
             return
+
+        # Track total time for debugging
+        if not hasattr(self, '_debug_start_time'):
+            self._debug_start_time = 0.0
+        self._debug_start_time += dt
+        
+        # Debug dump at 10 seconds
+        if 9.9 <= self._debug_start_time <= 10.1:
+            print("=" * 80)
+            print("FILM STRIP ANIMATION STATE DUMP AT 10 SECONDS")
+            print("=" * 80)
+            print(f"FilmStripWidget debug info:")
+            print(f"  _debug_start_time: {self._debug_start_time}")
+            print(f"  dt: {dt}")
+            print(f"  animated_sprite: {self.animated_sprite}")
+            print(f"  current_animation: {self.current_animation}")
+            print(f"  current_frame: {self.current_frame}")
+            print(f"  scroll_offset: {self.scroll_offset}")
+            print(f"  _force_redraw: {getattr(self, '_force_redraw', False)}")
+            print(f"  preview_animation_times: {getattr(self, 'preview_animation_times', {})}")
+            print(f"  preview_animation_speeds: {getattr(self, 'preview_animation_speeds', {})}")
+            print(f"  preview_frame_durations: {getattr(self, 'preview_frame_durations', {})}")
+            
+            if self.animated_sprite:
+                print(f"AnimatedSprite debug info:")
+                print(f"  current_animation: {getattr(self.animated_sprite, 'current_animation', 'None')}")
+                print(f"  current_frame: {getattr(self.animated_sprite, 'current_frame', 'None')}")
+                print(f"  is_playing: {getattr(self.animated_sprite, 'is_playing', 'None')}")
+                print(f"  is_looping: {getattr(self.animated_sprite, 'is_looping', 'None')}")
+                print(f"  _is_playing: {getattr(self.animated_sprite, '_is_playing', 'None')}")
+                print(f"  _is_looping: {getattr(self.animated_sprite, '_is_looping', 'None')}")
+                print(f"  _frame_timer: {getattr(self.animated_sprite, '_frame_timer', 'None')}")
+                print(f"  _animations: {getattr(self.animated_sprite, '_animations', {})}")
+                print(f"  _animation_order: {getattr(self.animated_sprite, '_animation_order', [])}")
+                print(f"  frame_manager.current_animation: {getattr(self.animated_sprite.frame_manager, 'current_animation', 'None')}")
+                print(f"  frame_manager.current_frame: {getattr(self.animated_sprite.frame_manager, 'current_frame', 'None')}")
+                
+                # Dump animation details
+                if hasattr(self.animated_sprite, '_animations') and self.animated_sprite._animations:
+                    for anim_name, frames in self.animated_sprite._animations.items():
+                        print(f"  Animation '{anim_name}':")
+                        print(f"    frame count: {len(frames)}")
+                        for i, frame in enumerate(frames):
+                            print(f"    frame {i}: duration={getattr(frame, 'duration', 'None')}, image={getattr(frame, 'image', 'None')}")
+                
+                # Dump frame manager state
+                if hasattr(self.animated_sprite, 'frame_manager'):
+                    fm = self.animated_sprite.frame_manager
+                    print(f"  FrameManager debug info:")
+                    print(f"    _current_animation: {getattr(fm, '_current_animation', 'None')}")
+                    print(f"    _current_frame: {getattr(fm, '_current_frame', 'None')}")
+                    print(f"    _observers: {getattr(fm, '_observers', [])}")
+            
+            print("=" * 80)
 
         # Update the animated sprite with delta time to advance frames
         # This is the main animation advancement - it updates the sprite's internal
@@ -395,7 +449,29 @@ class FilmStripWidget:
         if frame_index >= len(frames):
             return
 
-        self.scroll_offset = self._calculate_scroll_offset(frame_index, frames)
+        # Calculate which 4-frame window should be shown
+        frames_per_view = 4
+        current_start_frame = self.scroll_offset // (self.frame_width + self.tab_width + 2)
+        current_end_frame = min(current_start_frame + frames_per_view, len(frames))
+        
+        # Check if the selected frame is in the current view
+        if current_start_frame <= frame_index < current_end_frame:
+            # Frame is already visible, no need to scroll
+            return
+        
+        # Frame is off-screen, calculate new window
+        if frame_index < current_start_frame:
+            # Frame is to the left, shift left by 1 frame
+            new_start_frame = max(0, frame_index)
+        else:
+            # Frame is to the right, shift right by 1 frame
+            new_start_frame = min(frame_index - frames_per_view + 1, len(frames) - frames_per_view)
+            new_start_frame = max(0, new_start_frame)
+        
+        # Update scroll offset to show the new window
+        self.scroll_offset = new_start_frame * (self.frame_width + self.tab_width + 2)
+        
+        print(f"FilmStripWidget: Scrolling to show frame {frame_index}, new window: {new_start_frame}-{new_start_frame + frames_per_view - 1}")
 
         # Recalculate layout with new scroll offset
         self._calculate_layout()
@@ -514,19 +590,24 @@ class FilmStripWidget:
         print(f"Max frames before overlapping animation box: {max_frames_before_overlap}")
         
         for anim_name, frames in self.animated_sprite._animations.items():
-            # Show frames up to the maximum that can fit before overlapping animation box
-            # Always show at least 1 frame, but limit to max_frames_before_overlap
-            frames_to_show = frames[:max_frames_before_overlap] if max_frames_before_overlap > 0 else frames[:1]
-            print(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name}")
+            # Show only 4 frames at a time (0-3), with scrolling to navigate
+            # Calculate which frames to show based on scroll offset
+            frames_per_view = 4  # Show 4 frames at a time (indices 0, 1, 2, 3)
+            start_frame = self.scroll_offset // (self.frame_width + self.tab_width + 2)  # Calculate starting frame based on scroll
+            end_frame = min(start_frame + frames_per_view, len(frames))
+            frames_to_show = frames[start_frame:end_frame]
+            print(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name} (frames {start_frame}-{end_frame-1})")
             for frame_idx, _frame in enumerate(frames_to_show):
-                # Calculate frame position accounting for tab width
+                # Adjust frame_idx to be relative to the actual frame position
+                actual_frame_idx = start_frame + frame_idx
+                # Calculate frame position - frames stay in fixed positions, we just show different frames
                 if frame_idx == 0:
                     # First frame starts 4px to the right of the "before" tab, then 6px more left
-                    frame_x = sprocket_start_x - self.scroll_offset - 1 + 4 - 6
+                    frame_x = sprocket_start_x - 1 + 4 - 6
                 else:
                     # Subsequent frames start 2px after the previous frame's tab
                     # Account for the first frame's offset and 2px gap between frames
-                    frame_x = sprocket_start_x + 4 - 6 + frame_idx * (self.frame_width + self.tab_width + 2) - self.scroll_offset - 1
+                    frame_x = sprocket_start_x + 4 - 6 + frame_idx * (self.frame_width + self.tab_width + 2) - 1
                 
                 # For single animation, all frames should be at the same Y position
                 # Nudge up by 2 pixels to align with the right-side animation frame
@@ -537,8 +618,8 @@ class FilmStripWidget:
                     self.frame_width,
                     self.frame_height,
                 )
-                print(f"FilmStripWidget: Created frame rect for {anim_name}[{frame_idx}] at {frame_rect}")
-                self.frame_layouts[anim_name, frame_idx] = frame_rect
+                print(f"FilmStripWidget: Created frame rect for {anim_name}[{actual_frame_idx}] at {frame_rect}")
+                self.frame_layouts[anim_name, actual_frame_idx] = frame_rect
             
             # Only increment Y offset if there are multiple animations
             # For single animation, all frames should be at the same Y position
