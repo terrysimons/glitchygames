@@ -31,7 +31,7 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
-        
+
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -361,7 +361,7 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
         assert len(color_sections) > 0, "Should have color sections using universal characters"
 
     @staticmethod
-    def test_legacy_sprite_character_limit():
+    def test_legacy_sprite_character_limit_duplicate():
         """Test character limit enforcement in legacy sprites."""
         # Create a surface with exactly 65 colors (more than 64 limit)
         surface = pygame.Surface((65, 1))

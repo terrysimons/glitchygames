@@ -12,6 +12,25 @@ from tests.mocks.test_mock_factory import MockFactory
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Constants for magic values
+SIZE_20 = 20
+SIZE_30 = 30
+POS_50 = 50
+POS_749 = 749
+POS_25 = 25
+POS_399 = 399
+DIRECTION_360 = 360
+SPEED_2 = 2
+SPEED_1 = 1
+SPEED_NEG_2 = -2
+Y_580 = 580
+POS_102 = 102
+POS_103 = 103
+DIRECTION_125 = 125
+DIRECTION_340 = 340
+DIRECTION_315 = 315
+MULTIPLIER_1_1 = 1.1
+
 
 class TestBallSpriteInitialization(unittest.TestCase):
     """Test BallSprite initialization and basic properties."""
@@ -30,45 +49,45 @@ class TestBallSpriteInitialization(unittest.TestCase):
     def test_ball_sprite_initialization_defaults(self):
         """Test BallSprite initialization with default parameters."""
         ball = BallSprite()
-        
-        assert ball.width == 20
-        assert ball.height == 20
+
+        assert ball.width == SIZE_20
+        assert ball.height == SIZE_20
         # Position is set by reset() during initialization, so it will be random
-        assert 50 <= ball.rect.x <= 749  # Reset sets random position in this range
-        assert 25 <= ball.rect.y <= 399  # Reset sets random position in this range
+        assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
+        assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
         assert ball.use_gfxdraw is True
         # Direction is set by reset() during initialization, so it will be random
-        assert 0 <= ball.direction <= 360  # Reset sets random direction
+        assert 0 <= ball.direction <= DIRECTION_360  # Reset sets random direction
         assert isinstance(ball.speed, Speed)
-        assert ball.speed.x == 2  # Updated default speed
-        assert ball.speed.y == 1  # Updated default speed
-        assert ball.dirty == 2
+        assert ball.speed.x == SPEED_2  # Updated default speed
+        assert ball.speed.y == SPEED_1  # Updated default speed
+        assert ball.dirty == SPEED_2
 
     def test_ball_sprite_initialization_custom(self):
         """Test BallSprite initialization with custom parameters."""
         groups = Mock()
-        with patch("pygame.mixer.Sound") as mock_sound:
+        with patch("pygame.mixer.Sound"):
             ball = BallSprite(
-                x=100, 
-                y=200, 
-                width=30, 
-                height=30, 
+                x=100,
+                y=200,
+                width=30,
+                height=30,
                 groups=groups,
                 collision_sound="test.wav"
             )
-            
+
             # Position is set by reset() during initialization, so it will be random
-            assert 50 <= ball.rect.x <= 749  # Reset sets random position in this range
-            assert 25 <= ball.rect.y <= 399  # Reset sets random position in this range
-            assert ball.width == 30
-            assert ball.height == 30
+            assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
+            assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
+            assert ball.width == SIZE_30
+            assert ball.height == SIZE_30
             # groups() returns a list, so we need to check the content
             assert groups in ball.groups()
 
     def test_ball_sprite_initialization_without_groups(self):
         """Test BallSprite initialization creates default groups when None provided."""
         ball = BallSprite()
-        
+
         # Should create a LayeredDirty group
         assert ball.groups() is not None
 
@@ -77,9 +96,9 @@ class TestBallSpriteInitialization(unittest.TestCase):
         with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
-            
+
             ball = BallSprite(collision_sound="bounce.wav")
-            
+
             mock_sound_class.assert_called_once()
             assert hasattr(ball, "snd")
             assert ball.snd == mock_sound
@@ -87,7 +106,7 @@ class TestBallSpriteInitialization(unittest.TestCase):
     def test_ball_sprite_initialization_without_collision_sound(self):
         """Test BallSprite initialization without collision sound."""
         ball = BallSprite()
-        
+
         # Should not have snd attribute when no collision sound provided
         assert not hasattr(ball, "snd")
 
@@ -110,7 +129,7 @@ class TestBallSpriteColor(unittest.TestCase):
         """Test ball color getter returns correct color."""
         ball = BallSprite()
         ball._color = (255, 0, 0)
-        
+
         assert ball.color == (255, 0, 0)
 
     def test_ball_color_setter(self):
@@ -119,18 +138,18 @@ class TestBallSpriteColor(unittest.TestCase):
             ball = BallSprite()
             ball.width = 20
             ball.height = 20
-            
+
             ball.color = (0, 255, 0)
-            
+
             assert ball._color == (0, 255, 0)
             # draw.circle is called twice - once during initialization and once in setter
-            assert mock_draw_circle.call_count == 2
+            assert mock_draw_circle.call_count == SPEED_2
             # Check the last call (the setter call)
             mock_draw_circle.assert_any_call(
-                ball.image, 
-                (0, 255, 0), 
-                (10, 10), 
-                5, 
+                ball.image,
+                (0, 255, 0),
+                (10, 10),
+                5,
                 0
             )
 
@@ -156,11 +175,11 @@ class TestBallSpriteBounce(unittest.TestCase):
             ball.rect.y = -5  # Above screen
             ball.speed.y = -2
             ball.snd = Mock()
-            
+
             ball._do_bounce()
-            
+
             assert ball.rect.y == 0
-            assert ball.speed.y == 2  # Reversed
+            assert ball.speed.y == SPEED_2  # Reversed
             ball.snd.play.assert_called_once()
 
     def test_do_bounce_bottom_wall(self):
@@ -172,11 +191,11 @@ class TestBallSpriteBounce(unittest.TestCase):
             ball.rect.y = 590  # Below screen
             ball.speed.y = 2
             ball.snd = Mock()
-            
+
             ball._do_bounce()
-            
-            assert ball.rect.y == 580  # screen_height - height
-            assert ball.speed.y == -2  # Reversed
+
+            assert ball.rect.y == Y_580  # screen_height - height
+            assert ball.speed.y == SPEED_NEG_2  # Reversed
             ball.snd.play.assert_called_once()
 
     def test_do_bounce_no_sound(self):
@@ -186,11 +205,11 @@ class TestBallSpriteBounce(unittest.TestCase):
             ball.rect.y = -5
             ball.speed.y = -2
             # No snd attribute set
-            
+
             ball._do_bounce()
-            
+
             assert ball.rect.y == 0
-            assert ball.speed.y == 2
+            assert ball.speed.y == SPEED_2
 
     def test_do_bounce_no_collision(self):
         """Test ball doesn't bounce when not at walls."""
@@ -199,9 +218,9 @@ class TestBallSpriteBounce(unittest.TestCase):
             ball.rect.y = 100
             ball.speed.y = 2
             original_speed = ball.speed.y
-            
+
             ball._do_bounce()
-            
+
             # Speed should remain unchanged
             assert ball.speed.y == original_speed
 
@@ -226,12 +245,12 @@ class TestBallSpriteReset(unittest.TestCase):
             ball = BallSprite()
             original_x = ball.rect.x
             original_y = ball.rect.y
-            
+
             ball.reset()
-            
+
             # Position should be within expected bounds
-            assert 50 <= ball.rect.x <= 749
-            assert 25 <= ball.rect.y <= 399
+            assert POS_50 <= ball.rect.x <= POS_749
+            assert POS_25 <= ball.rect.y <= POS_399
             # Should be different from original (very likely)
             assert ball.rect.x != original_x or ball.rect.y != original_y
 
@@ -240,11 +259,11 @@ class TestBallSpriteReset(unittest.TestCase):
         with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_direction = ball.direction
-            
+
             ball.reset()
-            
+
             # Direction should be in 0-360 range
-            assert 0 <= ball.direction <= 360
+            assert 0 <= ball.direction <= DIRECTION_360
             # Should be different from original (very likely)
             assert ball.direction != original_direction
 
@@ -252,11 +271,11 @@ class TestBallSpriteReset(unittest.TestCase):
         """Test ball reset direction is within expected range."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
-            
+
             # Test multiple resets to ensure direction is in valid range
             for _ in range(10):
                 ball.reset()
-                assert 0 <= ball.direction <= 360
+                assert 0 <= ball.direction <= DIRECTION_360
 
 
 class TestBallSpriteBounceMethod(unittest.TestCase):
@@ -280,14 +299,14 @@ class TestBallSpriteBounceMethod(unittest.TestCase):
             ball.direction = 45
             original_speed_x = ball.speed.x
             original_speed_y = ball.speed.y
-            
+
             ball.bounce(10)
-            
+
             # Direction should be (180 - 45) % 360 - 10 = 125
-            assert ball.direction == 125
+            assert ball.direction == DIRECTION_125
             # Speed should be increased by 1.1
-            assert ball.speed.x == original_speed_x * 1.1
-            assert ball.speed.y == original_speed_y * 1.1
+            assert ball.speed.x == original_speed_x * MULTIPLIER_1_1
+            assert ball.speed.y == original_speed_y * MULTIPLIER_1_1
 
     def test_ball_bounce_speed_increase(self):
         """Test ball bounce increases speed."""
@@ -295,22 +314,22 @@ class TestBallSpriteBounceMethod(unittest.TestCase):
             ball = BallSprite()
             original_speed_x = ball.speed.x
             original_speed_y = ball.speed.y
-            
+
             ball.bounce(0)
-            
-            assert ball.speed.x == original_speed_x * 1.1
-            assert ball.speed.y == original_speed_y * 1.1
+
+            assert ball.speed.x == original_speed_x * MULTIPLIER_1_1
+            assert ball.speed.y == original_speed_y * MULTIPLIER_1_1
 
     def test_ball_bounce_direction_wrapping(self):
         """Test ball bounce handles direction wrapping correctly."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.direction = 200
-            
+
             ball.bounce(0)
-            
+
             # (180 - 200) % 360 = 340
-            assert ball.direction == 340
+            assert ball.direction == DIRECTION_340
 
 
 class TestBallSpriteUpdate(unittest.TestCase):
@@ -335,11 +354,11 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.rect.y = 100
             ball.speed.x = 2
             ball.speed.y = 3
-            
+
             ball.update()
-            
-            assert ball.rect.x == 102
-            assert ball.rect.y == 103
+
+            assert ball.rect.x == POS_102
+            assert ball.rect.y == POS_103
 
     def test_ball_update_left_wall_bounce(self):
         """Test ball bounces off left wall."""
@@ -348,14 +367,14 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.rect.x = -5  # Left of screen
             ball.direction = 45
             ball.speed.x = -2
-            
+
             with patch.object(ball, "reset") as mock_reset:
                 ball.update()
-                
+
                 # Should reverse direction and set x to 1, then move by speed.x
                 # Since x becomes negative after movement, reset() should be called
                 mock_reset.assert_called_once()
-                assert ball.direction == 315  # (360 - 45) % 360
+                assert ball.direction == DIRECTION_315  # (360 - 45) % 360
 
     def test_ball_update_right_wall_bounce(self):
         """Test ball bounces off right wall."""
@@ -366,13 +385,13 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.rect.x = 810  # Right of screen
             ball.direction = 45
             ball.speed.x = 2
-            
+
             with patch.object(ball, "reset") as mock_reset:
                 ball.update()
-                
+
                 # Should reverse direction and then reset() is called due to off-screen
                 mock_reset.assert_called_once()
-                assert ball.direction == 315  # (360 - 45) % 360
+                assert ball.direction == DIRECTION_315  # (360 - 45) % 360
 
     def test_ball_update_reset_on_exit(self):
         """Test ball resets when exiting screen."""
@@ -380,7 +399,7 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball = BallSprite()
             ball.rect.x = 1000  # Way off screen
             ball.rect.y = 100
-            
+
             with patch.object(ball, "reset") as mock_reset:
                 ball.update()
                 mock_reset.assert_called_once()
@@ -393,18 +412,20 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.rect.y = 1000  # Way off screen
             ball.screen_height = 600  # Set screen height so ball is off screen
             ball.speed.y = 0  # Don't move vertically to ensure reset is called
-            
+
             # Mock _do_bounce to not interfere with the test
-            with patch.object(ball, "_do_bounce"):
-                with patch.object(ball, "reset") as mock_reset:
-                    ball.update()
-                    mock_reset.assert_called_once()
+            with (
+                patch.object(ball, "_do_bounce"),
+                patch.object(ball, "reset") as mock_reset,
+            ):
+                ball.update()
+                mock_reset.assert_called_once()
 
     def test_ball_update_calls_do_bounce(self):
         """Test ball update calls _do_bounce."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
-            
+
             with patch.object(ball, "_do_bounce") as mock_do_bounce:
                 ball.update()
                 mock_do_bounce.assert_called_once()
@@ -428,44 +449,48 @@ class TestBallSpriteIntegration(unittest.TestCase):
         """Test complete ball game cycle."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
-            
+
             # Initial state
-            assert ball.dirty == 2
-            
+            assert ball.dirty == SPEED_2
+
             # Update should move ball
             original_x = ball.rect.x
             original_y = ball.rect.y
             ball.update()
-            
+
             # Ball should have moved
             assert ball.rect.x != original_x or ball.rect.y != original_y
 
     def test_ball_with_sound_integration(self):
         """Test ball with sound integration."""
-        with patch("pygame.draw.circle"):
-            with patch("glitchygames.game_objects.ball.game_objects.load_sound") as mock_load_sound:
-                mock_sound = Mock()
-                mock_load_sound.return_value = mock_sound
-                
-                ball = BallSprite(collision_sound="bounce.wav")
-                ball.rect.y = -5  # Trigger top wall bounce
-                ball.speed.y = -2
-                
-                ball.update()
-                
-                # Sound should have been played
-                mock_sound.play.assert_called()
+        with (
+            patch("pygame.draw.circle"),
+            patch(
+                "glitchygames.game_objects.ball.game_objects.load_sound"
+            ) as mock_load_sound,
+        ):
+            mock_sound = Mock()
+            mock_load_sound.return_value = mock_sound
+
+            ball = BallSprite(collision_sound="bounce.wav")
+            ball.rect.y = -5  # Trigger top wall bounce
+            ball.speed.y = -2
+
+            ball.update()
+
+            # Sound should have been played
+            mock_sound.play.assert_called()
 
     def test_ball_speed_progression(self):
         """Test ball speed increases with bounces."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
             original_speed = ball.speed.x
-            
+
             # Multiple bounces should increase speed
             for _ in range(3):
                 ball.bounce(0)
-            
+
             # Speed should be significantly higher (1.1^3 = 1.331)
             expected_speed = original_speed * (1.1 ** 3)
             assert ball.speed.x == expected_speed

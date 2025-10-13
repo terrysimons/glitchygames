@@ -37,10 +37,10 @@ class TestTextEvents:
         stub = TextEventStubs()
         assert hasattr(stub, "on_text_input_event")
         assert hasattr(stub, "on_text_editing_event")
-        
+
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test method calls
         event = HashableEvent(pygame.TEXTINPUT, text="test")
         try:
@@ -53,7 +53,7 @@ class TestTextEvents:
         """Test text input event handling."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test text input
         event = HashableEvent(pygame.TEXTINPUT, text="Hello World")
         try:
@@ -65,7 +65,7 @@ class TestTextEvents:
         """Test text editing event handling."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test text editing
         event = HashableEvent(pygame.TEXTEDITING, text="Hello", start=0, length=5)
         try:
@@ -77,7 +77,7 @@ class TestTextEvents:
         """Test text input with different character types."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test different character types
         test_texts = [
             "Hello World",           # Basic text
@@ -91,7 +91,7 @@ class TestTextEvents:
             "αβγδε",                 # Greek letters
             "🚀🎮🎯",                # Emojis
         ]
-        
+
         for text in test_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
             try:
@@ -103,7 +103,7 @@ class TestTextEvents:
         """Test text editing with different parameters."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test different editing scenarios
         editing_scenarios = [
             ("Hello", 0, 5),         # Full text selection
@@ -113,7 +113,7 @@ class TestTextEvents:
             ("", 0, 0),              # Empty text
             ("Test", 1, 2),          # Middle selection
         ]
-        
+
         for text, start, length in editing_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
             try:
@@ -125,7 +125,7 @@ class TestTextEvents:
         """Test text input with single character events."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test single character inputs
         single_chars = [
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
@@ -134,7 +134,7 @@ class TestTextEvents:
             "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
             " ", "\t", "\n", "\r",
         ]
-        
+
         for char in single_chars:
             event = HashableEvent(pygame.TEXTINPUT, text=char)
             try:
@@ -146,7 +146,7 @@ class TestTextEvents:
         """Test text editing with cursor movement scenarios."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test cursor movement scenarios
         cursor_scenarios = [
             ("Hello", 0, 0),         # Cursor at beginning
@@ -156,7 +156,7 @@ class TestTextEvents:
             ("Hello", 4, 0),         # Cursor at end
             ("Hello", 5, 0),         # Cursor beyond end
         ]
-        
+
         for text, start, length in cursor_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
             try:
@@ -168,7 +168,7 @@ class TestTextEvents:
         """Test text input with Unicode characters."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test Unicode characters
         unicode_texts = [
             "Café",                  # Latin with accents
@@ -182,7 +182,7 @@ class TestTextEvents:
             "🚀🎮🎯",                # Emojis
             "∞≠≤≥",                  # Mathematical symbols
         ]
-        
+
         for text in unicode_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
             try:
@@ -194,7 +194,7 @@ class TestTextEvents:
         """Test text editing with different selection scenarios."""
         stub = TextEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test selection scenarios
         selection_scenarios = [
             ("Hello", 0, 5),         # Select all
@@ -204,7 +204,7 @@ class TestTextEvents:
             ("Hello", 0, 0),         # No selection
             ("Hello", 2, 0),         # Cursor position, no selection
         ]
-        
+
         for text, start, length in selection_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
             try:

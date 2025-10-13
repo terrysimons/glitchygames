@@ -42,10 +42,10 @@ class TestTouchEvents:
         assert hasattr(stub, "on_touch_down_event")
         assert hasattr(stub, "on_touch_motion_event")
         assert hasattr(stub, "on_touch_up_event")
-        
+
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test method calls
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         try:
@@ -58,7 +58,7 @@ class TestTouchEvents:
         """Test touch down event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         try:
@@ -70,7 +70,7 @@ class TestTouchEvents:
         """Test touch motion event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
         try:
@@ -82,7 +82,7 @@ class TestTouchEvents:
         """Test touch up event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
         try:
@@ -94,7 +94,7 @@ class TestTouchEvents:
         """Test multi touch down event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test multi touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         try:
@@ -106,7 +106,7 @@ class TestTouchEvents:
         """Test multi touch motion event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test multi touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
         try:
@@ -118,7 +118,7 @@ class TestTouchEvents:
         """Test multi touch up event handling."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test multi touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
         try:
@@ -130,7 +130,7 @@ class TestTouchEvents:
         """Test multiple finger touch events."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test multiple fingers
         for finger_id in range(5):
             # Test finger down
@@ -139,14 +139,14 @@ class TestTouchEvents:
                 stub.on_touch_down_event(event)
             except Exception as e:
                 assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-            
+
             # Test finger motion
             event = HashableEvent(pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10)
             try:
                 stub.on_touch_motion_event(event)
             except Exception as e:
                 assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-            
+
             # Test finger up
             event = HashableEvent(pygame.FINGERUP, finger_id=finger_id, x=100, y=100)
             try:
@@ -158,21 +158,21 @@ class TestTouchEvents:
         """Test touch events with pressure values."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test touch down with pressure
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100, pressure=0.8)
         try:
             stub.on_touch_down_event(event)
         except Exception as e:
             assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-        
+
         # Test touch motion with pressure
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6)
         try:
             stub.on_touch_motion_event(event)
         except Exception as e:
             assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-        
+
         # Test touch up with pressure
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100, pressure=0.0)
         try:
@@ -184,7 +184,7 @@ class TestTouchEvents:
         """Test touch events with different positions."""
         stub = TouchEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test different touch positions
         positions = [
             (0, 0),      # Top-left
@@ -193,7 +193,7 @@ class TestTouchEvents:
             (50, 150),   # Middle-left
             (150, 50),   # Top-right
         ]
-        
+
         for x, y in positions:
             # Test touch down
             event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=x, y=y)
@@ -201,14 +201,14 @@ class TestTouchEvents:
                 stub.on_touch_down_event(event)
             except Exception as e:
                 assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-            
+
             # Test touch motion
             event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=x, y=y, dx=5, dy=5)
             try:
                 stub.on_touch_motion_event(event)
             except Exception as e:
                 assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
-            
+
             # Test touch up
             event = HashableEvent(pygame.FINGERUP, finger_id=1, x=x, y=y)
             try:

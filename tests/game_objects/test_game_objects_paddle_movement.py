@@ -2,11 +2,17 @@
 
 from unittest.mock import Mock, patch
 
-import pytest
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
-from glitchygames.movement.speed import Speed
 from glitchygames.movement.vertical import Vertical
+
+# Constants for magic values
+POS_100 = 100
+POS_200 = 200
+POS_300 = 300
+SIZE_50 = 50
+SIZE_20 = 20
+SIZE_100 = 100
 
 
 class TestPaddleBasicFunctionality:
@@ -19,17 +25,17 @@ class TestPaddleBasicFunctionality:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         assert paddle.name == "test_paddle"
-        assert paddle.rect.x == 100
-        assert paddle.rect.y == 200
-        assert paddle.width == 50
-        assert paddle.height == 20
+        assert paddle.rect.x == POS_100
+        assert paddle.rect.y == POS_200
+        assert paddle.width == SIZE_50
+        assert paddle.height == SIZE_20
         assert paddle.use_gfxdraw is True
         assert paddle.moving is False
         assert paddle.dirty == 1
@@ -43,13 +49,13 @@ class TestPaddleBasicFunctionality:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20,
-            groups=groups
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
+            groups=groups,
         )
-        
+
         assert groups in paddle.groups()
 
     def test_base_paddle_initialization_without_groups(self, mock_pygame_patches):
@@ -59,12 +65,12 @@ class TestPaddleBasicFunctionality:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Should have default groups
         assert len(paddle.groups()) > 0
 
@@ -73,19 +79,19 @@ class TestPaddleBasicFunctionality:
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
-            
+
             paddle = BasePaddle(
                 axis=Horizontal,
                 speed=5,
                 name="test_paddle",
                 color=(255, 0, 0),
-                x=100,
-                y=200,
-                width=50,
-                height=20,
-                collision_sound="hit.wav"
+                x=POS_100,
+                y=POS_200,
+                width=SIZE_50,
+                height=SIZE_20,
+                collision_sound="hit.wav",
             )
-            
+
             assert paddle.snd == mock_sound
             mock_load_sound.assert_called_once_with("hit.wav")
 
@@ -96,12 +102,12 @@ class TestPaddleBasicFunctionality:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Should not have collision sound
         assert not hasattr(paddle, "snd")
 
@@ -116,18 +122,18 @@ class TestPaddleMovement:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Set up movement
         paddle._move.current_speed = 3
         original_x = paddle.rect.x
-        
+
         paddle.move_horizontal()
-        
+
         assert paddle.rect.x == original_x + 3
 
     def test_move_vertical(self, mock_pygame_patches):
@@ -137,18 +143,18 @@ class TestPaddleMovement:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Set up movement
         paddle._move.current_speed = 4
         original_y = paddle.rect.y
-        
+
         paddle.move_vertical()
-        
+
         assert paddle.rect.y == original_y + 4
 
 
@@ -162,24 +168,26 @@ class TestPaddleBoundaryDetection:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Set screen dimensions
         paddle.screen_height = 400
-        
-        # Test at bottom - paddle at y=380 with speed=5 would go to y=385, which is > screen_height=400
-        paddle.rect.y = 380  # 20 pixels from bottom (height=20)
-        paddle.rect.height = 20  # Ensure height is set correctly
+
+        # Test bottom boundary:
+        # paddle at y=380 with speed=5 would go to y=385,
+        # which is > screen_height=400
+        paddle.rect.y = 380  # 20px from bottom (height=20)
+        paddle.rect.height = SIZE_20  # Ensure height is set correctly
         paddle.rect.bottom = 400  # Set bottom to 400 (y + height)
         paddle._move.current_speed = 5  # Moving down
         assert paddle.is_at_bottom_of_screen() is True
-        
+
         # Test not at bottom
-        paddle.rect.y = 200
+        paddle.rect.y = POS_200
         paddle.rect.bottom = 220  # Reset bottom to y + height (200 + 20)
         paddle._move.current_speed = 5  # Moving down
         assert paddle.is_at_bottom_of_screen() is False
@@ -191,21 +199,21 @@ class TestPaddleBoundaryDetection:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Test at top - paddle at y=0 with speed=-5 would go to y=-5, which is < 0
         paddle.rect.y = 0
         paddle.rect.top = 0  # Set top to 0
         paddle._move.current_speed = -5  # Moving up
         assert paddle.is_at_top_of_screen() is True
-        
+
         # Test not at top
-        paddle.rect.y = 200
-        paddle.rect.top = 200  # Reset top to y
+        paddle.rect.y = POS_200
+        paddle.rect.top = POS_200  # Reset top to y
         paddle._move.current_speed = -5  # Moving up
         assert paddle.is_at_top_of_screen() is False
 
@@ -216,23 +224,23 @@ class TestPaddleBoundaryDetection:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Set screen dimensions
         paddle.screen = Mock()
         paddle.screen.left = 0
-        
+
         # Test at left - paddle at x=0 with speed=5 would go to x=-5, which is < screen.left=0
         paddle.rect.x = 0
         paddle._move.current_speed = -5  # Moving left
         assert paddle.is_at_left_of_screen() is True
-        
+
         # Test not at left
-        paddle.rect.x = 100
+        paddle.rect.x = POS_100
         paddle._move.current_speed = 5  # Moving right
         assert paddle.is_at_left_of_screen() is False
 
@@ -243,24 +251,25 @@ class TestPaddleBoundaryDetection:
             speed=5,
             name="test_paddle",
             color=(255, 0, 0),
-            x=100,
-            y=200,
-            width=50,
-            height=20
+            x=POS_100,
+            y=POS_200,
+            width=SIZE_50,
+            height=SIZE_20,
         )
-        
+
         # Set screen dimensions
         paddle.screen = Mock()
         paddle.screen.right = 800
-        
-        # Test at right - paddle at x=750 with speed=5 would go to x=755, which is > screen.right=800
+
+        # Test at right - paddle at x=750 with speed=5 would go to x=755,
+        # which is > screen.right=800
         paddle.rect.x = 750  # 50 pixels from right (width=50)
         paddle.rect.right = 800  # Set right to 800
         paddle._move.current_speed = 5  # Moving right
         assert paddle.is_at_right_of_screen() is True
-        
+
         # Test not at right
-        paddle.rect.x = 100
+        paddle.rect.x = POS_100
         paddle.rect.right = 150  # Reset right to x + width (100 + 50)
         paddle._move.current_speed = 5  # Moving right
         assert paddle.is_at_right_of_screen() is False
@@ -273,17 +282,17 @@ class TestHorizontalPaddle:
         """Test HorizontalPaddle initialization."""
         paddle = HorizontalPaddle(
             name="horizontal_paddle",
-            size=(100, 20),
-            position=(200, 300),
+            size=(SIZE_100, SIZE_20),
+            position=(POS_200, POS_300),
             color=(0, 255, 0),
-            speed=5
+            speed=5,
         )
-        
+
         assert paddle.name == "horizontal_paddle"
-        assert paddle.rect.x == 200
-        assert paddle.rect.y == 300
-        assert paddle.width == 100
-        assert paddle.height == 20
+        assert paddle.rect.x == POS_200
+        assert paddle.rect.y == POS_300
+        assert paddle.width == SIZE_100
+        assert paddle.height == SIZE_20
         assert isinstance(paddle._move, Horizontal)
 
     def test_horizontal_paddle_initialization_with_groups(self, mock_pygame_patches):
@@ -291,13 +300,13 @@ class TestHorizontalPaddle:
         groups = Mock()
         paddle = HorizontalPaddle(
             name="horizontal_paddle",
-            size=(100, 20),
-            position=(200, 300),
+            size=(SIZE_100, SIZE_20),
+            position=(POS_200, POS_300),
             color=(0, 255, 0),
             speed=5,
-            groups=groups
+            groups=groups,
         )
-        
+
         assert groups in paddle.groups()
 
     def test_horizontal_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
@@ -305,16 +314,16 @@ class TestHorizontalPaddle:
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
-            
+
             paddle = HorizontalPaddle(
                 name="horizontal_paddle",
-                size=(100, 20),
-                position=(200, 300),
+                size=(SIZE_100, SIZE_20),
+                position=(POS_200, POS_300),
                 color=(0, 255, 0),
                 speed=5,
-                collision_sound="hit.wav"
+                collision_sound="hit.wav",
             )
-            
+
             assert paddle.snd == mock_sound
 
 
@@ -325,17 +334,17 @@ class TestVerticalPaddle:
         """Test VerticalPaddle initialization."""
         paddle = VerticalPaddle(
             name="vertical_paddle",
-            size=(20, 100),
-            position=(200, 300),
+            size=(SIZE_20, SIZE_100),
+            position=(POS_200, POS_300),
             color=(0, 0, 255),
-            speed=5
+            speed=5,
         )
-        
+
         assert paddle.name == "vertical_paddle"
-        assert paddle.rect.x == 200
-        assert paddle.rect.y == 300
-        assert paddle.width == 20
-        assert paddle.height == 100
+        assert paddle.rect.x == POS_200
+        assert paddle.rect.y == POS_300
+        assert paddle.width == SIZE_20
+        assert paddle.height == SIZE_100
         assert isinstance(paddle._move, Vertical)
 
     def test_vertical_paddle_initialization_with_groups(self, mock_pygame_patches):
@@ -343,13 +352,13 @@ class TestVerticalPaddle:
         groups = Mock()
         paddle = VerticalPaddle(
             name="vertical_paddle",
-            size=(20, 100),
-            position=(200, 300),
+            size=(SIZE_20, SIZE_100),
+            position=(POS_200, POS_300),
             color=(0, 0, 255),
             speed=5,
-            groups=groups
+            groups=groups,
         )
-        
+
         assert groups in paddle.groups()
 
     def test_vertical_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
@@ -357,16 +366,16 @@ class TestVerticalPaddle:
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
             mock_sound = Mock()
             mock_load_sound.return_value = mock_sound
-            
+
             paddle = VerticalPaddle(
                 name="vertical_paddle",
-                size=(20, 100),
-                position=(200, 300),
+                size=(SIZE_20, SIZE_100),
+                position=(POS_200, POS_300),
                 color=(0, 0, 255),
                 speed=5,
-                collision_sound="hit.wav"
+                collision_sound="hit.wav",
             )
-            
+
             assert paddle.snd == mock_sound
 
 
@@ -377,18 +386,18 @@ class TestPaddleIntegration:
         """Test complete horizontal paddle game cycle."""
         paddle = HorizontalPaddle(
             name="horizontal_paddle",
-            size=(100, 20),
-            position=(200, 300),
+            size=(SIZE_100, SIZE_20),
+            position=(POS_200, POS_300),
             color=(0, 255, 0),
-            speed=5
+            speed=5,
         )
-        
+
         # Test movement
         paddle._move.current_speed = 3
         original_x = paddle.rect.x
         paddle.move_horizontal()
         assert paddle.rect.x == original_x + 3
-        
+
         # Test boundary detection
         paddle.screen = Mock()
         paddle.screen.left = 0
@@ -401,18 +410,18 @@ class TestPaddleIntegration:
         """Test complete vertical paddle game cycle."""
         paddle = VerticalPaddle(
             name="vertical_paddle",
-            size=(20, 100),
-            position=(200, 300),
+            size=(SIZE_20, SIZE_100),
+            position=(POS_200, POS_300),
             color=(0, 0, 255),
-            speed=5
+            speed=5,
         )
-        
+
         # Test movement
         paddle._move.current_speed = 4
         original_y = paddle.rect.y
         paddle.move_vertical()
         assert paddle.rect.y == original_y + 4
-        
+
         # Test boundary detection
         paddle.rect.y = 0
         paddle.rect.top = 0  # Set top to 0
@@ -424,30 +433,30 @@ class TestPaddleIntegration:
         # Test horizontal paddle at boundaries
         h_paddle = HorizontalPaddle(
             name="horizontal_paddle",
-            size=(100, 20),
-            position=(0, 300),
+            size=(SIZE_100, SIZE_20),
+            position=(0, POS_300),
             color=(0, 255, 0),
-            speed=5
+            speed=5,
         )
-        
+
         h_paddle.screen = Mock()
         h_paddle.screen.left = 0
         h_paddle.screen.right = 800  # Set screen width
         h_paddle.rect.left = 0  # Set left to 0
-        h_paddle.rect.right = 100  # Set right to 100 (width=100)
+        h_paddle.rect.right = SIZE_100  # Set right to width
         h_paddle._move.current_speed = -5  # Moving left
         assert h_paddle.is_at_left_of_screen() is True
         assert h_paddle.is_at_right_of_screen() is False
-        
+
         # Test vertical paddle at boundaries
         v_paddle = VerticalPaddle(
             name="vertical_paddle",
-            size=(20, 100),
-            position=(200, 0),
+            size=(SIZE_20, SIZE_100),
+            position=(POS_200, 0),
             color=(0, 0, 255),
-            speed=5
+            speed=5,
         )
-        
+
         v_paddle.screen = Mock()
         v_paddle.screen.top = 0
         v_paddle.rect.y = 0

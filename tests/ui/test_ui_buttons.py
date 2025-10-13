@@ -5,17 +5,20 @@ mouse interactions, and visual state changes.
 """
 
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-
-import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import ButtonSprite
 
-from mocks.test_mock_factory import MockFactory
+# Test constants to avoid magic values
+BUTTON_X = 10
+BUTTON_Y = 20
+BUTTON_WIDTH = 100
+BUTTON_HEIGHT = 40
 
 
 class TestButtonSpriteFunctionality:
@@ -89,12 +92,12 @@ class TestButtonSpriteFunctionality:
             # Act: simulate click
             event = Mock()
             btn.on_left_mouse_button_down_event(event)
-            
+
             # Assert: should change to active color
             assert btn.background_color == btn.active_color
-            
+
             btn.on_left_mouse_button_up_event(event)
-            
+
             # Assert: should return to inactive color
             assert btn.background_color == btn.inactive_color
 
@@ -112,10 +115,10 @@ class TestButtonSpriteFunctionality:
             btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TestButton")
 
             # Assert
-            assert btn.rect.x == 10
-            assert btn.rect.y == 20
-            assert btn.rect.width == 100
-            assert btn.rect.height == 40
+            assert btn.rect.x == BUTTON_X
+            assert btn.rect.y == BUTTON_Y
+            assert btn.rect.width == BUTTON_WIDTH
+            assert btn.rect.height == BUTTON_HEIGHT
             assert btn.name == "TestButton"
             assert btn.background_color is not None
             assert btn.active_color is not None
@@ -155,20 +158,20 @@ class TestButtonSpriteFunctionality:
             # Test that button can be created and has expected properties
             assert btn is not None
             assert btn.name == "DisabledButton"
-            
+
             # Test that button responds to mouse events
             event = Mock()
             initial_color = btn.background_color
-            
+
             # Act: simulate mouse down
             btn.on_left_mouse_button_down_event(event)
-            
+
             # Assert: background color should change
             assert btn.background_color != initial_color
-            
+
             # Act: simulate mouse up
             btn.on_left_mouse_button_up_event(event)
-            
+
             # Assert: background color should return to inactive
             assert btn.background_color == btn.inactive_color
 

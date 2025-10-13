@@ -45,7 +45,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         assert any(c.isupper() for c in glyphs), "Should contain uppercase letters"
         assert any(c.islower() for c in glyphs), "Should contain lowercase letters"
         assert any(c.isdigit() for c in glyphs), "Should contain digits"
-        
+
         # Check for dangerous characters
         dangerous_chars = {"\n", "\r", "\t", "\0", "\b", "\f", "\v", "\a"}
         for char in dangerous_chars:

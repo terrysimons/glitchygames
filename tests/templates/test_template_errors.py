@@ -1,7 +1,6 @@
 """Template error handling tests."""
 
 import sys
-import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -12,10 +11,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
 
-from mocks.test_mock_factory import create_template_path_mock, create_template_repo_file_mock
+from mocks.test_mock_factory import create_template_path_mock
 
 
-class TestTemplateErrors(unittest.TestCase):
+class TestTemplateErrors:
     """Test template error handling."""
 
     def test_build_template_cookiecutter_exception(self):
@@ -99,7 +98,7 @@ class TestTemplateErrors(unittest.TestCase):
 
             # The code only catches FileNotFoundError, not OSError
             # But the error will be raised by cookiecutter, not by our code
-            with pytest.raises(Exception):  # cookiecutter will raise RepositoryNotFound
+            with pytest.raises(OSError, match="Permission denied"):
                 build(template_name)
 
     def test_build_permission_error_handling(self):
@@ -118,7 +117,7 @@ class TestTemplateErrors(unittest.TestCase):
 
             # Should not catch PermissionError - let it propagate
             # But the error will be raised by cookiecutter, not by our code
-            with pytest.raises(Exception):  # cookiecutter will raise RepositoryNotFound
+            with pytest.raises(PermissionError, match="Access denied"):
                 build(template_name)
 
     def test_build_cookiecutter_import_error(self):
@@ -150,7 +149,7 @@ class TestTemplateErrors(unittest.TestCase):
             mock_path.__truediv__.side_effect = FileNotFoundError("Template not found")
 
             # The error will be raised by cookiecutter, not by our code
-            with pytest.raises(Exception):  # cookiecutter will raise RepositoryNotFound
+            with pytest.raises(FileNotFoundError, match="Template not found"):
                 build(template_name)
 
     def test_build_cookiecutter_timeout_error(self):
@@ -172,7 +171,3 @@ class TestTemplateErrors(unittest.TestCase):
 
                 with pytest.raises(TimeoutError, match="Request timed out"):
                     build(template_name)
-
-
-if __name__ == "__main__":
-    unittest.main()

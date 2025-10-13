@@ -1,12 +1,11 @@
 """Test coverage for SceneInterface."""
 
 import inspect
-from unittest.mock import Mock
 
 from glitchygames.interfaces import SceneInterface
 
-# Suppress PLR6301 for test methods (they need self for fixtures)
-# ruff: noqa: PLR6301
+# Constants for magic values
+EXPECTED_PARAMETER_COUNT = 2
 
 
 class TestSceneInterface:
@@ -65,7 +64,7 @@ class TestSceneInterface:
         """Test that SceneInterface methods have correct signatures."""
         # Check switch_to_scene signature
         switch_sig = inspect.signature(SceneInterface.switch_to_scene)
-        assert len(switch_sig.parameters) == 2  # self, next_scene
+        assert len(switch_sig.parameters) == EXPECTED_PARAMETER_COUNT  # self, next_scene
         assert "next_scene" in switch_sig.parameters
 
         # Check terminate signature

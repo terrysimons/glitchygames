@@ -5,8 +5,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -22,7 +20,8 @@ class TestTemplateDiscovery(unittest.TestCase):
         """Test basic template discovery."""
         with patch("glitchygames.templates.path") as mock_path:
             # Use centralized mock factory
-            mock_path.iterdir.return_value = create_template_directory_mock(["template1", "template2"]).iterdir.return_value
+            mock_directory = create_template_directory_mock(["template1", "template2"])
+            mock_path.iterdir.return_value = mock_directory.iterdir.return_value
 
             # Mock Path.is_dir() static method calls
             with patch("pathlib.Path.is_dir") as mock_is_dir:
@@ -70,7 +69,7 @@ class TestTemplateDiscovery(unittest.TestCase):
                 mock_item = Mock()
                 mock_item.name = name
                 mock_items.append(mock_item)
-            
+
             mock_path.iterdir.return_value = mock_items
 
             with patch("pathlib.Path.is_dir") as mock_is_dir:
