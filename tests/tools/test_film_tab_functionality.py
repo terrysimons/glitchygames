@@ -366,6 +366,62 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
                 pixel_color = frame_surface.get_at((x, y))
                 self.assertEqual(pixel_color[:3], (255, 0, 255), 
                                f"Pixel at ({x}, {y}) should be magenta")
+    
+    def test_frame_spacing_has_2_pixel_gap(self):
+        """Test that frames have a 2-pixel gap between them after the first frame."""
+        # Update layout to create frame layouts
+        self.film_strip.update_layout()
+        
+        # Get frame layouts
+        frame_layouts = self.film_strip.frame_layouts
+        
+        # Should have at least 3 frames for spacing test
+        self.assertGreaterEqual(len(frame_layouts), 3, "Need at least 3 frames to test spacing")
+        
+        # Test spacing between consecutive frames (after the first)
+        for i in range(1, len(frame_layouts)):
+            current_frame = frame_layouts[i]
+            previous_frame = frame_layouts[i-1]
+            
+            # Calculate the gap between frames
+            # The gap should be: current_frame.x - (previous_frame.x + previous_frame.width)
+            expected_gap = 2  # 2-pixel gap as specified
+            
+            # Calculate actual gap
+            previous_frame_end = previous_frame.x + previous_frame.width
+            actual_gap = current_frame.x - previous_frame_end
+            
+            self.assertEqual(actual_gap, expected_gap, 
+                           f"Frame {i} should have {expected_gap}px gap from frame {i-1}, "
+                           f"but has {actual_gap}px gap")
+    
+    def test_frame_spacing_with_tabs(self):
+        """Test that frame spacing accounts for tab width plus 2-pixel gap."""
+        # Update layout to create frame layouts
+        self.film_strip.update_layout()
+        
+        # Get frame layouts and tabs
+        frame_layouts = self.film_strip.frame_layouts
+        film_tabs = self.film_strip.film_tabs
+        
+        # Should have frames and tabs
+        self.assertGreater(len(frame_layouts), 1, "Need multiple frames to test spacing")
+        self.assertGreater(len(film_tabs), 0, "Should have film tabs")
+        
+        # Test that spacing formula is correct
+        # Expected spacing: frame_width + tab_width + 2
+        expected_spacing = self.film_strip.frame_width + self.film_strip.tab_width + 2
+        
+        for i in range(1, len(frame_layouts)):
+            current_frame = frame_layouts[i]
+            previous_frame = frame_layouts[i-1]
+            
+            # Calculate actual spacing
+            actual_spacing = current_frame.x - previous_frame.x
+            
+            self.assertEqual(actual_spacing, expected_spacing,
+                           f"Frame {i} spacing should be {expected_spacing}px "
+                           f"(frame_width + tab_width + 2), but is {actual_spacing}px")
 
 
 class TestFilmTabSceneIntegration(unittest.TestCase):

@@ -2380,9 +2380,7 @@ class BitmapEditorScene(Scene):
             single_anim_sprite.frame_manager.current_animation = anim_name
             single_anim_sprite.frame_manager.current_frame = 0
             
-            # Set up animation to play and loop
-            single_anim_sprite._is_looping = True
-            single_anim_sprite.play()
+            # Animation setup will be handled by set_animated_sprite method
             
             # The animated sprite should use the original animation frames, not canvas content
             # The canvas content is only used for individual frame thumbnails, not the animated preview

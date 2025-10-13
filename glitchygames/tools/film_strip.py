@@ -108,7 +108,7 @@ class FilmStripWidget:
         
         # Initialize film tabs for frame insertion
         self.film_tabs = []  # List of FilmTabWidget instances
-        self.tab_width = 20  # Width of each tab
+        self.tab_width = 12  # Width of each tab (narrower)
         self.tab_height = 30  # Height of each tab
 
         # Animation change detection threshold
@@ -153,6 +153,10 @@ class FilmStripWidget:
 
         # Initialize animation timing for previews
         self._initialize_preview_animations()
+        
+        # Mark as dirty since we've set up animations to play
+        self.mark_dirty()
+        print(f"FilmStripWidget: Marked as dirty after setting up animations")
 
         self._calculate_layout()
         self._update_height()
@@ -517,11 +521,12 @@ class FilmStripWidget:
             for frame_idx, _frame in enumerate(frames_to_show):
                 # Calculate frame position accounting for tab width
                 if frame_idx == 0:
-                    # First frame starts at sprocket position
-                    frame_x = sprocket_start_x - self.scroll_offset - 1
+                    # First frame starts 4px to the right of the "before" tab, then 6px more left
+                    frame_x = sprocket_start_x - self.scroll_offset - 1 + 4 - 6
                 else:
-                    # Subsequent frames start at the previous frame's tab position
-                    frame_x = sprocket_start_x + frame_idx * (self.frame_width + self.tab_width) - self.scroll_offset - 1
+                    # Subsequent frames start 2px after the previous frame's tab
+                    # Account for the first frame's offset and 2px gap between frames
+                    frame_x = sprocket_start_x + 4 - 6 + frame_idx * (self.frame_width + self.tab_width + 2) - self.scroll_offset - 1
                 
                 # For single animation, all frames should be at the same Y position
                 # Nudge up by 2 pixels to align with the right-side animation frame
@@ -1150,7 +1155,7 @@ class FilmStripWidget:
                 # Create "before" tab (to the left of the frame) - only for the first frame
                 if frame_idx == 0:
                     before_tab = FilmTabWidget(
-                        x=frame_rect.x - self.tab_width + 2,  # Move 2px right from frame edge
+                        x=-2,  # Move 2px left of film strip border
                         y=frame_rect.y + (frame_rect.height - self.tab_height) // 2,  # Center vertically
                         width=self.tab_width,
                         height=self.tab_height
@@ -1323,13 +1328,13 @@ class FilmTabWidget:
         center_y = self.rect.centery
         plus_size = 8
         
-        # Draw horizontal line
+        # Draw horizontal line (shorter on left side)
         pygame.draw.line(surface, self.border_color, 
-                        (center_x - plus_size//2, center_y), 
+                        (center_x - plus_size//2 + 1, center_y), 
                         (center_x + plus_size//2, center_y), 2)
-        # Draw vertical line
+        # Draw vertical line (shorter on top)
         pygame.draw.line(surface, self.border_color, 
-                        (center_x, center_y - plus_size//2), 
+                        (center_x, center_y - plus_size//2 + 1), 
                         (center_x, center_y + plus_size//2), 2)
     
     def handle_click(self, pos: tuple[int, int]) -> bool:
