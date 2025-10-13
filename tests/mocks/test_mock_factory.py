@@ -5,8 +5,8 @@ across all test files, reducing code duplication and ensuring proper mock config
 """
 
 from unittest.mock import Mock, patch
-import pygame
 
+import pygame
 from glitchygames.sprites import AnimatedSprite
 
 
@@ -166,6 +166,7 @@ class MockFactory:
             
         Returns:
             Properly configured canvas mock
+
         """
         mock_canvas = Mock()
         
@@ -552,7 +553,7 @@ class MockFactory:
         
         def mock_draw_polygon(surface, color, points, width=0):
             """Mock pygame.draw.polygon that handles MockSurface objects."""
-            if hasattr(surface, '_surface'):
+            if hasattr(surface, "_surface"):
                 # Use the original pygame.draw.polygon directly to avoid recursion
                 return original_draw_polygon(surface._surface, color, points, width)
             else:
@@ -606,8 +607,23 @@ class MockFactory:
             def blit(self, source, dest, area=None, special_flags=0):
                 """Delegate blit to the real surface."""
                 # Handle MockSurface sources by extracting their real surface
-                if hasattr(source, '_surface'):
+                if hasattr(source, "_surface"):
                     source = source._surface
+                
+                # If source is still a mock, create a real surface for it
+                if (hasattr(source, "_spec_class") or 
+                    str(type(source)).find("Mock") != -1 or
+                    str(type(source)).find("MockSurface") != -1):
+                    # Create a real pygame surface for the mock by calling the real constructor
+                    import pygame.surface
+                    real_source = pygame.surface.Surface((32, 32))
+                    real_source.fill((255, 255, 255))  # White background
+                    source = real_source
+                
+                # Handle mock destination (position)
+                if hasattr(dest, "_spec_class") or str(type(dest)).find("Mock") != -1:
+                    dest = (0, 0)
+                
                 return self._surface.blit(source, dest, area, special_flags)
             
             def fill(self, color, rect=None, special_flags=0):
@@ -650,7 +666,7 @@ class MockFactory:
             surface.get_rect = Mock(return_value=text_rect)
             
             # Handle different return types (surface vs (surface, rect))
-            if 'fgcolor' in kwargs or len(args) >= 2:
+            if "fgcolor" in kwargs or len(args) >= 2:
                 # pygame.freetype style - return (surface, rect)
                 return surface, text_rect
             else:

@@ -68,7 +68,7 @@ class FilmStripWidget:
         self.hovered_animation: str | None = None
         
         # Color cycling state
-        self.background_color_index = 0
+        self.background_color_index = 2  # Start with gray instead of cyan
         self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
 
         # Film strip styling
@@ -113,6 +113,9 @@ class FilmStripWidget:
 
         # Animation change detection threshold
         self.ANIMATION_CHANGE_THRESHOLD = 0.001
+        
+        # Copy/paste buffer for frames
+        self._copied_frame = None  # Temporary storage for copied frame
 
     def set_animated_sprite(self, animated_sprite: AnimatedSprite) -> None:
         """Set the animated sprite to display."""
@@ -136,11 +139,11 @@ class FilmStripWidget:
             animated_sprite.set_animation(self.current_animation)
             print(f"FilmStripWidget: After set_animation - current_animation: {getattr(animated_sprite, 'current_animation', 'None')}")
             
-            print(f"FilmStripWidget: Setting is_looping to True")
+            print("FilmStripWidget: Setting is_looping to True")
             animated_sprite.is_looping = True  # Enable looping for continuous preview
             print(f"FilmStripWidget: After setting is_looping - is_looping: {getattr(animated_sprite, 'is_looping', 'None')}")
             
-            print(f"FilmStripWidget: Calling play()")
+            print("FilmStripWidget: Calling play()")
             animated_sprite.play()  # Start playing the animation
             print(f"FilmStripWidget: After play() - is_playing: {getattr(animated_sprite, 'is_playing', 'None')}")
             print(f"FilmStripWidget: After play() - current_frame: {getattr(animated_sprite, 'current_frame', 'None')}")
@@ -156,14 +159,15 @@ class FilmStripWidget:
         
         # Mark as dirty since we've set up animations to play
         self.mark_dirty()
-        print(f"FilmStripWidget: Marked as dirty after setting up animations")
+        print("FilmStripWidget: Marked as dirty after setting up animations")
+        print(f"FilmStripWidget: _force_redraw after mark_dirty: {getattr(self, '_force_redraw', False)}")
 
         self._calculate_layout()
         self._update_height()
 
     def _initialize_preview_animations(self) -> None:
         """Initialize animation timing for all previews."""
-        print(f"FilmStripWidget: _initialize_preview_animations called")
+        print("FilmStripWidget: _initialize_preview_animations called")
         
         if not self.animated_sprite:
             print("FilmStripWidget: No animated_sprite in _initialize_preview_animations, returning")
@@ -174,9 +178,16 @@ class FilmStripWidget:
         for anim_name, frames in self.animated_sprite._animations.items():
             print(f"FilmStripWidget: Initializing animation '{anim_name}' with {len(frames)} frames")
             # Initialize timing for this animation
-            self.preview_animation_times[anim_name] = 0.0
+            # For single-frame animations, start with a small time offset to ensure animation advances
+            if len(frames) == 1:
+                # Single-frame animations need to start with a small time to ensure they advance
+                self.preview_animation_times[anim_name] = 0.001  # Small offset to ensure animation starts
+                print("FilmStripWidget: Single-frame animation, setting time to 0.001")
+            else:
+                self.preview_animation_times[anim_name] = 0.0
+                print("FilmStripWidget: Multi-frame animation, setting time to 0.0")
             self.preview_animation_speeds[anim_name] = 1.0  # Normal speed
-            print(f"FilmStripWidget: Set animation '{anim_name}' time to 0.0, speed to 1.0")
+            print(f"FilmStripWidget: Set animation '{anim_name}' speed to 1.0")
 
             # Extract frame durations
             frame_durations = []
@@ -190,7 +201,7 @@ class FilmStripWidget:
             self.preview_frame_durations[anim_name] = frame_durations
             print(f"FilmStripWidget: Animation '{anim_name}' frame durations: {frame_durations}")
         
-        print(f"FilmStripWidget: Preview animation initialization complete")
+        print("FilmStripWidget: Preview animation initialization complete")
         print(f"FilmStripWidget: Final preview_animation_times: {self.preview_animation_times}")
         print(f"FilmStripWidget: Final preview_animation_speeds: {self.preview_animation_speeds}")
         print(f"FilmStripWidget: Final preview_frame_durations: {self.preview_frame_durations}")
@@ -212,63 +223,73 @@ class FilmStripWidget:
             return
 
         # Track total time for debugging
-        if not hasattr(self, '_debug_start_time'):
+        if not hasattr(self, "_debug_start_time"):
             self._debug_start_time = 0.0
+        if not hasattr(self, "_debug_last_dump_time"):
+            self._debug_last_dump_time = 0.0
+            
         self._debug_start_time += dt
         
-        # Debug dump at 10 seconds
-        if 9.9 <= self._debug_start_time <= 10.1:
-            print("=" * 80)
-            print("FILM STRIP ANIMATION STATE DUMP AT 10 SECONDS")
-            print("=" * 80)
-            print(f"FilmStripWidget debug info:")
-            print(f"  _debug_start_time: {self._debug_start_time}")
-            print(f"  dt: {dt}")
-            print(f"  animated_sprite: {self.animated_sprite}")
-            print(f"  current_animation: {self.current_animation}")
-            print(f"  current_frame: {self.current_frame}")
-            print(f"  scroll_offset: {self.scroll_offset}")
-            print(f"  _force_redraw: {getattr(self, '_force_redraw', False)}")
-            print(f"  preview_animation_times: {getattr(self, 'preview_animation_times', {})}")
-            print(f"  preview_animation_speeds: {getattr(self, 'preview_animation_speeds', {})}")
-            print(f"  preview_frame_durations: {getattr(self, 'preview_frame_durations', {})}")
-            
-            if self.animated_sprite:
-                print(f"AnimatedSprite debug info:")
-                print(f"  current_animation: {getattr(self.animated_sprite, 'current_animation', 'None')}")
-                print(f"  current_frame: {getattr(self.animated_sprite, 'current_frame', 'None')}")
-                print(f"  is_playing: {getattr(self.animated_sprite, 'is_playing', 'None')}")
-                print(f"  is_looping: {getattr(self.animated_sprite, 'is_looping', 'None')}")
-                print(f"  _is_playing: {getattr(self.animated_sprite, '_is_playing', 'None')}")
-                print(f"  _is_looping: {getattr(self.animated_sprite, '_is_looping', 'None')}")
-                print(f"  _frame_timer: {getattr(self.animated_sprite, '_frame_timer', 'None')}")
-                print(f"  _animations: {getattr(self.animated_sprite, '_animations', {})}")
-                print(f"  _animation_order: {getattr(self.animated_sprite, '_animation_order', [])}")
-                print(f"  frame_manager.current_animation: {getattr(self.animated_sprite.frame_manager, 'current_animation', 'None')}")
-                print(f"  frame_manager.current_frame: {getattr(self.animated_sprite.frame_manager, 'current_frame', 'None')}")
+        # Debug dump every 5 seconds
+        if self._debug_start_time - self._debug_last_dump_time >= 5.0:
+                print("=" * 80)
+                print(f"FILM STRIP ANIMATION STATE DUMP AT {self._debug_start_time:.1f} SECONDS")
+                print("=" * 80)
+                print("FilmStripWidget debug info:")
+                print(f"  _debug_start_time: {self._debug_start_time}")
+                print(f"  dt: {dt}")
+                print(f"  animated_sprite: {self.animated_sprite}")
+                print(f"  current_animation: {self.current_animation}")
+                print(f"  current_frame: {self.current_frame}")
+                print(f"  scroll_offset: {self.scroll_offset}")
+                print(f"  _force_redraw: {getattr(self, '_force_redraw', False)}")
+                print(f"  preview_animation_times: {getattr(self, 'preview_animation_times', {})}")
+                print(f"  preview_animation_speeds: {getattr(self, 'preview_animation_speeds', {})}")
+                print(f"  preview_frame_durations: {getattr(self, 'preview_frame_durations', {})}")
                 
-                # Dump animation details
-                if hasattr(self.animated_sprite, '_animations') and self.animated_sprite._animations:
-                    for anim_name, frames in self.animated_sprite._animations.items():
-                        print(f"  Animation '{anim_name}':")
-                        print(f"    frame count: {len(frames)}")
-                        for i, frame in enumerate(frames):
-                            print(f"    frame {i}: duration={getattr(frame, 'duration', 'None')}, image={getattr(frame, 'image', 'None')}")
+                if self.animated_sprite:
+                    print("AnimatedSprite debug info:")
+                    print(f"  current_animation: {getattr(self.animated_sprite, 'current_animation', 'None')}")
+                    print(f"  current_frame: {getattr(self.animated_sprite, 'current_frame', 'None')}")
+                    print(f"  is_playing: {getattr(self.animated_sprite, 'is_playing', 'None')}")
+                    print(f"  is_looping: {getattr(self.animated_sprite, 'is_looping', 'None')}")
+                    print(f"  _is_playing: {getattr(self.animated_sprite, '_is_playing', 'None')}")
+                    print(f"  _is_looping: {getattr(self.animated_sprite, '_is_looping', 'None')}")
+                    print(f"  _frame_timer: {getattr(self.animated_sprite, '_frame_timer', 'None')}")
+                    print(f"  _animations: {getattr(self.animated_sprite, '_animations', {})}")
+                    print(f"  _animation_order: {getattr(self.animated_sprite, '_animation_order', [])}")
+                    print(f"  frame_manager.current_animation: {getattr(self.animated_sprite.frame_manager, 'current_animation', 'None')}")
+                    print(f"  frame_manager.current_frame: {getattr(self.animated_sprite.frame_manager, 'current_frame', 'None')}")
+                    
+                    # Dump animation details
+                    if hasattr(self.animated_sprite, "_animations") and self.animated_sprite._animations:
+                        for anim_name, frames in self.animated_sprite._animations.items():
+                            print(f"  Animation '{anim_name}':")
+                            print(f"    frame count: {len(frames)}")
+                            for i, frame in enumerate(frames):
+                                print(f"    frame {i}: duration={getattr(frame, 'duration', 'None')}, image={getattr(frame, 'image', 'None')}")
+                    
+                    # Dump frame manager state
+                    if hasattr(self.animated_sprite, "frame_manager"):
+                        fm = self.animated_sprite.frame_manager
+                        print("  FrameManager debug info:")
+                        print(f"    _current_animation: {getattr(fm, '_current_animation', 'None')}")
+                        print(f"    _current_frame: {getattr(fm, '_current_frame', 'None')}")
+                        print(f"    _observers: {getattr(fm, '_observers', [])}")
                 
-                # Dump frame manager state
-                if hasattr(self.animated_sprite, 'frame_manager'):
-                    fm = self.animated_sprite.frame_manager
-                    print(f"  FrameManager debug info:")
-                    print(f"    _current_animation: {getattr(fm, '_current_animation', 'None')}")
-                    print(f"    _current_frame: {getattr(fm, '_current_frame', 'None')}")
-                    print(f"    _observers: {getattr(fm, '_observers', [])}")
-            
-            print("=" * 80)
+                print("=" * 80)
+                
+                # Update last dump time for next 5-second interval
+                self._debug_last_dump_time = self._debug_start_time
 
         # Update the animated sprite with delta time to advance frames
         # This is the main animation advancement - it updates the sprite's internal
         # frame timing and current_frame property based on elapsed time
         self.animated_sprite.update(dt)
+        
+        # CRITICAL FIX: Sync the widget's current_frame with the sprite's current_frame
+        # This was the missing piece - the widget wasn't tracking the animation progress!
+        self.current_frame = self.animated_sprite.current_frame
         
         # Always mark as dirty when animations are running to ensure continuous updates
         # This ensures the film strip redraws even when animations are smoothly transitioning
@@ -397,7 +418,7 @@ class FilmStripWidget:
             return
         visited.add(sprite)
         
-        if hasattr(sprite, 'groups'):
+        if hasattr(sprite, "groups"):
             try:
                 # Handle both function and list cases
                 groups = sprite.groups() if callable(sprite.groups) else sprite.groups
@@ -418,11 +439,11 @@ class FilmStripWidget:
             return
             
         # Mark parent as dirty
-        if hasattr(parent, 'dirty'):
+        if hasattr(parent, "dirty"):
             parent.dirty = 1
             
         # If parent has a parent and it's not the same object (avoid infinite loops)
-        if hasattr(parent, 'parent') and parent.parent is not None and parent.parent != parent:
+        if hasattr(parent, "parent") and parent.parent is not None and parent.parent != parent:
             self._propagate_dirty_up_parent_chain(parent.parent)
 
     def _calculate_scroll_offset(self, frame_index: int, frames: list) -> int:
@@ -477,6 +498,97 @@ class FilmStripWidget:
         self._calculate_layout()
         self._update_height()
         self.mark_dirty()
+    
+    def copy_current_frame(self) -> bool:
+        """Copy the currently selected frame to the clipboard.
+        
+        Returns:
+            True if copy was successful, False otherwise
+
+        """
+        print("FilmStripWidget: [FILM STRIP COPY] copy_current_frame called")
+        print(f"FilmStripWidget: [FILM STRIP COPY] animated_sprite: {self.animated_sprite}")
+        print(f"FilmStripWidget: [FILM STRIP COPY] current_animation: {self.current_animation}")
+        print(f"FilmStripWidget: [FILM STRIP COPY] current_frame: {self.current_frame}")
+        
+        if not self.animated_sprite or not self.current_animation:
+            print("FilmStripWidget: [FILM STRIP COPY] No animation selected for copying")
+            return False
+            
+        if self.current_animation not in self.animated_sprite._animations:
+            print(f"FilmStripWidget: [FILM STRIP COPY] Animation '{self.current_animation}' not found")
+            return False
+            
+        frames = self.animated_sprite._animations[self.current_animation]
+        print(f"FilmStripWidget: [FILM STRIP COPY] Animation has {len(frames)} frames")
+        if self.current_frame >= len(frames):
+            print(f"FilmStripWidget: [FILM STRIP COPY] Frame {self.current_frame} out of range (max: {len(frames)-1})")
+            return False
+            
+        # Get the current frame
+        current_frame = frames[self.current_frame]
+        print(f"FilmStripWidget: [FILM STRIP COPY] Got frame object: {current_frame}")
+        
+        # Create a deep copy of the frame data
+        from copy import deepcopy
+        self._copied_frame = deepcopy(current_frame)
+        print("FilmStripWidget: [FILM STRIP COPY] Created deep copy, stored in _copied_frame")
+        
+        print(f"FilmStripWidget: [FILM STRIP COPY] Successfully copied frame {self.current_frame} from animation '{self.current_animation}'")
+        return True
+    
+    def paste_to_current_frame(self) -> bool:
+        """Paste the copied frame to the currently selected frame.
+        
+        Returns:
+            True if paste was successful, False otherwise
+
+        """
+        print("FilmStripWidget: [FILM STRIP PASTE] paste_to_current_frame called")
+        print(f"FilmStripWidget: [FILM STRIP PASTE] _copied_frame: {self._copied_frame}")
+        print(f"FilmStripWidget: [FILM STRIP PASTE] animated_sprite: {self.animated_sprite}")
+        print(f"FilmStripWidget: [FILM STRIP PASTE] current_animation: {self.current_animation}")
+        print(f"FilmStripWidget: [FILM STRIP PASTE] current_frame: {self.current_frame}")
+        
+        if not self._copied_frame:
+            print("FilmStripWidget: [FILM STRIP PASTE] No frame in clipboard to paste")
+            return False
+            
+        if not self.animated_sprite or not self.current_animation:
+            print("FilmStripWidget: [FILM STRIP PASTE] No animation selected for pasting")
+            return False
+            
+        if self.current_animation not in self.animated_sprite._animations:
+            print(f"FilmStripWidget: [FILM STRIP PASTE] Animation '{self.current_animation}' not found")
+            return False
+            
+        frames = self.animated_sprite._animations[self.current_animation]
+        print(f"FilmStripWidget: [FILM STRIP PASTE] Animation has {len(frames)} frames")
+        if self.current_frame >= len(frames):
+            print(f"FilmStripWidget: [FILM STRIP PASTE] Frame {self.current_frame} out of range (max: {len(frames)-1})")
+            return False
+            
+        print(f"FilmStripWidget: [FILM STRIP PASTE] Replacing frame {self.current_frame} with copied frame")
+        # Replace the current frame with the copied frame
+        from copy import deepcopy
+        frames[self.current_frame] = deepcopy(self._copied_frame)
+        print("FilmStripWidget: [FILM STRIP PASTE] Frame replacement completed")
+        
+        print(f"FilmStripWidget: [FILM STRIP PASTE] Successfully pasted frame to frame {self.current_frame} in animation '{self.current_animation}'")
+        
+        # Mark as dirty to trigger redraw
+        self.mark_dirty()
+        print("FilmStripWidget: [FILM STRIP PASTE] Marked as dirty")
+        
+        # Notify parent scene if available
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            print("FilmStripWidget: [FILM STRIP PASTE] Notifying parent scene")
+            if hasattr(self.parent_scene, "_on_frame_pasted"):
+                self.parent_scene._on_frame_pasted(self.current_animation, self.current_frame)
+        else:
+            print("FilmStripWidget: [FILM STRIP PASTE] No parent scene to notify")
+        
+        return True
 
     def _update_height(self) -> None:
         """Update the film strip height based on the number of animations (up to 5 rows max)."""
@@ -686,7 +798,7 @@ class FilmStripWidget:
             if frame_rect.collidepoint(pos):
                 print(f"FilmStripWidget: Found collision with {anim_name}[{frame_idx}]")
                 return (anim_name, frame_idx)
-        print(f"FilmStripWidget: No collision found")
+        print("FilmStripWidget: No collision found")
         return None
 
     def get_animation_at_position(self, pos: tuple[int, int]) -> str | None:
@@ -721,7 +833,7 @@ class FilmStripWidget:
         
         # First check if a tab was clicked
         if self._handle_tab_click(pos):
-            print(f"FilmStripWidget: Tab was clicked, not processing frame click")
+            print("FilmStripWidget: Tab was clicked, not processing frame click")
             return None  # Tab was clicked, don't process frame click
         
         # Check if clicking on a frame
@@ -750,7 +862,7 @@ class FilmStripWidget:
         if preview_click:
             return preview_click
         
-        print(f"FilmStripWidget: No frame or animation clicked")
+        print("FilmStripWidget: No frame or animation clicked")
         return None
 
     def handle_hover(self, pos: tuple[int, int]) -> None:
@@ -990,6 +1102,15 @@ class FilmStripWidget:
         """Render the film strip to the given surface."""
         if not self.animated_sprite:
             return
+
+        # Debug: Track render calls
+        if not hasattr(self, "_render_count"):
+            self._render_count = 0
+        self._render_count += 1
+        
+        # Debug: Print render count every 50 renders
+        if self._render_count % 50 == 0:
+            print(f"FilmStripWidget: Render #{self._render_count}, current_frame={self.current_frame}")
 
         # Clear the film strip area
         surface.fill(self.film_background, self.rect)
@@ -1262,6 +1383,7 @@ class FilmStripWidget:
             
         Returns:
             True if a tab was clicked, False otherwise
+
         """
         for tab in self.film_tabs:
             if tab.handle_click(pos):
@@ -1278,6 +1400,7 @@ class FilmStripWidget:
             
         Returns:
             True if hovering over a tab, False otherwise
+
         """
         hovered_any = False
         for tab in self.film_tabs:
@@ -1290,6 +1413,7 @@ class FilmStripWidget:
         
         Args:
             tab: The film tab that was clicked
+
         """
         if not self.animated_sprite or not self.parent_scene:
             return
@@ -1328,6 +1452,12 @@ class FilmStripWidget:
         
         # Mark as dirty to trigger redraw
         self.mark_dirty()
+        
+        # Reset debug timer for new frame dump
+        if hasattr(self, "_debug_start_time"):
+            self._debug_start_time = 0.0
+        if hasattr(self, "_debug_last_dump_time"):
+            self._debug_last_dump_time = 0.0
 
 
 class FilmTabWidget:
@@ -1363,6 +1493,7 @@ class FilmTabWidget:
             y: Y position of the tab  
             width: Width of the tab
             height: Height of the tab
+
         """
         self.x = x
         self.y = y
@@ -1389,6 +1520,7 @@ class FilmTabWidget:
         
         Args:
             surface: The pygame surface to render to
+
         """
         # Determine color based on state
         if self.is_clicked:
@@ -1426,6 +1558,7 @@ class FilmTabWidget:
             
         Returns:
             True if the tab was clicked, False otherwise
+
         """
         if self.rect.collidepoint(pos):
             self.is_clicked = True
@@ -1440,6 +1573,7 @@ class FilmTabWidget:
             
         Returns:
             True if the tab is being hovered, False otherwise
+
         """
         self.is_hovered = self.rect.collidepoint(pos)
         return self.is_hovered
@@ -1454,6 +1588,7 @@ class FilmTabWidget:
         Args:
             insertion_type: "before" or "after"
             target_frame_index: The frame index this tab is associated with
+
         """
         self.insertion_type = insertion_type
         self.target_frame_index = target_frame_index

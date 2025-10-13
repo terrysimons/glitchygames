@@ -5,18 +5,19 @@ This module tests the film tab system that allows users to insert new frames
 before or after existing frames in film strips.
 """
 
+import os
+import sys
 import unittest
 from unittest.mock import Mock, patch
+
 import pygame
-import sys
-import os
 
 # Add the project root to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from glitchygames.tools.film_strip import FilmTabWidget, FilmStripWidget
-from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
+from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -24,14 +25,20 @@ class TestFilmTabWidget(unittest.TestCase):
     """Test the FilmTabWidget class."""
     
     def setUp(self):
-        """Set up test fixtures."""
-        # Initialize pygame for testing
-        pygame.init()
+        """Set up test fixtures with centralized mocks."""
+        # Use centralized mock factory for pygame mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         
-        # Create a mock surface for testing
-        self.test_surface = pygame.Surface((800, 600))
-        
+        # Create test surface for rendering tests
+        self.test_surface = pygame.Surface((100, 100))
+
     def tearDown(self):
+        """Clean up test fixtures."""
+        # Stop all patchers
+        for patcher in self.patchers:
+            patcher.stop()
         """Clean up after tests."""
         pygame.quit()
     
@@ -114,9 +121,11 @@ class TestFilmStripTabIntegration(unittest.TestCase):
     """Test film tab integration with film strips."""
     
     def setUp(self):
-        """Set up test fixtures."""
-        # Initialize pygame for testing
-        pygame.init()
+        """Set up test fixtures with centralized mocks."""
+        # Use centralized mock factory for pygame mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         
         # Create a mock surface for testing
         self.test_surface = pygame.Surface((800, 600))
@@ -141,10 +150,12 @@ class TestFilmStripTabIntegration(unittest.TestCase):
         # Mock parent scene
         self.mock_scene = Mock()
         self.film_strip.parent_scene = self.mock_scene
-    
+
     def tearDown(self):
-        """Clean up after tests."""
-        pygame.quit()
+        """Clean up test fixtures."""
+        # Stop all patchers
+        for patcher in self.patchers:
+            patcher.stop()
     
     def test_film_tabs_creation(self):
         """Test that film tabs are created correctly."""
@@ -200,7 +211,7 @@ class TestFilmStripTabIntegration(unittest.TestCase):
             first_tab = self.film_strip.film_tabs[0]
             
             # Mock the add_frame method
-            with patch.object(self.mock_sprite, 'add_frame') as mock_add_frame:
+            with patch.object(self.mock_sprite, "add_frame") as mock_add_frame:
                 # Simulate frame insertion
                 self.film_strip._insert_frame_at_tab(first_tab)
                 
@@ -229,9 +240,11 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
     """Test frame insertion functionality through film tabs."""
     
     def setUp(self):
-        """Set up test fixtures."""
-        # Initialize pygame for testing
-        pygame.init()
+        """Set up test fixtures with centralized mocks."""
+        # Use centralized mock factory for pygame mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         
         # Create a real animated sprite with frames
         self.animated_sprite = AnimatedSprite()
@@ -253,10 +266,12 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
         # Mock parent scene
         self.mock_scene = Mock()
         self.film_strip.parent_scene = self.mock_scene
-    
+
     def tearDown(self):
-        """Clean up after tests."""
-        pygame.quit()
+        """Clean up test fixtures."""
+        # Stop all patchers
+        for patcher in self.patchers:
+            patcher.stop()
     
     def test_insert_frame_before_first(self):
         """Test inserting a frame before the first frame."""
@@ -378,10 +393,13 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
         # Should have at least 3 frames for spacing test
         self.assertGreaterEqual(len(frame_layouts), 3, "Need at least 3 frames to test spacing")
         
+        # Get sorted frame keys for the test animation (keys are tuples like ("test_anim", 0))
+        frame_keys = sorted([k for k in frame_layouts.keys() if isinstance(k, tuple) and k[0] == "test_anim"])
+        
         # Test spacing between consecutive frames (after the first)
-        for i in range(1, len(frame_layouts)):
-            current_frame = frame_layouts[i]
-            previous_frame = frame_layouts[i-1]
+        for i in range(1, len(frame_keys)):
+            current_frame = frame_layouts[frame_keys[i]]
+            previous_frame = frame_layouts[frame_keys[i-1]]
             
             # Calculate the gap between frames
             # The gap should be: current_frame.x - (previous_frame.x + previous_frame.width)
@@ -392,7 +410,7 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
             actual_gap = current_frame.x - previous_frame_end
             
             self.assertEqual(actual_gap, expected_gap, 
-                           f"Frame {i} should have {expected_gap}px gap from frame {i-1}, "
+                           f"Frame {frame_keys[i]} should have {expected_gap}px gap from frame {frame_keys[i-1]}, "
                            f"but has {actual_gap}px gap")
     
     def test_frame_spacing_with_tabs(self):
@@ -408,19 +426,22 @@ class TestFilmTabFrameInsertion(unittest.TestCase):
         self.assertGreater(len(frame_layouts), 1, "Need multiple frames to test spacing")
         self.assertGreater(len(film_tabs), 0, "Should have film tabs")
         
+        # Get sorted frame keys for the test animation (keys are tuples like ("test_anim", 0))
+        frame_keys = sorted([k for k in frame_layouts.keys() if isinstance(k, tuple) and k[0] == "test_anim"])
+        
         # Test that spacing formula is correct
         # Expected spacing: frame_width + tab_width + 2
         expected_spacing = self.film_strip.frame_width + self.film_strip.tab_width + 2
         
-        for i in range(1, len(frame_layouts)):
-            current_frame = frame_layouts[i]
-            previous_frame = frame_layouts[i-1]
+        for i in range(1, len(frame_keys)):
+            current_frame = frame_layouts[frame_keys[i]]
+            previous_frame = frame_layouts[frame_keys[i-1]]
             
             # Calculate actual spacing
             actual_spacing = current_frame.x - previous_frame.x
             
             self.assertEqual(actual_spacing, expected_spacing,
-                           f"Frame {i} spacing should be {expected_spacing}px "
+                           f"Frame {frame_keys[i]} spacing should be {expected_spacing}px "
                            f"(frame_width + tab_width + 2), but is {actual_spacing}px")
 
 
@@ -428,12 +449,11 @@ class TestFilmTabSceneIntegration(unittest.TestCase):
     """Test film tab integration with the scene system."""
     
     def setUp(self):
-        """Set up test fixtures."""
-        # Initialize pygame for testing
-        pygame.init()
-        
-        # Create a mock surface for testing
-        self.test_surface = pygame.Surface((800, 600))
+        """Set up test fixtures with centralized mocks."""
+        # Use centralized mock factory for pygame mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         
         # Create a real animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -445,14 +465,16 @@ class TestFilmTabSceneIntegration(unittest.TestCase):
         # Add animation
         self.animated_sprite.add_animation("test_anim", [frame1, frame2])
         
-        # Create scene with mock factory
-        with MockFactory.setup_pygame_mocks():
-            self.scene = BitmapEditorScene()
-            self.scene._on_sprite_loaded(self.animated_sprite)
-    
+        # Create scene with mock options
+        mock_options = {"size": "800x600"}
+        self.scene = BitmapEditorScene(mock_options)
+        self.scene._on_sprite_loaded(self.animated_sprite)
+
     def tearDown(self):
-        """Clean up after tests."""
-        pygame.quit()
+        """Clean up test fixtures."""
+        # Stop all patchers
+        for patcher in self.patchers:
+            patcher.stop()
     
     def test_scene_handles_frame_insertion(self):
         """Test that the scene properly handles frame insertion events."""

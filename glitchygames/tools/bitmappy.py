@@ -680,6 +680,15 @@ class FilmStripSprite(BitmappySprite):
         strip sprites need to update every frame, not just when dirty, because
         they contain independent animation timing that must advance continuously.
         """
+        # Debug: Track if this sprite is being updated
+        if not hasattr(self, "_update_count"):
+            self._update_count = 0
+        self._update_count += 1
+        
+        # Debug: Print update count every 100 updates for initial strip
+        if self._update_count % 100 == 0:
+            print(f"FilmStripSprite: Update #{self._update_count} for strip, dirty={self.dirty}")
+        
         # Update animations first to advance frame timing
         # This is the core of the preview animation system - it advances the
         # animation frames based on delta time, allowing smooth preview playback
@@ -726,7 +735,7 @@ class FilmStripSprite(BitmappySprite):
         """Handle mouse clicks on the film strip."""
         print(f"FilmStripSprite: Mouse click at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos) and self.film_strip_widget:
-            print(f"FilmStripSprite: Click is within bounds, converting coordinates")
+            print("FilmStripSprite: Click is within bounds, converting coordinates")
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
@@ -748,9 +757,36 @@ class FilmStripSprite(BitmappySprite):
                 if hasattr(self, "parent_scene") and self.parent_scene:
                     self.parent_scene._on_film_strip_frame_selected(self.film_strip_widget, animation, frame_idx)
             else:
-                print(f"FilmStripSprite: No frame clicked, handle_click returned None")
+                print("FilmStripSprite: No frame clicked, handle_click returned None")
         else:
-            print(f"FilmStripSprite: Click is outside bounds or no widget")
+            print("FilmStripSprite: Click is outside bounds or no widget")
+    
+    def on_key_down_event(self, event):
+        """Handle keyboard events for copy/paste functionality."""
+        if not self.film_strip_widget:
+            return
+            
+        # Check for Ctrl+C (copy)
+        if event.key == pygame.K_c and (event.mod & pygame.KMOD_CTRL):
+            print("FilmStripSprite: Ctrl+C detected - copying current frame")
+            success = self.film_strip_widget.copy_current_frame()
+            if success:
+                print("FilmStripSprite: Frame copied successfully")
+            else:
+                print("FilmStripSprite: Failed to copy frame")
+            return True
+            
+        # Check for Ctrl+V (paste)
+        if event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL):
+            print("FilmStripSprite: Ctrl+V detected - pasting to current frame")
+            success = self.film_strip_widget.paste_to_current_frame()
+            if success:
+                print("FilmStripSprite: Frame pasted successfully")
+            else:
+                print("FilmStripSprite: Failed to paste frame")
+            return True
+            
+        return False
 
     def set_parent_canvas(self, canvas):
         """Set the parent canvas for frame changes."""
@@ -840,7 +876,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         self.animated_sprite = animated_sprite
         # Use the sprite's current animation if set and not empty, otherwise start empty
-        if hasattr(animated_sprite, 'current_animation') and animated_sprite.current_animation and animated_sprite.current_animation != "":
+        if hasattr(animated_sprite, "current_animation") and animated_sprite.current_animation and animated_sprite.current_animation != "":
             self.current_animation = animated_sprite.current_animation
         else:
             self.current_animation = ""  # Start with empty animation
@@ -1629,7 +1665,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(self, "film_strips") and self.film_strips:
             # Clear existing film strips
             for film_strip_sprite in self.film_strip_sprites.values():
-                if hasattr(film_strip_sprite, 'groups') and film_strip_sprite.groups():
+                if hasattr(film_strip_sprite, "groups") and film_strip_sprite.groups():
                     for group in film_strip_sprite.groups():
                         group.remove(film_strip_sprite)
             self.film_strips.clear()
@@ -2139,7 +2175,11 @@ class MiniView(BitmappySprite):
 
 
 class BitmapEditorScene(Scene):
-    """Bitmap Editor Scene."""
+    """Bitmap Editor Scene.
+    
+    The scene expects a 'size' option in the format "WIDTHxHEIGHT" (e.g., "800x600")
+    when initialized. This corresponds to the -s command line parameter.
+    """
 
     log = LOG
 
@@ -2421,6 +2461,7 @@ class BitmapEditorScene(Scene):
             
             # Debug: Check if film strip sprite was added to groups
             self.log.debug(f"Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}")
+            print(f"DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())} groups: {film_strip_sprite.groups()}")
             
             # Connect the film strip to the canvas
             film_strip_sprite.set_parent_canvas(self.canvas)
@@ -2437,7 +2478,7 @@ class BitmapEditorScene(Scene):
             self.film_strip_sprites[anim_name] = film_strip_sprite
             
             # Set backward compatibility attributes (for tests) - use first film strip
-            if not hasattr(self.canvas, 'film_strip') or self.canvas.film_strip is None:
+            if not hasattr(self.canvas, "film_strip") or self.canvas.film_strip is None:
                 self.canvas.film_strip = film_strip
                 self.canvas.film_strip_sprite = film_strip_sprite
             
@@ -2807,6 +2848,7 @@ class BitmapEditorScene(Scene):
         # Create new film strips for the loaded sprite
         if loaded_sprite and loaded_sprite._animations:
             self.log.debug(f"Creating new film strips for loaded sprite with {len(loaded_sprite._animations)} animations")
+            print(f"DEBUG: _on_sprite_loaded recreating {len(loaded_sprite._animations)} film strips")
             
             # Update the canvas to use the loaded sprite's animations
             if hasattr(self, "canvas") and self.canvas:
@@ -2842,7 +2884,14 @@ class BitmapEditorScene(Scene):
 
     def _on_film_strip_frame_selected(self, film_strip_widget, animation, frame):
         """Handle frame selection in a film strip."""
-        print(f"BitmapEditorScene: Frame selected - {animation}[{frame}] in strip {id(film_strip_widget)}")
+        # Find the strip name by looking up the film_strip_widget in film_strips
+        strip_name = "unknown"
+        if hasattr(self, "film_strips") and self.film_strips:
+            for name, strip in self.film_strips.items():
+                if strip == film_strip_widget:
+                    strip_name = name
+                    break
+        print(f"BitmapEditorScene: Frame selected - {animation}[{frame}] in strip '{strip_name}'")
         
         # Update canvas to show the selected frame
         if hasattr(self, "canvas") and self.canvas:
@@ -2875,6 +2924,7 @@ class BitmapEditorScene(Scene):
         Args:
             animation: The animation name where the frame was inserted
             frame_index: The index where the frame was inserted
+
         """
         print(f"BitmapEditorScene: Frame inserted at {animation}[{frame_index}]")
         
@@ -2895,6 +2945,97 @@ class BitmapEditorScene(Scene):
                 # Mark the animated sprite as dirty to ensure animation updates
                 if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
                     strip_widget.animated_sprite.dirty = 2
+    
+    def on_key_down_event(self, event):
+        """Handle keyboard events for copy/paste functionality."""
+        print(f"BitmapEditorScene: on_key_down_event called with key={event.key}, mod={event.mod}")
+        
+        # Check for Ctrl+C (copy) - handle this BEFORE calling parent method
+        if event.key == pygame.K_c and (event.mod & pygame.KMOD_CTRL):
+            print("BitmapEditorScene: [SCENE HANDLER] Ctrl+C detected - copying current frame")
+            print(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
+            print(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
+            success = self._copy_current_frame()
+            if success:
+                print("BitmapEditorScene: [SCENE HANDLER] Frame copied successfully")
+            else:
+                print("BitmapEditorScene: [SCENE HANDLER] Failed to copy frame")
+            return True
+            
+        # Check for Ctrl+V (paste) - handle this BEFORE calling parent method
+        if event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL):
+            print("BitmapEditorScene: [SCENE HANDLER] Ctrl+V detected - pasting to current frame")
+            print(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
+            print(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
+            success = self._paste_to_current_frame()
+            if success:
+                print("BitmapEditorScene: [SCENE HANDLER] Frame pasted successfully")
+            else:
+                print("BitmapEditorScene: [SCENE HANDLER] Failed to paste frame")
+            return True
+        
+        # Call the parent method for other keyboard events
+        return super().on_key_down_event(event)
+    
+    def _copy_current_frame(self) -> bool:
+        """Copy the currently selected frame from the active film strip."""
+        print("BitmapEditorScene: [SCENE COPY] _copy_current_frame called")
+        
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            print("BitmapEditorScene: [SCENE COPY] No film strips available for copying")
+            return False
+            
+        print(f"BitmapEditorScene: [SCENE COPY] Found {len(self.film_strips)} film strips")
+        print(f"BitmapEditorScene: [SCENE COPY] Looking for animation: {getattr(self, 'selected_animation', 'None')}")
+            
+        # Find the active film strip (the one with the current animation)
+        active_film_strip = None
+        if hasattr(self, "selected_animation") and self.selected_animation:
+            for strip_name, film_strip in self.film_strips.items():
+                print(f"BitmapEditorScene: [SCENE COPY] Checking film strip '{strip_name}' with animation '{getattr(film_strip, 'current_animation', 'None')}'")
+                if (hasattr(film_strip, "current_animation") and 
+                    film_strip.current_animation == self.selected_animation):
+                    active_film_strip = film_strip
+                    print(f"BitmapEditorScene: [SCENE COPY] Found active film strip: '{strip_name}'")
+                    break
+        
+        if not active_film_strip:
+            print("BitmapEditorScene: [SCENE COPY] No active film strip found for copying")
+            return False
+            
+        print("BitmapEditorScene: [SCENE COPY] Calling film strip copy method")
+        # Call the film strip's copy method
+        return active_film_strip.copy_current_frame()
+    
+    def _paste_to_current_frame(self) -> bool:
+        """Paste the copied frame to the currently selected frame in the active film strip."""
+        print("BitmapEditorScene: [SCENE PASTE] _paste_to_current_frame called")
+        
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            print("BitmapEditorScene: [SCENE PASTE] No film strips available for pasting")
+            return False
+            
+        print(f"BitmapEditorScene: [SCENE PASTE] Found {len(self.film_strips)} film strips")
+        print(f"BitmapEditorScene: [SCENE PASTE] Looking for animation: {getattr(self, 'selected_animation', 'None')}")
+            
+        # Find the active film strip (the one with the current animation)
+        active_film_strip = None
+        if hasattr(self, "selected_animation") and self.selected_animation:
+            for strip_name, film_strip in self.film_strips.items():
+                print(f"BitmapEditorScene: [SCENE PASTE] Checking film strip '{strip_name}' with animation '{getattr(film_strip, 'current_animation', 'None')}'")
+                if (hasattr(film_strip, "current_animation") and 
+                    film_strip.current_animation == self.selected_animation):
+                    active_film_strip = film_strip
+                    print(f"BitmapEditorScene: [SCENE PASTE] Found active film strip: '{strip_name}'")
+                    break
+        
+        if not active_film_strip:
+            print("BitmapEditorScene: [SCENE PASTE] No active film strip found for pasting")
+            return False
+            
+        print("BitmapEditorScene: [SCENE PASTE] Calling film strip paste method")
+        # Call the film strip's paste method
+        return active_film_strip.paste_to_current_frame()
     
     def _update_film_strip_selection_state(self):
         """Update the selection state of all film strips based on current selection."""
@@ -2936,7 +3077,7 @@ class BitmapEditorScene(Scene):
         
         # Deselect the current strip if there is one
         if hasattr(self, "selected_strip") and self.selected_strip:
-            print(f"BitmapEditorScene: Deselecting current strip")
+            print("BitmapEditorScene: Deselecting current strip")
             self.selected_strip.is_selected = False
             self.selected_strip.current_animation = ""
             self.selected_strip.current_frame = 0

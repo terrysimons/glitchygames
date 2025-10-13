@@ -696,7 +696,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # - Ensure self.dt is being set correctly by the scene manager
         # - Check that film_strip_widget.update_animations() is being called
         for sprite in self.all_sprites:
-            if hasattr(sprite, 'name') and sprite.name == "Film Strip":
+            if hasattr(sprite, "name") and sprite.name == "Film Strip":
                 # Pass delta time to the film strip sprite for proper animation timing
                 # This allows the film strip to advance its animation frames smoothly
                 sprite._last_dt = self.dt

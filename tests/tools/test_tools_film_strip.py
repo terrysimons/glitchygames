@@ -16,6 +16,19 @@ from mocks.test_mock_factory import MockFactory
 class TestFilmStripFunctionality(unittest.TestCase):
     """Test film strip module functionality."""
 
+    def setUp(self):
+        """Set up test fixtures with centralized mocks."""
+        # Use centralized mock factory for pygame mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Stop all patchers
+        for patcher in self.patchers:
+            patcher.stop()
+
     def test_film_strip_initialization(self):
         """Test film strip initialization."""
         # Test basic initialization - FilmStripWidget requires x, y, width, height
@@ -133,7 +146,7 @@ class TestFilmStripFunctionality(unittest.TestCase):
         # Create frames without duration attribute by using simple objects
         frames_without_duration = []
         for i in range(3):
-            frame = type('Frame', (), {})()  # Simple object with no duration attribute
+            frame = type("Frame", (), {})()  # Simple object with no duration attribute
             frame.image = Mock()
             frame.image.get_size.return_value = (32, 32)
             # No duration attribute
@@ -162,7 +175,7 @@ class TestFilmStripFunctionality(unittest.TestCase):
     def test_get_frame_image_no_image_with_pixel_data(self):
         """Test _get_frame_image when frame has no image but has pixel data."""
         # Create a frame without image but with pixel data
-        frame = type('Frame', (), {})()
+        frame = type("Frame", (), {})()
         frame.get_pixel_data = Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
         
         result = film_strip.FilmStripWidget._get_frame_image(frame)
@@ -171,7 +184,7 @@ class TestFilmStripFunctionality(unittest.TestCase):
     def test_get_frame_image_no_image_no_pixel_data(self):
         """Test _get_frame_image when frame has no image and no pixel data."""
         # Create a frame without image or pixel data
-        frame = type('Frame', (), {})()
+        frame = type("Frame", (), {})()
         # No get_pixel_data method
         
         result = film_strip.FilmStripWidget._get_frame_image(frame)
@@ -277,6 +290,60 @@ class TestFilmStripFunctionality(unittest.TestCase):
         # Should update parent sprite height
         strip._update_height()
         assert mock_film_strip_sprite.dirty == 1
+
+    def test_color_cycling_default(self):
+        """Test that the film strip starts with gray as the default background color."""
+        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
+        
+        # Test that the default background color is gray (128, 128, 128)
+        assert strip.background_color == (128, 128, 128)
+        assert strip.background_color_index == 2  # Gray is at index 2
+
+    def test_color_cycling_functionality(self):
+        """Test that color cycling works correctly."""
+        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
+        
+        # Test initial state
+        initial_color = strip.background_color
+        initial_index = strip.background_color_index
+        
+        # Simulate a click that should cycle the color
+        # This would normally happen through handle_click, but we'll test the cycling logic directly
+        strip.background_color_index = (strip.background_color_index + 1) % len(strip.BACKGROUND_COLORS)
+        strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
+        
+        # Verify the color changed
+        assert strip.background_color != initial_color
+        assert strip.background_color_index != initial_index
+        
+        # Test that we can cycle through all colors
+        colors_seen = set()
+        for _ in range(len(strip.BACKGROUND_COLORS)):
+            colors_seen.add(strip.background_color)
+            strip.background_color_index = (strip.background_color_index + 1) % len(strip.BACKGROUND_COLORS)
+            strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
+        
+        # Should have seen all colors
+        assert len(colors_seen) == len(strip.BACKGROUND_COLORS)
+
+    def test_background_colors_list(self):
+        """Test that the background colors list contains expected colors."""
+        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
+        
+        # Test that cyan is still in the list
+        assert (0, 255, 255) in strip.BACKGROUND_COLORS  # Cyan
+        
+        # Test that gray is in the list
+        assert (128, 128, 128) in strip.BACKGROUND_COLORS  # Gray
+        
+        # Test that we have a reasonable number of colors
+        assert len(strip.BACKGROUND_COLORS) >= 4
+        
+        # Test that all colors are valid RGB tuples
+        for color in strip.BACKGROUND_COLORS:
+            assert isinstance(color, tuple)
+            assert len(color) == 3
+            assert all(0 <= component <= 255 for component in color)
 
 
 if __name__ == "__main__":

@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy
-from glitchygames.tools import film_strip
+from glitchygames.tools import bitmappy, film_strip
 
 from mocks.test_mock_factory import MockFactory
 
@@ -35,7 +34,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         mock_sprite = MockFactory.create_animated_sprite_mock()
         
         # Create scene with mock sprite
-        with patch('pygame.display.get_surface') as mock_display:
+        with patch("pygame.display.get_surface") as mock_display:
             mock_display.return_value = Mock()
             mock_display.return_value.get_width.return_value = 800
             mock_display.return_value.get_height.return_value = 600
@@ -63,7 +62,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         mock_sprite = MockFactory.create_animated_sprite_mock()
         
         # Create scene with mock sprite
-        with patch('pygame.display.get_surface') as mock_display:
+        with patch("pygame.display.get_surface") as mock_display:
             mock_display.return_value = Mock()
             mock_display.return_value.get_width.return_value = 800
             mock_display.return_value.get_height.return_value = 600
@@ -91,7 +90,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         mock_sprite = MockFactory.create_animated_sprite_mock()
         
         # Create scene with mock sprite
-        with patch('pygame.display.get_surface') as mock_display:
+        with patch("pygame.display.get_surface") as mock_display:
             mock_display.return_value = Mock()
             mock_display.return_value.get_width.return_value = 800
             mock_display.return_value.get_height.return_value = 600
@@ -118,7 +117,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         mock_sprite = MockFactory.create_animated_sprite_mock()
         
         # Create scene with mock sprite
-        with patch('pygame.display.get_surface') as mock_display:
+        with patch("pygame.display.get_surface") as mock_display:
             mock_display.return_value = Mock()
             mock_display.return_value.get_width.return_value = 800
             mock_display.return_value.get_height.return_value = 600
@@ -199,7 +198,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         animation_name = list(mock_sprite._animations.keys())[0]
         
         # Test click handling
-        with patch.object(film_strip, 'handle_click', return_value=(animation_name, 1)):
+        with patch.object(film_strip, "handle_click", return_value=(animation_name, 1)):
             film_strip_sprite.on_left_mouse_button_down_event(mock_event)
             
             # Should update canvas to show the selected frame
@@ -532,7 +531,7 @@ class TestFilmStripIntegration(unittest.TestCase):
         mock_event.pos = (film_strip_sprite.rect.x + 50, film_strip_sprite.rect.y + 50)
         
         # Test coordinate conversion
-        with patch.object(film_strip_widget, 'handle_click', return_value=("idle", 1)) as mock_handle_click:
+        with patch.object(film_strip_widget, "handle_click", return_value=("idle", 1)) as mock_handle_click:
             film_strip_sprite.on_left_mouse_button_down_event(mock_event)
             
             # Should convert screen coordinates to film strip coordinates

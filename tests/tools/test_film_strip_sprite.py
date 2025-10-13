@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy
-from glitchygames.tools import film_strip
+from glitchygames.tools import bitmappy, film_strip
 
 from mocks.test_mock_factory import MockFactory
 
@@ -169,7 +168,7 @@ class TestFilmStripSprite(unittest.TestCase):
         mock_event.pos = (50, 50)
         
         # Mock the handle_click to return a frame
-        with patch.object(film_strip_widget, 'handle_click', return_value=("idle", 0)):
+        with patch.object(film_strip_widget, "handle_click", return_value=("idle", 0)):
             sprite.on_left_mouse_button_down_event(mock_event)
             
             # Should call parent canvas show_frame
@@ -189,7 +188,7 @@ class TestFilmStripSprite(unittest.TestCase):
         mock_event.pos = (50, 50)
         
         # Mock the handle_click to return None
-        with patch.object(film_strip_widget, 'handle_click', return_value=None):
+        with patch.object(film_strip_widget, "handle_click", return_value=None):
             sprite.on_left_mouse_button_down_event(mock_event)
             
             # Should not call parent canvas show_frame
@@ -238,7 +237,7 @@ class TestFilmStripSprite(unittest.TestCase):
         mock_event.pos = (50, 70)  # Screen coordinates
         
         # Test coordinate conversion
-        with patch.object(film_strip_widget, 'handle_click') as mock_handle_click:
+        with patch.object(film_strip_widget, "handle_click") as mock_handle_click:
             # Configure mock to return proper tuple
             mock_handle_click.return_value = ("idle", 0)
             sprite.on_left_mouse_button_down_event(mock_event)

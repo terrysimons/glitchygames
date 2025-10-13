@@ -945,7 +945,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     if line:
                         line = line + line[-1] * (most_common_length - len(line))
                     else:
-                        line = 'M' * most_common_length  # Default to 'M' for empty lines
+                        line = "M" * most_common_length  # Default to 'M' for empty lines
                 normalized_lines.append(line)
             
             self.log.info(f"    Frame {frame_index}: Normalized to {most_common_length} characters per line")

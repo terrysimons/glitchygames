@@ -1,9 +1,9 @@
 """Tests for film strip navigation and scrolling functionality."""
 
-import pytest
-import pygame
 from unittest.mock import Mock, patch
 
+import pygame
+import pytest
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripWidget
 from tests.mocks.test_mock_factory import MockFactory
