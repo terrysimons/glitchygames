@@ -648,6 +648,12 @@ class FilmStripSprite(BitmappySprite):
 
     def update(self):
         """Update the film strip sprite."""
+        # Update animations first to advance frame timing
+        if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+            # Get delta time from the scene or use a default
+            dt = getattr(self, "_last_dt", 0.016)  # Default to ~60 FPS
+            self.film_strip_widget.update_animations(dt)
+        
         # Always redraw if dirty or if animations are running
         should_redraw = self.dirty
 
@@ -687,15 +693,23 @@ class FilmStripSprite(BitmappySprite):
             film_y = event.pos[1] - self.rect.y
 
             # Handle click in the film strip widget
+            print(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y})")
             clicked_frame = self.film_strip_widget.handle_click((film_x, film_y))
             print(f"FilmStripSprite: Clicked frame: {clicked_frame}")
 
             if clicked_frame:
                 animation, frame_idx = clicked_frame
                 print(f"FilmStripSprite: Loading frame {frame_idx} of animation {animation}")
+                
                 # Notify the canvas to change frame
                 if hasattr(self, "parent_canvas") and self.parent_canvas:
                     self.parent_canvas.show_frame(animation, frame_idx)
+                
+                # Notify the parent scene about the selection change
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    self.parent_scene._on_film_strip_frame_selected(self.film_strip_widget, animation, frame_idx)
+            else:
+                print(f"FilmStripSprite: No frame clicked, handle_click returned None")
         else:
             print(f"FilmStripSprite: Click is outside bounds or no widget")
 
@@ -750,6 +764,10 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Initialize canvas surface and UI components
         self._initialize_canvas_surface(x, y, width, height, groups)
+        
+        # Initialize backward compatibility properties for tests
+        self.film_strip = None
+        self.film_strip_sprite = None
 
     def _initialize_dimensions(
         self, pixels_across: int, pixels_tall: int, pixel_width: int, pixel_height: int
@@ -1035,10 +1053,12 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def show_frame(self, animation: str, frame: int) -> None:
         """Show a specific frame of the animated sprite."""
+        self.log.debug(f"show_frame called: animation={animation}, frame={frame}")
         frames = self.animated_sprite._animations
         if animation in frames and 0 <= frame < len(frames[animation]):
             self.current_animation = animation
             self.current_frame = frame
+            self.log.debug(f"Canvas updated: current_animation={self.current_animation}, current_frame={self.current_frame}")
 
             # Update the animated sprite to the new animation and frame
             if animation != self.animated_sprite.current_animation:
@@ -1047,6 +1067,13 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Update the canvas interface
             self.canvas_interface.set_current_frame(animation, frame)
+            
+            # Notify the parent scene about the frame change
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.log.debug(f"Notifying parent scene about frame change: {animation}[{frame}]")
+                self.parent_scene._update_film_strips_for_frame(animation, frame)
+            else:
+                self.log.debug("No parent scene found to notify about frame change")
 
             # Get the frame data
             frame_obj = frames[animation][frame]
@@ -1081,6 +1108,11 @@ class AnimatedCanvasSprite(BitmappySprite):
             frame_list = frames[self.current_animation]
             self.current_frame = (self.current_frame + 1) % len(frame_list)
             self.show_frame(self.current_animation, self.current_frame)
+            
+            # Notify the parent scene about the frame change
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.log.debug(f"Notifying parent scene about frame change: {self.current_animation}[{self.current_frame}]")
+                self.parent_scene._switch_to_film_strip(self.current_animation, self.current_frame)
 
     def previous_frame(self) -> None:
         """Move to the previous frame in the current animation."""
@@ -1089,24 +1121,49 @@ class AnimatedCanvasSprite(BitmappySprite):
             frame_list = frames[self.current_animation]
             self.current_frame = (self.current_frame - 1) % len(frame_list)
             self.show_frame(self.current_animation, self.current_frame)
+            
+            # Notify the parent scene about the frame change
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.log.debug(f"Notifying parent scene about frame change: {self.current_animation}[{self.current_frame}]")
+                self.parent_scene._switch_to_film_strip(self.current_animation, self.current_frame)
 
     def next_animation(self) -> None:
         """Move to the next animation."""
+        self.log.debug(f"next_animation called, current_animation={self.current_animation}")
         frames = self.animated_sprite._animations
         animations = list(frames.keys())
+        self.log.debug(f"Available animations: {animations}")
         if animations:
             current_index = animations.index(self.current_animation)
             next_index = (current_index + 1) % len(animations)
-            self.show_frame(animations[next_index], 0)
+            next_animation = animations[next_index]
+            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {next_animation} (index {next_index})")
+            self.show_frame(next_animation, 0)
+            self.log.debug(f"After show_frame: current_animation={self.current_animation}, current_frame={self.current_frame}")
+            
+            # Notify the parent scene to switch film strips
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.log.debug(f"Notifying parent scene to switch to film strip {next_animation}")
+                self.parent_scene._switch_to_film_strip(next_animation, 0)
 
     def previous_animation(self) -> None:
         """Move to the previous animation."""
+        self.log.debug(f"previous_animation called, current_animation={self.current_animation}")
         frames = self.animated_sprite._animations
         animations = list(frames.keys())
+        self.log.debug(f"Available animations: {animations}")
         if animations:
             current_index = animations.index(self.current_animation)
             prev_index = (current_index - 1) % len(animations)
-            self.show_frame(animations[prev_index], 0)
+            prev_animation = animations[prev_index]
+            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {prev_animation} (index {prev_index})")
+            self.show_frame(prev_animation, 0)
+            self.log.debug(f"After show_frame: current_animation={self.current_animation}, current_frame={self.current_frame}")
+            
+            # Notify the parent scene to switch film strips
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                self.log.debug(f"Notifying parent scene to switch to film strip {prev_animation}")
+                self.parent_scene._switch_to_film_strip(prev_animation, 0)
 
     def handle_keyboard_event(self, key: int) -> None:
         """Handle keyboard navigation events."""
@@ -2222,6 +2279,13 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites,
         )
 
+        # Set parent scene reference for canvas
+        self.canvas.parent_scene = self
+        
+        # Add backward compatibility properties for tests
+        self.canvas.film_strip = None  # Will be set when film strips are created
+        self.canvas.film_strip_sprite = None  # Will be set when film strips are created
+        
         # Debug: Log canvas position and size
         self.log.info(
             f"AnimatedCanvasSprite created at position "
@@ -2252,6 +2316,7 @@ class BitmapEditorScene(Scene):
         
         # Create a separate film strip for each animation
         for strip_index, (anim_name, frames) in enumerate(animated_sprite._animations.items()):
+            print(f"Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
             # Create a single animated sprite with just this animation
             single_anim_sprite = AnimatedSprite()
             single_anim_sprite._animations = {anim_name: frames}
@@ -2278,6 +2343,11 @@ class BitmapEditorScene(Scene):
             )
             film_strip.set_animated_sprite(single_anim_sprite)
             
+            # Update the layout to calculate frame positions
+            print(f"Updating layout for film strip {strip_index} ({anim_name})")
+            film_strip.update_layout()
+            print(f"Film strip {strip_index} layout updated, frame_layouts has {len(film_strip.frame_layouts)} entries")
+            
             # Set parent scene reference for selection handling
             film_strip.parent_scene = self
             
@@ -2301,12 +2371,20 @@ class BitmapEditorScene(Scene):
             film_strip_sprite.set_parent_canvas(self.canvas)
             film_strip.set_parent_canvas(self.canvas)
             
+            # Set parent scene reference for the film strip sprite
+            film_strip_sprite.parent_scene = self
+            
             # Set up bidirectional reference between film strip widget and sprite
             film_strip.film_strip_sprite = film_strip_sprite
             film_strip_sprite.film_strip_widget = film_strip
             
             # Store the film strip sprite
             self.film_strip_sprites[anim_name] = film_strip_sprite
+            
+            # Set backward compatibility attributes (for tests) - use first film strip
+            if not hasattr(self.canvas, 'film_strip') or self.canvas.film_strip is None:
+                self.canvas.film_strip = film_strip
+                self.canvas.film_strip_sprite = film_strip_sprite
             
             # Move to next strip position
             current_y += film_strip.rect.height + strip_spacing
@@ -2369,24 +2447,28 @@ class BitmapEditorScene(Scene):
         
         # Hide all strips first
         for anim_name, film_strip in self.film_strips.items():
-            if hasattr(film_strip, "film_strip_sprite") and film_strip.film_strip_sprite:
-                film_strip.film_strip_sprite.visible = False
+            if hasattr(self, "film_strip_sprites") and anim_name in self.film_strip_sprites:
+                self.film_strip_sprites[anim_name].visible = False
         
         # Show only the visible strips and position them in fixed slots
         for i in range(start_index, end_index):
             if i < len(animation_names):
                 anim_name = animation_names[i]
-                if anim_name in self.film_strips:
+                if anim_name in self.film_strips and anim_name in self.film_strip_sprites:
                     film_strip = self.film_strips[anim_name]
-                    if hasattr(film_strip, "film_strip_sprite") and film_strip.film_strip_sprite:
-                        # Position in fixed slot (0 or 1)
-                        slot_index = i - start_index
-                        fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
-                        
-                        # Update positions
-                        film_strip.rect.y = fixed_y
-                        film_strip.film_strip_sprite.rect.y = fixed_y
-                        film_strip.film_strip_sprite.visible = True
+                    film_strip_sprite = self.film_strip_sprites[anim_name]
+                    
+                    # Position in fixed slot (0 or 1)
+                    slot_index = i - start_index
+                    fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
+                    
+                    # Update positions
+                    film_strip.rect.y = fixed_y
+                    film_strip_sprite.rect.y = fixed_y
+                    film_strip_sprite.visible = True
+                    
+                    # Mark as dirty to ensure redraw
+                    film_strip_sprite.dirty = 2
         
         # Update scroll arrows
         self._update_scroll_arrows()
@@ -2469,20 +2551,23 @@ class BitmapEditorScene(Scene):
                 self.scroll_down_arrow.visible = should_show
                 self.scroll_down_arrow.dirty = 1
     
-    def _add_new_single_frame_animation(self):
-        """Add a new single-frame animation and scroll to it."""
+    def _add_new_animation(self):
+        """Add a new animation (film strip) and scroll to it."""
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
             
-        # Create a new single-frame animation
+        # Create a new animation (film strip)
         new_animation_name = f"frame_{len(self.canvas.animated_sprite._animations) + 1}"
         
-        # Create a single frame with the current canvas content
-        current_frame = self.canvas.get_canvas_surface()
-        if current_frame:
-            # Convert to the same format as other frames
-            frame_surface = pygame.Surface((current_frame.get_width(), current_frame.get_height()))
-            frame_surface.blit(current_frame, (0, 0))
+        # Create a blank frame for the new animation
+        if hasattr(self, "canvas") and self.canvas:
+            # Get the canvas pixel dimensions (same as original canvas)
+            pixels_across = self.canvas.pixels_across
+            pixels_tall = self.canvas.pixels_tall
+            
+            # Create a blank frame surface with magenta background
+            frame_surface = pygame.Surface((pixels_across, pixels_tall))
+            frame_surface.fill((255, 0, 255))  # Magenta background
             
             # Create a proper animated sprite frame object
             from glitchygames.sprites.animated import SpriteFrame
@@ -2506,9 +2591,16 @@ class BitmapEditorScene(Scene):
             self._update_film_strip_visibility()
             self._update_scroll_arrows()
             
-            # Select the new frame
+            # Select the new frame and notify the canvas
             self.selected_animation = new_animation_name
             self.selected_frame = 0
+            
+            # Notify the canvas to switch to the new frame
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.show_frame(new_animation_name, 0)
+                # Force the canvas to redraw with the new frame
+                self.canvas.dirty = 1
+                self.canvas.force_redraw()
 
     @staticmethod
     def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict) -> None:
@@ -2650,15 +2742,35 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strips") and self.film_strips:
             self.log.debug(f"Clearing {len(self.film_strips)} existing film strips")
             for film_strip_sprite in self.film_strip_sprites.values():
-                if hasattr(film_strip_sprite, 'groups') and film_strip_sprite.groups():
-                    for group in film_strip_sprite.groups():
-                        group.remove(film_strip_sprite)
+                film_strip_sprite.kill()
             self.film_strips.clear()
             self.film_strip_sprites.clear()
             
         # Create new film strips for the loaded sprite
         if loaded_sprite and loaded_sprite._animations:
             self.log.debug(f"Creating new film strips for loaded sprite with {len(loaded_sprite._animations)} animations")
+            
+            # Update the canvas to use the loaded sprite's animations
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.animated_sprite = loaded_sprite
+                # Set the canvas to show the first frame of the first animation
+                first_animation = list(loaded_sprite._animations.keys())[0]
+                self.canvas.current_animation = first_animation
+                self.canvas.current_frame = 0
+                
+                # Note: The loaded sprite will be configured to play by the film strip widgets
+                # The canvas should remain static for editing
+                
+                # Initialize pixels if needed (for mock sprites)
+                self.log.debug(f"Checking canvas pixels: has_pixels={hasattr(self.canvas, 'pixels')}, is_list={isinstance(getattr(self.canvas, 'pixels', None), list)}")
+                if not hasattr(self.canvas, "pixels") or not isinstance(self.canvas.pixels, list):
+                    self.log.debug("Initializing canvas pixels")
+                    # Create a blank pixel array
+                    pixel_count = self.canvas.pixels_across * self.canvas.pixels_tall
+                    self.canvas.pixels = [(255, 0, 255)] * pixel_count  # Magenta background
+                    self.canvas.dirty_pixels = [True] * pixel_count
+                    self.log.debug(f"Canvas pixels initialized: len={len(self.canvas.pixels)}")
+            
             self._create_multiple_film_strips(self.all_sprites)
             self.log.debug("Film strips created for loaded sprite")
             
@@ -2682,24 +2794,151 @@ class BitmapEditorScene(Scene):
         # Store global selection state
         self.selected_animation = animation
         self.selected_frame = frame
+        
+        # Update film strip selection state
+        self._update_film_strip_selection_state()
         self.selected_strip = film_strip_widget
         
         # Mark all film strips as dirty so they redraw with correct selection state
         if hasattr(self, "film_strips") and self.film_strips:
             for strip_name, strip_widget in self.film_strips.items():
                 strip_widget.mark_dirty()
+                # Mark the film strip sprite as dirty=2 for full surface blit
+                if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
+                    self.film_strip_sprites[strip_name].dirty = 2
+                    
+                # Mark the animated sprite as dirty to ensure animation updates
+                if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
+                    strip_widget.animated_sprite.dirty = 2
+    
+    def _update_film_strip_selection_state(self):
+        """Update the selection state of all film strips based on current selection."""
+        if not hasattr(self, "film_strips") or not self.film_strips:
+            return
+            
+        current_animation = getattr(self, "selected_animation", "")
+        current_frame = getattr(self, "selected_frame", 0)
+        
+        for strip_name, strip_widget in self.film_strips.items():
+            if strip_name == current_animation:
+                # This is the selected strip - mark it as selected
+                strip_widget.is_selected = True
+                strip_widget.current_animation = current_animation
+                strip_widget.current_frame = current_frame
+                print(f"BitmapEditorScene: Marking strip {strip_name} as selected with frame {current_frame}")
+            else:
+                # This is not the selected strip - deselect it
+                strip_widget.is_selected = False
+                strip_widget.current_animation = ""
+                strip_widget.current_frame = 0
+                print(f"BitmapEditorScene: Deselecting strip {strip_name}")
+            
+            # Mark the strip as dirty to trigger full redraw
+            strip_widget.mark_dirty()
+            # Also mark the film strip sprite as dirty=2 for full surface blit
+            if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
+                self.film_strip_sprites[strip_name].dirty = 2
+                
+            # Mark the animated sprite as dirty to ensure animation updates
+            if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
+                strip_widget.animated_sprite.dirty = 2
+    
+    def _switch_to_film_strip(self, animation_name: str, frame: int = 0):
+        """Switch to a specific film strip and frame, deselecting the previous one."""
+        print(f"BitmapEditorScene: Switching to film strip {animation_name}[{frame}]")
+        
+        # Deselect the current strip if there is one
+        if hasattr(self, "selected_strip") and self.selected_strip:
+            print(f"BitmapEditorScene: Deselecting current strip")
+            self.selected_strip.is_selected = False
+            self.selected_strip.current_animation = ""
+            self.selected_strip.current_frame = 0
+            self.selected_strip.mark_dirty()
+            # Mark the film strip sprite as dirty=2 for full surface blit
+            if hasattr(self, "film_strip_sprites"):
+                for strip_name, strip_sprite in self.film_strip_sprites.items():
+                    if strip_sprite.film_strip_widget == self.selected_strip:
+                        strip_sprite.dirty = 2
+                        break
+            
+            # Mark the animated sprite as dirty to ensure animation updates
+            if hasattr(self.selected_strip, "animated_sprite") and self.selected_strip.animated_sprite:
+                self.selected_strip.animated_sprite.dirty = 2
+        
+        # Select the new strip
+        if hasattr(self, "film_strips") and animation_name in self.film_strips:
+            new_strip = self.film_strips[animation_name]
+            new_strip.is_selected = True
+            new_strip.current_animation = animation_name
+            new_strip.current_frame = frame
+            new_strip.mark_dirty()
+            
+            # Mark the new film strip sprite as dirty=2 for full surface blit
+            if hasattr(self, "film_strip_sprites") and animation_name in self.film_strip_sprites:
+                self.film_strip_sprites[animation_name].dirty = 2
+                
+            # Mark the animated sprite as dirty to ensure animation updates
+            if hasattr(new_strip, "animated_sprite") and new_strip.animated_sprite:
+                new_strip.animated_sprite.dirty = 2
+            
+            # Update global selection state
+            self.selected_animation = animation_name
+            self.selected_frame = frame
+            self.selected_strip = new_strip
+            
+            # Update canvas to show the selected frame
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.show_frame(animation_name, frame)
+            
+            print(f"BitmapEditorScene: Selected strip {animation_name} with frame {frame}")
+        else:
+            print(f"BitmapEditorScene: Film strip {animation_name} not found")
+    
+    def _scroll_to_current_animation(self):
+        """Scroll the film strip view to show the currently selected animation if it's not visible."""
+        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+            return
+            
+        # Get the current animation name
+        current_animation = self.canvas.current_animation
+        if not current_animation:
+            return
+            
+        # Get all animation names in order
+        animation_names = list(self.canvas.animated_sprite._animations.keys())
+        if current_animation not in animation_names:
+            return
+            
+        # Find the index of the current animation
+        current_index = animation_names.index(current_animation)
+        
+        # Calculate the scroll offset needed to show this animation
+        # We want to show the current animation in the visible area
+        if current_index < self.film_strip_scroll_offset:
+            # Current animation is above the visible area, scroll up
+            self.film_strip_scroll_offset = current_index
+            self.log.debug(f"Scrolling up to show animation {current_animation} at index {current_index}")
+        elif current_index >= self.film_strip_scroll_offset + self.max_visible_strips:
+            # Current animation is below the visible area, scroll down
+            self.film_strip_scroll_offset = current_index - self.max_visible_strips + 1
+            self.log.debug(f"Scrolling down to show animation {current_animation} at index {current_index}")
+        else:
+            # Current animation is already visible, no scrolling needed
+            self.log.debug(f"Animation {current_animation} is already visible at index {current_index}")
+            return
+        
+        # Update visibility and scroll arrows
+        self._update_film_strip_visibility()
+        self._update_scroll_arrows()
+        
+        # Update the film strip selection to show the current frame
+        self._update_film_strip_selection()
     
     def scroll_film_strips_up(self):
         """Scroll film strips up (show earlier animations)."""
         if hasattr(self, "film_strip_scroll_offset") and self.film_strip_scroll_offset > 0:
             self.film_strip_scroll_offset -= 1
             self._update_film_strip_visibility()
-            
-            # Select the first visible film strip
-            self._select_first_visible_film_strip()
-        else:
-            # No scrolling needed, just select the first visible film strip
-            self._select_first_visible_film_strip()
     
     def _select_first_visible_film_strip(self):
         """Select the first visible film strip and set its frame 0 as active."""
@@ -2721,6 +2960,11 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "canvas") and self.canvas:
                 self.canvas.show_frame(first_visible_animation, 0)
             
+            # Update the film strip widget to show the correct frame selection
+            if first_visible_animation in self.film_strips:
+                film_strip_widget = self.film_strips[first_visible_animation]
+                film_strip_widget.set_current_frame(first_visible_animation, 0)
+            
             # Update global selection state
             self.selected_animation = first_visible_animation
             self.selected_frame = 0
@@ -2740,12 +2984,6 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "film_strip_scroll_offset") and self.film_strip_scroll_offset < max_scroll:
                 self.film_strip_scroll_offset += 1
                 self._update_film_strip_visibility()
-                
-                # Select the last visible film strip
-                self._select_last_visible_film_strip()
-            else:
-                # No scrolling needed, just select the last visible film strip
-                self._select_last_visible_film_strip()
     
     def _select_last_visible_film_strip(self):
         """Select the last visible film strip and set its frame 0 as active."""
@@ -2769,6 +3007,11 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "canvas") and self.canvas:
                 self.canvas.show_frame(last_visible_animation, 0)
             
+            # Update the film strip widget to show the correct frame selection
+            if last_visible_animation in self.film_strips:
+                film_strip_widget = self.film_strips[last_visible_animation]
+                film_strip_widget.set_current_frame(last_visible_animation, 0)
+            
             # Update global selection state
             self.selected_animation = last_visible_animation
             self.selected_frame = 0
@@ -2780,15 +3023,22 @@ class BitmapEditorScene(Scene):
 
     def _update_film_strips_for_frame(self, animation: str, frame: int) -> None:
         """Update film strips when frame changes."""
+        self.log.debug(f"_update_film_strips_for_frame called: animation={animation}, frame={frame}")
         if hasattr(self, "film_strips") and self.film_strips:
+            self.log.debug(f"Found {len(self.film_strips)} film strips: {list(self.film_strips.keys())}")
             # Update the film strip for the current animation
             if animation in self.film_strips:
                 film_strip = self.film_strips[animation]
+                self.log.debug(f"Updating film strip for animation {animation}")
+                # Directly update the selection without triggering handlers to avoid infinite loops
                 film_strip.current_animation = animation
                 film_strip.current_frame = frame
                 film_strip.update_scroll_for_frame(frame)
                 film_strip.update_layout()
                 film_strip.mark_dirty()
+                self.log.debug(f"Film strip updated: current_animation={film_strip.current_animation}, current_frame={film_strip.current_frame}")
+            else:
+                self.log.debug(f"Animation {animation} not found in film strips")
                 
             # Mark all film strip sprites as dirty
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
@@ -2824,6 +3074,63 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
             for film_strip_sprite in self.film_strip_sprites.values():
                 film_strip_sprite.dirty = 1
+
+    def _scroll_to_current_animation(self) -> None:
+        """Scroll film strips to show the current animation."""
+        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+            return
+            
+        # Get the current animation name
+        current_animation = self.canvas.current_animation
+        if not current_animation:
+            return
+            
+        # Get all animation names in order
+        animation_names = list(self.canvas.animated_sprite._animations.keys())
+        if current_animation not in animation_names:
+            return
+            
+        # Find the index of the current animation
+        current_index = animation_names.index(current_animation)
+        
+        # Calculate the scroll offset needed to show this animation
+        # We want to show the current animation in the visible area
+        if current_index < self.film_strip_scroll_offset:
+            # Current animation is above the visible area, scroll up
+            self.film_strip_scroll_offset = current_index
+        elif current_index >= self.film_strip_scroll_offset + self.max_visible_strips:
+            # Current animation is below the visible area, scroll down
+            self.film_strip_scroll_offset = current_index - self.max_visible_strips + 1
+        
+        # Update visibility and scroll arrows
+        self._update_film_strip_visibility()
+        self._update_scroll_arrows()
+        
+        # Update the film strip selection to show the current frame
+        self._update_film_strip_selection()
+
+    def _update_film_strip_selection(self) -> None:
+        """Update film strip selection to show the current animation and frame."""
+        if not hasattr(self, "canvas") or not self.canvas:
+            return
+            
+        # Get the current animation and frame
+        current_animation = self.canvas.current_animation
+        current_frame = self.canvas.current_frame
+        
+        # Update all film strips
+        if hasattr(self, "film_strips") and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == current_animation:
+                    # This is the current animation - set it as selected
+                    strip_widget.set_current_frame(current_animation, current_frame)
+                    # Call the selection handler to update the scene state
+                    self._on_film_strip_frame_selected(strip_widget, current_animation, current_frame)
+                else:
+                    # This is not the current animation - clear selection
+                    strip_widget.current_animation = ""
+                    strip_widget.current_frame = 0
+                    strip_widget.mark_dirty()
 
     def __init__(self, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize the Bitmap Editor Scene.
@@ -3191,18 +3498,28 @@ class BitmapEditorScene(Scene):
                 print(f"Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}")
                 if sprite.direction == "plus":
                     # Clicked on the plus sign - add new frame
-                    print("Adding new single-frame animation")
-                    self._add_new_single_frame_animation()
+                    print("Adding new animation")
+                    self._add_new_animation()
                     return
                 elif sprite.direction == "up":
-                    # Clicked on up arrow - scroll up
-                    print("Scrolling film strips up")
-                    self.scroll_film_strips_up()
+                    # Clicked on up arrow - navigate to previous animation and scroll if needed
+                    print("Navigating to previous animation")
+                    if hasattr(self, "canvas") and self.canvas:
+                        self.canvas.previous_animation()
+                        # Scroll to show the current animation if needed
+                        self._scroll_to_current_animation()
+                        # Update film strips to reflect the animation change
+                        self._update_film_strips_for_animated_sprite_update()
                     return
                 elif sprite.direction == "down":
-                    # Clicked on down arrow - scroll down
-                    print("Scrolling film strips down")
-                    self.scroll_film_strips_down()
+                    # Clicked on down arrow - navigate to next animation and scroll if needed
+                    print("Navigating to next animation")
+                    if hasattr(self, "canvas") and self.canvas:
+                        self.canvas.next_animation()
+                        # Scroll to show the current animation if needed
+                        self._scroll_to_current_animation()
+                        # Update film strips to reflect the animation change
+                        self._update_film_strips_for_animated_sprite_update()
                     return
 
         # Handle other sprite clicks
@@ -3874,12 +4191,24 @@ class BitmapEditorScene(Scene):
             self.debug_text.on_key_down_event(event)
             return
 
-        # Handle film strip scrolling
+        # Handle animation navigation and film strip scrolling (UP/DOWN arrows)
         if event.key == pygame.K_UP:
-            self.scroll_film_strips_up()
+            self.log.debug("UP arrow pressed - navigating to previous animation")
+            if hasattr(self, "canvas") and self.canvas:
+                # Navigate to previous animation
+                self.canvas.previous_animation()
+                
+                # Check if we need to scroll the film strip view to show the selected animation
+                self._scroll_to_current_animation()
             return
         elif event.key == pygame.K_DOWN:
-            self.scroll_film_strips_down()
+            self.log.debug("DOWN arrow pressed - navigating to next animation")
+            if hasattr(self, "canvas") and self.canvas:
+                # Navigate to next animation
+                self.canvas.next_animation()
+                
+                # Check if we need to scroll the film strip view to show the selected animation
+                self._scroll_to_current_animation()
             return
         
         # Check if we have an animated canvas
@@ -3910,8 +4239,19 @@ class BitmapEditorScene(Scene):
         )
         parser.add_argument("-s", "--size", default="32x32")
 
+    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
+        """Handle scene-level key events."""
+        self.log.debug(f"Scene-level key event: {event.key}")
+        
+        # Call our custom keyboard handler
+        self.on_key_down_event(event)
+    
     def handle_event(self, event):
         """Handle pygame events."""
+        # Debug logging for keyboard events
+        if event.type == pygame.KEYDOWN:
+            self.log.debug(f"KEYDOWN event received in handle_event: key={event.key}")
+        
         super().handle_event(event)
 
         if event.type == pygame.WINDOWLEAVE:

@@ -34,6 +34,7 @@ class FilmStripWidget:
         self.animated_sprite: AnimatedSprite | None = None
         self.current_animation = ""  # Will be set when sprite is loaded
         self.current_frame = 0
+        self.is_selected = False  # Track if this film strip is currently selected
         self.hovered_frame: tuple[str, int] | None = None
         self.hovered_animation: str | None = None
         
@@ -90,6 +91,11 @@ class FilmStripWidget:
             else:
                 # Fall back to the first key in _animations
                 self.current_animation = next(iter(animated_sprite._animations.keys()))
+            
+            # Configure the animated sprite to loop and start playing for preview
+            animated_sprite.set_animation(self.current_animation)
+            animated_sprite.is_looping = True  # Enable looping for continuous preview
+            animated_sprite.play()  # Start playing the animation
         else:
             self.current_animation = ""
         self.current_frame = 0
@@ -404,6 +410,7 @@ class FilmStripWidget:
             # Show frames up to the maximum that can fit before overlapping animation box
             # Always show at least 1 frame, but limit to max_frames_before_overlap
             frames_to_show = frames[:max_frames_before_overlap] if max_frames_before_overlap > 0 else frames[:1]
+            print(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name}")
             for frame_idx, _frame in enumerate(frames_to_show):
                 frame_x = sprocket_start_x + frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset - 1
                 # For single animation, all frames should be at the same Y position
@@ -415,6 +422,7 @@ class FilmStripWidget:
                     self.frame_width,
                     self.frame_height,
                 )
+                print(f"FilmStripWidget: Created frame rect for {anim_name}[{frame_idx}] at {frame_rect}")
                 self.frame_layouts[anim_name, frame_idx] = frame_rect
             
             # Only increment Y offset if there are multiple animations
@@ -476,9 +484,13 @@ class FilmStripWidget:
 
     def get_frame_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Get the animation and frame at the given position."""
+        print(f"FilmStripWidget: Checking position {pos} against {len(self.frame_layouts)} frame layouts")
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
+            print(f"FilmStripWidget: Checking {anim_name}[{frame_idx}] at {frame_rect}")
             if frame_rect.collidepoint(pos):
+                print(f"FilmStripWidget: Found collision with {anim_name}[{frame_idx}]")
                 return (anim_name, frame_idx)
+        print(f"FilmStripWidget: No collision found")
         return None
 
     def get_animation_at_position(self, pos: tuple[int, int]) -> str | None:
@@ -508,10 +520,14 @@ class FilmStripWidget:
 
     def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Handle a click on the film strip."""
+        print(f"FilmStripWidget: handle_click called with position {pos}")
+        print(f"FilmStripWidget: frame_layouts has {len(self.frame_layouts)} entries")
+        
         # Check if clicking on a frame
         clicked_frame = self.get_frame_at_position(pos)
         if clicked_frame:
             animation, frame_idx = clicked_frame
+            print(f"FilmStripWidget: Frame clicked, calling set_current_frame({animation}, {frame_idx})")
             self.set_current_frame(animation, frame_idx)
             return clicked_frame
 
@@ -519,8 +535,11 @@ class FilmStripWidget:
         clicked_animation = self.get_animation_at_position(pos)
         if clicked_animation and clicked_animation in self.animated_sprite._animations:
             # Switch to first frame of that animation
+            print(f"FilmStripWidget: Animation clicked, calling set_current_frame({clicked_animation}, 0)")
             self.set_current_frame(clicked_animation, 0)
             return (clicked_animation, 0)
+        
+        print(f"FilmStripWidget: No frame or animation clicked")
         return None
 
     def handle_hover(self, pos: tuple[int, int]) -> None:

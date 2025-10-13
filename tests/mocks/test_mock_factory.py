@@ -5,6 +5,7 @@ across all test files, reducing code duplication and ensuring proper mock config
 """
 
 from unittest.mock import Mock, patch
+import pygame
 
 from glitchygames.sprites import AnimatedSprite
 
@@ -78,7 +79,6 @@ class MockFactory:
             mock_frames.append(frame)
         
         mock_sprite._animations = {animation_name: mock_frames}
-        mock_sprite._animation_order = [animation_name]
         mock_sprite.current_animation = ""  # Start with empty animation
         mock_sprite.current_frame = 0  # Start with frame 0
         mock_sprite.is_playing = is_playing
@@ -156,6 +156,52 @@ class MockFactory:
         mock_sprite._frame_manager.animated_sprite = mock_sprite
 
         return mock_sprite
+    
+    def create_canvas_mock(self, pixels_across: int = 32, pixels_tall: int = 32) -> Mock:
+        """Create a properly configured canvas mock.
+        
+        Args:
+            pixels_across: Width of the canvas in pixels (default: 32)
+            pixels_tall: Height of the canvas in pixels (default: 32)
+            
+        Returns:
+            Properly configured canvas mock
+        """
+        mock_canvas = Mock()
+        
+        # Set up canvas dimensions
+        mock_canvas.pixels_across = pixels_across
+        mock_canvas.pixels_tall = pixels_tall
+        
+        # Create a real pixel array with magenta background
+        pixel_count = pixels_across * pixels_tall
+        mock_canvas.pixels = [(255, 0, 255)] * pixel_count  # Magenta background
+        mock_canvas.dirty_pixels = [True] * pixel_count
+        
+        # Set up canvas properties with real values
+        mock_canvas.current_animation = ""
+        mock_canvas.current_frame = 0
+        mock_canvas.animated_sprite = None
+        
+        # Set up rect with real values
+        mock_canvas.rect = Mock()
+        mock_canvas.rect.x = 0
+        mock_canvas.rect.y = 0
+        mock_canvas.rect.width = pixels_across * 16  # pixel_size * pixels_across
+        mock_canvas.rect.height = pixels_tall * 16   # pixel_size * pixels_tall
+        mock_canvas.rect.right = mock_canvas.rect.x + mock_canvas.rect.width
+        mock_canvas.rect.y = 0
+        
+        # Set up other canvas attributes that might be used in arithmetic
+        mock_canvas.pixel_size = 16
+        mock_canvas.background_color = (255, 0, 255)
+        
+        # Mock methods
+        mock_canvas.show_frame = Mock()
+        mock_canvas.force_redraw = Mock()
+        mock_canvas.mark_dirty = Mock()
+        
+        return mock_canvas
 
     @staticmethod
     def create_sprite_frame_mock(
@@ -500,6 +546,20 @@ class MockFactory:
         draw_line_patcher = patch("pygame.draw.line")
         draw_rect_patcher = patch("pygame.draw.rect")
         
+        # Draw function mocking - create mocks that handle MockSurface objects
+        import pygame
+        original_draw_polygon = pygame.draw.polygon
+        
+        def mock_draw_polygon(surface, color, points, width=0):
+            """Mock pygame.draw.polygon that handles MockSurface objects."""
+            if hasattr(surface, '_surface'):
+                # Use the original pygame.draw.polygon directly to avoid recursion
+                return original_draw_polygon(surface._surface, color, points, width)
+            else:
+                return original_draw_polygon(surface, color, points, width)
+        
+        draw_polygon_patcher = patch("pygame.draw.polygon", side_effect=mock_draw_polygon)
+        
         # Sound/mixer mocking
         mixer_mock = Mock()
         mixer_mock.Sound.return_value = Mock()
@@ -518,9 +578,92 @@ class MockFactory:
             return pygame.Surface(size)
         transform_scale_patcher = patch("pygame.transform.scale", side_effect=mock_transform_scale)
         
-        # FontManager mock - create a mock font that returns a mock surface
+        # Surface mocking - create real surfaces for drawing operations
+        class MockSurface:
+            """Wrapper around pygame.Surface that provides mockable convert methods."""
+            def __init__(self, *args, **kwargs):
+                import pygame
+                if not pygame.get_init():
+                    pygame.init()
+                self._surface = pygame.surface.Surface(*args, **kwargs)
+                # Copy all attributes from the real surface
+                for attr in dir(self._surface):
+                    if not attr.startswith("_") and not callable(getattr(self._surface, attr)):
+                        setattr(self, attr, getattr(self._surface, attr))
+            
+            def __getattr__(self, name):
+                """Delegate attribute access to the real surface."""
+                return getattr(self._surface, name)
+            
+            def convert(self, *args, **kwargs):
+                """Mock convert method that returns self."""
+                return self
+            
+            def convert_alpha(self, *args, **kwargs):
+                """Mock convert_alpha method that returns self."""
+                return self
+            
+            def blit(self, source, dest, area=None, special_flags=0):
+                """Delegate blit to the real surface."""
+                # Handle MockSurface sources by extracting their real surface
+                if hasattr(source, '_surface'):
+                    source = source._surface
+                return self._surface.blit(source, dest, area, special_flags)
+            
+            def fill(self, color, rect=None, special_flags=0):
+                """Delegate fill to the real surface."""
+                return self._surface.fill(color, rect, special_flags)
+            
+            def get_rect(self, **kwargs):
+                """Delegate get_rect to the real surface."""
+                return self._surface.get_rect(**kwargs)
+        
+        def mock_surface_constructor(*args, **kwargs):
+            """Mock pygame.Surface constructor that returns a MockSurface."""
+            return MockSurface(*args, **kwargs)
+        surface_constructor_patcher = patch("pygame.Surface", side_effect=mock_surface_constructor)
+        
+        # FontManager mock - create a mock font that returns a proper surface
         mock_font = Mock()
-        mock_font.render = Mock(return_value=Mock())
+        
+        # Create a mock surface for text rendering that handles all render signatures
+        def mock_render(*args, **kwargs):
+            # Handle different render method signatures
+            if len(args) >= 1:
+                text = str(args[0])
+            else:
+                text = "Mock"
+            
+            # Create a real surface for text rendering
+            import pygame
+            if not pygame.get_init():
+                pygame.init()
+            
+            # Create a real surface with approximate text dimensions
+            width = len(text) * 8  # Approximate text width
+            height = 16  # Default height
+            surface = pygame.Surface((width, height), pygame.SRCALPHA)
+            surface.fill((0, 0, 0, 0))  # Transparent background
+            
+            # Create a real rect for the text
+            text_rect = pygame.Rect(0, 0, width, height)
+            surface.get_rect = Mock(return_value=text_rect)
+            
+            # Handle different return types (surface vs (surface, rect))
+            if 'fgcolor' in kwargs or len(args) >= 2:
+                # pygame.freetype style - return (surface, rect)
+                return surface, text_rect
+            else:
+                # pygame.font style - return surface
+                return surface
+        
+        # Handle both render and render_to methods
+        mock_font.render = mock_render
+        mock_font.render_to = Mock(return_value=Mock())
+        
+        # Add other font methods that might be called
+        mock_font.get_linesize.return_value = 16
+        mock_font.size = Mock(return_value=(100, 16))  # (width, height)
         
         # Image module mock - create a mock for pygame.image.tostring
         def mock_image_tostring(surface, format_str):
@@ -629,7 +772,7 @@ class MockFactory:
 
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher, 
-                draw_rect_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
+                draw_rect_patcher, draw_polygon_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
                 sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -652,7 +795,7 @@ class MockFactory:
         """
         (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-         draw_rect_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
+         draw_rect_patcher, draw_polygon_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,
          sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -676,7 +819,9 @@ class MockFactory:
         draw_circle_patcher.stop()
         draw_line_patcher.stop()
         draw_rect_patcher.stop()
+        draw_polygon_patcher.stop()
         transform_scale_patcher.stop()
+        surface_constructor_patcher.stop()
         font_manager_patcher.stop()
         clock_patcher.stop()
         sprite_patcher.stop()
