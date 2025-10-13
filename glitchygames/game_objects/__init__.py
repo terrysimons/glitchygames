@@ -1,24 +1,15 @@
 # ruff: noqa: D104
 from __future__ import annotations
 
-from pathlib import Path
+from .ball import BallSprite
+from .paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
+from .sounds import SFX, load_sound
 
-import pygame.mixer
-
-
-# Load sound files
-def load_sound(snd_file: str, volume: float = 0.25) -> pygame.mixer.Sound:
-    """Load a sound file.
-
-    Args:
-        snd_file (str): The sound file to load.
-        volume (float): The volume to set the sound to.
-
-    Returns:
-        pygame.mixer.Sound: The sound object.
-
-    """
-    path: Path = Path(__file__).parent / "snd_files" / snd_file
-    sound = pygame.mixer.Sound(path)
-    sound.set_volume(volume)
-    return sound
+__all__ = [
+    "BallSprite",
+    "BasePaddle", 
+    "HorizontalPaddle",
+    "VerticalPaddle",
+    "SFX",
+    "load_sound",
+]

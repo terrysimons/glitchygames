@@ -811,7 +811,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for y in range(height):
             for x in range(width):
                 color = surface.get_at((x, y))
-                frame.pixels.append((color.r, color.g, color.b))
+                frame.pixels.append((color[0], color[1], color[2]))
 
         # Create a single animation with one frame
         animation_name = sprite_data.get("name", "idle")
@@ -886,8 +886,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug(f"    Skipping empty frame {frame_index}")
             return None
 
-        width, height = self._validate_toml_frame_dimensions(pixel_lines, frame_index)
-        surface = AnimatedSprite._create_toml_surface(width, height, pixel_lines, color_map)
+        width, height, normalized_lines = self._validate_toml_frame_dimensions(pixel_lines, frame_index)
+        surface = AnimatedSprite._create_toml_surface(width, height, normalized_lines, color_map)
 
         # Check for per-frame frame_interval, otherwise use global frame_interval
         frame_duration = frame_data.get("frame_interval", frame_interval)
@@ -897,7 +897,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug(f"    Using global frame_interval: {frame_duration}")
 
         frame = SpriteFrame(surface, duration=frame_duration)
-        frame.pixels = AnimatedSprite._extract_toml_pixels(pixel_lines, width, height, color_map)
+        frame.pixels = AnimatedSprite._extract_toml_pixels(normalized_lines, width, height, color_map)
 
         self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
         return frame
@@ -910,10 +910,49 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     def _validate_toml_frame_dimensions(
         self: Self, pixel_lines: list, frame_index: int
-    ) -> tuple[int, int]:
-        """Validate and return frame dimensions."""
-        expected_width = len(pixel_lines[0])
-        for i, line in enumerate(pixel_lines):
+    ) -> tuple[int, int, list]:
+        """Validate and return frame dimensions and normalized lines."""
+        # Normalize line lengths by trimming whitespace and ensuring consistency
+        # This helps handle AI-generated content with inconsistent formatting
+        normalized_lines = []
+        for line in pixel_lines:
+            # Strip trailing whitespace and normalize the line
+            normalized_line = line.rstrip()
+            normalized_lines.append(normalized_line)
+        
+        # Find the most common line length (mode) to handle AI inconsistencies
+        line_lengths = [len(line) for line in normalized_lines]
+        from collections import Counter
+        length_counts = Counter(line_lengths)
+        most_common_length = length_counts.most_common(1)[0][0]
+        
+        # If there are inconsistencies, try to normalize to the most common length
+        if len(set(line_lengths)) > 1:
+            self.log.warning(
+                f"    Frame {frame_index}: Inconsistent line lengths detected. "
+                f"Most common length: {most_common_length}, lengths found: {set(line_lengths)}"
+            )
+            
+            # Normalize lines to the most common length
+            normalized_lines = []
+            for line in pixel_lines:
+                line = line.rstrip()
+                if len(line) > most_common_length:
+                    # Truncate if too long
+                    line = line[:most_common_length]
+                elif len(line) < most_common_length:
+                    # Pad with the last character if too short
+                    if line:
+                        line = line + line[-1] * (most_common_length - len(line))
+                    else:
+                        line = 'M' * most_common_length  # Default to 'M' for empty lines
+                normalized_lines.append(line)
+            
+            self.log.info(f"    Frame {frame_index}: Normalized to {most_common_length} characters per line")
+        
+        # Use normalized lines for validation
+        expected_width = len(normalized_lines[0])
+        for i, line in enumerate(normalized_lines):
             if len(line) != expected_width:
                 self.log.error(
                     f"    Frame {frame_index}: Line {i} has {len(line)} pixels, "
@@ -924,11 +963,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     f"line {i} has {len(line)} pixels, expected {expected_width}"
                 )
 
-        height = len(pixel_lines)
+        height = len(normalized_lines)
         width = expected_width
         self.log.debug(f"    Frame {frame_index}: {width}x{height} pixels")
-        self.log.debug(f"    Processed: {len(pixel_lines)} lines of {width} pixels each")
-        return width, height
+        self.log.debug(f"    Processed: {len(normalized_lines)} lines of {width} pixels each")
+        return width, height, normalized_lines
 
     @staticmethod
     def _create_toml_surface(
@@ -1099,7 +1138,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         See LOADER_README.md for detailed implementation guide.
         """
         color_map = {}
-        universal_chars = SPRITE_GLYPHS.strip()
+        universal_chars = SPRITE_GLYPHS
         char_index = 0
 
         for frames in self._animations.values():

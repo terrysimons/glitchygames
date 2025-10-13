@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import collections
-import configparser
 import logging
 from pathlib import Path
 from typing import Any, ClassVar, Self, cast
@@ -31,36 +30,37 @@ __all__ = [  # noqa: RUF022
 ]
 
 LOG = logging.getLogger("game.sprites")
-LOG.addHandler(logging.NullHandler())
+# LOG.addHandler(logging.NullHandler())
 
 # Configure logger
-LOG = logging.getLogger("game.sprites")
-LOG.setLevel(logging.DEBUG)
+# LOG = logging.getLogger("game.sprites")
 
 # Add console handler if none exists
-if not LOG.handlers:
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-    ch.setFormatter(formatter)
-    LOG.addHandler(ch)
+# if not LOG.handlers:
+#     ch = logging.StreamHandler()
+#     ch.setLevel(logging.DEBUG)
+#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+#     ch.setFormatter(formatter)
+#     LOG.addHandler(ch)
 
 
 # Configure logger
-LOG = logging.getLogger("game.sprites")
-LOG.setLevel(logging.DEBUG)
+# LOG = logging.getLogger("game.sprites")
+# LOG.setLevel(logging.DEBUG)
 
 # Add console handler if none exists
-if not LOG.handlers:
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-    ch.setFormatter(formatter)
-    LOG.addHandler(ch)
+# if not LOG.handlers:
+#     ch = logging.StreamHandler()
+#     ch.setLevel(logging.DEBUG)
+#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+#     ch.setFormatter(formatter)
+#     LOG.addHandler(ch)
 
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
+
+    log = LOG
 
     def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
         """Initialize a RootSprite.
@@ -1006,10 +1006,10 @@ class BitmappySprite(Sprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int = 0,
+        y: int = 0,
+        width: int = 32,
+        height: int = 32,
         name: str | None = None,
         filename: str | None = None,
         focusable: bool = False,
@@ -1039,10 +1039,15 @@ class BitmappySprite(Sprite):
         super().__init__(
             x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
         )
-        self.filename = filename
+        self.filename = filename or ""
         self.focusable = focusable
         # self.width = width
         # self.height = height
+
+        # Initialize pixel data attributes
+        self.pixels = []
+        self.pixels_across = width
+        self.pixels_tall = height
 
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
@@ -1108,71 +1113,9 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._load_static_toml(filename)
-        return self._load_static_ini(filename)
-
-    def _load_static_ini(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a static sprite from an INI file."""
-        config = configparser.RawConfigParser(
-            dict_type=collections.OrderedDict, empty_lines_in_values=True, strict=True
-        )
-
-        # Read the raw file content first
-        raw_content = Path(filename).read_text(encoding="utf-8")
-        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
-
-        # Try parsing with configparser
-        config.read_string(raw_content)
-        self.log.debug(f"ConfigParser sections: {config.sections()}")
-
-        try:
-            name = config.get(section="sprite", option="name")
-            self.log.debug(f"Sprite name: {name}")
-
-            # Get raw pixel data with explicit raw=True to preserve newlines
-            pixel_text = config.get(section="sprite", option="pixels", raw=True)
-            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
-
-            # Split into rows and process each row
-            rows = []
-            for i, raw_row in enumerate(pixel_text.split("\n")):
-                row = raw_row.strip()
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
-
-            self.log.debug(f"Total rows processed: {len(rows)}")
-
-            # Calculate dimensions
-            width = len(rows[0]) if rows else 0
-            height = len(rows)
-            self.log.debug(f"Calculated dimensions: {width}x{height}")
-
-            # Get color definitions with detailed logging
-            color_map = {}
-            for section in config.sections():
-                if len(section) == 1:  # Color sections are single characters
-                    red = config.getint(section=section, option="red")
-                    green = config.getint(section=section, option="green")
-                    blue = config.getint(section=section, option="blue")
-                    color_map[section] = (red, green, blue)
-                    self.log.debug(f"Color map entry: '{section}' -> RGB({red}, {green}, {blue})")
-
-            self.log.debug(f"Total colors in map: {len(color_map)}")
-
-            # Create image and rect
-            self.log.debug("Creating image and rect...")
-            (image, rect) = self.inflate(
-                width=width, height=height, pixels=rows, color_map=color_map
-            )
-            self.log.debug(f"Created image size: {image.get_size()}")
-            self.log.debug(f"Created rect: {rect}")
-
-        except Exception:
-            self.log.exception("Error in load")
-            raise
         else:
-            # Return the successfully loaded sprite data
-            return (image, rect, name)
+            raise ValueError(f"Unsupported file format: {file_format}. Only TOML format is supported.")
+
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file."""
@@ -1326,8 +1269,14 @@ class BitmappySprite(Sprite):
         try:
             self.log.debug(f"Starting deflate for {self.name} in {file_format} format")
 
+            # Ensure pixels attribute exists
+            if not hasattr(self, "pixels"):
+                self.pixels = []
+
             # Validate pixels list
-            expected_pixels = self.pixels_across * self.pixels_tall
+            pixels_across = getattr(self, "pixels_across", self.width)
+            pixels_tall = getattr(self, "pixels_tall", self.height)
+            expected_pixels = pixels_across * pixels_tall
             if len(self.pixels) != expected_pixels:
                 self.log.error(
                     f"Pixels list length mismatch: {len(self.pixels)} vs expected {expected_pixels}"
@@ -1343,39 +1292,18 @@ class BitmappySprite(Sprite):
             unique_colors = set(self.pixels)
             self.log.debug(f"Found {len(unique_colors)} unique colors")
             self.log.debug(f"Pixels list length: {len(self.pixels)}")
-            self.log.debug(f"Expected pixels: {self.pixels_across * self.pixels_tall}")
+            self.log.debug(f"Expected pixels: {pixels_across * pixels_tall}")
             self.log.debug(f"Sample pixels: {self.pixels[:10]}")
 
-            # Create color to character mapping
-            color_map = {}
-            # This gives us 128 colors per sprite and the characters were selected
-            # carefully to support various text formats such as JSON, YAML, and INI.
+            # Check if there are too many colors
+            if len(unique_colors) > len(SPRITE_GLYPHS):
+                raise ValueError(f"Too many colors: {len(unique_colors)} > {len(SPRITE_GLYPHS)}")
 
-            # Filter out dangerous characters that could break file formats
-            dangerous_chars = {"\n", "\r", "\t", "\0", "\b", "\f", "\v", "\a"}
-            printable_chars = "".join(c for c in SPRITE_GLYPHS if c not in dangerous_chars)
-            self.log.debug(
-                f"Filtered printable chars: '{printable_chars}' (length: {len(printable_chars)})"
-            )
-
-            # Assign characters sequentially from SPRITE_GLYPHS
-            for char_index, color in enumerate(unique_colors):
-                if char_index >= len(printable_chars):
-                    self._raise_too_many_colors_error(len(printable_chars))
-                char = printable_chars[char_index]
-                # Double-check that the character is safe
-                if char in dangerous_chars or not char.isprintable():
-                    self.log.error(
-                        f"Unsafe character '{char}' (ord={ord(char)}) detected, using '.' instead"
-                    )
-                    char = "."
-                color_map[color] = char
-                self.log.debug(
-                    f"Color {color} -> char '{color_map[color]}' (ord={ord(color_map[color])})"
-                )
+            # Create color to character mapping using the helper method
+            color_map = self._create_color_map()
 
             # Process pixels row by row
-            pixel_rows = self._process_pixel_rows(color_map)
+            pixel_rows = self._process_pixel_rows(color_map, pixels_across, pixels_tall)
 
             # Create configuration based on format
             if file_format == "toml":
@@ -1390,37 +1318,47 @@ class BitmappySprite(Sprite):
             # Return the successfully created configuration
             return config
 
-    def _process_pixel_rows(self, color_map: dict) -> list[str]:
+    def _process_pixel_rows(self, color_map: dict, pixels_across: int = None, pixels_tall: int = None) -> list[str]:
         """Process pixels into rows of characters.
 
         Args:
             color_map: Mapping of colors to characters
+            pixels_across: Number of pixels across (optional, uses self.pixels_across if not provided)
+            pixels_tall: Number of pixels tall (optional, uses self.pixels_tall if not provided)
 
         Returns:
             List of pixel rows as strings
 
         """
+        if pixels_across is None:
+            pixels_across = getattr(self, "pixels_across", self.width)
+        if pixels_tall is None:
+            pixels_tall = getattr(self, "pixels_tall", self.height)
+
         pixel_rows = []
-        for y in range(self.pixels_tall):
+        for y in range(pixels_tall):
             row = ""
-            for x in range(self.pixels_across):
-                pixel_color = self.pixels[y * self.pixels_across + x]
-                if pixel_color not in color_map:
+            for x in range(pixels_across):
+                pixel_color = self.pixels[y * pixels_across + x]
+                # Find the character for this color
+                char = "."
+                for ch, color in color_map.items():
+                    if color == pixel_color:
+                        char = ch
+                        break
+                else:
                     self.log.error(f"Color {pixel_color} not found in color_map")
-                    # Use a default character for missing colors
-                    row += "."
-                    continue
-                row += color_map[pixel_color]
+                row += char
             pixel_rows.append(row)
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _create_toml_config(self, pixel_rows: list[str], color_map: dict) -> dict:
+    def _create_toml_config(self, pixel_rows: list[str] = None, color_map: dict = None) -> dict:
         """Create TOML configuration.
 
         Args:
-            pixel_rows: List of pixel rows as strings
-            color_map: Mapping of colors to characters
+            pixel_rows: List of pixel rows as strings (optional, will be generated if not provided)
+            color_map: Mapping of colors to characters (optional, will be generated if not provided)
 
         Returns:
             TOML configuration dictionary
@@ -1429,12 +1367,44 @@ class BitmappySprite(Sprite):
         See LOADER_README.md for detailed implementation guide.
 
         """
+        # Generate pixel_rows and color_map if not provided
+        if pixel_rows is None:
+            if not hasattr(self, "pixels") or not self.pixels:
+                pixel_rows = []
+            else:
+                # Create color map if not provided
+                if color_map is None:
+                    color_map = self._create_color_map()
+
+                # Process pixels into rows
+                pixel_rows = []
+                # Use height and width if pixels_tall/pixels_across not available
+                pixels_tall = getattr(self, "pixels_tall", self.height)
+                pixels_across = getattr(self, "pixels_across", self.width)
+
+                for y in range(pixels_tall):
+                    row = ""
+                    for x in range(pixels_across):
+                        pixel_index = y * pixels_across + x
+                        if pixel_index < len(self.pixels):
+                            pixel_color = self.pixels[pixel_index]
+                            if pixel_color in color_map:
+                                row += color_map[pixel_color]
+                            else:
+                                row += "."  # Default character for missing colors
+                        else:
+                            row += "."  # Default character for missing pixels
+                    pixel_rows.append(row)
+
+        if color_map is None:
+            color_map = self._create_color_map()
+
         pixels_str = "\n".join(pixel_rows)
         return {
             "sprite": {"name": self.name or "unnamed", "pixels": pixels_str},
             "colors": {
                 char: {"red": color[0], "green": color[1], "blue": color[2]}
-                for color, char in color_map.items()
+                for char, color in color_map.items()
             },
         }
 
@@ -1447,6 +1417,135 @@ class BitmappySprite(Sprite):
     def _raise_too_many_colors_error(max_colors: int) -> None:
         """Raise an error for too many colors."""
         raise ValueError(f"Too many colors (max {max_colors})")
+
+    def _create_color_map(self: Self) -> dict:
+        """Create a color map from the sprite's pixels.
+
+        Returns:
+            dict: Mapping of colors to characters
+
+        """
+        if not hasattr(self, "pixels") or not self.pixels:
+            return {}
+
+        # Get unique colors from the pixels list
+        unique_colors = set(self.pixels)
+        color_map = {}
+
+        # Filter out dangerous characters that could break file formats
+        dangerous_chars = {"\n", "\r", "\t", "\0", "\b", "\f", "\v", "\a"}
+        printable_chars = "".join(c for c in SPRITE_GLYPHS if c not in dangerous_chars)
+
+        # Assign characters sequentially from SPRITE_CHARS
+        for char_index, color in enumerate(unique_colors):
+            if char_index >= len(printable_chars):
+                break
+            char = printable_chars[char_index]
+            # Double-check that the character is safe
+            if char in dangerous_chars or not char.isprintable():
+                char = "."
+            color_map[char] = color
+
+        # Always include the magenta padding color (255, 0, 255) with a special character
+        padding_color = (255, 0, 255)
+        if padding_color in unique_colors and padding_color not in color_map.values():
+            # Use a special character for padding (like 'X' or '#')
+            padding_char = "X" if "X" not in color_map else "#"
+            color_map[padding_char] = padding_color
+
+        return color_map
+
+    def _inflate_toml(self: Self, filename: str) -> dict:
+        """Inflate a sprite from a TOML file.
+
+        Args:
+            filename: Path to the TOML file
+
+        Returns:
+            dict: Sprite data dictionary
+
+        """
+        # Read the raw file content first
+        raw_content = Path(filename).read_text(encoding="utf-8")
+        self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
+
+        # Parse TOML
+        data = toml.loads(raw_content)
+        self.log.debug(f"TOML data keys: {list(data.keys())}")
+
+        try:
+            name = data["sprite"]["name"]
+            self.log.debug(f"Sprite name: {name}")
+
+            # Get pixel data
+            pixel_text = data["sprite"]["pixels"]
+            self.log.debug(f"Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}")
+
+            # Split into rows and process each row
+            rows = []
+            for i, raw_row in enumerate(pixel_text.split("\n")):
+                row = raw_row.strip()
+                if row:  # Only add non-empty rows
+                    rows.append(row)
+                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
+
+            self.log.debug(f"Total rows processed: {len(rows)}")
+
+            # Calculate dimensions
+            width = len(rows[0]) if rows else 0
+            height = len(rows)
+            self.log.debug(f"Calculated dimensions: {width}x{height}")
+
+            # Get color definitions
+            color_map = {}
+            if "colors" in data:
+                for color_key, color_data in data["colors"].items():
+                    red = color_data["red"]
+                    green = color_data["green"]
+                    blue = color_data["blue"]
+                    color_map[color_key] = (red, green, blue)
+                    self.log.debug(f"Color map entry: '{color_key}' -> RGB({red}, {green}, {blue})")
+
+            self.log.debug(f"Total colors in map: {len(color_map)}")
+
+            # Convert rows to pixels
+            pixels = []
+            for y, row in enumerate(rows):
+                for x, char in enumerate(row):
+                    if char in color_map:
+                        pixels.append(color_map[char])
+                    else:
+                        # Default color for unknown characters
+                        pixels.append((255, 0, 255))
+
+            return {
+                "pixels": pixels,
+                "width": width,
+                "height": height,
+                "name": name
+            }
+
+        except Exception:
+            self.log.exception("Error in TOML inflate")
+            raise
+
+    def inflate(self: Self, filename: str) -> dict:
+        """Inflate a sprite from a file.
+
+        Args:
+            filename: Path to the sprite file
+
+        Returns:
+            dict: Sprite data dictionary
+
+        """
+        # Detect file format and handle accordingly
+        file_format = SpriteFactory._detect_file_format(filename)
+
+        if file_format == "toml":
+            return self._inflate_toml(filename)
+        else:
+            raise ValueError(f"Unsupported format: {file_format}")
 
     def on_left_mouse_drag_event(
         self: Self, event: pygame.event.Event, trigger: object | None
@@ -1653,10 +1752,10 @@ class SingletonBitmappySprite(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int = 0,
+        y: int = 0,
+        width: int = 32,
+        height: int = 32,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
@@ -1706,10 +1805,10 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int = 0,
+        y: int = 0,
+        width: int = 32,
+        height: int = 32,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
     ) -> None:
@@ -1780,28 +1879,20 @@ class SpriteFactory:
         return AnimatedSprite(filename, groups=None)
 
     @staticmethod
-    def _detect_file_format(_filename: str) -> str:
-        """Detect file format based on file extension.
+    def _detect_file_format(filename) -> str:
+        """Detect file format based on extension."""
+        # Convert Path objects to strings
+        filename_str = str(filename)
 
-        Currently only supports TOML format. To add new formats:
-        1. Add file extension detection here
-        2. Add analysis method in _analyze_file()
-        3. Add save/load methods in BitmappySprite and AnimatedSprite
-        4. Update tests
-        See LOADER_README.md for detailed implementation guide.
-        """
-        # filename_str = str(filename)  # Will be used when adding new formats
-
-        # TODO: Add new format detection here
-        # if filename_str.lower().endswith(".json"):
-        #     return "json"
-        # if filename_str.lower().endswith(".xml"):
-        #     return "xml"
-
-        return "toml"  # Default to toml
+        if filename_str.endswith(".toml"):
+            return "toml"
+        elif filename_str.endswith(".yaml") or filename_str.endswith(".yml"):
+            return "yaml"
+        else:
+            return "unknown"
 
     @staticmethod
-    def _analyze_file(filename: str) -> dict:
+    def _analyze_file(filename) -> dict:
         """Analyze file content to determine sprite type.
 
         Currently only supports TOML format. To add new formats:
@@ -1819,7 +1910,7 @@ class SpriteFactory:
         raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
     @staticmethod
-    def _analyze_toml_file(filename: str) -> dict:
+    def _analyze_toml_file(filename) -> dict:
         """Analyze TOML file content to determine sprite type."""
         with Path(filename).open("r", encoding="utf-8") as f:
             data = toml.load(f)
@@ -1828,30 +1919,44 @@ class SpriteFactory:
         has_animation_sections = False
         has_frame_sections = False
 
-        # Check for sprite.pixels (ignore empty strings)
-        if "sprite" in data and "pixels" in data["sprite"] and data["sprite"]["pixels"].strip():
-            has_sprite_pixels = True
+        # Check for sprite.pixels (ignore empty strings and empty lists)
+        if "sprite" in data and "pixels" in data["sprite"]:
+            pixels = data["sprite"]["pixels"]
+            if isinstance(pixels, str) and pixels.strip():
+                has_sprite_pixels = True
+            elif isinstance(pixels, list) and pixels:
+                has_sprite_pixels = True
 
-        # Check for animation sections
-        if "animation" in data:
+        # Check for animation sections (both keys and arrays of tables)
+        if "animation" in data or "animations" in data:
+            has_animation_sections = True
+        elif isinstance(data.get("animation"), list) and data["animation"]:
             has_animation_sections = True
 
-        # Check for frame sections within animations
-        if "animation" in data:
-            for anim in data["animation"]:
-                if "frame" in anim:
-                    has_frame_sections = True
-                    break
-
-        # Check for standalone frame sections (mixed content)
+        # Check for frame sections (both keys and arrays of tables)
         if "frame" in data:
             has_frame_sections = True
+        elif isinstance(data.get("frame"), list) and data["frame"]:
+            has_frame_sections = True
+
+        # Check for nested frame sections within animation arrays
+        if isinstance(data.get("animation"), list):
+            for animation in data["animation"]:
+                if isinstance(animation, dict) and "frame" in animation:
+                    has_frame_sections = True
+                    break
 
         return {
             "has_sprite_pixels": has_sprite_pixels,
             "has_animation_sections": has_animation_sections,
             "has_frame_sections": has_frame_sections,
         }
+
+    @staticmethod
+    def _get_toml_data(filename) -> dict:
+        """Get raw TOML data from file."""
+        with Path(filename).open("r", encoding="utf-8") as f:
+            return toml.load(f)
 
     @staticmethod
     def _determine_type(analysis: dict) -> str:
@@ -1951,3 +2056,4 @@ def _get_color_map(self: Self) -> dict:
 # Add methods to BitmappySprite class
 BitmappySprite._get_pixel_string = _get_pixel_string
 BitmappySprite._get_color_map = _get_color_map
+
