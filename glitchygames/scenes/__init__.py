@@ -681,7 +681,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Ideally we'd just make dirty a property with a setter and getter on each
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
+        
+        # Update all sprites that are dirty
         [sprite.update() for sprite in self.all_sprites if sprite.dirty]
+        
+        # Also update film strip sprites for continuous animation, even if not dirty
+        # This ensures preview animations run continuously
+        for sprite in self.all_sprites:
+            if hasattr(sprite, 'name') and sprite.name == "Film Strip":
+                # Pass delta time to the film strip sprite
+                sprite._last_dt = self.dt
+                sprite.update()
 
         # Make all of the new scene's sprites dirty to force a redraw
         if self.dirty:

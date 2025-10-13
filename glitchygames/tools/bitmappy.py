@@ -654,9 +654,6 @@ class FilmStripSprite(BitmappySprite):
             dt = getattr(self, "_last_dt", 0.016)  # Default to ~60 FPS
             self.film_strip_widget.update_animations(dt)
         
-        # Always redraw if dirty or if animations are running
-        should_redraw = self.dirty
-
         # Check if animations are running and force redraw
         animations_running = (
             hasattr(self, "film_strip_widget")
@@ -665,14 +662,15 @@ class FilmStripSprite(BitmappySprite):
             and len(self.film_strip_widget.animated_sprite._animations) > 0
         )
 
-        if animations_running:
-            should_redraw = True
+        # Always redraw if dirty or if animations are running
+        should_redraw = self.dirty or animations_running
 
         if should_redraw:
             self.force_redraw()
-            # Only reset dirty flag if animations are not running
-            # This ensures continuous updates when animations are present
-            if not animations_running:
+            # Always mark as dirty when animations are running for continuous updates
+            if animations_running:
+                self.dirty = 1
+            else:
                 self.dirty = 0
 
     def force_redraw(self):
@@ -1137,14 +1135,23 @@ class AnimatedCanvasSprite(BitmappySprite):
             current_index = animations.index(self.current_animation)
             next_index = (current_index + 1) % len(animations)
             next_animation = animations[next_index]
-            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {next_animation} (index {next_index})")
-            self.show_frame(next_animation, 0)
+            
+            # Preserve the current frame number when switching animations
+            preserved_frame = self.current_frame
+            # Ensure the frame number is within bounds for the new animation
+            if next_animation in frames and len(frames[next_animation]) > 0:
+                max_frame = len(frames[next_animation]) - 1
+                preserved_frame = min(preserved_frame, max_frame)
+            else:
+                preserved_frame = 0
+            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {next_animation} (index {next_index}), preserving frame {preserved_frame}")
+            self.show_frame(next_animation, preserved_frame)
             self.log.debug(f"After show_frame: current_animation={self.current_animation}, current_frame={self.current_frame}")
             
             # Notify the parent scene to switch film strips
             if hasattr(self, "parent_scene") and self.parent_scene:
                 self.log.debug(f"Notifying parent scene to switch to film strip {next_animation}")
-                self.parent_scene._switch_to_film_strip(next_animation, 0)
+                self.parent_scene._switch_to_film_strip(next_animation, preserved_frame)
 
     def previous_animation(self) -> None:
         """Move to the previous animation."""
@@ -1156,14 +1163,23 @@ class AnimatedCanvasSprite(BitmappySprite):
             current_index = animations.index(self.current_animation)
             prev_index = (current_index - 1) % len(animations)
             prev_animation = animations[prev_index]
-            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {prev_animation} (index {prev_index})")
-            self.show_frame(prev_animation, 0)
+            
+            # Preserve the current frame number when switching animations
+            preserved_frame = self.current_frame
+            # Ensure the frame number is within bounds for the new animation
+            if prev_animation in frames and len(frames[prev_animation]) > 0:
+                max_frame = len(frames[prev_animation]) - 1
+                preserved_frame = min(preserved_frame, max_frame)
+            else:
+                preserved_frame = 0
+            self.log.debug(f"Moving from animation {self.current_animation} (index {current_index}) to {prev_animation} (index {prev_index}), preserving frame {preserved_frame}")
+            self.show_frame(prev_animation, preserved_frame)
             self.log.debug(f"After show_frame: current_animation={self.current_animation}, current_frame={self.current_frame}")
             
             # Notify the parent scene to switch film strips
             if hasattr(self, "parent_scene") and self.parent_scene:
                 self.log.debug(f"Notifying parent scene to switch to film strip {prev_animation}")
-                self.parent_scene._switch_to_film_strip(prev_animation, 0)
+                self.parent_scene._switch_to_film_strip(prev_animation, preserved_frame)
 
     def handle_keyboard_event(self, key: int) -> None:
         """Handle keyboard navigation events."""
@@ -2823,16 +2839,18 @@ class BitmapEditorScene(Scene):
         current_frame = getattr(self, "selected_frame", 0)
         
         for strip_name, strip_widget in self.film_strips.items():
+            # Each film strip should have its current_animation set to its own animation name
+            # for proper sprocket rendering
+            strip_widget.current_animation = strip_name
+            
             if strip_name == current_animation:
                 # This is the selected strip - mark it as selected
                 strip_widget.is_selected = True
-                strip_widget.current_animation = current_animation
                 strip_widget.current_frame = current_frame
                 print(f"BitmapEditorScene: Marking strip {strip_name} as selected with frame {current_frame}")
             else:
                 # This is not the selected strip - deselect it
                 strip_widget.is_selected = False
-                strip_widget.current_animation = ""
                 strip_widget.current_frame = 0
                 print(f"BitmapEditorScene: Deselecting strip {strip_name}")
             
@@ -2872,6 +2890,7 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strips") and animation_name in self.film_strips:
             new_strip = self.film_strips[animation_name]
             new_strip.is_selected = True
+            # Set current_animation to the strip's own animation name for sprocket rendering
             new_strip.current_animation = animation_name
             new_strip.current_frame = frame
             new_strip.mark_dirty()

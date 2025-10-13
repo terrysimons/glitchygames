@@ -231,6 +231,138 @@ class TestFilmStripIntegration(unittest.TestCase):
             assert isinstance(frame_idx, int)
             assert frame_idx >= 0
 
+    def test_animated_sprite_frame_advancement(self):
+        """Test that animated sprites actually advance frames when updated."""
+        from glitchygames.sprites import AnimatedSprite
+        
+        # Create a real animated sprite with proper frame data
+        animated_sprite = AnimatedSprite()
+        
+        # Create mock frames with proper image data
+        def create_mock_frame(duration=0.5):
+            frame = Mock()
+            frame.duration = duration
+            frame.image = Mock()
+            frame.image.get_size.return_value = (32, 32)
+            frame.pixels = [(255, 0, 255)] * (32 * 32)  # Magenta pixels
+            return frame
+        
+        # Add frames to the animated sprite
+        frames = [create_mock_frame(0.5), create_mock_frame(0.5), create_mock_frame(0.5)]
+        animated_sprite._animations = {"test_anim": frames}
+        animated_sprite._animation_order = ["test_anim"]
+        
+        # Use the proper API to set animation
+        animated_sprite.set_animation("test_anim")
+        animated_sprite._is_looping = True
+        animated_sprite.play()  # Start playing
+        
+        # Test frame advancement
+        initial_frame = animated_sprite.current_frame
+        assert initial_frame == 0
+        
+        # Update with small delta time - should not advance yet
+        animated_sprite.update(0.1)
+        frame_after_short = animated_sprite.current_frame
+        assert frame_after_short == 0
+        
+        # Update with longer delta time - should advance
+        animated_sprite.update(0.6)  # Total 0.7s, should advance past first frame (0.5s)
+        frame_after_long = animated_sprite.current_frame
+        assert frame_after_long == 1
+        
+        # Update more to test looping
+        animated_sprite.update(1.0)  # Total 1.7s, should loop back
+        frame_after_loop = animated_sprite.current_frame
+        assert frame_after_loop == 2
+
+    def test_film_strip_animation_timing(self):
+        """Test that film strip animation timing works correctly."""
+        # Create a film strip widget
+        film_strip_widget = film_strip.FilmStripWidget(0, 0, 400, 100)
+        
+        # Create a mock animated sprite with proper frame durations
+        def create_mock_frame(duration=0.5):
+            frame = Mock()
+            frame.duration = duration
+            return frame
+        
+        animated_sprite = Mock()
+        animated_sprite._animations = {"test_anim": [create_mock_frame(0.5), create_mock_frame(0.5), create_mock_frame(0.5)]}
+        animated_sprite._animation_order = ["test_anim"]
+        animated_sprite.current_animation = "test_anim"
+        animated_sprite.current_frame = 0
+        animated_sprite.is_looping = True
+        animated_sprite.is_playing = True
+        
+        # Set up the film strip
+        film_strip_widget.set_animated_sprite(animated_sprite)
+        
+        # Test that preview timing is initialized
+        assert "test_anim" in film_strip_widget.preview_animation_times
+        assert "test_anim" in film_strip_widget.preview_animation_speeds
+        assert "test_anim" in film_strip_widget.preview_frame_durations
+        
+        # Test animation timing update
+        initial_time = film_strip_widget.preview_animation_times["test_anim"]
+        film_strip_widget.update_animations(0.1)
+        new_time = film_strip_widget.preview_animation_times["test_anim"]
+        
+        # Time should have advanced
+        assert new_time > initial_time
+        
+        # Test getting current preview frame
+        frame_idx = film_strip_widget.get_current_preview_frame("test_anim")
+        assert isinstance(frame_idx, int)
+        assert frame_idx >= 0
+
+    def test_film_strip_animation_with_real_sprite(self):
+        """Test film strip animation with a real animated sprite."""
+        from glitchygames.sprites import AnimatedSprite
+        
+        # Create a real animated sprite
+        animated_sprite = AnimatedSprite()
+        
+        # Create mock frames with proper structure
+        def create_mock_frame(duration=0.5):
+            frame = Mock()
+            frame.duration = duration
+            frame.image = Mock()
+            frame.image.get_size.return_value = (32, 32)
+            frame.pixels = [(255, 0, 255)] * (32 * 32)
+            return frame
+        
+        frames = [create_mock_frame(0.5), create_mock_frame(0.5), create_mock_frame(0.5)]
+        animated_sprite._animations = {"test_anim": frames}
+        animated_sprite._animation_order = ["test_anim"]
+        
+        # Use the proper API to set animation
+        animated_sprite.set_animation("test_anim")
+        animated_sprite._is_looping = True
+        animated_sprite.play()  # Start playing
+        
+        # Create film strip widget
+        film_strip_widget = film_strip.FilmStripWidget(0, 0, 400, 100)
+        film_strip_widget.set_animated_sprite(animated_sprite)
+        
+        # Test multiple updates to see if frames advance
+        frame_changes = 0
+        for i in range(10):
+            old_frame = animated_sprite.current_frame
+            film_strip_widget.update_animations(0.1)
+            new_frame = animated_sprite.current_frame
+            
+            if old_frame != new_frame:
+                frame_changes += 1
+        
+        # Should have seen some frame changes
+        assert frame_changes > 0
+        
+        # Test preview frame calculation
+        preview_frame = film_strip_widget.get_current_preview_frame("test_anim")
+        assert isinstance(preview_frame, int)
+        assert preview_frame >= 0
+
     def test_film_strip_layout_calculation_integration(self):
         """Test film strip layout calculation integration."""
         mock_sprite = MockFactory.create_animated_sprite_mock()

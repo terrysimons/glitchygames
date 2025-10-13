@@ -82,24 +82,40 @@ class FilmStripWidget:
 
     def set_animated_sprite(self, animated_sprite: AnimatedSprite) -> None:
         """Set the animated sprite to display."""
+        print(f"FilmStripWidget: set_animated_sprite called with sprite: {animated_sprite}")
+        print(f"FilmStripWidget: Sprite has {len(animated_sprite._animations)} animations: {list(animated_sprite._animations.keys())}")
+        
         self.animated_sprite = animated_sprite
         # Use sprite introspection to find the first animation
         if animated_sprite._animations:
             if hasattr(animated_sprite, "_animation_order") and animated_sprite._animation_order:
                 # Use the first animation in the file order
                 self.current_animation = animated_sprite._animation_order[0]
+                print(f"FilmStripWidget: Using first animation from _animation_order: {self.current_animation}")
             else:
                 # Fall back to the first key in _animations
                 self.current_animation = next(iter(animated_sprite._animations.keys()))
+                print(f"FilmStripWidget: Using first animation from _animations: {self.current_animation}")
             
             # Configure the animated sprite to loop and start playing for preview
+            print(f"FilmStripWidget: Setting animation to '{self.current_animation}'")
             animated_sprite.set_animation(self.current_animation)
+            print(f"FilmStripWidget: After set_animation - current_animation: {getattr(animated_sprite, 'current_animation', 'None')}")
+            
+            print(f"FilmStripWidget: Setting is_looping to True")
             animated_sprite.is_looping = True  # Enable looping for continuous preview
+            print(f"FilmStripWidget: After setting is_looping - is_looping: {getattr(animated_sprite, 'is_looping', 'None')}")
+            
+            print(f"FilmStripWidget: Calling play()")
             animated_sprite.play()  # Start playing the animation
+            print(f"FilmStripWidget: After play() - is_playing: {getattr(animated_sprite, 'is_playing', 'None')}")
+            print(f"FilmStripWidget: After play() - current_frame: {getattr(animated_sprite, 'current_frame', 'None')}")
         else:
             self.current_animation = ""
+            print("FilmStripWidget: No animations found, setting current_animation to empty string")
         self.current_frame = 0
         self.scroll_offset = 0  # Horizontal scroll offset for rolling effect
+        print(f"FilmStripWidget: Final state - current_animation: {self.current_animation}, current_frame: {self.current_frame}")
 
         # Initialize animation timing for previews
         self._initialize_preview_animations()
@@ -109,22 +125,37 @@ class FilmStripWidget:
 
     def _initialize_preview_animations(self) -> None:
         """Initialize animation timing for all previews."""
+        print(f"FilmStripWidget: _initialize_preview_animations called")
+        
         if not self.animated_sprite:
+            print("FilmStripWidget: No animated_sprite in _initialize_preview_animations, returning")
             return
 
+        print(f"FilmStripWidget: Initializing preview animations for {len(self.animated_sprite._animations)} animations")
+
         for anim_name, frames in self.animated_sprite._animations.items():
+            print(f"FilmStripWidget: Initializing animation '{anim_name}' with {len(frames)} frames")
             # Initialize timing for this animation
             self.preview_animation_times[anim_name] = 0.0
             self.preview_animation_speeds[anim_name] = 1.0  # Normal speed
+            print(f"FilmStripWidget: Set animation '{anim_name}' time to 0.0, speed to 1.0")
 
             # Extract frame durations
             frame_durations = []
-            for frame in frames:
+            for i, frame in enumerate(frames):
                 if hasattr(frame, "duration"):
                     frame_durations.append(frame.duration)
+                    print(f"FilmStripWidget: Frame {i} duration: {frame.duration}")
                 else:
                     frame_durations.append(1.0)  # Default 1 second
+                    print(f"FilmStripWidget: Frame {i} using default duration: 1.0")
             self.preview_frame_durations[anim_name] = frame_durations
+            print(f"FilmStripWidget: Animation '{anim_name}' frame durations: {frame_durations}")
+        
+        print(f"FilmStripWidget: Preview animation initialization complete")
+        print(f"FilmStripWidget: Final preview_animation_times: {self.preview_animation_times}")
+        print(f"FilmStripWidget: Final preview_animation_speeds: {self.preview_animation_speeds}")
+        print(f"FilmStripWidget: Final preview_frame_durations: {self.preview_frame_durations}")
 
     def update_animations(self, dt: float) -> None:
         """Update animation timing for all previews."""
@@ -527,17 +558,27 @@ class FilmStripWidget:
         clicked_frame = self.get_frame_at_position(pos)
         if clicked_frame:
             animation, frame_idx = clicked_frame
-            print(f"FilmStripWidget: Frame clicked, calling set_current_frame({animation}, {frame_idx})")
-            self.set_current_frame(animation, frame_idx)
-            return clicked_frame
+            # Use this film strip's animation name instead of the frame's animation name
+            # since each film strip represents a specific animation
+            strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else animation
+            print(f"FilmStripWidget: Frame clicked, calling set_current_frame({strip_animation}, {frame_idx})")
+            self.set_current_frame(strip_animation, frame_idx)
+            return (strip_animation, frame_idx)
 
         # Check if clicking on an animation label
         clicked_animation = self.get_animation_at_position(pos)
         if clicked_animation and clicked_animation in self.animated_sprite._animations:
-            # Switch to first frame of that animation
-            print(f"FilmStripWidget: Animation clicked, calling set_current_frame({clicked_animation}, 0)")
-            self.set_current_frame(clicked_animation, 0)
-            return (clicked_animation, 0)
+            # Use this film strip's animation name instead of the clicked animation name
+            # since each film strip represents a specific animation
+            strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else clicked_animation
+            print(f"FilmStripWidget: Animation clicked, calling set_current_frame({strip_animation}, 0)")
+            self.set_current_frame(strip_animation, 0)
+            return (strip_animation, 0)
+        
+        # Check if clicking on preview area
+        preview_click = self.handle_preview_click(pos)
+        if preview_click:
+            return preview_click
         
         print(f"FilmStripWidget: No frame or animation clicked")
         return None
@@ -547,8 +588,8 @@ class FilmStripWidget:
         self.hovered_frame = self.get_frame_at_position(pos)
         self.hovered_animation = self.get_animation_at_position(pos)
 
-    def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
-        """Handle mouse click on the film strip. Returns (animation, frame_idx) if click was handled."""
+    def handle_preview_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
+        """Handle mouse click on the preview area (right side). Returns (animation, frame_idx) if click was handled."""
         # Check if click is on the animated preview frame (right side)
         for anim_name, preview_rect in self.preview_rects.items():
             if preview_rect.collidepoint(pos):
@@ -870,12 +911,12 @@ class FilmStripWidget:
         right_group_start = preview_start_x + 10
         center_x = (left_group_end + right_group_start) // 2
         
-        # Get label width for this film strip's animation
+        # Get label width for this film strip's current animation
         label_left = center_x
         label_right = center_x
-        if self.animated_sprite and self.animated_sprite._animations:
-            # Get the animation name from this film strip's animated sprite
-            anim_name = list(self.animated_sprite._animations.keys())[0]
+        if self.current_animation:
+            # Use the film strip's current animation name (which gets updated when switching strips)
+            anim_name = self.current_animation
             font = FontManager.get_font()
             text_surface = font.render(anim_name, fgcolor=(255, 255, 255), size=16)
             if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
