@@ -631,7 +631,33 @@ class ScrollArrowSprite(BitmappySprite):
 
 
 class FilmStripSprite(BitmappySprite):
-    """Sprite wrapper for the film strip widget."""
+    """Sprite wrapper for the film strip widget.
+    
+    CRITICAL ARCHITECTURE NOTE:
+    This sprite is the bridge between the film strip widget and the pygame sprite system.
+    It MUST be updated continuously (every frame) to ensure preview animations run smoothly.
+    
+    KEY RESPONSIBILITIES:
+    1. Continuous Animation Updates:
+       - Updates film_strip_widget.update_animations() every frame
+       - Passes delta time from the scene for smooth animation timing
+       - Ensures preview animations run independently of user interaction
+       
+    2. Dirty Flag Management:
+       - Marks itself as dirty when animations are running
+       - This triggers redraws in the sprite group system
+       - Ensures visual updates when animation frames advance
+       
+    3. Rendering Coordination:
+       - Calls force_redraw() when needed (dirty or animations running)
+       - Manages the relationship between animation state and visual updates
+       
+    DEBUGGING NOTES:
+    - If animations stop: Check that this sprite's update() is called every frame
+    - If animations are choppy: Verify _last_dt contains reasonable values
+    - If no visual updates: Check that dirty flag is being set when animations run
+    - If wrong timing: Verify delta time is being passed from scene update loop
+    """
 
     def __init__(self, film_strip_widget, x=0, y=0, width=800, height=100, groups=None):
         """Initialize the film strip sprite."""
@@ -647,14 +673,25 @@ class FilmStripSprite(BitmappySprite):
         self.dirty = 1
 
     def update(self):
-        """Update the film strip sprite."""
+        """Update the film strip sprite.
+        
+        CRITICAL: This method is called continuously by the scene update loop
+        to ensure preview animations run smoothly. The key insight is that film
+        strip sprites need to update every frame, not just when dirty, because
+        they contain independent animation timing that must advance continuously.
+        """
         # Update animations first to advance frame timing
+        # This is the core of the preview animation system - it advances the
+        # animation frames based on delta time, allowing smooth preview playback
         if hasattr(self, "film_strip_widget") and self.film_strip_widget:
             # Get delta time from the scene or use a default
+            # DEBUGGING: If animations are choppy, check that _last_dt is being set
+            # by the scene update loop and contains reasonable values (0.016 = 60fps)
             dt = getattr(self, "_last_dt", 0.016)  # Default to ~60 FPS
             self.film_strip_widget.update_animations(dt)
         
         # Check if animations are running and force redraw
+        # This determines whether we need continuous updates for preview animations
         animations_running = (
             hasattr(self, "film_strip_widget")
             and hasattr(self.film_strip_widget, "animated_sprite")
@@ -663,15 +700,19 @@ class FilmStripSprite(BitmappySprite):
         )
 
         # Always redraw if dirty or if animations are running
+        # This ensures the film strip redraws both for user interactions (dirty)
+        # and for continuous animation updates (animations_running)
         should_redraw = self.dirty or animations_running
 
         if should_redraw:
             self.force_redraw()
-            # Always mark as dirty when animations are running for continuous updates
+            # CRITICAL: Always mark as dirty when animations are running for continuous updates
+            # This ensures the sprite group will redraw this sprite every frame when
+            # animations are present, creating the smooth preview effect
             if animations_running:
-                self.dirty = 1
+                self.dirty = 1  # Keep dirty for continuous animation updates
             else:
-                self.dirty = 0
+                self.dirty = 0  # Reset dirty when no animations (normal sprite behavior)
 
     def force_redraw(self):
         """Force a redraw of the film strip."""
@@ -2830,6 +2871,33 @@ class BitmapEditorScene(Scene):
                 if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
                     strip_widget.animated_sprite.dirty = 2
     
+    def _on_frame_inserted(self, animation: str, frame_index: int) -> None:
+        """Handle when a new frame is inserted into an animation.
+        
+        Args:
+            animation: The animation name where the frame was inserted
+            frame_index: The index where the frame was inserted
+        """
+        print(f"BitmapEditorScene: Frame inserted at {animation}[{frame_index}]")
+        
+        # Update canvas to show the new frame if it's the current animation
+        if hasattr(self, "canvas") and self.canvas and self.selected_animation == animation:
+            print(f"BitmapEditorScene: Updating canvas to show new frame {animation}[{frame_index}]")
+            self.canvas.show_frame(animation, frame_index)
+            self.selected_frame = frame_index
+        
+        # Mark all film strips as dirty to reflect the new frame
+        if hasattr(self, "film_strips") and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                strip_widget.mark_dirty()
+                # Mark the film strip sprite as dirty=2 for full surface blit
+                if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
+                    self.film_strip_sprites[strip_name].dirty = 2
+                    
+                # Mark the animated sprite as dirty to ensure animation updates
+                if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
+                    strip_widget.animated_sprite.dirty = 2
+    
     def _update_film_strip_selection_state(self):
         """Update the selection state of all film strips based on current selection."""
         if not hasattr(self, "film_strips") or not self.film_strips:
@@ -3092,7 +3160,17 @@ class BitmapEditorScene(Scene):
         self._mark_film_strip_sprites_dirty()
 
     def _mark_film_strip_sprites_dirty(self) -> None:
-        """Mark all film strip sprites as dirty for animation updates."""
+        """Mark all film strip sprites as dirty for animation updates.
+        
+        This is a backup mechanism to ensure film strip sprites are marked as dirty
+        when animations are running. The primary dirty marking happens in the
+        FilmStripSprite.update() method, but this provides an additional safety net.
+        
+        DEBUGGING NOTES:
+        - If film strips don't redraw: Check that this method is being called
+        - If animations are choppy: Verify dirty flag is being set consistently
+        - If performance is poor: Consider reducing frequency of this call
+        """
         if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
             for film_strip_sprite in self.film_strip_sprites.values():
                 film_strip_sprite.dirty = 1
@@ -4070,7 +4148,10 @@ class BitmapEditorScene(Scene):
             # Pass delta time to the canvas for animation updates
             self.canvas.update_animation(self.dt)
 
-            # Update film strip preview animations
+            # CRITICAL: Update film strip preview animations for backward compatibility
+            # This handles the legacy single film strip case (canvas.film_strip)
+            # NOTE: The main animation updates now happen in the scene update loop
+            # for better performance and cleaner separation of concerns
             if (
                 hasattr(self.canvas, "film_strip")
                 and self.canvas.film_strip
@@ -4087,18 +4168,21 @@ class BitmapEditorScene(Scene):
                 ):
                     self.canvas.film_strip_sprite.dirty = 2
                     
-            # Update multiple film strip animations
+            # Update multiple film strip animations (new multi-strip system)
+            # This ensures each film strip has its own independent animation timing
             if hasattr(self, "film_strips") and self.film_strips:
                 for film_strip in self.film_strips.values():
                     if hasattr(film_strip, "update_animations"):
                         film_strip.update_animations(self.dt)
                         
             # Mark all film strip sprites as dirty for animation updates (every frame)
+            # This ensures the sprite group redraws film strips when animations advance
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                 for film_strip_sprite in self.film_strip_sprites.values():
                     film_strip_sprite.dirty = 1
                     
             # Also mark film strip sprites as dirty for continuous animation updates
+            # This is a backup mechanism to ensure film strips stay dirty when needed
             self._mark_film_strip_sprites_dirty()
             
             # Mark the main scene as dirty every frame to ensure sprite groups are updated

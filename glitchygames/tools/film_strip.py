@@ -8,11 +8,40 @@ between frames in animated sprites, with sprocket separators between animations.
 
 import pygame
 from glitchygames.fonts import FontManager
-from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites import AnimatedSprite, SpriteFrame
 
 
 class FilmStripWidget:
-    """Film reel-style widget for frame selection in animated sprites."""
+    """Film reel-style widget for frame selection in animated sprites.
+    
+    ARCHITECTURE OVERVIEW:
+    This widget provides a film strip interface for displaying and interacting with
+    animated sprite frames. It supports both static frame selection and continuous
+    preview animations.
+    
+    KEY COMPONENTS:
+    1. Preview Animation System:
+       - Each film strip has independent animation timing via preview_animation_times
+       - Animations run continuously in the background, independent of user interaction
+       - Multiple film strips can show different animations at different speeds
+       
+    2. Frame Selection System:
+       - Users can click on frames to select them for editing
+       - Selected frames are highlighted with a red border
+       - Frame selection updates the main canvas for editing
+       
+    3. Dirty Propagation System:
+       - Film strips mark themselves as dirty when animations advance
+       - This triggers redraws in the sprite group system
+       - Ensures smooth, continuous animation updates
+       
+    DEBUGGING GUIDE:
+    - If animations don't run: Check that update_animations() is called every frame
+    - If animations are choppy: Verify delta time (dt) is reasonable (0.016 = 60fps)
+    - If wrong frames show: Check preview_animation_times calculation
+    - If animations don't loop: Verify total_duration and modulo operation
+    - If film strips don't redraw: Check dirty flag propagation
+    """
 
     # Color cycling background colors (refactored from MiniView)
     BACKGROUND_COLORS: list[tuple[int, int, int]] = [
@@ -76,6 +105,11 @@ class FilmStripWidget:
         self.preview_animation_times: dict[str, float] = {}  # Current time for each animation
         self.preview_animation_speeds: dict[str, float] = {}  # Speed multiplier for each animation
         self.preview_frame_durations: dict[str, list[float]] = {}  # Frame durations
+        
+        # Initialize film tabs for frame insertion
+        self.film_tabs = []  # List of FilmTabWidget instances
+        self.tab_width = 20  # Width of each tab
+        self.tab_height = 30  # Height of each tab
 
         # Animation change detection threshold
         self.ANIMATION_CHANGE_THRESHOLD = 0.001
@@ -158,35 +192,65 @@ class FilmStripWidget:
         print(f"FilmStripWidget: Final preview_frame_durations: {self.preview_frame_durations}")
 
     def update_animations(self, dt: float) -> None:
-        """Update animation timing for all previews."""
+        """Update animation timing for all previews.
+        
+        This is the core method that drives the film strip preview animations.
+        It advances animation timing independently for each animation, allowing
+        multiple film strips to show different animations at different speeds.
+        
+        DEBUGGING NOTES:
+        - If animations don't advance, check that dt > 0 and is reasonable (0.016 = 60fps)
+        - If animations are choppy, verify that this method is called every frame
+        - If animations loop incorrectly, check preview_animation_times calculation
+        - If animations don't start, verify animated_sprite is set and has animations
+        """
         if not self.animated_sprite:
             return
 
         # Update the animated sprite with delta time to advance frames
+        # This is the main animation advancement - it updates the sprite's internal
+        # frame timing and current_frame property based on elapsed time
         self.animated_sprite.update(dt)
         
         # Always mark as dirty when animations are running to ensure continuous updates
         # This ensures the film strip redraws even when animations are smoothly transitioning
+        # CRITICAL: Without this, the film strip won't redraw when frames advance
         has_animations = len(self.animated_sprite._animations) > 0
         if has_animations:
             self.mark_dirty()
 
         # Update independent timing for each animation preview
+        # This allows each film strip to have its own animation timing, independent
+        # of the main canvas animation or other film strips
         for anim_name in self.animated_sprite._animations:
             if anim_name in self.preview_animation_times:
-                # Update animation time
+                # Update animation time based on delta time and animation speed
+                # This creates smooth, frame-rate independent animation timing
                 speed = self.preview_animation_speeds[anim_name]
                 self.preview_animation_times[anim_name] += dt * speed
 
                 # Get total duration of this animation
+                # This is the sum of all frame durations in the animation
                 total_duration = sum(self.preview_frame_durations.get(anim_name, [1.0]))
 
                 # Loop animation time continuously (no pause)
+                # This ensures animations loop seamlessly without gaps
                 if total_duration > 0:
                     self.preview_animation_times[anim_name] %= total_duration
 
     def get_current_preview_frame(self, anim_name: str) -> int:
-        """Get the current frame index for a preview animation."""
+        """Get the current frame index for a preview animation.
+        
+        This method calculates which frame should be displayed based on the
+        current animation time. It's used by the rendering system to show
+        the correct frame in the film strip preview.
+        
+        DEBUGGING NOTES:
+        - If wrong frames are shown, check that preview_animation_times is advancing
+        - If frames don't change, verify update_animations() is being called
+        - If animations skip frames, check frame_durations are correct
+        - If animations don't loop, verify total_duration calculation
+        """
         if (
             anim_name not in self.preview_animation_times
             or anim_name not in self.preview_frame_durations
@@ -197,6 +261,9 @@ class FilmStripWidget:
         frame_durations = self.preview_frame_durations[anim_name]
 
         # Find which frame we should be showing during animation
+        # This implements frame-based animation timing where each frame
+        # has a specific duration, and we find which frame corresponds
+        # to the current animation time
         accumulated_time = 0.0
         for frame_idx, duration in enumerate(frame_durations):
             if current_time <= accumulated_time + duration:
@@ -204,6 +271,7 @@ class FilmStripWidget:
             accumulated_time += duration
 
         # Fallback to last frame
+        # This should rarely happen due to the modulo operation in update_animations
         return len(frame_durations) - 1
 
     @staticmethod
@@ -229,6 +297,10 @@ class FilmStripWidget:
     def update_layout(self) -> None:
         """Update the layout of frames and sprockets."""
         self._calculate_layout()
+        
+        # Create film tabs after layout is calculated
+        self._create_film_tabs()
+        
         # Mark the parent film strip sprite as dirty if it exists
         if (
             hasattr(self, "parent_canvas")
@@ -443,7 +515,14 @@ class FilmStripWidget:
             frames_to_show = frames[:max_frames_before_overlap] if max_frames_before_overlap > 0 else frames[:1]
             print(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name}")
             for frame_idx, _frame in enumerate(frames_to_show):
-                frame_x = sprocket_start_x + frame_idx * (self.frame_width + self.frame_spacing) - self.scroll_offset - 1
+                # Calculate frame position accounting for tab width
+                if frame_idx == 0:
+                    # First frame starts at sprocket position
+                    frame_x = sprocket_start_x - self.scroll_offset - 1
+                else:
+                    # Subsequent frames start at the previous frame's tab position
+                    frame_x = sprocket_start_x + frame_idx * (self.frame_width + self.tab_width) - self.scroll_offset - 1
+                
                 # For single animation, all frames should be at the same Y position
                 # Nudge up by 2 pixels to align with the right-side animation frame
                 frame_y = self.animation_label_height - 2 if len(self.animated_sprite._animations) == 1 else y_offset + self.animation_label_height
@@ -553,6 +632,11 @@ class FilmStripWidget:
         """Handle a click on the film strip."""
         print(f"FilmStripWidget: handle_click called with position {pos}")
         print(f"FilmStripWidget: frame_layouts has {len(self.frame_layouts)} entries")
+        
+        # First check if a tab was clicked
+        if self._handle_tab_click(pos):
+            print(f"FilmStripWidget: Tab was clicked, not processing frame click")
+            return None  # Tab was clicked, don't process frame click
         
         # Check if clicking on a frame
         clicked_frame = self.get_frame_at_position(pos)
@@ -854,6 +938,10 @@ class FilmStripWidget:
 
             surface.blit(label_surface, anim_rect)
 
+        # Render film tabs for frame insertion (before frames so they appear behind borders)
+        for tab in self.film_tabs:
+            tab.render(surface)
+        
         # Render frames
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
             if anim_name in self.animated_sprite._animations and frame_idx < len(
@@ -1036,3 +1124,250 @@ class FilmStripWidget:
             return None
 
         return self._find_clicked_frame(local_x, local_y)
+    
+    def _create_film_tabs(self) -> None:
+        """Create film tabs for frame insertion points."""
+        self.film_tabs.clear()
+        
+        if not self.animated_sprite or not self.animated_sprite._animations:
+            return
+            
+        # Get the current animation frames
+        current_animation = self.current_animation
+        if current_animation not in self.animated_sprite._animations:
+            return
+            
+        frames = self.animated_sprite._animations[current_animation]
+        if not frames:
+            return
+            
+        # Calculate tab positions based on frame layouts
+        for frame_idx in range(len(frames)):
+            frame_key = (current_animation, frame_idx)
+            if frame_key in self.frame_layouts:
+                frame_rect = self.frame_layouts[frame_key]
+                
+                # Create "before" tab (to the left of the frame) - only for the first frame
+                if frame_idx == 0:
+                    before_tab = FilmTabWidget(
+                        x=frame_rect.x - self.tab_width + 2,  # Move 2px right from frame edge
+                        y=frame_rect.y + (frame_rect.height - self.tab_height) // 2,  # Center vertically
+                        width=self.tab_width,
+                        height=self.tab_height
+                    )
+                    before_tab.set_insertion_type("before", frame_idx)
+                    self.film_tabs.append(before_tab)
+                
+                # Create "after" tab (to the right of the frame) - for all frames
+                after_tab = FilmTabWidget(
+                    x=frame_rect.x + frame_rect.width - 2,  # 2px overlap with frame
+                    y=frame_rect.y + (frame_rect.height - self.tab_height) // 2,  # Center vertically
+                    width=self.tab_width,
+                    height=self.tab_height
+                )
+                after_tab.set_insertion_type("after", frame_idx)
+                self.film_tabs.append(after_tab)
+    
+    def _handle_tab_click(self, pos: tuple[int, int]) -> bool:
+        """Handle mouse click on film tabs.
+        
+        Args:
+            pos: Mouse position (x, y)
+            
+        Returns:
+            True if a tab was clicked, False otherwise
+        """
+        for tab in self.film_tabs:
+            if tab.handle_click(pos):
+                # Create a new frame at the specified position
+                self._insert_frame_at_tab(tab)
+                return True
+        return False
+    
+    def _handle_tab_hover(self, pos: tuple[int, int]) -> bool:
+        """Handle mouse hover over film tabs.
+        
+        Args:
+            pos: Mouse position (x, y)
+            
+        Returns:
+            True if hovering over a tab, False otherwise
+        """
+        hovered_any = False
+        for tab in self.film_tabs:
+            if tab.handle_hover(pos):
+                hovered_any = True
+        return hovered_any
+    
+    def _insert_frame_at_tab(self, tab: "FilmTabWidget") -> None:
+        """Insert a new frame at the position specified by the tab.
+        
+        Args:
+            tab: The film tab that was clicked
+        """
+        if not self.animated_sprite or not self.parent_scene:
+            return
+            
+        current_animation = self.current_animation
+        if current_animation not in self.animated_sprite._animations:
+            return
+            
+        # Create a new blank frame with magenta background
+        frame_width = 32  # Default frame size
+        frame_height = 32
+        new_surface = pygame.Surface((frame_width, frame_height))
+        new_surface.fill((255, 0, 255))  # Magenta background
+        
+        # Create a new SpriteFrame
+        new_frame = SpriteFrame(new_surface, duration=0.5)
+        
+        # Determine insertion index
+        if tab.insertion_type == "before":
+            insert_index = tab.target_frame_index
+        else:  # "after"
+            insert_index = tab.target_frame_index + 1
+            
+        # Insert the frame into the animated sprite
+        self.animated_sprite.add_frame(current_animation, new_frame, insert_index)
+        
+        # Notify the parent scene about the frame insertion
+        if hasattr(self.parent_scene, "_on_frame_inserted"):
+            self.parent_scene._on_frame_inserted(current_animation, insert_index)
+        
+        # Recalculate layouts to include the new frame
+        self.update_layout()
+        
+        # Recreate tabs for the new frame layout
+        self._create_film_tabs()
+        
+        # Mark as dirty to trigger redraw
+        self.mark_dirty()
+
+
+class FilmTabWidget:
+    """Film tab widget for inserting frames before or after existing frames.
+    
+    ARCHITECTURE OVERVIEW:
+    This widget provides a small tab interface that can be attached to film strips
+    to allow users to insert new frames at specific positions. Each tab represents
+    an insertion point and can be clicked to add a new frame.
+    
+    KEY COMPONENTS:
+    1. Tab Positioning:
+       - Tabs are positioned to the left of the film strip
+       - Each tab corresponds to an insertion point (before/after frames)
+       - Tabs are visually distinct and clickable
+       
+    2. Frame Insertion:
+       - Clicking a tab creates a new frame at the specified position
+       - New frames are inserted into the animated sprite's frame list
+       - Film strip layout is recalculated after insertion
+       
+    3. Visual Design:
+       - Small, unobtrusive tabs that don't interfere with frame display
+       - Clear visual indication of insertion points
+       - Hover effects for better user experience
+    """
+    
+    def __init__(self, x: int, y: int, width: int = 20, height: int = 30):
+        """Initialize the film tab widget.
+        
+        Args:
+            x: X position of the tab
+            y: Y position of the tab  
+            width: Width of the tab
+            height: Height of the tab
+        """
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.rect = pygame.Rect(x, y, width, height)
+        
+        # Tab state
+        self.is_hovered = False
+        self.is_clicked = False
+        
+        # Tab properties
+        self.tab_color = (200, 200, 200)  # Light gray
+        self.hover_color = (255, 255, 255)  # White when hovered
+        self.click_color = (100, 100, 100)  # Dark gray when clicked
+        self.border_color = (0, 0, 0)  # Black border
+        
+        # Insertion properties
+        self.insertion_type = "before"  # "before" or "after"
+        self.target_frame_index = 0  # Which frame this tab is associated with
+        
+    def render(self, surface: pygame.Surface) -> None:
+        """Render the film tab to the given surface.
+        
+        Args:
+            surface: The pygame surface to render to
+        """
+        # Determine color based on state
+        if self.is_clicked:
+            color = self.click_color
+        elif self.is_hovered:
+            color = self.hover_color
+        else:
+            color = self.tab_color
+            
+        # Draw tab background
+        pygame.draw.rect(surface, color, self.rect)
+        
+        # Draw border
+        pygame.draw.rect(surface, self.border_color, self.rect, 2)
+        
+        # Draw plus sign in the center
+        center_x = self.rect.centerx
+        center_y = self.rect.centery
+        plus_size = 8
+        
+        # Draw horizontal line
+        pygame.draw.line(surface, self.border_color, 
+                        (center_x - plus_size//2, center_y), 
+                        (center_x + plus_size//2, center_y), 2)
+        # Draw vertical line
+        pygame.draw.line(surface, self.border_color, 
+                        (center_x, center_y - plus_size//2), 
+                        (center_x, center_y + plus_size//2), 2)
+    
+    def handle_click(self, pos: tuple[int, int]) -> bool:
+        """Handle mouse click on the tab.
+        
+        Args:
+            pos: Mouse position (x, y)
+            
+        Returns:
+            True if the tab was clicked, False otherwise
+        """
+        if self.rect.collidepoint(pos):
+            self.is_clicked = True
+            return True
+        return False
+    
+    def handle_hover(self, pos: tuple[int, int]) -> bool:
+        """Handle mouse hover over the tab.
+        
+        Args:
+            pos: Mouse position (x, y)
+            
+        Returns:
+            True if the tab is being hovered, False otherwise
+        """
+        self.is_hovered = self.rect.collidepoint(pos)
+        return self.is_hovered
+    
+    def reset_click_state(self) -> None:
+        """Reset the clicked state."""
+        self.is_clicked = False
+    
+    def set_insertion_type(self, insertion_type: str, target_frame_index: int) -> None:
+        """Set the insertion type and target frame for this tab.
+        
+        Args:
+            insertion_type: "before" or "after"
+            target_frame_index: The frame index this tab is associated with
+        """
+        self.insertion_type = insertion_type
+        self.target_frame_index = target_frame_index
