@@ -870,12 +870,14 @@ class FilmStripWidget:
         right_group_start = preview_start_x + 10
         center_x = (left_group_end + right_group_start) // 2
         
-        # Get label width for current animation
+        # Get label width for this film strip's animation
         label_left = center_x
         label_right = center_x
-        if self.animated_sprite and self.current_animation:
+        if self.animated_sprite and self.animated_sprite._animations:
+            # Get the animation name from this film strip's animated sprite
+            anim_name = list(self.animated_sprite._animations.keys())[0]
             font = FontManager.get_font()
-            text_surface = font.render(self.current_animation, fgcolor=(255, 255, 255), size=16)
+            text_surface = font.render(anim_name, fgcolor=(255, 255, 255), size=16)
             if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
                 text_surface, text_rect = text_surface
             else:  # pygame.font returns surface

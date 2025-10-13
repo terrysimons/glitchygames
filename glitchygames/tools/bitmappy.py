@@ -2469,6 +2469,9 @@ class BitmapEditorScene(Scene):
                     
                     # Mark as dirty to ensure redraw
                     film_strip_sprite.dirty = 2
+                    film_strip.mark_dirty()
+                    # Force complete redraw to clear any old sprockets
+                    film_strip._force_redraw = True
         
         # Update scroll arrows
         self._update_scroll_arrows()
