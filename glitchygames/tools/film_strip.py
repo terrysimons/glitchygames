@@ -1179,6 +1179,37 @@ class FilmStripWidget:
         scaled_image.set_colorkey((255, 0, 255))
         surface.blit(scaled_image, (center_x, center_y))
 
+    def _render_vertical_divider(self, surface: pygame.Surface) -> None:
+        """Render a vertical divider between the frames and preview area."""
+        if not self.animated_sprite:
+            return
+            
+        # Calculate divider position - 2 pixels wide, positioned between frames and preview
+        divider_x = self.rect.width - self.preview_width - 2 - 4  # 2 pixels before preview area, then 4 pixels left
+        divider_y = 0
+        divider_width = 2
+        divider_height = self.rect.height
+        
+        # Draw the divider as a dark copper/bronze line
+        divider_rect = pygame.Rect(divider_x, divider_y, divider_width, divider_height)
+        pygame.draw.rect(surface, (92, 58, 26), divider_rect)
+
+    def _render_preview_background(self, surface: pygame.Surface) -> None:
+        """Render a darker background for the preview area (right of the divider)."""
+        if not self.animated_sprite:
+            return
+            
+        # Calculate preview background area - from divider to end of film strip
+        divider_x = self.rect.width - self.preview_width - 2 - 4  # Same as divider position
+        preview_bg_x = divider_x + 2  # Start after the divider (2px wide)
+        preview_bg_y = 0
+        preview_bg_width = self.rect.width - preview_bg_x
+        preview_bg_height = self.rect.height
+        
+        # Draw darker background - slightly darker than the divider
+        preview_bg_rect = pygame.Rect(preview_bg_x, preview_bg_y, preview_bg_width, preview_bg_height)
+        pygame.draw.rect(surface, (80, 50, 22), preview_bg_rect)
+
     def render(self, surface: pygame.Surface) -> None:
         """Render the film strip to the given surface."""
         if not self.animated_sprite:
@@ -1259,6 +1290,12 @@ class FilmStripWidget:
             sprocket = self.render_sprocket_separator(0, 0, sprocket_rect.height)
             surface.blit(sprocket, sprocket_rect)
 
+        # Render vertical divider between frames and preview
+        self._render_vertical_divider(surface)
+        
+        # Render darker background for preview area
+        self._render_preview_background(surface)
+        
         # Render the animated preview
         self.render_preview(surface)
         
