@@ -927,7 +927,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Calculate required width for film strip - extend to end of screen
         screen_width = pygame.display.get_surface().get_width()
-        available_width = screen_width - film_strip_x - 20  # Leave 20px margin from right edge
+        available_width = screen_width - film_strip_x  # Extend to end of screen
         film_strip_width = max(300, available_width)
 
         # Multiple film strips disabled - only showing first animation
@@ -2403,7 +2403,7 @@ class BitmapEditorScene(Scene):
         film_strip_y_start = self.canvas.rect.y  # Start at same vertical position as canvas
 
         screen_width = pygame.display.get_surface().get_width()
-        available_width = screen_width - film_strip_x - 20  # Leave 20px margin from right edge
+        available_width = screen_width - film_strip_x  # Extend to end of screen
         film_strip_width = max(300, available_width)
 
         # Calculate vertical spacing between strips
@@ -2934,9 +2934,70 @@ class BitmapEditorScene(Scene):
             self.canvas.show_frame(animation, frame_index)
             self.selected_frame = frame_index
 
-        # Mark all film strips as dirty to reflect the new frame
+        # Update the selected_frame in the film strip widget for the current animation
         if hasattr(self, "film_strips") and self.film_strips:
             for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == animation:
+                    # Update the selected_frame in the film strip widget
+                    strip_widget.selected_frame = frame_index
+                    print(f"BitmapEditorScene: Updated film strip {strip_name} selected_frame to {frame_index}")
+                
+                strip_widget.mark_dirty()
+                # Mark the film strip sprite as dirty=2 for full surface blit
+                if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
+                    self.film_strip_sprites[strip_name].dirty = 2
+
+                # Mark the animated sprite as dirty to ensure animation updates
+                if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
+                    strip_widget.animated_sprite.dirty = 2
+
+    def _on_frame_removed(self, animation: str, frame_index: int) -> None:
+        """Handle when a frame is removed from an animation.
+
+        Args:
+            animation: The animation name where the frame was removed
+            frame_index: The index where the frame was removed
+
+        """
+        print(f"BitmapEditorScene: Frame removed at {animation}[{frame_index}]")
+
+        # Adjust selected frame if necessary
+        if hasattr(self, "selected_animation") and self.selected_animation == animation:
+            if hasattr(self, "selected_frame") and self.selected_frame >= frame_index:
+                # If we removed a frame before or at the current position, adjust the selected frame
+                if self.selected_frame > 0:
+                    self.selected_frame -= 1
+                else:
+                    # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
+                    self.selected_frame = 0
+                    
+                # Ensure the selected frame is within bounds
+                if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+                    if animation in self.canvas.animated_sprite._animations:
+                        max_frame = len(self.canvas.animated_sprite._animations[animation]) - 1
+                        if self.selected_frame > max_frame:
+                            self.selected_frame = max(0, max_frame)
+                            
+                # Update canvas to show the adjusted frame
+                if hasattr(self, "canvas") and self.canvas:
+                    print(f"BitmapEditorScene: Updating canvas to show adjusted frame {animation}[{self.selected_frame}]")
+                    try:
+                        self.canvas.show_frame(animation, self.selected_frame)
+                    except (IndexError, KeyError) as e:
+                        print(f"BitmapEditorScene: Error updating canvas: {e}")
+                        # Fallback to frame 0 if there's an error
+                        self.selected_frame = 0
+                        if animation in self.canvas.animated_sprite._animations and len(self.canvas.animated_sprite._animations[animation]) > 0:
+                            self.canvas.show_frame(animation, 0)
+
+        # Update the selected_frame in the film strip widget for the current animation
+        if hasattr(self, "film_strips") and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == animation:
+                    # Update the selected_frame in the film strip widget
+                    strip_widget.selected_frame = self.selected_frame if hasattr(self, "selected_frame") else 0
+                    print(f"BitmapEditorScene: Updated film strip {strip_name} selected_frame to {strip_widget.selected_frame}")
+                
                 strip_widget.mark_dirty()
                 # Mark the film strip sprite as dirty=2 for full surface blit
                 if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
@@ -3053,13 +3114,13 @@ class BitmapEditorScene(Scene):
             if strip_name == current_animation:
                 # This is the selected strip - mark it as selected
                 strip_widget.is_selected = True
-                strip_widget.current_frame = current_frame
+                strip_widget.selected_frame = current_frame
                 print(f"BitmapEditorScene: Marking strip {strip_name} as selected with frame {current_frame}")
             else:
-                # This is not the selected strip - deselect it
+                # This is not the selected strip - deselect it but preserve its selected_frame
                 strip_widget.is_selected = False
-                strip_widget.current_frame = 0
-                print(f"BitmapEditorScene: Deselecting strip {strip_name}")
+                # Don't reset selected_frame - each strip maintains its own selection
+                print(f"BitmapEditorScene: Deselecting strip {strip_name} (preserving selected_frame={strip_widget.selected_frame})")
 
             # Mark the strip as dirty to trigger full redraw
             strip_widget.mark_dirty()
