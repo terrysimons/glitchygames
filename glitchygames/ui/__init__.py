@@ -3095,8 +3095,12 @@ class MultiLineTextBox(BitmappySprite):
             
             for i, char in enumerate(clicked_line_text):
                 char_width = self._get_text_width(char)
-                if text_width + (char_width / 2) > x_rel:
-                    char_pos_in_line = i
+                if text_width + char_width > x_rel:
+                    # Check if click is in the first half of the character
+                    if x_rel < text_width + (char_width / 2):
+                        char_pos_in_line = i
+                    else:
+                        char_pos_in_line = i + 1
                     break
                 text_width += char_width
             else:

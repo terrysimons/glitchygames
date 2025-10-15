@@ -42,6 +42,8 @@ cookiecutter = "*"
 pyperclip = "*"
 aisuite = {extras = ["all"], version = "^0.1.12"}
 numpy = "^2.3.3"
+speechrecognition = "^3.10.0"
+pyaudio = "^0.2.11"
 
 [tool.poetry.group.dev.dependencies]
 nox = "*"

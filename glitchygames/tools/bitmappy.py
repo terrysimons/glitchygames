@@ -27,6 +27,12 @@ try:
 except ImportError:
     ai = None
 
+# Try to import voice recognition, but don't fail if it's not available
+try:
+    from glitchygames.events.voice import VoiceRecognitionManager
+except ImportError:
+    VoiceRecognitionManager = None
+
 from glitchygames.engine import GameEngine
 from glitchygames import events
 from glitchygames.pixels import rgb_triplet_generator
@@ -412,7 +418,26 @@ def _initialize_ai_client(log: logging.Logger):
 
     log.info("Initializing AI client...")
     client = ai.Client()
-    log.info("AI client initialized successfully")
+
+    # Configure timeout for the underlying HTTP client
+    try:
+        # Access the underlying provider clients and set timeout
+        if hasattr(client, '_providers'):
+            for provider_name, provider in client._providers.items():
+                if hasattr(provider, 'client') and hasattr(provider.client, 'timeout'):
+                    provider.client.timeout = 300.0  # 5 minutes
+                    log.debug(f"Set 5-minute timeout for {provider_name} provider")
+                elif hasattr(provider, 'client') and hasattr(provider.client, '_client'):
+                    # For some providers, the timeout is on the underlying HTTP client
+                    if hasattr(provider.client._client, 'timeout'):
+                        provider.client._client.timeout = 300.0
+                        log.debug(f"Set 5-minute timeout for {provider_name} provider HTTP client")
+
+        log.info("AI client initialized successfully with 5-minute timeout")
+    except Exception as e:
+        log.warning(f"Could not configure timeout: {e}")
+        log.info("AI client initialized with default timeout")
+
     log.debug(f"Client type: {type(client)}")
     return client
 
@@ -471,11 +496,23 @@ def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIRe
         return AIResponse(content="AI features not available")
 
     log.info("Making API call to AI service...")
-    response = client.chat.completions.create(
-        model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
-    )
+    start_time = time.time()
 
-    log.info("AI response received from API")
+    try:
+        response = client.chat.completions.create(
+            model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
+        )
+
+        end_time = time.time()
+        duration = end_time - start_time
+        log.info(f"AI response received from API in {duration:.2f} seconds")
+
+    except Exception as e:
+        end_time = time.time()
+        duration = end_time - start_time
+        log.error(f"AI request failed after {duration:.2f} seconds: {e}")
+        raise
+
     return _extract_response_content(response, log)
 
 
@@ -805,8 +842,29 @@ class FilmStripSprite(BitmappySprite):
                     self.parent_scene._on_film_strip_frame_selected(self.film_strip_widget, animation, frame_idx)
             else:
                 print("FilmStripSprite: No frame clicked, handle_click returned None")
+
+                # If no frame was clicked, start drag scrolling
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    self.parent_scene.is_dragging_film_strips = True
+                    self.parent_scene.film_strip_drag_start_y = event.pos[1]
+                    self.parent_scene.film_strip_drag_start_offset = self.parent_scene.film_strip_scroll_offset
+                    print(f"FilmStripSprite: Started drag scrolling at Y={event.pos[1]}, offset={self.parent_scene.film_strip_scroll_offset}")
         else:
             print("FilmStripSprite: Click is outside bounds or no widget")
+
+    def on_left_mouse_drag_event(self, event, trigger):
+        """Handle mouse drag events for film strip scrolling."""
+        if hasattr(self, "parent_scene") and self.parent_scene and self.parent_scene.is_dragging_film_strips:
+            print(f"FilmStripSprite: Handling drag at Y={event.pos[1]}")
+            self.parent_scene._handle_film_strip_drag_scroll(event.pos[1])
+
+    def on_left_mouse_button_up_event(self, event):
+        """Handle mouse button up events to stop drag scrolling."""
+        if hasattr(self, "parent_scene") and self.parent_scene and self.parent_scene.is_dragging_film_strips:
+            print("FilmStripSprite: Stopping drag scrolling")
+            self.parent_scene.is_dragging_film_strips = False
+            self.parent_scene.film_strip_drag_start_y = None
+            self.parent_scene.film_strip_drag_start_offset = None
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
@@ -3223,6 +3281,123 @@ class BitmapEditorScene(Scene):
         self.debug_text.rect.width = debug_width
         self.debug_text.rect.height = debug_height
 
+    def _setup_voice_recognition(self) -> None:
+        """Set up voice recognition for voice commands."""
+        try:
+            self.voice_manager = VoiceRecognitionManager(logger=self.log)
+
+            if self.voice_manager.is_available():
+                # Register voice commands
+                self.voice_manager.register_command(
+                    "clear the ai sprite box",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite box",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai box",
+                    self._clear_ai_sprite_box
+                )
+                # Add commands for what speech recognition actually hears
+                self.voice_manager.register_command(
+                    "clear the ai sprite",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite",
+                    self._clear_ai_sprite_box
+                )
+                # Add command for "window" variation
+                self.voice_manager.register_command(
+                    "clear the ai sprite window",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite window",
+                    self._clear_ai_sprite_box
+                )
+
+                # Start listening for voice commands
+                self.voice_manager.start_listening()
+                self.log.info("Voice recognition initialized and started")
+            else:
+                self.log.warning("Voice recognition not available - microphone not found")
+                self.voice_manager = None
+
+        except Exception as e:
+            self.log.error(f"Failed to initialize voice recognition: {e}")
+            self.voice_manager = None
+
+    def _clear_ai_sprite_box(self) -> None:
+        """Clear the AI sprite text box."""
+        if hasattr(self, "debug_text") and self.debug_text:
+            self.debug_text.text = ""
+            self.log.info("AI sprite box cleared via voice command")
+        else:
+            self.log.warning("Cannot clear AI sprite box - debug_text not available")
+
+    def _is_mouse_in_film_strip_area(self, mouse_pos: tuple[int, int]) -> bool:
+        """Check if mouse position is within the film strip area.
+
+        Args:
+            mouse_pos: (x, y) mouse position
+
+        Returns:
+            True if mouse is in film strip area, False otherwise
+        """
+        if not hasattr(self, "film_strip_sprites") or not self.film_strip_sprites:
+            self.log.debug(f"No film strip sprites available for mouse pos {mouse_pos}")
+            return False
+
+        # Check if mouse is within any film strip sprite bounds
+        for anim_name, film_strip_sprite in self.film_strip_sprites.items():
+            if film_strip_sprite.rect.collidepoint(mouse_pos):
+                self.log.debug(f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}")
+                return True
+
+        self.log.debug(f"Mouse {mouse_pos} is not in any film strip area")
+        return False
+
+    def _handle_film_strip_drag_scroll(self, mouse_y: int) -> None:
+        """Handle mouse drag scrolling for film strips.
+
+        Args:
+            mouse_y: Current mouse Y position
+        """
+        if not self.is_dragging_film_strips or self.film_strip_drag_start_y is None:
+            self.log.debug("Not dragging film strips or no start Y")
+            return
+
+        # Calculate drag distance
+        drag_distance = mouse_y - self.film_strip_drag_start_y
+        self.log.debug(f"Drag distance: {drag_distance}, start Y: {self.film_strip_drag_start_y}, current Y: {mouse_y}")
+
+        # Convert drag distance to scroll offset change
+        # Each film strip is approximately 100 pixels tall, so we scroll by 1 for every 100 pixels
+        strip_height = 100
+        scroll_change = int(drag_distance / strip_height)
+
+        # Calculate new scroll offset
+        new_offset = self.film_strip_drag_start_offset + scroll_change
+
+        # Clamp to valid range
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            total_animations = len(self.canvas.animated_sprite._animations)
+            max_scroll = max(0, total_animations - self.max_visible_strips)
+            new_offset = max(0, min(new_offset, max_scroll))
+            self.log.debug(f"Scroll change: {scroll_change}, new offset: {new_offset}, max scroll: {max_scroll}")
+
+        # Update scroll offset if it changed
+        if new_offset != self.film_strip_scroll_offset:
+            self.log.debug(f"Updating scroll offset from {self.film_strip_scroll_offset} to {new_offset}")
+            self.film_strip_scroll_offset = new_offset
+            self._update_film_strip_visibility()
+            self._update_scroll_arrows()
+        else:
+            self.log.debug("No scroll offset change needed")
+
     def _setup_film_strips(self) -> None:
         """Set up multiple independent film strips - one for each animation."""
         # Initialize film strip storage
@@ -3876,6 +4051,11 @@ class BitmapEditorScene(Scene):
         # Initialize scroll arrows
         self.scroll_up_arrow = None
 
+        # Initialize mouse drag scrolling state
+        self.film_strip_drag_start_y = None
+        self.film_strip_drag_start_offset = None
+        self.is_dragging_film_strips = False
+
         # Set up all components
         self._setup_menu_bar()
         self._setup_canvas(options)
@@ -3901,6 +4081,10 @@ class BitmapEditorScene(Scene):
                 # Could update AI_MAX_TOKENS here if needed
         except (ValueError, ConnectionError, TimeoutError) as e:
             self.log.warning(f"Could not query model capabilities: {e}")
+
+        # Set up voice recognition
+        # TODO: Re-enable voice recognition when ready
+        # self._setup_voice_recognition()
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -4425,6 +4609,15 @@ class BitmapEditorScene(Scene):
                 self.blue_slider.text_sprite.text = str(self.blue_slider.value)
             self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
 
+        # Check if click is in film strip area for drag scrolling
+        in_film_area = self._is_mouse_in_film_strip_area(event.pos)
+        self.log.debug(f"Mouse click at {event.pos}, in film strip area: {in_film_area}")
+        if in_film_area:
+            self.is_dragging_film_strips = True
+            self.film_strip_drag_start_y = event.pos[1]
+            self.film_strip_drag_start_offset = self.film_strip_scroll_offset
+            self.log.debug(f"Started film strip drag at Y={event.pos[1]}, offset={self.film_strip_scroll_offset}")
+
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the left mouse button up event.
 
@@ -4438,6 +4631,13 @@ class BitmapEditorScene(Scene):
             None
 
         """
+        # Stop film strip drag scrolling if active
+        if self.is_dragging_film_strips:
+            self.is_dragging_film_strips = False
+            self.film_strip_drag_start_y = None
+            self.film_strip_drag_start_offset = None
+            self.log.debug("Stopped film strip drag scrolling")
+
         sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in sprites:
@@ -4457,6 +4657,12 @@ class BitmapEditorScene(Scene):
             None
 
         """
+        # Handle film strip drag scrolling
+        if self.is_dragging_film_strips:
+            self.log.debug(f"Handling film strip drag at Y={event.pos[1]}")
+            self._handle_film_strip_drag_scroll(event.pos[1])
+            return  # Don't process other drag events when dragging film strips
+
         self.canvas.on_left_mouse_drag_event(event, trigger)
 
         try:
@@ -4595,9 +4801,26 @@ class BitmapEditorScene(Scene):
                     self.log.info(f"Added current strip as training example")
 
             if examples:
-                # Use both current frame and strip as training examples (no regular examples)
-                relevant_examples = examples
-                self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
+                # Check if we have only one film strip with one frame - if so, just send the frame
+                if (len(examples) == 2 and
+                    hasattr(self, "canvas") and self.canvas and
+                    hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite and
+                    len(self.canvas.animated_sprite._animations) == 1):
+
+                    # Check if the single animation has only one frame
+                    single_animation = list(self.canvas.animated_sprite._animations.values())[0]
+                    if len(single_animation.frames) == 1:
+                        # Only send the frame, not the strip
+                        relevant_examples = [examples[0]]  # Just the frame
+                        self.log.info(f"Optimization: Single frame in single strip - using only frame data")
+                    else:
+                        # Multiple frames, send both
+                        relevant_examples = examples
+                        self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
+                else:
+                    # Use both current frame and strip as training examples (no regular examples)
+                    relevant_examples = examples
+                    self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
             else:
                 relevant_examples = _select_relevant_training_examples(text)
                 self.log.info(f"Failed to load context examples, using {len(relevant_examples)} regular examples")
@@ -5533,6 +5756,17 @@ pixels = \"\"\"
             except Exception:
                 self.log.exception("Error closing response queue")
 
+    def _cleanup_voice_recognition(self) -> None:
+        """Clean up voice recognition resources."""
+        if hasattr(self, "voice_manager") and self.voice_manager:
+            try:
+                self.log.info("Stopping voice recognition...")
+                self.voice_manager.stop_listening()
+                self.voice_manager = None
+                self.log.info("Voice recognition stopped successfully")
+            except Exception:
+                self.log.exception("Error stopping voice recognition")
+
     def cleanup(self):
         """Clean up resources."""
         self.log.info("Starting AI cleanup...")
@@ -5540,6 +5774,9 @@ pixels = \"\"\"
         self._shutdown_ai_worker()
         self._cleanup_ai_process()
         self._cleanup_queues()
+
+        # Clean up voice recognition
+        self._cleanup_voice_recognition()
 
         super().cleanup()
 
