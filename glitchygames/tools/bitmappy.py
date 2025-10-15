@@ -43,6 +43,7 @@ from glitchygames.ui import (
     MenuItem,
     MultiLineTextBox,
     SliderSprite,
+    TabControlSprite,
     TextSprite,
 )
 from glitchygames.ui.dialogs import (
@@ -734,8 +735,8 @@ class FilmStripSprite(BitmappySprite):
     def on_left_mouse_button_down_event(self, event):
         """Handle mouse clicks on the film strip."""
         print(f"FilmStripSprite: Mouse click at {event.pos}, rect: {self.rect}")
-        if self.rect.collidepoint(event.pos) and self.film_strip_widget:
-            print("FilmStripSprite: Click is within bounds, converting coordinates")
+        if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
+            print("FilmStripSprite: Click is within bounds and sprite is visible, converting coordinates")
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
@@ -897,7 +898,12 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
         self.active_color = (0, 0, 0)
-        self.border_thickness = 1
+        # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
+        # This happens when the 320x320 constraint kicks in, making pixel size 2x2 or smaller
+        print(f"DEBUG: pixels_across={self.pixels_across}, pixels_tall={self.pixels_tall}")
+        print(f"DEBUG: pixel_width={self.pixel_width}, pixel_height={self.pixel_height}")
+        self.border_thickness = 0 if (self.pixel_width <= 2 and self.pixel_height <= 2) else 1
+        print(f"DEBUG: border_thickness set to {self.border_thickness}")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -922,7 +928,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.canvas_renderer = AnimatedCanvasRenderer(self)
 
         # Create multiple independent film strips - one for each animation
-        film_strip_x = self.rect.right + 20  # 20px to the right of canvas
+        film_strip_x = self.rect.right + 4  # 4 pixels to the right of canvas edge
         film_strip_y = self.rect.y  # Start at same vertical position as canvas
 
         # Calculate required width for film strip - extend to end of screen
@@ -1758,8 +1764,33 @@ class AnimatedCanvasSprite(BitmappySprite):
         screen_height = screen.get_height()
 
         # Recalculate pixel dimensions to fit the screen
-        available_height = screen_height - 100 - 24  # Adjust for bottom margin and menu bar
-        pixel_size = min(available_height // sprite_height, (screen_width * 2 // 3) // sprite_width)
+        available_height = screen_height - 80 - 24  # Adjust for bottom margin and menu bar
+        # ===== DEBUG: CANVAS SIZING CALCULATIONS =====
+        print(f"===== DEBUG: CANVAS SIZING CALCULATIONS =====")
+        print(f"Screen: {screen_width}x{screen_height}, Sprite: {sprite_width}x{sprite_height}")
+        print(f"Available height: {available_height}")
+        print(f"Height constraint: {available_height // sprite_height}")
+        print(f"Width constraint: {(screen_width * 1 // 2) // sprite_width}")
+        print(f"320x320 constraint: {320 // max(sprite_width, sprite_height)}")
+
+        # For large sprites (128x128), ensure we get at least 2x2 pixel size
+        if sprite_width >= 128 and sprite_height >= 128:
+            pixel_size = 2  # Force 2x2 pixel size for 128x128
+            print(f"*** FORCING 2x2 pixel size for 128x128 sprite ***")
+        else:
+            pixel_size = min(
+                available_height // sprite_height,
+                (screen_width * 1 // 2) // sprite_width,
+                # Maximum canvas size constraint: 320x320
+                320 // max(sprite_width, sprite_height)
+            )
+            print(f"Calculated pixel_size: {pixel_size}")
+        # Ensure minimum pixel size of 1x1
+        pixel_size = max(pixel_size, 1)
+
+        print(f"Final pixel_size: {pixel_size}")
+        print(f"Canvas will be: {sprite_width * pixel_size}x{sprite_height * pixel_size}")
+        print(f"===== END DEBUG =====\n")
 
         # Update pixel dimensions
         self.pixel_width = pixel_size
@@ -1772,10 +1803,18 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update surface dimensions
         actual_width = sprite_width * pixel_size
         actual_height = sprite_height * pixel_size
+        print(f"===== DEBUG: SURFACE CREATION =====")
+        print(f"Creating surface: {actual_width}x{actual_height}")
+        print(f"pixel_size: {pixel_size}, sprite: {sprite_width}x{sprite_height}")
         self.image = pygame.Surface((actual_width, actual_height))
+        print(f"Surface created successfully")
+        print(f"===== END DEBUG =====\n")
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
         # Update class dimensions
+
+        # Update AI sprite positioning after canvas resize
+        self._update_ai_sprite_position()
         AnimatedCanvasSprite.WIDTH = sprite_width
         AnimatedCanvasSprite.HEIGHT = sprite_height
 
@@ -2293,7 +2332,7 @@ class BitmapEditorScene(Scene):
 
         """
         menu_bar_height = 24
-        bottom_margin = 100  # Space needed for sliders and color well
+        bottom_margin = 80  # Space needed for sliders and color well
         available_height = (
             self.screen_height - bottom_margin - menu_bar_height
         )  # Use menu_bar_height instead of 32
@@ -2303,11 +2342,32 @@ class BitmapEditorScene(Scene):
         pixels_across = int(width)
         pixels_tall = int(height)
 
+        # ===== DEBUG: INITIAL CANVAS SIZING =====
+        print(f"===== DEBUG: INITIAL CANVAS SIZING =====")
+        print(f"Screen: {self.screen_width}x{self.screen_height}, Sprite: {pixels_across}x{pixels_tall}")
+        print(f"Available height: {available_height}")
+        print(f"Height constraint: {available_height // pixels_tall}")
+        print(f"Width constraint: {(self.screen_width * 1 // 2) // pixels_across}")
+        print(f"320x320 constraint: {320 // max(pixels_across, pixels_tall)}")
+
+        # Calculate pixel size based on available space
         pixel_size = min(
             available_height // pixels_tall,  # Height-based size
-            # Width-based size (use 2/3 of screen width)
-            (self.screen_width * 2 // 3) // pixels_across,
+            # Width-based size (use 1/2 of screen width)
+            (self.screen_width * 1 // 2) // pixels_across,
         )
+        print(f"Calculated pixel_size: {pixel_size}")
+
+        # For very large sprites, ensure we get at least 2x2 pixel size
+        if pixel_size < 2:
+            pixel_size = 2  # Force minimum 2x2 pixel size for very large sprites
+            print(f"*** FORCING minimum 2x2 pixel size for large sprite ***")
+
+        print(f"Final pixel_size: {pixel_size}")
+        print(f"Canvas will be: {pixels_across * pixel_size}x{pixels_tall * pixel_size}")
+        print(f"===== END DEBUG =====\n")
+        # Ensure minimum pixel size of 1x1
+        pixel_size = max(pixel_size, 1)
 
         return pixels_across, pixels_tall, pixel_size
 
@@ -2332,7 +2392,7 @@ class BitmapEditorScene(Scene):
         # Create animated sprite using proper initialization - single frame
         animated_sprite = AnimatedSprite()
         # Use the proper method to set up animations with single frame
-        animation_name = "frame"  # Use a generic name for new sprites
+        animation_name = "strip_1"  # Use a generic name for new sprites
         animated_sprite._animations = {animation_name: [frame1]}
         animated_sprite._frame_interval = 0.5
         animated_sprite._is_looping = True  # Enable looping for the animation
@@ -2399,7 +2459,7 @@ class BitmapEditorScene(Scene):
 
         # Calculate film strip dimensions
         # Position to the right of the canvas
-        film_strip_x = self.canvas.rect.right + 20  # 20px to the right of canvas
+        film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
         film_strip_y_start = self.canvas.rect.y  # Start at same vertical position as canvas
 
         screen_width = pygame.display.get_surface().get_width()
@@ -2407,8 +2467,8 @@ class BitmapEditorScene(Scene):
         film_strip_width = max(300, available_width)
 
         # Calculate vertical spacing between strips
-        strip_spacing = 10
-        strip_height = 100  # Height of each film strip
+        strip_spacing = -19
+        strip_height = 180  # Height of each film strip (increased by 20 pixels to accommodate delete button and proper spacing)
         current_y = film_strip_y_start  # Start at canvas Y position
 
         # Create a separate film strip for each animation
@@ -2469,6 +2529,9 @@ class BitmapEditorScene(Scene):
 
             # Set parent scene reference for the film strip sprite
             film_strip_sprite.parent_scene = self
+
+            # Set parent scene reference for the film strip widget
+            film_strip.parent_scene = self
 
             # Set up bidirectional reference between film strip widget and sprite
             film_strip.film_strip_sprite = film_strip_sprite
@@ -2538,8 +2601,8 @@ class BitmapEditorScene(Scene):
 
         # Get canvas position for reference
         film_strip_y_start = self.canvas.rect.y if hasattr(self, "canvas") and self.canvas else 0
-        strip_height = 100
-        strip_spacing = 10
+        strip_height = 145
+        strip_spacing = -19
 
         # Hide all strips first
         for anim_name, film_strip in self.film_strips.items():
@@ -2578,10 +2641,10 @@ class BitmapEditorScene(Scene):
             return
 
         # Get canvas position for reference
-        film_strip_x = self.canvas.rect.right + 20 if hasattr(self, "canvas") and self.canvas else 20
+        film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
         film_strip_y_start = self.canvas.rect.y if hasattr(self, "canvas") and self.canvas else 0
-        strip_height = 100
-        strip_spacing = 10
+        strip_height = 145
+        strip_spacing = -19
 
         # Create up arrow (above first strip)
         up_arrow_y = film_strip_y_start - 30
@@ -2594,16 +2657,6 @@ class BitmapEditorScene(Scene):
             direction="up"
         )
 
-        # Create down arrow (below second strip)
-        down_arrow_y = film_strip_y_start + (2 * (strip_height + strip_spacing)) + 10
-        self.scroll_down_arrow = ScrollArrowSprite(
-            x=film_strip_x + 10,
-            y=down_arrow_y,
-            width=20,
-            height=20,
-            groups=self.all_sprites,
-            direction="down"
-        )
 
     def _update_scroll_arrows(self):
         """Update scroll arrow visibility based on scroll state."""
@@ -2619,44 +2672,18 @@ class BitmapEditorScene(Scene):
                 self.scroll_up_arrow.visible = should_show
                 self.scroll_up_arrow.dirty = 1
 
-        # Show down arrow or plus sign
-        if hasattr(self, "scroll_down_arrow") and self.scroll_down_arrow:
-            # Use the correct count of film strips, not just animations
-            if hasattr(self, "film_strips") and self.film_strips:
-                total_film_strips = len(self.film_strips)
-            else:
-                total_film_strips = total_animations
 
-            # Calculate max scroll - allow scrolling to show the last strip
-            max_scroll = max(0, total_film_strips - 1)
+    def _add_new_animation(self, insert_after_index=None):
+        """Add a new animation (film strip) and scroll to it.
 
-            # Only show down arrow if we're not at the bottom
-            can_scroll_down = (self.film_strip_scroll_offset < max_scroll)
-
-            print(f"Scroll arrow update: offset={self.film_strip_scroll_offset}, total_film_strips={total_film_strips}, max_scroll={max_scroll}, can_scroll_down={can_scroll_down}")
-
-            if can_scroll_down:
-                # Show down arrow
-                print("Setting down arrow direction")
-                self.scroll_down_arrow.set_direction("down")
-                should_show = True
-            else:
-                # Show plus sign for adding new frames
-                print("Setting plus sign direction")
-                self.scroll_down_arrow.set_direction("plus")
-                should_show = True
-
-            if self.scroll_down_arrow.visible != should_show:
-                self.scroll_down_arrow.visible = should_show
-                self.scroll_down_arrow.dirty = 1
-
-    def _add_new_animation(self):
-        """Add a new animation (film strip) and scroll to it."""
+        Args:
+            insert_after_index: Index to insert the new strip after (None for end)
+        """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
 
         # Create a new animation (film strip)
-        new_animation_name = f"frame_{len(self.canvas.animated_sprite._animations) + 1}"
+        new_animation_name = f"strip_{len(self.canvas.animated_sprite._animations) + 1}"
 
         # Create a blank frame for the new animation
         if hasattr(self, "canvas") and self.canvas:
@@ -2675,8 +2702,31 @@ class BitmapEditorScene(Scene):
                 duration=1.0  # 1 second duration
             )
 
-            # Add the new animation to the sprite
-            self.canvas.animated_sprite._animations[new_animation_name] = [animated_frame]
+            # Initialize the pixel data for the new frame
+            animated_frame.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
+
+            # Insert the new animation at the specified position
+            if insert_after_index is not None:
+                # Get current animations as a list to maintain order
+                current_animations = list(self.canvas.animated_sprite._animations.items())
+
+                # Create new ordered dict with the new animation inserted
+                new_animations = {}
+                for i, (anim_name, frames) in enumerate(current_animations):
+                    new_animations[anim_name] = frames
+                    if i == insert_after_index:
+                        # Insert the new animation after this one
+                        new_animations[new_animation_name] = [animated_frame]
+
+                # If we didn't insert yet (insert_after_index >= len), add at end
+                if insert_after_index >= len(current_animations):
+                    new_animations[new_animation_name] = [animated_frame]
+
+                # Replace the animations dict
+                self.canvas.animated_sprite._animations = new_animations
+            else:
+                # Add at the end (original behavior)
+                self.canvas.animated_sprite._animations[new_animation_name] = [animated_frame]
 
             # Recreate film strips to include the new animation
             self._on_sprite_loaded(self.canvas.animated_sprite)
@@ -2696,10 +2746,76 @@ class BitmapEditorScene(Scene):
 
             # Notify the canvas to switch to the new frame
             if hasattr(self, "canvas") and self.canvas:
+                print(f"DEBUG: Switching to new animation '{new_animation_name}', frame 0")
+                print(f"DEBUG: Animated sprite current animation: {self.canvas.animated_sprite.current_animation}")
+                print(f"DEBUG: Animated sprite current frame: {self.canvas.animated_sprite.current_frame}")
                 self.canvas.show_frame(new_animation_name, 0)
+                print(f"DEBUG: After switch - current animation: {self.canvas.animated_sprite.current_animation}")
+                print(f"DEBUG: After switch - current frame: {self.canvas.animated_sprite.current_frame}")
+                print(f"DEBUG: New frame surface size: {self.canvas.animated_sprite.image.get_size()}")
+
+                # Force the animated sprite to update its surface
+                self.canvas.animated_sprite._update_surface_and_mark_dirty()
+
                 # Force the canvas to redraw with the new frame
                 self.canvas.dirty = 1
                 self.canvas.force_redraw()
+
+    def _delete_animation(self, animation_name: str):
+        """Delete an animation (film strip).
+
+        Args:
+            animation_name: The name of the animation to delete
+        """
+        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+            return
+
+        # Check if we have more than one animation
+        animations = list(self.canvas.animated_sprite._animations.keys())
+        if len(animations) <= 1:
+            self.log.warning("Cannot delete the last remaining animation")
+            return
+
+        # Remove the animation from the sprite
+        if animation_name in self.canvas.animated_sprite._animations:
+            # Get the position of the deleted animation before deletion
+            all_animations = list(self.canvas.animated_sprite._animations.keys())
+            deleted_index = all_animations.index(animation_name)
+
+            del self.canvas.animated_sprite._animations[animation_name]
+            self.log.info(f"Deleted animation: {animation_name} at index {deleted_index}")
+
+            # Switch to the first remaining animation
+            remaining_animations = list(self.canvas.animated_sprite._animations.keys())
+            if remaining_animations:
+                new_animation = remaining_animations[0]
+                self.canvas.show_frame(new_animation, 0)
+
+                # Update selection state
+                self.selected_animation = new_animation
+                self.selected_frame = 0
+
+                # Recreate film strips to reflect the deletion
+                self._on_sprite_loaded(self.canvas.animated_sprite)
+
+                # Ensure we show up to 2 strips after deletion
+                if len(remaining_animations) <= 2:
+                    # If we have 2 or fewer strips, show them all starting from index 0
+                    self.film_strip_scroll_offset = 0
+                else:
+                    # If we deleted the last strip, show the previous 2 strips
+                    if deleted_index == len(all_animations) - 1:
+                        # We deleted the last strip, show the previous 2 strips
+                        self.film_strip_scroll_offset = max(0, len(remaining_animations) - 2)
+                    else:
+                        # We deleted a strip that wasn't the last, show current and one more
+                        self.film_strip_scroll_offset = max(0, deleted_index - 1)
+
+                # Update visibility and scroll arrows
+                self._update_film_strip_visibility()
+                self._update_scroll_arrows()
+
+                self.log.info(f"Switched to remaining animation: {new_animation}, deleted_index: {deleted_index}, scroll_offset: {self.film_strip_scroll_offset}")
 
     @staticmethod
     def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict) -> None:
@@ -2757,22 +2873,119 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites,
         )
 
-        # Create the color well to the right of the sliders AND their labels
-        well_size = 64
-        total_slider_width = (
-            slider_width + label_padding + label_width  # Full width including label
+        # Create bounding boxes around the sliders for visual debugging
+        self.red_slider_bbox = BitmappySprite(
+            x=slider_x - 2,
+            y=self.screen_height - 70 - 2,
+            width=slider_width + 4,
+            height=slider_height + 4,
+            name="Red Slider BBox",
+            groups=self.all_sprites,
         )
+        # Create transparent surface
+        self.red_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
+        # Draw red border
+        pygame.draw.rect(self.red_slider_bbox.image, (255, 0, 0),
+                       (0, 0, slider_width + 4, slider_height + 4), 2)
+
+        self.green_slider_bbox = BitmappySprite(
+            x=slider_x - 2,
+            y=self.screen_height - 50 - 2,
+            width=slider_width + 4,
+            height=slider_height + 4,
+            name="Green Slider BBox",
+            groups=self.all_sprites,
+        )
+        # Create transparent surface
+        self.green_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
+        # Draw green border
+        pygame.draw.rect(self.green_slider_bbox.image, (0, 255, 0),
+                       (0, 0, slider_width + 4, slider_height + 4), 2)
+
+        self.blue_slider_bbox = BitmappySprite(
+            x=slider_x - 2,
+            y=self.screen_height - 30 - 2,
+            width=slider_width + 4,
+            height=slider_height + 4,
+            name="Blue Slider BBox",
+            groups=self.all_sprites,
+        )
+        # Create transparent surface
+        self.blue_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
+        # Draw blue border
+        pygame.draw.rect(self.blue_slider_bbox.image, (0, 0, 255),
+                       (0, 0, slider_width + 4, slider_height + 4), 2)
+
+        # Create the color well positioned to the right of the text labels
+        # Calculate x position to the right of the text labels
+        # Text labels are at: slider_x + slider_width + label_padding
+        text_label_x = slider_x + slider_width + label_padding
+        color_well_x = text_label_x + well_padding  # Add padding after text labels
+
+        # Position colorwell so its top y matches R slider's top y
+        # and its bottom y matches blue slider's bottom y
+        red_slider_top_y = self.screen_height - 70
+        blue_slider_bottom_y = self.screen_height - 30 + slider_height
+        color_well_y = red_slider_top_y - 5  # Add some padding above
+        color_well_height = (blue_slider_bottom_y + 5) - color_well_y  # Add padding below
+
+        # Calculate canvas right edge position
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
+        else:
+            # Fallback for tests or when canvas isn't initialized yet
+            canvas_right_x = self.screen_width - 20
+        # Set colorwell width so its right edge aligns with canvas right edge
+        color_well_width = canvas_right_x - color_well_x
+        # Ensure minimum width to prevent invalid surface creation
+        color_well_width = max(color_well_width, 50)
+        # Ensure minimum height to prevent invalid surface creation
+        color_well_height = max(color_well_height, 50)
 
         self.color_well = ColorWellSprite(
             name="Color Well",
-            # Position after sliders + labels + padding
-            x=slider_x + total_slider_width + well_padding,
-            y=self.screen_height - 70,  # Align with top slider
-            width=well_size,
-            height=well_size,
+            x=color_well_x,
+            y=color_well_y,  # Top y matches R slider's top y
+            width=color_well_width,
+            height=color_well_height,  # Height spans from R top to G bottom
             parent=self,
             groups=self.all_sprites,
         )
+
+        # Create tab control positioned above the color well
+        tab_control_width = min(80, color_well_width)  # Limit width to 80px or color well width
+        tab_control_height = 20
+        tab_control_x = color_well_x + (color_well_width - tab_control_width) // 2  # Center horizontally
+        tab_control_y = color_well_y - tab_control_height  # Position so bottom touches top of color well
+
+        self.tab_control = TabControlSprite(
+            name="Format Tab Control",
+            x=tab_control_x,
+            y=tab_control_y,
+            width=tab_control_width,
+            height=tab_control_height,
+            parent=self,
+            groups=self.all_sprites,
+        )
+
+        # Initialize slider input format (default to decimal)
+        self.slider_input_format = "%d"
+
+        # Update text box widths to fit between slider end and color well start
+        text_box_width = color_well_x - text_label_x + 4  # Make 4 pixels wider
+        # Shrink text boxes vertically by 4 pixels
+        text_box_height = 16  # Original was 20, now 16 (4 pixels smaller)
+        self.red_slider.text_sprite.width = text_box_width
+        self.red_slider.text_sprite.height = text_box_height
+        self.green_slider.text_sprite.width = text_box_width
+        self.green_slider.text_sprite.height = text_box_height
+        self.blue_slider.text_sprite.width = text_box_width
+        self.blue_slider.text_sprite.height = text_box_height
+        # Force text sprites to update with new dimensions
+        self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+        self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+        self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+
 
         self.red_slider.value = 0
         self.blue_slider.value = 0
@@ -2784,15 +2997,45 @@ class BitmapEditorScene(Scene):
             self.blue_slider.value,
         )
 
-        self.canvas.active_color = self.color_well.active_color
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.active_color = self.color_well.active_color
 
     def _setup_debug_text_box(self) -> None:
         """Set up the debug text box and AI label."""
         # Calculate debug text box position and size - align to bottom right corner
-        debug_width = 300  # Fixed width for AI chat box
         debug_height = 200  # Fixed height for AI chat box
-        debug_x = self.screen_width - debug_width  # Align to right edge
-        debug_y = self.screen_height - debug_height  # Align to bottom edge
+
+        # Calculate AI sprite box position dynamically
+        # Position to the right of the color well
+        if hasattr(self, 'color_well') and self.color_well:
+            color_well_right_x = self.color_well.rect.right
+            debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
+        else:
+            # Fallback: position to the right of canvas
+            if hasattr(self, 'canvas') and self.canvas:
+                canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
+                debug_x = canvas_right_x + 4
+            else:
+                debug_x = self.screen_width - 20
+
+        # Calculate bottom of the last film strip
+        if hasattr(self, 'film_strips') and self.film_strips:
+            # Find the bottom of the last film strip
+            last_strip_bottom = 0
+            for film_strip in self.film_strips:
+                if hasattr(film_strip, 'rect'):
+                    strip_bottom = film_strip.rect.bottom
+                    last_strip_bottom = max(last_strip_bottom, strip_bottom)
+            debug_y = last_strip_bottom + 2  # 2 pixels below the bottom strip
+        else:
+            # Fallback: position below canvas
+            if hasattr(self, 'canvas') and self.canvas:
+                debug_y = self.canvas.rect.bottom + 2
+            else:
+                debug_y = self.screen_height - debug_height  # Align to bottom edge
+
+        # Calculate width to extend to end of screen
+        debug_width = self.screen_width - debug_x
 
         # Create the AI label
         label_height = 20
@@ -2818,6 +3061,57 @@ class BitmapEditorScene(Scene):
             parent=self,  # Pass self as parent
             groups=self.all_sprites,
         )
+
+    def _update_ai_sprite_position(self) -> None:
+        """Update AI sprite positioning when canvas changes."""
+        if not hasattr(self, 'ai_label') or not hasattr(self, 'debug_text'):
+            return  # AI sprites not initialized yet
+
+        # Calculate new position using same logic as _setup_debug_text_box
+        debug_height = 200  # Fixed height for AI chat box
+
+        # Position to the right of the color well
+        if hasattr(self, 'color_well') and self.color_well:
+            color_well_right_x = self.color_well.rect.right
+            debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
+        else:
+            # Fallback: position to the right of canvas
+            if hasattr(self, 'canvas') and self.canvas:
+                canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
+                debug_x = canvas_right_x + 4
+            else:
+                debug_x = self.screen_width - 20
+
+        # Calculate bottom of the last film strip
+        if hasattr(self, 'film_strips') and self.film_strips:
+            # Find the bottom of the last film strip
+            last_strip_bottom = 0
+            for film_strip in self.film_strips:
+                if hasattr(film_strip, 'rect'):
+                    strip_bottom = film_strip.rect.bottom
+                    last_strip_bottom = max(last_strip_bottom, strip_bottom)
+            debug_y = last_strip_bottom + 2  # 2 pixels below the bottom strip
+        else:
+            # Fallback: position below canvas
+            if hasattr(self, 'canvas') and self.canvas:
+                debug_y = self.canvas.rect.bottom + 2
+            else:
+                debug_y = self.screen_height - debug_height  # Align to bottom edge
+
+        # Calculate width to extend to end of screen
+        debug_width = self.screen_width - debug_x
+
+        # Update AI label position
+        self.ai_label.rect.x = debug_x
+        self.ai_label.rect.y = debug_y - 20  # 20 is label_height
+        self.ai_label.rect.width = debug_width
+        self.ai_label.rect.height = 20
+
+        # Update debug text position
+        self.debug_text.rect.x = debug_x
+        self.debug_text.rect.y = debug_y
+        self.debug_text.rect.width = debug_width
+        self.debug_text.rect.height = debug_height
 
     def _setup_film_strips(self) -> None:
         """Set up multiple independent film strips - one for each animation."""
@@ -2941,7 +3235,7 @@ class BitmapEditorScene(Scene):
                     # Update the selected_frame in the film strip widget
                     strip_widget.selected_frame = frame_index
                     print(f"BitmapEditorScene: Updated film strip {strip_name} selected_frame to {frame_index}")
-                
+
                 strip_widget.mark_dirty()
                 # Mark the film strip sprite as dirty=2 for full surface blit
                 if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
@@ -2970,14 +3264,14 @@ class BitmapEditorScene(Scene):
                 else:
                     # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
                     self.selected_frame = 0
-                    
+
                 # Ensure the selected frame is within bounds
                 if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
                     if animation in self.canvas.animated_sprite._animations:
                         max_frame = len(self.canvas.animated_sprite._animations[animation]) - 1
                         if self.selected_frame > max_frame:
                             self.selected_frame = max(0, max_frame)
-                            
+
                 # Update canvas to show the adjusted frame
                 if hasattr(self, "canvas") and self.canvas:
                     print(f"BitmapEditorScene: Updating canvas to show adjusted frame {animation}[{self.selected_frame}]")
@@ -2997,7 +3291,7 @@ class BitmapEditorScene(Scene):
                     # Update the selected_frame in the film strip widget
                     strip_widget.selected_frame = self.selected_frame if hasattr(self, "selected_frame") else 0
                     print(f"BitmapEditorScene: Updated film strip {strip_name} selected_frame to {strip_widget.selected_frame}")
-                
+
                 strip_widget.mark_dirty()
                 # Mark the film strip sprite as dirty=2 for full surface blit
                 if hasattr(self, "film_strip_sprites") and strip_name in self.film_strip_sprites:
@@ -3461,7 +3755,6 @@ class BitmapEditorScene(Scene):
 
         # Initialize scroll arrows
         self.scroll_up_arrow = None
-        self.scroll_down_arrow = None
 
         # Set up all components
         self._setup_menu_bar()
@@ -3569,7 +3862,7 @@ class BitmapEditorScene(Scene):
 
             # Calculate new pixel size to fit the canvas in the available space
             # Adjust for bottom margin and menu bar
-            available_height = self.screen_height - 100 - 24
+            available_height = self.screen_height - 80 - 24
             new_pixel_size = min(
                 available_height // height,  # Height-based size
                 (self.screen_width * 2 // 3) // width,  # Width-based size (use 2/3 of screen width)
@@ -3796,12 +4089,7 @@ class BitmapEditorScene(Scene):
         for sprite in sprites:
             if hasattr(sprite, "direction") and hasattr(sprite, "visible") and sprite.visible:
                 print(f"Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}")
-                if sprite.direction == "plus":
-                    # Clicked on the plus sign - add new frame
-                    print("Adding new animation")
-                    self._add_new_animation()
-                    return
-                elif sprite.direction == "up":
+                if sprite.direction == "up":
                     # Clicked on up arrow - navigate to previous animation and scroll if needed
                     print("Navigating to previous animation")
                     if hasattr(self, "canvas") and self.canvas:
@@ -3811,20 +4099,189 @@ class BitmapEditorScene(Scene):
                         # Update film strips to reflect the animation change
                         self._update_film_strips_for_animated_sprite_update()
                     return
-                elif sprite.direction == "down":
-                    # Clicked on down arrow - navigate to next animation and scroll if needed
-                    print("Navigating to next animation")
-                    if hasattr(self, "canvas") and self.canvas:
-                        self.canvas.next_animation()
-                        # Scroll to show the current animation if needed
-                        self._scroll_to_current_animation()
-                        # Update film strips to reflect the animation change
-                        self._update_film_strips_for_animated_sprite_update()
-                    return
+
+        # Check if click is on any slider text box and deactivate others
+        clicked_slider = None
+        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
+            if self.red_slider.text_sprite.rect.collidepoint(event.pos):
+                clicked_slider = "red"
+        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite"):
+            if self.green_slider.text_sprite.rect.collidepoint(event.pos):
+                clicked_slider = "green"
+        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite"):
+            if self.blue_slider.text_sprite.rect.collidepoint(event.pos):
+                clicked_slider = "blue"
+
+        # Deactivate all slider text boxes except the one clicked (if any)
+        # Also commit values when clicking outside of any slider text box
+        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
+            if self.red_slider.text_sprite.active and (clicked_slider != "red" or clicked_slider is None):
+                # Commit any uncommitted value before deactivating
+                if self.red_slider.text_sprite.text.strip() == "":
+                    # If empty, restore original value
+                    self.red_slider.text_sprite.text = str(self.red_slider.original_value)
+                else:
+                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                    try:
+                        text = self.red_slider.text_sprite.text.strip().lower()
+                        if any(c in 'abcdef' for c in text):
+                            # Contains hex characters, parse as hex
+                            new_value = int(text, 16)
+                        else:
+                            # No hex characters, parse as decimal
+                            new_value = int(text)
+
+                        if 0 <= new_value <= 255:
+                            self.red_slider.value = new_value
+                            # Update original value for future validations
+                            self.red_slider.original_value = new_value
+                            # Convert text to appropriate format based on selected tab
+                            print(f"DEBUG: Current slider_input_format: {self.slider_input_format}")
+                            if self.slider_input_format == "%X":
+                                self.red_slider.text_sprite.text = f"{new_value:02X}"
+                                print(f"DEBUG: Converting {new_value} to hex: {self.red_slider.text_sprite.text}")
+                            else:
+                                self.red_slider.text_sprite.text = str(new_value)
+                                print(f"DEBUG: Converting {new_value} to decimal: {self.red_slider.text_sprite.text}")
+                            self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+                            self.red_slider.text_sprite.dirty = 2  # Force redraw
+                        else:
+                            # Invalid range, restore original
+                            self.red_slider.text_sprite.text = str(self.red_slider.original_value)
+                    except ValueError:
+                        # Invalid input, restore original
+                        self.red_slider.text_sprite.text = str(self.red_slider.original_value)
+
+                self.red_slider.text_sprite.active = False
+                self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite"):
+            if self.green_slider.text_sprite.active and (clicked_slider != "green" or clicked_slider is None):
+                # Commit any uncommitted value before deactivating
+                if self.green_slider.text_sprite.text.strip() == "":
+                    # If empty, restore original value
+                    self.green_slider.text_sprite.text = str(self.green_slider.original_value)
+                else:
+                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                    try:
+                        text = self.green_slider.text_sprite.text.strip().lower()
+                        if any(c in 'abcdef' for c in text):
+                            # Contains hex characters, parse as hex
+                            new_value = int(text, 16)
+                        else:
+                            # No hex characters, parse as decimal
+                            new_value = int(text)
+
+                        if 0 <= new_value <= 255:
+                            self.green_slider.value = new_value
+                            # Update original value for future validations
+                            self.green_slider.original_value = new_value
+                            # Convert text to appropriate format based on selected tab
+                            if self.slider_input_format == "%X":
+                                self.green_slider.text_sprite.text = f"{new_value:02X}"
+                            else:
+                                self.green_slider.text_sprite.text = str(new_value)
+                            self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+                            self.green_slider.text_sprite.dirty = 2  # Force redraw
+                        else:
+                            # Invalid range, restore original
+                            self.green_slider.text_sprite.text = str(self.green_slider.original_value)
+                    except ValueError:
+                        # Invalid input, restore original
+                        self.green_slider.text_sprite.text = str(self.green_slider.original_value)
+
+                self.green_slider.text_sprite.active = False
+                self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite"):
+            if self.blue_slider.text_sprite.active and (clicked_slider != "blue" or clicked_slider is None):
+                # Commit any uncommitted value before deactivating
+                if self.blue_slider.text_sprite.text.strip() == "":
+                    # If empty, restore original value
+                    self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
+                else:
+                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                    try:
+                        text = self.blue_slider.text_sprite.text.strip().lower()
+                        if any(c in 'abcdef' for c in text):
+                            # Contains hex characters, parse as hex
+                            new_value = int(text, 16)
+                        else:
+                            # No hex characters, parse as decimal
+                            new_value = int(text)
+
+                        if 0 <= new_value <= 255:
+                            self.blue_slider.value = new_value
+                            # Update original value for future validations
+                            self.blue_slider.original_value = new_value
+                            # Convert text to appropriate format based on selected tab
+                            if self.slider_input_format == "%X":
+                                self.blue_slider.text_sprite.text = f"{new_value:02X}"
+                            else:
+                                self.blue_slider.text_sprite.text = str(new_value)
+                            self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+                            self.blue_slider.text_sprite.dirty = 2  # Force redraw
+                        else:
+                            # Invalid range, restore original
+                            self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
+                    except ValueError:
+                        # Invalid input, restore original
+                        self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
+
+                self.blue_slider.text_sprite.active = False
+                self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+
+        # If a slider text box was clicked, also trigger the slider's normal behavior
+        if clicked_slider == "red" and hasattr(self, "red_slider"):
+            self.red_slider.on_left_mouse_button_down_event(event)
+        elif clicked_slider == "green" and hasattr(self, "green_slider"):
+            self.green_slider.on_left_mouse_button_down_event(event)
+        elif clicked_slider == "blue" and hasattr(self, "blue_slider"):
+            self.blue_slider.on_left_mouse_button_down_event(event)
 
         # Handle other sprite clicks
         for sprite in sprites:
             sprite.on_left_mouse_button_down_event(event)
+
+    def on_tab_change_event(self, tab_format):
+        """Handle tab control format change.
+
+        Args:
+            tab_format (str): The selected format ("%d" or "%H")
+
+        Returns:
+            None
+        """
+        self.log.info(f"Tab control changed to format: {tab_format}")
+
+        # Store the current format for slider text input
+        self.slider_input_format = tab_format
+
+        # Update slider text display format if they have values
+        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
+            if tab_format == "%X":
+                # Convert to hex
+                self.red_slider.text_sprite.text = f"{self.red_slider.value:02X}"
+            else:
+                # Convert to decimal
+                self.red_slider.text_sprite.text = str(self.red_slider.value)
+            self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+
+        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite"):
+            if tab_format == "%X":
+                # Convert to hex
+                self.green_slider.text_sprite.text = f"{self.green_slider.value:02X}"
+            else:
+                # Convert to decimal
+                self.green_slider.text_sprite.text = str(self.green_slider.value)
+            self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+
+        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite"):
+            if tab_format == "%X":
+                # Convert to hex
+                self.blue_slider.text_sprite.text = f"{self.blue_slider.value:02X}"
+            else:
+                # Convert to decimal
+                self.blue_slider.text_sprite.text = str(self.blue_slider.value)
+            self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
 
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the left mouse button up event.
@@ -3875,6 +4332,20 @@ class BitmapEditorScene(Scene):
             self.debug_text.on_mouse_up_event(event)
             return
 
+        # Always release all sliders on mouse up to prevent stickiness
+        if hasattr(self, "red_slider") and hasattr(self.red_slider, "dragging"):
+            if self.red_slider.dragging:
+                self.red_slider.dragging = False
+                self.red_slider.on_left_mouse_button_up_event(event)
+        if hasattr(self, "green_slider") and hasattr(self.green_slider, "dragging"):
+            if self.green_slider.dragging:
+                self.green_slider.dragging = False
+                self.green_slider.on_left_mouse_button_up_event(event)
+        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "dragging"):
+            if self.blue_slider.dragging:
+                self.blue_slider.dragging = False
+                self.blue_slider.on_left_mouse_button_up_event(event)
+
         # Pass to other sprites
         for sprite in self.all_sprites:
             if hasattr(sprite, "on_mouse_button_up_event") and sprite.rect.collidepoint(event.pos):
@@ -3891,6 +4362,17 @@ class BitmapEditorScene(Scene):
         for sprite in self.all_sprites:
             if hasattr(sprite, "on_mouse_drag_event"):
                 sprite.on_mouse_drag_event(event, trigger)
+
+    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events.
+
+        Args:
+            event (pygame.event.Event): The event to handle
+
+        """
+        for sprite in self.all_sprites:
+            if hasattr(sprite, "on_mouse_motion_event"):
+                sprite.on_mouse_motion_event(event)
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
@@ -4495,6 +4977,26 @@ class BitmapEditorScene(Scene):
         # Check if debug text box is active and handle text input
         if hasattr(self, "debug_text") and self.debug_text.active:
             self.debug_text.on_key_down_event(event)
+            return
+
+        # Check if any slider text box is active and handle text input
+        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite") and self.red_slider.text_sprite.active:
+            self.red_slider.text_sprite.on_key_down_event(event)
+            # If escape was pressed, consume the event to prevent game quit
+            if event.key == pygame.K_ESCAPE:
+                return True
+            return
+        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite") and self.green_slider.text_sprite.active:
+            self.green_slider.text_sprite.on_key_down_event(event)
+            # If escape was pressed, consume the event to prevent game quit
+            if event.key == pygame.K_ESCAPE:
+                return True
+            return
+        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite") and self.blue_slider.text_sprite.active:
+            self.blue_slider.text_sprite.on_key_down_event(event)
+            # If escape was pressed, consume the event to prevent game quit
+            if event.key == pygame.K_ESCAPE:
+                return True
             return
 
         # Handle animation navigation and film strip scrolling (UP/DOWN arrows)

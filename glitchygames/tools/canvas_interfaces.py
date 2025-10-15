@@ -196,12 +196,14 @@ class StaticCanvasRenderer(CanvasRenderer):
                 pixel,
                 (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
             )
-            pygame.draw.rect(
-                self.canvas_sprite.image,
-                (64, 64, 64),
-                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                self.canvas_sprite.border_thickness,
-            )
+            # Only draw border if border_thickness > 0
+            if self.canvas_sprite.border_thickness > 0:
+                pygame.draw.rect(
+                    self.canvas_sprite.image,
+                    (64, 64, 64),
+                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                    self.canvas_sprite.border_thickness,
+                )
             self.canvas_sprite.dirty_pixels[i] = False
 
         return self.canvas_sprite.image
@@ -404,6 +406,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
                     )
 
+                # Use the border thickness set by the canvas sprite
+                border_thickness = self.canvas_sprite.border_thickness
+                print(f"DEBUG RENDERER: border_thickness={border_thickness}")
+                
                 for i, pixel in enumerate(frame_pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -412,15 +418,20 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         pixel,
                         (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                     )
-                    pygame.draw.rect(
-                        self.canvas_sprite.image,
-                        (64, 64, 64),
-                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                        self.canvas_sprite.border_thickness,
-                    )
+                    # Only draw border if border_thickness > 0
+                    if border_thickness > 0:
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            (64, 64, 64),
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                            border_thickness,
+                        )
             else:
                 # Fall back to static rendering if frame not found
                 self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
+                # Use the border thickness set by the canvas sprite
+                border_thickness = self.canvas_sprite.border_thickness
+                
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -429,15 +440,20 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         pixel,
                         (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                     )
-                    pygame.draw.rect(
-                        self.canvas_sprite.image,
-                        (64, 64, 64),
-                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                        self.canvas_sprite.border_thickness,
-                    )
+                    # Only draw border if border_thickness > 0
+                    if border_thickness > 0:
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            (64, 64, 64),
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                            border_thickness,
+                        )
         else:
             # Fall back to static rendering
             self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
+            # Use the border thickness set by the canvas sprite
+            border_thickness = self.canvas_sprite.border_thickness
+            
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -446,12 +462,14 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     pixel,
                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                 )
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    (64, 64, 64),
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                    self.canvas_sprite.border_thickness,
-                )
+                # Only draw border if border_thickness > 0
+                if border_thickness > 0:
+                    pygame.draw.rect(
+                        self.canvas_sprite.image,
+                        (64, 64, 64),
+                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        border_thickness,
+                    )
 
         return self.canvas_sprite.image
 
