@@ -621,10 +621,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._animations[animation_name] = []
 
         frames = self._animations[animation_name]
+        
+        # Check if this animation had only 1 frame before adding the new frame
+        # If so, we should start the animation since it now has multiple frames
+        was_single_frame = len(frames) == 1
+        
         if index == -1:
             frames.append(frame)
         else:
             frames.insert(index, frame)
+        
+        # If this was a single-frame animation and we just added a second frame,
+        # start the animation to make it play
+        MULTI_FRAME_THRESHOLD = 2
+        if was_single_frame and len(frames) == MULTI_FRAME_THRESHOLD:
+            self.log.info(f"Animation '{animation_name}' now has 2 frames, starting animation")
+            self._is_playing = True
+            self._is_looping = True  # Enable looping for multi-frame animations
 
         # Update surface if this is the current animation
         if self.frame_manager.current_animation == animation_name:
@@ -945,7 +958,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     if line:
                         line = line + line[-1] * (most_common_length - len(line))
                     else:
-                        line = 'M' * most_common_length  # Default to 'M' for empty lines
+                        line = "M" * most_common_length  # Default to 'M' for empty lines
                 normalized_lines.append(line)
             
             self.log.info(f"    Frame {frame_index}: Normalized to {most_common_length} characters per line")

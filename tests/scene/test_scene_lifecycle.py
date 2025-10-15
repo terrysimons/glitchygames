@@ -1,5 +1,4 @@
-"""
-Test scene lifecycle functionality.
+"""Test scene lifecycle functionality.
 
 This module tests the lifecycle of scenes including:
 - Scene creation and initialization
@@ -12,9 +11,6 @@ This module tests the lifecycle of scenes including:
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -45,9 +41,9 @@ class TestSceneLifecycle(unittest.TestCase):
         """Test scene creation and initialization."""
         # Create a scene
         scene = Scene()
-        
+
         # Verify scene properties
-        assert scene.name == type(scene)
+        assert scene.name is type(scene)
         assert scene.target_fps == 0
         assert scene.fps == 0
         assert scene.dt == 0
@@ -56,19 +52,19 @@ class TestSceneLifecycle(unittest.TestCase):
     def test_scene_initialization(self):
         """Test scene initialization."""
         scene = Scene()
-        
+
         # Verify basic initialization
         assert scene.target_fps == 0
         assert scene.fps == 0
         assert scene.dt == 0
         assert scene.dirty == 1
         assert scene.options == {"debug_events": False, "no_unhandled_events": False}
-        assert scene.name == type(scene)
+        assert scene.name is type(scene)
 
     def test_scene_cleanup(self):
         """Test scene cleanup."""
         scene = Scene()
-        
+
         # Test cleanup method (should not raise exceptions)
         scene.cleanup()
 
@@ -76,7 +72,7 @@ class TestSceneLifecycle(unittest.TestCase):
         """Test complete scene lifecycle with manager."""
         manager = SceneManager()
         scene = Scene()
-        
+
         # Switch to scene using the correct API
         manager.switch_to_scene(scene)
         assert manager.active_scene == scene
@@ -86,11 +82,11 @@ class TestSceneLifecycle(unittest.TestCase):
         manager = SceneManager()
         scene1 = Scene()
         scene2 = Scene()
-        
+
         # Switch to first scene
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        
+
         # Transition to second scene
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
@@ -98,7 +94,7 @@ class TestSceneLifecycle(unittest.TestCase):
     def test_scene_destruction(self):
         """Test scene destruction and cleanup."""
         scene = Scene()
-        
+
         # Test cleanup method
         scene.cleanup()
 
@@ -107,22 +103,22 @@ class TestSceneLifecycle(unittest.TestCase):
         manager = SceneManager()
         scene1 = Scene()
         scene2 = Scene()
-        
+
         # Set some state on scene1
         scene1.custom_data = "test_data"
-        
+
         # Switch to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
         assert scene1.custom_data == "test_data"
-        
+
         # Transition to scene2
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
-        
+
         # Scene1 should retain its state
         assert scene1.custom_data == "test_data"
-        
+
         # Transition back to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
@@ -135,43 +131,43 @@ class TestSceneLifecycle(unittest.TestCase):
                 super().__init__()
                 self.custom_init_called = False
                 self.custom_cleanup_called = False
-            
+
             def custom_init(self):
                 self.custom_init_called = True
-            
+
             def custom_cleanup(self):
                 self.custom_cleanup_called = True
-        
+
         scene = CustomScene()
-        
+
         # Test custom initialization
         scene.custom_init()
         assert scene.custom_init_called is True
-        
+
         # Test custom cleanup
         scene.custom_cleanup()
         assert scene.custom_cleanup_called is True
-        
+
         # Test standard lifecycle still works
         scene.cleanup()
 
     def test_scene_lifecycle_with_manager_integration(self):
         """Test scene lifecycle with full manager integration."""
         manager = SceneManager()
-        
+
         # Create multiple scenes
         scene1 = Scene()
         scene2 = Scene()
         scene3 = Scene()
-        
+
         # Test scene switching
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        
+
         # Test scene transition
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
-        
+
         # Test another transition
         manager.switch_to_scene(scene3)
         assert manager.active_scene == scene3

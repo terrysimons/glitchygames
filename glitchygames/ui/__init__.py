@@ -961,6 +961,10 @@ class TextSprite(BitmappySprite):
 
         # Make this instance also act as its own text_box for compatibility
         self.text_box = self
+        
+        # Initialize cursor state for blinking
+        self._cursor_timer = 0
+        self._cursor_visible = True
 
         self.update_text(text)
 
@@ -1003,6 +1007,22 @@ class TextSprite(BitmappySprite):
 
     def update(self):
         """Update the sprite."""
+        # Handle cursor blinking for active text boxes
+        if hasattr(self, 'active') and self.active:
+            old_visible = self._cursor_visible
+            self._cursor_timer += 1
+            if self._cursor_timer >= 30:  # Blink every 30 frames (0.5 seconds at 60fps)
+                self._cursor_visible = not self._cursor_visible
+                self._cursor_timer = 0
+                # Force redraw when cursor visibility changes
+                if old_visible != self._cursor_visible:
+                    self.dirty = 2
+            # Always mark as dirty when active to ensure continuous updates
+            self.dirty = 2
+        else:
+            # Reset dirty flag when not active
+            self.dirty = 1
+        
         if self.dirty:
             self.update_text(self._text)
 
@@ -1021,7 +1041,11 @@ class TextSprite(BitmappySprite):
             # For transparent backgrounds, use a transparent surface
             self.image.fill((0, 0, 0, 0))
         else:
-            self.image.fill(self.background_color)
+            # Use different background color when active (editing)
+            if hasattr(self, 'active') and self.active:
+                self.image.fill((50, 50, 50))  # Darker background when editing
+            else:
+                self.image.fill(self.background_color)
 
         # Create text surface using FontManager for consistent font handling
         font = FontManager.get_font()
@@ -1075,6 +1099,33 @@ class TextSprite(BitmappySprite):
 
         # Blit text onto our surface
         self.image.blit(text_surface, text_rect)
+        
+        # Add blinking cursor if text box is active
+        if hasattr(self, 'active') and self.active:
+            self._draw_cursor(text_rect, font)
+
+    def _draw_cursor(self, text_rect, font):
+        """Draw a blinking cursor at the end of the text."""
+        if self._cursor_visible:
+            try:
+                # Calculate cursor position at the end of the text
+                cursor_x = text_rect.right + 2  # 2 pixels after the text
+                cursor_y = text_rect.top
+                cursor_height = text_rect.height
+                
+                # Ensure cursor is within bounds
+                if cursor_x < self.width and cursor_y < self.height:
+                    # Draw a vertical line for the cursor
+                    pygame.draw.line(
+                        self.image, 
+                        self.text_color, 
+                        (cursor_x, cursor_y), 
+                        (cursor_x, cursor_y + cursor_height), 
+                        2  # 2 pixel wide cursor
+                    )
+            except (TypeError, AttributeError):
+                # Handle mock objects in tests - just skip cursor drawing
+                pass
 
 
 class ButtonSprite(BitmappySprite):
@@ -1802,16 +1853,128 @@ class SliderSprite(BitmappySprite):
         self.slider_knob.image.fill((200, 200, 200))
 
         # Create the text sprite
-        text_x = x + width + 10
+        text_x = x + width + 4  # 4 pixel gap to prevent overlap
+        # Center the text sprite vertically with the slider's center, moved down 2 pixels
+        text_height = 20
+        slider_center_y = y + height // 2
+        text_y = slider_center_y - text_height // 2 + 2
+        
+        # Calculate text box width to fit between slider end and color well start
+        # This will be set by the parent scene after color well is created
+        text_width = 44  # Default width, will be updated by parent scene (4 pixels wider)
+        
         self.text_sprite = TextSprite(
             x=text_x,
-            y=y - (height // 2),
-            width=32,
-            height=20,
+            y=text_y,
+            width=text_width,
+            height=text_height,
             text="0",
             background_color=(0, 0, 0),  # Solid black background like color well
             groups=groups,
         )
+        # Make text sprite interactive for editing
+        self.text_sprite.focusable = True
+        self.text_sprite.active = False  # Start inactive
+        
+        # Store original value for restoration
+        self.original_value = self._value
+        
+        # Add keyboard event handling for text input
+        def handle_text_input(event):
+            if self.text_sprite.active:
+                if event.key == pygame.K_RETURN:
+                    # Handle Enter key
+                    if self.text_sprite.text.strip() == "":
+                        # Empty text, restore original value
+                        self.text_sprite.text = str(self.original_value)
+                        self.text_sprite.active = False
+                        self.text_sprite.update_text(self.text_sprite.text)
+                    else:
+                        # Validate and apply new value
+                        try:
+                            # Check if input is hex (contains letters) or decimal
+                            text = self.text_sprite.text.strip().lower()
+                            if any(c in 'abcdef' for c in text):
+                                # Hex input - convert to decimal
+                                new_value = int(text, 16)
+                            else:
+                                # Decimal input
+                                new_value = int(text)
+                            
+                            if 0 <= new_value <= 255:
+                                # Valid value, update slider
+                                self.value = new_value
+                                
+                                # Convert text to appropriate format based on parent's format setting
+                                if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":
+                                    self.text_sprite.text = f"{new_value:02X}"
+                                    print(f"DEBUG: SliderSprite converting {new_value} to hex: {self.text_sprite.text}")
+                                else:
+                                    self.text_sprite.text = str(new_value)
+                                    print(f"DEBUG: SliderSprite converting {new_value} to decimal: {self.text_sprite.text}")
+                                
+                                self.text_sprite.active = False
+                                # Force text sprite to update and remove highlighting
+                                self.text_sprite.update_text(self.text_sprite.text)
+                                self.text_sprite.dirty = 2  # Force redraw
+                                # Update parent scene
+                                if hasattr(self.parent, "on_slider_event"):
+                                    trigger = pygame.event.Event(0, {"name": self.name, "value": new_value})
+                                    self.parent.on_slider_event(event=event, trigger=trigger)
+                            else:
+                                # Invalid range, restore original value
+                                self.text_sprite.text = str(self.original_value)
+                                self.text_sprite.active = False
+                                self.text_sprite.update_text(self.text_sprite.text)
+                        except ValueError:
+                            # Invalid input, restore original value
+                            self.text_sprite.text = str(self.original_value)
+                            self.text_sprite.active = False
+                            self.text_sprite.update_text(self.text_sprite.text)
+                elif event.key == pygame.K_ESCAPE:
+                    # Cancel editing, restore original value
+                    self.text_sprite.text = str(self.original_value)
+                    self.text_sprite.active = False
+                    self.text_sprite.update_text(self.text_sprite.text)
+                else:
+                    # Handle normal text input - allow both digits and hex characters
+                    if event.unicode.isdigit() or event.unicode.lower() in 'abcdef' or event.key == pygame.K_BACKSPACE:
+                        if event.key == pygame.K_BACKSPACE:
+                            self.text_sprite.text = self.text_sprite.text[:-1]
+                        else:
+                            self.text_sprite.text += event.unicode.lower()  # Convert to lowercase for consistency
+                        
+                        # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
+                        if len(self.text_sprite.text) > 3:
+                            self.text_sprite.text = self.text_sprite.text[:3]
+                        
+                        # Force text sprite to update and redraw
+                        self.text_sprite.update_text(self.text_sprite.text)
+                        self.text_sprite.dirty = 2
+        
+        self.text_sprite.on_key_down_event = handle_text_input
+        
+        # Add mouse click handling to activate text editing
+        def handle_text_click(event):
+            if self.text_sprite.rect.collidepoint(event.pos):
+                # Store current value as original for restoration
+                self.original_value = self._value
+                # Clear the text box for editing
+                self.text_sprite.text = ""
+                self.text_sprite.active = True
+                self.text_sprite.update_text(self.text_sprite.text)
+                self.text_sprite.dirty = 2
+                return True
+            return False
+        
+        self.text_sprite.on_left_mouse_button_down_event = handle_text_click
+        
+        # Ensure slider rect is properly set for mouse detection
+        self.rect = pygame.Rect(x, y, width, height)
+        
+        # Ensure drag boundaries are properly set
+        self.min_x = x
+        self.max_x = x + width - 5
 
         # Set color based on slider name
         if name == "R":
@@ -1848,7 +2011,10 @@ class SliderSprite(BitmappySprite):
             self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
             self.slider_knob.dirty = 2
             if hasattr(self, "text_sprite"):
+                # Deactivate text sprite and update text
+                self.text_sprite.active = False
                 self.text_sprite.text = str(self._value)
+                self.text_sprite.update_text(self.text_sprite.text)
 
     def update_slider_appearance(self):
         """Update the slider's gradient appearance based on its color."""
@@ -1956,8 +2122,8 @@ class SliderSprite(BitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         """Handle left mouse button down event."""
-        mouse = MousePointer(pos=event.pos)
-        if pygame.sprite.collide_rect(mouse, self):
+        self.log.info(f"Slider {self.name} mouse down event at {event.pos}, rect: {self.rect}")
+        if self.rect.collidepoint(event.pos):
             self.log.info(f"Mouse down on slider {self.name}")
             self.dragging = True
             # Update value based on click position
@@ -1975,9 +2141,12 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+        else:
+            self.log.info(f"Mouse click not on slider {self.name} rect")
 
     def on_mouse_motion_event(self, event):
         """Handle mouse motion event."""
+        self.log.info(f"Slider {self.name} mouse motion event, dragging: {self.dragging}")
         if self.dragging:
             self.log.info(f"Dragging slider {self.name}")
             # Update value based on drag position
@@ -1995,6 +2164,8 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+        else:
+            self.log.info(f"Mouse motion on slider {self.name} but not dragging")
 
     def on_left_mouse_button_up_event(self, event):
         """Handle left mouse button up event."""
@@ -2052,17 +2223,18 @@ class ColorWellSprite(BitmappySprite):
         if not hasattr(self, "callbacks"):
             self.callbacks = {}
 
-        self.text_sprite = TextBoxSprite(
-            x=self.rect.midleft[0] + width,
-            y=self.rect.centery - 10,
-            width=100,
-            height=20,
-            name=str(self.active_color),
-            parent=self,
-            groups=groups,
-        )
+        # Hide hex color display - don't create text sprite
+        # self.text_sprite = TextBoxSprite(
+        #     x=self.rect.midleft[0] + width,
+        #     y=self.rect.centery - 10,
+        #     width=100,
+        #     height=20,
+        #     name=str(self.active_color),
+        #     parent=self,
+        #     groups=groups,
+        # )
 
-        self.text_sprite.border_width = 1
+        # self.text_sprite.border_width = 1
         # self.text_sprite.rect.midleft = self.rect.midright
 
     @property
@@ -2124,7 +2296,8 @@ class ColorWellSprite(BitmappySprite):
             None
 
         """
-        self.text_sprite.dirty = 1
+        # Hide hex color display - no text sprite to update
+        # self.text_sprite.dirty = 1
 
     def update(self: Self) -> None:
         """Update the color well sprite.
@@ -2139,9 +2312,135 @@ class ColorWellSprite(BitmappySprite):
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
         pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
 
-        self.text_sprite.value = str(self.active_color)
-        self.text_sprite.text_box.text = self.hex_color
-        self.text_sprite.dirty = 1
+        # Hide hex color display
+        # self.text_sprite.value = str(self.active_color)
+        # self.text_sprite.text_box.text = self.hex_color
+        # self.text_sprite.dirty = 1
+
+
+class TabControlSprite(BitmappySprite):
+    """A tab control sprite class."""
+
+    log = LOG
+
+    def __init__(
+        self: Self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        name: str | None = None,
+        parent: object | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
+        """Initialize a TabControlSprite.
+
+        Args:
+            x (int): The x coordinate of the tab control sprite.
+            y (int): The y coordinate of the tab control sprite.
+            width (int): The width of the tab control sprite.
+            height (int): The height of the tab control sprite.
+            name (str | None): The name of the tab control sprite.
+            parent (object | None): The parent object.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups.
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+        super().__init__(
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups,
+        )
+
+        # Tab options
+        self.tabs = ["%d", "%X"]
+        self.active_tab = 0  # Start with %d (decimal)
+        
+        # Visual properties
+        self.tab_height = height
+        self.tab_width = width // len(self.tabs)
+        self.border_color = (128, 128, 128)
+        self.active_color = (200, 200, 200)
+        self.inactive_color = (100, 100, 100)
+        self.text_color = (0, 0, 0)
+
+    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle left mouse button down event.
+
+        Args:
+            event (pygame.event.Event): The pygame event.
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+        if self.rect.collidepoint(event.pos):
+            # Calculate which tab was clicked
+            relative_x = event.pos[0] - self.rect.x
+            clicked_tab = relative_x // self.tab_width
+            
+            if 0 <= clicked_tab < len(self.tabs):
+                self.active_tab = clicked_tab
+                self.dirty = 2  # Force redraw
+                self.log.info(f"Tab control: Switched to tab {self.tabs[self.active_tab]}")
+                
+                # Notify parent if it has a tab change handler
+                if hasattr(self.parent, "on_tab_change_event"):
+                    self.parent.on_tab_change_event(self.tabs[self.active_tab])
+
+    def update(self: Self) -> None:
+        """Update the tab control sprite.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            None
+
+        """
+        if self.dirty:
+            # Clear the surface
+            self.image.fill((0, 0, 0, 0))  # Transparent background
+            
+            # Draw tabs
+            for i, tab_text in enumerate(self.tabs):
+                tab_x = i * self.tab_width
+                tab_rect = pygame.Rect(tab_x, 0, self.tab_width, self.tab_height)
+                
+                # Choose colors based on active state
+                if i == self.active_tab:
+                    bg_color = self.active_color
+                else:
+                    bg_color = self.inactive_color
+                
+                # Draw tab background
+                pygame.draw.rect(self.image, bg_color, tab_rect)
+                pygame.draw.rect(self.image, self.border_color, tab_rect, 1)
+                
+                # Draw tab text
+                try:
+                    font = pygame.font.Font(None, 16)
+                    text_surface = font.render(tab_text, True, self.text_color)
+                    text_rect = text_surface.get_rect(center=tab_rect.center)
+                    self.image.blit(text_surface, text_rect)
+                except (pygame.error, AttributeError):
+                    # Handle font loading errors gracefully
+                    pass
 
 
 class InputDialog(BitmappySprite):

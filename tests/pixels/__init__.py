@@ -1,0 +1,1 @@
+"""Tests for pixel functionality."""

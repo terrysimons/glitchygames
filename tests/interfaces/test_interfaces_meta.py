@@ -1,14 +1,9 @@
 """Test coverage for interface meta functionality and combinations."""
 
-import inspect
-import typing
 from importlib import reload
 
 import glitchygames.interfaces as interfaces_module
 from glitchygames.interfaces import SceneInterface, SpriteInterface
-
-# Suppress PLR6301 for test methods (they need self for fixtures)
-# ruff: noqa: PLR6301
 
 
 class TestInterfaceMeta:
@@ -47,7 +42,7 @@ class TestInterfaceMeta:
         # Interfaces should not raise errors when called directly
         sprite = SpriteInterface()
         scene = SceneInterface()
-        
+
         # These should not raise exceptions
         sprite.update_nested_sprites()
         sprite.update()
@@ -60,7 +55,7 @@ class TestInterfaceMeta:
         # Check SpriteInterface documentation
         assert SpriteInterface.__doc__ is not None
         assert "Sprite interface" in SpriteInterface.__doc__
-        
+
         # Check SceneInterface documentation
         assert SceneInterface.__doc__ is not None
         assert "Scene interface" in SceneInterface.__doc__
@@ -77,11 +72,11 @@ class TestInterfaceMeta:
         # This test ensures that the module can be reloaded without issues
         # when TYPE_CHECKING is True
         reload(interfaces_module)
-        
+
         # Verify interfaces are still accessible after reload
         assert hasattr(interfaces_module, "SpriteInterface")
         assert hasattr(interfaces_module, "SceneInterface")
-        
+
         # Verify they can still be instantiated
         sprite = interfaces_module.SpriteInterface()
         scene = interfaces_module.SceneInterface()

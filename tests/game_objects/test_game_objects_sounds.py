@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -36,16 +38,17 @@ class TestGameObjectsSounds(unittest.TestCase):
         with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
-            
+
             result = load_sound("test.wav", 0.5)
-            
+
             # Verify the sound was created with correct path
-            expected_path = Path(__file__).parent.parent.parent / "glitchygames" / "game_objects" / "snd_files" / "test.wav"
+            expected_path = (Path(__file__).parent.parent.parent / "glitchygames" /
+                            "game_objects" / "snd_files" / "test.wav")
             mock_sound_class.assert_called_once_with(expected_path)
-            
+
             # Verify volume was set
             mock_sound.set_volume.assert_called_once_with(0.5)
-            
+
             # Verify return value
             assert result == mock_sound
 
@@ -54,9 +57,9 @@ class TestGameObjectsSounds(unittest.TestCase):
         with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
-            
+
             result = load_sound("test.wav")
-            
+
             # Verify default volume was used
             mock_sound.set_volume.assert_called_once_with(0.25)
             assert result == mock_sound
@@ -70,6 +73,6 @@ class TestGameObjectsSounds(unittest.TestCase):
         """Test load_sound with nonexistent file."""
         with patch("pygame.mixer.Sound") as mock_sound_class:
             mock_sound_class.side_effect = FileNotFoundError("File not found")
-            
+
             with pytest.raises(FileNotFoundError):
                 load_sound("nonexistent.wav")

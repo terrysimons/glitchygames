@@ -1,14 +1,13 @@
 """Test coverage for SpriteInterface."""
 
 import inspect
-import typing
 from unittest.mock import Mock
 
 import pygame
 from glitchygames.interfaces import SpriteInterface
 
-# Suppress PLR6301 for test methods (they need self for fixtures)
-# ruff: noqa: PLR6301
+# Constants for magic values
+EXPECTED_PARAMETER_COUNT = 2
 
 
 class TestSpriteInterface:
@@ -66,7 +65,7 @@ class TestSpriteInterface:
 
         # Check render signature
         render_sig = inspect.signature(SpriteInterface.render)
-        assert len(render_sig.parameters) == 2  # self, screen
+        assert len(render_sig.parameters) == EXPECTED_PARAMETER_COUNT  # self, screen
         assert "screen" in render_sig.parameters
 
     def test_sprite_interface_method_return_types(self):
@@ -92,10 +91,10 @@ class TestSpriteInterface:
         # and that pygame.Surface is properly typed in the interface
         sprite = SpriteInterface()
         mock_screen = Mock(spec=pygame.Surface)
-        
+
         # This should work without type errors
         sprite.render(mock_screen)
-        
+
         # Verify the method signature includes pygame.Surface
         render_sig = inspect.signature(SpriteInterface.render)
         screen_param = render_sig.parameters["screen"]

@@ -281,7 +281,7 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         # Should use the actual character for red
         assert '[colors."."]' in content  # Red should map to '.'
 
-    def test_animated_sprite_toml_save(self):
+    def test_animated_sprite_toml_save_duplicate(self):
         """Test animated sprite TOML save with universal character set."""
         animated_sprite = AnimatedSprite()
         animated_sprite.name = "test_toml"
@@ -305,7 +305,7 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         assert "pixels =" in content
         assert "[colors]" in content
 
-    def test_animated_sprite_character_limit(self):
+    def test_animated_sprite_character_limit_duplicate(self):
         """Test character limit enforcement in animated sprites."""
         animated_sprite = AnimatedSprite()
         animated_sprite.name = "test_animated_limit"
