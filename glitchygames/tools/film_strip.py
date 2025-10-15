@@ -1559,7 +1559,7 @@ class FilmStripWidget:
         total_width = self.rect.width - 20  # Leave 10px margin on each side
 
         # Calculate how many sprockets fit and center them (same as bottom)
-        num_sprockets = (total_width // sprocket_spacing) + 2
+        num_sprockets = (total_width // sprocket_spacing) + 3
         if num_sprockets > 0:
             # Calculate the total space the sprockets will occupy
             sprockets_width = (num_sprockets - 1) * sprocket_spacing
@@ -1586,8 +1586,8 @@ class FilmStripWidget:
         sprocket_spacing = 17
         total_width = self.rect.width - 20  # Leave 10px margin on each side
 
-        # Calculate how many sprockets fit and center them (add two more)
-        num_sprockets = (total_width // sprocket_spacing) + 2
+        # Calculate how many sprockets fit and center them (add three more)
+        num_sprockets = (total_width // sprocket_spacing) + 3
         if num_sprockets > 0:
             # Calculate the total space the sprockets will occupy
             sprockets_width = (num_sprockets - 1) * sprocket_spacing

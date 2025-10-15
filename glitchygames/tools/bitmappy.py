@@ -3003,7 +3003,7 @@ class BitmapEditorScene(Scene):
     def _setup_debug_text_box(self) -> None:
         """Set up the debug text box and AI label."""
         # Calculate debug text box position and size - align to bottom right corner
-        debug_height = 200  # Fixed height for AI chat box
+        debug_height = 186  # Fixed height for AI chat box
 
         # Calculate AI sprite box position dynamically
         # Position to the right of the color well
@@ -3018,21 +3018,18 @@ class BitmapEditorScene(Scene):
             else:
                 debug_x = self.screen_width - 20
 
-        # Calculate bottom of the last film strip
-        if hasattr(self, 'film_strips') and self.film_strips:
-            # Find the bottom of the last film strip
-            last_strip_bottom = 0
-            for film_strip in self.film_strips:
-                if hasattr(film_strip, 'rect'):
-                    strip_bottom = film_strip.rect.bottom
-                    last_strip_bottom = max(last_strip_bottom, strip_bottom)
-            debug_y = last_strip_bottom + 2  # 2 pixels below the bottom strip
+        # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
+        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+            # Find the bottom of the 2nd film strip
+            second_strip_bottom = 0
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+                second_strip_bottom = self.film_strips[1].rect.bottom
+            debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
+            # Ensure it doesn't go above the bottom of the screen
+            debug_y = min(debug_y, self.screen_height - debug_height)
         else:
-            # Fallback: position below canvas
-            if hasattr(self, 'canvas') and self.canvas:
-                debug_y = self.canvas.rect.bottom + 2
-            else:
-                debug_y = self.screen_height - debug_height  # Align to bottom edge
+            # Fallback: clamp to bottom of screen
+            debug_y = self.screen_height - debug_height
 
         # Calculate width to extend to end of screen
         debug_width = self.screen_width - debug_x
@@ -3041,7 +3038,7 @@ class BitmapEditorScene(Scene):
         label_height = 20
         self.ai_label = TextSprite(
             x=debug_x,
-            y=debug_y - label_height,
+            y=debug_y - label_height,  # Position above the text box
             width=debug_width,
             height=label_height,
             text="AI Sprite",
@@ -3068,7 +3065,7 @@ class BitmapEditorScene(Scene):
             return  # AI sprites not initialized yet
 
         # Calculate new position using same logic as _setup_debug_text_box
-        debug_height = 200  # Fixed height for AI chat box
+        debug_height = 186  # Fixed height for AI chat box
 
         # Position to the right of the color well
         if hasattr(self, 'color_well') and self.color_well:
@@ -3082,28 +3079,25 @@ class BitmapEditorScene(Scene):
             else:
                 debug_x = self.screen_width - 20
 
-        # Calculate bottom of the last film strip
-        if hasattr(self, 'film_strips') and self.film_strips:
-            # Find the bottom of the last film strip
-            last_strip_bottom = 0
-            for film_strip in self.film_strips:
-                if hasattr(film_strip, 'rect'):
-                    strip_bottom = film_strip.rect.bottom
-                    last_strip_bottom = max(last_strip_bottom, strip_bottom)
-            debug_y = last_strip_bottom + 2  # 2 pixels below the bottom strip
+        # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
+        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+            # Find the bottom of the 2nd film strip
+            second_strip_bottom = 0
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+                second_strip_bottom = self.film_strips[1].rect.bottom
+            debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
+            # Ensure it doesn't go above the bottom of the screen
+            debug_y = min(debug_y, self.screen_height - debug_height)
         else:
-            # Fallback: position below canvas
-            if hasattr(self, 'canvas') and self.canvas:
-                debug_y = self.canvas.rect.bottom + 2
-            else:
-                debug_y = self.screen_height - debug_height  # Align to bottom edge
+            # Fallback: clamp to bottom of screen
+            debug_y = self.screen_height - debug_height
 
         # Calculate width to extend to end of screen
         debug_width = self.screen_width - debug_x
 
         # Update AI label position
         self.ai_label.rect.x = debug_x
-        self.ai_label.rect.y = debug_y - 20  # 20 is label_height
+        self.ai_label.rect.y = debug_y - 20  # Position above the text box
         self.ai_label.rect.width = debug_width
         self.ai_label.rect.height = 20
 
