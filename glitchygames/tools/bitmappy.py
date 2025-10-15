@@ -5153,15 +5153,23 @@ class BitmapEditorScene(Scene):
             width, height = image.get_size()
             self.log.info(f"Image dimensions: {width}x{height}")
 
-            # Check if image is too large and auto-resize if needed
-            if width > 128 or height > 128:
-                self.log.warning(f"Image is {width}x{height}, which is larger than recommended 128x128")
-                self.log.info("Auto-resizing to 128x128 for better performance and bitmappy compatibility")
+            # Get current canvas size for resizing
+            canvas_width, canvas_height = 32, 32  # Default fallback
+            if hasattr(self, 'canvas') and self.canvas:
+                canvas_width = self.canvas.pixels_across
+                canvas_height = self.canvas.pixels_tall
+                self.log.info(f"Using current canvas size: {canvas_width}x{canvas_height}")
+            else:
+                self.log.info("No canvas found, using default size: 32x32")
 
-                # Resize the image to 128x128
-                resized_image = pygame.transform.scale(image, (128, 128))
+            # Check if image needs resizing to match canvas size
+            if width != canvas_width or height != canvas_height:
+                self.log.info(f"Resizing image from {width}x{height} to {canvas_width}x{canvas_height} to match canvas")
+
+                # Resize the image to match canvas size
+                resized_image = pygame.transform.scale(image, (canvas_width, canvas_height))
                 image = resized_image
-                width, height = 128, 128
+                width, height = canvas_width, canvas_height
                 self.log.info(f"Resized image to {width}x{height}")
 
             # Convert to RGB if needed, handling transparency
@@ -5222,7 +5230,9 @@ class BitmapEditorScene(Scene):
             # If we still have too many colors, use k-means-like approach
             # Reserve one slot for transparency if we have transparent pixels
             reserved_for_transparency = 1 if has_transparency else 0
-            available_colors = 64 - reserved_for_transparency  # 63 or 64 colors available
+            # Limit to 1000 colors maximum for practical file sizes
+            max_colors = 1000
+            available_colors = max_colors - reserved_for_transparency
 
             if len(unique_colors) > available_colors:
                 self.log.info("Too many colors detected, using color quantization...")
@@ -5260,14 +5270,14 @@ class BitmapEditorScene(Scene):
                 self.log.info(f"Quantized to {len(unique_colors)} representative colors")
                 self.log.info(f"Available colors: {available_colors}, Color groups created: {len(color_groups)}")
 
-            # Map colors to bitmappy palette using SPRITE_GLYPHS characters
+            # Map colors to bitmappy palette using first 1000 SPRITE_GLYPHS characters
             # Reserve one slot for transparency if we have transparent pixels
-            available_glyphs = list(SPRITE_GLYPHS)
+            max_glyphs = 1000
+            available_glyphs = list(SPRITE_GLYPHS[:max_glyphs])  # Use first 1000 characters
             reserved_for_transparency = 1 if has_transparency else 0
             available_colors = len(available_glyphs) - reserved_for_transparency
             
             self.log.info(f"Mapping colors: {len(unique_colors)} unique colors to {available_colors} available glyphs")
-            self.log.info(f"Available glyphs: {SPRITE_GLYPHS}")
             if has_transparency:
                 self.log.info("Reserved 1 glyph for transparency")
             
