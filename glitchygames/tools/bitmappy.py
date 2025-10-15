@@ -1149,6 +1149,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Update the canvas interface
             self.canvas_interface.set_current_frame(animation, frame)
 
+            # Force the canvas to redraw with the new frame
+            self.force_redraw()
+
             # Notify the parent scene about the frame change
             if hasattr(self, "parent_scene") and self.parent_scene:
                 self.log.debug(f"Notifying parent scene about frame change: {animation}[{frame}]")
@@ -1814,7 +1817,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update class dimensions
 
         # Update AI sprite positioning after canvas resize
-        self._update_ai_sprite_position()
+        if hasattr(self, 'parent_scene') and self.parent_scene:
+            self.parent_scene._update_ai_sprite_position()
         AnimatedCanvasSprite.WIDTH = sprite_width
         AnimatedCanvasSprite.HEIGHT = sprite_height
 
@@ -3141,14 +3145,18 @@ class BitmapEditorScene(Scene):
             # Update the canvas to use the loaded sprite's animations
             if hasattr(self, "canvas") and self.canvas:
                 self.canvas.animated_sprite = loaded_sprite
+
+                # Check if canvas needs resizing and resize if necessary
+                self.canvas._check_and_resize_canvas(loaded_sprite)
+
                 # Set the canvas to show the first frame of the first animation
                 first_animation = list(loaded_sprite._animations.keys())[0]
                 self.canvas.current_animation = first_animation
                 self.canvas.current_frame = 0
-                
+
                 # Update the canvas interface to sync with the new sprite
                 self.canvas.canvas_interface.set_current_frame(first_animation, 0)
-                
+
                 # Force the canvas to redraw with the new sprite
                 self.canvas.force_redraw()
 
@@ -3875,10 +3883,6 @@ class BitmapEditorScene(Scene):
             self.canvas.pixel_width = new_pixel_size
             self.canvas.pixel_height = new_pixel_size
 
-            # Update border thickness based on new dimensions
-            # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
-            self.canvas.border_thickness = 0 if (self.canvas.pixel_width <= 2 and self.canvas.pixel_height <= 2) else 1
-
             # Clear and resize the canvas
             self.canvas.pixels = [(255, 0, 255)] * (width * height)  # Use magenta as background
             self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
@@ -3886,6 +3890,13 @@ class BitmapEditorScene(Scene):
             # Update canvas image size
             self.canvas.image = pygame.Surface((width * new_pixel_size, height * new_pixel_size))
             self.canvas.rect = self.canvas.image.get_rect(x=0, y=24)  # Position below menu bar
+
+            # Update border thickness based on new dimensions (after all initialization)
+            # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
+            self.canvas.border_thickness = 0 if (self.canvas.pixel_width <= 2 and self.canvas.pixel_height <= 2) else 1
+
+            # Force the canvas to redraw with the new dimensions and cleared pixels
+            self.canvas.force_redraw()
 
             # Update mini map position for new size
             screen_info = pygame.display.Info()
