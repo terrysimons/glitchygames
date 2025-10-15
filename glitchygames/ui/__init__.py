@@ -2141,6 +2141,14 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+            
+            # Update text display based on current format
+            if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":
+                self.text_sprite.text = f"{self._value:02X}"
+            else:
+                self.text_sprite.text = str(self._value)
+            self.text_sprite.update_text(self.text_sprite.text)
+            self.text_sprite.dirty = 2  # Force redraw
         else:
             self.log.info(f"Mouse click not on slider {self.name} rect")
 
@@ -2164,6 +2172,14 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+            
+            # Update text display based on current format
+            if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":
+                self.text_sprite.text = f"{self._value:02X}"
+            else:
+                self.text_sprite.text = str(self._value)
+            self.text_sprite.update_text(self.text_sprite.text)
+            self.text_sprite.dirty = 2  # Force redraw
         else:
             self.log.info(f"Mouse motion on slider {self.name} but not dragging")
 

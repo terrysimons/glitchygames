@@ -4037,6 +4037,10 @@ class BitmapEditorScene(Scene):
             self.blue_slider.value = value
             self.log.debug(f"Updated blue slider to: {value}")
 
+        # Update slider text to reflect current tab format
+        # This handles slider clicks - text input is handled by SliderSprite itself
+        self._update_slider_text_format()
+
         # Debug: Log current slider values
         self.log.debug(
             f"Current slider values - R: {self.red_slider.value}, "
@@ -4271,6 +4275,18 @@ class BitmapEditorScene(Scene):
         self.slider_input_format = tab_format
 
         # Update slider text display format if they have values
+        self._update_slider_text_format(tab_format)
+
+    def _update_slider_text_format(self, tab_format=None):
+        """Update slider text display format.
+
+        Args:
+            tab_format (str): The format to use ("%X" for hex, "%d" for decimal).
+                             If None, uses the current slider_input_format.
+        """
+        if tab_format is None:
+            tab_format = getattr(self, 'slider_input_format', '%d')
+
         if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
             if tab_format == "%X":
                 # Convert to hex
