@@ -3145,6 +3145,12 @@ class BitmapEditorScene(Scene):
                 first_animation = list(loaded_sprite._animations.keys())[0]
                 self.canvas.current_animation = first_animation
                 self.canvas.current_frame = 0
+                
+                # Update the canvas interface to sync with the new sprite
+                self.canvas.canvas_interface.set_current_frame(first_animation, 0)
+                
+                # Force the canvas to redraw with the new sprite
+                self.canvas.force_redraw()
 
                 # Note: The loaded sprite will be configured to play by the film strip widgets
                 # The canvas should remain static for editing
