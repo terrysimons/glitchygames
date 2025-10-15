@@ -3875,6 +3875,10 @@ class BitmapEditorScene(Scene):
             self.canvas.pixel_width = new_pixel_size
             self.canvas.pixel_height = new_pixel_size
 
+            # Update border thickness based on new dimensions
+            # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
+            self.canvas.border_thickness = 0 if (self.canvas.pixel_width <= 2 and self.canvas.pixel_height <= 2) else 1
+
             # Clear and resize the canvas
             self.canvas.pixels = [(255, 0, 255)] * (width * height)  # Use magenta as background
             self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
