@@ -28,6 +28,7 @@ except ImportError:
     ai = None
 
 from glitchygames.engine import GameEngine
+from glitchygames import events
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import (
@@ -898,12 +899,33 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
         self.active_color = (0, 0, 0)
-        # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
-        # This happens when the 320x320 constraint kicks in, making pixel size 2x2 or smaller
-        print(f"DEBUG: pixels_across={self.pixels_across}, pixels_tall={self.pixels_tall}")
-        print(f"DEBUG: pixel_width={self.pixel_width}, pixel_height={self.pixel_height}")
-        self.border_thickness = 0 if (self.pixel_width <= 2 and self.pixel_height <= 2) else 1
-        print(f"DEBUG: border_thickness set to {self.border_thickness}")
+        # Set border thickness using the internal method
+        self._update_border_thickness()
+
+    def _update_border_thickness(self) -> None:
+        """Update border thickness based on pixel size.
+        
+        For large sprites where pixel size becomes very small, use no border 
+        to prevent grid from consuming all space. This happens when the 320x320 
+        constraint kicks in, making pixel size 2x2 or smaller.
+        
+        For very large sprites (128x128), also disable borders to prevent visual clutter.
+        """
+        # Disable borders for very small pixels (2x2 or smaller) or very large sprites (128x128)
+        should_disable_borders = (
+            (self.pixel_width <= 2 and self.pixel_height <= 2) or  # Very small pixels
+            (self.pixels_across >= 128 or self.pixels_tall >= 128)  # Very large sprites
+        )
+        
+        old_border_thickness = getattr(self, 'border_thickness', 1)
+        self.border_thickness = 0 if should_disable_borders else 1
+        
+        # Clear pixel cache if border thickness changed
+        if old_border_thickness != self.border_thickness:
+            BitmapPixelSprite.PIXEL_CACHE.clear()
+            self.log.info(f"Cleared pixel cache due to border thickness change ({old_border_thickness} -> {self.border_thickness})")
+        
+        self.log.info(f"Border thickness set to {self.border_thickness} (pixel size: {self.pixel_width}x{self.pixel_height}, sprite size: {self.pixels_across}x{self.pixels_tall})")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -3892,8 +3914,7 @@ class BitmapEditorScene(Scene):
             self.canvas.rect = self.canvas.image.get_rect(x=0, y=24)  # Position below menu bar
 
             # Update border thickness based on new dimensions (after all initialization)
-            # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
-            self.canvas.border_thickness = 0 if (self.canvas.pixel_width <= 2 and self.canvas.pixel_height <= 2) else 1
+            self.canvas._update_border_thickness()
 
             # Force the canvas to redraw with the new dimensions and cleared pixels
             self.canvas.force_redraw()
@@ -5084,6 +5105,399 @@ class BitmapEditorScene(Scene):
 
         # Call our custom keyboard handler
         self.on_key_down_event(event)
+
+    def on_drop_file_event(self, event: events.HashableEvent) -> None:
+        """Handle drop file event.
+
+        Args:
+            event: The pygame event containing the dropped file information.
+
+        Returns:
+            None
+        """
+        # Get the file path from the event
+        file_path = event.file
+        self.log.info(f"File dropped: {file_path}")
+
+        # Get file size
+        try:
+            file_size = Path(file_path).stat().st_size
+            self.log.info(f"File size: {file_size} bytes")
+        except OSError:
+            self.log.exception("Could not get file size")
+            return
+
+        # Check if it's a PNG file
+        if file_path.lower().endswith(".png"):
+            self.log.info("PNG file detected - converting to bitmappy format")
+            self._convert_png_to_bitmappy(file_path)
+        else:
+            self.log.info(f"File type not supported: {file_path}")
+            self.log.info("Currently only PNG files are supported for drag and drop")
+
+    def _convert_png_to_bitmappy(self, file_path: str) -> None:
+        """Convert a PNG file to bitmappy TOML format.
+
+        Args:
+            file_path: Path to the PNG file to convert.
+
+        Returns:
+            None
+        """
+        try:
+            # Load the PNG image
+            self.log.info(f"Loading PNG image: {file_path}")
+            image = pygame.image.load(file_path)
+
+            # Get image dimensions
+            width, height = image.get_size()
+            self.log.info(f"Image dimensions: {width}x{height}")
+
+            # Check if image is too large and auto-resize if needed
+            if width > 128 or height > 128:
+                self.log.warning(f"Image is {width}x{height}, which is larger than recommended 128x128")
+                self.log.info("Auto-resizing to 128x128 for better performance and bitmappy compatibility")
+
+                # Resize the image to 128x128
+                resized_image = pygame.transform.scale(image, (128, 128))
+                image = resized_image
+                width, height = 128, 128
+                self.log.info(f"Resized image to {width}x{height}")
+
+            # Convert to RGB if needed, handling transparency
+            if image.get_flags() & pygame.SRCALPHA:
+                # Image has alpha channel, convert to RGB with transparency handling
+                rgb_image = pygame.Surface((width, height))
+                rgb_image.fill((255, 255, 255))  # White background
+                rgb_image.blit(image, (0, 0))
+                image = rgb_image
+                self.log.info("Converted image with alpha channel to RGB")
+
+            # Get pixel data
+            pixel_array = pygame.surfarray.array3d(image)
+            self.log.info(f"Pixel array shape: {pixel_array.shape}")
+
+            # Handle transparency - check if original image had alpha
+            has_transparency = False
+            if image.get_flags() & pygame.SRCALPHA:
+                # Get the original image with alpha for transparency detection
+                original_image = pygame.image.load(file_path)
+                if original_image.get_flags() & pygame.SRCALPHA:
+                    has_transparency = True
+                    self.log.info("Image has transparency - will map transparent pixels to magenta (255, 0, 255)")
+
+            # Use a more efficient approach for large images
+            # Sample pixels to find representative colors
+            sample_step = max(1, (width * height) // 10000)  # Sample up to 10k pixels
+            self.log.info(f"Sampling every {sample_step} pixels for color analysis")
+
+            # Find unique colors by sampling
+            unique_colors = set()
+            sample_count = 0
+            transparent_pixels = 0
+
+            for y in range(0, height, sample_step):
+                for x in range(0, width, sample_step):
+                    r, g, b = pixel_array[x, y]
+                    # Ensure we're working with Python ints, not numpy types
+                    color = (int(r), int(g), int(b))
+                    unique_colors.add(color)
+                    sample_count += 1
+
+                    # Check for transparency if we have the original image
+                    if has_transparency:
+                        # Get the original pixel with alpha
+                        original_pixel = original_image.get_at((x, y))
+                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                            transparent_pixels += 1
+                            # Map transparent pixels to magenta
+                            unique_colors.discard(color)  # Remove the current color
+                            unique_colors.add((255, 0, 255))  # Add magenta for transparency
+
+            if has_transparency:
+                self.log.info(f"Found {transparent_pixels} transparent pixels, mapped to magenta (255, 0, 255)")
+
+            self.log.info(f"Sampled {sample_count} pixels, found {len(unique_colors)} unique colors")
+
+            # If we still have too many colors, use k-means-like approach
+            # Reserve one slot for transparency if we have transparent pixels
+            reserved_for_transparency = 1 if has_transparency else 0
+            available_colors = 64 - reserved_for_transparency  # 63 or 64 colors available
+
+            if len(unique_colors) > available_colors:
+                self.log.info("Too many colors detected, using color quantization...")
+                # Group similar colors together
+                color_groups = {}
+                for color in unique_colors:
+                    # Find the closest existing group
+                    closest_group = None
+                    min_distance = float('inf')
+
+                    for group_color in color_groups:
+                        distance = sum((a - b) ** 2 for a, b in zip(color, group_color))
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_group = group_color
+
+                    # If no close group exists and we have space, create new group
+                    if closest_group is None or min_distance > 1000:  # Lower threshold for better color separation
+                        if len(color_groups) < available_colors:
+                            color_groups[color] = [color]
+                        else:
+                            # Add to closest existing group
+                            color_groups[closest_group].append(color)
+                    else:
+                        color_groups[closest_group].append(color)
+
+                # Create representative colors for each group
+                representative_colors = []
+                for group_color, colors in color_groups.items():
+                    if colors:
+                        # Use the most common color in the group as representative
+                        representative_colors.append(group_color)
+
+                unique_colors = set(representative_colors)
+                self.log.info(f"Quantized to {len(unique_colors)} representative colors")
+                self.log.info(f"Available colors: {available_colors}, Color groups created: {len(color_groups)}")
+
+            # Map colors to bitmappy palette using SPRITE_GLYPHS characters
+            # Reserve one slot for transparency if we have transparent pixels
+            available_glyphs = list(SPRITE_GLYPHS)
+            reserved_for_transparency = 1 if has_transparency else 0
+            available_colors = len(available_glyphs) - reserved_for_transparency
+            
+            self.log.info(f"Mapping colors: {len(unique_colors)} unique colors to {available_colors} available glyphs")
+            self.log.info(f"Available glyphs: {SPRITE_GLYPHS}")
+            if has_transparency:
+                self.log.info("Reserved 1 glyph for transparency")
+            
+            color_mapping = {}
+            glyph_index = 0
+            
+            # First, ensure magenta (transparency) gets a glyph if we have transparency
+            if has_transparency and (255, 0, 255) in unique_colors:
+                color_mapping[(255, 0, 255)] = "@"  # Use @ for transparency
+                self.log.info(f"Reserved glyph '@' for transparency (magenta)")
+            
+            # Map other colors to available glyphs
+            for color in sorted(unique_colors):
+                if color == (255, 0, 255) and has_transparency:
+                    continue  # Already handled above
+                    
+                if glyph_index < available_colors:  # Only use available glyphs
+                    color_mapping[color] = available_glyphs[glyph_index]
+                    glyph_index += 1
+                else:
+                    # Map to closest existing color using safe distance calculation
+                    def color_distance(c1, c2):
+                        """Calculate color distance safely."""
+                        return sum((int(a) - int(b)) ** 2 for a, b in zip(c1, c2, strict=True))
+
+                    closest_color = min(color_mapping.keys(), key=lambda c: color_distance(color, c))
+                    color_mapping[color] = color_mapping[closest_color]
+
+            self.log.info(f"Final color mapping: {len(color_mapping)} colors mapped to glyphs")
+
+            # Generate pixel string more efficiently
+            self.log.info("Generating pixel string...")
+            pixel_string = ""
+            for y in range(height):
+                for x in range(width):
+                    r, g, b = pixel_array[x, y]
+                    # Convert to int tuple for consistent lookup
+                    color_key = (int(r), int(g), int(b))
+
+                    # Handle transparency - check if this pixel should be transparent
+                    if has_transparency:
+                        original_pixel = original_image.get_at((x, y))
+                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                            color_key = (255, 0, 255)  # Use magenta for transparency
+
+                    # If color is not in mapping, find closest mapped color
+                    if color_key not in color_mapping:
+                        def color_distance(c1, c2):
+                            """Calculate color distance safely."""
+                            return sum((int(a) - int(b)) ** 2 for a, b in zip(c1, c2, strict=True))
+
+                        closest_color = min(color_mapping.keys(), key=lambda c: color_distance(color_key, c))
+                        color_mapping[color_key] = color_mapping[closest_color]
+                        self.log.debug(f"Mapped unmapped color {color_key} to {closest_color}")
+
+                    pixel_string += color_mapping[color_key]
+                if y < height - 1:  # Add newline except for last row
+                    pixel_string += "\n"
+
+                # Log progress for large images
+                if height > 32 and y % (height // 10) == 0:
+                    self.log.info(f"Progress: {y}/{height} rows processed")
+
+            # Generate TOML content
+            toml_content = f'[sprite]\nname = "imported_from_{Path(file_path).stem}"\npixels = """\n{pixel_string}\n"""\n\n[colors]\n'
+
+            # Add color definitions - collect unique glyphs first
+            unique_glyphs = set(color_mapping.values())
+            self.log.info(f"Unique glyphs to define: {sorted(unique_glyphs)}")
+            
+            for glyph in sorted(unique_glyphs):
+                # Find the first color that maps to this glyph
+                for color, mapped_glyph in color_mapping.items():
+                    if mapped_glyph == glyph:
+                        r, g, b = color
+                        # Quote the glyph to handle special characters like '.'
+                        toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+                        self.log.info(f"Defined color {glyph}: RGB({r}, {g}, {b})")
+                        break
+
+            # Validate that we have color definitions
+            if not unique_glyphs:
+                self.log.error("No colors to define - this will cause display issues!")
+                raise ValueError("No colors found in the converted sprite")
+            
+            self.log.info(f"Generated {len(unique_glyphs)} color definitions")
+
+            # Save the TOML file
+            output_path = Path(file_path).with_suffix(".toml")
+            Path(output_path).write_text(toml_content, encoding="utf-8")
+
+            # Validate the generated TOML file
+            self.log.info("Validating generated TOML file...")
+            try:
+                import toml
+                with output_path.open(encoding="utf-8") as f:
+                    toml_data = toml.load(f)
+
+                # Check for color definitions
+                if "colors" not in toml_data:
+                    self.log.error("TOML file missing [colors] section!")
+                    raise ValueError("Generated TOML file has no color definitions")
+
+                color_count = len(toml_data["colors"])
+                if color_count == 0:
+                    self.log.error("TOML file has empty [colors] section!")
+                    raise ValueError("Generated TOML file has no color definitions")
+
+                self.log.info(f"TOML validation passed: {color_count} colors defined")
+
+            except Exception as e:
+                self.log.error(f"TOML validation failed: {e}")
+                raise
+
+            self.log.info(f"Successfully converted PNG to bitmappy format: {output_path}")
+
+            # Automatically load the converted TOML file into the editor
+            self.log.info("Auto-loading converted sprite into editor...")
+            self._load_converted_sprite(str(output_path))
+
+        except Exception:
+            self.log.exception("Error converting PNG to bitmappy format")
+
+    def _load_converted_sprite(self, toml_path: str) -> None:
+        """Load a converted TOML sprite into the editor.
+
+        Args:
+            toml_path: Path to the converted TOML file.
+
+        Returns:
+            None
+        """
+        try:
+            self.log.info("=== STARTING _load_converted_sprite ===")
+            # Find the canvas sprite in the scene
+            self.log.info(f"Searching for canvas sprite in {len(self.all_sprites)} sprites...")
+            canvas_sprite = None
+            for i, sprite in enumerate(self.all_sprites):
+                self.log.info(f"Sprite {i}: {type(sprite)} - has on_load_file_event: {hasattr(sprite, 'on_load_file_event')}")
+                if hasattr(sprite, 'on_load_file_event'):
+                    canvas_sprite = sprite
+                    self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
+                    break
+
+            if canvas_sprite:
+                self.log.info(f"Loading converted sprite: {toml_path}")
+                self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
+
+                # Create a mock event for loading
+                class MockEvent:
+                    def __init__(self, text):
+                        self.text = text
+
+                mock_event = MockEvent(toml_path)
+                self.log.info("Calling on_load_file_event...")
+                canvas_sprite.on_load_file_event(mock_event)
+                self.log.info("on_load_file_event completed")
+                
+                # Update border thickness after loading (in case canvas was resized)
+                self.log.info("Updating border thickness after sprite load...")
+                canvas_sprite._update_border_thickness()
+                
+                # Force a complete redraw to apply the new border settings
+                self.log.info("Forcing canvas redraw with new border settings...")
+                canvas_sprite.force_redraw()
+
+                # Debug: Check what was loaded
+                self.log.info(f"Canvas sprite type: {type(canvas_sprite)}")
+                self.log.info(f"Canvas sprite has animated_sprite: {hasattr(canvas_sprite, 'animated_sprite')}")
+                if hasattr(canvas_sprite, "animated_sprite"):
+                    self.log.info(f"animated_sprite value: {canvas_sprite.animated_sprite}")
+                if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
+                    self.log.info(f"Animated sprite loaded: {canvas_sprite.animated_sprite}")
+                    if hasattr(canvas_sprite.animated_sprite, "_animations"):
+                        animations = list(canvas_sprite.animated_sprite._animations.keys())
+                        self.log.info(f"Animations: {animations}")
+                        if animations:
+                            first_anim = animations[0]
+                            frames = canvas_sprite.animated_sprite._animations[first_anim]
+                            self.log.info(f"First animation '{first_anim}' has {len(frames)} frames")
+                            if frames:
+                                first_frame = frames[0]
+                                self.log.info(f"First frame size: {first_frame.size}")
+
+                                # Transfer pixel data from the loaded sprite to the canvas
+                                self.log.info("Transferring pixel data from loaded sprite to canvas...")
+                                if hasattr(first_frame, 'image') and first_frame.image:
+                                    # Get the pixel data from the frame image
+                                    frame_surface = first_frame.image
+                                    frame_width, frame_height = frame_surface.get_size()
+                                    self.log.info(f"Frame surface size: {frame_width}x{frame_height}")
+
+                                    # Convert the frame surface to pixel data
+                                    pixel_data = []
+                                    for y in range(frame_height):
+                                        for x in range(frame_width):
+                                            color = frame_surface.get_at((x, y))
+                                            # Convert to RGB (ignore alpha)
+                                            pixel_data.append((color.r, color.g, color.b))
+
+                                    # Update canvas pixels
+                                    canvas_sprite.pixels = pixel_data
+                                    canvas_sprite.dirty_pixels = [True] * len(pixel_data)
+                                    self.log.info(f"Transferred {len(pixel_data)} pixels to canvas")
+
+                                    # Update mini view pixels too
+                                    if hasattr(canvas_sprite, "mini_view") and canvas_sprite.mini_view is not None:
+                                        canvas_sprite.mini_view.pixels = pixel_data.copy()
+                                        canvas_sprite.mini_view.dirty_pixels = [True] * len(pixel_data)
+                                        self.log.info("Updated mini view pixels")
+
+                # Force canvas redraw to show the new sprite
+                self.log.info("Forcing canvas redraw after loading...")
+                canvas_sprite.dirty = 1
+                canvas_sprite.force_redraw()
+
+                # Update mini view if it exists
+                if hasattr(canvas_sprite, "mini_view") and canvas_sprite.mini_view is not None:
+                    self.log.info("Updating mini view...")
+                    canvas_sprite.mini_view.pixels = canvas_sprite.pixels.copy()
+                    canvas_sprite.mini_view.dirty_pixels = [True] * len(canvas_sprite.pixels)
+                    canvas_sprite.mini_view.dirty = 1
+                    canvas_sprite.mini_view.force_redraw()
+
+                self.log.info("Converted sprite loaded successfully into editor")
+            else:
+                self.log.warning("Could not find canvas sprite to load converted file")
+
+        except Exception:
+            self.log.exception("Error loading converted sprite into editor")
 
     def handle_event(self, event):
         """Handle pygame events."""
