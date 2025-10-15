@@ -77,7 +77,7 @@ STATIC SPRITES (single-frame):
 
 ANIMATED SPRITES (multi-frame):
     [sprite] section with name only (NO pixels item)
-    [colors] section with colors.0 through colors.7
+    [colors] section with 'colors."X"' section keys, where X is the character used in the pixels
     [[animation]] section with namespace, frame_interval, loop
     [[animation.frame]] sections with namespace, frame_index, pixels
     PER-FRAME TIMING: When asked to generate per-frame frame_intervals, add a frame_interval
@@ -94,9 +94,9 @@ CRITICAL RULES:
     - Animated sprites: [sprite] with NO pixels item + [colors] + [[animation]] sections
       ONLY
     - IMPORTANT: Animated sprites must NOT have a pixels item in the [sprite] section!
-    - CRITICAL: Use triple-quoted block strings for multi-line pixel data
+    - CRITICAL: Use triple-quoted block strings for multi-line pixel data, never use single quotes
     - EFFICIENCY: Only define colors that appear in the pixel data (e.g., if pixels only use
-      "0", only define [colors.0])
+      "0", only define [colors."0"])
 """
 
 LOG = logging.getLogger("game.tools.bitmappy")
@@ -191,6 +191,9 @@ def load_ai_training_data():
                 if AI_TRAINING_FORMAT == "toml":
                     with config_file.open(encoding="utf-8") as f:
                         config_data = toml.load(f)
+
+                    # Normalize the TOML data to convert escaped newlines to actual newlines
+                    config_data = _normalize_toml_data(config_data)
 
                     # Extract sprite data from TOML structure
                     sprite_data = {
@@ -522,6 +525,48 @@ def _select_relevant_training_examples(
         relevant_examples.extend(remaining[: max_examples - len(relevant_examples)])
 
     return relevant_examples
+
+
+def _normalize_toml_data(config_data: dict) -> dict:
+    """Normalize TOML data by converting triple-quoted strings to proper format.
+
+    Args:
+        config_data: Raw TOML data loaded from file
+
+    Returns:
+        Normalized TOML data with proper string formatting
+    """
+    try:
+        # Create a copy to avoid modifying the original
+        normalized_data = config_data.copy()
+
+        # Handle sprite pixels
+        if "sprite" in normalized_data and "pixels" in normalized_data["sprite"]:
+            pixels = normalized_data["sprite"]["pixels"]
+            if isinstance(pixels, str):
+                # Convert escaped newlines to actual newlines
+                # Handle both \\n (double escaped) and \n (single escaped)
+                pixels = pixels.replace("\\\\n", "\n").replace("\\n", "\n")
+                normalized_data["sprite"]["pixels"] = pixels
+
+        # Handle animation frame pixels
+        if "animation" in normalized_data:
+            for animation in normalized_data["animation"]:
+                if isinstance(animation, dict) and "frame" in animation:
+                    for frame in animation["frame"]:
+                        if isinstance(frame, dict) and "pixels" in frame:
+                            pixels = frame["pixels"]
+                            if isinstance(pixels, str):
+                                # Convert escaped newlines to actual newlines
+                                # Handle both \\n (double escaped) and \n (single escaped)
+                                pixels = pixels.replace("\\\\n", "\n").replace("\\n", "\n")
+                                frame["pixels"] = pixels
+
+        return normalized_data
+
+    except Exception as e:
+        LOG.warning(f"Error normalizing TOML data: {e}")
+        return config_data  # Return original if normalization fails
 
 
 def _extract_response_content(response, log: logging.Logger) -> AIResponse:
@@ -904,11 +949,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def _update_border_thickness(self) -> None:
         """Update border thickness based on pixel size.
-        
-        For large sprites where pixel size becomes very small, use no border 
-        to prevent grid from consuming all space. This happens when the 320x320 
+
+        For large sprites where pixel size becomes very small, use no border
+        to prevent grid from consuming all space. This happens when the 320x320
         constraint kicks in, making pixel size 2x2 or smaller.
-        
+
         For very large sprites (128x128), also disable borders to prevent visual clutter.
         """
         # Disable borders for very small pixels (2x2 or smaller) or very large sprites (128x128)
@@ -916,15 +961,15 @@ class AnimatedCanvasSprite(BitmappySprite):
             (self.pixel_width <= 2 and self.pixel_height <= 2) or  # Very small pixels
             (self.pixels_across >= 128 or self.pixels_tall >= 128)  # Very large sprites
         )
-        
+
         old_border_thickness = getattr(self, 'border_thickness', 1)
         self.border_thickness = 0 if should_disable_borders else 1
-        
+
         # Clear pixel cache if border thickness changed
         if old_border_thickness != self.border_thickness:
             BitmapPixelSprite.PIXEL_CACHE.clear()
             self.log.info(f"Cleared pixel cache due to border thickness change ({old_border_thickness} -> {self.border_thickness})")
-        
+
         self.log.info(f"Border thickness set to {self.border_thickness} (pixel size: {self.pixel_width}x{self.pixel_height}, sprite size: {self.pixels_across}x{self.pixels_tall})")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
@@ -1609,6 +1654,16 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         self.log.debug(f"Loading animated sprite from {filename}")
 
+        # Check if this is a PNG file and convert it first
+        if filename.lower().endswith('.png'):
+            self.log.info(f"PNG file detected - converting to bitmappy format first")
+            converted_toml_path = self._convert_png_to_bitmappy(filename)
+            if converted_toml_path:
+                filename = converted_toml_path
+                self.log.info(f"Using converted TOML file: {filename}")
+            else:
+                raise Exception("Failed to convert PNG to bitmappy format")
+
         # Detect file format and load the sprite
         file_format = detect_file_format(filename)
         self.log.debug(f"Detected file format: {file_format}")
@@ -1771,9 +1826,26 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.log.debug("Final mini view update after sprite load")
             self._update_mini_view_from_current_frame()
 
-        # Reset AI textbox to prompt string after successful sprite loading
-        if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-            self.parent.debug_text.text = "Enter a description of the sprite you want to create:"
+        # Update AI textbox with sprite description or default prompt
+        self.log.debug(f"Checking parent and debug_text access...")
+        self.log.debug(f"hasattr(self, 'parent_scene'): {hasattr(self, 'parent_scene')}")
+        if hasattr(self, "parent_scene"):
+            self.log.debug(f"hasattr(self.parent_scene, 'debug_text'): {hasattr(self.parent_scene, 'debug_text')}")
+            self.log.debug(f"self.parent_scene type: {type(self.parent_scene)}")
+
+        if hasattr(self, "parent_scene") and hasattr(self.parent_scene, "debug_text"):
+            # Get description from loaded sprite, or use default prompt if empty
+            description = getattr(loaded_sprite, 'description', '')
+            self.log.debug(f"Loaded sprite description: '{description}'")
+            self.log.debug(f"Description is not empty: {bool(description and description.strip())}")
+            if description and description.strip():
+                self.log.info(f"Setting AI textbox to description: '{description}'")
+                self.parent_scene.debug_text.text = description
+            else:
+                self.log.info("Setting AI textbox to default prompt")
+                self.parent_scene.debug_text.text = "Enter a description of the sprite you want to create:"
+        else:
+            self.log.warning("Cannot access parent or debug_text - description not updated")
 
     def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
         """Resize the canvas to match the sprite dimensions."""
@@ -2086,6 +2158,24 @@ class AnimatedCanvasSprite(BitmappySprite):
                     color = self.pixels[pixel_num]
                     surface.set_at((x, y), color)
         return surface
+
+    def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
+        """Convert a PNG file to bitmappy TOML format.
+
+        This method delegates to the parent scene's conversion method.
+
+        Args:
+            file_path: Path to the PNG file to convert.
+
+        Returns:
+            Path to the converted TOML file, or None if conversion failed.
+        """
+        # Get the parent scene and call its conversion method
+        if hasattr(self, 'parent') and hasattr(self.parent, '_convert_png_to_bitmappy'):
+            return self.parent._convert_png_to_bitmappy(file_path)
+        else:
+            self.log.error("Cannot convert PNG: parent scene not available or missing conversion method")
+            return None
 
 
 class MiniView(BitmappySprite):
@@ -4457,17 +4547,15 @@ class BitmapEditorScene(Scene):
                     will include:
                         - [sprite] section containing name and pixels "
                         "(using triple-quoted block strings)
-                        - [colors.X] sections ONLY for colors that are actually used "
-                        "in the pixel data
+                        - [colors."X"] sections ONLY for colors that are actually used in the pixel data
                         - RGB values from 0-255 for each color
                         - Pixels using the SPRITE_GLYPHS character set
                         - For animated sprites: [[animation]] and [[animation.frame]] sections
-                        - When "frame", "animation", "animated", "2-frame", or "
-                        "multi-frame"
+                        - When "frame", "animation", "animated", "2-frame", or "multi-frame"
                           is mentioned, I will create an ANIMATED sprite with multiple frames
                         - IMPORTANT: Use triple-quoted block strings for multi-line pixel data
                         - EFFICIENCY: Only define colors that appear in the pixels "
-                        "(e.g., if pixels=\"0\", only define [colors.0])
+                            (e.g., if pixels="0", only define [colors."0"])
                 """.strip()
         else:
             format_instruction = """
@@ -4475,16 +4563,48 @@ class BitmapEditorScene(Scene):
                     markdown formatting, code blocks, or explanations. The INI format
                     will include:
                         - [sprite] section containing name and pixel layout
-                        - [0] through [7] for color definitions
                         - RGB values from 0-255 for each color
                         - Pixels using the SPRITE_GLYPHS character set
                 """.strip()
 
-        # Select relevant training examples
-        relevant_examples = _select_relevant_training_examples(text)
-        self.log.info(
-            f"Using {len(relevant_examples)} training examples (max: {AI_MAX_TRAINING_EXAMPLES})"
-        )
+        # Check if current frame has content (not all magenta)
+        current_frame_has_content = self._check_current_frame_has_content()
+        self.log.info(f"Frame content check result: {current_frame_has_content}")
+
+        if current_frame_has_content:
+            # Save both current frame and current strip to temporary TOML files
+            frame_toml_path = self._save_current_frame_to_temp_toml()
+            strip_toml_path = self._save_current_strip_to_temp_toml()
+
+            examples = []
+
+            # Load current frame as training example
+            if frame_toml_path:
+                frame_example = self._load_temp_toml_as_example(frame_toml_path)
+                if frame_example:
+                    frame_example["name"] = "selected_frame"
+                    examples.append(frame_example)
+                    self.log.info(f"Added current frame as training example")
+
+            # Load current strip as training example
+            if strip_toml_path:
+                strip_example = self._load_temp_toml_as_example(strip_toml_path)
+                if strip_example:
+                    strip_example["name"] = "selected_strip"
+                    examples.append(strip_example)
+                    self.log.info(f"Added current strip as training example")
+
+            if examples:
+                # Use both current frame and strip as training examples (no regular examples)
+                relevant_examples = examples
+                self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
+            else:
+                relevant_examples = _select_relevant_training_examples(text)
+                self.log.info(f"Failed to load context examples, using {len(relevant_examples)} regular examples")
+        else:
+            # Frame is empty (all magenta), use regular examples
+            relevant_examples = _select_relevant_training_examples(text)
+            self.log.info(f"Frame is empty, using {len(relevant_examples)} regular examples")
 
         messages: list[dict[str, str]] = [
             {
@@ -4494,18 +4614,19 @@ class BitmapEditorScene(Scene):
                     game content for game developers. You can create both static
                     single-frame sprites and animated multi-frame sprites.
 
-                    Available character set for sprite pixels: {SPRITE_GLYPHS}
+                    Available character set for sprite pixels: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
                 """.strip(),
             },
             {
                 "role": "user",
                 "content": f"""
-                            Here are some example sprites that I've created. Use these
-                            as training data to understand how to create new sprites:
+                            Here is the context for your sprite generation:
 
                             {"\n".join([str(data) for data in relevant_examples])}
 
-                            Available character set: {SPRITE_GLYPHS}
+                            Available character set: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
+
+                            IMPORTANT: The examples above include both the selected frame and the selected strip from the current sprite. Use this context to understand what the user is asking for and determine the appropriate response based on their request.
                         """.strip(),
             },
             {
@@ -4515,7 +4636,7 @@ class BitmapEditorScene(Scene):
                     that each sprite consists of:
 
                     1. A name
-                    2. A pixel layout using characters from: {SPRITE_GLYPHS}
+                    2. A pixel layout using characters from: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
                     3. A color palette mapping characters to RGB values
                     4. For animated sprites: multiple frames with timing information
 
@@ -4651,15 +4772,74 @@ class BitmapEditorScene(Scene):
             # Parse the TOML content and add description
             try:
                 data = toml.loads(cleaned_content)
+                # Normalize the TOML data to convert escaped newlines to actual newlines
+                data = _normalize_toml_data(data)
                 if "sprite" not in data:
                     data["sprite"] = {}
                 data["sprite"]["description"] = original_prompt
-                cleaned_content = toml.dumps(data)
+
+                # Manually construct TOML to preserve formatting instead of using toml.dumps()
+                cleaned_content = self._construct_toml_with_preserved_formatting(data)
                 self.log.debug(f"Added description to TOML content: '{original_prompt}'")
             except (toml.TomlDecodeError, KeyError, ValueError) as e:
                 self.log.warning(f"Failed to add description to TOML content: {e}")
 
         return cleaned_content
+
+    def _construct_toml_with_preserved_formatting(self, data: dict) -> str:
+        """Construct TOML content while preserving original formatting for pixel data.
+
+        Args:
+            data: Parsed TOML data
+
+        Returns:
+            TOML content string with preserved formatting
+        """
+        lines = []
+
+        # Add sprite section
+        if "sprite" in data:
+            lines.append("[sprite]")
+            sprite_data = data["sprite"]
+            if "name" in sprite_data:
+                lines.append(f'name = "{sprite_data["name"]}"')
+            if "description" in sprite_data:
+                lines.append(f'description = """{sprite_data["description"]}"""')
+            if "pixels" in sprite_data:
+                lines.append('pixels = """')
+                lines.append(sprite_data["pixels"])
+                lines.append('"""')
+            lines.append("")
+
+        # Add animation sections
+        if "animation" in data:
+            for animation in data["animation"]:
+                lines.append("[[animation]]")
+                lines.append(f'namespace = "{animation["namespace"]}"')
+                lines.append(f"frame_interval = {animation['frame_interval']}")
+                lines.append(f"loop = {str(animation['loop']).lower()}")
+                lines.append("")
+
+                for frame in animation.get("frame", []):
+                    lines.append("[[animation.frame]]")
+                    lines.append(f'namespace = "{animation["namespace"]}"')
+                    lines.append(f"frame_index = {frame['frame_index']}")
+                    lines.append('pixels = """')
+                    lines.append(frame["pixels"])
+                    lines.append('"""')
+                    lines.append("")
+
+        # Add colors section
+        if "colors" in data:
+            lines.append("[colors]")
+            for color_key, color_data in data["colors"].items():
+                lines.append(f'[colors."{color_key}"]')
+                lines.append(f"red = {color_data['red']}")
+                lines.append(f"green = {color_data['green']}")
+                lines.append(f"blue = {color_data['blue']}")
+                lines.append("")
+
+        return "\n".join(lines)
 
     def _create_temp_file_from_content(self, content: str) -> str:
         """Create temporary file from AI content and return the path."""
@@ -4757,6 +4937,347 @@ class BitmapEditorScene(Scene):
         # Clean up the pending request
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
+
+    def _check_current_frame_has_content(self) -> bool:
+        """Check if the current frame has any non-magenta pixels.
+
+        Returns:
+            True if frame has content (non-magenta pixels), False if all magenta
+        """
+        try:
+            # Get current frame pixels
+            if hasattr(self, 'canvas') and hasattr(self.canvas, 'pixels'):
+                pixels = self.canvas.pixels
+                self.log.debug(f"Checking frame content: {len(pixels)} pixels")
+                if not pixels:
+                    self.log.debug("No pixels found, returning False")
+                    return False
+
+                # Check if any pixel is not magenta (255, 0, 255)
+                non_magenta_count = 0
+                for i, pixel in enumerate(pixels):
+                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                        if pixel[:3] != (255, 0, 255):
+                            non_magenta_count += 1
+                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                                self.log.debug(f"Found non-magenta pixel {i}: {pixel[:3]}")
+                    elif isinstance(pixel, int):
+                        # Convert integer color to RGB
+                        r = (pixel >> 16) & 0xFF
+                        g = (pixel >> 8) & 0xFF
+                        b = pixel & 0xFF
+                        if (r, g, b) != (255, 0, 255):
+                            non_magenta_count += 1
+                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                                self.log.debug(f"Found non-magenta pixel {i}: ({r}, {g}, {b})")
+
+                self.log.debug(f"Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total")
+                return non_magenta_count > 0
+            else:
+                self.log.debug("No canvas or canvas.pixels found, returning False")
+                return False
+        except Exception as e:
+            self.log.exception(f"Error checking frame content: {e}")
+            return False
+
+    def _save_current_frame_to_temp_toml(self) -> str | None:
+        """Save the current frame to a temporary TOML file.
+
+        Returns:
+            Path to the temporary TOML file, or None if failed
+        """
+        try:
+            import tempfile
+            import os
+
+            # Get current frame data
+            if not hasattr(self, 'canvas') or not hasattr(self.canvas, 'pixels'):
+                return None
+
+            pixels = self.canvas.pixels
+            if not pixels:
+                return None
+
+            # Create temporary file
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_frame_')
+            os.close(temp_fd)  # Close the file descriptor, we'll use the path
+
+            # Generate TOML content with single-char glyphs only
+            # This ensures the AI sees only single-character glyphs in the training data
+            toml_content = self._generate_frame_toml_content(pixels, force_single_char_glyphs=True)
+
+            # Write to temporary file
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                f.write(toml_content)
+
+            self.log.info(f"Saved current frame to temporary TOML: {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            self.log.exception(f"Error saving frame to temp TOML: {e}")
+            return None
+
+    def _save_current_strip_to_temp_toml(self) -> str | None:
+        """Save the current animation strip to a temporary TOML file.
+
+        Returns:
+            Path to the temporary TOML file, or None if failed
+        """
+        try:
+            import tempfile
+            import os
+
+            # Get current animation data
+            if not hasattr(self, 'canvas') or not hasattr(self.canvas, 'animated_sprite'):
+                return None
+
+            animated_sprite = self.canvas.animated_sprite
+            if not animated_sprite or not hasattr(animated_sprite, '_animations'):
+                return None
+
+            current_animation = getattr(self.canvas, 'current_animation', None)
+            if not current_animation or current_animation not in animated_sprite._animations:
+                return None
+
+            # Create a new AnimatedSprite with just the current animation
+            from glitchygames.sprites.animated import AnimatedSprite
+
+            # Get the current animation frames
+            current_frames = animated_sprite._animations[current_animation]
+
+            # Create new sprite with the current animation
+            new_sprite = AnimatedSprite()
+            new_sprite.name = f"current_strip_{current_animation}"
+            new_sprite.description = f"Current animation strip: {current_animation}"
+
+            # Copy the animation data
+            new_sprite._animations = {current_animation: current_frames}
+            new_sprite.current_animation = current_animation
+
+            # Create temporary file
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_strip_')
+            os.close(temp_fd)  # Close the file descriptor, we'll use the path
+
+            # Save the sprite to TOML using the existing save method
+            new_sprite.save(temp_path)
+
+            self.log.info(f"Saved current strip to temporary TOML: {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            self.log.exception(f"Error saving strip to temp TOML: {e}")
+            return None
+
+    def _generate_frame_toml_content(self, pixels: list, force_single_char_glyphs: bool = False) -> str:
+        """Generate TOML content for the current frame.
+
+        Args:
+            pixels: List of pixel colors
+            force_single_char_glyphs: If True, limit to 64 single-character glyphs for AI training
+
+        Returns:
+            TOML content string
+        """
+        try:
+            # Get canvas dimensions
+            width = self.canvas.pixels_across
+            height = self.canvas.pixels_tall
+
+            # First pass: collect all unique colors
+            unique_colors = set()
+            for pixel in pixels:
+                if isinstance(pixel, tuple) and len(pixel) >= 3:
+                    color = pixel[:3]
+                elif isinstance(pixel, int):
+                    r = (pixel >> 16) & 0xFF
+                    g = (pixel >> 8) & 0xFF
+                    b = pixel & 0xFF
+                    color = (r, g, b)
+                else:
+                    color = (255, 0, 255)  # Default magenta
+                unique_colors.add(color)
+
+            # If forcing single-char glyphs and we have too many colors, quantize
+            if force_single_char_glyphs and len(unique_colors) > 64:
+                self.log.info(f"Quantizing {len(unique_colors)} colors down to 64 for AI training")
+                # Use simple color quantization: pick the 64 most common colors
+                color_counts = {}
+                for pixel in pixels:
+                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                        color = pixel[:3]
+                    elif isinstance(pixel, int):
+                        r = (pixel >> 16) & 0xFF
+                        g = (pixel >> 8) & 0xFF
+                        b = pixel & 0xFF
+                        color = (r, g, b)
+                    else:
+                        color = (255, 0, 255)
+                    color_counts[color] = color_counts.get(color, 0) + 1
+
+                # Sort by frequency and take top 64
+                sorted_by_frequency = sorted(color_counts.items(), key=lambda x: x[1], reverse=True)
+                unique_colors = set([color for color, _ in sorted_by_frequency[:64]])
+                self.log.info(f"Quantized to {len(unique_colors)} colors")
+
+            # Create consistent color-to-glyph mapping
+            color_to_glyph = {}
+            available_glyphs = list(SPRITE_GLYPHS[:64])
+
+            # Sort colors to ensure consistent ordering
+            sorted_colors = sorted(unique_colors)
+
+            for i, color in enumerate(sorted_colors):
+                if i < len(available_glyphs):
+                    color_to_glyph[color] = available_glyphs[i]
+                else:
+                    # If we run out of glyphs, log a warning (should not happen if force_single_char_glyphs=True)
+                    if force_single_char_glyphs:
+                        self.log.warning(f"Ran out of single-char glyphs at color {i}, this should not happen!")
+                    color_to_glyph[color] = f"X{i-len(available_glyphs)+1}"
+
+            # Second pass: generate pixel string
+            pixel_string = ""
+            for y in range(height):
+                for x in range(width):
+                    pixel_index = y * width + x
+                    if pixel_index < len(pixels):
+                        pixel = pixels[pixel_index]
+
+                        # Convert pixel to color tuple
+                        if isinstance(pixel, tuple) and len(pixel) >= 3:
+                            color = pixel[:3]
+                        elif isinstance(pixel, int):
+                            r = (pixel >> 16) & 0xFF
+                            g = (pixel >> 8) & 0xFF
+                            b = pixel & 0xFF
+                            color = (r, g, b)
+                        else:
+                            color = (255, 0, 255)  # Default magenta
+
+                        # Get glyph for this color
+                        if color in color_to_glyph:
+                            glyph = color_to_glyph[color]
+                        else:
+                            # If quantized, find nearest color in palette
+                            if force_single_char_glyphs:
+                                min_distance = float('inf')
+                                closest_color = sorted_colors[0]
+                                for palette_color in sorted_colors:
+                                    r1, g1, b1 = color
+                                    r2, g2, b2 = palette_color
+                                    distance = (r1 - r2)**2 + (g1 - g2)**2 + (b1 - b2)**2
+                                    if distance < min_distance:
+                                        min_distance = distance
+                                        closest_color = palette_color
+                                glyph = color_to_glyph[closest_color]
+                            else:
+                                # Should not happen, but fallback to first glyph
+                                glyph = available_glyphs[0]
+
+                        pixel_string += glyph
+                    else:
+                        pixel_string += "."  # Default empty glyph
+
+                if y < height - 1:  # Add newline except for last row
+                    pixel_string += "\n"
+
+            # Generate color definitions using the consistent mapping
+            color_definitions = ""
+            for color in sorted_colors:
+                if isinstance(color, tuple) and len(color) >= 3:
+                    r, g, b = color[:3]
+                    glyph = color_to_glyph[color]
+                    color_definitions += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+
+            # Build complete TOML
+            toml_content = f"""[sprite]
+name = "current_frame"
+pixels = \"\"\"
+{pixel_string}
+\"\"\"
+
+{color_definitions}"""
+
+            return toml_content
+
+        except Exception as e:
+            self.log.exception(f"Error generating frame TOML content: {e}")
+            return ""
+
+    def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
+        """Get a glyph for a specific color.
+
+        Args:
+            color: RGB color tuple or integer color value
+
+        Returns:
+            Single character glyph from first 64 characters of SPRITE_GLYPHS
+        """
+        # Use only first 64 characters for consistent, manageable palette
+        available_glyphs = SPRITE_GLYPHS[:64]
+        # Simple hash-based assignment to ensure consistent glyph for same color
+        color_hash = hash(color) % len(available_glyphs)
+        return available_glyphs[color_hash]
+
+    def _load_temp_toml_as_example(self, temp_toml_path: str) -> dict | None:
+        """Load a temporary TOML file as a training example.
+
+        Args:
+            temp_toml_path: Path to the temporary TOML file
+
+        Returns:
+            Training example dict, or None if failed
+        """
+        try:
+            import toml
+
+            # Read the file as text first to preserve newlines
+            with open(temp_toml_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+
+            # Extract pixel data directly from the text to preserve newlines
+            pixels_data = ""
+            in_pixels_section = False
+            for line in file_content.split('\n'):
+                if line.strip() == 'pixels = """':
+                    in_pixels_section = True
+                    continue
+                elif line.strip() == '"""' and in_pixels_section:
+                    in_pixels_section = False
+                    break
+                elif in_pixels_section:
+                    pixels_data += line + '\n'
+
+            # Remove the trailing newline
+            if pixels_data.endswith('\n'):
+                pixels_data = pixels_data[:-1]
+
+            # Load the TOML file for other data (colors, etc.)
+            with open(temp_toml_path, 'r', encoding='utf-8') as f:
+                config_data = toml.load(f)
+
+            # Convert to training example format
+            sprite_data = {
+                "name": config_data.get("sprite", {}).get("name", "current_frame"),
+                "sprite_type": "static",
+                "pixels": pixels_data,  # Use the directly extracted pixel data
+                "colors": config_data.get("colors", {})
+            }
+
+            # Clean up temporary file
+            import os
+            try:
+                os.unlink(temp_toml_path)
+                self.log.debug(f"Cleaned up temporary file: {temp_toml_path}")
+            except Exception as cleanup_error:
+                self.log.warning(f"Failed to clean up temp file {temp_toml_path}: {cleanup_error}")
+
+            self.log.info(f"Loaded current frame as training example: {sprite_data['name']}")
+            return sprite_data
+
+        except Exception as e:
+            self.log.exception(f"Error loading temp TOML as example: {e}")
+            return None
 
     def _load_ai_sprite(self, request_id: str, content: str) -> None:
         """Load sprite from AI content using SpriteFactory APIs."""
@@ -5130,19 +5651,24 @@ class BitmapEditorScene(Scene):
         # Check if it's a PNG file
         if file_path.lower().endswith(".png"):
             self.log.info("PNG file detected - converting to bitmappy format")
-            self._convert_png_to_bitmappy(file_path)
+            converted_toml_path = self._convert_png_to_bitmappy(file_path)
+            if converted_toml_path:
+                # Auto-load the converted TOML file
+                self._load_converted_sprite(converted_toml_path)
+            else:
+                self.log.error("Failed to convert PNG to bitmappy format")
         else:
             self.log.info(f"File type not supported: {file_path}")
             self.log.info("Currently only PNG files are supported for drag and drop")
 
-    def _convert_png_to_bitmappy(self, file_path: str) -> None:
+    def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
         """Convert a PNG file to bitmappy TOML format.
 
         Args:
             file_path: Path to the PNG file to convert.
 
         Returns:
-            None
+            Path to the converted TOML file, or None if conversion failed.
         """
         try:
             # Load the PNG image
@@ -5276,24 +5802,24 @@ class BitmapEditorScene(Scene):
             available_glyphs = list(SPRITE_GLYPHS[:max_glyphs])  # Use first 1000 characters
             reserved_for_transparency = 1 if has_transparency else 0
             available_colors = len(available_glyphs) - reserved_for_transparency
-            
+
             self.log.info(f"Mapping colors: {len(unique_colors)} unique colors to {available_colors} available glyphs")
             if has_transparency:
                 self.log.info("Reserved 1 glyph for transparency")
-            
+
             color_mapping = {}
             glyph_index = 0
-            
+
             # First, ensure magenta (transparency) gets a glyph if we have transparency
             if has_transparency and (255, 0, 255) in unique_colors:
                 color_mapping[(255, 0, 255)] = "@"  # Use @ for transparency
                 self.log.info(f"Reserved glyph '@' for transparency (magenta)")
-            
+
             # Map other colors to available glyphs
             for color in sorted(unique_colors):
                 if color == (255, 0, 255) and has_transparency:
                     continue  # Already handled above
-                    
+
                 if glyph_index < available_colors:  # Only use available glyphs
                     color_mapping[color] = available_glyphs[glyph_index]
                     glyph_index += 1
@@ -5347,7 +5873,7 @@ class BitmapEditorScene(Scene):
             # Add color definitions - collect unique glyphs first
             unique_glyphs = set(color_mapping.values())
             self.log.info(f"Unique glyphs to define: {sorted(unique_glyphs)}")
-            
+
             for glyph in sorted(unique_glyphs):
                 # Find the first color that maps to this glyph
                 for color, mapped_glyph in color_mapping.items():
@@ -5362,28 +5888,33 @@ class BitmapEditorScene(Scene):
             if not unique_glyphs:
                 self.log.error("No colors to define - this will cause display issues!")
                 raise ValueError("No colors found in the converted sprite")
-            
+
             self.log.info(f"Generated {len(unique_glyphs)} color definitions")
 
             # Save the TOML file
             output_path = Path(file_path).with_suffix(".toml")
             Path(output_path).write_text(toml_content, encoding="utf-8")
 
-            # Validate the generated TOML file
+            # Validate the generated TOML file by checking content directly
             self.log.info("Validating generated TOML file...")
             try:
-                import toml
+                # Read the file content to check for basic structure
                 with output_path.open(encoding="utf-8") as f:
-                    toml_data = toml.load(f)
+                    content = f.read()
 
-                # Check for color definitions
-                if "colors" not in toml_data:
+                # Check for required sections
+                if "[sprite]" not in content:
+                    self.log.error("TOML file missing [sprite] section!")
+                    raise ValueError("Generated TOML file has no [sprite] section")
+
+                if "[colors]" not in content:
                     self.log.error("TOML file missing [colors] section!")
-                    raise ValueError("Generated TOML file has no color definitions")
+                    raise ValueError("Generated TOML file has no [colors] section")
 
-                color_count = len(toml_data["colors"])
+                # Count color definitions by counting [colors."..."] lines
+                color_count = content.count('[colors."')
                 if color_count == 0:
-                    self.log.error("TOML file has empty [colors] section!")
+                    self.log.error("TOML file has no color definitions!")
                     raise ValueError("Generated TOML file has no color definitions")
 
                 self.log.info(f"TOML validation passed: {color_count} colors defined")
@@ -5394,12 +5925,12 @@ class BitmapEditorScene(Scene):
 
             self.log.info(f"Successfully converted PNG to bitmappy format: {output_path}")
 
-            # Automatically load the converted TOML file into the editor
-            self.log.info("Auto-loading converted sprite into editor...")
-            self._load_converted_sprite(str(output_path))
+            # Return the path to the converted TOML file
+            return str(output_path)
 
         except Exception:
             self.log.exception("Error converting PNG to bitmappy format")
+            return None
 
     def _load_converted_sprite(self, toml_path: str) -> None:
         """Load a converted TOML sprite into the editor.
@@ -5435,11 +5966,11 @@ class BitmapEditorScene(Scene):
                 self.log.info("Calling on_load_file_event...")
                 canvas_sprite.on_load_file_event(mock_event)
                 self.log.info("on_load_file_event completed")
-                
+
                 # Update border thickness after loading (in case canvas was resized)
                 self.log.info("Updating border thickness after sprite load...")
                 canvas_sprite._update_border_thickness()
-                
+
                 # Force a complete redraw to apply the new border settings
                 self.log.info("Forcing canvas redraw with new border settings...")
                 canvas_sprite.force_redraw()
