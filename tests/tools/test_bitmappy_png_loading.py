@@ -1,18 +1,19 @@
 """Tests for PNG loading functionality in bitmappy.py"""
 
-import pytest
-import tempfile
 import os
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import pygame
-import toml
+from unittest.mock import MagicMock, Mock, patch
 
+import pygame
+import pytest
+import toml
 from glitchygames.tools.bitmappy import (
+    AnimatedCanvasSprite,
     BitmapEditorScene,
     _normalize_toml_data,
-    AnimatedCanvasSprite,
 )
+
 from mocks.test_mock_factory import MockFactory
 
 
@@ -30,14 +31,14 @@ class TestPNGLoading:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             self.mock_scene = BitmapEditorScene({})
             self.mock_scene.log = Mock()
             self.mock_scene.all_sprites = []
             self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
         
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        with patch.object(AnimatedCanvasSprite, '__init__', return_value=None):
+        with patch.object(AnimatedCanvasSprite, "__init__", return_value=None):
             self.mock_canvas = AnimatedCanvasSprite()
             self.mock_canvas.log = Mock()
             self.mock_canvas.pixels_across = 32
@@ -57,20 +58,20 @@ class TestPNGLoading:
     def test_detect_png_file_in_load_function(self):
         """Test that PNG files are detected and converted in _load_sprite_from_file."""
         # Create a temporary PNG file
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
             # Mock pygame.image.save to avoid surface type issues
-            with patch('pygame.image.save') as mock_save:
+            with patch("pygame.image.save") as mock_save:
                 # Create a simple test file
-                with open(tmp_png.name, 'wb') as f:
-                    f.write(b'fake png data')
+                with open(tmp_png.name, "wb") as f:
+                    f.write(b"fake png data")
             
             try:
                 # Mock the conversion method to return a TOML path
-                with patch.object(self.mock_canvas, '_convert_png_to_bitmappy') as mock_convert:
-                    mock_convert.return_value = '/tmp/test.toml'
+                with patch.object(self.mock_canvas, "_convert_png_to_bitmappy") as mock_convert:
+                    mock_convert.return_value = "/tmp/test.toml"
                     
                     # Mock the AnimatedSprite.load method
-                    with patch('glitchygames.tools.bitmappy.AnimatedSprite') as mock_sprite_class:
+                    with patch("glitchygames.tools.bitmappy.AnimatedSprite") as mock_sprite_class:
                         mock_sprite = Mock()
                         mock_sprite._animations = {}  # Add required attribute
                         mock_sprite_class.return_value = mock_sprite
@@ -82,7 +83,7 @@ class TestPNGLoading:
                         mock_convert.assert_called_once_with(tmp_png.name)
                         
                         # Verify AnimatedSprite.load was called with TOML path
-                        mock_sprite.load.assert_called_once_with('/tmp/test.toml')
+                        mock_sprite.load.assert_called_once_with("/tmp/test.toml")
                         
                         assert result == mock_sprite
                         
@@ -92,16 +93,16 @@ class TestPNGLoading:
 
     def test_png_conversion_failure_handling(self):
         """Test that PNG conversion failures are handled gracefully."""
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
             # Mock pygame.image.save to avoid surface type issues
-            with patch('pygame.image.save') as mock_save:
+            with patch("pygame.image.save") as mock_save:
                 # Create a simple test file
-                with open(tmp_png.name, 'wb') as f:
-                    f.write(b'fake png data')
+                with open(tmp_png.name, "wb") as f:
+                    f.write(b"fake png data")
             
             try:
                 # Mock conversion to return None (failure)
-                with patch.object(self.mock_canvas, '_convert_png_to_bitmappy') as mock_convert:
+                with patch.object(self.mock_canvas, "_convert_png_to_bitmappy") as mock_convert:
                     mock_convert.return_value = None
                     
                     # Should raise an exception
@@ -113,19 +114,19 @@ class TestPNGLoading:
 
     def test_non_png_files_passthrough(self):
         """Test that non-PNG files are passed through unchanged."""
-        with patch('glitchygames.tools.bitmappy.AnimatedSprite') as mock_sprite_class:
+        with patch("glitchygames.tools.bitmappy.AnimatedSprite") as mock_sprite_class:
             mock_sprite = Mock()
             mock_sprite._animations = {}  # Add required attribute
             mock_sprite_class.return_value = mock_sprite
             
             # Call with a TOML file
-            result = self.mock_canvas._load_sprite_from_file('/path/to/test.toml')
+            result = self.mock_canvas._load_sprite_from_file("/path/to/test.toml")
             
             # Should not call PNG conversion (since it's a TOML file, not PNG)
             # The method exists but shouldn't be called for non-PNG files
             
             # Should call AnimatedSprite.load with original filename
-            mock_sprite.load.assert_called_once_with('/path/to/test.toml')
+            mock_sprite.load.assert_called_once_with("/path/to/test.toml")
             assert result == mock_sprite
 
 
@@ -239,7 +240,7 @@ class TestTOMLConstruction:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             self.mock_scene = BitmapEditorScene({})
             self.mock_scene.log = Mock()
 
@@ -348,7 +349,7 @@ class TestPNGConversionIntegration:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             self.mock_scene = BitmapEditorScene({})
             self.mock_scene.log = Mock()
             self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
@@ -360,16 +361,16 @@ class TestPNGConversionIntegration:
     def test_png_conversion_generates_valid_toml(self):
         """Test that PNG conversion generates valid TOML with proper formatting."""
         # Create a simple 32x32 PNG image
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
             # Mock pygame.image.save to avoid surface type issues
-            with patch('pygame.image.save') as mock_save:
+            with patch("pygame.image.save") as mock_save:
                 # Create a simple test file
-                with open(tmp_png.name, 'wb') as f:
-                    f.write(b'fake png data')
+                with open(tmp_png.name, "wb") as f:
+                    f.write(b"fake png data")
             
             try:
                 # Mock the canvas to avoid display requirements
-                with patch.object(self.mock_scene, 'canvas') as mock_canvas:
+                with patch.object(self.mock_scene, "canvas") as mock_canvas:
                     mock_canvas.pixels_across = 32
                     mock_canvas.pixels_tall = 32
                     
@@ -378,13 +379,13 @@ class TestPNGConversionIntegration:
                     
                     # Should return a TOML file path
                     assert result is not None
-                    assert result.endswith('.toml')
+                    assert result.endswith(".toml")
                     
                     # Check that the TOML file exists and is valid
                     assert os.path.exists(result)
                     
                     # Load and validate the TOML content
-                    with open(result, 'r', encoding='utf-8') as f:
+                    with open(result, "r", encoding="utf-8") as f:
                         content = f.read()
                     
                     # Should contain proper TOML structure
@@ -396,7 +397,7 @@ class TestPNGConversionIntegration:
                     assert "\\n" not in content or content.count("\\n") == content.count('pixels = """')
                     
                     # Parse with toml to ensure it's valid
-                    with open(result, 'r', encoding='utf-8') as f:
+                    with open(result, "r", encoding="utf-8") as f:
                         toml_data = toml.load(f)
                     
                     assert "sprite" in toml_data
@@ -417,15 +418,15 @@ class TestPNGConversionIntegration:
     def test_png_conversion_handles_transparency(self):
         """Test that PNG conversion handles transparent pixels correctly."""
         # Create a PNG with transparency
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
             # Mock pygame.image.save to avoid surface type issues
-            with patch('pygame.image.save') as mock_save:
+            with patch("pygame.image.save") as mock_save:
                 # Create a simple test file
-                with open(tmp_png.name, 'wb') as f:
-                    f.write(b'fake png data')
+                with open(tmp_png.name, "wb") as f:
+                    f.write(b"fake png data")
             
             try:
-                with patch.object(self.mock_scene, 'canvas') as mock_canvas:
+                with patch.object(self.mock_scene, "canvas") as mock_canvas:
                     mock_canvas.pixels_across = 32
                     mock_canvas.pixels_tall = 32
                     
@@ -433,7 +434,7 @@ class TestPNGConversionIntegration:
                     
                     if result and os.path.exists(result):
                         # Load the TOML and check for magenta color (transparency)
-                        with open(result, 'r', encoding='utf-8') as f:
+                        with open(result, "r", encoding="utf-8") as f:
                             content = f.read()
                         
                         # Should contain magenta color definition for transparency
@@ -461,7 +462,7 @@ class TestDragAndDropPNG:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             self.mock_scene = BitmapEditorScene({})
             self.mock_scene.log = Mock()
             self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
@@ -473,19 +474,19 @@ class TestDragAndDropPNG:
     def test_drag_drop_png_file(self):
         """Test drag and drop of PNG file."""
         # Create a simple PNG
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_png:
             # Mock pygame.image.save to avoid surface type issues
-            with patch('pygame.image.save') as mock_save:
+            with patch("pygame.image.save") as mock_save:
                 # Create a simple test file
-                with open(tmp_png.name, 'wb') as f:
-                    f.write(b'fake png data')
+                with open(tmp_png.name, "wb") as f:
+                    f.write(b"fake png data")
             
             try:
                 # Mock the conversion and loading methods
-                with patch.object(self.mock_scene, '_convert_png_to_bitmappy') as mock_convert, \
-                     patch.object(self.mock_scene, '_load_converted_sprite') as mock_load:
+                with patch.object(self.mock_scene, "_convert_png_to_bitmappy") as mock_convert, \
+                     patch.object(self.mock_scene, "_load_converted_sprite") as mock_load:
                     
-                    mock_convert.return_value = '/tmp/test.toml'
+                    mock_convert.return_value = "/tmp/test.toml"
                     
                 # Create a mock event with the correct attribute
                 class MockEvent:
@@ -501,7 +502,7 @@ class TestDragAndDropPNG:
                 mock_convert.assert_called_once_with(tmp_png.name)
                 
                 # Verify loading was called
-                mock_load.assert_called_once_with('/tmp/test.toml')
+                mock_load.assert_called_once_with("/tmp/test.toml")
                     
             finally:
                 os.unlink(tmp_png.name)
@@ -509,13 +510,13 @@ class TestDragAndDropPNG:
     def test_drag_drop_non_png_file(self):
         """Test drag and drop of non-PNG file."""
         # Create a text file
-        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp_file:
             tmp_file.write(b"Not a PNG file")
             tmp_file.flush()
             
             try:
                 # Mock the conversion method (should not be called)
-                with patch.object(self.mock_scene, '_convert_png_to_bitmappy') as mock_convert:
+                with patch.object(self.mock_scene, "_convert_png_to_bitmappy") as mock_convert:
                     # Create a mock event with the correct attribute
                     class MockEvent:
                         def __init__(self, file_path):
@@ -547,14 +548,14 @@ class TestColorQuantization:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
         
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             self.mock_scene = BitmapEditorScene({})
             self.mock_scene.log = Mock()
             self.mock_scene.all_sprites = []
             self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
         
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        with patch.object(AnimatedCanvasSprite, '__init__', return_value=None):
+        with patch.object(AnimatedCanvasSprite, "__init__", return_value=None):
             self.mock_canvas = AnimatedCanvasSprite()
             self.mock_canvas.log = Mock()
             self.mock_canvas.pixels_across = 32
@@ -638,7 +639,7 @@ green = 6
 blue = 10
 """
         
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = expected_toml
             
             # Call without force_single_char_glyphs
@@ -707,7 +708,7 @@ green = 3
 blue = 5
 """
         
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = expected_toml
             
             # Call with force_single_char_glyphs=True
@@ -721,7 +722,7 @@ blue = 5
             assert "[colors." in toml_content
             
             # Should have exactly 64 colors or fewer
-            color_sections = toml_content.count('[colors.')
+            color_sections = toml_content.count("[colors.")
             assert color_sections <= 64, f"Expected <= 64 colors, got {color_sections}"
             
             # All glyphs should be single characters (no X1, X2, etc.)
@@ -737,11 +738,11 @@ blue = 5
     def test_save_current_frame_to_temp_toml_uses_quantization(self):
         """Test that _save_current_frame_to_temp_toml uses quantization for AI training."""
         # Mock the _save_current_frame_to_temp_toml method to verify it calls _generate_frame_toml_content with quantization
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = "[sprite]\nname = \"test\"\npixels = \"\"\"\naa\nbb\n\"\"\"\n\n[colors.\"a\"]\nred = 255\ngreen = 0\nblue = 0\n"
             
             # Mock the _save_current_frame_to_temp_toml method
-            with patch.object(self.mock_scene, '_save_current_frame_to_temp_toml') as mock_save:
+            with patch.object(self.mock_scene, "_save_current_frame_to_temp_toml") as mock_save:
                 mock_save.return_value = "/tmp/test.toml"
                 
                 # Call the method
@@ -818,7 +819,7 @@ green = 0
 blue = 0
 """
         
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = expected_toml
             
             toml_content = self.mock_scene._generate_frame_toml_content(
@@ -887,7 +888,7 @@ green = 0
 blue = 0
 """
         
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = expected_toml
             
             toml_content = self.mock_scene._generate_frame_toml_content(
@@ -961,7 +962,7 @@ green = 3
 blue = 5
 """
         
-        with patch.object(self.mock_scene, '_generate_frame_toml_content') as mock_generate:
+        with patch.object(self.mock_scene, "_generate_frame_toml_content") as mock_generate:
             mock_generate.return_value = expected_toml
             
             toml_content = self.mock_scene._generate_frame_toml_content(
@@ -978,7 +979,7 @@ blue = 5
             
             # Pixel string should have correct dimensions
             pixel_string = data["sprite"]["pixels"]
-            lines = pixel_string.strip().split('\n')
+            lines = pixel_string.strip().split("\n")
             assert len(lines) == 32
             for line in lines:
                 assert len(line) == 32
@@ -1020,13 +1021,13 @@ blue = 255
 '''
         
         # Create temporary TOML file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(test_toml_content)
             temp_path = f.name
         
         try:
             # Load the TOML file
-            with open(temp_path, 'r', encoding='utf-8') as f:
+            with open(temp_path, "r", encoding="utf-8") as f:
                 data = toml.load(f)
             
             # Extract description
@@ -1042,7 +1043,7 @@ blue = 255
     def test_description_display_in_ai_textbox(self):
         """Test that sprite description is displayed in AI textbox when loading."""
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             scene.all_sprites = []
@@ -1053,7 +1054,7 @@ blue = 255
             scene.debug_text.text = "Enter a description of the sprite you want to create:"
         
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        with patch.object(AnimatedCanvasSprite, '__init__', return_value=None):
+        with patch.object(AnimatedCanvasSprite, "__init__", return_value=None):
             canvas = AnimatedCanvasSprite()
             canvas.log = Mock()
             canvas.pixels_across = 32
@@ -1079,7 +1080,7 @@ blue = 255
     def test_empty_description_falls_back_to_default(self):
         """Test that empty description falls back to default prompt."""
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             scene.all_sprites = []
@@ -1090,7 +1091,7 @@ blue = 255
             scene.debug_text.text = "Enter a description of the sprite you want to create:"
         
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        with patch.object(AnimatedCanvasSprite, '__init__', return_value=None):
+        with patch.object(AnimatedCanvasSprite, "__init__", return_value=None):
             canvas = AnimatedCanvasSprite()
             canvas.log = Mock()
             canvas.pixels_across = 32
@@ -1116,7 +1117,7 @@ blue = 255
     def test_whitespace_only_description_falls_back_to_default(self):
         """Test that whitespace-only description falls back to default prompt."""
         # Create a real BitmapEditorScene instance with mocked dependencies
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             scene.all_sprites = []
@@ -1127,7 +1128,7 @@ blue = 255
             scene.debug_text.text = "Enter a description of the sprite you want to create:"
         
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        with patch.object(AnimatedCanvasSprite, '__init__', return_value=None):
+        with patch.object(AnimatedCanvasSprite, "__init__", return_value=None):
             canvas = AnimatedCanvasSprite()
             canvas.log = Mock()
             canvas.pixels_across = 32

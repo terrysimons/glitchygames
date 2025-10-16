@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import TextSprite
+
 from mocks.test_mock_factory import MockFactory
 
 

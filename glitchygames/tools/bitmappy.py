@@ -33,8 +33,8 @@ try:
 except ImportError:
     VoiceRecognitionManager = None
 
-from glitchygames.engine import GameEngine
 from glitchygames import events
+from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import (
@@ -422,14 +422,14 @@ def _initialize_ai_client(log: logging.Logger):
     # Configure timeout for the underlying HTTP client
     try:
         # Access the underlying provider clients and set timeout
-        if hasattr(client, '_providers'):
+        if hasattr(client, "_providers"):
             for provider_name, provider in client._providers.items():
-                if hasattr(provider, 'client') and hasattr(provider.client, 'timeout'):
+                if hasattr(provider, "client") and hasattr(provider.client, "timeout"):
                     provider.client.timeout = 300.0  # 5 minutes
                     log.debug(f"Set 5-minute timeout for {provider_name} provider")
-                elif hasattr(provider, 'client') and hasattr(provider.client, '_client'):
+                elif hasattr(provider, "client") and hasattr(provider.client, "_client"):
                     # For some providers, the timeout is on the underlying HTTP client
-                    if hasattr(provider.client._client, 'timeout'):
+                    if hasattr(provider.client._client, "timeout"):
                         provider.client._client.timeout = 300.0
                         log.debug(f"Set 5-minute timeout for {provider_name} provider HTTP client")
 
@@ -572,6 +572,7 @@ def _normalize_toml_data(config_data: dict) -> dict:
 
     Returns:
         Normalized TOML data with proper string formatting
+
     """
     try:
         # Create a copy to avoid modifying the original
@@ -842,29 +843,9 @@ class FilmStripSprite(BitmappySprite):
                     self.parent_scene._on_film_strip_frame_selected(self.film_strip_widget, animation, frame_idx)
             else:
                 print("FilmStripSprite: No frame clicked, handle_click returned None")
-
-                # If no frame was clicked, start drag scrolling
-                if hasattr(self, "parent_scene") and self.parent_scene:
-                    self.parent_scene.is_dragging_film_strips = True
-                    self.parent_scene.film_strip_drag_start_y = event.pos[1]
-                    self.parent_scene.film_strip_drag_start_offset = self.parent_scene.film_strip_scroll_offset
-                    print(f"FilmStripSprite: Started drag scrolling at Y={event.pos[1]}, offset={self.parent_scene.film_strip_scroll_offset}")
         else:
             print("FilmStripSprite: Click is outside bounds or no widget")
 
-    def on_left_mouse_drag_event(self, event, trigger):
-        """Handle mouse drag events for film strip scrolling."""
-        if hasattr(self, "parent_scene") and self.parent_scene and self.parent_scene.is_dragging_film_strips:
-            print(f"FilmStripSprite: Handling drag at Y={event.pos[1]}")
-            self.parent_scene._handle_film_strip_drag_scroll(event.pos[1])
-
-    def on_left_mouse_button_up_event(self, event):
-        """Handle mouse button up events to stop drag scrolling."""
-        if hasattr(self, "parent_scene") and self.parent_scene and self.parent_scene.is_dragging_film_strips:
-            print("FilmStripSprite: Stopping drag scrolling")
-            self.parent_scene.is_dragging_film_strips = False
-            self.parent_scene.film_strip_drag_start_y = None
-            self.parent_scene.film_strip_drag_start_offset = None
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
@@ -1020,7 +1001,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             (self.pixels_across >= 128 or self.pixels_tall >= 128)  # Very large sprites
         )
 
-        old_border_thickness = getattr(self, 'border_thickness', 1)
+        old_border_thickness = getattr(self, "border_thickness", 1)
         self.border_thickness = 0 if should_disable_borders else 1
 
         # Clear pixel cache if border thickness changed
@@ -1713,8 +1694,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.log.debug(f"Loading animated sprite from {filename}")
 
         # Check if this is a PNG file and convert it first
-        if filename.lower().endswith('.png'):
-            self.log.info(f"PNG file detected - converting to bitmappy format first")
+        if filename.lower().endswith(".png"):
+            self.log.info("PNG file detected - converting to bitmappy format first")
             converted_toml_path = self._convert_png_to_bitmappy(filename)
             if converted_toml_path:
                 filename = converted_toml_path
@@ -1885,7 +1866,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self._update_mini_view_from_current_frame()
 
         # Update AI textbox with sprite description or default prompt
-        self.log.debug(f"Checking parent and debug_text access...")
+        self.log.debug("Checking parent and debug_text access...")
         self.log.debug(f"hasattr(self, 'parent_scene'): {hasattr(self, 'parent_scene')}")
         if hasattr(self, "parent_scene"):
             self.log.debug(f"hasattr(self.parent_scene, 'debug_text'): {hasattr(self.parent_scene, 'debug_text')}")
@@ -1893,7 +1874,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         if hasattr(self, "parent_scene") and hasattr(self.parent_scene, "debug_text"):
             # Get description from loaded sprite, or use default prompt if empty
-            description = getattr(loaded_sprite, 'description', '')
+            description = getattr(loaded_sprite, "description", "")
             self.log.debug(f"Loaded sprite description: '{description}'")
             self.log.debug(f"Description is not empty: {bool(description and description.strip())}")
             if description and description.strip():
@@ -1921,7 +1902,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Recalculate pixel dimensions to fit the screen
         available_height = screen_height - 80 - 24  # Adjust for bottom margin and menu bar
         # ===== DEBUG: CANVAS SIZING CALCULATIONS =====
-        print(f"===== DEBUG: CANVAS SIZING CALCULATIONS =====")
+        print("===== DEBUG: CANVAS SIZING CALCULATIONS =====")
         print(f"Screen: {screen_width}x{screen_height}, Sprite: {sprite_width}x{sprite_height}")
         print(f"Available height: {available_height}")
         print(f"Height constraint: {available_height // sprite_height}")
@@ -1931,7 +1912,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # For large sprites (128x128), ensure we get at least 2x2 pixel size
         if sprite_width >= 128 and sprite_height >= 128:
             pixel_size = 2  # Force 2x2 pixel size for 128x128
-            print(f"*** FORCING 2x2 pixel size for 128x128 sprite ***")
+            print("*** FORCING 2x2 pixel size for 128x128 sprite ***")
         else:
             pixel_size = min(
                 available_height // sprite_height,
@@ -1945,7 +1926,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         print(f"Final pixel_size: {pixel_size}")
         print(f"Canvas will be: {sprite_width * pixel_size}x{sprite_height * pixel_size}")
-        print(f"===== END DEBUG =====\n")
+        print("===== END DEBUG =====\n")
 
         # Update pixel dimensions
         self.pixel_width = pixel_size
@@ -1958,18 +1939,18 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update surface dimensions
         actual_width = sprite_width * pixel_size
         actual_height = sprite_height * pixel_size
-        print(f"===== DEBUG: SURFACE CREATION =====")
+        print("===== DEBUG: SURFACE CREATION =====")
         print(f"Creating surface: {actual_width}x{actual_height}")
         print(f"pixel_size: {pixel_size}, sprite: {sprite_width}x{sprite_height}")
         self.image = pygame.Surface((actual_width, actual_height))
-        print(f"Surface created successfully")
-        print(f"===== END DEBUG =====\n")
+        print("Surface created successfully")
+        print("===== END DEBUG =====\n")
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
         # Update class dimensions
 
         # Update AI sprite positioning after canvas resize
-        if hasattr(self, 'parent_scene') and self.parent_scene:
+        if hasattr(self, "parent_scene") and self.parent_scene:
             self.parent_scene._update_ai_sprite_position()
         AnimatedCanvasSprite.WIDTH = sprite_width
         AnimatedCanvasSprite.HEIGHT = sprite_height
@@ -2082,6 +2063,11 @@ class AnimatedCanvasSprite(BitmappySprite):
         animated_sprite._animations = {animation_name: [frame]}
         animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
+
+        # Preserve the description from the original sprite
+        if hasattr(self.animated_sprite, "description"):
+            animated_sprite.description = self.animated_sprite.description
+            self.log.debug(f"Preserved description: '{animated_sprite.description}'")
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
@@ -2227,9 +2213,10 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         Returns:
             Path to the converted TOML file, or None if conversion failed.
+
         """
         # Get the parent scene and call its conversion method
-        if hasattr(self, 'parent') and hasattr(self.parent, '_convert_png_to_bitmappy'):
+        if hasattr(self, "parent") and hasattr(self.parent, "_convert_png_to_bitmappy"):
             return self.parent._convert_png_to_bitmappy(file_path)
         else:
             self.log.error("Cannot convert PNG: parent scene not available or missing conversion method")
@@ -2517,7 +2504,7 @@ class BitmapEditorScene(Scene):
         pixels_tall = int(height)
 
         # ===== DEBUG: INITIAL CANVAS SIZING =====
-        print(f"===== DEBUG: INITIAL CANVAS SIZING =====")
+        print("===== DEBUG: INITIAL CANVAS SIZING =====")
         print(f"Screen: {self.screen_width}x{self.screen_height}, Sprite: {pixels_across}x{pixels_tall}")
         print(f"Available height: {available_height}")
         print(f"Height constraint: {available_height // pixels_tall}")
@@ -2535,11 +2522,11 @@ class BitmapEditorScene(Scene):
         # For very large sprites, ensure we get at least 2x2 pixel size
         if pixel_size < 2:
             pixel_size = 2  # Force minimum 2x2 pixel size for very large sprites
-            print(f"*** FORCING minimum 2x2 pixel size for large sprite ***")
+            print("*** FORCING minimum 2x2 pixel size for large sprite ***")
 
         print(f"Final pixel_size: {pixel_size}")
         print(f"Canvas will be: {pixels_across * pixel_size}x{pixels_tall * pixel_size}")
-        print(f"===== END DEBUG =====\n")
+        print("===== END DEBUG =====\n")
         # Ensure minimum pixel size of 1x1
         pixel_size = max(pixel_size, 1)
 
@@ -2852,6 +2839,7 @@ class BitmapEditorScene(Scene):
 
         Args:
             insert_after_index: Index to insert the new strip after (None for end)
+
         """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
@@ -2940,6 +2928,7 @@ class BitmapEditorScene(Scene):
 
         Args:
             animation_name: The name of the animation to delete
+
         """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
@@ -3104,7 +3093,7 @@ class BitmapEditorScene(Scene):
         color_well_height = (blue_slider_bottom_y + 5) - color_well_y  # Add padding below
 
         # Calculate canvas right edge position
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
         else:
             # Fallback for tests or when canvas isn't initialized yet
@@ -3171,7 +3160,7 @@ class BitmapEditorScene(Scene):
             self.blue_slider.value,
         )
 
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             self.canvas.active_color = self.color_well.active_color
 
     def _setup_debug_text_box(self) -> None:
@@ -3181,22 +3170,22 @@ class BitmapEditorScene(Scene):
 
         # Calculate AI sprite box position dynamically
         # Position to the right of the color well
-        if hasattr(self, 'color_well') and self.color_well:
+        if hasattr(self, "color_well") and self.color_well:
             color_well_right_x = self.color_well.rect.right
             debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
         else:
             # Fallback: position to the right of canvas
-            if hasattr(self, 'canvas') and self.canvas:
+            if hasattr(self, "canvas") and self.canvas:
                 canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
                 debug_x = canvas_right_x + 4
             else:
                 debug_x = self.screen_width - 20
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
                 second_strip_bottom = self.film_strips[1].rect.bottom
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
@@ -3235,29 +3224,29 @@ class BitmapEditorScene(Scene):
 
     def _update_ai_sprite_position(self) -> None:
         """Update AI sprite positioning when canvas changes."""
-        if not hasattr(self, 'ai_label') or not hasattr(self, 'debug_text'):
+        if not hasattr(self, "ai_label") or not hasattr(self, "debug_text"):
             return  # AI sprites not initialized yet
 
         # Calculate new position using same logic as _setup_debug_text_box
         debug_height = 186  # Fixed height for AI chat box
 
         # Position to the right of the color well
-        if hasattr(self, 'color_well') and self.color_well:
+        if hasattr(self, "color_well") and self.color_well:
             color_well_right_x = self.color_well.rect.right
             debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
         else:
             # Fallback: position to the right of canvas
-            if hasattr(self, 'canvas') and self.canvas:
+            if hasattr(self, "canvas") and self.canvas:
                 canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
                 debug_x = canvas_right_x + 4
             else:
                 debug_x = self.screen_width - 20
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
                 second_strip_bottom = self.film_strips[1].rect.bottom
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
@@ -3346,6 +3335,7 @@ class BitmapEditorScene(Scene):
 
         Returns:
             True if mouse is in film strip area, False otherwise
+
         """
         if not hasattr(self, "film_strip_sprites") or not self.film_strip_sprites:
             self.log.debug(f"No film strip sprites available for mouse pos {mouse_pos}")
@@ -3365,6 +3355,7 @@ class BitmapEditorScene(Scene):
 
         Args:
             mouse_y: Current mouse Y position
+
         """
         if not self.is_dragging_film_strips or self.film_strip_drag_start_y is None:
             self.log.debug("Not dragging film strips or no start Y")
@@ -4438,7 +4429,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.red_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4478,7 +4469,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.green_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4515,7 +4506,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.blue_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4555,6 +4546,13 @@ class BitmapEditorScene(Scene):
         for sprite in sprites:
             sprite.on_left_mouse_button_down_event(event)
 
+        # Check if click is in film strip area for drag scrolling (only if no sprite handled it)
+        if self._is_mouse_in_film_strip_area(event.pos):
+            self.is_dragging_film_strips = True
+            self.film_strip_drag_start_y = event.pos[1]
+            self.film_strip_drag_start_offset = self.film_strip_scroll_offset
+            self.log.debug(f"Started film strip drag at Y={event.pos[1]}, offset={self.film_strip_scroll_offset}")
+
     def on_tab_change_event(self, tab_format):
         """Handle tab control format change.
 
@@ -4563,6 +4561,7 @@ class BitmapEditorScene(Scene):
 
         Returns:
             None
+
         """
         self.log.info(f"Tab control changed to format: {tab_format}")
 
@@ -4578,9 +4577,10 @@ class BitmapEditorScene(Scene):
         Args:
             tab_format (str): The format to use ("%X" for hex, "%d" for decimal).
                              If None, uses the current slider_input_format.
+
         """
         if tab_format is None:
-            tab_format = getattr(self, 'slider_input_format', '%d')
+            tab_format = getattr(self, "slider_input_format", "%d")
 
         if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
             if tab_format == "%X":
@@ -4608,15 +4608,6 @@ class BitmapEditorScene(Scene):
                 # Convert to decimal
                 self.blue_slider.text_sprite.text = str(self.blue_slider.value)
             self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
-
-        # Check if click is in film strip area for drag scrolling
-        in_film_area = self._is_mouse_in_film_strip_area(event.pos)
-        self.log.debug(f"Mouse click at {event.pos}, in film strip area: {in_film_area}")
-        if in_film_area:
-            self.is_dragging_film_strips = True
-            self.film_strip_drag_start_y = event.pos[1]
-            self.film_strip_drag_start_offset = self.film_strip_scroll_offset
-            self.log.debug(f"Started film strip drag at Y={event.pos[1]}, offset={self.film_strip_scroll_offset}")
 
     def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the left mouse button up event.
@@ -4722,8 +4713,31 @@ class BitmapEditorScene(Scene):
             if hasattr(sprite, "on_mouse_motion_event"):
                 sprite.on_mouse_motion_event(event)
 
+    def _update_sprite_description(self, description: str) -> None:
+        """Update the sprite description when the AI text box content changes.
+
+        Args:
+            description: The new description text
+
+        """
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            self.canvas.animated_sprite.description = description
+            self.log.debug(f"Updated sprite description: '{description}'")
+        else:
+            self.log.debug("No animated sprite available to update description")
+
+    def _on_debug_text_change(self, new_text: str) -> None:
+        """Callback for when the debug text changes.
+
+        Args:
+            new_text: The new text content
+
+        """
+        self._update_sprite_description(new_text)
+
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
+        # Don't update sprite description here - only update when AI generation actually happens
         self.log.info(f"AI Sprite Generation Request: '{text}'")
         self.log.debug(f"Text length: {len(text)}")
         self.log.debug(f"Text type: {type(text)}")
@@ -4790,7 +4804,7 @@ class BitmapEditorScene(Scene):
                 if frame_example:
                     frame_example["name"] = "selected_frame"
                     examples.append(frame_example)
-                    self.log.info(f"Added current frame as training example")
+                    self.log.info("Added current frame as training example")
 
             # Load current strip as training example
             if strip_toml_path:
@@ -4798,7 +4812,7 @@ class BitmapEditorScene(Scene):
                 if strip_example:
                     strip_example["name"] = "selected_strip"
                     examples.append(strip_example)
-                    self.log.info(f"Added current strip as training example")
+                    self.log.info("Added current strip as training example")
 
             if examples:
                 # Check if we have only one film strip with one frame - if so, just send the frame
@@ -4812,7 +4826,7 @@ class BitmapEditorScene(Scene):
                     if len(single_animation.frames) == 1:
                         # Only send the frame, not the strip
                         relevant_examples = [examples[0]]  # Just the frame
-                        self.log.info(f"Optimization: Single frame in single strip - using only frame data")
+                        self.log.info("Optimization: Single frame in single strip - using only frame data")
                     else:
                         # Multiple frames, send both
                         relevant_examples = examples
@@ -5017,6 +5031,7 @@ class BitmapEditorScene(Scene):
 
         Returns:
             TOML content string with preserved formatting
+
         """
         lines = []
 
@@ -5166,10 +5181,11 @@ class BitmapEditorScene(Scene):
 
         Returns:
             True if frame has content (non-magenta pixels), False if all magenta
+
         """
         try:
             # Get current frame pixels
-            if hasattr(self, 'canvas') and hasattr(self.canvas, 'pixels'):
+            if hasattr(self, "canvas") and hasattr(self.canvas, "pixels"):
                 pixels = self.canvas.pixels
                 self.log.debug(f"Checking frame content: {len(pixels)} pixels")
                 if not pixels:
@@ -5208,13 +5224,14 @@ class BitmapEditorScene(Scene):
 
         Returns:
             Path to the temporary TOML file, or None if failed
+
         """
         try:
-            import tempfile
             import os
+            import tempfile
 
             # Get current frame data
-            if not hasattr(self, 'canvas') or not hasattr(self.canvas, 'pixels'):
+            if not hasattr(self, "canvas") or not hasattr(self.canvas, "pixels"):
                 return None
 
             pixels = self.canvas.pixels
@@ -5222,7 +5239,7 @@ class BitmapEditorScene(Scene):
                 return None
 
             # Create temporary file
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_frame_')
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_frame_")
             os.close(temp_fd)  # Close the file descriptor, we'll use the path
 
             # Generate TOML content with single-char glyphs only
@@ -5230,7 +5247,7 @@ class BitmapEditorScene(Scene):
             toml_content = self._generate_frame_toml_content(pixels, force_single_char_glyphs=True)
 
             # Write to temporary file
-            with open(temp_path, 'w', encoding='utf-8') as f:
+            with open(temp_path, "w", encoding="utf-8") as f:
                 f.write(toml_content)
 
             self.log.info(f"Saved current frame to temporary TOML: {temp_path}")
@@ -5245,20 +5262,21 @@ class BitmapEditorScene(Scene):
 
         Returns:
             Path to the temporary TOML file, or None if failed
+
         """
         try:
-            import tempfile
             import os
+            import tempfile
 
             # Get current animation data
-            if not hasattr(self, 'canvas') or not hasattr(self.canvas, 'animated_sprite'):
+            if not hasattr(self, "canvas") or not hasattr(self.canvas, "animated_sprite"):
                 return None
 
             animated_sprite = self.canvas.animated_sprite
-            if not animated_sprite or not hasattr(animated_sprite, '_animations'):
+            if not animated_sprite or not hasattr(animated_sprite, "_animations"):
                 return None
 
-            current_animation = getattr(self.canvas, 'current_animation', None)
+            current_animation = getattr(self.canvas, "current_animation", None)
             if not current_animation or current_animation not in animated_sprite._animations:
                 return None
 
@@ -5278,7 +5296,7 @@ class BitmapEditorScene(Scene):
             new_sprite.current_animation = current_animation
 
             # Create temporary file
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_strip_')
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_strip_")
             os.close(temp_fd)  # Close the file descriptor, we'll use the path
 
             # Save the sprite to TOML using the existing save method
@@ -5300,6 +5318,7 @@ class BitmapEditorScene(Scene):
 
         Returns:
             TOML content string
+
         """
         try:
             # Get canvas dimensions
@@ -5383,7 +5402,7 @@ class BitmapEditorScene(Scene):
                         else:
                             # If quantized, find nearest color in palette
                             if force_single_char_glyphs:
-                                min_distance = float('inf')
+                                min_distance = float("inf")
                                 closest_color = sorted_colors[0]
                                 for palette_color in sorted_colors:
                                     r1, g1, b1 = color
@@ -5435,6 +5454,7 @@ pixels = \"\"\"
 
         Returns:
             Single character glyph from first 64 characters of SPRITE_GLYPHS
+
         """
         # Use only first 64 characters for consistent, manageable palette
         available_glyphs = SPRITE_GLYPHS[:64]
@@ -5450,18 +5470,19 @@ pixels = \"\"\"
 
         Returns:
             Training example dict, or None if failed
+
         """
         try:
             import toml
 
             # Read the file as text first to preserve newlines
-            with open(temp_toml_path, 'r', encoding='utf-8') as f:
+            with open(temp_toml_path, "r", encoding="utf-8") as f:
                 file_content = f.read()
 
             # Extract pixel data directly from the text to preserve newlines
             pixels_data = ""
             in_pixels_section = False
-            for line in file_content.split('\n'):
+            for line in file_content.split("\n"):
                 if line.strip() == 'pixels = """':
                     in_pixels_section = True
                     continue
@@ -5469,14 +5490,14 @@ pixels = \"\"\"
                     in_pixels_section = False
                     break
                 elif in_pixels_section:
-                    pixels_data += line + '\n'
+                    pixels_data += line + "\n"
 
             # Remove the trailing newline
-            if pixels_data.endswith('\n'):
+            if pixels_data.endswith("\n"):
                 pixels_data = pixels_data[:-1]
 
             # Load the TOML file for other data (colors, etc.)
-            with open(temp_toml_path, 'r', encoding='utf-8') as f:
+            with open(temp_toml_path, "r", encoding="utf-8") as f:
                 config_data = toml.load(f)
 
             # Convert to training example format
@@ -5519,6 +5540,11 @@ pixels = \"\"\"
         # Prepare AI content (clean and add description if needed)
         cleaned_content = self._prepare_ai_content(request_id, content)
 
+        # Get the original prompt to update sprite description
+        original_prompt = ""
+        if request_id in self.pending_ai_requests:
+            original_prompt = self.pending_ai_requests[request_id]
+
         # Create temporary file from content
         tmp_path = self._create_temp_file_from_content(cleaned_content)
 
@@ -5541,6 +5567,11 @@ pixels = \"\"\"
                 self._load_animated_ai_sprite(tmp_path)
             else:
                 self._load_static_ai_sprite(tmp_path)
+
+            # Update the sprite's description with the original prompt
+            if original_prompt and hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+                self.canvas.animated_sprite.description = original_prompt
+                self.log.info(f"Updated sprite description with generation prompt: '{original_prompt}'")
 
             # Update UI components
             self._update_ui_after_ai_load(request_id)
@@ -5872,6 +5903,7 @@ pixels = \"\"\"
 
         Returns:
             None
+
         """
         # Get the file path from the event
         file_path = event.file
@@ -5906,6 +5938,7 @@ pixels = \"\"\"
 
         Returns:
             Path to the converted TOML file, or None if conversion failed.
+
         """
         try:
             # Load the PNG image
@@ -5918,7 +5951,7 @@ pixels = \"\"\"
 
             # Get current canvas size for resizing
             canvas_width, canvas_height = 32, 32  # Default fallback
-            if hasattr(self, 'canvas') and self.canvas:
+            if hasattr(self, "canvas") and self.canvas:
                 canvas_width = self.canvas.pixels_across
                 canvas_height = self.canvas.pixels_tall
                 self.log.info(f"Using current canvas size: {canvas_width}x{canvas_height}")
@@ -6004,7 +6037,7 @@ pixels = \"\"\"
                 for color in unique_colors:
                     # Find the closest existing group
                     closest_group = None
-                    min_distance = float('inf')
+                    min_distance = float("inf")
 
                     for group_color in color_groups:
                         distance = sum((a - b) ** 2 for a, b in zip(color, group_color))
@@ -6050,7 +6083,7 @@ pixels = \"\"\"
             # First, ensure magenta (transparency) gets a glyph if we have transparency
             if has_transparency and (255, 0, 255) in unique_colors:
                 color_mapping[(255, 0, 255)] = "@"  # Use @ for transparency
-                self.log.info(f"Reserved glyph '@' for transparency (magenta)")
+                self.log.info("Reserved glyph '@' for transparency (magenta)")
 
             # Map other colors to available glyphs
             for color in sorted(unique_colors):
@@ -6177,6 +6210,7 @@ pixels = \"\"\"
 
         Returns:
             None
+
         """
         try:
             self.log.info("=== STARTING _load_converted_sprite ===")
@@ -6185,7 +6219,7 @@ pixels = \"\"\"
             canvas_sprite = None
             for i, sprite in enumerate(self.all_sprites):
                 self.log.info(f"Sprite {i}: {type(sprite)} - has on_load_file_event: {hasattr(sprite, 'on_load_file_event')}")
-                if hasattr(sprite, 'on_load_file_event'):
+                if hasattr(sprite, "on_load_file_event"):
                     canvas_sprite = sprite
                     self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
                     break
@@ -6232,7 +6266,7 @@ pixels = \"\"\"
 
                                 # Transfer pixel data from the loaded sprite to the canvas
                                 self.log.info("Transferring pixel data from loaded sprite to canvas...")
-                                if hasattr(first_frame, 'image') and first_frame.image:
+                                if hasattr(first_frame, "image") and first_frame.image:
                                     # Get the pixel data from the frame image
                                     frame_surface = first_frame.image
                                     frame_width, frame_height = frame_surface.get_size()

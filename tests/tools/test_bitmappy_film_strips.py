@@ -7,14 +7,15 @@ and integration with the bitmap editor scene.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.film_strip import FilmStripWidget, FilmStripTab, FilmStripDeleteTab
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.tools.film_strip import FilmStripDeleteTab, FilmStripTab, FilmStripWidget
+
 from mocks.test_mock_factory import MockFactory
 
 

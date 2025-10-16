@@ -4,7 +4,8 @@ from unittest.mock import Mock
 
 import pygame
 from glitchygames.tools.bitmappy import BitmapEditorScene
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 FRAME_INDEX_2 = 2

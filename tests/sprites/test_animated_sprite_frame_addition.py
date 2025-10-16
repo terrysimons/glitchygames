@@ -1,7 +1,7 @@
 """Tests for AnimatedSprite frame addition functionality."""
 
-import pytest
 import pygame
+import pytest
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 

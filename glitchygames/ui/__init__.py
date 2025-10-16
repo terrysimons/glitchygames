@@ -1008,7 +1008,7 @@ class TextSprite(BitmappySprite):
     def update(self):
         """Update the sprite."""
         # Handle cursor blinking for active text boxes
-        if hasattr(self, 'active') and self.active:
+        if hasattr(self, "active") and self.active:
             old_visible = self._cursor_visible
             self._cursor_timer += 1
             if self._cursor_timer >= 30:  # Blink every 30 frames (0.5 seconds at 60fps)
@@ -1042,7 +1042,7 @@ class TextSprite(BitmappySprite):
             self.image.fill((0, 0, 0, 0))
         else:
             # Use different background color when active (editing)
-            if hasattr(self, 'active') and self.active:
+            if hasattr(self, "active") and self.active:
                 self.image.fill((50, 50, 50))  # Darker background when editing
             else:
                 self.image.fill(self.background_color)
@@ -1101,7 +1101,7 @@ class TextSprite(BitmappySprite):
         self.image.blit(text_surface, text_rect)
         
         # Add blinking cursor if text box is active
-        if hasattr(self, 'active') and self.active:
+        if hasattr(self, "active") and self.active:
             self._draw_cursor(text_rect, font)
 
     def _draw_cursor(self, text_rect, font):
@@ -1894,7 +1894,7 @@ class SliderSprite(BitmappySprite):
                         try:
                             # Check if input is hex (contains letters) or decimal
                             text = self.text_sprite.text.strip().lower()
-                            if any(c in 'abcdef' for c in text):
+                            if any(c in "abcdef" for c in text):
                                 # Hex input - convert to decimal
                                 new_value = int(text, 16)
                             else:
@@ -1938,7 +1938,7 @@ class SliderSprite(BitmappySprite):
                     self.text_sprite.update_text(self.text_sprite.text)
                 else:
                     # Handle normal text input - allow both digits and hex characters
-                    if event.unicode.isdigit() or event.unicode.lower() in 'abcdef' or event.key == pygame.K_BACKSPACE:
+                    if event.unicode.isdigit() or event.unicode.lower() in "abcdef" or event.key == pygame.K_BACKSPACE:
                         if event.key == pygame.K_BACKSPACE:
                             self.text_sprite.text = self.text_sprite.text[:-1]
                         else:
@@ -2936,7 +2936,7 @@ class MultiLineTextBox(BitmappySprite):
                 break
             original_pos = i
             wrapped_pos += 1
-            if char == '\n':
+            if char == "\n":
                 wrapped_pos += 1  # Account for newlines in wrapped text
         
         return original_pos
@@ -3095,12 +3095,8 @@ class MultiLineTextBox(BitmappySprite):
             
             for i, char in enumerate(clicked_line_text):
                 char_width = self._get_text_width(char)
-                if text_width + char_width > x_rel:
-                    # Check if click is in the first half of the character
-                    if x_rel < text_width + (char_width / 2):
-                        char_pos_in_line = i
-                    else:
-                        char_pos_in_line = i + 1
+                if text_width + (char_width / 2) > x_rel:
+                    char_pos_in_line = i
                     break
                 text_width += char_width
             else:

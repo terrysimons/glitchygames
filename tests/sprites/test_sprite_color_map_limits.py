@@ -14,7 +14,8 @@ import pytest
 from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from scripts.raw_sprite_loader import BitmappyLegacySprite
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Constants for test values
 CHARACTER_LIMIT = 64

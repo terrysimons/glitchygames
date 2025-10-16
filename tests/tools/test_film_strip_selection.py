@@ -6,18 +6,19 @@ This module tests the film strip selection system to ensure that:
 3. Strip switching preserves individual strip selections
 """
 
-import pytest
-import pygame
-from unittest.mock import Mock, patch
-from pathlib import Path
 import sys
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pygame
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools.film_strip import FilmStripWidget
-from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
+from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.tools.film_strip import FilmStripWidget
 
 
 class TestFilmStripSelection:
@@ -26,15 +27,15 @@ class TestFilmStripSelection:
     @pytest.fixture
     def mock_pygame_patches(self):
         """Mock pygame modules for testing."""
-        with patch('pygame.display') as mock_display, \
-             patch('pygame.font') as mock_font, \
-             patch('pygame.draw') as mock_draw, \
-             patch('pygame.Surface') as mock_surface:
+        with patch("pygame.display") as mock_display, \
+             patch("pygame.font") as mock_font, \
+             patch("pygame.draw") as mock_draw, \
+             patch("pygame.Surface") as mock_surface:
             yield {
-                'display': mock_display,
-                'font': mock_font,
-                'draw': mock_draw,
-                'surface': mock_surface
+                "display": mock_display,
+                "font": mock_font,
+                "draw": mock_draw,
+                "surface": mock_surface
             }
 
     @pytest.fixture
@@ -343,7 +344,7 @@ class TestFilmStripSelection:
         film_strip_widget.get_current_preview_frame = Mock(return_value=2)
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()
@@ -365,7 +366,7 @@ class TestFilmStripSelection:
         film_strip_widget.get_current_preview_frame = Mock(return_value=0)
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()
@@ -384,7 +385,7 @@ class TestFilmStripSelection:
         film_strip_widget.get_current_preview_frame = Mock(return_value=1)
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()
@@ -401,7 +402,7 @@ class TestFilmStripSelection:
         film_strip_widget.current_animation = ""
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()
@@ -420,7 +421,7 @@ class TestFilmStripSelection:
         film_strip_widget.current_animation = "walk"
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()
@@ -440,7 +441,7 @@ class TestFilmStripSelection:
         film_strip_widget.get_current_preview_frame = Mock(return_value=5)
         
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
+        mock_draw = mock_pygame_patches["draw"]
         
         # Create a mock surface
         mock_surface = Mock()

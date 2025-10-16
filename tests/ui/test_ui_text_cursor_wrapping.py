@@ -8,9 +8,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 import pygame
-
 from glitchygames.ui import MultiLineTextBox
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 
 class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
@@ -259,7 +259,7 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             # Test up arrow key (should move to previous line)
             up_event = Mock()
             up_event.key = pygame.K_UP
-            up_event.unicode = ''
+            up_event.unicode = ""
             
             # This should move the cursor up one line in the wrapped text
             textbox.on_key_down_event(up_event)
@@ -272,7 +272,7 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             # Test down arrow key (should move to next line)
             down_event = Mock()
             down_event.key = pygame.K_DOWN
-            down_event.unicode = ''
+            down_event.unicode = ""
             
             # This should move the cursor down one line in the wrapped text
             textbox.on_key_down_event(down_event)

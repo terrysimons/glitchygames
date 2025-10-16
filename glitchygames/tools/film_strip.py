@@ -784,7 +784,7 @@ class FilmStripWidget:
                     )
                     print(f"FilmStripWidget: Created removal button rect for {anim_name}[{actual_frame_idx}] at {removal_button_rect}")
                     # Store removal button rectangles in a separate dictionary
-                    if not hasattr(self, 'removal_button_layouts'):
+                    if not hasattr(self, "removal_button_layouts"):
                         self.removal_button_layouts = {}
                     self.removal_button_layouts[anim_name, actual_frame_idx] = removal_button_rect
 
@@ -929,8 +929,8 @@ class FilmStripWidget:
             # When clicking on an animation strip, use the scene's global selected_frame
             # instead of the strip's own selected_frame
             global_selected_frame = 0
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
             print(f"FilmStripWidget: Animation clicked, calling set_current_frame({strip_animation}, {global_selected_frame})")
             self.set_current_frame(strip_animation, global_selected_frame)
             return (strip_animation, global_selected_frame)
@@ -947,8 +947,8 @@ class FilmStripWidget:
             strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else ""
             # Use the scene's global selected_frame to maintain consistency
             global_selected_frame = 0
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
             print(f"FilmStripWidget: Parent strip clicked, selecting strip and calling set_current_frame({strip_animation}, {global_selected_frame})")
             self.set_current_frame(strip_animation, global_selected_frame)
             return (strip_animation, global_selected_frame)
@@ -973,8 +973,8 @@ class FilmStripWidget:
                 # When clicking on preview area, use the scene's global selected_frame
                 # instead of the strip's own selected_frame
                 global_selected_frame = 0
-                if hasattr(self, 'parent_scene') and self.parent_scene:
-                    global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
                 return (anim_name, global_selected_frame)
         return None
 
@@ -1030,8 +1030,8 @@ class FilmStripWidget:
 
             # Get total frames for current animation
             total_frames = 1  # Default fallback
-            if (hasattr(self, 'animated_sprite') and self.animated_sprite and
-                hasattr(self, 'current_animation') and self.current_animation and
+            if (hasattr(self, "animated_sprite") and self.animated_sprite and
+                hasattr(self, "current_animation") and self.current_animation and
                 self.current_animation in self.animated_sprite._animations):
                 total_frames = len(self.animated_sprite._animations[self.current_animation])
 
@@ -1189,7 +1189,7 @@ class FilmStripWidget:
                     # Reset to frame 0 if invalid
                     current_frame_idx = 0
                     # Also reset the preview animation time to prevent future issues
-                    if hasattr(self, 'preview_animation_times') and anim_name in self.preview_animation_times:
+                    if hasattr(self, "preview_animation_times") and anim_name in self.preview_animation_times:
                         self.preview_animation_times[anim_name] = 0.0
 
                 frame = frames[current_frame_idx]
@@ -1442,7 +1442,7 @@ class FilmStripWidget:
                 # Multiple frames: animate the triangle
                 # Get the actual frame duration from the sprite frame
                 frame = frames[current_frame_idx]
-                frame_duration = getattr(frame, 'duration', 0.5)  # Default to 0.5 if no duration
+                frame_duration = getattr(frame, "duration", 0.5)  # Default to 0.5 if no duration
 
                 # Calculate progress within the current frame (0.0 to 1.0)
                 frame_start_time = sum(self.preview_frame_durations.get(anim_name, [0.5])[:current_frame_idx])
@@ -1474,7 +1474,7 @@ class FilmStripWidget:
 
             # Get total frames for this animation
             total_frames = 1  # Default fallback
-            if (hasattr(self, 'animated_sprite') and self.animated_sprite and
+            if (hasattr(self, "animated_sprite") and self.animated_sprite and
                 anim_name in self.animated_sprite._animations):
                 total_frames = len(self.animated_sprite._animations[anim_name])
 
@@ -1873,8 +1873,9 @@ class FilmStripWidget:
 
         Returns:
             True if a removal button was clicked, False otherwise
+
         """
-        if not hasattr(self, 'removal_button_layouts') or not self.removal_button_layouts:
+        if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             return False
 
         for (anim_name, frame_idx), button_rect in self.removal_button_layouts.items():
@@ -1897,6 +1898,7 @@ class FilmStripWidget:
         Args:
             animation_name: Name of the animation
             frame_index: Index of the frame to remove
+
         """
         if not self.animated_sprite or animation_name not in self.animated_sprite._animations:
             print(f"FilmStripWidget: Cannot remove frame - animation '{animation_name}' not found")
@@ -1918,8 +1920,8 @@ class FilmStripWidget:
         frames.pop(frame_index)
 
         # Adjust current frame if necessary
-        if (hasattr(self, 'current_animation') and self.current_animation == animation_name and
-            hasattr(self, 'current_frame') and self.current_frame >= frame_index):
+        if (hasattr(self, "current_animation") and self.current_animation == animation_name and
+            hasattr(self, "current_frame") and self.current_frame >= frame_index):
             # If we removed a frame before or at the current position, adjust the current frame
             if self.current_frame > 0:
                 self.current_frame -= 1
@@ -1929,7 +1931,7 @@ class FilmStripWidget:
 
         # CRITICAL: Also update the animated sprite's frame manager
         if (self.animated_sprite and
-            hasattr(self.animated_sprite, 'frame_manager') and
+            hasattr(self.animated_sprite, "frame_manager") and
             self.animated_sprite.frame_manager.current_animation == animation_name):
 
             print(f"FilmStripWidget: Before removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frame_index: {frame_index}")
@@ -1997,8 +1999,9 @@ class FilmStripWidget:
             surface: Surface to render on
             anim_name: Animation name
             frame_idx: Frame index
+
         """
-        if not hasattr(self, 'removal_button_layouts') or not self.removal_button_layouts:
+        if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             return
 
         button_key = (anim_name, frame_idx)
@@ -2195,6 +2198,7 @@ class FilmStripDeleteTab:
             y: Y position of the tab
             width: Width of the tab (default 40, wider than vertical tabs)
             height: Height of the tab (default 10, shorter than vertical tabs)
+
         """
         self.rect = pygame.Rect(x, y, width, height)
         self.is_clicked = False
@@ -2215,6 +2219,7 @@ class FilmStripDeleteTab:
 
         Args:
             surface: The pygame surface to render to
+
         """
         # Determine color based on state
         if self.is_clicked:
@@ -2246,6 +2251,7 @@ class FilmStripDeleteTab:
 
         Returns:
             True if the tab was clicked, False otherwise
+
         """
         if self.rect.collidepoint(pos):
             self.is_clicked = True
@@ -2260,6 +2266,7 @@ class FilmStripDeleteTab:
 
         Returns:
             True if the tab is being hovered, False otherwise
+
         """
         self.is_hovered = self.rect.collidepoint(pos)
         return self.is_hovered
@@ -2274,6 +2281,7 @@ class FilmStripDeleteTab:
         Args:
             insertion_type: "delete" for strip deletion
             target_frame_index: The frame index this tab is associated with
+
         """
         self.insertion_type = insertion_type
         self.target_frame_index = target_frame_index
@@ -2312,6 +2320,7 @@ class FilmStripTab:
             y: Y position of the tab
             width: Width of the tab (default 40, wider than vertical tabs)
             height: Height of the tab (default 10, shorter than vertical tabs)
+
         """
         self.rect = pygame.Rect(x, y, width, height)
         self.is_clicked = False
@@ -2332,6 +2341,7 @@ class FilmStripTab:
 
         Args:
             surface: The pygame surface to render to
+
         """
         # Determine color based on state
         if self.is_clicked:
@@ -2366,6 +2376,7 @@ class FilmStripTab:
 
         Returns:
             True if the tab was clicked, False otherwise
+
         """
         if self.rect.collidepoint(pos):
             self.is_clicked = True
@@ -2380,6 +2391,7 @@ class FilmStripTab:
 
         Returns:
             True if the tab is being hovered, False otherwise
+
         """
         self.is_hovered = self.rect.collidepoint(pos)
         return self.is_hovered
@@ -2394,6 +2406,7 @@ class FilmStripTab:
         Args:
             insertion_type: "before" or "after" (typically "after" for bottom tabs)
             target_frame_index: The frame index this tab is associated with
+
         """
         self.insertion_type = insertion_type
         self.target_frame_index = target_frame_index

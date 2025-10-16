@@ -12,7 +12,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks import MockFactory
 
 
 @pytest.fixture

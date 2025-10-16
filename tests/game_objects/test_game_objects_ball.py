@@ -7,7 +7,8 @@ from unittest.mock import Mock, patch
 
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

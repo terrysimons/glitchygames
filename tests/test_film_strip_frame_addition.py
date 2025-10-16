@@ -1,8 +1,9 @@
 """Tests for film strip frame addition functionality."""
 
-import pytest
+from unittest.mock import MagicMock, Mock
+
 import pygame
-from unittest.mock import Mock, MagicMock
+import pytest
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
 

@@ -15,7 +15,7 @@ unicode_letters = set()
 for i in range(0x10FFFF + 1):  # Full Unicode range
     try:
         char = chr(i)
-        if unicodedata.category(char).startswith('L'):  # Unicode letter categories
+        if unicodedata.category(char).startswith("L"):  # Unicode letter categories
             unicode_letters.add(char)
     except ValueError:
         pass
@@ -24,4 +24,4 @@ for i in range(0x10FFFF + 1):  # Full Unicode range
 unicode_letters -= set(original_glyphs)
 
 # Combine: original set first, then additional Unicode letters
-SPRITE_GLYPHS = original_glyphs + ''.join(sorted(unicode_letters))
+SPRITE_GLYPHS = original_glyphs + "".join(sorted(unicode_letters))

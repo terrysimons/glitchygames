@@ -10,9 +10,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 import pygame
-
 from glitchygames.tools.bitmappy import BitmapEditorScene
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 
 class TestAISStripIntegration(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestAISStripIntegration(unittest.TestCase):
 
     def test_save_current_strip_to_temp_toml(self):
         """Test that current strip is saved to temporary TOML file."""
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             
@@ -53,7 +53,7 @@ class TestAISStripIntegration(unittest.TestCase):
             }
             
             # Mock the AnimatedSprite.save method
-            with patch('glitchygames.sprites.animated.AnimatedSprite') as mock_sprite_class:
+            with patch("glitchygames.sprites.animated.AnimatedSprite") as mock_sprite_class:
                 mock_sprite_instance = Mock()
                 mock_sprite_class.return_value = mock_sprite_instance
                 mock_sprite_instance.save = Mock()
@@ -64,8 +64,8 @@ class TestAISStripIntegration(unittest.TestCase):
                 # Verify temp file was created
                 assert temp_path is not None
                 assert os.path.exists(temp_path)
-                assert temp_path.endswith('.toml')
-                assert 'bitmappy_strip_' in temp_path
+                assert temp_path.endswith(".toml")
+                assert "bitmappy_strip_" in temp_path
                 
                 # Verify save was called
                 mock_sprite_instance.save.assert_called_once_with(temp_path)
@@ -76,7 +76,7 @@ class TestAISStripIntegration(unittest.TestCase):
 
     def test_save_current_strip_handles_missing_animation(self):
         """Test that saving strip handles missing animation gracefully."""
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             
@@ -93,7 +93,7 @@ class TestAISStripIntegration(unittest.TestCase):
 
     def test_ai_integration_with_frame_and_strip(self):
         """Test that AI integration provides both frame and strip context."""
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             scene.ai_request_queue = Mock()
@@ -130,10 +130,10 @@ class TestAISStripIntegration(unittest.TestCase):
             scene.debug_text.text = "test"
             
             # Mock the missing constants and functions
-            with patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml'), \
-                 patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF'), \
-                 patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format'), \
-                 patch('glitchygames.tools.bitmappy._select_relevant_training_examples') as mock_select:
+            with patch("glitchygames.tools.bitmappy.AI_TRAINING_FORMAT", "toml"), \
+                 patch("glitchygames.tools.bitmappy.SPRITE_GLYPHS", "0123456789ABCDEF"), \
+                 patch("glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT", "test format"), \
+                 patch("glitchygames.tools.bitmappy._select_relevant_training_examples") as mock_select:
                 
                 mock_select.return_value = []
                 
@@ -152,7 +152,7 @@ class TestAISStripIntegration(unittest.TestCase):
 
     def test_ai_integration_fallback_to_regular_examples(self):
         """Test that AI integration falls back to regular examples if context fails."""
-        with patch.object(BitmapEditorScene, '__init__', return_value=None):
+        with patch.object(BitmapEditorScene, "__init__", return_value=None):
             scene = BitmapEditorScene({})
             scene.log = Mock()
             scene.ai_request_queue = Mock()
@@ -173,10 +173,10 @@ class TestAISStripIntegration(unittest.TestCase):
             scene.debug_text.text = "test"
             
             # Mock the missing constants and functions
-            with patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml'), \
-                 patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF'), \
-                 patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format'), \
-                 patch('glitchygames.tools.bitmappy._select_relevant_training_examples') as mock_select:
+            with patch("glitchygames.tools.bitmappy.AI_TRAINING_FORMAT", "toml"), \
+                 patch("glitchygames.tools.bitmappy.SPRITE_GLYPHS", "0123456789ABCDEF"), \
+                 patch("glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT", "test format"), \
+                 patch("glitchygames.tools.bitmappy._select_relevant_training_examples") as mock_select:
                 
                 mock_select.return_value = []
                 

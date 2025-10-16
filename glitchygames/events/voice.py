@@ -7,7 +7,8 @@ allowing users to control the application through voice commands.
 import logging
 import threading
 import time
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Dict, Optional
 
 # Try to import speech recognition, but don't fail if it's not available
 try:
@@ -26,6 +27,7 @@ class VoiceRecognitionManager:
 
         Args:
             logger: Optional logger instance. If None, creates a default logger.
+
         """
         self.log = logger or logging.getLogger(__name__)
         self.is_listening = False
@@ -71,6 +73,7 @@ class VoiceRecognitionManager:
         Args:
             phrase: The phrase to listen for (case-insensitive)
             callback: Function to call when the phrase is detected
+
         """
         self.commands[phrase.lower()] = callback
         self.log.info(f"Registered voice command: '{phrase}'")
@@ -154,6 +157,7 @@ class VoiceRecognitionManager:
 
         Args:
             text: The recognized text (already lowercased)
+
         """
         # Check for exact matches first
         if text in self.commands:
@@ -181,6 +185,7 @@ class VoiceRecognitionManager:
 
         Returns:
             True if microphone and speech recognition are available
+
         """
         return SPEECH_RECOGNITION_AVAILABLE and self.microphone is not None
 
@@ -189,5 +194,6 @@ class VoiceRecognitionManager:
 
         Returns:
             List of registered command phrases
+
         """
         return list(self.commands.keys())
