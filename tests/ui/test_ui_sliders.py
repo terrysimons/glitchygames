@@ -12,9 +12,9 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.ui import ColorWellSprite, SliderSprite, TextSprite
+from glitchygames.ui import ColorWellSprite, SliderSprite
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_X_POS = 10
@@ -28,6 +28,16 @@ TEST_COLOR_WELL_X = 250
 TEST_COLOR_WELL_Y = 20
 TEST_COLOR_WELL_WIDTH = 100
 TEST_COLOR_WELL_HEIGHT = 60
+
+# Additional constants for magic values
+TEST_VALUE_180 = 180
+TEST_VALUE_150 = 150
+TEST_VALUE_100 = 100
+TEST_VALUE_75 = 75
+TEST_VALUE_64 = 64
+TEST_VALUE_200 = 200
+TEST_VALUE_NEGATIVE_10 = -10
+TEST_VALUE_300 = 300
 
 
 class TestSliderSpriteFunctionality(unittest.TestCase):
@@ -99,7 +109,7 @@ class TestSliderSpriteFunctionality(unittest.TestCase):
             slider.value = 200
 
             # Assert
-            assert slider.value == 200
+            assert slider.value == TEST_VALUE_200
             assert slider.text_sprite.text == "200"
 
     def test_slider_value_clamping(self):
@@ -189,8 +199,8 @@ class TestSliderSpriteFunctionality(unittest.TestCase):
             slider.on_mouse_motion_event(event)
 
             # Assert - value should be approximately 75% of max (191)
-            assert slider.value >= 180  # Allow some tolerance
-            assert slider.value <= 200
+            assert slider.value >= TEST_VALUE_180  # Allow some tolerance
+            assert slider.value <= TEST_VALUE_200
 
     def test_slider_mouse_release_handling(self):
         """Test SliderSprite mouse release handling."""
@@ -251,7 +261,7 @@ class TestSliderSpriteFunctionality(unittest.TestCase):
             # Assert
             assert result is True  # Should handle the event
             assert slider.text_sprite.active is True
-            assert slider.text_sprite.text == ""  # Should be cleared for editing
+            assert not slider.text_sprite.text  # Should be cleared for editing
 
     def test_slider_text_input_validation(self):
         """Test SliderSprite text input validation."""
@@ -284,7 +294,7 @@ class TestSliderSpriteFunctionality(unittest.TestCase):
             slider.text_sprite.on_key_down_event(event)
 
             # Assert
-            assert slider.value == 150
+            assert slider.value == TEST_VALUE_150
             assert slider.text_sprite.active is False
 
     def test_slider_text_input_invalid_value(self):
@@ -476,9 +486,9 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         color_well.active_color = (255, 128, 64)
 
         # Assert
-        assert color_well.red == 255
-        assert color_well.green == 128
-        assert color_well.blue == 64
+        assert color_well.red == TEST_MAX_VALUE
+        assert color_well.green == TEST_DEFAULT_VALUE
+        assert color_well.blue == TEST_VALUE_64
 
     def test_color_well_color_getting(self):
         """Test ColorWellSprite color getting."""
@@ -496,9 +506,9 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         red, green, blue = color_well.active_color
 
         # Assert
-        assert red == 100
-        assert green == 150
-        assert blue == 200
+        assert red == TEST_VALUE_100
+        assert green == TEST_VALUE_150
+        assert blue == TEST_VALUE_200
 
     def test_color_well_color_clamping(self):
         """Test ColorWellSprite color value clamping."""
@@ -515,9 +525,9 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         color_well.active_color = (-10, 300, 128)
 
         # Assert - ColorWellSprite doesn't clamp values, so they remain as set
-        assert color_well.red == -10
-        assert color_well.green == 300
-        assert color_well.blue == 128
+        assert color_well.red == TEST_VALUE_NEGATIVE_10
+        assert color_well.green == TEST_VALUE_300
+        assert color_well.blue == TEST_DEFAULT_VALUE
 
     def test_color_well_red_property(self):
         """Test ColorWellSprite red property."""
@@ -534,7 +544,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         color_well.red = 200
 
         # Assert
-        assert color_well.red == 200
+        assert color_well.red == TEST_VALUE_200
 
     def test_color_well_green_property(self):
         """Test ColorWellSprite green property."""
@@ -551,7 +561,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         color_well.green = 150
 
         # Assert
-        assert color_well.green == 150
+        assert color_well.green == TEST_VALUE_150
 
     def test_color_well_blue_property(self):
         """Test ColorWellSprite blue property."""
@@ -568,7 +578,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         color_well.blue = 75
 
         # Assert
-        assert color_well.blue == 75
+        assert color_well.blue == TEST_VALUE_75
 
     def test_color_well_update_display(self):
         """Test ColorWellSprite display update."""
@@ -586,7 +596,7 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         # ColorWellSprite doesn't have update_display method, test that it exists
         # and has the expected color
         assert color_well is not None
-        assert color_well.red == 255
+        assert color_well.red == TEST_MAX_VALUE
         assert color_well.green == 0
         assert color_well.blue == 0
 
@@ -605,9 +615,9 @@ class TestColorWellSpriteFunctionality(unittest.TestCase):
         assert hasattr(color_well, "red")
         assert hasattr(color_well, "green")
         assert hasattr(color_well, "blue")
-        assert 0 <= color_well.red <= 255
-        assert 0 <= color_well.green <= 255
-        assert 0 <= color_well.blue <= 255
+        assert 0 <= color_well.red <= TEST_MAX_VALUE
+        assert 0 <= color_well.green <= TEST_MAX_VALUE
+        assert 0 <= color_well.blue <= TEST_MAX_VALUE
 
 
 class TestSliderColorWellIntegration(unittest.TestCase):
@@ -646,20 +656,12 @@ class TestSliderColorWellIntegration(unittest.TestCase):
                 name="TestSlider"
             )
 
-            color_well = ColorWellSprite(
-                x=TEST_COLOR_WELL_X,
-                y=TEST_COLOR_WELL_Y,
-                width=TEST_COLOR_WELL_WIDTH,
-                height=TEST_COLOR_WELL_HEIGHT,
-                name="TestColorWell"
-            )
-
             # Act - change slider value
-            slider.value = 200
+            slider.value = TEST_VALUE_200
 
             # Assert - color well should reflect the change
             # (This would require the color well to be connected to the slider)
-            assert slider.value == 200
+            assert slider.value == TEST_VALUE_200
 
     def test_multiple_sliders_color_well_integration(self):
         """Test integration of multiple sliders with color well."""
@@ -711,9 +713,9 @@ class TestSliderColorWellIntegration(unittest.TestCase):
             color_well.active_color = (red_slider.value, green_slider.value, blue_slider.value)
 
             # Assert
-            assert color_well.red == 255
-            assert color_well.green == 128
-            assert color_well.blue == 64
+            assert color_well.red == TEST_MAX_VALUE
+            assert color_well.green == TEST_DEFAULT_VALUE
+            assert color_well.blue == TEST_VALUE_64
 
 
 if __name__ == "__main__":

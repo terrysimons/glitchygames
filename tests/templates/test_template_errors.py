@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
 
-from mocks.test_mock_factory import create_template_path_mock
+from tests.mocks.test_mock_factory import create_template_path_mock
 
 
 class TestTemplateErrors:
@@ -96,10 +96,13 @@ class TestTemplateErrors:
             mock_repo_path.open.side_effect = OSError("Permission denied")
             mock_template_path.__truediv__ = Mock(return_value=mock_repo_path)
 
-            # The code only catches FileNotFoundError, not OSError
-            # But the error will be raised by cookiecutter, not by our code
-            with pytest.raises(OSError, match="Permission denied"):
-                build(template_name)
+            with patch("glitchygames.templates.cookiecutter") as mock_cookiecutter:
+                # Make cookiecutter raise an OSError
+                mock_cookiecutter.side_effect = OSError("Permission denied")
+
+                # The code only catches FileNotFoundError, not OSError
+                with pytest.raises(OSError, match="Permission denied"):
+                    build(template_name)
 
     def test_build_permission_error_handling(self):
         """Test build when .repo file causes permission error."""
@@ -115,10 +118,13 @@ class TestTemplateErrors:
             mock_repo_path.open.side_effect = PermissionError("Access denied")
             mock_template_path.__truediv__ = Mock(return_value=mock_repo_path)
 
-            # Should not catch PermissionError - let it propagate
-            # But the error will be raised by cookiecutter, not by our code
-            with pytest.raises(PermissionError, match="Access denied"):
-                build(template_name)
+            with patch("glitchygames.templates.cookiecutter") as mock_cookiecutter:
+                # Make cookiecutter raise a PermissionError
+                mock_cookiecutter.side_effect = PermissionError("Access denied")
+
+                # Should not catch PermissionError - let it propagate
+                with pytest.raises(PermissionError, match="Access denied"):
+                    build(template_name)
 
     def test_build_cookiecutter_import_error(self):
         """Test build when cookiecutter import fails."""
@@ -148,9 +154,13 @@ class TestTemplateErrors:
             # Mock path operations to raise FileNotFoundError
             mock_path.__truediv__.side_effect = FileNotFoundError("Template not found")
 
-            # The error will be raised by cookiecutter, not by our code
-            with pytest.raises(FileNotFoundError, match="Template not found"):
-                build(template_name)
+            with patch("glitchygames.templates.cookiecutter") as mock_cookiecutter:
+                # Make cookiecutter raise a FileNotFoundError
+                mock_cookiecutter.side_effect = FileNotFoundError("Template not found")
+
+                # The error will be raised by cookiecutter, not by our code
+                with pytest.raises(FileNotFoundError, match="Template not found"):
+                    build(template_name)
 
     def test_build_cookiecutter_timeout_error(self):
         """Test build when cookiecutter times out."""

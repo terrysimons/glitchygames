@@ -7,9 +7,9 @@ from .sounds import SFX, load_sound
 
 __all__ = [
     "BallSprite",
-    "BasePaddle", 
+    "BasePaddle",
     "HorizontalPaddle",
-    "VerticalPaddle",
     "SFX",
+    "VerticalPaddle",
     "load_sound",
 ]

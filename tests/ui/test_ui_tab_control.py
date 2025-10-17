@@ -7,14 +7,21 @@ format changes, and integration with slider input formatting.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import TabControlSprite
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks import MockFactory
+
+# Test constants to avoid magic values
+TEST_X_POS = 10
+TEST_Y_POS = 20
+TEST_WIDTH = 100
+TEST_HEIGHT = 30
+TEST_TAB_COUNT = 2
 
 
 class TestTabControlSpriteFunctionality(unittest.TestCase):
@@ -44,10 +51,10 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Assert
-        assert tab_control.rect.x == 10
-        assert tab_control.rect.y == 20
-        assert tab_control.rect.width == 100
-        assert tab_control.rect.height == 30
+        assert tab_control.rect.x == TEST_X_POS
+        assert tab_control.rect.y == TEST_Y_POS
+        assert tab_control.rect.width == TEST_WIDTH
+        assert tab_control.rect.height == TEST_HEIGHT
         assert tab_control.parent == parent
         assert tab_control.tabs == ["%d", "%X"]
         assert tab_control.active_tab == 0
@@ -72,7 +79,7 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
 
         # Assert
         assert tab_control.active_tab == 1
-        assert tab_control.dirty == 2
+        assert tab_control.dirty == TEST_TAB_COUNT
         parent.on_tab_change_event.assert_called_once_with("%X")
 
     def test_tab_control_click_first_tab(self):
@@ -94,7 +101,7 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
 
         # Assert
         assert tab_control.active_tab == 0
-        assert tab_control.dirty == 2
+        assert tab_control.dirty == TEST_TAB_COUNT
         parent.on_tab_change_event.assert_called_once_with("%d")
 
     def test_tab_control_click_outside_bounds(self):
@@ -151,9 +158,9 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
         # Test tab position calculations
         # The actual implementation may have different positioning logic
         # We'll test the basic properties instead of specific calculations
-        assert tab_control.rect.width == 100
-        assert tab_control.rect.height == 30
-        assert len(tab_control.tabs) == 2
+        assert tab_control.rect.width == TEST_WIDTH
+        assert tab_control.rect.height == TEST_HEIGHT
+        assert len(tab_control.tabs) == TEST_TAB_COUNT
 
     def test_tab_control_active_tab_property(self):
         """Test TabControlSprite active tab property."""
@@ -198,7 +205,7 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
         tab_control.dirty = 2
 
         # Assert
-        assert tab_control.dirty == 2
+        assert tab_control.dirty == TEST_TAB_COUNT
 
         # Act - update should handle dirty flag appropriately
         tab_control.update()
@@ -227,10 +234,10 @@ class TestTabControlSpriteFunctionality(unittest.TestCase):
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Assert
-        assert tab_control.rect.x == 10
-        assert tab_control.rect.y == 20
-        assert tab_control.rect.width == 100
-        assert tab_control.rect.height == 30
+        assert tab_control.rect.x == TEST_X_POS
+        assert tab_control.rect.y == TEST_Y_POS
+        assert tab_control.rect.width == TEST_WIDTH
+        assert tab_control.rect.height == TEST_HEIGHT
 
     def test_tab_control_click_boundary_conditions(self):
         """Test TabControlSprite click boundary conditions."""

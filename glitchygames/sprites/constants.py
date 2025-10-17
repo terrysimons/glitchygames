@@ -1,11 +1,12 @@
 """Constants for the sprites module."""
 
+import unicodedata
+
 # Default file format for saving sprites
 DEFAULT_FILE_FORMAT = "toml"
 
 # Universal character set for sprite encoding
 # Original set plus all Unicode letters (excluding duplicates)
-import unicodedata
 
 # Start with the original set
 original_glyphs = ".aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@"

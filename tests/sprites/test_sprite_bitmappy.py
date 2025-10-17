@@ -16,7 +16,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestBitmappySprite:

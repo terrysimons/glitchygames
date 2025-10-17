@@ -12,6 +12,9 @@ from glitchygames.ui import MultiLineTextBox
 
 from tests.mocks import MockFactory
 
+# Test constants to avoid magic values
+TEST_CURSOR_POSITION_20 = 20
+
 
 class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
     """Test MultiLineTextBox cursor behavior with text wrapping."""
@@ -19,15 +22,17 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.patchers = MockFactory.setup_pygame_mocks()
-        
+        for patcher in self.patchers:
+            patcher.start()
+
         # Initialize pygame for real font operations
         pygame.init()
         pygame.display.set_mode((800, 600), pygame.HIDDEN)
 
     def tearDown(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
         pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_cursor_positioning_with_wrapped_text(self):
         """Test that cursor positioning works correctly with automatically wrapped text."""
@@ -46,7 +51,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             )
 
             # Set a long line that will be wrapped
-            long_text = "This is a very long line of text that should be automatically wrapped to multiple lines when it exceeds the width of the text box"
+            long_text = (
+                "This is a very long line of text that should be automatically "
+                "wrapped to multiple lines when it exceeds the width of the text box"
+            )
             textbox.text = long_text
             textbox.active = True
             textbox.cursor_pos = len(long_text)  # Position cursor at end
@@ -74,7 +82,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             )
 
             # Set a long line that will definitely wrap
-            long_text = "This is a very long line of text that will definitely be wrapped to multiple lines because it is much longer than the text box width"
+            long_text = (
+                "This is a very long line of text that will definitely be wrapped to "
+                "multiple lines because it is much longer than the text box width"
+            )
             textbox.text = long_text
             textbox.active = True
 
@@ -85,19 +96,14 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             # Update to trigger rendering and cursor positioning
             textbox.update()
 
-            # Let's check what the wrapped text looks like
-            wrapped_text = textbox._text
-            print(f"Original text length: {len(long_text)}")
-            print(f"Wrapped text length: {len(wrapped_text)}")
-            print(f"Original text: {repr(long_text)}")
-            print(f"Wrapped text: {repr(wrapped_text)}")
-            print(f"Cursor position: {cursor_pos}")
-            
+            # Debug information (removed print statements for linting)
+
             # Test the new cursor positioning logic
-            cursor_line, cursor_column = textbox._get_cursor_line_and_column_in_wrapped_text(cursor_pos)
-            print(f"Cursor line in wrapped text: {cursor_line}")
-            print(f"Cursor column in wrapped text: {cursor_column}")
-            
+            cursor_line, cursor_column = textbox._get_cursor_line_and_column_in_wrapped_text(
+                cursor_pos
+            )
+            # Debug information (removed print statements for linting)
+
             # The cursor should now be positioned correctly in the wrapped text
             assert textbox.cursor_pos == cursor_pos  # Original position is preserved
             assert cursor_line >= 0  # Should be on a valid line
@@ -118,7 +124,9 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             )
 
             # Text with both explicit newlines and long lines that will wrap
-            mixed_text = "Line 1\nThis is a very long line that will be wrapped automatically\nLine 3"
+            mixed_text = (
+                "Line 1\nThis is a very long line that will be wrapped automatically\nLine 3"
+            )
             textbox.text = mixed_text
             textbox.active = True
             textbox.cursor_pos = len(mixed_text)
@@ -153,7 +161,7 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             textbox.update()
 
             # Should not crash and cursor should be positioned
-            assert textbox.cursor_pos == 20
+            assert textbox.cursor_pos == TEST_CURSOR_POSITION_20
 
     def test_cursor_positioning_with_very_long_single_word(self):
         """Test cursor positioning when a single word is longer than the text box width."""
@@ -249,7 +257,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
                 name="TestTextBox"
             )
 
-            long_text = "This is a very long line that will definitely be wrapped to multiple lines because it is much longer than the text box width"
+            long_text = (
+                "This is a very long line that will definitely be wrapped to "
+                "multiple lines because it is much longer than the text box width"
+            )
             textbox.text = long_text
             textbox.active = True
 
@@ -260,10 +271,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             up_event = Mock()
             up_event.key = pygame.K_UP
             up_event.unicode = ""
-            
+
             # This should move the cursor up one line in the wrapped text
             textbox.on_key_down_event(up_event)
-            
+
             # The cursor should have moved up (exact position depends on line length)
             # For now, just verify it doesn't crash and cursor position is valid
             assert textbox.cursor_pos >= 0
@@ -273,10 +284,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             down_event = Mock()
             down_event.key = pygame.K_DOWN
             down_event.unicode = ""
-            
+
             # This should move the cursor down one line in the wrapped text
             textbox.on_key_down_event(down_event)
-            
+
             # The cursor should have moved down
             assert textbox.cursor_pos >= 0
             assert textbox.cursor_pos <= len(long_text)
@@ -295,7 +306,10 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
                 name="TestTextBox"
             )
 
-            long_text = "This is a very long line that will definitely be wrapped to multiple lines because it is much longer than the text box width"
+            long_text = (
+                "This is a very long line that will definitely be wrapped to "
+                "multiple lines because it is much longer than the text box width"
+            )
             textbox.text = long_text
             textbox.active = True
 
@@ -303,14 +317,13 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
             mock_event = Mock()
             mock_event.pos = (50, 50)  # Click on what should be the second line
 
-            print(f"Original text: {repr(long_text)}")
-            print(f"Wrapped text: {repr(textbox._text)}")
-            
+            # Debug information (removed print statements for linting)
+
             # This should position the cursor correctly in the original text
             textbox.on_left_mouse_button_down_event(mock_event)
-            
-            print(f"Cursor position after click: {textbox.cursor_pos}")
-            
+
+            # Debug information (removed print statements for linting)
+
             # The cursor position should be valid
             assert textbox.cursor_pos >= 0
             assert textbox.cursor_pos <= len(long_text)

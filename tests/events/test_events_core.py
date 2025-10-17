@@ -5,8 +5,9 @@ EventManager, ResourceManager, and utility functions.
 """
 
 import sys
+from abc import ABC, abstractmethod
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -14,17 +15,20 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.events import (
+from glitchygames.events import (  # noqa: I001
+    dump_cache_info,
     EventInterface,
     EventManager,
     HashableEvent,
     ResourceManager,
-    dump_cache_info,
     supported_events,
     unhandled_event,
 )
 
-from mocks.test_mock_factory import MockFactory
+
+# Constants for magic values
+MIN_ATTRIBUTES_1 = 1
+MIN_ATTRIBUTES_2 = 2
 
 
 class TestHashableEvent:
@@ -36,7 +40,7 @@ class TestHashableEvent:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         assert event.type == pygame.KEYDOWN
         assert event["key"] == pygame.K_SPACE
-        
+
         # Test with multiple attributes
         event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100), extra="test")
         assert event.type == pygame.MOUSEBUTTONDOWN
@@ -55,15 +59,15 @@ class TestHashableEvent:
     def test_hashable_event_item_access(self, mock_pygame_patches):
         """Test HashableEvent item access methods."""
         event = HashableEvent(pygame.MOUSEMOTION, pos=(200, 200), rel=(10, 10))
-        
+
         # Test __getitem__
         assert event["pos"] == (200, 200)
         assert event["rel"] == (10, 10)
-        
+
         # Test __setitem__
         event["new_attr"] = "test_value"
         assert event["new_attr"] == "test_value"
-        
+
         # Test __delitem__
         del event["new_attr"]
         with pytest.raises(KeyError):
@@ -73,17 +77,17 @@ class TestHashableEvent:
         """Test HashableEvent length."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         # HashableEvent includes type, key, and __hash attributes
-        assert len(event) >= 1  # At least 'key' attribute
-        
+        assert len(event) >= MIN_ATTRIBUTES_1  # At least 'key' attribute
+
         event["mod"] = pygame.KMOD_CTRL
-        assert len(event) >= 2  # At least 'key' and 'mod' attributes
+        assert len(event) >= MIN_ATTRIBUTES_2  # At least 'key' and 'mod' attributes
 
     def test_hashable_event_clear(self, mock_pygame_patches):
         """Test HashableEvent clear method."""
         event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
         initial_length = len(event)
-        assert initial_length >= 2  # At least button and pos
-        
+        assert initial_length >= MIN_ATTRIBUTES_2  # At least button and pos
+
         event.clear()
         assert len(event) == 0
 
@@ -91,10 +95,10 @@ class TestHashableEvent:
         """Test HashableEvent copy method."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_copy = event.copy()
-        
+
         assert event_copy["key"] == pygame.K_SPACE
         assert event_copy["mod"] == pygame.KMOD_CTRL
-        
+
         # Modify copy and ensure original is unchanged
         event_copy["key"] = pygame.K_RETURN
         assert event["key"] == pygame.K_SPACE  # Original unchanged
@@ -104,11 +108,11 @@ class TestHashableEvent:
         event1 = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         event2 = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         event3 = HashableEvent(pygame.KEYDOWN, key=pygame.K_RETURN)
-        
+
         # Same events should have same hash
         assert hash(event1) == hash(event2)
-        
-        # Different events should have different hashes (but this might not always be true due to hash collisions)
+
+        # Different events should have different hashes (but this might not always be true due to hash collisions)  # noqa: E501
         # So we'll just test that the hash function works without errors
         assert isinstance(hash(event1), int)
         assert isinstance(hash(event3), int)
@@ -116,14 +120,14 @@ class TestHashableEvent:
     def test_hashable_event_getstate_setstate(self, mock_pygame_patches):
         """Test HashableEvent __getstate__ and __setstate__ methods."""
         event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
-        
+
         # Test __getstate__
         state = event.__getstate__()
         assert isinstance(state, dict)
         assert state["type"] == pygame.MOUSEBUTTONDOWN
         assert state["button"] == 1
         assert state["pos"] == (100, 100)
-        
+
         # Test __setstate__ with simple values to avoid hash issues
         # We'll just test that __getstate__ works and returns the expected structure
         assert state["type"] == pygame.MOUSEBUTTONDOWN
@@ -166,7 +170,7 @@ class TestHashableEvent:
         event1 = HashableEvent(type=1, data="test")
         event2 = HashableEvent(type=1, data="test")
         event3 = HashableEvent(type=2, data="test")
-        
+
         assert event1 == event2
         assert event1 != event3
 
@@ -174,7 +178,7 @@ class TestHashableEvent:
         """Test HashableEvent.__ne__ method."""
         event1 = HashableEvent(type=1, data="test")
         event2 = HashableEvent(type=2, data="test")
-        
+
         assert event1 != event2
 
     def test_hashable_event_str(self, mock_pygame_patches):
@@ -200,11 +204,11 @@ class TestEventInterface:
         # Test that the subclasshook method exists and can be called
         assert hasattr(EventInterface, "__subclasshook__")
         assert callable(EventInterface.__subclasshook__)
-        
+
         # Test that it can be called with a simple class
         class SimpleClass:
             pass
-        
+
         # The subclasshook method has a bug where it tries to access __abstractmethods__
         # on regular classes, so we expect it to raise an AttributeError
         with pytest.raises(AttributeError):
@@ -212,14 +216,13 @@ class TestEventInterface:
 
     def test_event_interface_subclasshook_invalid_implementation(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with invalid implementation."""
-        from abc import ABC, abstractmethod
-        
+
         class InvalidEventClass(ABC):
             @abstractmethod
             def on_key_down_event(self, event):
                 pass
             # Missing on_key_up_event
-        
+
         # Test the subclasshook directly without log patching
         result = EventInterface.__subclasshook__(InvalidEventClass)
         # Should return False for invalid implementation
@@ -227,11 +230,10 @@ class TestEventInterface:
 
     def test_event_interface_subclasshook_empty_attributes(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with empty attributes."""
-        from abc import ABC
-        
-        class EmptyEventClass(ABC):
+
+        class EmptyEventClass(ABC):  # noqa: B024
             pass
-        
+
         # Test the subclasshook directly without log patching
         result = EventInterface.__subclasshook__(EmptyEventClass)
         # Should return False for empty implementation
@@ -258,7 +260,7 @@ class TestEventManager:
         """Test EventManager.EventProxy initialization."""
         mock_event_source = Mock()
         proxy = EventManager.EventProxy(mock_event_source)
-        
+
         assert proxy.event_source == mock_event_source
         assert hasattr(proxy, "proxies")
         assert isinstance(proxy.proxies, list)
@@ -268,24 +270,22 @@ class TestEventManager:
         """Test EventManager.EventProxy unhandled_event method."""
         mock_event_source = Mock()
         proxy = EventManager.EventProxy(mock_event_source)
-        
+
         # Mock the log to avoid actual logging
-        with patch.object(proxy, "log") as mock_log:
-            # Mock inspect.stack to return a predictable result
-            with patch("inspect.stack") as mock_stack:
-                mock_stack.return_value = [None, Mock(function="test_handler")]
-                
-                event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-                proxy.unhandled_event(event=event, trigger="test_trigger")
-                
-                # Verify log was called
-                mock_log.debug.assert_called_once()
+        with patch.object(proxy, "log") as mock_log, patch("inspect.stack") as mock_stack:
+            mock_stack.return_value = [None, Mock(function="test_handler")]
+
+            event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
+            proxy.unhandled_event(event=event, trigger="test_trigger")
+
+            # Verify log was called
+            mock_log.debug.assert_called_once()
 
     def test_event_proxy_getattr(self, mock_pygame_patches):
         """Test EventManager.EventProxy __getattr__ method."""
         mock_event_source = Mock()
         proxy = EventManager.EventProxy(mock_event_source)
-        
+
         # Test that __getattr__ returns unhandled_event method
         result = proxy.nonexistent_method
         assert result == proxy.unhandled_event
@@ -310,20 +310,20 @@ class TestEventManager:
         """Test EventManager.__getattr__ with proxy that raises AttributeError."""
         # Create EventManager with proxy that raises AttributeError
         event_manager = EventManager()
-        
+
         # Create a custom proxy class that raises AttributeError
         class FailingProxy:
             def __getattr__(self, name):
                 raise AttributeError("Proxy method not found")
-        
+
         event_manager.proxies = [FailingProxy()]
         event_manager.log = Mock()
-        
+
         # EventManager uses ResourceManager.__getattr__ which tries proxies
         # When proxy raises AttributeError, it logs and re-raises
         with pytest.raises(AttributeError):
             _ = event_manager.test_method
-        
+
         assert event_manager.log.exception.called
 
 
@@ -341,7 +341,7 @@ class TestResourceManager:
         """Test ResourceManager __getattr__ method."""
         mock_game = Mock()
         manager = ResourceManager(game=mock_game)
-        
+
         # Test that __getattr__ raises AttributeError for missing attributes
         with pytest.raises(AttributeError):
             _ = manager.nonexistent_attribute
@@ -363,7 +363,7 @@ class TestResourceManager:
         """Test ResourceManager.register method."""
         mock_game = Mock()
         resource_manager = ResourceManager(game=mock_game)
-        
+
         # ResourceManager doesn't have a register method, it delegates to proxies
         # Test that accessing register raises AttributeError when no proxies
         with pytest.raises(AttributeError):
@@ -373,7 +373,7 @@ class TestResourceManager:
         """Test ResourceManager.process_events method."""
         mock_game = Mock()
         resource_manager = ResourceManager(game=mock_game)
-        
+
         # ResourceManager doesn't have a process_events method, it delegates to proxies
         # Test that accessing process_events raises AttributeError when no proxies
         with pytest.raises(AttributeError):
@@ -383,7 +383,7 @@ class TestResourceManager:
         """Test ResourceManager.cleanup method."""
         mock_game = Mock()
         resource_manager = ResourceManager(game=mock_game)
-        
+
         # ResourceManager doesn't have a cleanup method, it delegates to proxies
         # Test that accessing cleanup raises AttributeError when no proxies
         with pytest.raises(AttributeError):
@@ -399,14 +399,14 @@ class TestEventSystemUtilities:
         all_events = supported_events()
         assert isinstance(all_events, list)
         assert len(all_events) > 0
-        
+
         # Test specific patterns
         audio_events = supported_events(like="AUDIO.*?")
         assert isinstance(audio_events, list)
-        
+
         mouse_events = supported_events(like="MOUSE.*?")
         assert isinstance(mouse_events, list)
-        
+
         keyboard_events = supported_events(like="KEY.*?")
         assert isinstance(keyboard_events, list)
 
@@ -434,18 +434,16 @@ class TestEventSystemUtilities:
         mock_game = Mock()
         mock_game.options = {
             "debug_events": True,
-            "no_unhandled_events": False
+            "no_unhandled_events": True
         }
-        
+
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-        
+
         # Test with debug_events enabled
         with patch("glitchygames.events.LOG") as mock_log:
-            try:
+            with pytest.raises(SystemExit):
                 unhandled_event(mock_game, event)
-            except SystemExit:
-                pass  # Expected behavior
-            
+
             # Verify logging was called
             mock_log.error.assert_called()
 
@@ -457,9 +455,9 @@ class TestEventSystemUtilities:
             "debug_events": False,
             "no_unhandled_events": True
         }
-        
+
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-        
+
         # Test with no_unhandled_events enabled (should raise SystemExit)
         with pytest.raises(SystemExit):
             unhandled_event(mock_game, event)
@@ -469,9 +467,9 @@ class TestEventSystemUtilities:
         # Mock a game object with missing options
         mock_game = Mock()
         mock_game.options = {}
-        
+
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-        
+
         # Test with missing options (should log errors but not necessarily raise SystemExit)
         with patch("glitchygames.events.LOG") as mock_log:
             unhandled_event(mock_game, event)
@@ -482,13 +480,13 @@ class TestEventSystemUtilities:
         """Test unhandled_event with debug_events=True."""
         mock_game = Mock()
         mock_game.options = {"debug_events": True, "no_unhandled_events": False}
-        
+
         mock_event = Mock()
         mock_event.type = 2  # pygame.KEYDOWN
-        
+
         with patch("glitchygames.events.LOG") as mock_log:
             unhandled_event(mock_game, mock_event)
-            
+
             # Verify error logging was called (the function uses LOG.error, not game.log.debug)
             mock_log.error.assert_called()
 
@@ -496,13 +494,13 @@ class TestEventSystemUtilities:
         """Test unhandled_event with no_unhandled_events=True."""
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": True}
-        
+
         mock_event = Mock()
         mock_event.type = 2  # pygame.KEYDOWN
-        
+
         with patch("sys.exit") as mock_exit:
             unhandled_event(mock_game, mock_event)
-            
+
             # Verify sys.exit was called with -1 (not 1)
             mock_exit.assert_called_once_with(-1)
 
@@ -510,13 +508,13 @@ class TestEventSystemUtilities:
         """Test unhandled_event with missing options."""
         mock_game = Mock()
         mock_game.options = {}  # Missing options
-        
+
         mock_event = Mock()
         mock_event.type = 2  # pygame.KEYDOWN
-        
+
         with patch("glitchygames.events.LOG") as mock_log:
             unhandled_event(mock_game, mock_event)
-            
+
             # Verify error logging was called
             mock_log.error.assert_called()
 
@@ -525,11 +523,11 @@ class TestEventSystemUtilities:
         mock_func = Mock()
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
-        
+
         # Test dump_cache_info with func - it returns a wrapper
         wrapper = dump_cache_info(mock_func)
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -540,7 +538,7 @@ class TestEventSystemUtilities:
         mock_func = Mock()
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
-        
+
         # Test dump_cache_info with all parameters (they're ignored in the current implementation)
         wrapper = dump_cache_info(
             mock_func,
@@ -550,7 +548,7 @@ class TestEventSystemUtilities:
             flush=True
         )
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -562,10 +560,10 @@ class TestEventSystemUtilities:
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
         mock_file = Mock()
-        
+
         wrapper = dump_cache_info(mock_func, file=mock_file)
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -576,10 +574,10 @@ class TestEventSystemUtilities:
         mock_func = Mock()
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
-        
+
         wrapper = dump_cache_info(mock_func, sep="|")
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -590,10 +588,10 @@ class TestEventSystemUtilities:
         mock_func = Mock()
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
-        
+
         wrapper = dump_cache_info(mock_func, end="\r\n")
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -604,10 +602,10 @@ class TestEventSystemUtilities:
         mock_func = Mock()
         mock_func.cache_info.return_value = Mock()
         mock_func.__name__ = "test_func"
-        
+
         wrapper = dump_cache_info(mock_func, flush=True)
         assert callable(wrapper)
-        
+
         # Test calling the wrapper
         mock_game = Mock()
         wrapper(mock_game)
@@ -691,11 +689,59 @@ class TestEventSystemUtilities:
         mock_event = Mock()
         mock_event.type = pygame.KEYDOWN
 
-        with patch("glitchygames.events.LOG") as mock_log:
+        with patch("glitchygames.events.LOG") as mock_log, \
+             patch("sys.exit") as mock_exit:
             unhandled_event(mock_game, mock_event)
 
             # Should not log anything when both are False
             mock_log.error.assert_not_called()
+            # Should not exit when no_unhandled_events is False
+            mock_exit.assert_not_called()
+
+    def test_unhandled_event_no_exit_when_false(self, mock_pygame_patches):
+        """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=False."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": False, "no_unhandled_events": False}
+        
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+        
+        # This should NOT raise any exception
+        unhandled_event(mock_game, mock_event)
+        # Test passes if no exception is raised
+
+    def test_unhandled_event_no_exit_when_none(self, mock_pygame_patches):
+        """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=None."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": False, "no_unhandled_events": None}
+        
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+        
+        # This should NOT raise any exception (but should log an error about missing option)
+        with patch("glitchygames.events.LOG") as mock_log, \
+             patch("sys.exit") as mock_exit:
+            unhandled_event(mock_game, mock_event)
+            # Should log error about missing option but not exit
+            mock_log.error.assert_called()
+            mock_exit.assert_not_called()
+
+    def test_unhandled_event_no_exit_when_debug_true_unhandled_false(self, mock_pygame_patches):
+        """Test that unhandled_event does NOT raise SystemExit when debug_events=True, no_unhandled_events=False."""
+        mock_game = Mock()
+        mock_game.options = {"debug_events": True, "no_unhandled_events": False}
+        
+        mock_event = Mock()
+        mock_event.type = pygame.KEYDOWN
+        
+        with patch("pygame.event.event_name", return_value="KEYDOWN"), \
+             patch("glitchygames.events.LOG") as mock_log, \
+             patch("sys.exit") as mock_exit:
+            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+            
+            # Should log debug message but NOT exit
+            mock_log.error.assert_called_once()
+            mock_exit.assert_not_called()
 
     def test_unhandled_event_both_true(self, mock_pygame_patches):
         """Test unhandled_event with both options True."""
@@ -756,7 +802,7 @@ class TestEventSystemUtilities:
         """ResourceManager should delegate to proxies or raise AttributeError."""
 
         class Dummy:
-            def foo(self):  # noqa: PLR6301
+            def foo(self):
                 return "bar"
 
         class DummyManager(ResourceManager):

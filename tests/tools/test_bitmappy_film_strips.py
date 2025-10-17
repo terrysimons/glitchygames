@@ -7,16 +7,22 @@ and integration with the bitmap editor scene.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripDeleteTab, FilmStripTab, FilmStripWidget
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks import MockFactory
+
+# Test constants to avoid magic values
+TEST_SIZE_10 = 10
+TEST_SIZE_20 = 20
+TEST_SIZE_40 = 40
+TEST_SIZE_2 = 2
+TEST_SIZE_3 = 3
 
 
 class TestFilmStripAddDeleteFunctionality(unittest.TestCase):
@@ -42,10 +48,10 @@ class TestFilmStripAddDeleteFunctionality(unittest.TestCase):
         tab = FilmStripTab(x=10, y=20, width=40, height=10)
 
         # Assert
-        assert tab.rect.x == 10
-        assert tab.rect.y == 20
-        assert tab.rect.width == 40
-        assert tab.rect.height == 10
+        assert tab.rect.x == TEST_SIZE_10
+        assert tab.rect.y == TEST_SIZE_20
+        assert tab.rect.width == TEST_SIZE_40
+        assert tab.rect.height == TEST_SIZE_10
         assert tab.insertion_type == "after"
         assert tab.target_frame_index == 0
         assert not tab.is_clicked
@@ -57,10 +63,10 @@ class TestFilmStripAddDeleteFunctionality(unittest.TestCase):
         delete_tab = FilmStripDeleteTab(x=10, y=20, width=40, height=10)
 
         # Assert
-        assert delete_tab.rect.x == 10
-        assert delete_tab.rect.y == 20
-        assert delete_tab.rect.width == 40
-        assert delete_tab.rect.height == 10
+        assert delete_tab.rect.x == TEST_SIZE_10
+        assert delete_tab.rect.y == TEST_SIZE_20
+        assert delete_tab.rect.width == TEST_SIZE_40
+        assert delete_tab.rect.height == TEST_SIZE_10
         assert delete_tab.insertion_type == "delete"
         assert delete_tab.target_frame_index == 0
         assert not delete_tab.is_clicked
@@ -126,7 +132,7 @@ class TestFilmStripAddDeleteFunctionality(unittest.TestCase):
 
         # Assert
         assert tab.insertion_type == "after"
-        assert tab.target_frame_index == 2
+        assert tab.target_frame_index == TEST_SIZE_2
 
     def test_film_strip_delete_tab_set_insertion_type(self):
         """Test FilmStripDeleteTab insertion type setting."""
@@ -160,11 +166,11 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_add_new_animation_creates_strip(self):
         """Test that adding new animation creates a new film strip."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
-            
+
             # Use centralized mocks
             scene.canvas = MockFactory().create_canvas_mock()
             scene.canvas.animated_sprite = Mock()
@@ -178,13 +184,13 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
             scene._add_new_animation()
 
             # Assert
-            assert len(scene.canvas.animated_sprite._animations) == 2
+            assert len(scene.canvas.animated_sprite._animations) == TEST_SIZE_2
             assert "strip_2" in scene.canvas.animated_sprite._animations
             scene._on_sprite_loaded.assert_called_once()
 
     def test_add_new_animation_with_insert_after_index(self):
         """Test adding new animation at specific index."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -202,14 +208,14 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
             # Assert
             animations = list(scene.canvas.animated_sprite._animations.keys())
-            assert len(animations) == 3
+            assert len(animations) == TEST_SIZE_3
             assert animations[0] == "strip_1"
             assert animations[1] == "strip_3"  # New strip inserted
             assert animations[2] == "strip_2"
 
     def test_delete_animation_removes_strip(self):
         """Test that deleting animation removes the film strip."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -231,7 +237,7 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_delete_animation_prevents_last_strip_deletion(self):
         """Test that deleting the last remaining strip is prevented."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -251,7 +257,7 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_delete_animation_scroll_offset_calculation(self):
         """Test that deleting animation sets correct scroll offset."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -271,7 +277,7 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_delete_animation_scroll_offset_last_strip(self):
         """Test that deleting last strip shows previous 2 strips."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -291,7 +297,7 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_delete_animation_scroll_offset_many_strips(self):
         """Test that deleting strip with many strips shows appropriate offset."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -313,7 +319,7 @@ class TestBitmapEditorFilmStripIntegration(unittest.TestCase):
 
     def test_delete_animation_switches_to_first_remaining(self):
         """Test that deleting animation switches to first remaining animation."""
-        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as mock_setup_canvas:
+        with patch("glitchygames.tools.bitmappy.BitmapEditorScene._setup_canvas") as _:
             # Arrange
             options = {}
             scene = BitmapEditorScene(options)
@@ -375,7 +381,7 @@ class TestFilmStripWidgetIntegration(unittest.TestCase):
 
         # Assert - should create add, delete, and frame tabs
         # Should have: 1 delete tab + 1 add tab + 2 frame tabs = 4 tabs
-        assert len(widget.film_tabs) >= 2  # At least add and delete tabs
+        assert len(widget.film_tabs) >= TEST_SIZE_2  # At least add and delete tabs
         assert any(isinstance(tab, FilmStripTab) for tab in widget.film_tabs)
         assert any(isinstance(tab, FilmStripDeleteTab) for tab in widget.film_tabs)
 
@@ -424,7 +430,10 @@ class TestFilmStripWidgetIntegration(unittest.TestCase):
         # Set up canvas for parent_scene
         widget.parent_scene.canvas = Mock()
         widget.parent_scene.canvas.animated_sprite = Mock()
-        widget.parent_scene.canvas.animated_sprite._animations = {"test_animation": [], "other_animation": []}
+        widget.parent_scene.canvas.animated_sprite._animations = {
+            "test_animation": [],
+            "other_animation": []
+        }
 
         # Create mock animated sprite with frames
         animated_sprite = Mock()

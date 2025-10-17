@@ -8,7 +8,8 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import Dict, Optional
+
+# from typing import Optional  # Not used
 
 # Try to import speech recognition, but don't fail if it's not available
 try:
@@ -22,7 +23,7 @@ except ImportError:
 class VoiceRecognitionManager:
     """Manages voice recognition and command processing."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize the voice recognition manager.
 
         Args:
@@ -32,9 +33,9 @@ class VoiceRecognitionManager:
         self.log = logger or logging.getLogger(__name__)
         self.is_listening = False
         self.listen_thread = None
-        self.commands: Dict[str, Callable[[], None]] = {}
+        self.commands: dict[str, Callable[[], None]] = {}
         self.stop_listening_event = threading.Event()
-        
+
         # Initialize speech recognition components if available
         if SPEECH_RECOGNITION_AVAILABLE:
             self.recognizer = sr.Recognizer()
@@ -45,7 +46,7 @@ class VoiceRecognitionManager:
             self.recognizer = None
             self.microphone = None
             self.log.warning("Speech recognition not available - voice commands disabled")
-        
+
         # Register default commands
         self._register_default_commands()
 
@@ -54,18 +55,17 @@ class VoiceRecognitionManager:
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.microphone = None
             return
-            
+
         try:
             self.microphone = sr.Microphone()
             self.log.info("Microphone initialized successfully")
-        except Exception as e:
-            self.log.error(f"Failed to initialize microphone: {e}")
+        except Exception:
+            self.log.exception("Failed to initialize microphone")
             self.microphone = None
 
     def _register_default_commands(self) -> None:
         """Register default voice commands."""
         # This will be populated by the scene that uses this manager
-        pass
 
     def register_command(self, phrase: str, callback: Callable[[], None]) -> None:
         """Register a voice command.
@@ -83,7 +83,7 @@ class VoiceRecognitionManager:
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.log.warning("Cannot start listening: speech recognition not available")
             return
-            
+
         if self.is_listening:
             self.log.warning("Voice recognition is already listening")
             return
@@ -105,21 +105,21 @@ class VoiceRecognitionManager:
 
         self.is_listening = False
         self.stop_listening_event.set()
-        
+
         if self.listen_thread and self.listen_thread.is_alive():
             self.listen_thread.join(timeout=2.0)  # Increased timeout
             # Force cleanup if thread is still alive
             if self.listen_thread.is_alive():
                 self.log.warning("Voice recognition thread did not stop cleanly")
-        
+
         self.log.info("Voice recognition stopped")
 
     def _listen_loop(self) -> None:
-        """Main listening loop running in a separate thread."""
+        """Run the main listening loop in a separate thread."""
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.log.error("Cannot start listen loop: speech recognition not available")
             return
-            
+
         # Open microphone once and keep it open for the duration
         with self.microphone as source:
             # Adjust for ambient noise once at the start
@@ -131,7 +131,7 @@ class VoiceRecognitionManager:
                     # Listen for audio with timeout
                     self.log.debug("Listening for voice input...")
                     audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
-                    
+
                     # Recognize speech
                     try:
                         text = self.recognizer.recognize_google(audio).lower()
@@ -140,16 +140,16 @@ class VoiceRecognitionManager:
                     except sr.UnknownValueError:
                         # Speech was unintelligible, continue listening
                         self.log.debug("Could not understand audio")
-                    except sr.RequestError as e:
-                        self.log.error(f"Speech recognition service error: {e}")
+                    except sr.RequestError:
+                        self.log.exception("Speech recognition service error")
                         # Wait a bit before trying again
                         time.sleep(2)
 
                 except sr.WaitTimeoutError:
                     # Timeout is normal, continue listening
                     continue
-                except Exception as e:
-                    self.log.error(f"Error in voice recognition loop: {e}")
+                except Exception:
+                    self.log.exception("Error in voice recognition loop")
                     time.sleep(1)
 
     def _process_command(self, text: str) -> None:
@@ -164,18 +164,20 @@ class VoiceRecognitionManager:
             self.log.info(f"Executing voice command: '{text}'")
             try:
                 self.commands[text]()
-            except Exception as e:
-                self.log.error(f"Error executing voice command '{text}': {e}")
+            except Exception:
+                self.log.exception(f"Error executing voice command '{text}'")
             return
 
         # Check for partial matches (commands that contain the text)
         for command_phrase, callback in self.commands.items():
             if command_phrase in text:
-                self.log.info(f"Executing partial match voice command: '{command_phrase}' from '{text}'")
+                self.log.info(
+                    f"Executing partial match voice command: '{command_phrase}' from '{text}'"
+                )
                 try:
                     callback()
-                except Exception as e:
-                    self.log.error(f"Error executing voice command '{command_phrase}': {e}")
+                except Exception:
+                    self.log.exception(f"Error executing voice command '{command_phrase}'")
                 return
 
         self.log.debug(f"No voice command found for: '{text}'")

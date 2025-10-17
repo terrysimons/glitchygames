@@ -286,11 +286,17 @@ pixels = \"\"\"
                     with patch.object(
                         self.scene.canvas, "_resize_canvas_to_sprite_size"
                     ) as mock_resize:
-                        # Call the method
-                        self.scene.canvas.on_load_file_event(event)
+                        # Mock other methods to prevent side effects
+                        with (
+                            patch.object(self.scene.canvas, "_setup_animation_state"),
+                            patch.object(self.scene.canvas, "_update_ui_components"),
+                            patch.object(self.scene.canvas, "_finalize_sprite_loading"),
+                        ):
+                            # Call the method
+                            self.scene.canvas.on_load_file_event(event)
 
-                        # Verify resize was called
-                        mock_resize.assert_called_once_with(10, 10)
+                            # Verify resize was called
+                            mock_resize.assert_called_once_with(10, 10)
 
         finally:
             # Clean up

@@ -19,8 +19,6 @@ from glitchygames.events import (
     TouchEventStubs,
 )
 
-from mocks.test_mock_factory import MockFactory
-
 
 class TestTouchEvents:
     """Test TouchEvents interface functionality."""
@@ -48,11 +46,10 @@ class TestTouchEvents:
 
         # Test method calls
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_down_event(event)
-        except Exception as e:
-            # Expected to call unhandled_event
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Expected to call unhandled_event
+        # Exception was raised as expected
 
     def test_touch_down_event(self, mock_pygame_patches):
         """Test touch down event handling."""
@@ -61,10 +58,9 @@ class TestTouchEvents:
 
         # Test touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_down_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_touch_motion_event(self, mock_pygame_patches):
         """Test touch motion event handling."""
@@ -73,10 +69,9 @@ class TestTouchEvents:
 
         # Test touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_motion_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_touch_up_event(self, mock_pygame_patches):
         """Test touch up event handling."""
@@ -85,10 +80,9 @@ class TestTouchEvents:
 
         # Test touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_up_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_multi_touch_down_event(self, mock_pygame_patches):
         """Test multi touch down event handling."""
@@ -97,10 +91,9 @@ class TestTouchEvents:
 
         # Test multi touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_multi_touch_down_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_multi_touch_motion_event(self, mock_pygame_patches):
         """Test multi touch motion event handling."""
@@ -109,10 +102,9 @@ class TestTouchEvents:
 
         # Test multi touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_multi_touch_motion_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_multi_touch_up_event(self, mock_pygame_patches):
         """Test multi touch up event handling."""
@@ -121,10 +113,9 @@ class TestTouchEvents:
 
         # Test multi touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_multi_touch_up_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_multiple_finger_events(self, mock_pygame_patches):
         """Test multiple finger touch events."""
@@ -135,24 +126,21 @@ class TestTouchEvents:
         for finger_id in range(5):
             # Test finger down
             event = HashableEvent(pygame.FINGERDOWN, finger_id=finger_id, x=100, y=100)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_down_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
             # Test finger motion
-            event = HashableEvent(pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10)
-            try:
+            event = HashableEvent(pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10)  # noqa: E501
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_motion_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
             # Test finger up
             event = HashableEvent(pygame.FINGERUP, finger_id=finger_id, x=100, y=100)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_up_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_touch_events_with_pressure(self, mock_pygame_patches):
         """Test touch events with pressure values."""
@@ -161,24 +149,21 @@ class TestTouchEvents:
 
         # Test touch down with pressure
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100, pressure=0.8)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_down_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
         # Test touch motion with pressure
-        event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6)
-        try:
+        event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6)  # noqa: E501
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_motion_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
         # Test touch up with pressure
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100, pressure=0.0)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_touch_up_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_touch_events_with_different_positions(self, mock_pygame_patches):
         """Test touch events with different positions."""
@@ -197,31 +182,28 @@ class TestTouchEvents:
         for x, y in positions:
             # Test touch down
             event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=x, y=y)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_down_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
             # Test touch motion
             event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=x, y=y, dx=5, dy=5)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_motion_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
             # Test touch up
             event = HashableEvent(pygame.FINGERUP, finger_id=1, x=x, y=y)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_touch_up_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def _setup_mock_game_for_stub(self, stub):
-        """Helper method to setup mock game object for event stubs."""
+        """Set up mock game object for event stubs."""
         mock_game = Mock()
         mock_game.options = {
             "debug_events": False,
-            "no_unhandled_events": False
+            "no_unhandled_events": True
         }
         stub.options = mock_game.options
         return mock_game

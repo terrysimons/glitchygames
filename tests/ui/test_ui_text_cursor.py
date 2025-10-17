@@ -13,7 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import TextSprite
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks import MockFactory
+
+# Test constants to avoid magic values
+TEST_CURSOR_BLINK_RATE = 2
 
 
 class TestTextSpriteCursorFunctionality(unittest.TestCase):
@@ -72,7 +75,7 @@ class TestTextSpriteCursorFunctionality(unittest.TestCase):
             text_sprite.update()
 
             # Assert - should set dirty flag for redraw
-            assert text_sprite.dirty == 2
+            assert text_sprite.dirty == TEST_CURSOR_BLINK_RATE
 
     def test_text_sprite_cursor_not_blinking_when_inactive(self):
         """Test TextSprite cursor not blinking when inactive."""
@@ -257,7 +260,7 @@ class TestTextSpriteCursorFunctionality(unittest.TestCase):
             text_sprite.update()
 
             # Assert - should set dirty flag to 2 for cursor updates
-            assert text_sprite.dirty == 2
+            assert text_sprite.dirty == TEST_CURSOR_BLINK_RATE
 
     def test_text_sprite_cursor_timer_wraparound(self):
         """Test TextSprite cursor timer wraparound behavior."""

@@ -409,7 +409,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
                 print(f"DEBUG RENDERER: border_thickness={border_thickness}")
-                
+
                 for i, pixel in enumerate(frame_pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -431,7 +431,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
-                
+
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -453,7 +453,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
             # Use the border thickness set by the canvas sprite
             border_thickness = self.canvas_sprite.border_thickness
-            
+
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height

@@ -1113,9 +1113,13 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._load_static_toml(filename)
-        else:
-            raise ValueError(f"Unsupported file format: {file_format}. Only TOML format is supported.")
+        raise ValueError(
+            f"Unsupported file format: {file_format}. Only TOML format is supported."
+        )
 
+    def _raise_too_many_colors_error(self, color_count: int) -> None:
+        """Raise an error for too many colors."""
+        raise ValueError(f"Too many colors: {color_count} > {len(self.SPRITE_CHARS)}")
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file."""
@@ -1296,8 +1300,8 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Sample pixels: {self.pixels[:10]}")
 
             # Check if there are too many colors
-            if len(unique_colors) > len(SPRITE_GLYPHS):
-                raise ValueError(f"Too many colors: {len(unique_colors)} > {len(SPRITE_GLYPHS)}")
+            if len(unique_colors) > len(self.SPRITE_CHARS):
+                self._raise_too_many_colors_error(len(unique_colors))
 
             # Create color to character mapping using the helper method
             color_map = self._create_color_map()
@@ -1318,7 +1322,9 @@ class BitmappySprite(Sprite):
             # Return the successfully created configuration
             return config
 
-    def _process_pixel_rows(self, color_map: dict, pixels_across: int = None, pixels_tall: int = None) -> list[str]:
+    def _process_pixel_rows(
+        self, color_map: dict, pixels_across: int | None = None, pixels_tall: int | None = None
+    ) -> list[str]:
         """Process pixels into rows of characters.
 
         Args:
@@ -1353,7 +1359,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _create_toml_config(self, pixel_rows: list[str] = None, color_map: dict = None) -> dict:
+    def _create_toml_config(self, pixel_rows: list[str] | None = None, color_map: dict | None = None) -> dict:
         """Create TOML configuration.
 
         Args:
@@ -1416,7 +1422,7 @@ class BitmappySprite(Sprite):
     @staticmethod
     def _raise_too_many_colors_error(max_colors: int) -> None:
         """Raise an error for too many colors."""
-        raise ValueError(f"Too many colors (max {max_colors})")
+        raise ValueError(f"Too many colors: {max_colors} > 64")
 
     def _create_color_map(self: Self) -> dict:
         """Create a color map from the sprite's pixels.
@@ -1434,7 +1440,7 @@ class BitmappySprite(Sprite):
 
         # Filter out dangerous characters that could break file formats
         dangerous_chars = {"\n", "\r", "\t", "\0", "\b", "\f", "\v", "\a"}
-        printable_chars = "".join(c for c in SPRITE_GLYPHS if c not in dangerous_chars)
+        printable_chars = "".join(c for c in self.SPRITE_CHARS if c not in dangerous_chars)
 
         # Assign characters sequentially from SPRITE_CHARS
         for char_index, color in enumerate(unique_colors):

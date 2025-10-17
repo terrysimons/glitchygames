@@ -265,8 +265,8 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors.append((r, g, b))
 
         sprite.pixels = colors
-        sprite.pixels_across = 9
-        sprite.pixels_tall = 9
+        sprite.pixels_across = 13  # 13 * 5 = 65 pixels, exactly matching 65 colors
+        sprite.pixels_tall = 5
 
         with pytest.raises(ValueError, match="Too many colors"):
             sprite.save(str(self.temp_path / "test_error.toml"), "toml")

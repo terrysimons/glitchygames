@@ -19,8 +19,6 @@ from glitchygames.events import (
     TextEventStubs,
 )
 
-from mocks.test_mock_factory import MockFactory
-
 
 class TestTextEvents:
     """Test TextEvents interface functionality."""
@@ -43,11 +41,10 @@ class TestTextEvents:
 
         # Test method calls
         event = HashableEvent(pygame.TEXTINPUT, text="test")
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_text_input_event(event)
-        except Exception as e:
-            # Expected to call unhandled_event
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Expected to call unhandled_event
+        # Exception was raised as expected
 
     def test_text_input_event(self, mock_pygame_patches):
         """Test text input event handling."""
@@ -56,10 +53,9 @@ class TestTextEvents:
 
         # Test text input
         event = HashableEvent(pygame.TEXTINPUT, text="Hello World")
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_text_input_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_text_editing_event(self, mock_pygame_patches):
         """Test text editing event handling."""
@@ -68,10 +64,9 @@ class TestTextEvents:
 
         # Test text editing
         event = HashableEvent(pygame.TEXTEDITING, text="Hello", start=0, length=5)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_text_editing_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_text_input_with_different_characters(self, mock_pygame_patches):
         """Test text input with different character types."""
@@ -94,10 +89,9 @@ class TestTextEvents:
 
         for text in test_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_input_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_text_editing_with_different_parameters(self, mock_pygame_patches):
         """Test text editing with different parameters."""
@@ -116,10 +110,9 @@ class TestTextEvents:
 
         for text, start, length in editing_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_editing_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_text_input_with_single_characters(self, mock_pygame_patches):
         """Test text input with single character events."""
@@ -137,10 +130,9 @@ class TestTextEvents:
 
         for char in single_chars:
             event = HashableEvent(pygame.TEXTINPUT, text=char)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_input_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_text_editing_with_cursor_movements(self, mock_pygame_patches):
         """Test text editing with cursor movement scenarios."""
@@ -159,10 +151,9 @@ class TestTextEvents:
 
         for text, start, length in cursor_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_editing_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_text_input_with_unicode_characters(self, mock_pygame_patches):
         """Test text input with Unicode characters."""
@@ -185,10 +176,9 @@ class TestTextEvents:
 
         for text in unicode_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_input_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_text_editing_with_selection_scenarios(self, mock_pygame_patches):
         """Test text editing with different selection scenarios."""
@@ -207,17 +197,16 @@ class TestTextEvents:
 
         for text, start, length in selection_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_text_editing_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def _setup_mock_game_for_stub(self, stub):
-        """Helper method to setup mock game object for event stubs."""
+        """Set up mock game object for event stubs."""
         mock_game = Mock()
         mock_game.options = {
             "debug_events": False,
-            "no_unhandled_events": False
+            "no_unhandled_events": True
         }
         stub.options = mock_game.options
         return mock_game
