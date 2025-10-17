@@ -509,7 +509,9 @@ class GameEngine(events.EventManager):
         if self.windowed:
             self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
-            self.mode_flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+            self.mode_flags = (
+                pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+            )
 
         self.desired_resolution: tuple[int, int] = self.suggested_resolution(
             desired_width,
@@ -858,6 +860,7 @@ class GameEngine(events.EventManager):
         """
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger("game")
+
         self.log.info("Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
@@ -900,7 +903,7 @@ class GameEngine(events.EventManager):
 
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
-        except Exception as e:
+        except Exception:
             self.log.exception("Error starting game.")
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed

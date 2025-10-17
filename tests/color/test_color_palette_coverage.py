@@ -24,7 +24,7 @@ from glitchygames.color.palette import ColorPalette, PaletteUtility
 class TestColorPaletteCoverage:
     """Test coverage for ColorPalette class."""
 
-    def test_color_palette_initialization_with_colors(self):  # noqa: PLR6301
+    def test_color_palette_initialization_with_colors(self):
         """Test ColorPalette initialization with colors list."""
         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         palette = ColorPalette(colors)
@@ -33,7 +33,7 @@ class TestColorPaletteCoverage:
         expected_size = 2  # len(colors) - 1
         assert palette._size == expected_size
 
-    def test_color_palette_initialization_with_filename(self):  # noqa: PLR6301
+    def test_color_palette_initialization_with_filename(self):
         """Test ColorPalette initialization with filename."""
         mock_colors = [(255, 0, 0), (0, 255, 0)]
 
@@ -49,14 +49,14 @@ class TestColorPaletteCoverage:
             assert palette._colors == mock_colors
             assert palette._size == 1
 
-    def test_color_palette_initialization_no_colors_no_filename(self):  # noqa: PLR6301
+    def test_color_palette_initialization_no_colors_no_filename(self):
         """Test ColorPalette initialization with no colors and no filename."""
         palette = ColorPalette(colors=None, filename=None)
 
         assert palette._colors is None
         assert palette._size == 0
 
-    def test_color_palette_initialization_filename_not_found(self):  # noqa: PLR6301
+    def test_color_palette_initialization_filename_not_found(self):
         """Test ColorPalette initialization when filename is not found."""
         with patch("pathlib.Path.exists", return_value=False), \
              patch("sys.argv", ["/fake/script.py"]):
@@ -66,7 +66,7 @@ class TestColorPaletteCoverage:
             assert palette._colors is None
             assert palette._size == 0
 
-    def test_get_color_valid_index(self):  # noqa: PLR6301
+    def test_get_color_valid_index(self):
         """Test get_color with valid index."""
         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         palette = ColorPalette(colors)
@@ -74,7 +74,7 @@ class TestColorPaletteCoverage:
         result = palette.get_color(1)
         assert result == (0, 255, 0)
 
-    def test_get_color_invalid_index(self):  # noqa: PLR6301
+    def test_get_color_invalid_index(self):
         """Test get_color with invalid index."""
         colors = [(255, 0, 0), (0, 255, 0)]
         palette = ColorPalette(colors)
@@ -82,14 +82,14 @@ class TestColorPaletteCoverage:
         result = palette.get_color(5)
         assert result is None  # Returns None for invalid index
 
-    def test_get_color_no_colors(self):  # noqa: PLR6301
+    def test_get_color_no_colors(self):
         """Test get_color when no colors are set."""
         palette = ColorPalette(colors=None)
 
         result = palette.get_color(0)
         assert result == (255, 0, 255)  # Magenta fallback
 
-    def test_set_color_valid_index(self):  # noqa: PLR6301
+    def test_set_color_valid_index(self):
         """Test set_color with valid index."""
         colors = [(255, 0, 0), (0, 255, 0)]
         palette = ColorPalette(colors)
@@ -97,7 +97,7 @@ class TestColorPaletteCoverage:
         palette.set_color(0, (128, 128, 128))  # Use index 0 instead of 1
         assert palette._colors[0] == (128, 128, 128)
 
-    def test_set_color_invalid_index(self):  # noqa: PLR6301
+    def test_set_color_invalid_index(self):
         """Test set_color with invalid index (appends to list)."""
         colors = [(255, 0, 0), (0, 255, 0)]
         palette = ColorPalette(colors)
@@ -111,7 +111,7 @@ class TestColorPaletteCoverage:
 class TestPaletteUtilityCoverage:
     """Test coverage for PaletteUtility class."""
 
-    def test_load_palette_from_config(self):  # noqa: PLR6301
+    def test_load_palette_from_config(self):
         """Test loading palette from ConfigParser."""
         config = configparser.ConfigParser()
         config["default"] = {"colors": "2"}
@@ -122,7 +122,7 @@ class TestPaletteUtilityCoverage:
         expected = [(255, 0, 0), (0, 255, 0)]
         assert result == expected
 
-    def test_load_palette_from_file_ini_format(self):  # noqa: PLR6301
+    def test_load_palette_from_file_ini_format(self):
         """Test loading palette from INI file."""
         ini_content = """[default]
 colors = 2
@@ -153,7 +153,7 @@ alpha = 255
         finally:
             temp_path.unlink()
 
-    def test_load_palette_from_file_unsupported_format(self):  # noqa: PLR6301
+    def test_load_palette_from_file_unsupported_format(self):
         """Test loading palette from unsupported format."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", delete=False, encoding="utf-8"
@@ -168,7 +168,7 @@ alpha = 255
         finally:
             temp_path.unlink()
 
-    def test_write_palette_to_file(self):  # noqa: PLR6301
+    def test_write_palette_to_file(self):
         """Test writing palette to file."""
         config_data = {"colors": [{"r": 255, "g": 0, "b": 0}]}
 
@@ -184,7 +184,7 @@ alpha = 255
             if temp_path.exists():
                 temp_path.unlink()
 
-    def test_parse_rgb_data_in_file(self):  # noqa: PLR6301
+    def test_parse_rgb_data_in_file(self):
         """Test parsing RGB data from file."""
         rgb_content = "255,0,0\n0,255,0\n0,0,255\n"
 
@@ -201,7 +201,7 @@ alpha = 255
         finally:
             temp_path.unlink()
 
-    def test_create_palette_data(self):  # noqa: PLR6301
+    def test_create_palette_data(self):
         """Test creating palette data from colors."""
         from pygame import Color  # noqa: PLC0415
 
@@ -219,7 +219,7 @@ alpha = 255
 class TestSystemPaletteCoverage:
     """Test coverage for System palette class."""
 
-    def test_system_palette_initialization(self):  # noqa: PLR6301
+    def test_system_palette_initialization(self):
         """Test System palette initialization and color access."""
         from unittest.mock import patch  # noqa: PLC0415
 
@@ -251,7 +251,7 @@ class TestSystemPaletteCoverage:
 class TestVgaPaletteCoverage:
     """Test coverage for Vga palette class."""
 
-    def test_vga_palette_initialization(self):  # noqa: PLR6301
+    def test_vga_palette_initialization(self):
         """Test Vga palette initialization."""
         from unittest.mock import patch  # noqa: PLC0415
 

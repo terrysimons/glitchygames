@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import MultiLineTextBox, TextBoxSprite, TextSprite
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants to avoid magic values
 TEST_X_POS = 10

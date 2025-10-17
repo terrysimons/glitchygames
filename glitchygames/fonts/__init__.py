@@ -336,7 +336,7 @@ class FontManager(ResourceManager):
 
         # Get pygame.font
         pygame_font = cls.get_font("pygame", config)
-        pygame_surface = pygame_font.render(text, antialias=True, color=(255, 255, 255))
+        pygame_surface = pygame_font.render(text, True, (255, 255, 255))
 
         # Get pygame.freetype
         freetype_font = cls.get_font("freetype", config)

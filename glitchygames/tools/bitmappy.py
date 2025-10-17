@@ -27,6 +27,13 @@ try:
 except ImportError:
     ai = None
 
+# Try to import voice recognition, but don't fail if it's not available
+try:
+    from glitchygames.events.voice import VoiceRecognitionManager
+except ImportError:
+    VoiceRecognitionManager = None
+
+from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
@@ -76,7 +83,7 @@ STATIC SPRITES (single-frame):
 
 ANIMATED SPRITES (multi-frame):
     [sprite] section with name only (NO pixels item)
-    [colors] section with colors.0 through colors.7
+    [colors] section with 'colors."X"' section keys, where X is the character used in the pixels
     [[animation]] section with namespace, frame_interval, loop
     [[animation.frame]] sections with namespace, frame_index, pixels
     PER-FRAME TIMING: When asked to generate per-frame frame_intervals, add a frame_interval
@@ -93,9 +100,9 @@ CRITICAL RULES:
     - Animated sprites: [sprite] with NO pixels item + [colors] + [[animation]] sections
       ONLY
     - IMPORTANT: Animated sprites must NOT have a pixels item in the [sprite] section!
-    - CRITICAL: Use triple-quoted block strings for multi-line pixel data
+    - CRITICAL: Use triple-quoted block strings for multi-line pixel data, never use single quotes
     - EFFICIENCY: Only define colors that appear in the pixel data (e.g., if pixels only use
-      "0", only define [colors.0])
+      "0", only define [colors."0"])
 """
 
 LOG = logging.getLogger("game.tools.bitmappy")
@@ -190,6 +197,9 @@ def load_ai_training_data():
                 if AI_TRAINING_FORMAT == "toml":
                     with config_file.open(encoding="utf-8") as f:
                         config_data = toml.load(f)
+
+                    # Normalize the TOML data to convert escaped newlines to actual newlines
+                    config_data = _normalize_toml_data(config_data)
 
                     # Extract sprite data from TOML structure
                     sprite_data = {
@@ -408,7 +418,26 @@ def _initialize_ai_client(log: logging.Logger):
 
     log.info("Initializing AI client...")
     client = ai.Client()
-    log.info("AI client initialized successfully")
+
+    # Configure timeout for the underlying HTTP client
+    try:
+        # Access the underlying provider clients and set timeout
+        if hasattr(client, "_providers"):
+            for provider_name, provider in client._providers.items():
+                if hasattr(provider, "client") and hasattr(provider.client, "timeout"):
+                    provider.client.timeout = 300.0  # 5 minutes
+                    log.debug(f"Set 5-minute timeout for {provider_name} provider")
+                elif hasattr(provider, "client") and hasattr(provider.client, "_client"):
+                    # For some providers, the timeout is on the underlying HTTP client
+                    if hasattr(provider.client._client, "timeout"):
+                        provider.client._client.timeout = 300.0
+                        log.debug(f"Set 5-minute timeout for {provider_name} provider HTTP client")
+
+        log.info("AI client initialized successfully with 5-minute timeout")
+    except Exception as e:
+        log.warning(f"Could not configure timeout: {e}")
+        log.info("AI client initialized with default timeout")
+
     log.debug(f"Client type: {type(client)}")
     return client
 
@@ -467,11 +496,23 @@ def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIRe
         return AIResponse(content="AI features not available")
 
     log.info("Making API call to AI service...")
-    response = client.chat.completions.create(
-        model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
-    )
+    start_time = time.time()
 
-    log.info("AI response received from API")
+    try:
+        response = client.chat.completions.create(
+            model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
+        )
+
+        end_time = time.time()
+        duration = end_time - start_time
+        log.info(f"AI response received from API in {duration:.2f} seconds")
+
+    except Exception as e:
+        end_time = time.time()
+        duration = end_time - start_time
+        log.error(f"AI request failed after {duration:.2f} seconds: {e}")
+        raise
+
     return _extract_response_content(response, log)
 
 
@@ -521,6 +562,49 @@ def _select_relevant_training_examples(
         relevant_examples.extend(remaining[: max_examples - len(relevant_examples)])
 
     return relevant_examples
+
+
+def _normalize_toml_data(config_data: dict) -> dict:
+    """Normalize TOML data by converting triple-quoted strings to proper format.
+
+    Args:
+        config_data: Raw TOML data loaded from file
+
+    Returns:
+        Normalized TOML data with proper string formatting
+
+    """
+    try:
+        # Create a copy to avoid modifying the original
+        normalized_data = config_data.copy()
+
+        # Handle sprite pixels
+        if "sprite" in normalized_data and "pixels" in normalized_data["sprite"]:
+            pixels = normalized_data["sprite"]["pixels"]
+            if isinstance(pixels, str):
+                # Convert escaped newlines to actual newlines
+                # Handle both \\n (double escaped) and \n (single escaped)
+                pixels = pixels.replace("\\\\n", "\n").replace("\\n", "\n")
+                normalized_data["sprite"]["pixels"] = pixels
+
+        # Handle animation frame pixels
+        if "animation" in normalized_data:
+            for animation in normalized_data["animation"]:
+                if isinstance(animation, dict) and "frame" in animation:
+                    for frame in animation["frame"]:
+                        if isinstance(frame, dict) and "pixels" in frame:
+                            pixels = frame["pixels"]
+                            if isinstance(pixels, str):
+                                # Convert escaped newlines to actual newlines
+                                # Handle both \\n (double escaped) and \n (single escaped)
+                                pixels = pixels.replace("\\\\n", "\n").replace("\\n", "\n")
+                                frame["pixels"] = pixels
+
+        return normalized_data
+
+    except Exception as e:
+        LOG.warning(f"Error normalizing TOML data: {e}")
+        return config_data  # Return original if normalization fails
 
 
 def _extract_response_content(response, log: logging.Logger) -> AIResponse:
@@ -762,6 +846,7 @@ class FilmStripSprite(BitmappySprite):
         else:
             print("FilmStripSprite: Click is outside bounds or no widget")
 
+
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
         if not self.film_strip_widget:
@@ -898,12 +983,33 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
         self.active_color = (0, 0, 0)
-        # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
-        # This happens when the 320x320 constraint kicks in, making pixel size 2x2 or smaller
-        print(f"DEBUG: pixels_across={self.pixels_across}, pixels_tall={self.pixels_tall}")
-        print(f"DEBUG: pixel_width={self.pixel_width}, pixel_height={self.pixel_height}")
-        self.border_thickness = 0 if (self.pixel_width <= 2 and self.pixel_height <= 2) else 1
-        print(f"DEBUG: border_thickness set to {self.border_thickness}")
+        # Set border thickness using the internal method
+        self._update_border_thickness()
+
+    def _update_border_thickness(self) -> None:
+        """Update border thickness based on pixel size.
+
+        For large sprites where pixel size becomes very small, use no border
+        to prevent grid from consuming all space. This happens when the 320x320
+        constraint kicks in, making pixel size 2x2 or smaller.
+
+        For very large sprites (128x128), also disable borders to prevent visual clutter.
+        """
+        # Disable borders for very small pixels (2x2 or smaller) or very large sprites (128x128)
+        should_disable_borders = (
+            (self.pixel_width <= 2 and self.pixel_height <= 2) or  # Very small pixels
+            (self.pixels_across >= 128 or self.pixels_tall >= 128)  # Very large sprites
+        )
+
+        old_border_thickness = getattr(self, "border_thickness", 1)
+        self.border_thickness = 0 if should_disable_borders else 1
+
+        # Clear pixel cache if border thickness changed
+        if old_border_thickness != self.border_thickness:
+            BitmapPixelSprite.PIXEL_CACHE.clear()
+            self.log.info(f"Cleared pixel cache due to border thickness change ({old_border_thickness} -> {self.border_thickness})")
+
+        self.log.info(f"Border thickness set to {self.border_thickness} (pixel size: {self.pixel_width}x{self.pixel_height}, sprite size: {self.pixels_across}x{self.pixels_tall})")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -1587,6 +1693,16 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         self.log.debug(f"Loading animated sprite from {filename}")
 
+        # Check if this is a PNG file and convert it first
+        if filename.lower().endswith(".png"):
+            self.log.info("PNG file detected - converting to bitmappy format first")
+            converted_toml_path = self._convert_png_to_bitmappy(filename)
+            if converted_toml_path:
+                filename = converted_toml_path
+                self.log.info(f"Using converted TOML file: {filename}")
+            else:
+                raise Exception("Failed to convert PNG to bitmappy format")
+
         # Detect file format and load the sprite
         file_format = detect_file_format(filename)
         self.log.debug(f"Detected file format: {file_format}")
@@ -1749,9 +1865,26 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.log.debug("Final mini view update after sprite load")
             self._update_mini_view_from_current_frame()
 
-        # Reset AI textbox to prompt string after successful sprite loading
-        if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
-            self.parent.debug_text.text = "Enter a description of the sprite you want to create:"
+        # Update AI textbox with sprite description or default prompt
+        self.log.debug("Checking parent and debug_text access...")
+        self.log.debug(f"hasattr(self, 'parent_scene'): {hasattr(self, 'parent_scene')}")
+        if hasattr(self, "parent_scene"):
+            self.log.debug(f"hasattr(self.parent_scene, 'debug_text'): {hasattr(self.parent_scene, 'debug_text')}")
+            self.log.debug(f"self.parent_scene type: {type(self.parent_scene)}")
+
+        if hasattr(self, "parent_scene") and hasattr(self.parent_scene, "debug_text"):
+            # Get description from loaded sprite, or use default prompt if empty
+            description = getattr(loaded_sprite, "description", "")
+            self.log.debug(f"Loaded sprite description: '{description}'")
+            self.log.debug(f"Description is not empty: {bool(description and description.strip())}")
+            if description and description.strip():
+                self.log.info(f"Setting AI textbox to description: '{description}'")
+                self.parent_scene.debug_text.text = description
+            else:
+                self.log.info("Setting AI textbox to default prompt")
+                self.parent_scene.debug_text.text = "Enter a description of the sprite you want to create:"
+        else:
+            self.log.warning("Cannot access parent or debug_text - description not updated")
 
     def _resize_canvas_to_sprite_size(self, sprite_width, sprite_height):
         """Resize the canvas to match the sprite dimensions."""
@@ -1769,7 +1902,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Recalculate pixel dimensions to fit the screen
         available_height = screen_height - 80 - 24  # Adjust for bottom margin and menu bar
         # ===== DEBUG: CANVAS SIZING CALCULATIONS =====
-        print(f"===== DEBUG: CANVAS SIZING CALCULATIONS =====")
+        print("===== DEBUG: CANVAS SIZING CALCULATIONS =====")
         print(f"Screen: {screen_width}x{screen_height}, Sprite: {sprite_width}x{sprite_height}")
         print(f"Available height: {available_height}")
         print(f"Height constraint: {available_height // sprite_height}")
@@ -1779,7 +1912,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # For large sprites (128x128), ensure we get at least 2x2 pixel size
         if sprite_width >= 128 and sprite_height >= 128:
             pixel_size = 2  # Force 2x2 pixel size for 128x128
-            print(f"*** FORCING 2x2 pixel size for 128x128 sprite ***")
+            print("*** FORCING 2x2 pixel size for 128x128 sprite ***")
         else:
             pixel_size = min(
                 available_height // sprite_height,
@@ -1793,7 +1926,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         print(f"Final pixel_size: {pixel_size}")
         print(f"Canvas will be: {sprite_width * pixel_size}x{sprite_height * pixel_size}")
-        print(f"===== END DEBUG =====\n")
+        print("===== END DEBUG =====\n")
 
         # Update pixel dimensions
         self.pixel_width = pixel_size
@@ -1806,18 +1939,18 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update surface dimensions
         actual_width = sprite_width * pixel_size
         actual_height = sprite_height * pixel_size
-        print(f"===== DEBUG: SURFACE CREATION =====")
+        print("===== DEBUG: SURFACE CREATION =====")
         print(f"Creating surface: {actual_width}x{actual_height}")
         print(f"pixel_size: {pixel_size}, sprite: {sprite_width}x{sprite_height}")
         self.image = pygame.Surface((actual_width, actual_height))
-        print(f"Surface created successfully")
-        print(f"===== END DEBUG =====\n")
+        print("Surface created successfully")
+        print("===== END DEBUG =====\n")
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
         # Update class dimensions
 
         # Update AI sprite positioning after canvas resize
-        if hasattr(self, 'parent_scene') and self.parent_scene:
+        if hasattr(self, "parent_scene") and self.parent_scene:
             self.parent_scene._update_ai_sprite_position()
         AnimatedCanvasSprite.WIDTH = sprite_width
         AnimatedCanvasSprite.HEIGHT = sprite_height
@@ -1930,6 +2063,11 @@ class AnimatedCanvasSprite(BitmappySprite):
         animated_sprite._animations = {animation_name: [frame]}
         animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
+
+        # Preserve the description from the original sprite
+        if hasattr(self.animated_sprite, "description"):
+            animated_sprite.description = self.animated_sprite.description
+            self.log.debug(f"Preserved description: '{animated_sprite.description}'")
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
@@ -2064,6 +2202,25 @@ class AnimatedCanvasSprite(BitmappySprite):
                     color = self.pixels[pixel_num]
                     surface.set_at((x, y), color)
         return surface
+
+    def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
+        """Convert a PNG file to bitmappy TOML format.
+
+        This method delegates to the parent scene's conversion method.
+
+        Args:
+            file_path: Path to the PNG file to convert.
+
+        Returns:
+            Path to the converted TOML file, or None if conversion failed.
+
+        """
+        # Get the parent scene and call its conversion method
+        if hasattr(self, "parent") and hasattr(self.parent, "_convert_png_to_bitmappy"):
+            return self.parent._convert_png_to_bitmappy(file_path)
+        else:
+            self.log.error("Cannot convert PNG: parent scene not available or missing conversion method")
+            return None
 
 
 class MiniView(BitmappySprite):
@@ -2347,7 +2504,7 @@ class BitmapEditorScene(Scene):
         pixels_tall = int(height)
 
         # ===== DEBUG: INITIAL CANVAS SIZING =====
-        print(f"===== DEBUG: INITIAL CANVAS SIZING =====")
+        print("===== DEBUG: INITIAL CANVAS SIZING =====")
         print(f"Screen: {self.screen_width}x{self.screen_height}, Sprite: {pixels_across}x{pixels_tall}")
         print(f"Available height: {available_height}")
         print(f"Height constraint: {available_height // pixels_tall}")
@@ -2365,11 +2522,11 @@ class BitmapEditorScene(Scene):
         # For very large sprites, ensure we get at least 2x2 pixel size
         if pixel_size < 2:
             pixel_size = 2  # Force minimum 2x2 pixel size for very large sprites
-            print(f"*** FORCING minimum 2x2 pixel size for large sprite ***")
+            print("*** FORCING minimum 2x2 pixel size for large sprite ***")
 
         print(f"Final pixel_size: {pixel_size}")
         print(f"Canvas will be: {pixels_across * pixel_size}x{pixels_tall * pixel_size}")
-        print(f"===== END DEBUG =====\n")
+        print("===== END DEBUG =====\n")
         # Ensure minimum pixel size of 1x1
         pixel_size = max(pixel_size, 1)
 
@@ -2682,6 +2839,7 @@ class BitmapEditorScene(Scene):
 
         Args:
             insert_after_index: Index to insert the new strip after (None for end)
+
         """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
@@ -2770,6 +2928,7 @@ class BitmapEditorScene(Scene):
 
         Args:
             animation_name: The name of the animation to delete
+
         """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
             return
@@ -2934,7 +3093,7 @@ class BitmapEditorScene(Scene):
         color_well_height = (blue_slider_bottom_y + 5) - color_well_y  # Add padding below
 
         # Calculate canvas right edge position
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
         else:
             # Fallback for tests or when canvas isn't initialized yet
@@ -3001,7 +3160,7 @@ class BitmapEditorScene(Scene):
             self.blue_slider.value,
         )
 
-        if hasattr(self, 'canvas') and self.canvas:
+        if hasattr(self, "canvas") and self.canvas:
             self.canvas.active_color = self.color_well.active_color
 
     def _setup_debug_text_box(self) -> None:
@@ -3011,22 +3170,22 @@ class BitmapEditorScene(Scene):
 
         # Calculate AI sprite box position dynamically
         # Position to the right of the color well
-        if hasattr(self, 'color_well') and self.color_well:
+        if hasattr(self, "color_well") and self.color_well:
             color_well_right_x = self.color_well.rect.right
             debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
         else:
             # Fallback: position to the right of canvas
-            if hasattr(self, 'canvas') and self.canvas:
+            if hasattr(self, "canvas") and self.canvas:
                 canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
                 debug_x = canvas_right_x + 4
             else:
                 debug_x = self.screen_width - 20
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
                 second_strip_bottom = self.film_strips[1].rect.bottom
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
@@ -3065,29 +3224,29 @@ class BitmapEditorScene(Scene):
 
     def _update_ai_sprite_position(self) -> None:
         """Update AI sprite positioning when canvas changes."""
-        if not hasattr(self, 'ai_label') or not hasattr(self, 'debug_text'):
+        if not hasattr(self, "ai_label") or not hasattr(self, "debug_text"):
             return  # AI sprites not initialized yet
 
         # Calculate new position using same logic as _setup_debug_text_box
         debug_height = 186  # Fixed height for AI chat box
 
         # Position to the right of the color well
-        if hasattr(self, 'color_well') and self.color_well:
+        if hasattr(self, "color_well") and self.color_well:
             color_well_right_x = self.color_well.rect.right
             debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
         else:
             # Fallback: position to the right of canvas
-            if hasattr(self, 'canvas') and self.canvas:
+            if hasattr(self, "canvas") and self.canvas:
                 canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
                 debug_x = canvas_right_x + 4
             else:
                 debug_x = self.screen_width - 20
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, 'film_strips') and self.film_strips and len(self.film_strips) >= 2:
+        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], 'rect'):
+            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
                 second_strip_bottom = self.film_strips[1].rect.bottom
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
@@ -3110,6 +3269,125 @@ class BitmapEditorScene(Scene):
         self.debug_text.rect.y = debug_y
         self.debug_text.rect.width = debug_width
         self.debug_text.rect.height = debug_height
+
+    def _setup_voice_recognition(self) -> None:
+        """Set up voice recognition for voice commands."""
+        try:
+            self.voice_manager = VoiceRecognitionManager(logger=self.log)
+
+            if self.voice_manager.is_available():
+                # Register voice commands
+                self.voice_manager.register_command(
+                    "clear the ai sprite box",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite box",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai box",
+                    self._clear_ai_sprite_box
+                )
+                # Add commands for what speech recognition actually hears
+                self.voice_manager.register_command(
+                    "clear the ai sprite",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite",
+                    self._clear_ai_sprite_box
+                )
+                # Add command for "window" variation
+                self.voice_manager.register_command(
+                    "clear the ai sprite window",
+                    self._clear_ai_sprite_box
+                )
+                self.voice_manager.register_command(
+                    "clear ai sprite window",
+                    self._clear_ai_sprite_box
+                )
+
+                # Start listening for voice commands
+                self.voice_manager.start_listening()
+                self.log.info("Voice recognition initialized and started")
+            else:
+                self.log.warning("Voice recognition not available - microphone not found")
+                self.voice_manager = None
+
+        except Exception as e:
+            self.log.error(f"Failed to initialize voice recognition: {e}")
+            self.voice_manager = None
+
+    def _clear_ai_sprite_box(self) -> None:
+        """Clear the AI sprite text box."""
+        if hasattr(self, "debug_text") and self.debug_text:
+            self.debug_text.text = ""
+            self.log.info("AI sprite box cleared via voice command")
+        else:
+            self.log.warning("Cannot clear AI sprite box - debug_text not available")
+
+    def _is_mouse_in_film_strip_area(self, mouse_pos: tuple[int, int]) -> bool:
+        """Check if mouse position is within the film strip area.
+
+        Args:
+            mouse_pos: (x, y) mouse position
+
+        Returns:
+            True if mouse is in film strip area, False otherwise
+
+        """
+        if not hasattr(self, "film_strip_sprites") or not self.film_strip_sprites:
+            self.log.debug(f"No film strip sprites available for mouse pos {mouse_pos}")
+            return False
+
+        # Check if mouse is within any film strip sprite bounds
+        for anim_name, film_strip_sprite in self.film_strip_sprites.items():
+            if film_strip_sprite.rect.collidepoint(mouse_pos):
+                self.log.debug(f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}")
+                return True
+
+        self.log.debug(f"Mouse {mouse_pos} is not in any film strip area")
+        return False
+
+    def _handle_film_strip_drag_scroll(self, mouse_y: int) -> None:
+        """Handle mouse drag scrolling for film strips.
+
+        Args:
+            mouse_y: Current mouse Y position
+
+        """
+        if not self.is_dragging_film_strips or self.film_strip_drag_start_y is None:
+            self.log.debug("Not dragging film strips or no start Y")
+            return
+
+        # Calculate drag distance
+        drag_distance = mouse_y - self.film_strip_drag_start_y
+        self.log.debug(f"Drag distance: {drag_distance}, start Y: {self.film_strip_drag_start_y}, current Y: {mouse_y}")
+
+        # Convert drag distance to scroll offset change
+        # Each film strip is approximately 100 pixels tall, so we scroll by 1 for every 100 pixels
+        strip_height = 100
+        scroll_change = int(drag_distance / strip_height)
+
+        # Calculate new scroll offset
+        new_offset = self.film_strip_drag_start_offset + scroll_change
+
+        # Clamp to valid range
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            total_animations = len(self.canvas.animated_sprite._animations)
+            max_scroll = max(0, total_animations - self.max_visible_strips)
+            new_offset = max(0, min(new_offset, max_scroll))
+            self.log.debug(f"Scroll change: {scroll_change}, new offset: {new_offset}, max scroll: {max_scroll}")
+
+        # Update scroll offset if it changed
+        if new_offset != self.film_strip_scroll_offset:
+            self.log.debug(f"Updating scroll offset from {self.film_strip_scroll_offset} to {new_offset}")
+            self.film_strip_scroll_offset = new_offset
+            self._update_film_strip_visibility()
+            self._update_scroll_arrows()
+        else:
+            self.log.debug("No scroll offset change needed")
 
     def _setup_film_strips(self) -> None:
         """Set up multiple independent film strips - one for each animation."""
@@ -3764,6 +4042,11 @@ class BitmapEditorScene(Scene):
         # Initialize scroll arrows
         self.scroll_up_arrow = None
 
+        # Initialize mouse drag scrolling state
+        self.film_strip_drag_start_y = None
+        self.film_strip_drag_start_offset = None
+        self.is_dragging_film_strips = False
+
         # Set up all components
         self._setup_menu_bar()
         self._setup_canvas(options)
@@ -3789,6 +4072,10 @@ class BitmapEditorScene(Scene):
                 # Could update AI_MAX_TOKENS here if needed
         except (ValueError, ConnectionError, TimeoutError) as e:
             self.log.warning(f"Could not query model capabilities: {e}")
+
+        # Set up voice recognition
+        # TODO: Re-enable voice recognition when ready
+        # self._setup_voice_recognition()
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -3892,8 +4179,7 @@ class BitmapEditorScene(Scene):
             self.canvas.rect = self.canvas.image.get_rect(x=0, y=24)  # Position below menu bar
 
             # Update border thickness based on new dimensions (after all initialization)
-            # For large sprites where pixel size becomes very small, use no border to prevent grid from consuming all space
-            self.canvas.border_thickness = 0 if (self.canvas.pixel_width <= 2 and self.canvas.pixel_height <= 2) else 1
+            self.canvas._update_border_thickness()
 
             # Force the canvas to redraw with the new dimensions and cleared pixels
             self.canvas.force_redraw()
@@ -4037,6 +4323,10 @@ class BitmapEditorScene(Scene):
             self.blue_slider.value = value
             self.log.debug(f"Updated blue slider to: {value}")
 
+        # Update slider text to reflect current tab format
+        # This handles slider clicks - text input is handled by SliderSprite itself
+        self._update_slider_text_format()
+
         # Debug: Log current slider values
         self.log.debug(
             f"Current slider values - R: {self.red_slider.value}, "
@@ -4139,7 +4429,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.red_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4179,7 +4469,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.green_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4216,7 +4506,7 @@ class BitmapEditorScene(Scene):
                     # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                     try:
                         text = self.blue_slider.text_sprite.text.strip().lower()
-                        if any(c in 'abcdef' for c in text):
+                        if any(c in "abcdef" for c in text):
                             # Contains hex characters, parse as hex
                             new_value = int(text, 16)
                         else:
@@ -4256,6 +4546,13 @@ class BitmapEditorScene(Scene):
         for sprite in sprites:
             sprite.on_left_mouse_button_down_event(event)
 
+        # Check if click is in film strip area for drag scrolling (only if no sprite handled it)
+        if self._is_mouse_in_film_strip_area(event.pos):
+            self.is_dragging_film_strips = True
+            self.film_strip_drag_start_y = event.pos[1]
+            self.film_strip_drag_start_offset = self.film_strip_scroll_offset
+            self.log.debug(f"Started film strip drag at Y={event.pos[1]}, offset={self.film_strip_scroll_offset}")
+
     def on_tab_change_event(self, tab_format):
         """Handle tab control format change.
 
@@ -4264,6 +4561,7 @@ class BitmapEditorScene(Scene):
 
         Returns:
             None
+
         """
         self.log.info(f"Tab control changed to format: {tab_format}")
 
@@ -4271,6 +4569,19 @@ class BitmapEditorScene(Scene):
         self.slider_input_format = tab_format
 
         # Update slider text display format if they have values
+        self._update_slider_text_format(tab_format)
+
+    def _update_slider_text_format(self, tab_format=None):
+        """Update slider text display format.
+
+        Args:
+            tab_format (str): The format to use ("%X" for hex, "%d" for decimal).
+                             If None, uses the current slider_input_format.
+
+        """
+        if tab_format is None:
+            tab_format = getattr(self, "slider_input_format", "%d")
+
         if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
             if tab_format == "%X":
                 # Convert to hex
@@ -4311,6 +4622,13 @@ class BitmapEditorScene(Scene):
             None
 
         """
+        # Stop film strip drag scrolling if active
+        if self.is_dragging_film_strips:
+            self.is_dragging_film_strips = False
+            self.film_strip_drag_start_y = None
+            self.film_strip_drag_start_offset = None
+            self.log.debug("Stopped film strip drag scrolling")
+
         sprites = self.sprites_at_position(pos=event.pos)
 
         for sprite in sprites:
@@ -4330,6 +4648,12 @@ class BitmapEditorScene(Scene):
             None
 
         """
+        # Handle film strip drag scrolling
+        if self.is_dragging_film_strips:
+            self.log.debug(f"Handling film strip drag at Y={event.pos[1]}")
+            self._handle_film_strip_drag_scroll(event.pos[1])
+            return  # Don't process other drag events when dragging film strips
+
         self.canvas.on_left_mouse_drag_event(event, trigger)
 
         try:
@@ -4389,8 +4713,31 @@ class BitmapEditorScene(Scene):
             if hasattr(sprite, "on_mouse_motion_event"):
                 sprite.on_mouse_motion_event(event)
 
+    def _update_sprite_description(self, description: str) -> None:
+        """Update the sprite description when the AI text box content changes.
+
+        Args:
+            description: The new description text
+
+        """
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            self.canvas.animated_sprite.description = description
+            self.log.debug(f"Updated sprite description: '{description}'")
+        else:
+            self.log.debug("No animated sprite available to update description")
+
+    def _on_debug_text_change(self, new_text: str) -> None:
+        """Callback for when the debug text changes.
+
+        Args:
+            new_text: The new text content
+
+        """
+        self._update_sprite_description(new_text)
+
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
+        # Don't update sprite description here - only update when AI generation actually happens
         self.log.info(f"AI Sprite Generation Request: '{text}'")
         self.log.debug(f"Text length: {len(text)}")
         self.log.debug(f"Text type: {type(text)}")
@@ -4420,17 +4767,15 @@ class BitmapEditorScene(Scene):
                     will include:
                         - [sprite] section containing name and pixels "
                         "(using triple-quoted block strings)
-                        - [colors.X] sections ONLY for colors that are actually used "
-                        "in the pixel data
+                        - [colors."X"] sections ONLY for colors that are actually used in the pixel data
                         - RGB values from 0-255 for each color
                         - Pixels using the SPRITE_GLYPHS character set
                         - For animated sprites: [[animation]] and [[animation.frame]] sections
-                        - When "frame", "animation", "animated", "2-frame", or "
-                        "multi-frame"
+                        - When "frame", "animation", "animated", "2-frame", or "multi-frame"
                           is mentioned, I will create an ANIMATED sprite with multiple frames
                         - IMPORTANT: Use triple-quoted block strings for multi-line pixel data
                         - EFFICIENCY: Only define colors that appear in the pixels "
-                        "(e.g., if pixels=\"0\", only define [colors.0])
+                            (e.g., if pixels="0", only define [colors."0"])
                 """.strip()
         else:
             format_instruction = """
@@ -4438,16 +4783,65 @@ class BitmapEditorScene(Scene):
                     markdown formatting, code blocks, or explanations. The INI format
                     will include:
                         - [sprite] section containing name and pixel layout
-                        - [0] through [7] for color definitions
                         - RGB values from 0-255 for each color
                         - Pixels using the SPRITE_GLYPHS character set
                 """.strip()
 
-        # Select relevant training examples
-        relevant_examples = _select_relevant_training_examples(text)
-        self.log.info(
-            f"Using {len(relevant_examples)} training examples (max: {AI_MAX_TRAINING_EXAMPLES})"
-        )
+        # Check if current frame has content (not all magenta)
+        current_frame_has_content = self._check_current_frame_has_content()
+        self.log.info(f"Frame content check result: {current_frame_has_content}")
+
+        if current_frame_has_content:
+            # Save both current frame and current strip to temporary TOML files
+            frame_toml_path = self._save_current_frame_to_temp_toml()
+            strip_toml_path = self._save_current_strip_to_temp_toml()
+
+            examples = []
+
+            # Load current frame as training example
+            if frame_toml_path:
+                frame_example = self._load_temp_toml_as_example(frame_toml_path)
+                if frame_example:
+                    frame_example["name"] = "selected_frame"
+                    examples.append(frame_example)
+                    self.log.info("Added current frame as training example")
+
+            # Load current strip as training example
+            if strip_toml_path:
+                strip_example = self._load_temp_toml_as_example(strip_toml_path)
+                if strip_example:
+                    strip_example["name"] = "selected_strip"
+                    examples.append(strip_example)
+                    self.log.info("Added current strip as training example")
+
+            if examples:
+                # Check if we have only one film strip with one frame - if so, just send the frame
+                if (len(examples) == 2 and
+                    hasattr(self, "canvas") and self.canvas and
+                    hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite and
+                    len(self.canvas.animated_sprite._animations) == 1):
+
+                    # Check if the single animation has only one frame
+                    single_animation = list(self.canvas.animated_sprite._animations.values())[0]
+                    if len(single_animation.frames) == 1:
+                        # Only send the frame, not the strip
+                        relevant_examples = [examples[0]]  # Just the frame
+                        self.log.info("Optimization: Single frame in single strip - using only frame data")
+                    else:
+                        # Multiple frames, send both
+                        relevant_examples = examples
+                        self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
+                else:
+                    # Use both current frame and strip as training examples (no regular examples)
+                    relevant_examples = examples
+                    self.log.info(f"Using {len(examples)} context examples (frame + strip, no regular examples)")
+            else:
+                relevant_examples = _select_relevant_training_examples(text)
+                self.log.info(f"Failed to load context examples, using {len(relevant_examples)} regular examples")
+        else:
+            # Frame is empty (all magenta), use regular examples
+            relevant_examples = _select_relevant_training_examples(text)
+            self.log.info(f"Frame is empty, using {len(relevant_examples)} regular examples")
 
         messages: list[dict[str, str]] = [
             {
@@ -4457,18 +4851,19 @@ class BitmapEditorScene(Scene):
                     game content for game developers. You can create both static
                     single-frame sprites and animated multi-frame sprites.
 
-                    Available character set for sprite pixels: {SPRITE_GLYPHS}
+                    Available character set for sprite pixels: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
                 """.strip(),
             },
             {
                 "role": "user",
                 "content": f"""
-                            Here are some example sprites that I've created. Use these
-                            as training data to understand how to create new sprites:
+                            Here is the context for your sprite generation:
 
                             {"\n".join([str(data) for data in relevant_examples])}
 
-                            Available character set: {SPRITE_GLYPHS}
+                            Available character set: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
+
+                            IMPORTANT: The examples above include both the selected frame and the selected strip from the current sprite. Use this context to understand what the user is asking for and determine the appropriate response based on their request.
                         """.strip(),
             },
             {
@@ -4478,7 +4873,7 @@ class BitmapEditorScene(Scene):
                     that each sprite consists of:
 
                     1. A name
-                    2. A pixel layout using characters from: {SPRITE_GLYPHS}
+                    2. A pixel layout using characters from: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
                     3. A color palette mapping characters to RGB values
                     4. For animated sprites: multiple frames with timing information
 
@@ -4614,15 +5009,75 @@ class BitmapEditorScene(Scene):
             # Parse the TOML content and add description
             try:
                 data = toml.loads(cleaned_content)
+                # Normalize the TOML data to convert escaped newlines to actual newlines
+                data = _normalize_toml_data(data)
                 if "sprite" not in data:
                     data["sprite"] = {}
                 data["sprite"]["description"] = original_prompt
-                cleaned_content = toml.dumps(data)
+
+                # Manually construct TOML to preserve formatting instead of using toml.dumps()
+                cleaned_content = self._construct_toml_with_preserved_formatting(data)
                 self.log.debug(f"Added description to TOML content: '{original_prompt}'")
             except (toml.TomlDecodeError, KeyError, ValueError) as e:
                 self.log.warning(f"Failed to add description to TOML content: {e}")
 
         return cleaned_content
+
+    def _construct_toml_with_preserved_formatting(self, data: dict) -> str:
+        """Construct TOML content while preserving original formatting for pixel data.
+
+        Args:
+            data: Parsed TOML data
+
+        Returns:
+            TOML content string with preserved formatting
+
+        """
+        lines = []
+
+        # Add sprite section
+        if "sprite" in data:
+            lines.append("[sprite]")
+            sprite_data = data["sprite"]
+            if "name" in sprite_data:
+                lines.append(f'name = "{sprite_data["name"]}"')
+            if "description" in sprite_data:
+                lines.append(f'description = """{sprite_data["description"]}"""')
+            if "pixels" in sprite_data:
+                lines.append('pixels = """')
+                lines.append(sprite_data["pixels"])
+                lines.append('"""')
+            lines.append("")
+
+        # Add animation sections
+        if "animation" in data:
+            for animation in data["animation"]:
+                lines.append("[[animation]]")
+                lines.append(f'namespace = "{animation["namespace"]}"')
+                lines.append(f"frame_interval = {animation['frame_interval']}")
+                lines.append(f"loop = {str(animation['loop']).lower()}")
+                lines.append("")
+
+                for frame in animation.get("frame", []):
+                    lines.append("[[animation.frame]]")
+                    lines.append(f'namespace = "{animation["namespace"]}"')
+                    lines.append(f"frame_index = {frame['frame_index']}")
+                    lines.append('pixels = """')
+                    lines.append(frame["pixels"])
+                    lines.append('"""')
+                    lines.append("")
+
+        # Add colors section
+        if "colors" in data:
+            lines.append("[colors]")
+            for color_key, color_data in data["colors"].items():
+                lines.append(f'[colors."{color_key}"]')
+                lines.append(f"red = {color_data['red']}")
+                lines.append(f"green = {color_data['green']}")
+                lines.append(f"blue = {color_data['blue']}")
+                lines.append("")
+
+        return "\n".join(lines)
 
     def _create_temp_file_from_content(self, content: str) -> str:
         """Create temporary file from AI content and return the path."""
@@ -4721,6 +5176,353 @@ class BitmapEditorScene(Scene):
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
 
+    def _check_current_frame_has_content(self) -> bool:
+        """Check if the current frame has any non-magenta pixels.
+
+        Returns:
+            True if frame has content (non-magenta pixels), False if all magenta
+
+        """
+        try:
+            # Get current frame pixels
+            if hasattr(self, "canvas") and hasattr(self.canvas, "pixels"):
+                pixels = self.canvas.pixels
+                self.log.debug(f"Checking frame content: {len(pixels)} pixels")
+                if not pixels:
+                    self.log.debug("No pixels found, returning False")
+                    return False
+
+                # Check if any pixel is not magenta (255, 0, 255)
+                non_magenta_count = 0
+                for i, pixel in enumerate(pixels):
+                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                        if pixel[:3] != (255, 0, 255):
+                            non_magenta_count += 1
+                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                                self.log.debug(f"Found non-magenta pixel {i}: {pixel[:3]}")
+                    elif isinstance(pixel, int):
+                        # Convert integer color to RGB
+                        r = (pixel >> 16) & 0xFF
+                        g = (pixel >> 8) & 0xFF
+                        b = pixel & 0xFF
+                        if (r, g, b) != (255, 0, 255):
+                            non_magenta_count += 1
+                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                                self.log.debug(f"Found non-magenta pixel {i}: ({r}, {g}, {b})")
+
+                self.log.debug(f"Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total")
+                return non_magenta_count > 0
+            else:
+                self.log.debug("No canvas or canvas.pixels found, returning False")
+                return False
+        except Exception as e:
+            self.log.exception(f"Error checking frame content: {e}")
+            return False
+
+    def _save_current_frame_to_temp_toml(self) -> str | None:
+        """Save the current frame to a temporary TOML file.
+
+        Returns:
+            Path to the temporary TOML file, or None if failed
+
+        """
+        try:
+            import os
+            import tempfile
+
+            # Get current frame data
+            if not hasattr(self, "canvas") or not hasattr(self.canvas, "pixels"):
+                return None
+
+            pixels = self.canvas.pixels
+            if not pixels:
+                return None
+
+            # Create temporary file
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_frame_")
+            os.close(temp_fd)  # Close the file descriptor, we'll use the path
+
+            # Generate TOML content with single-char glyphs only
+            # This ensures the AI sees only single-character glyphs in the training data
+            toml_content = self._generate_frame_toml_content(pixels, force_single_char_glyphs=True)
+
+            # Write to temporary file
+            with open(temp_path, "w", encoding="utf-8") as f:
+                f.write(toml_content)
+
+            self.log.info(f"Saved current frame to temporary TOML: {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            self.log.exception(f"Error saving frame to temp TOML: {e}")
+            return None
+
+    def _save_current_strip_to_temp_toml(self) -> str | None:
+        """Save the current animation strip to a temporary TOML file.
+
+        Returns:
+            Path to the temporary TOML file, or None if failed
+
+        """
+        try:
+            import os
+            import tempfile
+
+            # Get current animation data
+            if not hasattr(self, "canvas") or not hasattr(self.canvas, "animated_sprite"):
+                return None
+
+            animated_sprite = self.canvas.animated_sprite
+            if not animated_sprite or not hasattr(animated_sprite, "_animations"):
+                return None
+
+            current_animation = getattr(self.canvas, "current_animation", None)
+            if not current_animation or current_animation not in animated_sprite._animations:
+                return None
+
+            # Create a new AnimatedSprite with just the current animation
+            from glitchygames.sprites.animated import AnimatedSprite
+
+            # Get the current animation frames
+            current_frames = animated_sprite._animations[current_animation]
+
+            # Create new sprite with the current animation
+            new_sprite = AnimatedSprite()
+            new_sprite.name = f"current_strip_{current_animation}"
+            new_sprite.description = f"Current animation strip: {current_animation}"
+
+            # Copy the animation data
+            new_sprite._animations = {current_animation: current_frames}
+            new_sprite.current_animation = current_animation
+
+            # Create temporary file
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_strip_")
+            os.close(temp_fd)  # Close the file descriptor, we'll use the path
+
+            # Save the sprite to TOML using the existing save method
+            new_sprite.save(temp_path)
+
+            self.log.info(f"Saved current strip to temporary TOML: {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            self.log.exception(f"Error saving strip to temp TOML: {e}")
+            return None
+
+    def _generate_frame_toml_content(self, pixels: list, force_single_char_glyphs: bool = False) -> str:
+        """Generate TOML content for the current frame.
+
+        Args:
+            pixels: List of pixel colors
+            force_single_char_glyphs: If True, limit to 64 single-character glyphs for AI training
+
+        Returns:
+            TOML content string
+
+        """
+        try:
+            # Get canvas dimensions
+            width = self.canvas.pixels_across
+            height = self.canvas.pixels_tall
+
+            # First pass: collect all unique colors
+            unique_colors = set()
+            for pixel in pixels:
+                if isinstance(pixel, tuple) and len(pixel) >= 3:
+                    color = pixel[:3]
+                elif isinstance(pixel, int):
+                    r = (pixel >> 16) & 0xFF
+                    g = (pixel >> 8) & 0xFF
+                    b = pixel & 0xFF
+                    color = (r, g, b)
+                else:
+                    color = (255, 0, 255)  # Default magenta
+                unique_colors.add(color)
+
+            # If forcing single-char glyphs and we have too many colors, quantize
+            if force_single_char_glyphs and len(unique_colors) > 64:
+                self.log.info(f"Quantizing {len(unique_colors)} colors down to 64 for AI training")
+                # Use simple color quantization: pick the 64 most common colors
+                color_counts = {}
+                for pixel in pixels:
+                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                        color = pixel[:3]
+                    elif isinstance(pixel, int):
+                        r = (pixel >> 16) & 0xFF
+                        g = (pixel >> 8) & 0xFF
+                        b = pixel & 0xFF
+                        color = (r, g, b)
+                    else:
+                        color = (255, 0, 255)
+                    color_counts[color] = color_counts.get(color, 0) + 1
+
+                # Sort by frequency and take top 64
+                sorted_by_frequency = sorted(color_counts.items(), key=lambda x: x[1], reverse=True)
+                unique_colors = set([color for color, _ in sorted_by_frequency[:64]])
+                self.log.info(f"Quantized to {len(unique_colors)} colors")
+
+            # Create consistent color-to-glyph mapping
+            color_to_glyph = {}
+            available_glyphs = list(SPRITE_GLYPHS[:64])
+
+            # Sort colors to ensure consistent ordering
+            sorted_colors = sorted(unique_colors)
+
+            for i, color in enumerate(sorted_colors):
+                if i < len(available_glyphs):
+                    color_to_glyph[color] = available_glyphs[i]
+                else:
+                    # If we run out of glyphs, log a warning (should not happen if force_single_char_glyphs=True)
+                    if force_single_char_glyphs:
+                        self.log.warning(f"Ran out of single-char glyphs at color {i}, this should not happen!")
+                    color_to_glyph[color] = f"X{i-len(available_glyphs)+1}"
+
+            # Second pass: generate pixel string
+            pixel_string = ""
+            for y in range(height):
+                for x in range(width):
+                    pixel_index = y * width + x
+                    if pixel_index < len(pixels):
+                        pixel = pixels[pixel_index]
+
+                        # Convert pixel to color tuple
+                        if isinstance(pixel, tuple) and len(pixel) >= 3:
+                            color = pixel[:3]
+                        elif isinstance(pixel, int):
+                            r = (pixel >> 16) & 0xFF
+                            g = (pixel >> 8) & 0xFF
+                            b = pixel & 0xFF
+                            color = (r, g, b)
+                        else:
+                            color = (255, 0, 255)  # Default magenta
+
+                        # Get glyph for this color
+                        if color in color_to_glyph:
+                            glyph = color_to_glyph[color]
+                        else:
+                            # If quantized, find nearest color in palette
+                            if force_single_char_glyphs:
+                                min_distance = float("inf")
+                                closest_color = sorted_colors[0]
+                                for palette_color in sorted_colors:
+                                    r1, g1, b1 = color
+                                    r2, g2, b2 = palette_color
+                                    distance = (r1 - r2)**2 + (g1 - g2)**2 + (b1 - b2)**2
+                                    if distance < min_distance:
+                                        min_distance = distance
+                                        closest_color = palette_color
+                                glyph = color_to_glyph[closest_color]
+                            else:
+                                # Should not happen, but fallback to first glyph
+                                glyph = available_glyphs[0]
+
+                        pixel_string += glyph
+                    else:
+                        pixel_string += "."  # Default empty glyph
+
+                if y < height - 1:  # Add newline except for last row
+                    pixel_string += "\n"
+
+            # Generate color definitions using the consistent mapping
+            color_definitions = ""
+            for color in sorted_colors:
+                if isinstance(color, tuple) and len(color) >= 3:
+                    r, g, b = color[:3]
+                    glyph = color_to_glyph[color]
+                    color_definitions += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+
+            # Build complete TOML
+            toml_content = f"""[sprite]
+name = "current_frame"
+pixels = \"\"\"
+{pixel_string}
+\"\"\"
+
+{color_definitions}"""
+
+            return toml_content
+
+        except Exception as e:
+            self.log.exception(f"Error generating frame TOML content: {e}")
+            return ""
+
+    def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
+        """Get a glyph for a specific color.
+
+        Args:
+            color: RGB color tuple or integer color value
+
+        Returns:
+            Single character glyph from first 64 characters of SPRITE_GLYPHS
+
+        """
+        # Use only first 64 characters for consistent, manageable palette
+        available_glyphs = SPRITE_GLYPHS[:64]
+        # Simple hash-based assignment to ensure consistent glyph for same color
+        color_hash = hash(color) % len(available_glyphs)
+        return available_glyphs[color_hash]
+
+    def _load_temp_toml_as_example(self, temp_toml_path: str) -> dict | None:
+        """Load a temporary TOML file as a training example.
+
+        Args:
+            temp_toml_path: Path to the temporary TOML file
+
+        Returns:
+            Training example dict, or None if failed
+
+        """
+        try:
+            import toml
+
+            # Read the file as text first to preserve newlines
+            with open(temp_toml_path, "r", encoding="utf-8") as f:
+                file_content = f.read()
+
+            # Extract pixel data directly from the text to preserve newlines
+            pixels_data = ""
+            in_pixels_section = False
+            for line in file_content.split("\n"):
+                if line.strip() == 'pixels = """':
+                    in_pixels_section = True
+                    continue
+                elif line.strip() == '"""' and in_pixels_section:
+                    in_pixels_section = False
+                    break
+                elif in_pixels_section:
+                    pixels_data += line + "\n"
+
+            # Remove the trailing newline
+            if pixels_data.endswith("\n"):
+                pixels_data = pixels_data[:-1]
+
+            # Load the TOML file for other data (colors, etc.)
+            with open(temp_toml_path, "r", encoding="utf-8") as f:
+                config_data = toml.load(f)
+
+            # Convert to training example format
+            sprite_data = {
+                "name": config_data.get("sprite", {}).get("name", "current_frame"),
+                "sprite_type": "static",
+                "pixels": pixels_data,  # Use the directly extracted pixel data
+                "colors": config_data.get("colors", {})
+            }
+
+            # Clean up temporary file
+            import os
+            try:
+                os.unlink(temp_toml_path)
+                self.log.debug(f"Cleaned up temporary file: {temp_toml_path}")
+            except Exception as cleanup_error:
+                self.log.warning(f"Failed to clean up temp file {temp_toml_path}: {cleanup_error}")
+
+            self.log.info(f"Loaded current frame as training example: {sprite_data['name']}")
+            return sprite_data
+
+        except Exception as e:
+            self.log.exception(f"Error loading temp TOML as example: {e}")
+            return None
+
     def _load_ai_sprite(self, request_id: str, content: str) -> None:
         """Load sprite from AI content using SpriteFactory APIs."""
         # Log AI response content for debugging
@@ -4737,6 +5539,11 @@ class BitmapEditorScene(Scene):
 
         # Prepare AI content (clean and add description if needed)
         cleaned_content = self._prepare_ai_content(request_id, content)
+
+        # Get the original prompt to update sprite description
+        original_prompt = ""
+        if request_id in self.pending_ai_requests:
+            original_prompt = self.pending_ai_requests[request_id]
 
         # Create temporary file from content
         tmp_path = self._create_temp_file_from_content(cleaned_content)
@@ -4760,6 +5567,11 @@ class BitmapEditorScene(Scene):
                 self._load_animated_ai_sprite(tmp_path)
             else:
                 self._load_static_ai_sprite(tmp_path)
+
+            # Update the sprite's description with the original prompt
+            if original_prompt and hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+                self.canvas.animated_sprite.description = original_prompt
+                self.log.info(f"Updated sprite description with generation prompt: '{original_prompt}'")
 
             # Update UI components
             self._update_ui_after_ai_load(request_id)
@@ -4975,6 +5787,17 @@ class BitmapEditorScene(Scene):
             except Exception:
                 self.log.exception("Error closing response queue")
 
+    def _cleanup_voice_recognition(self) -> None:
+        """Clean up voice recognition resources."""
+        if hasattr(self, "voice_manager") and self.voice_manager:
+            try:
+                self.log.info("Stopping voice recognition...")
+                self.voice_manager.stop_listening()
+                self.voice_manager = None
+                self.log.info("Voice recognition stopped successfully")
+            except Exception:
+                self.log.exception("Error stopping voice recognition")
+
     def cleanup(self):
         """Clean up resources."""
         self.log.info("Starting AI cleanup...")
@@ -4982,6 +5805,9 @@ class BitmapEditorScene(Scene):
         self._shutdown_ai_worker()
         self._cleanup_ai_process()
         self._cleanup_queues()
+
+        # Clean up voice recognition
+        self._cleanup_voice_recognition()
 
         super().cleanup()
 
@@ -5068,6 +5894,422 @@ class BitmapEditorScene(Scene):
 
         # Call our custom keyboard handler
         self.on_key_down_event(event)
+
+    def on_drop_file_event(self, event: events.HashableEvent) -> None:
+        """Handle drop file event.
+
+        Args:
+            event: The pygame event containing the dropped file information.
+
+        Returns:
+            None
+
+        """
+        # Get the file path from the event
+        file_path = event.file
+        self.log.info(f"File dropped: {file_path}")
+
+        # Get file size
+        try:
+            file_size = Path(file_path).stat().st_size
+            self.log.info(f"File size: {file_size} bytes")
+        except OSError:
+            self.log.exception("Could not get file size")
+            return
+
+        # Check if it's a PNG file
+        if file_path.lower().endswith(".png"):
+            self.log.info("PNG file detected - converting to bitmappy format")
+            converted_toml_path = self._convert_png_to_bitmappy(file_path)
+            if converted_toml_path:
+                # Auto-load the converted TOML file
+                self._load_converted_sprite(converted_toml_path)
+            else:
+                self.log.error("Failed to convert PNG to bitmappy format")
+        else:
+            self.log.info(f"File type not supported: {file_path}")
+            self.log.info("Currently only PNG files are supported for drag and drop")
+
+    def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
+        """Convert a PNG file to bitmappy TOML format.
+
+        Args:
+            file_path: Path to the PNG file to convert.
+
+        Returns:
+            Path to the converted TOML file, or None if conversion failed.
+
+        """
+        try:
+            # Load the PNG image
+            self.log.info(f"Loading PNG image: {file_path}")
+            image = pygame.image.load(file_path)
+
+            # Get image dimensions
+            width, height = image.get_size()
+            self.log.info(f"Image dimensions: {width}x{height}")
+
+            # Get current canvas size for resizing
+            canvas_width, canvas_height = 32, 32  # Default fallback
+            if hasattr(self, "canvas") and self.canvas:
+                canvas_width = self.canvas.pixels_across
+                canvas_height = self.canvas.pixels_tall
+                self.log.info(f"Using current canvas size: {canvas_width}x{canvas_height}")
+            else:
+                self.log.info("No canvas found, using default size: 32x32")
+
+            # Check if image needs resizing to match canvas size
+            if width != canvas_width or height != canvas_height:
+                self.log.info(f"Resizing image from {width}x{height} to {canvas_width}x{canvas_height} to match canvas")
+
+                # Resize the image to match canvas size
+                resized_image = pygame.transform.scale(image, (canvas_width, canvas_height))
+                image = resized_image
+                width, height = canvas_width, canvas_height
+                self.log.info(f"Resized image to {width}x{height}")
+
+            # Convert to RGB if needed, handling transparency
+            if image.get_flags() & pygame.SRCALPHA:
+                # Image has alpha channel, convert to RGB with transparency handling
+                rgb_image = pygame.Surface((width, height))
+                rgb_image.fill((255, 255, 255))  # White background
+                rgb_image.blit(image, (0, 0))
+                image = rgb_image
+                self.log.info("Converted image with alpha channel to RGB")
+
+            # Get pixel data
+            pixel_array = pygame.surfarray.array3d(image)
+            self.log.info(f"Pixel array shape: {pixel_array.shape}")
+
+            # Handle transparency - check if original image had alpha
+            has_transparency = False
+            if image.get_flags() & pygame.SRCALPHA:
+                # Get the original image with alpha for transparency detection
+                original_image = pygame.image.load(file_path)
+                if original_image.get_flags() & pygame.SRCALPHA:
+                    has_transparency = True
+                    self.log.info("Image has transparency - will map transparent pixels to magenta (255, 0, 255)")
+
+            # Use a more efficient approach for large images
+            # Sample pixels to find representative colors
+            sample_step = max(1, (width * height) // 10000)  # Sample up to 10k pixels
+            self.log.info(f"Sampling every {sample_step} pixels for color analysis")
+
+            # Find unique colors by sampling
+            unique_colors = set()
+            sample_count = 0
+            transparent_pixels = 0
+
+            for y in range(0, height, sample_step):
+                for x in range(0, width, sample_step):
+                    r, g, b = pixel_array[x, y]
+                    # Ensure we're working with Python ints, not numpy types
+                    color = (int(r), int(g), int(b))
+                    unique_colors.add(color)
+                    sample_count += 1
+
+                    # Check for transparency if we have the original image
+                    if has_transparency:
+                        # Get the original pixel with alpha
+                        original_pixel = original_image.get_at((x, y))
+                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                            transparent_pixels += 1
+                            # Map transparent pixels to magenta
+                            unique_colors.discard(color)  # Remove the current color
+                            unique_colors.add((255, 0, 255))  # Add magenta for transparency
+
+            if has_transparency:
+                self.log.info(f"Found {transparent_pixels} transparent pixels, mapped to magenta (255, 0, 255)")
+
+            self.log.info(f"Sampled {sample_count} pixels, found {len(unique_colors)} unique colors")
+
+            # If we still have too many colors, use k-means-like approach
+            # Reserve one slot for transparency if we have transparent pixels
+            reserved_for_transparency = 1 if has_transparency else 0
+            # Limit to 1000 colors maximum for practical file sizes
+            max_colors = 1000
+            available_colors = max_colors - reserved_for_transparency
+
+            if len(unique_colors) > available_colors:
+                self.log.info("Too many colors detected, using color quantization...")
+                # Group similar colors together
+                color_groups = {}
+                for color in unique_colors:
+                    # Find the closest existing group
+                    closest_group = None
+                    min_distance = float("inf")
+
+                    for group_color in color_groups:
+                        distance = sum((a - b) ** 2 for a, b in zip(color, group_color))
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_group = group_color
+
+                    # If no close group exists and we have space, create new group
+                    if closest_group is None or min_distance > 1000:  # Lower threshold for better color separation
+                        if len(color_groups) < available_colors:
+                            color_groups[color] = [color]
+                        else:
+                            # Add to closest existing group
+                            color_groups[closest_group].append(color)
+                    else:
+                        color_groups[closest_group].append(color)
+
+                # Create representative colors for each group
+                representative_colors = []
+                for group_color, colors in color_groups.items():
+                    if colors:
+                        # Use the most common color in the group as representative
+                        representative_colors.append(group_color)
+
+                unique_colors = set(representative_colors)
+                self.log.info(f"Quantized to {len(unique_colors)} representative colors")
+                self.log.info(f"Available colors: {available_colors}, Color groups created: {len(color_groups)}")
+
+            # Map colors to bitmappy palette using first 1000 SPRITE_GLYPHS characters
+            # Reserve one slot for transparency if we have transparent pixels
+            max_glyphs = 1000
+            available_glyphs = list(SPRITE_GLYPHS[:max_glyphs])  # Use first 1000 characters
+            reserved_for_transparency = 1 if has_transparency else 0
+            available_colors = len(available_glyphs) - reserved_for_transparency
+
+            self.log.info(f"Mapping colors: {len(unique_colors)} unique colors to {available_colors} available glyphs")
+            if has_transparency:
+                self.log.info("Reserved 1 glyph for transparency")
+
+            color_mapping = {}
+            glyph_index = 0
+
+            # First, ensure magenta (transparency) gets a glyph if we have transparency
+            if has_transparency and (255, 0, 255) in unique_colors:
+                color_mapping[(255, 0, 255)] = "@"  # Use @ for transparency
+                self.log.info("Reserved glyph '@' for transparency (magenta)")
+
+            # Map other colors to available glyphs
+            for color in sorted(unique_colors):
+                if color == (255, 0, 255) and has_transparency:
+                    continue  # Already handled above
+
+                if glyph_index < available_colors:  # Only use available glyphs
+                    color_mapping[color] = available_glyphs[glyph_index]
+                    glyph_index += 1
+                else:
+                    # Map to closest existing color using safe distance calculation
+                    def color_distance(c1, c2):
+                        """Calculate color distance safely."""
+                        return sum((int(a) - int(b)) ** 2 for a, b in zip(c1, c2, strict=True))
+
+                    closest_color = min(color_mapping.keys(), key=lambda c: color_distance(color, c))
+                    color_mapping[color] = color_mapping[closest_color]
+
+            self.log.info(f"Final color mapping: {len(color_mapping)} colors mapped to glyphs")
+
+            # Generate pixel string more efficiently
+            self.log.info("Generating pixel string...")
+            pixel_string = ""
+            for y in range(height):
+                for x in range(width):
+                    r, g, b = pixel_array[x, y]
+                    # Convert to int tuple for consistent lookup
+                    color_key = (int(r), int(g), int(b))
+
+                    # Handle transparency - check if this pixel should be transparent
+                    if has_transparency:
+                        original_pixel = original_image.get_at((x, y))
+                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                            color_key = (255, 0, 255)  # Use magenta for transparency
+
+                    # If color is not in mapping, find closest mapped color
+                    if color_key not in color_mapping:
+                        def color_distance(c1, c2):
+                            """Calculate color distance safely."""
+                            return sum((int(a) - int(b)) ** 2 for a, b in zip(c1, c2, strict=True))
+
+                        closest_color = min(color_mapping.keys(), key=lambda c: color_distance(color_key, c))
+                        color_mapping[color_key] = color_mapping[closest_color]
+                        self.log.debug(f"Mapped unmapped color {color_key} to {closest_color}")
+
+                    pixel_string += color_mapping[color_key]
+                if y < height - 1:  # Add newline except for last row
+                    pixel_string += "\n"
+
+                # Log progress for large images
+                if height > 32 and y % (height // 10) == 0:
+                    self.log.info(f"Progress: {y}/{height} rows processed")
+
+            # Generate TOML content
+            toml_content = f'[sprite]\nname = "imported_from_{Path(file_path).stem}"\npixels = """\n{pixel_string}\n"""\n\n[colors]\n'
+
+            # Add color definitions - collect unique glyphs first
+            unique_glyphs = set(color_mapping.values())
+            self.log.info(f"Unique glyphs to define: {sorted(unique_glyphs)}")
+
+            for glyph in sorted(unique_glyphs):
+                # Find the first color that maps to this glyph
+                for color, mapped_glyph in color_mapping.items():
+                    if mapped_glyph == glyph:
+                        r, g, b = color
+                        # Quote the glyph to handle special characters like '.'
+                        toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+                        self.log.info(f"Defined color {glyph}: RGB({r}, {g}, {b})")
+                        break
+
+            # Validate that we have color definitions
+            if not unique_glyphs:
+                self.log.error("No colors to define - this will cause display issues!")
+                raise ValueError("No colors found in the converted sprite")
+
+            self.log.info(f"Generated {len(unique_glyphs)} color definitions")
+
+            # Save the TOML file
+            output_path = Path(file_path).with_suffix(".toml")
+            Path(output_path).write_text(toml_content, encoding="utf-8")
+
+            # Validate the generated TOML file by checking content directly
+            self.log.info("Validating generated TOML file...")
+            try:
+                # Read the file content to check for basic structure
+                with output_path.open(encoding="utf-8") as f:
+                    content = f.read()
+
+                # Check for required sections
+                if "[sprite]" not in content:
+                    self.log.error("TOML file missing [sprite] section!")
+                    raise ValueError("Generated TOML file has no [sprite] section")
+
+                if "[colors]" not in content:
+                    self.log.error("TOML file missing [colors] section!")
+                    raise ValueError("Generated TOML file has no [colors] section")
+
+                # Count color definitions by counting [colors."..."] lines
+                color_count = content.count('[colors."')
+                if color_count == 0:
+                    self.log.error("TOML file has no color definitions!")
+                    raise ValueError("Generated TOML file has no color definitions")
+
+                self.log.info(f"TOML validation passed: {color_count} colors defined")
+
+            except Exception as e:
+                self.log.error(f"TOML validation failed: {e}")
+                raise
+
+            self.log.info(f"Successfully converted PNG to bitmappy format: {output_path}")
+
+            # Return the path to the converted TOML file
+            return str(output_path)
+
+        except Exception:
+            self.log.exception("Error converting PNG to bitmappy format")
+            return None
+
+    def _load_converted_sprite(self, toml_path: str) -> None:
+        """Load a converted TOML sprite into the editor.
+
+        Args:
+            toml_path: Path to the converted TOML file.
+
+        Returns:
+            None
+
+        """
+        try:
+            self.log.info("=== STARTING _load_converted_sprite ===")
+            # Find the canvas sprite in the scene
+            self.log.info(f"Searching for canvas sprite in {len(self.all_sprites)} sprites...")
+            canvas_sprite = None
+            for i, sprite in enumerate(self.all_sprites):
+                self.log.info(f"Sprite {i}: {type(sprite)} - has on_load_file_event: {hasattr(sprite, 'on_load_file_event')}")
+                if hasattr(sprite, "on_load_file_event"):
+                    canvas_sprite = sprite
+                    self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
+                    break
+
+            if canvas_sprite:
+                self.log.info(f"Loading converted sprite: {toml_path}")
+                self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
+
+                # Create a mock event for loading
+                class MockEvent:
+                    def __init__(self, text):
+                        self.text = text
+
+                mock_event = MockEvent(toml_path)
+                self.log.info("Calling on_load_file_event...")
+                canvas_sprite.on_load_file_event(mock_event)
+                self.log.info("on_load_file_event completed")
+
+                # Update border thickness after loading (in case canvas was resized)
+                self.log.info("Updating border thickness after sprite load...")
+                canvas_sprite._update_border_thickness()
+
+                # Force a complete redraw to apply the new border settings
+                self.log.info("Forcing canvas redraw with new border settings...")
+                canvas_sprite.force_redraw()
+
+                # Debug: Check what was loaded
+                self.log.info(f"Canvas sprite type: {type(canvas_sprite)}")
+                self.log.info(f"Canvas sprite has animated_sprite: {hasattr(canvas_sprite, 'animated_sprite')}")
+                if hasattr(canvas_sprite, "animated_sprite"):
+                    self.log.info(f"animated_sprite value: {canvas_sprite.animated_sprite}")
+                if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
+                    self.log.info(f"Animated sprite loaded: {canvas_sprite.animated_sprite}")
+                    if hasattr(canvas_sprite.animated_sprite, "_animations"):
+                        animations = list(canvas_sprite.animated_sprite._animations.keys())
+                        self.log.info(f"Animations: {animations}")
+                        if animations:
+                            first_anim = animations[0]
+                            frames = canvas_sprite.animated_sprite._animations[first_anim]
+                            self.log.info(f"First animation '{first_anim}' has {len(frames)} frames")
+                            if frames:
+                                first_frame = frames[0]
+                                self.log.info(f"First frame size: {first_frame.size}")
+
+                                # Transfer pixel data from the loaded sprite to the canvas
+                                self.log.info("Transferring pixel data from loaded sprite to canvas...")
+                                if hasattr(first_frame, "image") and first_frame.image:
+                                    # Get the pixel data from the frame image
+                                    frame_surface = first_frame.image
+                                    frame_width, frame_height = frame_surface.get_size()
+                                    self.log.info(f"Frame surface size: {frame_width}x{frame_height}")
+
+                                    # Convert the frame surface to pixel data
+                                    pixel_data = []
+                                    for y in range(frame_height):
+                                        for x in range(frame_width):
+                                            color = frame_surface.get_at((x, y))
+                                            # Convert to RGB (ignore alpha)
+                                            pixel_data.append((color.r, color.g, color.b))
+
+                                    # Update canvas pixels
+                                    canvas_sprite.pixels = pixel_data
+                                    canvas_sprite.dirty_pixels = [True] * len(pixel_data)
+                                    self.log.info(f"Transferred {len(pixel_data)} pixels to canvas")
+
+                                    # Update mini view pixels too
+                                    if hasattr(canvas_sprite, "mini_view") and canvas_sprite.mini_view is not None:
+                                        canvas_sprite.mini_view.pixels = pixel_data.copy()
+                                        canvas_sprite.mini_view.dirty_pixels = [True] * len(pixel_data)
+                                        self.log.info("Updated mini view pixels")
+
+                # Force canvas redraw to show the new sprite
+                self.log.info("Forcing canvas redraw after loading...")
+                canvas_sprite.dirty = 1
+                canvas_sprite.force_redraw()
+
+                # Update mini view if it exists
+                if hasattr(canvas_sprite, "mini_view") and canvas_sprite.mini_view is not None:
+                    self.log.info("Updating mini view...")
+                    canvas_sprite.mini_view.pixels = canvas_sprite.pixels.copy()
+                    canvas_sprite.mini_view.dirty_pixels = [True] * len(canvas_sprite.pixels)
+                    canvas_sprite.mini_view.dirty = 1
+                    canvas_sprite.mini_view.force_redraw()
+
+                self.log.info("Converted sprite loaded successfully into editor")
+            else:
+                self.log.warning("Could not find canvas sprite to load converted file")
+
+        except Exception:
+            self.log.exception("Error loading converted sprite into editor")
 
     def handle_event(self, event):
         """Handle pygame events."""

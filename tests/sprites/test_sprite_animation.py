@@ -17,7 +17,7 @@ from glitchygames.sprites.animated import (
     detect_file_format,
 )
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test values
 TEST_FRAME_INDEX = 5

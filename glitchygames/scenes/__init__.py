@@ -32,6 +32,7 @@ class SceneManager(SceneInterface, events.EventManager):
     OPTIONS: ClassVar = {}
 
     def __new__(cls):
+        """Create a new instance or return the existing singleton instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -46,7 +47,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # Prevent re-initialization of singleton
         if hasattr(self, "_initialized"):
             return
-        
+
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
@@ -66,7 +67,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self.quit_requested = False
 
         self.clock = pygame.time.Clock()
-        
+
         # Mark as initialized to prevent re-initialization
         self._initialized = True
 
@@ -169,7 +170,10 @@ class SceneManager(SceneInterface, events.EventManager):
                 previous_fps_time = current_time
 
             # Only switch scenes if the current scene has a different next_scene
-            if self.active_scene.next_scene is not None and self.active_scene.next_scene != self.active_scene:
+            if (
+                self.active_scene.next_scene is not None
+                and self.active_scene.next_scene != self.active_scene
+            ):
                 self.switch_to_scene(self.active_scene.next_scene)
             current_time = time.perf_counter()
 
@@ -334,7 +338,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
             if focused_sprites and event.type == pygame.KEYDOWN:
                 # Let the active scene handle it directly
-                self.active_scene.handle_event(event)
+                # self.active_scene.handle_event(event)  # Commented out - Scene doesn't have this method
                 return
 
         # Only process other events if no focused sprites handled it
@@ -343,7 +347,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self.quit_requested = True
         elif self.active_scene:
             # Pass to active scene if we have one
-            self.active_scene.handle_event(event)
+            # self.active_scene.handle_event(event)  # Commented out - Scene doesn't have this method
+            pass
 
     def _should_post_fps_event(self, current_time: float, previous_fps_time: float) -> bool:
         """Check if FPS event should be posted.
@@ -425,7 +430,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene.cleanup()
 
     def _setup_new_scene(self, next_scene: Scene) -> None:
-        """Setup the new scene."""
+        """Set up the new scene."""
         if next_scene:
             self.log.info(f"Setting up new scene {next_scene}.")
             # Ensure the new scene has access to the game engine
@@ -488,14 +493,16 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _log_scene_rendering_info(self) -> None:
         """Log scene rendering information."""
-        fps_display = "unlimited" if self.active_scene.target_fps == 0 else f"{self.active_scene.target_fps}"
+        fps_display = (
+            "unlimited" if self.active_scene.target_fps == 0 else f"{self.active_scene.target_fps}"
+        )
         self.log.info(
             f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
             f" at {fps_display} FPS"
         )
 
     def _setup_event_proxies(self) -> None:
-        """Setup event proxies for the scene."""
+        """Set up event proxies for the scene."""
         # This controls how events are marshalled
         self.proxies = [self, self.active_scene]
 
@@ -516,9 +523,6 @@ class SceneManager(SceneInterface, events.EventManager):
         # Don't override the scene manager's target_fps with the scene's target_fps
         # The scene manager's target_fps comes from OPTIONS and should be maintained
         # The scene's target_fps is already set by _configure_scene_fps()
-        pass
-
-
 
 
 class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
@@ -681,15 +685,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Ideally we'd just make dirty a property with a setter and getter on each
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
-        
+
         # Update all sprites that are dirty
         [sprite.update() for sprite in self.all_sprites if sprite.dirty]
-        
+
         # CRITICAL: Film strip sprites need continuous updates for preview animations
         # Unlike regular sprites that only update when dirty, film strip sprites must
         # update every frame to advance their animation timing. This ensures that
         # preview animations run smoothly and independently of user interaction.
-        # 
+        #
         # DEBUGGING NOTES:
         # - If film strip animations stop running, check that this loop is executing
         # - Verify that sprite.name == "Film Strip" matches FilmStripSprite.name
@@ -1943,11 +1947,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         current_time = time.perf_counter()
         if not hasattr(self, "_last_fps_log_time"):
             self._last_fps_log_time = 0
-        
+
         if current_time - self._last_fps_log_time >= 1.0:  # Log once per second
             self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
             self._last_fps_log_time = current_time
-        
+
         self.fps = event.fps
 
     def load_resources(self: Self) -> None:

@@ -20,6 +20,7 @@ import pygame
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickManager
+from glitchygames.examples.game_over_scene import GameOverScene
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
@@ -320,21 +321,33 @@ class Game(Scene):
         for ball in self.balls:
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
                 self.player1.snd.play()
-                log.debug(f"PADDLE 1 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(
+                    f"PADDLE 1 HIT: ball speed before="
+                    f"{math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}"
+                )
                 ball.speed.x *= -1
                 # Tell the ball to speed up
                 ball.speed_up(1.15)  # 15% speed increase
-                log.debug(f"PADDLE 1 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(
+                    f"PADDLE 1 HIT: ball speed after="
+                    f"{math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}"
+                )
                 # Spawn a new ball at default speed
                 self._spawn_new_ball()
 
             if pygame.sprite.collide_rect(self.player2, ball) and ball.speed.x > 0:
                 self.player2.snd.play()
-                log.debug(f"PADDLE 2 HIT: ball speed before={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(
+                    f"PADDLE 2 HIT: ball speed before="
+                    f"{math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}"
+                )
                 ball.speed.x *= -1
                 # Tell the ball to speed up
                 ball.speed_up(1.15)  # 15% speed increase
-                log.debug(f"PADDLE 2 HIT: ball speed after={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}")
+                log.debug(
+                    f"PADDLE 2 HIT: ball speed after="
+                    f"{math.sqrt(ball.speed.x**2 + ball.speed.y**2):.2f}"
+                )
                 # Spawn a new ball at default speed
                 self._spawn_new_ball()
 
@@ -342,10 +355,7 @@ class Game(Scene):
         self._handle_ball_collisions()
 
         # Remove dead balls from our list
-        balls_to_remove = []
-        for ball in self.balls:
-            if not ball.alive():
-                balls_to_remove.append(ball)
+        balls_to_remove = [ball for ball in self.balls if not ball.alive()]
 
         for ball in balls_to_remove:
             self.balls.remove(ball)
@@ -366,7 +376,6 @@ class Game(Scene):
             None
 
         """
-        from glitchygames.examples.game_over_scene import GameOverScene
         self.next_scene = GameOverScene(options=self.options)
         self.previous_scene = self
 
@@ -401,8 +410,6 @@ class Game(Scene):
             None
 
         """
-        import math
-
         # Check all pairs of balls for collisions
         for i in range(len(self.balls)):
             for j in range(i + 1, len(self.balls)):
@@ -412,17 +419,24 @@ class Game(Scene):
                 # Calculate distance between ball centers
                 dx = ball2.rect.centerx - ball1.rect.centerx
                 dy = ball2.rect.centery - ball1.rect.centery
-                distance = math.sqrt(dx*dx + dy*dy)
+                distance = math.sqrt(dx * dx + dy * dy)
 
                 # Check if balls are colliding (sum of radii)
                 collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
 
                 # Calculate overlap percentage
-                overlap_percentage = (collision_distance - distance) / collision_distance if collision_distance > 0 else 0
+                overlap_percentage = (
+                    (collision_distance - distance) / collision_distance
+                    if collision_distance > 0
+                    else 0
+                )
 
                 # Require 0% overlap for billiards-style collision (touch to bounce)
-                if distance < collision_distance and distance > 0 and overlap_percentage >= 0.0:
-                    import time
+                if (
+                    distance < collision_distance
+                    and distance > 0
+                    and overlap_percentage >= 0.0
+                ):
                     current_time = time.time()
 
                     # Check if balls are in cooldown period
@@ -430,18 +444,29 @@ class Game(Scene):
                     ball2_id = id(ball2)
 
                     # Check if ball1 has cooldown with ball2
-                    if ball1_id in ball1.collision_cooldowns and ball1.collision_cooldowns[ball1_id] > current_time - 2.0:
+                    if (
+                        ball1_id in ball1.collision_cooldowns
+                        and ball1.collision_cooldowns[ball1_id] > current_time - 2.0
+                    ):
                         continue
 
                     # Check if ball2 has cooldown with ball1
-                    if ball2_id in ball2.collision_cooldowns and ball2.collision_cooldowns[ball2_id] > current_time - 2.0:
+                    if (
+                        ball2_id in ball2.collision_cooldowns
+                        and ball2.collision_cooldowns[ball2_id] > current_time - 2.0
+                    ):
                         continue
 
                     # Play collision sound
                     if hasattr(ball1, "snd") and ball1.snd is not None:
                         ball1.snd.play()
 
-                    log.debug(f"BALL-TO-BALL: ball1 speed before={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed before={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+                    log.debug(
+                        f"BALL-TO-BALL: ball1 speed before="
+                        f"{math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, "
+                        f"ball2 speed before="
+                        f"{math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}"
+                    )
 
                     # Simple billiards-style collision
                     # Calculate collision normal
@@ -475,7 +500,12 @@ class Game(Scene):
                     ball2.speed.x += (v1n - v2n) * nx
                     ball2.speed.y += (v1n - v2n) * ny
 
-                    log.debug(f"BALL-TO-BALL: ball1 speed after={math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, ball2 speed after={math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}")
+                    log.debug(
+                        f"BALL-TO-BALL: ball1 speed after="
+                        f"{math.sqrt(ball1.speed.x**2 + ball1.speed.y**2):.2f}, "
+                        f"ball2 speed after="
+                        f"{math.sqrt(ball2.speed.x**2 + ball2.speed.y**2):.2f}"
+                    )
 
                     # Separate balls to prevent sticking
                     overlap = collision_distance - distance

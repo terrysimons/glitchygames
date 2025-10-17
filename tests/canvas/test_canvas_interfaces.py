@@ -27,6 +27,8 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedSpriteSerializer,
 )
 
+from tests.mocks.test_mock_factory import MockFactory
+
 # Constants for test values
 CANVAS_SIZE = 8
 CANVAS_PIXEL_COUNT = 64  # 8x8 = 64 pixels
@@ -40,9 +42,10 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        # Initialize pygame with display for each test
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Set up centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -71,10 +74,9 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
             pixel_height=16,
         )
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_animated_canvas_interface_creation(self):
         """Test that animated canvas interface is created correctly."""
@@ -185,8 +187,10 @@ class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Set up centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -214,10 +218,9 @@ class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
             pixel_height=16,
         )
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_out_of_bounds_pixel_access(self):
         """Test accessing pixels outside canvas bounds."""

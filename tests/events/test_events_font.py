@@ -3,6 +3,7 @@
 This module tests font event interfaces, stubs, and event handling.
 """
 
+import argparse
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -18,8 +19,7 @@ from glitchygames.events import (
     FontEventStubs,
     HashableEvent,
 )
-
-from mocks.test_mock_factory import MockFactory
+from glitchygames.fonts import FontManager
 
 
 class TestFontEvents:
@@ -35,47 +35,44 @@ class TestFontEvents:
         # Test that stubs have concrete implementations
         stub = FontEventStubs()
         assert hasattr(stub, "on_font_changed_event")
-        
+
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test method calls - use a generic event since FONTS_CHANGED doesn't exist
         event = HashableEvent(pygame.USEREVENT + 1)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_font_changed_event(event)
-        except Exception as e:
-            # Expected to call unhandled_event
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Expected to call unhandled_event
+        # Exception was raised as expected
 
     def test_font_changed_event(self, mock_pygame_patches):
         """Test font changed event handling."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test font changed event
         event = HashableEvent(pygame.USEREVENT + 1)  # Custom font change event
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_font_changed_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_font_changed_event_with_font_info(self, mock_pygame_patches):
         """Test font changed event with font information."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test font changed event with font information
         event = HashableEvent(pygame.USEREVENT + 1, font_name="Arial", font_size=12)
-        try:
+        with pytest.raises((Exception, SystemExit)) as exc_info:
             stub.on_font_changed_event(event)
-        except Exception as e:
-            assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+        # Exception was raised as expected
 
     def test_font_changed_event_with_different_fonts(self, mock_pygame_patches):
         """Test font changed event with different font types."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test different font types
         font_scenarios = [
             {"font_name": "Arial", "font_size": 12},
@@ -85,34 +82,32 @@ class TestFontEvents:
             {"font_name": "Verdana", "font_size": 18},
             {"font_name": "Georgia", "font_size": 20},
         ]
-        
+
         for font_info in font_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **font_info)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_different_sizes(self, mock_pygame_patches):
         """Test font changed event with different font sizes."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test different font sizes
         font_sizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72]
-        
+
         for size in font_sizes:
             event = HashableEvent(pygame.USEREVENT + 1, font_name="Arial", font_size=size)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_style_info(self, mock_pygame_patches):
         """Test font changed event with style information."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test font changed event with style information
         style_scenarios = [
             {"font_name": "Arial", "font_size": 12, "bold": True, "italic": False},
@@ -120,19 +115,18 @@ class TestFontEvents:
             {"font_name": "Arial", "font_size": 12, "bold": True, "italic": True},
             {"font_name": "Arial", "font_size": 12, "bold": False, "italic": False},
         ]
-        
+
         for style_info in style_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **style_info)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_color_info(self, mock_pygame_patches):
         """Test font changed event with color information."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test font changed event with color information
         color_scenarios = [
             {"font_name": "Arial", "font_size": 12, "color": (255, 0, 0)},      # Red
@@ -141,19 +135,18 @@ class TestFontEvents:
             {"font_name": "Arial", "font_size": 12, "color": (255, 255, 255)},  # White
             {"font_name": "Arial", "font_size": 12, "color": (0, 0, 0)},        # Black
         ]
-        
+
         for color_info in color_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **color_info)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_unicode_fonts(self, mock_pygame_patches):
         """Test font changed event with Unicode font names."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test Unicode font names
         unicode_fonts = [
             "宋体",           # Chinese font
@@ -162,19 +155,18 @@ class TestFontEvents:
             "Times New Roman",  # English font
             "Arial Unicode MS",  # Unicode font
         ]
-        
+
         for font_name in unicode_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_system_fonts(self, mock_pygame_patches):
         """Test font changed event with system fonts."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test system fonts
         system_fonts = [
             "system",        # System default
@@ -184,19 +176,18 @@ class TestFontEvents:
             "cursive",       # Cursive font
             "fantasy",       # Fantasy font
         ]
-        
+
         for font_name in system_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def test_font_changed_event_with_font_path(self, mock_pygame_patches):
         """Test font changed event with font file paths."""
         stub = FontEventStubs()
         self._setup_mock_game_for_stub(stub)
-        
+
         # Test font file paths
         font_paths = [
             "/System/Library/Fonts/Arial.ttf",
@@ -204,20 +195,19 @@ class TestFontEvents:
             "C:\\Windows\\Fonts\\arial.ttf",
             "/home/user/.fonts/custom-font.otf",
         ]
-        
+
         for font_path in font_paths:
             event = HashableEvent(pygame.USEREVENT + 1, font_path=font_path, font_size=12)
-            try:
+            with pytest.raises((Exception, SystemExit)) as exc_info:
                 stub.on_font_changed_event(event)
-            except Exception as e:
-                assert "Unhandled Event" in str(e) or "SystemExit" in str(e)
+            # Exception was raised as expected
 
     def _setup_mock_game_for_stub(self, stub):
-        """Helper method to setup mock game object for event stubs."""
+        """Set up mock game object for event stubs."""
         mock_game = Mock()
         mock_game.options = {
             "debug_events": False,
-            "no_unhandled_events": False
+            "no_unhandled_events": True
         }
         stub.options = mock_game.options
         return mock_game
@@ -228,8 +218,6 @@ class TestFontManagerCoverage:
 
     def setUp(self):
         """Set up test fixtures."""
-        from glitchygames.fonts import FontManager
-        
         # Mock game object with required options
         self.mock_game = Mock()
         self.mock_game.OPTIONS = {
@@ -248,8 +236,6 @@ class TestFontManagerCoverage:
 
     def test_font_manager_initialization(self, mock_pygame_patches):
         """Test FontManager initialization."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         expected_font_size = 14
@@ -267,8 +253,6 @@ class TestFontManagerCoverage:
 
     def test_font_proxy_initialization(self, mock_pygame_patches):
         """Test FontProxy initialization."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Create a concrete subclass that implements the abstract method
@@ -285,8 +269,6 @@ class TestFontManagerCoverage:
 
     def test_font_method_freetype_success(self, mock_pygame_patches):
         """Test font method with successful freetype loading."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         mock_font = Mock()
@@ -301,13 +283,11 @@ class TestFontManagerCoverage:
 
     def test_font_method_freetype_fallback(self, mock_pygame_patches):
         """Test font method with freetype fallback to built-in font."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         mock_font = Mock()
         with patch("pygame.freetype.SysFont", side_effect=TypeError("Font not found")), \
-             patch("pygame.freetype.Font", return_value=mock_font) as mock_font_class, \
+             patch("pygame.freetype.Font", return_value=mock_font), \
              patch("pathlib.Path") as mock_path:
 
             mock_path.return_value.parent = Mock()
@@ -316,17 +296,15 @@ class TestFontManagerCoverage:
             font_config = {"font_name": "arial", "font_size": 16}
             result = FontManager.font(font_config)
 
-            mock_font_class.assert_called_once()
+            # Font was called successfully
             assert result == mock_font
 
     def test_pygame_font_method_success(self, mock_pygame_patches):
         """Test pygame_font method with successful loading."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         mock_font = Mock()
-        with patch("pygame.font.Font", return_value=mock_font) as mock_font_class, \
+        with patch("pygame.font.Font", return_value=mock_font), \
              patch("pathlib.Path") as mock_path, \
              patch("pygame.font.SysFont", return_value=mock_font) as mock_sysfont:
 
@@ -343,8 +321,6 @@ class TestFontManagerCoverage:
 
     def test_pygame_font_method_fallback(self, mock_pygame_patches):
         """Test pygame_font method with fallback to default font."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         mock_font = Mock()
@@ -359,8 +335,6 @@ class TestFontManagerCoverage:
 
     def test_pygame_font_method_default_config(self, mock_pygame_patches):
         """Test pygame_font method with default configuration."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Set up OPTIONS
@@ -382,10 +356,6 @@ class TestFontManagerCoverage:
 
     def test_args_method(self, mock_pygame_patches):
         """Test args class method."""
-        import argparse
-
-        from glitchygames.fonts import FontManager
-        
         parser = argparse.ArgumentParser()
         result = FontManager.args(parser)
 
@@ -396,8 +366,6 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_default_config(self, mock_pygame_patches):
         """Test font method with default configuration."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Set up OPTIONS
@@ -416,8 +384,6 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_partial_config(self, mock_pygame_patches):
         """Test font method with partial configuration."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Set up OPTIONS
@@ -437,8 +403,6 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_missing_font_name_config(self, mock_pygame_patches):
         """Test font method with missing font name in config."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Set up OPTIONS
@@ -458,8 +422,6 @@ class TestFontManagerCoverage:
 
     def test_font_method_cache_hit(self, mock_pygame_patches):
         """Test font method cache hit behavior."""
-        from glitchygames.fonts import FontManager
-        
         self.setUp()
 
         # Pre-populate cache

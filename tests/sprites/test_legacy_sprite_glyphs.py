@@ -12,7 +12,8 @@ import pygame
 import pytest
 from glitchygames.sprites import SPRITE_GLYPHS
 from scripts.raw_sprite_loader import BitmappyLegacySprite
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Constants for test values
 MAX_RGB_VALUE = 255

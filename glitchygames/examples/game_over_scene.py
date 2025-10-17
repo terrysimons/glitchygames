@@ -1,6 +1,4 @@
-"""
-Game Over scene for the paddleslap game.
-"""
+"""Game Over scene for the paddleslap game."""
 
 import logging
 from typing import Self

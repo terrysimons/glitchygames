@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.game_objects import load_sound
 from glitchygames.game_objects.sounds import SFX
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestGameObjectsSounds(unittest.TestCase):
@@ -35,7 +35,7 @@ class TestGameObjectsSounds(unittest.TestCase):
 
     def test_load_sound_function(self):
         """Test load_sound function."""
-        with patch("pygame.mixer.Sound") as mock_sound_class:
+        with patch("glitchygames.game_objects.sounds.pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
 
@@ -54,7 +54,7 @@ class TestGameObjectsSounds(unittest.TestCase):
 
     def test_load_sound_default_volume(self):
         """Test load_sound function with default volume."""
-        with patch("pygame.mixer.Sound") as mock_sound_class:
+        with patch("glitchygames.game_objects.sounds.pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
 
@@ -71,7 +71,7 @@ class TestGameObjectsSounds(unittest.TestCase):
 
     def test_load_sound_with_nonexistent_file(self):
         """Test load_sound with nonexistent file."""
-        with patch("pygame.mixer.Sound") as mock_sound_class:
+        with patch("glitchygames.game_objects.sounds.pygame.mixer.Sound") as mock_sound_class:
             mock_sound_class.side_effect = FileNotFoundError("File not found")
 
             with pytest.raises(FileNotFoundError):

@@ -613,9 +613,12 @@ class TestFilmTabSceneIntegration:
         # Create a real animated sprite
         animated_sprite = AnimatedSprite()
 
-        # Create frames
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
+        # Create frames using mocked surfaces
+        from tests.mocks import MockFactory
+        mock_surface1 = MockFactory.create_pygame_surface_mock(32, 32)
+        mock_surface2 = MockFactory.create_pygame_surface_mock(32, 32)
+        frame1 = SpriteFrame(mock_surface1, duration=FRAME_DURATION)
+        frame2 = SpriteFrame(mock_surface2, duration=FRAME_DURATION)
 
         # Add animation
         animated_sprite.add_animation("test_anim", [frame1, frame2])
@@ -647,9 +650,12 @@ class TestFilmTabSceneIntegration:
         # Create a real animated sprite
         animated_sprite = AnimatedSprite()
 
-        # Create frames
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
+        # Create frames using mocked surfaces
+        from tests.mocks import MockFactory
+        mock_surface1 = MockFactory.create_pygame_surface_mock(32, 32)
+        mock_surface2 = MockFactory.create_pygame_surface_mock(32, 32)
+        frame1 = SpriteFrame(mock_surface1, duration=FRAME_DURATION)
+        frame2 = SpriteFrame(mock_surface2, duration=FRAME_DURATION)
 
         # Add animation
         animated_sprite.add_animation("test_anim", [frame1, frame2])

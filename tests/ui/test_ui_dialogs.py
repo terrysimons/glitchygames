@@ -21,7 +21,7 @@ from glitchygames.ui.dialogs import (
     SaveDialogScene,
 )
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestInputConfirmationDialogScene(unittest.TestCase):

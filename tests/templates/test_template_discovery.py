@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import get_templates
 
-from mocks.test_mock_factory import create_template_directory_mock
+from tests.mocks.test_mock_factory import create_template_directory_mock
 
 
 class TestTemplateDiscovery(unittest.TestCase):

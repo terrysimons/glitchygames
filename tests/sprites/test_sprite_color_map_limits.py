@@ -14,7 +14,8 @@ import pytest
 from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from scripts.raw_sprite_loader import BitmappyLegacySprite
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Constants for test values
 CHARACTER_LIMIT = 64
@@ -264,8 +265,8 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors.append((r, g, b))
 
         sprite.pixels = colors
-        sprite.pixels_across = 9
-        sprite.pixels_tall = 9
+        sprite.pixels_across = 13  # 13 * 5 = 65 pixels, exactly matching 65 colors
+        sprite.pixels_tall = 5
 
         with pytest.raises(ValueError, match="Too many colors"):
             sprite.save(str(self.temp_path / "test_error.toml"), "toml")

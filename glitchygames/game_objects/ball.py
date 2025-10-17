@@ -102,7 +102,7 @@ class BallSprite(Sprite):
                 self.snd.play()
             self.rect.y = 1  # Small buffer to prevent sticking
             self.speed.y = abs(self.speed.y)  # Ensure positive speed (downward)
-        
+
         # Bottom edge bounce
         if self.rect.y + self.height >= self.screen_height:
             if hasattr(self, "snd") and self.snd is not None:
@@ -130,12 +130,14 @@ class BallSprite(Sprite):
             # Left side: aim right (0-90 or 270-360 degrees)
             self.direction = secrets.randbelow(90) + 270  # 270-359 degrees
         else:
-            # Right side: aim left (90-270 degrees)  
+            # Right side: aim left (90-270 degrees)
             self.direction = secrets.randbelow(180) + 90  # 90-269 degrees
-        
+
         # Convert direction to speed components
         radians = math.radians(self.direction)
-        speed_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)  # Preserve original speed magnitude
+        speed_magnitude = math.sqrt(
+            self.speed.x**2 + self.speed.y**2
+        )  # Preserve original speed magnitude
         self.speed.x = speed_magnitude * math.cos(radians)
         self.speed.y = speed_magnitude * math.sin(radians)
 
@@ -168,18 +170,16 @@ class BallSprite(Sprite):
             None
 
         """
-        import math
-        
         # Calculate current speed magnitude
         current_speed = math.sqrt(self.speed.x**2 + self.speed.y**2)
-        
+
         # Logarithmic scaling: faster balls get smaller increases
         # Base multiplier decreases as speed increases
         log_multiplier = multiplier * (1.0 - math.log(current_speed / 3.0) * 0.1)
-        
+
         # Ensure minimum multiplier of 1.05 (5% minimum increase)
         log_multiplier = max(log_multiplier, 1.05)
-        
+
         self.speed.x *= log_multiplier
         self.speed.y *= log_multiplier
 
