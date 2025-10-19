@@ -11,6 +11,10 @@ from collections.abc import Callable
 
 # from typing import Optional  # Not used
 
+# Centralized logger for voice recognition
+LOG: logging.Logger = logging.getLogger("glitchygames.events.voice")
+LOG.addHandler(logging.NullHandler())
+
 # Try to import speech recognition, but don't fail if it's not available
 try:
     import speech_recognition as sr

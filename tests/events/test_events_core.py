@@ -460,48 +460,19 @@ class TestEventSystemUtilities:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test with no_unhandled_events enabled (should raise UnhandledEventError)
-        with pytest.raises(UnhandledEventError):
-            unhandled_event(mock_game, event)
-
-    def test_unhandled_event_missing_options(self, mock_pygame_patches):
-        """Test unhandled_event function with missing options."""
-        # Mock a game object with missing options
-        mock_game = Mock()
-        mock_game.options = {}
-
-        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-
-        # Test with missing options (should log errors but not necessarily raise SystemExit)
+        # Use pytest logger wrapper to suppress logs during successful runs
         with patch("glitchygames.events.LOG") as mock_log:
-            unhandled_event(mock_game, event)
-            # Verify that error logging was called
-            mock_log.error.assert_called()
+            with pytest.raises(UnhandledEventError):
+                unhandled_event(mock_game, event)
+            
+            # Verify the ERROR log message was called
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: KeyDown" in call_args
 
-    def test_unhandled_event_with_debug_events_true(self, mock_pygame_patches):
-        """Test unhandled_event with debug_events=True."""
-        mock_game = Mock()
-        mock_game.options = {"debug_events": True, "no_unhandled_events": False}
 
-        mock_event = Mock()
-        mock_event.type = 2  # pygame.KEYDOWN
 
-        with patch("glitchygames.events.LOG") as mock_log:
-            unhandled_event(mock_game, mock_event)
-
-            # Verify error logging was called (the function uses LOG.error, not game.log.debug)
-            mock_log.error.assert_called()
-
-    def test_unhandled_event_with_no_unhandled_events_true(self, mock_pygame_patches):
-        """Test unhandled_event with no_unhandled_events=True."""
-        mock_game = Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
-
-        # Use a proper HashableEvent instead of Mock
-        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-
-        # Test that UnhandledEventError is raised instead of sys.exit
-        with pytest.raises(UnhandledEventError):
-            unhandled_event(mock_game, event)
 
     def test_unhandled_event_with_missing_options(self, mock_pygame_patches):
         """Test unhandled_event with missing options."""
@@ -646,33 +617,7 @@ class TestEventSystemUtilities:
                 "Error: debug_events is missing from the game options. This shouldn't be possible."
             )
 
-    def test_unhandled_event_no_unhandled_events_true(self, mock_pygame_patches):
-        """Test unhandled_event with no_unhandled_events=True."""
-        mock_game = Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
 
-        # Use a proper HashableEvent instead of Mock
-        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-
-        # Test that UnhandledEventError is raised instead of sys.exit
-        with pytest.raises(UnhandledEventError):
-            unhandled_event(mock_game, event)
-
-    def test_unhandled_event_no_unhandled_events_none(self, mock_pygame_patches):
-        """Test unhandled_event with no_unhandled_events=None."""
-        mock_game = Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": None}
-
-        mock_event = Mock()
-        mock_event.type = pygame.KEYDOWN
-
-        with patch("glitchygames.events.LOG") as mock_log:
-            unhandled_event(mock_game, mock_event)
-
-            mock_log.error.assert_called_once_with(
-                "Error: no_unhandled_events is missing from the game options. "
-                "This shouldn't be possible."
-            )
 
     def test_unhandled_event_both_false(self, mock_pygame_patches):
         """Test unhandled_event with both options False."""
@@ -691,17 +636,6 @@ class TestEventSystemUtilities:
             # Should not exit when no_unhandled_events is False
             mock_exit.assert_not_called()
 
-    def test_unhandled_event_no_exit_when_false(self, mock_pygame_patches):
-        """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=False."""
-        mock_game = Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": False}
-
-        mock_event = Mock()
-        mock_event.type = pygame.KEYDOWN
-
-        # This should NOT raise any exception
-        unhandled_event(mock_game, mock_event)
-        # Test passes if no exception is raised
 
     def test_unhandled_event_no_exit_when_none(self, mock_pygame_patches):
         """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=None."""
@@ -749,8 +683,18 @@ class TestEventSystemUtilities:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test that UnhandledEventError is raised instead of sys.exit
-        with pytest.raises(UnhandledEventError):
-            unhandled_event(mock_game, event)
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch("glitchygames.events.LOG") as mock_log:
+            with pytest.raises(UnhandledEventError):
+                unhandled_event(mock_game, event)
+            
+            # Verify the ERROR log messages were called (should be called twice)
+            assert mock_log.error.call_count == 2
+            # Check that both log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Unhandled Event: args: KeyDown" in first_call
+            assert "Unhandled Event: args: KeyDown" in second_call
 
     def test_supported_events_filters_and_patches(self, mock_pygame_patches):
         """supported_events should filter by regex and patch known names."""

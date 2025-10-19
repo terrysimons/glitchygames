@@ -5,7 +5,7 @@ This module tests game event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -39,6 +39,8 @@ class TestGameEvents:
         assert hasattr(GameEvents, "on_quit_event")
         assert hasattr(GameEvents, "on_render_device_reset_event")
         assert hasattr(GameEvents, "on_render_targets_reset_event")
+        assert hasattr(GameEvents, "on_clipboard_update_event")
+        assert hasattr(GameEvents, "on_locale_changed_event")
 
     def test_game_event_stubs_implementation(self, mock_pygame_patches):
         """Test GameEventStubs implementation."""
@@ -49,9 +51,59 @@ class TestGameEvents:
 
         # Test that stub methods can be called
         event = HashableEvent(pygame.QUIT)
-        with pytest.raises(UnhandledEventError):
-            scene.on_quit_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch("glitchygames.events.LOG") as mock_log:
+            with pytest.raises(UnhandledEventError):
+                scene.on_quit_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
+            
+            # Verify the ERROR log message was called
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: Quit" in call_args
+
+    def test_clipboard_update_event_stub(self, mock_pygame_patches):
+        """Test clipboard update event stub implementation."""
+        # Use centralized mock for scene without event handlers (stub behavior)
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={}  # No event handlers - will fall back to stubs
+        )
+
+        # Test that stub method can be called
+        event = HashableEvent(pygame.CLIPBOARDUPDATE)
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch("glitchygames.events.LOG") as mock_log:
+            with pytest.raises(UnhandledEventError):
+                scene.on_clipboard_update_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
+            
+            # Verify the ERROR log message was called
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: ClipboardUpdate" in call_args
+
+    def test_locale_changed_event_stub(self, mock_pygame_patches):
+        """Test locale changed event stub implementation."""
+        # Use centralized mock for scene without event handlers (stub behavior)
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={}  # No event handlers - will fall back to stubs
+        )
+
+        # Test that stub method can be called
+        event = HashableEvent(pygame.LOCALECHANGED)
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch("glitchygames.events.LOG") as mock_log:
+            with pytest.raises(UnhandledEventError):
+                scene.on_locale_changed_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
+            
+            # Verify the ERROR log message was called
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: LocaleChanged" in call_args
 
     def test_quit_event(self, mock_pygame_patches):
         """Test quit event handling."""
@@ -424,4 +476,42 @@ class TestGameEvents:
         assert len(scene.game_events_received) == 1
         assert scene.game_events_received[0][0] == "render_targets_reset"
         assert scene.game_events_received[0][1].type == pygame.RENDER_TARGETS_RESET
+
+    def test_clipboard_update_event(self, mock_pygame_patches):
+        """Test clipboard update event."""
+        # Use centralized mock for scene with event handlers
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_clipboard_update_event": lambda event: (scene.game_events_received.append(("clipboard_update", event)), None)[1]
+            }
+        )
+
+        # Test clipboard update event
+        event = HashableEvent(pygame.CLIPBOARDUPDATE)
+        result = scene.on_clipboard_update_event(event)
+        
+        # Verify the event was processed
+        assert result is None
+        assert len(scene.game_events_received) == 1
+        assert scene.game_events_received[0][0] == "clipboard_update"
+        assert scene.game_events_received[0][1].type == pygame.CLIPBOARDUPDATE
+
+    def test_locale_changed_event(self, mock_pygame_patches):
+        """Test locale changed event."""
+        # Use centralized mock for scene with event handlers
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_locale_changed_event": lambda event: (scene.game_events_received.append(("locale_changed", event)), None)[1]
+            }
+        )
+
+        # Test locale changed event
+        event = HashableEvent(pygame.LOCALECHANGED)
+        result = scene.on_locale_changed_event(event)
+        
+        # Verify the event was processed
+        assert result is None
+        assert len(scene.game_events_received) == 1
+        assert scene.game_events_received[0][0] == "locale_changed"
+        assert scene.game_events_received[0][1].type == pygame.LOCALECHANGED
 

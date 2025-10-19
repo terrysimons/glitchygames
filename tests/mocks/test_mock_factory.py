@@ -376,6 +376,7 @@ class MockFactory:
         scene_mock.window_events_received = []
         scene_mock.midi_events_received = []
         scene_mock.text_events_received = []  # Track text events
+        scene_mock.touch_events_received = []  # Track touch events
         # For joystick complexity: track multiple devices
         scene_mock.joystick_devices = {}  # device_index -> joystick_proxy
         scene_mock.joystick_device_events = []  # device add/remove events
@@ -413,6 +414,8 @@ class MockFactory:
             scene_mock.on_text_editing_event = unhandled_event_fallback
             scene_mock.on_render_device_reset_event = unhandled_event_fallback
             scene_mock.on_render_targets_reset_event = unhandled_event_fallback
+            scene_mock.on_clipboard_update_event = unhandled_event_fallback
+            scene_mock.on_locale_changed_event = unhandled_event_fallback
             scene_mock.on_app_did_enter_background_event = unhandled_event_fallback
             scene_mock.on_app_did_enter_foreground_event = unhandled_event_fallback
             scene_mock.on_app_will_enter_background_event = unhandled_event_fallback
@@ -492,6 +495,18 @@ class MockFactory:
                     scene_mock.game_events_received.append(("app_terminating", event))
                     return None
                 scene_mock.on_app_terminating_event = default_app_terminating_handler
+            
+            if event_handlers is None or "on_clipboard_update_event" not in event_handlers:
+                def default_clipboard_update_handler(event):
+                    scene_mock.game_events_received.append(("clipboard_update", event))
+                    return None
+                scene_mock.on_clipboard_update_event = default_clipboard_update_handler
+            
+            if event_handlers is None or "on_locale_changed_event" not in event_handlers:
+                def default_locale_changed_handler(event):
+                    scene_mock.game_events_received.append(("locale_changed", event))
+                    return None
+                scene_mock.on_locale_changed_event = default_locale_changed_handler
         
         return scene_mock
 

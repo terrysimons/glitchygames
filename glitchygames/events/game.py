@@ -177,6 +177,32 @@ class GameManager(ResourceManager, GameEvents):
             # RENDER_TARGETS_RESET
             self.game.on_render_targets_reset_event(event=event)
 
+        def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
+            """Handle clipboard update event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+
+            """
+            # CLIPBOARDUPDATE
+            self.game.on_clipboard_update_event(event=event)
+
+        def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
+            """Handle locale changed event.
+
+            Args:
+                event: The pygame event.
+
+            Returns:
+                None
+
+            """
+            # LOCALECHANGED
+            self.game.on_locale_changed_event(event=event)
+
     def __init__(self: Self, game: Scene) -> None:
         """Initialize the game event manager.
 

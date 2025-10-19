@@ -6,7 +6,7 @@ This module tests MIDI event interfaces, stubs, and event handling.
 import argparse
 import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -43,9 +43,17 @@ class TestMidiEvents:
 
         # Test that stub methods can be called
         event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127)
-        with pytest.raises(UnhandledEventError):
-            scene.on_midi_in_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch("glitchygames.events.LOG") as mock_log:
+            with pytest.raises(UnhandledEventError):
+                scene.on_midi_in_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
+            
+            # Verify the ERROR log message was called
+            mock_log.error.assert_called_once()
+            # Check that the log message contains the expected content
+            call_args = mock_log.error.call_args[0][0]
+            assert "Unhandled Event: args: MidiIn" in call_args
 
     def test_midi_in_event(self, mock_pygame_patches):
         """Test MIDI input event handling."""

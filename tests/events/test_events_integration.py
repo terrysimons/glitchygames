@@ -123,14 +123,20 @@ class TestEventIntegration:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
         
         with patch("pygame.event.get", return_value=[event]):
-            # This should cause UnhandledEventError due to unhandled_event
-            with pytest.raises(UnhandledEventError):
-                engine.process_events()
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch("glitchygames.events.LOG") as mock_log:
+                with pytest.raises(UnhandledEventError):
+                    engine.process_events()
+                
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Unhandled Event: args: AudioDeviceAdded" in call_args
 
     def test_event_routing_through_managers(self, mock_pygame_patches, mock_managers):
         """Test that events are properly routed through managers."""
-        # Use global mocks from mock_pygame_patches fixture
-        # For this test, we need to disable no_unhandled_events to test routing
+        # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
@@ -145,10 +151,18 @@ class TestEventIntegration:
         with patch("sys.argv", ["test_engine.py"]):
             engine = GameEngine(game=scene)
             
-            # Use centralized mocks for managers
-            engine.scene_manager = Mock()
-            engine.scene_manager.game_engine = engine
-            engine.audio_manager = mock_managers["audio_manager"]
+            # Set up the scene manager to delegate to our scene
+            engine.scene_manager.game = scene
+            
+            # Set up the audio manager to delegate to the scene
+            from glitchygames.events.audio import AudioManager
+            engine.audio_manager = AudioManager(game=scene)
+            
+            # Configure the scene manager to handle audio events
+            def scene_audio_handler(event):
+                return scene.on_audio_device_added_event(event)
+            
+            engine.scene_manager.on_audio_device_added_event = scene_audio_handler
         
         # Create multiple HashableEvents
         events = [

@@ -1211,6 +1211,32 @@ class GameEvents(EventInterface):
         """
         # RENDER_TARGETS_RESET
 
+    @abc.abstractmethod
+    def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle clipboard update events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # CLIPBOARDUPDATE
+
+    @abc.abstractmethod
+    def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
+        """Handle locale changed events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # LOCALECHANGED
+
 
 class GameEventStubs(EventInterface):
     """Mixin for glitchy game events.
@@ -1374,6 +1400,34 @@ class GameEventStubs(EventInterface):
 
         """
         # RENDER_TARGETS_RESET
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle clipboard update events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # CLIPBOARDUPDATE
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
+        """Handle locale changed events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # LOCALECHANGED
         unhandled_event(self, event)
 
 
