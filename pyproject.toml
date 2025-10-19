@@ -90,6 +90,7 @@ python_functions = ["test_*"]
 # Exclude examples directory from test collection
 norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
 addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+# Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
 source = ["glitchygames"]

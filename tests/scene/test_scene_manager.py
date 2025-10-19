@@ -47,7 +47,7 @@ class TestSceneManager(unittest.TestCase):
         assert scene_manager.update_type == "update"
         assert scene_manager.fps_refresh_rate == FPS_REFRESH_RATE
         # target_fps may be 60 if game_engine was set in previous tests (singleton behavior)
-        assert scene_manager.target_fps in [0, 60]
+        assert scene_manager.target_fps in {0, 60}
         assert scene_manager.dt == 0
         assert scene_manager.timer == 0
         # active_scene may not be None if set in previous tests (singleton behavior)
@@ -200,15 +200,15 @@ class TestSceneManager(unittest.TestCase):
         # Test event handling with no active scene (clear any previous scene from singleton)
         scene_manager.active_scene = None
         scene_manager.handle_event(mock_event)
-        
+
         # Test event handling with active scene
         mock_scene = Mock()
         mock_scene.all_sprites = []  # Empty list of sprites
         scene_manager.active_scene = mock_scene
-        
+
         # This should work now that we've commented out the problematic calls
         scene_manager.handle_event(mock_event)
-        
+
         # Test with a different event type that doesn't trigger the focused sprites logic
         mock_event.type = pygame.KEYUP
         scene_manager.handle_event(mock_event)

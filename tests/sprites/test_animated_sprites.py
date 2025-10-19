@@ -19,6 +19,8 @@ from scripts.sprite_stack import (
     SpriteStackInterface,
 )
 
+from tests.mocks.test_mock_factory import MockFactory
+
 
 class TestSpriteStackInterface(unittest.TestCase):
     """Test the SpriteStackInterface implementation."""
@@ -335,17 +337,21 @@ name = "TestEmptySprite"
         assert isinstance(sprite, AnimatedSprite)
         assert sprite.name == "Tiley McTile Face"  # From raspberry.toml
 
-    @staticmethod
-    def test_bitmappy_sprite_load_default():
+    def test_bitmappy_sprite_load_default(self):
         """Test that BitmappySprite.load() with no filename loads default sprite."""
-        # Initialize pygame display for BitmappySprite tests
-        if not pygame.display.get_init():
-            pygame.init()
-            pygame.display.set_mode((800, 600))
-
-        sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
-        sprite.load()  # Should load default raspberry sprite
-        assert sprite.name == "Tiley McTile Face"
+        # Use centralized mocks
+        patchers = MockFactory.setup_pygame_mocks()
+        # Start all the patchers
+        for patcher in patchers:
+            patcher.start()
+        mock_display = MockFactory.create_pygame_display_mock()
+        
+        try:
+            sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
+            sprite.load()  # Should load default raspberry sprite
+            assert sprite.name == "Tiley McTile Face"
+        finally:
+            MockFactory.teardown_pygame_mocks(patchers)
 
 
 class TestSpriteFactorySave(unittest.TestCase):

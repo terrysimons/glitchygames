@@ -235,10 +235,9 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
             for char in row:
                 assert char in glyphs, f"Character '{char}' should be in universal glyphs"
 
-    @staticmethod
-    def test_legacy_sprite_empty_surface():
+    def test_legacy_sprite_empty_surface(self):
         """Test legacy sprite with empty surface."""
-        # Create empty surface
+        # Create empty surface using mocked pygame
         surface = pygame.Surface((0, 0))
 
         # Create legacy sprite

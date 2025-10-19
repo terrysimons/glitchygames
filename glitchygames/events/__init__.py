@@ -19,7 +19,6 @@ import functools
 import inspect
 import logging
 import re
-import sys
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self
 
 import pygame
@@ -28,6 +27,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from glitchygames.scenes import Scene
+
+
+class UnhandledEventError(Exception):
+    """Raised when an event is not handled by any event handler.
+
+    This exception is raised by the unhandled_event function when
+    an event cannot be handled by any of the available event handlers.
+    """
 
 
 LOG: logging.Logger = logging.getLogger("game.events")
@@ -106,6 +113,7 @@ GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
 
 AUDIO_EVENTS = supported_events(like="AUDIO.*?")
+APP_EVENTS = supported_events(like="APP.*?")
 CONTROLLER_EVENTS = supported_events(like="CONTROLLER.*?")
 DROP_EVENTS = supported_events(like="DROP.*?")
 TOUCH_EVENTS = supported_events(like="(FINGER|MULTI).*?")
@@ -119,6 +127,7 @@ ALL_EVENTS = supported_events()
 GAME_EVENTS = list(
     set(ALL_EVENTS)
     - set(AUDIO_EVENTS)
+    - set(APP_EVENTS)
     - set(CONTROLLER_EVENTS)
     - set(DROP_EVENTS)
     - set(TOUCH_EVENTS)
@@ -184,7 +193,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
         LOG.error(
             f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
         )
-        sys.exit(-1)
+        raise UnhandledEventError(f"Unhandled event: {pygame.event.event_name(event.type)} {event}")
     elif no_unhandled_events is None:
         LOG.error(
             "Error: no_unhandled_events is missing from the game options. "
@@ -1176,6 +1185,32 @@ class GameEvents(EventInterface):
         """
         # QUIT             none
 
+    @abc.abstractmethod
+    def on_render_device_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render device reset events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # RENDER_DEVICE_RESET
+
+    @abc.abstractmethod
+    def on_render_targets_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render targets reset events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # RENDER_TARGETS_RESET
+
 
 class GameEventStubs(EventInterface):
     """Mixin for glitchy game events.
@@ -1311,6 +1346,141 @@ class GameEventStubs(EventInterface):
 
         """
         # QUIT             none
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_render_device_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render device reset events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # RENDER_DEVICE_RESET
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_render_targets_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render targets reset events.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        Returns:
+            None
+
+        """
+        # RENDER_TARGETS_RESET
+        unhandled_event(self, event)
+
+
+class AppEvents(EventInterface):
+    """Mixin for application lifecycle events.
+
+    Handles mobile and cross-platform app lifecycle events
+    like background/foreground transitions and memory warnings.
+    """
+
+    @abc.abstractmethod
+    def on_app_did_enter_background_event(self: Self, event: HashableEvent) -> None:
+        """Handle app entering background.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_DIDENTERBACKGROUND
+
+    @abc.abstractmethod
+    def on_app_did_enter_foreground_event(self: Self, event: HashableEvent) -> None:
+        """Handle app entering foreground.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_DIDENTERFOREGROUND
+
+    @abc.abstractmethod
+    def on_app_will_enter_background_event(self: Self, event: HashableEvent) -> None:
+        """Handle app about to enter background.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_WILLENTERBACKGROUND
+
+    @abc.abstractmethod
+    def on_app_will_enter_foreground_event(self: Self, event: HashableEvent) -> None:
+        """Handle app about to enter foreground.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_WILLENTERFOREGROUND
+
+    @abc.abstractmethod
+    def on_app_low_memory_event(self: Self, event: HashableEvent) -> None:
+        """Handle low memory warning.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_LOWMEMORY
+
+    @abc.abstractmethod
+    def on_app_terminating_event(self: Self, event: HashableEvent) -> None:
+        """Handle app termination.
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # APP_TERMINATING
+
+
+class AppEventStubs(EventInterface):
+    """Default implementations for app events."""
+
+    def __init__(self: Self) -> None:
+        """Initialize app event stubs."""
+        super().__init__()
+        self.options = {"debug_events": False, "no_unhandled_events": True}
+
+    @functools.cache
+    def on_app_did_enter_background_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_app_did_enter_foreground_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_app_will_enter_background_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_app_will_enter_foreground_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_app_low_memory_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
+        unhandled_event(self, event)
+
+    @functools.cache
+    def on_app_terminating_event(self: Self, event: HashableEvent) -> None:
+        """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
 
@@ -2860,6 +3030,7 @@ class WindowEventStubs(EventInterface):
 
 # Mixin for all events
 class AllEvents(
+    AppEvents,
     AudioEvents,
     ControllerEvents,
     DropEvents,
@@ -2877,6 +3048,7 @@ class AllEvents(
 
 
 class AllEventStubs(
+    AppEventStubs,
     AudioEventStubs,
     ControllerEventStubs,
     DropEventStubs,

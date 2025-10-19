@@ -171,7 +171,7 @@ class TestSpriteFactory:
                 "has_frame_sections": False
             }
 
-            with pytest.raises(ValueError, match="Mixed content"):
+            with pytest.raises(ValueError, match="Invalid sprite file"):
                 SpriteFactory.load_sprite(filename="mixed.toml")
 
     def test_sprite_factory_load_sprite_invalid_file(self):

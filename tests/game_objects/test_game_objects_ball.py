@@ -61,9 +61,13 @@ class TestBallSpriteInitialization(unittest.TestCase):
         assert 0 <= ball.direction <= DIRECTION_360  # Reset sets random direction
         assert isinstance(ball.speed, Speed)
         # Speed is calculated from random direction in reset(), so we can't predict exact values
-        # But we can test that it's a reasonable speed magnitude (around 3.35 based on initial 3.0, 1.5)
+        # But we can test that it's a reasonable speed magnitude
+        # (around 3.35 based on initial 3.0, 1.5)
         speed_magnitude = (ball.speed.x**2 + ball.speed.y**2)**0.5
-        assert 3.0 <= speed_magnitude <= 4.0  # Should be around 3.35 (sqrt(3^2 + 1.5^2))
+        min_speed_magnitude = 3.0
+        max_speed_magnitude = 4.0
+        # Should be around 3.35 (sqrt(3^2 + 1.5^2))
+        assert min_speed_magnitude <= speed_magnitude <= max_speed_magnitude
         assert ball.dirty == SPEED_2
 
     def test_ball_sprite_initialization_custom(self):
@@ -197,7 +201,8 @@ class TestBallSpriteBounce(unittest.TestCase):
 
             ball._do_bounce()
 
-            assert ball.rect.y == 579  # screen_height - height - 1 (buffer to prevent sticking)
+            expected_bottom_y = 579  # screen_height - height - 1 (buffer to prevent sticking)
+            assert ball.rect.y == expected_bottom_y
             assert ball.speed.y == SPEED_NEG_2  # Reversed
             ball.snd.play.assert_called_once()
 
@@ -376,7 +381,8 @@ class TestBallSpriteUpdate(unittest.TestCase):
 
                 # Should kill() when ball goes off-screen (no direction change for left/right)
                 mock_kill.assert_called_once()
-                assert ball.direction == 45  # Direction should remain unchanged
+                expected_direction = 45  # Direction should remain unchanged
+                assert ball.direction == expected_direction
 
     def test_ball_update_right_wall_bounce(self):
         """Test ball bounces off right wall."""
@@ -393,7 +399,8 @@ class TestBallSpriteUpdate(unittest.TestCase):
 
                 # Should kill() when ball goes off-screen (no direction change for left/right)
                 mock_kill.assert_called_once()
-                assert ball.direction == 45  # Direction should remain unchanged
+                expected_direction = 45  # Direction should remain unchanged
+                assert ball.direction == expected_direction
 
     def test_ball_update_reset_on_exit(self):
         """Test ball resets when exiting screen."""
@@ -495,4 +502,5 @@ class TestBallSpriteIntegration(unittest.TestCase):
 
             # Speed should be significantly higher (1.1^3 = 1.331)
             expected_speed = original_speed * (1.1 ** 3)
-            assert abs(ball.speed.x - expected_speed) < 1e-10  # Use approximate equality for floating point
+            floating_point_tolerance = 1e-10  # Use approximate equality for floating point
+            assert abs(ball.speed.x - expected_speed) < floating_point_tolerance

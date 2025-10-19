@@ -62,8 +62,6 @@ class TestSceneRendering:
 
         # Create mock surface
         mock_surface = MockFactory.create_pygame_surface_mock()
-        mock_surface.get_width.return_value = 800
-        mock_surface.get_height.return_value = 600
 
         # Render scene
         scene.render(mock_surface)

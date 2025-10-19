@@ -42,9 +42,6 @@ class TestEngineInitialization:
             # Create a mock surface using the centralized mock factory
             mock_icon = MockFactory.create_pygame_surface_mock(32, 32)
 
-            # Make the mock surface implement PathLike protocol so it can be converted to a path
-            mock_icon.__fspath__ = Mock(return_value="/path/to/icon.png")
-
             # Mock pygame.image.load to return our mock surface
             with patch("pygame.image.load", return_value=mock_icon):
                 # Test the class method

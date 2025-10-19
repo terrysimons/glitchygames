@@ -338,7 +338,8 @@ class SceneManager(SceneInterface, events.EventManager):
 
             if focused_sprites and event.type == pygame.KEYDOWN:
                 # Let the active scene handle it directly
-                # self.active_scene.handle_event(event)  # Commented out - Scene doesn't have this method
+                # self.active_scene.handle_event(event)
+                # Commented out - Scene doesn't have this method
                 return
 
         # Only process other events if no focused sprites handled it
@@ -347,7 +348,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self.quit_requested = True
         elif self.active_scene:
             # Pass to active scene if we have one
-            # self.active_scene.handle_event(event)  # Commented out - Scene doesn't have this method
+            # self.active_scene.handle_event(event)
+            # Commented out - Scene doesn't have this method
             pass
 
     def _should_post_fps_event(self, current_time: float, previous_fps_time: float) -> bool:

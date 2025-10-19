@@ -151,29 +151,31 @@ class TestGameOverIntegration(unittest.TestCase):
             game = Game(options={})
 
             # Mock the collision detection to prevent memory issues
-            with patch.object(game, '_handle_ball_collisions') as mock_collisions:
-                with patch('pygame.sprite.collide_rect', return_value=False):
-                    # Create some mock balls and add them to the game
-                    mock_ball1 = Mock()
-                    mock_ball1.alive.return_value = False  # Dead ball
-                    mock_ball1.speed = Mock()
-                    mock_ball1.speed.x = 1  # Set speed.x to avoid comparison error
-                    mock_ball1.speed.y = 1  # Set speed.y to avoid math operations error
+            with (
+                patch.object(game, "_handle_ball_collisions"),
+                patch("pygame.sprite.collide_rect", return_value=False),
+            ):
+                # Create some mock balls and add them to the game
+                mock_ball1 = Mock()
+                mock_ball1.alive.return_value = False  # Dead ball
+                mock_ball1.speed = Mock()
+                mock_ball1.speed.x = 1  # Set speed.x to avoid comparison error
+                mock_ball1.speed.y = 1  # Set speed.y to avoid math operations error
 
-                    mock_ball2 = Mock()
-                    mock_ball2.alive.return_value = False  # Dead ball
-                    mock_ball2.speed = Mock()
-                    mock_ball2.speed.x = 1  # Set speed.x to avoid comparison error
-                    mock_ball2.speed.y = 1  # Set speed.y to avoid math operations error
+                mock_ball2 = Mock()
+                mock_ball2.alive.return_value = False  # Dead ball
+                mock_ball2.speed = Mock()
+                mock_ball2.speed.x = 1  # Set speed.x to avoid comparison error
+                mock_ball2.speed.y = 1  # Set speed.y to avoid math operations error
 
-                    game.balls = [mock_ball1, mock_ball2]
+                game.balls = [mock_ball1, mock_ball2]
 
-                    # Call update to trigger Game Over
-                    game.update()
+                # Call update to trigger Game Over
+                game.update()
 
-                    # Verify that next_scene was set to the mocked GameOverScene
-                    assert game.next_scene == mock_game_over_scene
-                    assert game.previous_scene == game
+                # Verify that next_scene was set to the mocked GameOverScene
+                assert game.next_scene == mock_game_over_scene
+                assert game.previous_scene == game
 
     def test_game_over_scene_gets_game_engine_reference(self):
         """Test that Game Over scene gets game engine reference from scene manager.

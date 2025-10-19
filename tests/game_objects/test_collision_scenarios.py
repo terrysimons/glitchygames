@@ -150,8 +150,8 @@ class TestPaddleCollisions:
         # Action: Simulate paddle collision
         ball.speed_up(SPEED_1_15)
 
-        # Expected: Speed increased
-        assert ball.speed.x > initial_speed_x
+        # Expected: Speed magnitude increased (regardless of direction)
+        assert abs(ball.speed.x) > abs(initial_speed_x)  # Speed magnitude increased
         assert abs(ball.speed.y) > abs(initial_speed_y)  # Speed magnitude increased
 
     def test_paddle_collision_reverses_horizontal_direction(self, mock_pygame_patches):

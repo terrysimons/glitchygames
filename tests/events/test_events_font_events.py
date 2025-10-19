@@ -16,10 +16,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
     FontEvents,
-    FontEventStubs,
     HashableEvent,
+    UnhandledEventError,
 )
 from glitchygames.fonts import FontManager
+
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestFontEvents:
@@ -32,46 +34,70 @@ class TestFontEvents:
 
     def test_font_event_stubs_implementation(self, mock_pygame_patches):
         """Test FontEventStubs implementation."""
-        # Test that stubs have concrete implementations
-        stub = FontEventStubs()
-        assert hasattr(stub, "on_font_changed_event")
+        # Use centralized mock for scene without event handlers (stub behavior)
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={}  # No event handlers - will fall back to stubs
+        )
 
-        # Test that stub methods can be called with proper game object
-        self._setup_mock_game_for_stub(stub)
-
-        # Test method calls - use a generic event since FONTS_CHANGED doesn't exist
+        # Test that stub methods can be called
         event = HashableEvent(pygame.USEREVENT + 1)
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_font_changed_event(event)
-        # Expected to call unhandled_event
-        # Exception was raised as expected
+        # Mock the logger to suppress "Unhandled Event" messages during testing
+
+        with patch("glitchygames.events.LOG.error"):
+
+            with pytest.raises(UnhandledEventError):
+            
+                scene.on_font_changed_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_font_changed_event(self, mock_pygame_patches):
         """Test font changed event handling."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test font changed event
         event = HashableEvent(pygame.USEREVENT + 1)  # Custom font change event
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_font_changed_event(event)
-        # Exception was raised as expected
+        result = scene.on_font_changed_event(event)
+        
+        # Event should be handled successfully
+        assert result is True
+        assert len(scene.font_events_received) == 1
+        assert scene.font_events_received[0][0] == "font_changed"
+        assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
 
     def test_font_changed_event_with_font_info(self, mock_pygame_patches):
         """Test font changed event with font information."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test font changed event with font information
         event = HashableEvent(pygame.USEREVENT + 1, font_name="Arial", font_size=12)
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_font_changed_event(event)
-        # Exception was raised as expected
+        result = scene.on_font_changed_event(event)
+        
+        # Event should be handled successfully
+        assert result is True
+        assert len(scene.font_events_received) == 1
+        assert scene.font_events_received[0][0] == "font_changed"
+        assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+        assert scene.font_events_received[0][1].font_name == "Arial"
+        assert scene.font_events_received[0][1].font_size == 12
 
     def test_font_changed_event_with_different_fonts(self, mock_pygame_patches):
         """Test font changed event with different font types."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test different font types
         font_scenarios = [
@@ -85,28 +111,54 @@ class TestFontEvents:
 
         for font_info in font_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **font_info)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == font_info["font_name"]
+            assert scene.font_events_received[0][1].font_size == font_info["font_size"]
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_different_sizes(self, mock_pygame_patches):
         """Test font changed event with different font sizes."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test different font sizes
         font_sizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72]
 
         for size in font_sizes:
             event = HashableEvent(pygame.USEREVENT + 1, font_name="Arial", font_size=size)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == "Arial"
+            assert scene.font_events_received[0][1].font_size == size
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_style_info(self, mock_pygame_patches):
         """Test font changed event with style information."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test font changed event with style information
         style_scenarios = [
@@ -118,14 +170,27 @@ class TestFontEvents:
 
         for style_info in style_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **style_info)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == style_info["font_name"]
+            assert scene.font_events_received[0][1].font_size == style_info["font_size"]
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_color_info(self, mock_pygame_patches):
         """Test font changed event with color information."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test font changed event with color information
         color_scenarios = [
@@ -138,14 +203,27 @@ class TestFontEvents:
 
         for color_info in color_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **color_info)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == color_info["font_name"]
+            assert scene.font_events_received[0][1].font_size == color_info["font_size"]
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_unicode_fonts(self, mock_pygame_patches):
         """Test font changed event with Unicode font names."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test Unicode font names
         unicode_fonts = [
@@ -158,14 +236,27 @@ class TestFontEvents:
 
         for font_name in unicode_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == font_name
+            assert scene.font_events_received[0][1].font_size == 12
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_system_fonts(self, mock_pygame_patches):
         """Test font changed event with system fonts."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test system fonts
         system_fonts = [
@@ -179,14 +270,27 @@ class TestFontEvents:
 
         for font_name in system_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_name == font_name
+            assert scene.font_events_received[0][1].font_size == 12
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
     def test_font_changed_event_with_font_path(self, mock_pygame_patches):
         """Test font changed event with font file paths."""
-        stub = FontEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        # Use centralized mock for scene with proper event handling
+        scene = MockFactory.create_event_test_scene_mock(
+            event_handlers={
+                "on_font_changed_event": lambda event: (scene.font_events_received.append(("font_changed", event)), True)[1]
+            }
+        )
 
         # Test font file paths
         font_paths = [
@@ -198,23 +302,69 @@ class TestFontEvents:
 
         for font_path in font_paths:
             event = HashableEvent(pygame.USEREVENT + 1, font_path=font_path, font_size=12)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_font_changed_event(event)
-            # Exception was raised as expected
+            result = scene.on_font_changed_event(event)
+            
+            # Event should be handled successfully
+            assert result is True
+            assert len(scene.font_events_received) == 1
+            assert scene.font_events_received[0][0] == "font_changed"
+            assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
+            assert scene.font_events_received[0][1].font_path == font_path
+            assert scene.font_events_received[0][1].font_size == 12
+            
+            # Clear for next iteration
+            scene.font_events_received.clear()
 
-    def _setup_mock_game_for_stub(self, stub):
-        """Set up mock game object for event stubs."""
-        mock_game = Mock()
-        mock_game.options = {
-            "debug_events": False,
-            "no_unhandled_events": True
-        }
-        stub.options = mock_game.options
-        return mock_game
 
 
 class TestFontManagerCoverage:
     """Test coverage for FontManager class."""
+
+    def test_font_manager_initialization(self, mock_pygame_patches):
+        """Test FontManager initializes correctly."""
+        from tests.mocks import MockFactory
+        
+        # Create a mock game with proper OPTIONS for FontManager
+        mock_game = MockFactory.create_event_test_scene_mock()
+        mock_game.OPTIONS = {
+            "font_name": "Arial",
+            "font_size": 12,
+            "font_bold": False,
+            "font_italic": False,
+            "font_antialias": True,
+            "font_dpi": 72
+        }
+        
+        # Mock pygame.freetype to avoid import issues
+        with patch("pygame.freetype", create=True):
+            manager = FontManager(game=mock_game)
+            
+            assert manager.game == mock_game
+            assert hasattr(manager, "proxies")
+            assert isinstance(manager.proxies, list)
+
+    def test_font_manager_with_fallback(self, mock_pygame_patches):
+        """Test FontManager with pygame.font fallback when freetype is not available."""
+        from tests.mocks import MockFactory
+        
+        # Create a mock game with proper OPTIONS for FontManager
+        mock_game = MockFactory.create_event_test_scene_mock()
+        mock_game.OPTIONS = {
+            "font_name": "Arial",
+            "font_size": 12,
+            "font_bold": False,
+            "font_italic": False,
+            "font_antialias": True,
+            "font_dpi": 72
+        }
+        
+        # Test that FontManager handles missing freetype gracefully
+        with patch("pygame.freetype", side_effect=AttributeError("No module named 'pygame.freetype'")):
+            manager = FontManager(game=mock_game)
+            
+            assert manager.game == mock_game
+            assert hasattr(manager, "proxies")
+            assert isinstance(manager.proxies, list)
 
     def setUp(self):
         """Set up test fixtures."""

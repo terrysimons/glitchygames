@@ -408,7 +408,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         assert 'name = "test_sequential"' in content
         assert "pixels =" in content
 
-        # Should have individual color sections using universal characters
+        # Should have individual color sections using SPRITE_GLYPHS characters
         assert '[colors."."]' in content
         assert "[colors.a]" in content
         assert "[colors.A]" in content

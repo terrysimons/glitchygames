@@ -165,7 +165,7 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._inflate_toml") as mock_inflate:
             mock_inflate.return_value = {"pixels": [(255, 0, 0)]}
-            result = sprite.inflate("test.toml")
+            result = sprite.inflate_from_file("test.toml")
             assert result is not None
 
     def test_bitmappy_sprite_save_static_only_method(self):

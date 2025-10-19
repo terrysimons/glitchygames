@@ -5,7 +5,7 @@ This module tests text event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -17,7 +17,10 @@ from glitchygames.events import (
     HashableEvent,
     TextEvents,
     TextEventStubs,
+    UnhandledEventError,
 )
+
+from tests.mocks import MockFactory
 
 
 class TestTextEvents:
@@ -37,41 +40,57 @@ class TestTextEvents:
         assert hasattr(stub, "on_text_editing_event")
 
         # Test that stub methods can be called with proper game object
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test method calls
         event = HashableEvent(pygame.TEXTINPUT, text="test")
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_text_input_event(event)
-        # Expected to call unhandled_event
-        # Exception was raised as expected
+        # Mock the logger to suppress "Unhandled Event" messages during testing
+        with patch("glitchygames.events.LOG.error"):
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_input_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_input_event(self, mock_pygame_patches):
         """Test text input event handling."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test text input
         event = HashableEvent(pygame.TEXTINPUT, text="Hello World")
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_text_input_event(event)
-        # Exception was raised as expected
+        # Mock the logger to suppress "Unhandled Event" messages during testing
+
+        with patch("glitchygames.events.LOG.error"):
+
+            with pytest.raises(UnhandledEventError):
+            
+                stub.on_text_input_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_editing_event(self, mock_pygame_patches):
         """Test text editing event handling."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test text editing
         event = HashableEvent(pygame.TEXTEDITING, text="Hello", start=0, length=5)
-        with pytest.raises((Exception, SystemExit)) as exc_info:
-            stub.on_text_editing_event(event)
-        # Exception was raised as expected
+        # Mock the logger to suppress "Unhandled Event" messages during testing
+
+        with patch("glitchygames.events.LOG.error"):
+
+            with pytest.raises(UnhandledEventError):
+            
+                stub.on_text_editing_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_input_with_different_characters(self, mock_pygame_patches):
         """Test text input with different character types."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test different character types
         test_texts = [
@@ -89,14 +108,19 @@ class TestTextEvents:
 
         for text in test_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_input_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_input_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_editing_with_different_parameters(self, mock_pygame_patches):
         """Test text editing with different parameters."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test different editing scenarios
         editing_scenarios = [
@@ -110,14 +134,19 @@ class TestTextEvents:
 
         for text, start, length in editing_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_editing_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_editing_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_input_with_single_characters(self, mock_pygame_patches):
         """Test text input with single character events."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test single character inputs
         single_chars = [
@@ -130,14 +159,19 @@ class TestTextEvents:
 
         for char in single_chars:
             event = HashableEvent(pygame.TEXTINPUT, text=char)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_input_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_input_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_editing_with_cursor_movements(self, mock_pygame_patches):
         """Test text editing with cursor movement scenarios."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test cursor movement scenarios
         cursor_scenarios = [
@@ -151,14 +185,19 @@ class TestTextEvents:
 
         for text, start, length in cursor_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_editing_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_editing_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_input_with_unicode_characters(self, mock_pygame_patches):
         """Test text input with Unicode characters."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test Unicode characters
         unicode_texts = [
@@ -176,14 +215,19 @@ class TestTextEvents:
 
         for text in unicode_texts:
             event = HashableEvent(pygame.TEXTINPUT, text=text)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_input_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
+
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_input_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_text_editing_with_selection_scenarios(self, mock_pygame_patches):
         """Test text editing with different selection scenarios."""
         stub = TextEventStubs()
-        self._setup_mock_game_for_stub(stub)
+        scene_mock = self._setup_mock_scene_for_stub(stub)
 
         # Test selection scenarios
         selection_scenarios = [
@@ -197,16 +241,62 @@ class TestTextEvents:
 
         for text, start, length in selection_scenarios:
             event = HashableEvent(pygame.TEXTEDITING, text=text, start=start, length=length)
-            with pytest.raises((Exception, SystemExit)) as exc_info:
-                stub.on_text_editing_event(event)
-            # Exception was raised as expected
+            # Mock the logger to suppress "Unhandled Event" messages during testing
 
-    def _setup_mock_game_for_stub(self, stub):
-        """Set up mock game object for event stubs."""
-        mock_game = Mock()
-        mock_game.options = {
-            "debug_events": False,
-            "no_unhandled_events": True
-        }
-        stub.options = mock_game.options
-        return mock_game
+            with patch("glitchygames.events.LOG.error"):
+
+                with pytest.raises(UnhandledEventError):
+                
+                    stub.on_text_editing_event(event)
+            # Expected to call unhandled_event and raise UnhandledEventError
+
+    def _setup_mock_scene_for_stub(self, stub):
+        """Set up mock scene object for event stubs using centralized mocks."""
+        # Create a scene mock with proper event handling configuration
+        # Use empty event_handlers to avoid unhandled event logging
+        scene_mock = MockFactory.create_event_test_scene_mock(
+            options={
+                "debug_events": False,
+                "no_unhandled_events": True  # This will cause UnhandledEventError to be raised
+            },
+            event_handlers={}  # Empty handlers to trigger unhandled_event fallback
+        )
+        
+        # Set the options on the stub so unhandled_event can access them
+        stub.options = scene_mock.options
+        return scene_mock
+
+
+class TestTextEvents:
+    """Test text events handled by KeyboardManager."""
+
+    def test_text_events_through_keyboard_manager(self, mock_pygame_patches):
+        """Test text events are handled by KeyboardManager."""
+        from glitchygames.events.keyboard import KeyboardManager
+        
+        mock_game = MockFactory.create_event_test_scene_mock()
+        manager = KeyboardManager(game=mock_game)
+        
+        assert manager.game == mock_game
+        # KeyboardManager handles text events
+        assert hasattr(manager, "on_text_editing_event")
+        assert hasattr(manager, "on_text_input_event")
+
+    def test_text_events(self, mock_pygame_patches):
+        """Test text event handling through manager."""
+        from glitchygames.events.keyboard import KeyboardManager
+        
+        mock_game = MockFactory.create_event_test_scene_mock()
+        manager = KeyboardManager(game=mock_game)
+        
+        # Test text editing - suppress log messages since this will trigger unhandled_event
+        editing_event = HashableEvent(pygame.TEXTEDITING, text="test", start=0, length=4)
+        with patch("glitchygames.events.LOG.error"):
+            with pytest.raises(UnhandledEventError):
+                manager.on_text_editing_event(editing_event)
+        
+        # Test text input - suppress log messages since this will trigger unhandled_event
+        input_event = HashableEvent(pygame.TEXTINPUT, text="test")
+        with patch("glitchygames.events.LOG.error"):
+            with pytest.raises(UnhandledEventError):
+                manager.on_text_input_event(input_event)

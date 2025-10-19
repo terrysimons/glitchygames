@@ -1102,9 +1102,9 @@ class FilmStripWidget:
 
             # Draw text
             surface.blit(text_surface, (text_x, text_y))
-        except Exception as e:
+        except Exception:
             # Log font rendering failures
-            LOG.debug(f"Font rendering failed: {e}")
+            LOG.exception("Font rendering failed")
 
     def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
         """Get the appropriate frame image for rendering."""
@@ -1546,9 +1546,9 @@ class FilmStripWidget:
 
             # Draw text
             surface.blit(text_surface, (text_x, text_y))
-        except Exception as e:
+        except Exception:
             # Log font rendering failures
-            LOG.debug(f"Font rendering failed: {e}")
+            LOG.exception("Font rendering failed")
 
     def _draw_triangle_preview(self, surface: pygame.Surface, center_x: int, center_y: int) -> None:
         """Draw a triangle for the preview with different color."""
@@ -1865,12 +1865,11 @@ class FilmStripWidget:
 
         # Create a new blank frame with magenta background
         # Get the canvas dimensions from the parent scene
-        if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas"):
-            frame_width = self.parent_scene.canvas.pixels_across
-            frame_height = self.parent_scene.canvas.pixels_tall
-        else:
-            frame_width = 32  # Fallback to default frame size
-            frame_height = 32
+        if not (hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas")):
+            return  # Cannot create frame without parent scene canvas dimensions
+        
+        frame_width = self.parent_scene.canvas.pixels_across
+        frame_height = self.parent_scene.canvas.pixels_tall
 
         new_surface = pygame.Surface((frame_width, frame_height))
         new_surface.fill((255, 0, 255))  # Magenta background

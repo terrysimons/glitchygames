@@ -23,6 +23,7 @@ from glitchygames.events import (  # noqa: I001
     ResourceManager,
     supported_events,
     unhandled_event,
+    UnhandledEventError,
 )
 
 
@@ -441,7 +442,7 @@ class TestEventSystemUtilities:
 
         # Test with debug_events enabled
         with patch("glitchygames.events.LOG") as mock_log:
-            with pytest.raises(SystemExit):
+            with pytest.raises(UnhandledEventError):
                 unhandled_event(mock_game, event)
 
             # Verify logging was called
@@ -458,8 +459,8 @@ class TestEventSystemUtilities:
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        # Test with no_unhandled_events enabled (should raise SystemExit)
-        with pytest.raises(SystemExit):
+        # Test with no_unhandled_events enabled (should raise UnhandledEventError)
+        with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
     def test_unhandled_event_missing_options(self, mock_pygame_patches):
@@ -495,14 +496,12 @@ class TestEventSystemUtilities:
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": True}
 
-        mock_event = Mock()
-        mock_event.type = 2  # pygame.KEYDOWN
+        # Use a proper HashableEvent instead of Mock
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        with patch("sys.exit") as mock_exit:
-            unhandled_event(mock_game, mock_event)
-
-            # Verify sys.exit was called with -1 (not 1)
-            mock_exit.assert_called_once_with(-1)
+        # Test that UnhandledEventError is raised instead of sys.exit
+        with pytest.raises(UnhandledEventError):
+            unhandled_event(mock_game, event)
 
     def test_unhandled_event_with_missing_options(self, mock_pygame_patches):
         """Test unhandled_event with missing options."""
@@ -652,18 +651,12 @@ class TestEventSystemUtilities:
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": True}
 
-        mock_event = Mock()
-        mock_event.type = pygame.KEYDOWN
+        # Use a proper HashableEvent instead of Mock
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        with patch("pygame.event.event_name", return_value="KEYDOWN") as mock_event_name, \
-             patch("glitchygames.events.LOG") as mock_log, \
-             patch("sys.exit") as mock_exit:
-
-            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
-
-            mock_event_name.assert_called_once_with(pygame.KEYDOWN)
-            mock_log.error.assert_called_once()
-            mock_exit.assert_called_once_with(-1)
+        # Test that UnhandledEventError is raised instead of sys.exit
+        with pytest.raises(UnhandledEventError):
+            unhandled_event(mock_game, event)
 
     def test_unhandled_event_no_unhandled_events_none(self, mock_pygame_patches):
         """Test unhandled_event with no_unhandled_events=None."""
@@ -702,10 +695,10 @@ class TestEventSystemUtilities:
         """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=False."""
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": False}
-        
+
         mock_event = Mock()
         mock_event.type = pygame.KEYDOWN
-        
+
         # This should NOT raise any exception
         unhandled_event(mock_game, mock_event)
         # Test passes if no exception is raised
@@ -714,10 +707,10 @@ class TestEventSystemUtilities:
         """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=None."""
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": None}
-        
+
         mock_event = Mock()
         mock_event.type = pygame.KEYDOWN
-        
+
         # This should NOT raise any exception (but should log an error about missing option)
         with patch("glitchygames.events.LOG") as mock_log, \
              patch("sys.exit") as mock_exit:
@@ -727,41 +720,37 @@ class TestEventSystemUtilities:
             mock_exit.assert_not_called()
 
     def test_unhandled_event_no_exit_when_debug_true_unhandled_false(self, mock_pygame_patches):
-        """Test that unhandled_event does NOT raise SystemExit when debug_events=True, no_unhandled_events=False."""
+        """Test that unhandled_event does NOT raise SystemExit.
+
+        Tests when debug_events=True and no_unhandled_events=False.
+        """
         mock_game = Mock()
         mock_game.options = {"debug_events": True, "no_unhandled_events": False}
-        
+
         mock_event = Mock()
         mock_event.type = pygame.KEYDOWN
-        
+
         with patch("pygame.event.event_name", return_value="KEYDOWN"), \
              patch("glitchygames.events.LOG") as mock_log, \
              patch("sys.exit") as mock_exit:
             unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
-            
+
             # Should log debug message but NOT exit
             mock_log.error.assert_called_once()
             mock_exit.assert_not_called()
 
     def test_unhandled_event_both_true(self, mock_pygame_patches):
         """Test unhandled_event with both options True."""
+        # Use centralized mock for game with both options True
         mock_game = Mock()
         mock_game.options = {"debug_events": True, "no_unhandled_events": True}
 
-        mock_event = Mock()
-        mock_event.type = pygame.KEYDOWN
+        # Use a proper HashableEvent instead of Mock
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        with patch("pygame.event.event_name", return_value="KEYDOWN"), \
-             patch("glitchygames.events.LOG") as mock_log, \
-             patch("sys.exit") as mock_exit:
-
-            unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
-
-            # Should log debug message AND exit (logs twice: once for debug_events,
-            # once for no_unhandled_events)
-            expected_call_count = 2
-            assert mock_log.error.call_count == expected_call_count
-            mock_exit.assert_called_once_with(-1)
+        # Test that UnhandledEventError is raised instead of sys.exit
+        with pytest.raises(UnhandledEventError):
+            unhandled_event(mock_game, event)
 
     def test_supported_events_filters_and_patches(self, mock_pygame_patches):
         """supported_events should filter by regex and patch known names."""

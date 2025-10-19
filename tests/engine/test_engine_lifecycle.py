@@ -287,7 +287,11 @@ class TestEngineLifecycle:
 
                 # Test start method with exception handling
                 # The engine should handle exceptions gracefully (not raise them)
-                engine.start()
+                # Suppress the expected exception log output
+                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                    engine.start()
+                    # Verify the exception was logged
+                    mock_log.assert_called_once()
 
                 # Verify game was initialized
                 mock_game_class.assert_called_once()

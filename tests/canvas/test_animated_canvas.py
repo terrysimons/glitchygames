@@ -52,7 +52,7 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
             pixel_width=16,
             pixel_height=16,
         )
-        
+
         # Create a film strip widget for testing
         self.canvas.film_strip = FilmStripWidget(
             x=100,

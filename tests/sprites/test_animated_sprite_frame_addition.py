@@ -3,6 +3,8 @@
 import pygame
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
+from tests.mocks import MockFactory
+
 # Test constants to avoid magic values
 TEST_SIZE_2 = 2
 TEST_SIZE_3 = 3
@@ -13,19 +15,24 @@ class TestAnimatedSpriteFrameAddition:
 
     def setup_method(self):
         """Set up test fixtures."""
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+        
         pygame.init()
-        self.surface1 = pygame.Surface((8, 8))
+        self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface1.fill((255, 0, 0))  # Red
 
-        self.surface2 = pygame.Surface((8, 8))
+        self.surface2 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface2.fill((0, 255, 0))  # Green
 
-        self.surface3 = pygame.Surface((8, 8))
+        self.surface3 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface3.fill((0, 0, 255))  # Blue
 
     def teardown_method(self):
         """Clean up after tests."""
         pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_single_frame_animation_stays_static(self):
         """Test that single-frame animations remain static."""

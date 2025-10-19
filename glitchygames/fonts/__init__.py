@@ -65,6 +65,18 @@ class FontManager(ResourceManager):
             self.game = game
             self.proxies = [self.game, pygame.freetype]
 
+        def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
+            """Handle font changed event.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            Returns:
+                None
+
+            """
+            self.game.on_font_changed_event(event)
+
     def __init__(self: Self, game: object = None) -> None:
         """Initialize the font manager.
 
@@ -77,13 +89,14 @@ class FontManager(ResourceManager):
         """
         super().__init__(game=game)
 
-        # Register pygame.freetype
-        pygame.freetype.init()
-        # pygame.font.init()
-        # pygame.ftfont.init()
-
-        log.info(f"Freetype Font Cache Size: {pygame.freetype.get_cache_size()}")
-        log.info(f"Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}")
+        # Register pygame.freetype if available
+        try:
+            pygame.freetype.init()
+            log.info(f"Freetype Font Cache Size: {pygame.freetype.get_cache_size()}")
+            log.info(f"Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}")
+        except AttributeError:
+            log.warning("pygame.freetype not available, using pygame.font instead")
+            pygame.font.init()
 
         # Set up the default options.
         FontManager.OPTIONS["font_name"] = game.OPTIONS["font_name"]
@@ -126,7 +139,12 @@ class FontManager(ResourceManager):
         # will be loaded instead.
         # pygame.ftfont.init()
 
-        # self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
+        # Set up proxies based on available font system
+        try:
+            self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
+        except AttributeError:
+            # Fallback to pygame.font if freetype is not available
+            self.proxies = [FontManager.FontProxy(game=game), pygame.font]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

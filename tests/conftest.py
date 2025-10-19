@@ -16,6 +16,13 @@ from glitchygames.scenes import Scene  # noqa: I001
 from tests.mocks import MockFactory
 
 
+def pytest_configure(config):
+    """Configure pytest to enable strict event handling for all tests."""
+    # This ensures that unhandled events cause tests to fail, catching bugs
+    # The no_unhandled_events flag is enabled globally in mock_game fixture
+    pass
+
+
 @pytest.fixture
 def mock_game_args():
     """Create mock command line arguments for testing."""
@@ -58,7 +65,7 @@ def mock_game():
             if options is None:
                 options = {
                     "debug_events": False,
-                    "no_unhandled_events": False
+                    "no_unhandled_events": True  # Enable globally to catch unhandled events as bugs
                 }
             if groups is None:
                 groups = Mock()  # Mock pygame.sprite.Group

@@ -25,4 +25,4 @@ for i in range(0x10FFFF + 1):  # Full Unicode range
 unicode_letters -= set(original_glyphs)
 
 # Combine: original set first, then additional Unicode letters
-SPRITE_GLYPHS = original_glyphs + "".join(sorted(unicode_letters))
+SPRITE_GLYPHS = original_glyphs  # + "".join(sorted(unicode_letters))
