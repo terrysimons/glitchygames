@@ -2152,7 +2152,6 @@ class SliderSprite(BitmappySprite):
 
     def on_mouse_motion_event(self, event):
         """Handle mouse motion event."""
-        self.log.info(f"Slider {self.name} mouse motion event, dragging: {self.dragging}")
         if self.dragging:
             self.log.info(f"Dragging slider {self.name}")
             # Update value based on drag position
@@ -2179,7 +2178,7 @@ class SliderSprite(BitmappySprite):
             self.text_sprite.update_text(self.text_sprite.text)
             self.text_sprite.dirty = 2  # Force redraw
         else:
-            self.log.info(f"Mouse motion on slider {self.name} but not dragging")
+            pass
 
     def on_left_mouse_button_up_event(self, event):
         """Handle left mouse button up event."""
