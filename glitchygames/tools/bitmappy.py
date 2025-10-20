@@ -4083,11 +4083,8 @@ class BitmapEditorScene(Scene):
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
-        self.new_canvas_dialog_scene = NewCanvasDialogScene(
-            options=self.options, previous_scene=self
-        )
-        self.load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
-        self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
+        # Dialog scenes are now created fresh each time they're needed
+        # No need to store persistent dialog scene instances
 
         # These are set up in the GameEngine class.
         if not hasattr(self, "_initialized"):
@@ -4232,10 +4229,14 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.new_canvas_dialog_scene.all_sprites.clear(
-            self.new_canvas_dialog_scene.screen, self.screenshot
+        # Create a fresh dialog scene each time
+        new_canvas_dialog_scene = NewCanvasDialogScene(
+            options=self.options, previous_scene=self
         )
-        self.next_scene = self.new_canvas_dialog_scene
+        new_canvas_dialog_scene.all_sprites.clear(
+            new_canvas_dialog_scene.screen, self.screenshot
+        )
+        self.next_scene = new_canvas_dialog_scene
         self.dirty = 1
 
     def on_load_dialog_event(self: Self, event: pygame.event.Event) -> None:
@@ -4251,8 +4252,10 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.load_dialog_scene.all_sprites.clear(self.load_dialog_scene.screen, self.screenshot)
-        self.next_scene = self.load_dialog_scene
+        # Create a fresh dialog scene each time
+        load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
+        load_dialog_scene.all_sprites.clear(load_dialog_scene.screen, self.screenshot)
+        self.next_scene = load_dialog_scene
         self.dirty = 1
 
     def on_save_dialog_event(self: Self, event: pygame.event.Event) -> None:
@@ -4268,8 +4271,10 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.save_dialog_scene.all_sprites.clear(self.save_dialog_scene.screen, self.screenshot)
-        self.next_scene = self.save_dialog_scene
+        # Create a fresh dialog scene each time
+        save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
+        save_dialog_scene.all_sprites.clear(save_dialog_scene.screen, self.screenshot)
+        self.next_scene = save_dialog_scene
         self.dirty = 1
 
     def on_color_well_event(self: Self, event: pygame.event.Event, trigger: object) -> None:

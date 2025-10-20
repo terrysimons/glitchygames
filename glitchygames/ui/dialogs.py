@@ -348,7 +348,9 @@ class LoadDialogScene(InputConfirmationDialogScene):
 
         """
         self.log.info(f"Load File: event: {event}, trigger: {trigger}")
-        self.previous_scene.canvas.on_load_file_event(self.dialog.input_box, self.dialog.input_box)
+        # Get the filename from the input box text
+        filename = self.dialog.input_box.text
+        self.previous_scene.canvas.on_load_file_event(filename)
         self.dismiss()
 
 
