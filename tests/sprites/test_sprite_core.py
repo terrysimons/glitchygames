@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pygame
 
@@ -92,10 +93,20 @@ class TestSpriteInitialization:
 
     def test_sprite_initialization_with_zero_dimensions(self):
         """Test Sprite initialization with zero dimensions."""
-        sprite = Sprite(x=0, y=0, width=0, height=0)
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(Sprite, "log") as mock_log:
+            sprite = Sprite(x=0, y=0, width=0, height=0)
 
-        assert sprite.width == 0
-        assert sprite.height == 0
+            assert sprite.width == 0
+            assert sprite.height == 0
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "has 0 Width" in first_call
+            assert "has 0 Height" in second_call
 
     def test_sprite_breakpoints_enabled_empty_list(self):
         """Test sprite breakpoints with empty list."""

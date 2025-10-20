@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pygame
 import pytest
@@ -26,6 +27,11 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -96,8 +102,18 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_across = 9
         sprite.pixels_tall = 9
 
-        with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(toml_file), "toml")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            with pytest.raises(ValueError, match="Too many colors"):
+                sprite.save(str(toml_file), "toml")
+            
+            # Verify the ERROR log messages were called (multiple times expected)
+            assert mock_log.error.call_count >= 1
+            # Check that the log messages contain the expected content
+            call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+            assert any("Pixels list length mismatch: 65 vs expected 81" in msg for msg in call_args_list)
+            assert any("Error in deflate" in msg for msg in call_args_list)
+            assert any("Error in save" in msg for msg in call_args_list)
 
     def test_animated_sprite_character_limit(self):
         """Test character limit enforcement in animated sprites."""
@@ -268,8 +284,18 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_across = 13  # 13 * 5 = 65 pixels, exactly matching 65 colors
         sprite.pixels_tall = 5
 
-        with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(self.temp_path / "test_error.toml"), "toml")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            with pytest.raises(ValueError, match="Too many colors"):
+                sprite.save(str(self.temp_path / "test_error.toml"), "toml")
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Error in deflate" in first_call
+            assert "Error in save" in second_call
 
     def test_character_limit_with_reserved_characters(self):
         """Test character limit enforcement with universal characters."""
@@ -329,8 +355,18 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         # Measure time to detect limit violation
         start_time = time.time()
 
-        with pytest.raises(ValueError, match="Too many colors"):
-            sprite.save(str(self.temp_path / "test_performance.toml"), "toml")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            with pytest.raises(ValueError, match="Too many colors"):
+                sprite.save(str(self.temp_path / "test_performance.toml"), "toml")
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Error in deflate" in first_call
+            assert "Error in save" in second_call
 
         end_time = time.time()
         execution_time = end_time - start_time

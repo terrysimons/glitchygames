@@ -294,7 +294,7 @@ class ResourceManager:
             for proxy in self.proxies:
                 return getattr(proxy, attr)
         except AttributeError:
-            self.log.exception(f"No proxies for {type(self)}.{attr}")
+            self.log.error(f"No proxies for {type(self)}.{attr}")
             raise
 
         raise AttributeError(f"No proxies for {type(self)}.{attr}")

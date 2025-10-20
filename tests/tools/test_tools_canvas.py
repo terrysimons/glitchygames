@@ -8,10 +8,15 @@ from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import canvas_interfaces
+from tests.mocks import MockFactory
 
 
 class TestCanvasInterfaces:
     """Test canvas interfaces functionality."""
+
+    def _create_mock_sprite(self):
+        """Create a mock sprite using MockFactory."""
+        return MockFactory.create_animated_sprite_mock()
 
     def test_canvas_interface_protocol(self, mock_pygame_patches):
         """Test canvas interface protocol."""
@@ -61,7 +66,7 @@ class TestCanvasInterfaces:
     def test_static_canvas_interface_initialization(self, mock_pygame_patches):
         """Test static canvas interface initialization."""
         # Test StaticCanvasInterface initialization - requires canvas_sprite parameter
-        mock_sprite = Mock()
+        mock_sprite = self._create_mock_sprite()
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
 
         # Test basic properties
@@ -70,7 +75,7 @@ class TestCanvasInterfaces:
 
     def test_static_canvas_interface_pixel_operations(self, mock_pygame_patches):
         """Test static canvas interface pixel operations."""
-        mock_sprite = Mock()
+        mock_sprite = self._create_mock_sprite()
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
 
         # Test that interface has expected methods
@@ -84,7 +89,7 @@ class TestCanvasInterfaces:
     def test_animated_canvas_interface_initialization(self, mock_pygame_patches):
         """Test animated canvas interface initialization."""
         # Test AnimatedCanvasInterface initialization - requires properly mocked canvas_sprite
-        mock_sprite = Mock()
+        mock_sprite = self._create_mock_sprite()
         mock_animated_sprite = Mock()
         mock_animated_sprite._animation_order = ["idle"]
         mock_sprite.animated_sprite = mock_animated_sprite
@@ -97,7 +102,7 @@ class TestCanvasInterfaces:
 
     def test_static_canvas_interface_comprehensive(self, mock_pygame_patches):
         """Test comprehensive static canvas interface functionality."""
-        mock_sprite = Mock()
+        mock_sprite = self._create_mock_sprite()
         interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
 
         # Test that interface has expected methods
@@ -120,7 +125,7 @@ class TestCanvasInterfaces:
     def test_static_canvas_renderer(self, mock_pygame_patches):
         """Test static canvas renderer functionality."""
         # Test StaticCanvasRenderer initialization - requires canvas_sprite parameter
-        mock_sprite = Mock()
+        mock_sprite = self._create_mock_sprite()
         renderer = canvas_interfaces.StaticCanvasRenderer(mock_sprite)
 
         # Test basic properties

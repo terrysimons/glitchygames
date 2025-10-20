@@ -7,11 +7,14 @@ and properly rejects YAML/INI formats after the cleanup.
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pygame
 import pytest
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestTOMLOnlySupport(unittest.TestCase):
@@ -19,15 +22,20 @@ class TestTOMLOnlySupport(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def test_file_format_detection_toml_only():
@@ -121,9 +129,19 @@ class TestTOMLOnlySupport(unittest.TestCase):
 
         yaml_file = self.temp_path / "test.yaml"
 
-        # Should raise error when trying to save as YAML
-        with pytest.raises(ValueError, match="Unsupported format"):
-            sprite.save(str(yaml_file), "yaml")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            # Should raise error when trying to save as YAML
+            with pytest.raises(ValueError, match="Unsupported format"):
+                sprite.save(str(yaml_file), "yaml")
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Error in deflate" in first_call
+            assert "Error in save" in second_call
 
     def test_ini_format_rejected(self):
         """Test that INI format is properly rejected."""
@@ -134,9 +152,19 @@ class TestTOMLOnlySupport(unittest.TestCase):
 
         ini_file = self.temp_path / "test.ini"
 
-        # Should raise error when trying to save as INI
-        with pytest.raises(ValueError, match="Unsupported format"):
-            sprite.save(str(ini_file), "ini")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            # Should raise error when trying to save as INI
+            with pytest.raises(ValueError, match="Unsupported format"):
+                sprite.save(str(ini_file), "ini")
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Error in deflate" in first_call
+            assert "Error in save" in second_call
 
     def test_animated_sprite_yaml_rejected(self):
         """Test that animated sprites reject YAML format."""
@@ -189,9 +217,19 @@ class TestTOMLOnlySupport(unittest.TestCase):
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
 
-        # Test error message for unsupported format
-        with pytest.raises(ValueError, match="Unsupported format"):
-            sprite.save("test.json", "json")
+        # Use centralized mocks to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            # Test error message for unsupported format
+            with pytest.raises(ValueError, match="Unsupported format"):
+                sprite.save("test.json", "json")
+            
+            # Verify the ERROR log messages were called
+            assert mock_log.error.call_count == 2
+            # Check that the log messages contain the expected content
+            first_call = mock_log.error.call_args_list[0][0][0]
+            second_call = mock_log.error.call_args_list[1][0][0]
+            assert "Error in deflate" in first_call
+            assert "Error in save" in second_call
 
 
 if __name__ == "__main__":

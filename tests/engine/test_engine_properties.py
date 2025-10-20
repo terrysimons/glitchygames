@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
+from tests.mocks import MockFactory
 
 # Constants for magic values
 TEST_JOYSTICK_COUNT_2 = 2
@@ -57,6 +58,14 @@ class MockGameWithArgs(MockGame):
 class TestEngineProperties:
     """Test GameEngine properties."""
 
+    def _create_mock_game(self):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        mock_game.NAME = "MockGame"
+        mock_game.VERSION = "1.0"
+        mock_game.args = Mock(return_value=Mock())
+        return mock_game
+
     def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine game property."""
         # Mock argument parsing to prevent command line argument issues
@@ -64,10 +73,7 @@ class TestEngineProperties:
             mock_parse_args.return_value = mock_game_args
 
             # Create GameEngine instance with mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             engine = GameEngine(game=mock_game)
 
@@ -82,10 +88,7 @@ class TestEngineProperties:
             mock_parse_args.return_value = mock_game_args
 
             # Create GameEngine instance with mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             engine = GameEngine(game=mock_game)
 
@@ -99,10 +102,7 @@ class TestEngineProperties:
             mock_parse_args.return_value = mock_game_args
 
             # Create GameEngine instance with mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             engine = GameEngine(game=mock_game)
 
@@ -121,10 +121,7 @@ class TestEngineProperties:
             mock_parse_args.return_value = mock_game_args
 
             # Create GameEngine instance with mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             engine = GameEngine(game=mock_game)
 

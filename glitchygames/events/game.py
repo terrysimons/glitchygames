@@ -216,6 +216,71 @@ class GameManager(ResourceManager, GameEvents):
         super().__init__(game=game)
         self.proxies: list[GameManager.GameProxy] = [GameManager.GameProxy(game=game)]
 
+    def on_active_event(self: Self, event: HashableEvent) -> None:
+        """Handle active event."""
+        for proxy in self.proxies:
+            proxy.on_active_event(event)
+
+    def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle clipboard update event."""
+        for proxy in self.proxies:
+            proxy.on_clipboard_update_event(event)
+
+    def on_fps_event(self: Self, event: HashableEvent) -> None:
+        """Handle fps event."""
+        for proxy in self.proxies:
+            proxy.on_fps_event(event)
+
+    def on_game_event(self: Self, event: HashableEvent) -> None:
+        """Handle game event."""
+        for proxy in self.proxies:
+            proxy.on_game_event(event)
+
+    def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
+        """Handle locale changed event."""
+        for proxy in self.proxies:
+            proxy.on_locale_changed_event(event)
+
+    def on_menu_item_event(self: Self, event: HashableEvent) -> None:
+        """Handle menu item event."""
+        for proxy in self.proxies:
+            proxy.on_menu_item_event(event)
+
+    def on_quit_event(self: Self, event: HashableEvent) -> None:
+        """Handle quit event."""
+        for proxy in self.proxies:
+            proxy.on_quit_event(event)
+
+    def on_render_device_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render device reset event."""
+        for proxy in self.proxies:
+            proxy.on_render_device_reset_event(event)
+
+    def on_render_targets_reset_event(self: Self, event: HashableEvent) -> None:
+        """Handle render targets reset event."""
+        for proxy in self.proxies:
+            proxy.on_render_targets_reset_event(event)
+
+    def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
+        """Handle sys wm event."""
+        for proxy in self.proxies:
+            proxy.on_sys_wm_event(event)
+
+    def on_user_event(self: Self, event: HashableEvent) -> None:
+        """Handle user event."""
+        for proxy in self.proxies:
+            proxy.on_user_event(event)
+
+    def on_video_expose_event(self: Self, event: HashableEvent) -> None:
+        """Handle video expose event."""
+        for proxy in self.proxies:
+            proxy.on_video_expose_event(event)
+
+    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
+        """Handle video resize event."""
+        for proxy in self.proxies:
+            proxy.on_video_resize_event(event)
+
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add arguments to the argument parser.

@@ -31,7 +31,6 @@ class TestAISStripIntegration(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         MockFactory.teardown_pygame_mocks(self.patchers)
-        pygame.quit()
 
     def test_save_current_strip_to_temp_toml(self):
         """Test that current strip is saved to temporary TOML file."""

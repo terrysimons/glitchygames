@@ -484,7 +484,7 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
         return {"max_tokens": None}
 
     except (ValueError, ConnectionError, TimeoutError):
-        log.exception("Failed to query model capabilities")
+        log.error("Failed to query model capabilities")
         return {"max_tokens": None}
 
 
@@ -661,14 +661,14 @@ def ai_worker(
                 log.info("Response sent successfully")
 
             except (ValueError, KeyError, AttributeError, OSError) as e:
-                log.exception("Error processing AI request")
+                log.error("Error processing AI request")
                 if request:
                     response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
     except ImportError:
-        log.exception("Failed to import aisuite")
+        log.error("Failed to import aisuite")
         raise
     except (OSError, ValueError, KeyError, AttributeError):
-        log.exception("Fatal error in AI worker process")
+        log.error("Fatal error in AI worker process")
         raise
 
 
@@ -1627,7 +1627,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self.animated_sprite, filename=filename, file_format=file_format
                 )
         except (OSError, ValueError, KeyError):
-            self.log.exception("Error saving file")
+            self.log.error("Error saving file")
             raise
 
     def get_canvas_interface(self) -> AnimatedCanvasInterface:
@@ -1667,12 +1667,12 @@ class AnimatedCanvasSprite(BitmappySprite):
             self._finalize_sprite_loading(loaded_sprite, filename)
 
         except FileNotFoundError as e:
-            self.log.exception("File not found")
+            self.log.error("File not found")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
         except Exception as e:
-            self.log.exception("Error in on_load_file_event for animated sprite")
+            self.log.error("Error in on_load_file_event for animated sprite")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error loading sprite: {e}"
@@ -4214,8 +4214,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Canvas resized to {width}x{height} with pixel size {new_pixel_size}")
 
         except ValueError:
-            self.log.exception(f"Invalid dimensions format '{dimensions}'")
-            self.log.exception("Expected format: WxH (e.g., '32x32')")
+            self.log.error(f"Invalid dimensions format '{dimensions}'")
+            self.log.error("Expected format: WxH (e.g., '32x32')")
 
         self.dirty = 1
 
@@ -4928,7 +4928,7 @@ class BitmapEditorScene(Scene):
                 self.debug_text.text = f"Processing AI request... (ID: {request_id})"
 
         except Exception:
-            self.log.exception("Error submitting AI request")
+            self.log.error("Error submitting AI request")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = "Error: Failed to submit AI request"
 
@@ -4960,7 +4960,7 @@ class BitmapEditorScene(Scene):
                 self.log.info(f"AI worker process started with PID: {self.ai_process.pid}")
 
             except Exception:
-                self.log.exception("Error initializing AI worker process")
+                self.log.error("Error initializing AI worker process")
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None
@@ -5222,7 +5222,7 @@ class BitmapEditorScene(Scene):
                 self.log.debug("No canvas or canvas.pixels found, returning False")
                 return False
         except Exception as e:
-            self.log.exception(f"Error checking frame content: {e}")
+            self.log.error(f"Error checking frame content: {e}")
             return False
 
     def _save_current_frame_to_temp_toml(self) -> str | None:
@@ -5260,7 +5260,7 @@ class BitmapEditorScene(Scene):
             return temp_path
 
         except Exception as e:
-            self.log.exception(f"Error saving frame to temp TOML: {e}")
+            self.log.error(f"Error saving frame to temp TOML: {e}")
             return None
 
     def _save_current_strip_to_temp_toml(self) -> str | None:
@@ -5312,7 +5312,7 @@ class BitmapEditorScene(Scene):
             return temp_path
 
         except Exception as e:
-            self.log.exception(f"Error saving strip to temp TOML: {e}")
+            self.log.error(f"Error saving strip to temp TOML: {e}")
             return None
 
     def _generate_frame_toml_content(self, pixels: list, force_single_char_glyphs: bool = False) -> str:
@@ -5449,7 +5449,7 @@ pixels = \"\"\"
             return toml_content
 
         except Exception as e:
-            self.log.exception(f"Error generating frame TOML content: {e}")
+            self.log.error(f"Error generating frame TOML content: {e}")
             return ""
 
     def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
@@ -5526,7 +5526,7 @@ pixels = \"\"\"
             return sprite_data
 
         except Exception as e:
-            self.log.exception(f"Error loading temp TOML as example: {e}")
+            self.log.error(f"Error loading temp TOML as example: {e}")
             return None
 
     def _load_ai_sprite(self, request_id: str, content: str) -> None:
@@ -5586,7 +5586,7 @@ pixels = \"\"\"
             self._cleanup_ai_request(request_id)
 
         except Exception as sprite_error:
-            self.log.exception("Failed to load AI sprite")
+            self.log.error("Failed to load AI sprite")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = f"Error loading AI sprite: {sprite_error}"
         # Note: Temp file is kept for debugging - remove this comment when done debugging
@@ -5736,7 +5736,7 @@ pixels = \"\"\"
                 # This is normal - no responses available
                 pass
             except Exception:
-                self.log.exception("Error processing AI response")
+                self.log.error("Error processing AI response")
 
     def _shutdown_ai_worker(self) -> None:
         """Signal AI worker to shut down."""
@@ -5746,7 +5746,7 @@ pixels = \"\"\"
                 self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
                 self.log.info("Shutdown signal sent successfully")
             except Exception:
-                self.log.exception("Error sending shutdown signal")
+                self.log.error("Error sending shutdown signal")
 
     def _cleanup_ai_process(self) -> None:
         """Clean up AI process."""
@@ -5766,7 +5766,7 @@ pixels = \"\"\"
                     self.ai_process.join(timeout=0.5)  # Final cleanup
             self.log.info("AI process cleanup completed")
         except Exception:
-            self.log.exception("Error during AI process cleanup")
+            self.log.error("Error during AI process cleanup")
         finally:
             # Ensure process is cleaned up
             if hasattr(self, "ai_process") and self.ai_process:
@@ -5784,14 +5784,14 @@ pixels = \"\"\"
                 self.ai_request_queue.close()
                 self.log.info("AI request queue closed")
             except Exception:
-                self.log.exception("Error closing request queue")
+                self.log.error("Error closing request queue")
 
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:
             try:
                 self.ai_response_queue.close()
                 self.log.info("AI response queue closed")
             except Exception:
-                self.log.exception("Error closing response queue")
+                self.log.error("Error closing response queue")
 
     def _cleanup_voice_recognition(self) -> None:
         """Clean up voice recognition resources."""
@@ -5802,7 +5802,7 @@ pixels = \"\"\"
                 self.voice_manager = None
                 self.log.info("Voice recognition stopped successfully")
             except Exception:
-                self.log.exception("Error stopping voice recognition")
+                self.log.error("Error stopping voice recognition")
 
     def cleanup(self):
         """Clean up resources."""
@@ -5920,7 +5920,7 @@ pixels = \"\"\"
             file_size = Path(file_path).stat().st_size
             self.log.info(f"File size: {file_size} bytes")
         except OSError:
-            self.log.exception("Could not get file size")
+            self.log.error("Could not get file size")
             return
 
         # Check if it's a PNG file
@@ -6205,7 +6205,7 @@ pixels = \"\"\"
             return str(output_path)
 
         except Exception:
-            self.log.exception("Error converting PNG to bitmappy format")
+            self.log.error("Error converting PNG to bitmappy format")
             return None
 
     def _load_converted_sprite(self, toml_path: str) -> None:
@@ -6315,7 +6315,7 @@ pixels = \"\"\"
                 self.log.warning("Could not find canvas sprite to load converted file")
 
         except Exception:
-            self.log.exception("Error loading converted sprite into editor")
+            self.log.error("Error loading converted sprite into editor")
 
     def handle_event(self, event):
         """Handle pygame events."""
@@ -6359,7 +6359,7 @@ pixels = \"\"\"
                 # Reset generator
                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
             except StopIteration:
-                self.log.exception("Generator empty on first triplet!")
+                self.log.error("Generator empty on first triplet!")
                 raise
 
             # Now proceed with the rest of deflate
@@ -6371,7 +6371,7 @@ pixels = \"\"\"
             self.log.debug(f"Found {len(colors)} unique colors")
 
         except Exception:
-            self.log.exception("Error in deflate")
+            self.log.error("Error in deflate")
             raise
         else:
             return config

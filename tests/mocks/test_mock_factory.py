@@ -90,7 +90,12 @@ class MockSurface(pygame.Surface):
 
     def get_at(self, pos):
         """Get pixel color at position."""
-        return super().get_at(pos)
+        # Get the color from the parent surface and ensure it's a pygame.Color object
+        color = super().get_at(pos)
+        # If it's a tuple, convert it to pygame.Color
+        if isinstance(color, tuple):
+            return pygame.Color(*color)
+        return color
 
     def get_rect(self, **kwargs):
         """Get rect for this surface."""
@@ -116,9 +121,21 @@ class MockFactory:
     
     @staticmethod
     def _copy_mock_sprite(original_sprite: Mock) -> Mock:
-        """Create a deep copy of a mock sprite to avoid test interference."""
-        import copy
-        return copy.deepcopy(original_sprite)
+        """Create a copy of a mock sprite to avoid test interference."""
+        # Create a new Mock instead of deep copying to avoid infinite recursion
+        new_sprite = Mock(spec=type(original_sprite))
+        
+        # Copy essential attributes manually to avoid circular references
+        for attr_name in ['_animations', 'current_animation', 'current_frame', 'is_playing', '_is_looping']:
+            if hasattr(original_sprite, attr_name):
+                setattr(new_sprite, attr_name, getattr(original_sprite, attr_name))
+        
+        # Copy methods
+        for attr_name in dir(original_sprite):
+            if not attr_name.startswith('_') and callable(getattr(original_sprite, attr_name)):
+                setattr(new_sprite, attr_name, getattr(original_sprite, attr_name))
+        
+        return new_sprite
     
     @staticmethod
     def clear_cache():
@@ -153,12 +170,12 @@ class MockFactory:
             Properly configured AnimatedSprite mock
 
         """
-        # Check cache first for performance
-        cache_key = (animation_name, frame_size, pixel_color, current_frame, is_playing, is_looping)
-        if use_cache and cache_key in MockFactory._cached_sprites:
-            cached_sprite = MockFactory._cached_sprites[cache_key]
-            # Return a copy to avoid test interference
-            return MockFactory._copy_mock_sprite(cached_sprite)
+        # Skip caching to avoid deep copy issues with Mock objects
+        # cache_key = (animation_name, frame_size, pixel_color, current_frame, is_playing, is_looping)
+        # if use_cache and cache_key in MockFactory._cached_sprites:
+        #     cached_sprite = MockFactory._cached_sprites[cache_key]
+        #     # Return a copy to avoid test interference
+        #     return MockFactory._copy_mock_sprite(cached_sprite)
         
         # Create the mock sprite
         mock_sprite = Mock(spec=AnimatedSprite)
@@ -287,9 +304,9 @@ class MockFactory:
         mock_sprite._frame_manager._observers = []
         mock_sprite._frame_manager.animated_sprite = mock_sprite
         
-        # Cache the sprite for future use
-        if use_cache:
-            MockFactory._cached_sprites[cache_key] = mock_sprite
+        # Skip caching to avoid deep copy issues with Mock objects
+        # if use_cache:
+        #     MockFactory._cached_sprites[cache_key] = mock_sprite
 
         return mock_sprite
 
@@ -312,9 +329,10 @@ class MockFactory:
             Optimized scene mock
 
         """
-        cache_key = (pixels_across, pixels_tall, pixel_size)
-        if use_cache and cache_key in MockFactory._cached_scenes:
-            return MockFactory._copy_mock_sprite(MockFactory._cached_scenes[cache_key])
+        # Skip caching to avoid deep copy issues with Mock objects
+        # cache_key = (pixels_across, pixels_tall, pixel_size)
+        # if use_cache and cache_key in MockFactory._cached_scenes:
+        #     return MockFactory._copy_mock_sprite(MockFactory._cached_scenes[cache_key])
         
         # Create scene mock with minimal setup
         scene_mock = Mock()
@@ -333,9 +351,9 @@ class MockFactory:
         
         scene_mock.canvas = canvas_mock
         
-        # Cache for future use
-        if use_cache:
-            MockFactory._cached_scenes[cache_key] = scene_mock
+        # Skip caching to avoid deep copy issues with Mock objects
+        # if use_cache:
+        #     MockFactory._cached_scenes[cache_key] = scene_mock
             
         return scene_mock
 
@@ -701,7 +719,7 @@ class MockFactory:
         screen.fill = Mock(return_value=None)
         screen.copy = Mock(return_value=screen)
         screen.set_at = Mock(return_value=None)
-        screen.get_at = Mock(return_value=(0, 0, 0, 255))
+        screen.get_at = Mock(return_value=pygame.Color(0, 0, 0, 255))
         
         # Provide a minimal screen rect-like attributes used by paddles
         screen.left = 0
@@ -861,6 +879,25 @@ class MockFactory:
         return display_mock
 
     @staticmethod
+    def setup_minimal_pygame_mocks():
+        """Set up minimal pygame mocks that only mock the display surface.
+        
+        This is used for global mocks to prevent 'display Surface quit' errors
+        while allowing other pygame objects to work normally.
+        
+        Returns:
+            tuple: (display_patcher, display_get_surface_patcher)
+        """
+        # Create display mock
+        display_mock = MockFactory.create_pygame_display_mock()
+        display_surface = display_mock.get_surface.return_value
+        
+        # Only patch display-related functions
+        display_patcher = patch("pygame.display", display_mock)
+        display_get_surface_patcher = patch("pygame.display.get_surface", return_value=display_surface)
+        
+        return (display_patcher, display_get_surface_patcher)
+
     def setup_pygame_mocks():  # noqa: PLR0915,PLR0914
         """Set up comprehensive pygame mocks for testing.
 

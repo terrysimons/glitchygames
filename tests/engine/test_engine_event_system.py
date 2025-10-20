@@ -13,10 +13,27 @@ import pygame
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
+from tests.mocks import MockFactory
 
 
 class TestEngineEventSystem:
     """Test GameEngine event system functionality."""
+
+    def _create_mock_game(self):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        mock_game.NAME = "MockGame"
+        mock_game.VERSION = "1.0"
+        mock_game.args = Mock(return_value=Mock())
+        return mock_game
+
+    def _create_mock_event(self, event_type, **kwargs):
+        """Create a mock event using MockFactory."""
+        mock_event = Mock()
+        mock_event.type = event_type
+        for key, value in kwargs.items():
+            setattr(mock_event, key, value)
+        return mock_event
 
     def test_game_engine_event_handlers_registration(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine event handler registration."""
@@ -25,10 +42,7 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
@@ -54,20 +68,17 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock events
             mock_events = [
-                Mock(type=pygame.QUIT),
-                Mock(type=pygame.KEYDOWN, key=pygame.K_SPACE),
-                Mock(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)),
-                Mock(type=pygame.JOYBUTTONDOWN, button=0, joy=0),
+                self._create_mock_event(pygame.QUIT),
+                self._create_mock_event(pygame.KEYDOWN, key=pygame.K_SPACE),
+                self._create_mock_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)),
+                self._create_mock_event(pygame.JOYBUTTONDOWN, button=0, joy=0),
             ]
 
             # Mock the process_events method to avoid actual event processing
@@ -87,16 +98,13 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock quit event
-            quit_event = Mock(type=pygame.QUIT)
+            quit_event = self._create_mock_event(pygame.QUIT)
 
             # Test quit event handler
             with patch.object(engine, "on_quit_event") as mock_quit_handler:
@@ -115,17 +123,14 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock keyboard events
-            keydown_event = Mock(type=pygame.KEYDOWN, key=pygame.K_SPACE)
-            keyup_event = Mock(type=pygame.KEYUP, key=pygame.K_SPACE)
+            keydown_event = self._create_mock_event(pygame.KEYDOWN, key=pygame.K_SPACE)
+            keyup_event = self._create_mock_event(pygame.KEYUP, key=pygame.K_SPACE)
 
             # Test keyboard event handlers
             with patch.object(engine, "on_keydown_event") as mock_keydown_handler, \
@@ -149,18 +154,15 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock mouse events
-            mousedown_event = Mock(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
-            mouseup_event = Mock(type=pygame.MOUSEBUTTONUP, button=1, pos=(100, 100))
-            mousemotion_event = Mock(type=pygame.MOUSEMOTION, pos=(100, 100), rel=(5, 5))
+            mousedown_event = self._create_mock_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
+            mouseup_event = self._create_mock_event(pygame.MOUSEBUTTONUP, button=1, pos=(100, 100))
+            mousemotion_event = self._create_mock_event(pygame.MOUSEMOTION, pos=(100, 100), rel=(5, 5))
 
             # Test mouse event handlers
             with patch.object(engine, "on_mousebuttondown_event") as mock_mousedown_handler, \
@@ -188,20 +190,17 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock joystick events
-            joybuttondown_event = Mock(type=pygame.JOYBUTTONDOWN, button=0, joy=0)
-            joybuttonup_event = Mock(type=pygame.JOYBUTTONUP, button=0, joy=0)
-            joyaxismotion_event = Mock(type=pygame.JOYAXISMOTION, axis=0, value=0.5, joy=0)
-            joyhatmotion_event = Mock(type=pygame.JOYHATMOTION, hat=0, value=(1, 0), joy=0)
-            joyballmotion_event = Mock(type=pygame.JOYBALLMOTION, ball=0, rel=(5, 5), joy=0)
+            joybuttondown_event = self._create_mock_event(pygame.JOYBUTTONDOWN, button=0, joy=0)
+            joybuttonup_event = self._create_mock_event(pygame.JOYBUTTONUP, button=0, joy=0)
+            joyaxismotion_event = self._create_mock_event(pygame.JOYAXISMOTION, axis=0, value=0.5, joy=0)
+            joyhatmotion_event = self._create_mock_event(pygame.JOYHATMOTION, hat=0, value=(1, 0), joy=0)
+            joyballmotion_event = self._create_mock_event(pygame.JOYBALLMOTION, ball=0, rel=(5, 5), joy=0)
 
             # Test joystick event handlers
             with patch.object(engine, "on_joybuttondown_event") as mock_joybuttondown_handler, \
@@ -237,16 +236,13 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock active event
-            active_event = Mock(type=pygame.ACTIVEEVENT, gain=1, state=1)
+            active_event = self._create_mock_event(pygame.ACTIVEEVENT, gain=1, state=1)
 
             # Test active event handler
             with patch.object(engine, "on_active_event") as mock_active_handler:
@@ -265,18 +261,15 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock user events
-            fps_event = Mock(type=pygame.USEREVENT + 1)  # FPSEVENT
-            game_event = Mock(type=pygame.USEREVENT + 2)  # GAMEEVENT
-            menu_event = Mock(type=pygame.USEREVENT + 3)  # MENUEVENT
+            fps_event = self._create_mock_event(pygame.USEREVENT + 1)  # FPSEVENT
+            game_event = self._create_mock_event(pygame.USEREVENT + 2)  # GAMEEVENT
+            menu_event = self._create_mock_event(pygame.USEREVENT + 3)  # MENUEVENT
 
             # Test user event handlers
             with patch.object(engine, "on_fps_event") as mock_fps_handler, \
@@ -304,16 +297,13 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)
 
             # Mock sys wm event
-            sys_wm_event = Mock(type=pygame.SYSWMEVENT, msg="test_message")
+            sys_wm_event = self._create_mock_event(pygame.SYSWMEVENT, msg="test_message")
 
             # Test sys wm event handler
             with patch.object(engine, "on_sys_wm_event") as mock_sys_wm_handler:
@@ -332,10 +322,7 @@ class TestEngineEventSystem:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
             # Create GameEngine instance
             engine = GameEngine(game=mock_game)

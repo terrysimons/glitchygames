@@ -24,7 +24,14 @@ class TestVoiceRecognitionManagerNegative(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -112,7 +119,14 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -139,9 +153,9 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
                 assert not manager.is_listening
                 
                 # Verify the ERROR log message was called
-                mock_log.exception.assert_called_once()
+                mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
-                call_args = mock_log.exception.call_args[0][0]
+                call_args = mock_log.error.call_args[0][0]
                 assert "Failed to initialize microphone" in call_args
 
     def test_start_listening_with_microphone_failure(self):
@@ -162,13 +176,11 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
                 assert not manager.is_listening
                 
                 # Verify the ERROR log messages were called (should be called twice)
-                assert mock_log.exception.call_count == 1
-                assert mock_log.error.call_count == 1
+                assert mock_log.error.call_count == 2
                 # Check that both log messages contain the expected content
-                exception_call = mock_log.exception.call_args[0][0]
-                error_call = mock_log.error.call_args[0][0]
-                assert "Failed to initialize microphone" in exception_call
-                assert "Cannot start listening: microphone not available" in error_call
+                call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+                assert any("Failed to initialize microphone" in msg for msg in call_args_list)
+                assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
 
 
 class TestVoiceRecognitionManagerPositive(unittest.TestCase):
@@ -176,7 +188,14 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         self.voice_managers = []  # Track voice managers for cleanup
 
     def tearDown(self):
@@ -268,9 +287,9 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
                 assert not manager.is_available()
                 
                 # Verify the ERROR log message was called
-                mock_log.exception.assert_called_once()
+                mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
-                call_args = mock_log.exception.call_args[0][0]
+                call_args = mock_log.error.call_args[0][0]
                 assert "Failed to initialize microphone" in call_args
 
     def test_voice_manager_without_speech_recognition(self):
@@ -359,13 +378,11 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
                 assert not manager.is_listening
                 
                 # Verify the ERROR log messages were called (should be called twice)
-                assert mock_log.exception.call_count == 1
-                assert mock_log.error.call_count == 1
+                assert mock_log.error.call_count == 2
                 # Check that both log messages contain the expected content
-                exception_call = mock_log.exception.call_args[0][0]
-                error_call = mock_log.error.call_args[0][0]
-                assert "Failed to initialize microphone" in exception_call
-                assert "Cannot start listening: microphone not available" in error_call
+                call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+                assert any("Failed to initialize microphone" in msg for msg in call_args_list)
+                assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
 
     def test_stop_listening(self):
         """Test stopping voice recognition."""
@@ -457,9 +474,9 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
                 callback.assert_called_once()
                 
                 # Verify the ERROR log message was called
-                mock_log.exception.assert_called_once()
+                mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
-                call_args = mock_log.exception.call_args[0][0]
+                call_args = mock_log.error.call_args[0][0]
                 assert "Error executing voice command 'test command'" in call_args
 
 
@@ -468,7 +485,14 @@ class TestBitmapEditorSceneVoiceIntegrationNegative(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -521,7 +545,14 @@ class TestBitmapEditorSceneVoiceIntegrationPositive(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        
         self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
     def tearDown(self):
         """Clean up test fixtures."""

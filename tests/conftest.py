@@ -12,7 +12,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from glitchygames.scenes import Scene  # noqa: I001
+from glitchygames.scenes import Scene, SceneManager  # noqa: I001
 from tests.mocks import MockFactory
 
 
@@ -23,6 +23,47 @@ def pytest_configure(config):
     pass
 
 
+@pytest.fixture(autouse=True)
+def setup_conditional_pygame_mocks(request):
+    """Set up pygame mocks conditionally based on test file."""
+    # Check if this is a scene test that needs mocks
+    test_file = str(request.node.fspath)
+    needs_mocks = "scene" in test_file.lower()
+    
+    if needs_mocks:
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        # Ensure display mode is set (needed after pygame.quit() from other tests)
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+        
+        # Use minimal mocks that only patch the display surface
+        patchers = MockFactory.setup_minimal_pygame_mocks()
+        for patcher in patchers:
+            patcher.start()
+
+        yield patchers
+
+        # Teardown the minimal mocks
+        for patcher in patchers:
+            patcher.stop()
+    else:
+        # No mocks needed for this test
+        yield []
+
+
+@pytest.fixture(autouse=True)
+def reset_scene_manager_singleton():
+    """Reset SceneManager singleton before each test to prevent contamination."""
+    # Reset singleton state for clean test isolation
+    SceneManager._instance = None
+    yield
+    # Clean up after test
+    SceneManager._instance = None
+
+
 @pytest.fixture
 def mock_game_args():
     """Create mock command line arguments for testing."""
@@ -31,7 +72,7 @@ def mock_game_args():
     mock_args.resolution = "800x600"  # String format expected by GameEngine
     mock_args.windowed = True
     mock_args.use_gfxdraw = False
-    mock_args.update_type = "timestep"
+    mock_args.update_type = "update"
     mock_args.fps_refresh_rate = 1
     mock_args.profile = False
     mock_args.test_flag = False
@@ -43,6 +84,14 @@ def mock_game_args():
 @pytest.fixture
 def mock_pygame_patches():
     """Set up pygame mocks for testing."""
+    # Ensure pygame is properly initialized for mocks
+    import pygame
+    if not pygame.get_init():
+        pygame.init()
+    # Ensure display mode is set (needed after pygame.quit() from other tests)
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((800, 600))
+    
     patchers = MockFactory.setup_pygame_mocks()
     for patcher in patchers:
         patcher.start()

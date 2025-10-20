@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripWidget
+from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_FRAME_COUNT_2 = 2
@@ -26,6 +27,10 @@ TEST_FRAME_COUNT_2 = 2
 
 class TestFilmStripSelection:
     """Test film strip selection behavior."""
+
+    def _create_mock_surface(self):
+        """Create a mock surface using MockFactory."""
+        return MockFactory.create_pygame_surface_mock()
 
     @pytest.fixture
     def mock_pygame_patches(self):
@@ -372,7 +377,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
@@ -394,7 +399,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
@@ -413,7 +418,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
@@ -435,7 +440,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
@@ -460,7 +465,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
@@ -486,7 +491,7 @@ class TestFilmStripSelection:
         mock_draw = mock_pygame_patches["draw"]
 
         # Create a mock surface
-        mock_surface = Mock()
+        mock_surface = self._create_mock_surface()
 
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)

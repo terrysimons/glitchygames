@@ -1175,7 +1175,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Created rect: {rect}")
 
         except Exception:
-            self.log.exception("Error in TOML load")
+            self.log.error("Error in TOML load")
             raise
         else:
             # Return the successfully loaded sprite data
@@ -1257,7 +1257,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Successfully saved to {filename}")
 
         except Exception:
-            self.log.exception("Error in save")
+            self.log.error("Error in save")
             raise
 
     def deflate(self: Self, file_format: str = "toml") -> dict:
@@ -1332,7 +1332,7 @@ class BitmappySprite(Sprite):
                 self._raise_unsupported_format_error(file_format)
 
         except Exception:
-            self.log.exception("Error in deflate")
+            self.log.error("Error in deflate")
             raise
         else:
             # Return the successfully created configuration
@@ -1548,7 +1548,7 @@ class BitmappySprite(Sprite):
             }
 
         except Exception:
-            self.log.exception("Error in TOML inflate")
+            self.log.error("Error in TOML inflate")
             raise
 
     def inflate_from_file(self: Self, filename: str) -> dict:

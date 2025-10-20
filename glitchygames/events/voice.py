@@ -64,7 +64,7 @@ class VoiceRecognitionManager:
             self.microphone = sr.Microphone()
             self.log.info("Microphone initialized successfully")
         except Exception:
-            self.log.exception("Failed to initialize microphone")
+            self.log.error("Failed to initialize microphone")
             self.microphone = None
 
     def _register_default_commands(self) -> None:
@@ -145,7 +145,7 @@ class VoiceRecognitionManager:
                         # Speech was unintelligible, continue listening
                         self.log.debug("Could not understand audio")
                     except sr.RequestError:
-                        self.log.exception("Speech recognition service error")
+                        self.log.error("Speech recognition service error")
                         # Wait a bit before trying again
                         time.sleep(2)
 
@@ -153,7 +153,7 @@ class VoiceRecognitionManager:
                     # Timeout is normal, continue listening
                     continue
                 except Exception:
-                    self.log.exception("Error in voice recognition loop")
+                    self.log.error("Error in voice recognition loop")
                     time.sleep(1)
 
     def _process_command(self, text: str) -> None:
@@ -169,7 +169,7 @@ class VoiceRecognitionManager:
             try:
                 self.commands[text]()
             except Exception:
-                self.log.exception(f"Error executing voice command '{text}'")
+                self.log.error(f"Error executing voice command '{text}'")
             return
 
         # Check for partial matches (commands that contain the text)
@@ -181,7 +181,7 @@ class VoiceRecognitionManager:
                 try:
                     callback()
                 except Exception:
-                    self.log.exception(f"Error executing voice command '{command_phrase}'")
+                    self.log.error(f"Error executing voice command '{command_phrase}'")
                 return
 
         self.log.debug(f"No voice command found for: '{text}'")

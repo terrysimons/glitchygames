@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameManager
 from glitchygames.scenes import Scene
+from tests.mocks import MockFactory
 
 
 class MockGame(Scene):
@@ -57,6 +58,22 @@ class MockGameWithArgs(MockGame):
 class TestGameManager:
     """Test GameManager functionality."""
 
+    def _create_mock_game(self):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        mock_game.NAME = "MockGame"
+        mock_game.VERSION = "1.0"
+        mock_game.args = Mock(return_value=Mock())
+        return mock_game
+
+    def _create_mock_event(self, event_type, **kwargs):
+        """Create a mock event using MockFactory."""
+        mock_event = Mock()
+        mock_event.type = event_type
+        for key, value in kwargs.items():
+            setattr(mock_event, key, value)
+        return mock_event
+
     def test_game_manager_init(self, mock_pygame_patches, mock_game_args):
         """Test GameManager initialization."""
         # Mock argument parsing to prevent command line argument issues
@@ -64,13 +81,10 @@ class TestGameManager:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
-            # Create GameManager instance
-            manager = GameManager(game=mock_game)
+            # Create GameManager.GameProxy instance (concrete implementation)
+            manager = GameManager.GameProxy(game=mock_game)
 
             # Test that manager is properly initialized
             assert manager is not None
@@ -87,19 +101,16 @@ class TestGameManager:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
-            # Create GameManager instance
-            manager = GameManager(game=mock_game)
+            # Create GameManager.GameProxy instance (concrete implementation)
+            manager = GameManager.GameProxy(game=mock_game)
 
             # Mock events
             mock_events = [
-                Mock(type=pygame.QUIT),
-                Mock(type=pygame.KEYDOWN, key=pygame.K_SPACE),
-                Mock(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
+                self._create_mock_event(pygame.QUIT),
+                self._create_mock_event(pygame.KEYDOWN, key=pygame.K_SPACE),
+                self._create_mock_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
             ]
 
             # Mock the process_events method to avoid actual event processing
@@ -119,20 +130,17 @@ class TestGameManager:
             mock_parse_args.return_value = mock_game_args
 
             # Create mock game
-            mock_game = Mock()
-            mock_game.NAME = "MockGame"
-            mock_game.VERSION = "1.0"
-            mock_game.args = Mock(return_value=Mock())
+            mock_game = self._create_mock_game()
 
-            # Create GameManager instance
-            manager = GameManager(game=mock_game)
+            # Create GameManager.GameProxy instance (concrete implementation)
+            manager = GameManager.GameProxy(game=mock_game)
 
             # Mock events
-            mock_active_event = Mock(type=pygame.ACTIVEEVENT)
-            mock_fps_event = Mock(type=pygame.USEREVENT + 1)  # FPSEVENT
-            mock_game_event = Mock(type=pygame.USEREVENT + 2)  # GAMEEVENT
-            mock_menu_event = Mock(type=pygame.USEREVENT + 3)  # MENUEVENT
-            mock_sys_wm_event = Mock(type=pygame.SYSWMEVENT)
+            mock_active_event = self._create_mock_event(pygame.ACTIVEEVENT)
+            mock_fps_event = self._create_mock_event(pygame.USEREVENT + 1)  # FPSEVENT
+            mock_game_event = self._create_mock_event(pygame.USEREVENT + 2)  # GAMEEVENT
+            mock_menu_event = self._create_mock_event(pygame.USEREVENT + 3)  # MENUEVENT
+            mock_sys_wm_event = self._create_mock_event(pygame.SYSWMEVENT)
 
             # Test event handler methods
             manager.on_active_event(mock_active_event)
@@ -149,8 +157,8 @@ class TestGameManager:
         # Create mock scene manager
         mock_scene_manager = Mock()
 
-        # Test GameManager initialization
-        game_manager = GameManager(game=mock_scene_manager)
+        # Test GameManager.GameProxy initialization (concrete implementation)
+        game_manager = GameManager.GameProxy(game=mock_scene_manager)
 
         # Verify game is set
         assert game_manager.game == mock_scene_manager

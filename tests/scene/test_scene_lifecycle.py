@@ -11,6 +11,7 @@ This module tests the lifecycle of scenes including:
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -25,13 +26,61 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Use centralized mocks
+        # Reset singleton state for clean test
+        SceneManager._instance = None
+        
+        # Use centralized mocks for pygame initialization
         self.patchers = MockFactory.setup_pygame_mocks()
         # Start all the patchers
         for patcher in self.patchers:
             patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
+        
+        # Create a mock game scene class for the engine
+        class MockGameScene(Scene):
+            NAME = "MockGameScene"
+            VERSION = "1.0"
+            
+            def __init__(self, options=None, groups=None):
+                super().__init__(options=options, groups=groups)
+        
+        # Mock argparse to prevent command line argument parsing
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
+            mock_parse_args.return_value = self._create_mock_args()
+            # Create a mock game engine to properly initialize SceneManager
+            from glitchygames.engine import GameEngine
+            self.engine = GameEngine(MockGameScene)
+            # Set up the engine's OPTIONS
+            self.engine.OPTIONS = {
+                "update_type": "update",
+                "fps_refresh_rate": 1000,
+                "target_fps": 60,
+                "font_name": "Arial",
+                "font_size": 16
+            }
+
+    def _create_mock_args(self):
+        """Create mock command line arguments."""
+        mock_args = Mock()
+        mock_args.fps = 60
+        mock_args.resolution = "800x600"
+        mock_args.windowed = True
+        mock_args.use_gfxdraw = False
+        mock_args.update_type = "update"
+        mock_args.fps_refresh_rate = 1000
+        mock_args.profile = False
+        mock_args.test_flag = False
+        mock_args.font_name = "Arial"
+        mock_args.font_size = 16
+        mock_args.font_bold = False
+        mock_args.font_italic = False
+        mock_args.font_antialias = True
+        mock_args.font_dpi = 72
+        mock_args.font_system = "pygame"
+        mock_args.log_level = "info"
+        mock_args.no_unhandled_events = False
+        return mock_args
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -70,7 +119,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_lifecycle_with_manager(self):
         """Test complete scene lifecycle with manager."""
-        manager = SceneManager()
+        manager = self.engine.scene_manager
         scene = Scene()
 
         # Switch to scene using the correct API
@@ -79,7 +128,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_transition(self):
         """Test scene transition."""
-        manager = SceneManager()
+        manager = self.engine.scene_manager
         scene1 = Scene()
         scene2 = Scene()
 
@@ -100,7 +149,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_state_persistence(self):
         """Test scene state persistence during transitions."""
-        manager = SceneManager()
+        manager = self.engine.scene_manager
         scene1 = Scene()
         scene2 = Scene()
 
@@ -153,7 +202,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_lifecycle_with_manager_integration(self):
         """Test scene lifecycle with full manager integration."""
-        manager = SceneManager()
+        manager = self.engine.scene_manager
 
         # Create multiple scenes
         scene1 = Scene()

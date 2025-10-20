@@ -324,6 +324,9 @@ class GameEngine(events.EventManager):
         # object
         GameEngine.game = game
         self.scene_manager: SceneManager = SceneManager()
+        
+        # Update the scene manager's update_type from the engine's options
+        self.scene_manager.update_type = self.update_type
 
         # Resolution initialization.
         # Convert our resolution to a tuple

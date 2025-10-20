@@ -26,7 +26,7 @@ class TestEngineInitialization:
         mock_args.resolution = (800, 600)
         mock_args.windowed = True
         mock_args.use_gfxdraw = False
-        mock_args.update_type = "timestep"
+        mock_args.update_type = "update"
         mock_args.fps_refresh_rate = 1
         mock_args.profile = False
         mock_args.test_flag = False

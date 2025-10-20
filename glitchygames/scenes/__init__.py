@@ -51,9 +51,13 @@ class SceneManager(SceneInterface, events.EventManager):
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
-        self.screen = pygame.display.get_surface()
-        if self.screen is None:
-            # Display not initialized yet, will be set later
+        try:
+            self.screen = pygame.display.get_surface()
+            if self.screen is None:
+                # Display not initialized yet, will be set later
+                self.screen = None
+        except pygame.error:
+            # Display surface quit or not initialized, will be set later
             self.screen = None
         self.update_type = "update"
         self.fps_refresh_rate = 1000
@@ -270,7 +274,7 @@ class SceneManager(SceneInterface, events.EventManager):
         try:
             self.game_engine.registered_events[event.subtype](event)
         except KeyError:
-            self.log.exception(
+            self.log.error(
                 f"Unregistered Event: {event} "
                 "(call self.register_game_event(<event subtype>, <event data>))"
             )

@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from glitchygames.color import BLUE, RED
 from glitchygames.scenes import Scene
+from tests.mocks import MockFactory
 
 
 class TestScene:

@@ -31,7 +31,6 @@ class TestMultiLineTextBoxCursorWrapping(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
-        pygame.quit()
         MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_cursor_positioning_with_wrapped_text(self):

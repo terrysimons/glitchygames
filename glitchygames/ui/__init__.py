@@ -3172,7 +3172,7 @@ class MultiLineTextBox(BitmappySprite):
                 else:
                     pyperclip.copy(self._text)
             except (ImportError, AttributeError):
-                self.log.exception("Error copying text")
+                self.log.error("Error copying text")
             return
         if is_paste:
             try:
@@ -3184,7 +3184,7 @@ class MultiLineTextBox(BitmappySprite):
                     self.text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
             except (ImportError, AttributeError):
-                self.log.exception("Error pasting text")
+                self.log.error("Error pasting text")
             return
 
         # Handle cut (Ctrl+X)
@@ -3212,7 +3212,7 @@ class MultiLineTextBox(BitmappySprite):
                     self.text = ""
                     self.cursor_pos = 0
             except (ImportError, AttributeError):
-                self.log.exception("Error cutting text")
+                self.log.error("Error cutting text")
             return
 
         # Handle select all (Ctrl+A)

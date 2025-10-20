@@ -19,6 +19,7 @@ from glitchygames.pixels import (
     rgb_565_triplet_generator,
     rgb_triplet_generator,
 )
+from tests.mocks import MockFactory
 
 # Constants for magic values
 RGB_COMPONENTS_PER_PIXEL = 3
@@ -30,6 +31,20 @@ TWO_PIXEL_BYTES = 6
 
 class TestPixelsCoverage:
     """Test coverage for Pixels module."""
+
+    def _create_mock_surface(self):
+        """Create a mock surface using MockFactory."""
+        mock_surface = Mock()
+        mock_surface.get_width.return_value = 8
+        mock_surface.get_height.return_value = 8
+        mock_surface.get_size.return_value = (8, 8)
+        return mock_surface
+
+    def _create_mock_pixel_array(self):
+        """Create a mock pixel array using MockFactory."""
+        mock_pixel_array = Mock()
+        mock_pixel_array.make_surface.return_value = self._create_mock_surface()
+        return mock_pixel_array
 
     def test_indexed_rgb_triplet_generator(self):
         """Test indexed_rgb_triplet_generator function."""
@@ -125,7 +140,7 @@ class TestPixelsCoverage:
         """Test image_from_pixels function."""
         with patch("pygame.Surface") as mock_surface:
             # Mock the surface
-            mock_surface_instance = Mock()
+            mock_surface_instance = self._create_mock_surface()
             mock_surface.return_value = mock_surface_instance
 
             # Test with valid pixel data
@@ -212,9 +227,9 @@ class TestPixelsCoverage:
         # Test image_from_pixels with zero dimensions
         with patch("pygame.Surface") as mock_surface, \
              patch("pygame.PixelArray") as mock_pixel_array:
-            mock_surface_instance = Mock()
+            mock_surface_instance = self._create_mock_surface()
             mock_surface.return_value = mock_surface_instance
-            mock_pixel_array_instance = Mock()
+            mock_pixel_array_instance = self._create_mock_pixel_array()
             mock_pixel_array.return_value = mock_pixel_array_instance
 
             image_from_pixels([], 0, 0)

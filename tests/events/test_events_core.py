@@ -25,6 +25,7 @@ from glitchygames.events import (  # noqa: I001
     unhandled_event,
     UnhandledEventError,
 )
+from tests.mocks import MockFactory
 
 
 # Constants for magic values
@@ -34,6 +35,22 @@ MIN_ATTRIBUTES_2 = 2
 
 class TestHashableEvent:
     """Test HashableEvent class functionality."""
+
+    def _create_mock_game(self, options=None):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        if options is None:
+            options = {}
+        mock_game.options = options
+        return mock_game
+
+    def _create_mock_event(self, event_type, **kwargs):
+        """Create a mock event using MockFactory."""
+        mock_event = Mock()
+        mock_event.type = event_type
+        for key, value in kwargs.items():
+            setattr(mock_event, key, value)
+        return mock_event
 
     def test_hashable_event_initialization(self, mock_pygame_patches):
         """Test HashableEvent initialization with various parameters."""
@@ -244,6 +261,22 @@ class TestEventInterface:
 class TestEventManager:
     """Test EventManager class functionality."""
 
+    def _create_mock_game(self, options=None):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        if options is None:
+            options = {}
+        mock_game.options = options
+        return mock_game
+
+    def _create_mock_event(self, event_type, **kwargs):
+        """Create a mock event using MockFactory."""
+        mock_event = Mock()
+        mock_event.type = event_type
+        for key, value in kwargs.items():
+            setattr(mock_event, key, value)
+        return mock_event
+
     def test_event_manager_initialization(self, mock_pygame_patches):
         """Test EventManager initialization."""
         manager = EventManager()
@@ -305,7 +338,7 @@ class TestEventManager:
 
         assert "No proxies for" in str(context.value)
         # The current implementation doesn't log when there are no proxies
-        # assert event_manager.log.exception.called
+        # assert event_manager.log.error.called
 
     def test_event_manager_getattr_with_proxy_exception(self, mock_pygame_patches):
         """Test EventManager.__getattr__ with proxy that raises AttributeError."""
@@ -325,11 +358,27 @@ class TestEventManager:
         with pytest.raises(AttributeError):
             _ = event_manager.test_method
 
-        assert event_manager.log.exception.called
+        assert event_manager.log.error.called
 
 
 class TestResourceManager:
     """Test ResourceManager class functionality."""
+
+    def _create_mock_game(self, options=None):
+        """Create a mock game using MockFactory."""
+        mock_game = Mock()
+        if options is None:
+            options = {}
+        mock_game.options = options
+        return mock_game
+
+    def _create_mock_event(self, event_type, **kwargs):
+        """Create a mock event using MockFactory."""
+        mock_event = Mock()
+        mock_event.type = event_type
+        for key, value in kwargs.items():
+            setattr(mock_event, key, value)
+        return mock_event
 
     def test_resource_manager_initialization(self, mock_pygame_patches):
         """Test ResourceManager initialization."""

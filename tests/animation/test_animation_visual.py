@@ -127,7 +127,9 @@ class TestAnimationVisual(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
+        # Ensure pygame is properly initialized, even if it was quit by previous tests
+        if not pygame.get_init():
+            pygame.init()
         pygame.display.set_mode((800, 600))
 
         # Load the colors.toml animation for testing

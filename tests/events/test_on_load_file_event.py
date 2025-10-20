@@ -28,9 +28,7 @@ class TestOnLoadFileEvent(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        # Initialize pygame with display for each test
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # pygame.init() is handled by the pytest fixture
 
         # Create a test animated sprite
         self.animated_sprite = self._create_test_animated_sprite()
@@ -53,10 +51,9 @@ class TestOnLoadFileEvent(unittest.TestCase):
         self.scene.canvas = self.canvas
         self.scene.all_sprites = pygame.sprite.LayeredDirty()
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        # pygame.quit() is handled by MockFactory teardown
 
     @staticmethod
     def _create_test_animated_sprite():
@@ -218,9 +215,9 @@ pixels = \"\"\"
                 # (The method should not raise an exception)
                 
                 # Verify the ERROR log message was called
-                mock_log.exception.assert_called_once()
+                mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
-                call_args = mock_log.exception.call_args[0][0]
+                call_args = mock_log.error.call_args[0][0]
                 assert "File not found" in call_args
 
     def test_load_invalid_file_format(self):
@@ -241,9 +238,9 @@ pixels = \"\"\"
                 # Verify error was handled gracefully
                 
                 # Verify the ERROR log message was called
-                mock_log.exception.assert_called_once()
+                mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
-                call_args = mock_log.exception.call_args[0][0]
+                call_args = mock_log.error.call_args[0][0]
                 assert "Error in on_load_file_event for animated sprite" in call_args
 
     def test_canvas_resize_on_different_dimensions(self):
