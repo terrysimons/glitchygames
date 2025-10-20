@@ -56,7 +56,7 @@ class TestGameEvents:
             with pytest.raises(UnhandledEventError):
                 scene.on_quit_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
-            
+
             # Verify the ERROR log message was called
             mock_log.error.assert_called_once()
             # Check that the log message contains the expected content
@@ -77,7 +77,7 @@ class TestGameEvents:
             with pytest.raises(UnhandledEventError):
                 scene.on_clipboard_update_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
-            
+
             # Verify the ERROR log message was called
             mock_log.error.assert_called_once()
             # Check that the log message contains the expected content
@@ -98,7 +98,7 @@ class TestGameEvents:
             with pytest.raises(UnhandledEventError):
                 scene.on_locale_changed_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
-            
+
             # Verify the ERROR log message was called
             mock_log.error.assert_called_once()
             # Check that the log message contains the expected content
@@ -117,7 +117,7 @@ class TestGameEvents:
         # Test quit event
         event = HashableEvent(pygame.QUIT)
         result = scene.on_quit_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -136,7 +136,7 @@ class TestGameEvents:
         # Test active event
         event = HashableEvent(pygame.ACTIVEEVENT, gain=1, state=1)
         result = scene.on_active_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -157,7 +157,7 @@ class TestGameEvents:
         # Test FPS event
         event = HashableEvent(pygame.USEREVENT + 1)  # FPSEVENT
         result = scene.on_fps_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -176,7 +176,7 @@ class TestGameEvents:
         # Test game event
         event = HashableEvent(pygame.USEREVENT + 2)  # GAMEEVENT
         result = scene.on_game_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -195,7 +195,7 @@ class TestGameEvents:
         # Test menu item event
         event = HashableEvent(pygame.USEREVENT + 3)  # MENUEVENT
         result = scene.on_menu_item_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -214,7 +214,7 @@ class TestGameEvents:
         # Test sys WM event
         event = HashableEvent(pygame.SYSWMEVENT)
         result = scene.on_sys_wm_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -233,7 +233,7 @@ class TestGameEvents:
         # Test user event
         event = HashableEvent(pygame.USEREVENT, code=1)
         result = scene.on_user_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -253,7 +253,7 @@ class TestGameEvents:
         # Test video expose event
         event = HashableEvent(pygame.VIDEOEXPOSE)
         result = scene.on_video_expose_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -272,7 +272,7 @@ class TestGameEvents:
         # Test video resize event
         event = HashableEvent(pygame.VIDEORESIZE, w=800, h=600)
         result = scene.on_video_resize_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
@@ -303,7 +303,7 @@ class TestGameEvents:
         for gain, state in gain_states:
             event = HashableEvent(pygame.ACTIVEEVENT, gain=gain, state=state)
             result = scene.on_active_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
@@ -311,7 +311,7 @@ class TestGameEvents:
             assert scene.game_events_received[0][1].type == pygame.ACTIVEEVENT
             assert scene.game_events_received[0][1].gain == gain
             assert scene.game_events_received[0][1].state == state
-            
+
             # Clear for next iteration
             scene.game_events_received.clear()
 
@@ -328,14 +328,14 @@ class TestGameEvents:
         for code in range(10):
             event = HashableEvent(pygame.USEREVENT, code=code)
             result = scene.on_user_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
             assert scene.game_events_received[0][0] == "user"
             assert scene.game_events_received[0][1].type == pygame.USEREVENT
             assert scene.game_events_received[0][1].code == code
-            
+
             # Clear for next iteration
             scene.game_events_received.clear()
 
@@ -362,7 +362,7 @@ class TestGameEvents:
         for w, h in dimensions:
             event = HashableEvent(pygame.VIDEORESIZE, w=w, h=h)
             result = scene.on_video_resize_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
@@ -370,7 +370,7 @@ class TestGameEvents:
             assert scene.game_events_received[0][1].type == pygame.VIDEORESIZE
             assert scene.game_events_received[0][1].w == w
             assert scene.game_events_received[0][1].h == h
-            
+
             # Clear for next iteration
             scene.game_events_received.clear()
 
@@ -394,14 +394,14 @@ class TestGameEvents:
 
         for event in custom_events:
             result = scene.on_game_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
             assert scene.game_events_received[0][0] == "game"
             assert scene.game_events_received[0][1].type == event.type
             assert scene.game_events_received[0][1].event_type == event.event_type
-            
+
             # Clear for next iteration
             scene.game_events_received.clear()
 
@@ -428,14 +428,14 @@ class TestGameEvents:
         for item in menu_items:
             event = HashableEvent(pygame.USEREVENT + 3, menu_item=item)
             result = scene.on_menu_item_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
             assert scene.game_events_received[0][0] == "menu"
             assert scene.game_events_received[0][1].type == pygame.USEREVENT + 3
             assert scene.game_events_received[0][1].menu_item == item
-            
+
             # Clear for next iteration
             scene.game_events_received.clear()
 
@@ -451,7 +451,7 @@ class TestGameEvents:
         # Test render device reset event
         event = HashableEvent(pygame.RENDER_DEVICE_RESET)
         result = scene.on_render_device_reset_event(event)
-        
+
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
@@ -470,7 +470,7 @@ class TestGameEvents:
         # Test render targets reset event
         event = HashableEvent(pygame.RENDER_TARGETS_RESET)
         result = scene.on_render_targets_reset_event(event)
-        
+
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
@@ -489,7 +489,7 @@ class TestGameEvents:
         # Test clipboard update event
         event = HashableEvent(pygame.CLIPBOARDUPDATE)
         result = scene.on_clipboard_update_event(event)
-        
+
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
@@ -508,7 +508,7 @@ class TestGameEvents:
         # Test locale changed event
         event = HashableEvent(pygame.LOCALECHANGED)
         result = scene.on_locale_changed_event(event)
-        
+
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1

@@ -6,7 +6,7 @@ This module tests GameManager initialization and event processing.
 import argparse
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pygame
 
@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameManager
 from glitchygames.scenes import Scene
+
 from tests.mocks import MockFactory
 
 
@@ -29,7 +30,7 @@ class MockGame(Scene):
         if options is None:
             options = {}
         if groups is None:
-            groups = Mock()  # Mock pygame.sprite.Group
+            groups = MockFactory.create_pygame_sprite_group_mock()
         super().__init__(options=options, groups=groups)
         self.fps = 60
         self.background_color = (0, 0, 0)
@@ -60,15 +61,11 @@ class TestGameManager:
 
     def _create_mock_game(self):
         """Create a mock game using MockFactory."""
-        mock_game = Mock()
-        mock_game.NAME = "MockGame"
-        mock_game.VERSION = "1.0"
-        mock_game.args = Mock(return_value=Mock())
-        return mock_game
+        return MockFactory.create_game_mock()
 
     def _create_mock_event(self, event_type, **kwargs):
         """Create a mock event using MockFactory."""
-        mock_event = Mock()
+        mock_event = MockFactory.create_pygame_event_mock()
         mock_event.type = event_type
         for key, value in kwargs.items():
             setattr(mock_event, key, value)
@@ -155,7 +152,7 @@ class TestGameManager:
     def test_game_manager_initialization(self, mock_pygame_patches):
         """Test GameManager initialization."""
         # Create mock scene manager
-        mock_scene_manager = Mock()
+        mock_scene_manager = MockFactory.create_game_mock()
 
         # Test GameManager.GameProxy initialization (concrete implementation)
         game_manager = GameManager.GameProxy(game=mock_scene_manager)

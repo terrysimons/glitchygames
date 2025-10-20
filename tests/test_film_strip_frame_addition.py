@@ -19,14 +19,13 @@ class TestFilmStripFrameAddition:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
-        
+
         self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface1.fill((255, 0, 0))  # Red
 

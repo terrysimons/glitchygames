@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -29,10 +30,9 @@ class TestAnimatedSpriteFrameManager:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -111,10 +111,9 @@ class TestSpriteFrame:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -183,10 +182,9 @@ class TestAnimatedSprite:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()

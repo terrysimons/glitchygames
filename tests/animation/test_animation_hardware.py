@@ -10,8 +10,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 import pygame
+import pytest
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
@@ -114,7 +114,7 @@ class HardwareAnimationTestScene(Scene):
         except (TypeError, AttributeError):
             # Fallback for mock environments - just draw individual sprites
             for sprite in self.all_sprites:
-                if hasattr(sprite, 'image') and hasattr(sprite, 'rect'):
+                if hasattr(sprite, "image") and hasattr(sprite, "rect"):
                     self.test_surface.blit(sprite.image, sprite.rect)
 
         # Extract pixel data

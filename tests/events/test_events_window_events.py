@@ -66,7 +66,7 @@ class TestWindowEvents:
         with patch("glitchygames.events.LOG.error"):
 
             with pytest.raises(UnhandledEventError):
-            
+
                 stub.on_window_close_event(event)
 
     def test_window_close_event(self, mock_pygame_patches):
@@ -81,7 +81,7 @@ class TestWindowEvents:
         # Test window close
         event = HashableEvent(pygame.WINDOWCLOSE)
         result = scene.on_window_close_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -100,7 +100,7 @@ class TestWindowEvents:
         # Test window enter
         event = HashableEvent(pygame.WINDOWENTER)
         result = scene.on_window_enter_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -119,7 +119,7 @@ class TestWindowEvents:
         # Test window leave
         event = HashableEvent(pygame.WINDOWLEAVE)
         result = scene.on_window_leave_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -138,7 +138,7 @@ class TestWindowEvents:
         # Test window focus gained
         event = HashableEvent(pygame.WINDOWFOCUSGAINED)
         result = scene.on_window_focus_gained_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -157,7 +157,7 @@ class TestWindowEvents:
         # Test window focus lost
         event = HashableEvent(pygame.WINDOWFOCUSLOST)
         result = scene.on_window_focus_lost_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -176,7 +176,7 @@ class TestWindowEvents:
         # Test window resized
         event = HashableEvent(pygame.WINDOWRESIZED, x=800, y=600)
         result = scene.on_window_resized_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -197,7 +197,7 @@ class TestWindowEvents:
         # Test window moved
         event = HashableEvent(pygame.WINDOWMOVED, x=100, y=100)
         result = scene.on_window_moved_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -218,7 +218,7 @@ class TestWindowEvents:
         # Test window minimized
         event = HashableEvent(pygame.WINDOWMINIMIZED)
         result = scene.on_window_minimized_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -237,7 +237,7 @@ class TestWindowEvents:
         # Test window maximized
         event = HashableEvent(pygame.WINDOWMAXIMIZED)
         result = scene.on_window_maximized_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -256,7 +256,7 @@ class TestWindowEvents:
         # Test window restored
         event = HashableEvent(pygame.WINDOWRESTORED)
         result = scene.on_window_restored_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -275,7 +275,7 @@ class TestWindowEvents:
         # Test window shown
         event = HashableEvent(pygame.WINDOWSHOWN)
         result = scene.on_window_shown_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -294,7 +294,7 @@ class TestWindowEvents:
         # Test window hidden
         event = HashableEvent(pygame.WINDOWHIDDEN)
         result = scene.on_window_hidden_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -313,7 +313,7 @@ class TestWindowEvents:
         # Test window exposed
         event = HashableEvent(pygame.WINDOWEXPOSED)
         result = scene.on_window_exposed_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -332,7 +332,7 @@ class TestWindowEvents:
         # Test window take focus
         event = HashableEvent(pygame.WINDOWTAKEFOCUS)
         result = scene.on_window_take_focus_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -351,7 +351,7 @@ class TestWindowEvents:
         # Test window size changed
         event = HashableEvent(pygame.WINDOWSIZECHANGED, x=1024, y=768)
         result = scene.on_window_size_changed_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -372,7 +372,7 @@ class TestWindowEvents:
         # Test window hit test
         event = HashableEvent(pygame.WINDOWHITTEST)
         result = scene.on_window_hit_test_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
@@ -382,10 +382,10 @@ class TestWindowEvents:
     def test_window_manager_initialization(self, mock_pygame_patches):
         """Test WindowManager initializes correctly."""
         from glitchygames.events.window import WindowManager
-        
+
         mock_game = Mock()
         manager = WindowManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "on_window_close_event")
         assert hasattr(manager, "on_window_enter_event")
@@ -393,18 +393,18 @@ class TestWindowEvents:
     def test_window_manager_events(self, mock_pygame_patches):
         """Test window event handling through manager."""
         from glitchygames.events.window import WindowManager
-        
+
         mock_game = Mock()
         manager = WindowManager(game=mock_game)
-        
+
         # Test window close
         close_event = HashableEvent(pygame.WINDOWCLOSE)
         manager.on_window_close_event(close_event)
-        
+
         # Test window enter
         enter_event = HashableEvent(pygame.WINDOWENTER)
         manager.on_window_enter_event(enter_event)
-        
+
         # Test window focus gained
         focus_event = HashableEvent(pygame.WINDOWFOCUSGAINED)
         manager.on_window_focus_gained_event(focus_event)

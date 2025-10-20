@@ -3,7 +3,7 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -19,6 +19,7 @@ from glitchygames.pixels import (
     rgb_565_triplet_generator,
     rgb_triplet_generator,
 )
+
 from tests.mocks import MockFactory
 
 # Constants for magic values
@@ -34,7 +35,7 @@ class TestPixelsCoverage:
 
     def _create_mock_surface(self):
         """Create a mock surface using MockFactory."""
-        mock_surface = Mock()
+        mock_surface = MockFactory.create_pygame_surface_mock()
         mock_surface.get_width.return_value = 8
         mock_surface.get_height.return_value = 8
         mock_surface.get_size.return_value = (8, 8)
@@ -42,7 +43,7 @@ class TestPixelsCoverage:
 
     def _create_mock_pixel_array(self):
         """Create a mock pixel array using MockFactory."""
-        mock_pixel_array = Mock()
+        mock_pixel_array = MockFactory.create_pygame_surface_mock()
         mock_pixel_array.make_surface.return_value = self._create_mock_surface()
         return mock_pixel_array
 

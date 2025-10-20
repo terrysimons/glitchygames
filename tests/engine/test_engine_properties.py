@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
+
 from tests.mocks import MockFactory
 
 # Constants for magic values
@@ -29,7 +30,7 @@ class MockGame(Scene):
         if options is None:
             options = {}
         if groups is None:
-            groups = Mock()  # Mock pygame.sprite.Group
+            groups = MockFactory.create_pygame_sprite_group_mock()
         super().__init__(options=options, groups=groups)
         self.fps = 60
         self.background_color = (0, 0, 0)
@@ -60,10 +61,7 @@ class TestEngineProperties:
 
     def _create_mock_game(self):
         """Create a mock game using MockFactory."""
-        mock_game = Mock()
-        mock_game.NAME = "MockGame"
-        mock_game.VERSION = "1.0"
-        mock_game.args = Mock(return_value=Mock())
+        mock_game = MockFactory.create_game_mock()
         return mock_game
 
     def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args):
@@ -107,7 +105,7 @@ class TestEngineProperties:
             engine = GameEngine(game=mock_game)
 
             # Set joystick attributes directly (simulating what start() would do)
-            engine.joysticks = [Mock(), Mock()]  # 2 joysticks
+            engine.joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
             engine.joystick_count = len(engine.joysticks)
 
             # Test that joystick_count property exists
@@ -126,7 +124,7 @@ class TestEngineProperties:
             engine = GameEngine(game=mock_game)
 
             # Set joystick attributes directly (simulating what start() would do)
-            mock_joysticks = [Mock(), Mock()]  # 2 joysticks
+            mock_joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
             engine.joysticks = mock_joysticks
             engine.joystick_count = len(engine.joysticks)
 

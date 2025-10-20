@@ -25,7 +25,7 @@ class TestGameOverScene(unittest.TestCase):
         """Set up test fixtures."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         # Start all patchers
         for patcher in self.patchers:

@@ -12,8 +12,8 @@ from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
 
-# Import constants from base class
-from tests.tools.test_film_strip_base import FRAME_SIZE, MAGENTA_PIXELS, FilmStripTestBase
+from tests.mocks.test_mock_factory import MockFactory
+from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
 # Additional test constants
 TAB_X = 10
@@ -114,12 +114,10 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
     """Test film tab integration with film strips."""
 
     def _create_mock_sprite_with_frames(self):
-        """Helper method to create a mock sprite with frames using centralized mocks."""
-        from tests.mocks.test_mock_factory import MockFactory
-        
+        """Create a mock sprite with frames using centralized mocks."""
         mock_sprite = MockFactory.create_animated_sprite_mock("idle", use_cache=True)
         mock_sprite._animation_order = ["idle"]
-        
+
         # Ensure frames have proper rect attributes for tab positioning
         for frame in mock_sprite._animations["idle"]:
             if not hasattr(frame, "rect"):
@@ -128,14 +126,14 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
                 frame.rect.centery = 50  # Default center y
                 frame.rect.width = FRAME_SIZE
                 frame.rect.height = FRAME_SIZE
-        
+
         return mock_sprite
 
     def test_film_tabs_creation(self):
         """Test that film tabs are created correctly."""
         # Create a mock animated sprite with frames using centralized mocks
         mock_sprite = self._create_mock_sprite_with_frames()
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(0, 0, 400, 100)
         film_strip.set_animated_sprite(mock_sprite)
@@ -597,8 +595,6 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
     @pytest.mark.skip(reason="Frame insertion functionality not implemented")
     def test_scene_handles_frame_insertion(self):
         """Test that the scene properly handles frame insertion events."""
-        from tests.mocks.test_mock_factory import MockFactory
-        
         # Create a real animated sprite
         animated_sprite = AnimatedSprite()
 
@@ -636,8 +632,6 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
     @pytest.mark.skip(reason="Frame insertion functionality not implemented")
     def test_frame_insertion_updates_canvas(self):
         """Test that frame insertion updates the canvas if it's the current animation."""
-        from tests.mocks.test_mock_factory import MockFactory
-        
         # Create a real animated sprite
         animated_sprite = AnimatedSprite()
 

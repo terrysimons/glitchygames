@@ -59,11 +59,11 @@ class TestJoystickEvents:
                 "on_joy_axis_motion_event": lambda event: (scene.joystick_events_received.append(event), True)[1]
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.JOYAXISMOTION, axis=0, value=0.5)
         result = scene.on_joy_axis_motion_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_events_received) == 1
@@ -78,11 +78,11 @@ class TestJoystickEvents:
                 "on_joy_button_down_event": lambda event: (scene.joystick_events_received.append(event), True)[1]
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.JOYBUTTONDOWN, button=0)
         result = scene.on_joy_button_down_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_events_received) == 1
@@ -96,11 +96,11 @@ class TestJoystickEvents:
                 "on_joy_button_up_event": lambda event: (scene.joystick_events_received.append(event), True)[1]
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.JOYBUTTONUP, button=0)
         result = scene.on_joy_button_up_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_events_received) == 1
@@ -114,11 +114,11 @@ class TestJoystickEvents:
                 "on_joy_hat_motion_event": lambda event: (scene.joystick_events_received.append(event), True)[1]
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.JOYHATMOTION, hat=0, value=1)
         result = scene.on_joy_hat_motion_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_events_received) == 1
@@ -137,7 +137,7 @@ class TestJoystickEvents:
         # Test ball motion
         event = HashableEvent(pygame.JOYBALLMOTION, ball=0, rel=(10, 10))
         result = scene.on_joy_ball_motion_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_events_received) == 1
@@ -153,11 +153,11 @@ class TestJoystickEvents:
                 "on_joy_device_added_event": lambda event: (scene.joystick_device_events.append(("added", event)), True)[1]
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.JOYDEVICEADDED, device_id=0)
         result = scene.on_joy_device_added_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_device_events) == 1
@@ -176,7 +176,7 @@ class TestJoystickEvents:
         # Test device removed
         event = HashableEvent(pygame.JOYDEVICEREMOVED, device_id=0)
         result = scene.on_joy_device_removed_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_device_events) == 1
@@ -197,14 +197,14 @@ class TestJoystickEvents:
         for axis in range(4):  # Test first 4 axes
             event = HashableEvent(pygame.JOYAXISMOTION, axis=axis, value=0.5)
             result = scene.on_joy_axis_motion_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
             assert scene.joystick_events_received[0].type == pygame.JOYAXISMOTION
             assert scene.joystick_events_received[0].axis == axis
             assert scene.joystick_events_received[0].value == 0.5
-            
+
             # Clear for next iteration
             scene.joystick_events_received.clear()
 
@@ -223,28 +223,28 @@ class TestJoystickEvents:
             # Test button down
             event = HashableEvent(pygame.JOYBUTTONDOWN, button=button)
             result = scene.on_joy_button_down_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
             assert scene.joystick_events_received[0][0] == "button_down"
             assert scene.joystick_events_received[0][1].type == pygame.JOYBUTTONDOWN
             assert scene.joystick_events_received[0][1].button == button
-            
+
             # Clear for next iteration
             scene.joystick_events_received.clear()
 
             # Test button up
             event = HashableEvent(pygame.JOYBUTTONUP, button=button)
             result = scene.on_joy_button_up_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
             assert scene.joystick_events_received[0][0] == "button_up"
             assert scene.joystick_events_received[0][1].type == pygame.JOYBUTTONUP
             assert scene.joystick_events_received[0][1].button == button
-            
+
             # Clear for next iteration
             scene.joystick_events_received.clear()
 
@@ -273,14 +273,14 @@ class TestJoystickEvents:
         for direction in hat_directions:
             event = HashableEvent(pygame.JOYHATMOTION, hat=0, value=direction)
             result = scene.on_joy_hat_motion_event(event)
-            
+
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
             assert scene.joystick_events_received[0].type == pygame.JOYHATMOTION
             assert scene.joystick_events_received[0].hat == 0
             assert scene.joystick_events_received[0].value == direction
-            
+
             # Clear for next iteration
             scene.joystick_events_received.clear()
 
@@ -291,10 +291,10 @@ class TestJoystickManager:
     def test_joystick_manager_initialization(self, mock_pygame_patches):
         """Test JoystickManager initializes correctly."""
         from glitchygames.events.joystick import JoystickManager
-        
+
         mock_game = Mock()
         manager = JoystickManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "on_joystick_axis_motion_event")
         assert hasattr(manager, "on_joystick_button_down_event")
@@ -302,18 +302,18 @@ class TestJoystickManager:
     def test_joystick_manager_events(self, mock_pygame_patches):
         """Test joystick event handling through manager."""
         from glitchygames.events.joystick import JoystickManager
-        
+
         mock_game = Mock()
         manager = JoystickManager(game=mock_game)
-        
+
         # Test axis motion
         axis_event = HashableEvent(pygame.JOYAXISMOTION, joy=0, axis=0, value=0.5)
         manager.on_joystick_axis_motion_event(axis_event)
-        
+
         # Test button down
         down_event = HashableEvent(pygame.JOYBUTTONDOWN, joy=0, button=0)
         manager.on_joystick_button_down_event(down_event)
-        
+
         # Test button up
         up_event = HashableEvent(pygame.JOYBUTTONUP, joy=0, button=0)
         manager.on_joystick_button_up_event(up_event)

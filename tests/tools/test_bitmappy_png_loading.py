@@ -69,7 +69,8 @@ class TestPNGLoading:
             try:
                 # Mock the conversion method to return a TOML path
                 with patch.object(self.mock_canvas, "_convert_png_to_bitmappy") as mock_convert:
-                    mock_convert.return_value = "/tmp/test.toml"
+                    # Use a mock path that doesn't create actual files
+                    mock_convert.return_value = "mock_converted_file.toml"
 
                     # Mock the AnimatedSprite.load method
                     with patch("glitchygames.tools.bitmappy.AnimatedSprite") as mock_sprite_class:

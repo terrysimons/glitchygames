@@ -9,7 +9,6 @@ from tests.mocks.test_mock_factory import MockFactory
 
 # Import constants from base class
 from tests.tools.test_film_strip_base import (
-    CANVAS_OFFSET,
     CLICK_OFFSET,
     DISPLAY_HEIGHT,
     DISPLAY_WIDTH,
@@ -33,7 +32,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
     def test_film_strip_canvas_integration(self):
         """Test film strip integration with animated canvas through scene."""
         # Use optimized setup
-        scene, mock_sprite = self.setup_scene_with_sprite()
+        scene, _ = self.setup_scene_with_sprite()
 
         # Test that film strip is created through scene
         assert hasattr(scene, "film_strips")
@@ -49,7 +48,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
     def test_film_strip_sprite_creation(self):
         """Test film strip sprite creation through scene."""
         # Use optimized setup
-        scene, mock_sprite = self.setup_scene_with_sprite()
+        scene, _ = self.setup_scene_with_sprite()
 
         # Test that film strip sprites are created through scene
         assert hasattr(scene, "film_strip_sprites")
@@ -65,7 +64,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
     def test_film_strip_positioning(self):
         """Test film strip positioning relative to canvas through scene."""
         # Use optimized setup
-        scene, mock_sprite = self.setup_scene_with_sprite()
+        scene, _ = self.setup_scene_with_sprite()
 
         # Test film strip positioning - the actual positioning logic may vary
         film_strip = scene.canvas.film_strip

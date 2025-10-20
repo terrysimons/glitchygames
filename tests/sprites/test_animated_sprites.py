@@ -344,8 +344,8 @@ name = "TestEmptySprite"
         # Start all the patchers
         for patcher in patchers:
             patcher.start()
-        mock_display = MockFactory.create_pygame_display_mock()
-        
+        MockFactory.create_pygame_display_mock()
+
         try:
             sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
             sprite.load()  # Should load default raspberry sprite

@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 import pygame
+import pytest
 from glitchygames.sprites import SpriteFactory
 
 # Add project root so direct imports work in isolated runs

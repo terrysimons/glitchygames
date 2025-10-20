@@ -63,11 +63,11 @@ class TestKeyboardEvents:
                 "on_key_down_event": lambda event: scene.keyboard_events_received.append(event) or True
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         result = scene.on_key_down_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
@@ -81,11 +81,11 @@ class TestKeyboardEvents:
                 "on_key_up_event": lambda event: scene.keyboard_events_received.append(event) or True
             }
         )
-        
+
         # Test that the scene can handle the event
         event = HashableEvent(pygame.KEYUP, key=pygame.K_SPACE)
         result = scene.on_key_up_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
@@ -104,7 +104,7 @@ class TestKeyboardEvents:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_c)
         keys = (pygame.K_LCTRL, pygame.K_c)
         result = scene.on_key_chord_down_event(event, keys)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
@@ -125,7 +125,7 @@ class TestKeyboardEvents:
         event = HashableEvent(pygame.KEYUP, key=pygame.K_c)
         keys = (pygame.K_LCTRL, pygame.K_c)
         result = scene.on_key_chord_up_event(event, keys)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
@@ -167,7 +167,7 @@ class TestKeyboardEvents:
             event = HashableEvent(pygame.KEYUP, key=key)
             result = scene.on_key_up_event(event)
             assert result is True
-        
+
         # Verify all events were received
         assert len(scene.keyboard_events_received) == 20  # 10 keys * 2 events each
 
@@ -289,10 +289,10 @@ class TestKeyboardManager:
     def test_keyboard_manager_initialization(self, mock_pygame_patches):
         """Test KeyboardManager initializes correctly."""
         from glitchygames.events.keyboard import KeyboardManager
-        
+
         mock_game = Mock()
         manager = KeyboardManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "on_key_down_event")
         assert hasattr(manager, "on_key_up_event")
@@ -300,14 +300,14 @@ class TestKeyboardManager:
     def test_keyboard_manager_events(self, mock_pygame_patches):
         """Test keyboard event handling through manager."""
         from glitchygames.events.keyboard import KeyboardManager
-        
+
         mock_game = Mock()
         manager = KeyboardManager(game=mock_game)
-        
+
         # Test key down
         down_event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=" ")
         manager.on_key_down_event(down_event)
-        
+
         # Test key up
         up_event = HashableEvent(pygame.KEYUP, key=pygame.K_SPACE, mod=0)
         manager.on_key_up_event(up_event)

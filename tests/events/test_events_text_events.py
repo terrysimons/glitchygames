@@ -51,7 +51,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_input_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -67,7 +67,7 @@ class TestTextEvents:
         with patch("glitchygames.events.LOG.error"):
 
             with pytest.raises(UnhandledEventError):
-            
+
                 stub.on_text_input_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -83,7 +83,7 @@ class TestTextEvents:
         with patch("glitchygames.events.LOG.error"):
 
             with pytest.raises(UnhandledEventError):
-            
+
                 stub.on_text_editing_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -113,7 +113,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_input_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -139,7 +139,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_editing_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -164,7 +164,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_input_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -190,7 +190,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_editing_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -220,7 +220,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_input_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -246,7 +246,7 @@ class TestTextEvents:
             with patch("glitchygames.events.LOG.error"):
 
                 with pytest.raises(UnhandledEventError):
-                
+
                     stub.on_text_editing_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
@@ -261,7 +261,7 @@ class TestTextEvents:
             },
             event_handlers={}  # Empty handlers to trigger unhandled_event fallback
         )
-        
+
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
         return scene_mock
@@ -273,10 +273,10 @@ class TestTextEvents:
     def test_text_events_through_keyboard_manager(self, mock_pygame_patches):
         """Test text events are handled by KeyboardManager."""
         from glitchygames.events.keyboard import KeyboardManager
-        
+
         mock_game = MockFactory.create_event_test_scene_mock()
         manager = KeyboardManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         # KeyboardManager handles text events
         assert hasattr(manager, "on_text_editing_event")
@@ -285,19 +285,19 @@ class TestTextEvents:
     def test_text_events(self, mock_pygame_patches):
         """Test text event handling through manager."""
         from glitchygames.events.keyboard import KeyboardManager
-        
+
         # Use centralized mock for scene without event handlers (stub behavior)
         mock_game = MockFactory.create_event_test_scene_mock(
             event_handlers={}  # No event handlers - will fall back to stubs
         )
         manager = KeyboardManager(game=mock_game)
-        
+
         # Test text editing - suppress log messages since this will trigger unhandled_event
         editing_event = HashableEvent(pygame.TEXTEDITING, text="test", start=0, length=4)
         with patch("glitchygames.events.LOG.error"):
             with pytest.raises(UnhandledEventError):
                 manager.on_text_editing_event(editing_event)
-        
+
         # Test text input - suppress log messages since this will trigger unhandled_event
         input_event = HashableEvent(pygame.TEXTINPUT, text="test")
         with patch("glitchygames.events.LOG.error"):

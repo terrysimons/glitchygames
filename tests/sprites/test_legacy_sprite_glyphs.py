@@ -29,10 +29,9 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         # Set up centralized mocks
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:

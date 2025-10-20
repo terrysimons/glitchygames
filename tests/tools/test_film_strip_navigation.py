@@ -1,13 +1,12 @@
 """Tests for film strip navigation and scrolling functionality."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pygame
 import pytest
-from glitchygames.tools.bitmappy import BitmapEditorScene
 
-# Import constants from base class
-from tests.tools.test_film_strip_base import FRAME_SIZE, MAGENTA_PIXELS, FilmStripTestBase
+from tests.mocks.test_mock_factory import MockFactory
+from tests.tools.test_film_strip_base import FilmStripTestBase
 
 # Additional test constants
 FRAME_INDEX_2 = 2
@@ -24,29 +23,28 @@ class TestFilmStripNavigation(FilmStripTestBase):
         """Set up test fixtures using centralized mocks."""
         # Use the optimized setup from base class
         self.scene, self.mock_sprite = self.setup_scene_with_sprite()
-        
+
         # Configure scene for navigation testing
         self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
-        
+
         # Set up multiple animations for navigation testing using centralized mocks
-        from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Create additional animations using the centralized mock factory
         walk_sprite = MockFactory.create_animated_sprite_mock("walk", use_cache=True)
         jump_sprite = MockFactory.create_animated_sprite_mock("jump", use_cache=True)
         attack_sprite = MockFactory.create_animated_sprite_mock("attack", use_cache=True)
-        
+
         # Combine animations from different sprites
         self.mock_sprite._animations.update({
             "walk": walk_sprite._animations["walk"],
-            "jump": jump_sprite._animations["jump"], 
+            "jump": jump_sprite._animations["jump"],
             "attack": attack_sprite._animations["attack"]
         })
-        
+
         # Reload the sprite to create film strips for all animations
         self.scene._on_sprite_loaded(self.mock_sprite)
-        
+
         # Ensure canvas has proper navigation state
         self.scene.canvas.current_animation = "idle"
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
@@ -55,7 +53,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         """Test UP arrow navigates to previous animation."""
         # Get the list of animations in the order they appear
         animation_names = list(self.mock_sprite._animations.keys())
-        
+
         # Start at the last animation
         self.scene.canvas.current_animation = animation_names[-1]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
@@ -77,7 +75,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         """Test DOWN arrow navigates to next animation."""
         # Get the list of animations in the order they appear
         animation_names = list(self.mock_sprite._animations.keys())
-        
+
         # Start at the first animation
         self.scene.canvas.current_animation = animation_names[0]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
@@ -135,7 +133,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         """Test animation navigation wraps around at boundaries."""
         # Get the list of animations in the order they appear
         animation_names = list(self.mock_sprite._animations.keys())
-        
+
         # Start at the last animation
         self.scene.canvas.current_animation = animation_names[-1]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
@@ -163,7 +161,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Get the number of frames for the idle animation
         idle_frames = len(self.mock_sprite._animations["idle"])
         last_frame_index = idle_frames - 1
-        
+
         # Start at the last frame of "idle"
         self.scene.canvas.current_animation = "idle"
         self.scene.canvas.current_frame = last_frame_index

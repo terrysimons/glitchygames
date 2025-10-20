@@ -39,16 +39,15 @@ def setup_conditional_pygame_mocks(request):
         if pygame.display.get_surface() is None:
             pygame.display.set_mode((800, 600))
         
-        # Use minimal mocks that only patch the display surface
-        patchers = MockFactory.setup_minimal_pygame_mocks()
+        # Use full pygame mocks for scene tests to prevent infinite loops
+        patchers = MockFactory.setup_pygame_mocks()
         for patcher in patchers:
             patcher.start()
 
         yield patchers
 
-        # Teardown the minimal mocks
-        for patcher in patchers:
-            patcher.stop()
+        # Teardown the full mocks
+        MockFactory.teardown_pygame_mocks(patchers)
     else:
         # No mocks needed for this test
         yield []

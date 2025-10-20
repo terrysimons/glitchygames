@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -18,6 +19,10 @@ from glitchygames.sprites import (
 
 from tests.mocks.test_mock_factory import MockFactory
 
+# Test constants
+EXPECTED_ERROR_COUNT_2 = 2
+EXPECTED_ERROR_COUNT_3 = 3
+
 
 class TestBitmappySprite:
     """Test BitmappySprite functionality."""
@@ -25,10 +30,9 @@ class TestBitmappySprite:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -111,12 +115,12 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
             mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 result = sprite.deflate("toml")
                 assert result is not None
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -131,12 +135,13 @@ class TestBitmappySprite:
         with patch.object(sprite, "log") as mock_log:
             with pytest.raises(ValueError, match="Unsupported format"):
                 sprite.deflate("json")
-            
+
             # Verify the ERROR log message was called (multiple times expected)
             assert mock_log.error.call_count >= 1
             # Check that the log messages contain the expected content
             call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-            assert any("Pixels list length mismatch: 0 vs expected 1024" in msg for msg in call_args_list)
+            assert any("Pixels list length mismatch: 0 vs expected 1024" in msg
+                      for msg in call_args_list)
             assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_method_too_many_colors(self):
@@ -149,12 +154,13 @@ class TestBitmappySprite:
         with patch.object(sprite, "log") as mock_log:
             with pytest.raises(ValueError, match="Too many colors"):
                 sprite.deflate("toml")
-            
+
             # Verify the ERROR log message was called (multiple times expected)
             assert mock_log.error.call_count >= 1
             # Check that the log messages contain the expected content
             call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-            assert any("Pixels list length mismatch: 100 vs expected 1024" in msg for msg in call_args_list)
+            assert any("Pixels list length mismatch: 100 vs expected 1024" in msg
+                      for msg in call_args_list)
             assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_pads_and_truncates_pixels(self):
@@ -166,12 +172,12 @@ class TestBitmappySprite:
             mock_color_map.return_value = {
                 "A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)
             }
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 result = sprite.deflate("toml")
                 assert result is not None
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -185,12 +191,12 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
             mock_color_map.return_value = {"A": (1, 1, 1), "X": (255, 0, 255)}
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 result = sprite.deflate("toml")
                 assert result is not None
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -206,14 +212,14 @@ class TestBitmappySprite:
             mock_color_map.return_value = {
                 "A": (255, 0, 0), "X": (255, 0, 255)
             }  # Missing second color
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 result = sprite.deflate("toml")
                 assert result is not None
-                
+
                 # Verify the ERROR log messages were called
-                assert mock_log.error.call_count == 2
+                assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
                 # Check that the log messages contain the expected content
                 first_call = mock_log.error.call_args_list[0][0][0]
                 second_call = mock_log.error.call_args_list[1][0][0]
@@ -245,12 +251,12 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 with pytest.raises(ValueError, match="Unsupported format: xml"):
                     sprite._save_static_only("test.xml")
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -277,14 +283,14 @@ class TestBitmappySprite:
                 "A": (255, 0, 0), "X": (255, 0, 255)
             }  # Missing second color
             color_map = mock_color_map.return_value
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 result = sprite._process_pixel_rows(color_map)
                 assert result is not None
-                
+
                 # Verify the ERROR log messages were called
-                assert mock_log.error.call_count == 3
+                assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_3
                 # Check that the log messages contain the expected content
                 first_call = mock_log.error.call_args_list[0][0][0]
                 second_call = mock_log.error.call_args_list[1][0][0]
@@ -299,12 +305,12 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 with pytest.raises(ValueError, match="Unsupported format: xml"):
                     sprite._save_static_only("test.xml")
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -317,12 +323,12 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: json")
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch.object(sprite, "log") as mock_log:
                 with pytest.raises(ValueError, match="Unsupported format: json"):
                     sprite._save_static_only("test.json")
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -379,10 +385,9 @@ class TestSingletonBitmappySprite:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -411,10 +416,9 @@ class TestFocusableSingletonBitmappySprite:
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
-        import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()

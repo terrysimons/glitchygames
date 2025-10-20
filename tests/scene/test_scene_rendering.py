@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene, SceneManager
 
 from tests.mocks.test_mock_factory import MockFactory
@@ -27,63 +28,23 @@ class TestSceneRendering:
         """Set up test fixtures."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        # Use centralized mocks for pygame initialization
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-        
+
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
             NAME = "MockGameScene"
             VERSION = "1.0"
-            
+
             def __init__(self, options=None, groups=None):
                 super().__init__(options=options, groups=groups)
-        
-        # Mock argparse to prevent command line argument parsing
-        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
-            mock_parse_args.return_value = self._create_mock_args()
-            # Create a mock game engine to properly initialize SceneManager
-            from glitchygames.engine import GameEngine
-            self.engine = GameEngine(MockGameScene)
-            # Set up the engine's OPTIONS
-            self.engine.OPTIONS = {
-                "update_type": "update",
-                "fps_refresh_rate": 1000,
-                "target_fps": 60,
-                "font_name": "Arial",
-                "font_size": 16
-            }
 
-    def _create_mock_args(self):
-        """Create mock command line arguments."""
-        mock_args = Mock()
-        mock_args.fps = 60
-        mock_args.resolution = "800x600"
-        mock_args.windowed = True
-        mock_args.use_gfxdraw = False
-        mock_args.update_type = "update"
-        mock_args.fps_refresh_rate = 1000
-        mock_args.profile = False
-        mock_args.test_flag = False
-        mock_args.font_name = "Arial"
-        mock_args.font_size = 16
-        mock_args.font_bold = False
-        mock_args.font_italic = False
-        mock_args.font_antialias = True
-        mock_args.font_dpi = 72
-        mock_args.font_system = "pygame"
-        mock_args.log_level = "info"
-        mock_args.no_unhandled_events = False
-        return mock_args
+        # Create a simple scene manager for testing (centralized mocks handle pygame)
+        self.scene_manager = SceneManager()
+
 
     def teardown_method(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Reset singleton state for clean test
+        SceneManager._instance = None
 
     def test_scene_rendering(self):
         """Test basic scene rendering."""
@@ -121,9 +82,9 @@ class TestSceneRendering:
         """Test scene rendering with manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene instead of real Scene to avoid pygame.display issues
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -141,15 +102,15 @@ class TestSceneRendering:
         """Test rendering with multiple scenes."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create mock scenes instead of real Scene to avoid pygame.display issues
         mock_scene1 = Mock()
         mock_scene1.all_sprites = Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
         mock_scene1.render = Mock()
-        
+
         mock_scene2 = Mock()
         mock_scene2.all_sprites = Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
@@ -167,15 +128,15 @@ class TestSceneRendering:
         """Test rendering during scene transition."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create mock scenes instead of real Scene to avoid pygame.display issues
         mock_scene1 = Mock()
         mock_scene1.all_sprites = Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
         mock_scene1.render = Mock()
-        
+
         mock_scene2 = Mock()
         mock_scene2.all_sprites = Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
@@ -208,9 +169,9 @@ class TestSceneRendering:
         """Test scene rendering with visibility through manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -229,10 +190,10 @@ class TestSceneRendering:
         # Create a mock scene with custom drawing behavior
         mock_scene = Mock()
         mock_scene.draw_calls = []
-        
+
         def mock_render(surface):
             mock_scene.draw_calls.append(surface)
-        
+
         mock_scene.render = mock_render
 
         # Test that custom scene has render method
@@ -252,20 +213,20 @@ class TestSceneRendering:
         """Test scene rendering with layering."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
+
+        manager = self.scene_manager
 
         # Create mock scenes with different layers using centralized mocks
         mock_scene1 = Mock()
         mock_scene1.all_sprites = Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
         mock_scene1.render = Mock()
-        
+
         mock_scene2 = Mock()
         mock_scene2.all_sprites = Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
         mock_scene2.render = Mock()
-        
+
         mock_scene3 = Mock()
         mock_scene3.all_sprites = Mock()
         mock_scene3.background = MockFactory.create_pygame_surface_mock()
@@ -295,9 +256,9 @@ class TestSceneRendering:
         """Test scene rendering with render state through manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -326,9 +287,9 @@ class TestSceneRendering:
         """Test scene rendering with manager exceptions."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -357,9 +318,9 @@ class TestSceneRendering:
         """Test scene rendering with surface management through manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -378,11 +339,11 @@ class TestSceneRendering:
         # Create a mock scene with custom surface behavior
         mock_scene = Mock()
         mock_scene.custom_surface = Mock()
-        
+
         def mock_render(surface):
             # Use custom surface for rendering
             mock_scene.custom_surface.blit(surface, (0, 0))
-        
+
         mock_scene.render = mock_render
 
         # Test that custom scene has render method
@@ -401,15 +362,15 @@ class TestSceneRendering:
         """Test scene rendering with render order."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
+
+        manager = self.scene_manager
 
         # Create mock scenes using centralized mocks
         mock_scene1 = Mock()
         mock_scene1.all_sprites = Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
         mock_scene1.render = Mock()
-        
+
         mock_scene2 = Mock()
         mock_scene2.all_sprites = Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
@@ -427,15 +388,15 @@ class TestSceneRendering:
         """Test scene rendering with render order during transition."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
+
+        manager = self.scene_manager
 
         # Create mock scenes using centralized mocks
         mock_scene1 = Mock()
         mock_scene1.all_sprites = Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
         mock_scene1.render = Mock()
-        
+
         mock_scene2 = Mock()
         mock_scene2.all_sprites = Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
@@ -468,9 +429,9 @@ class TestSceneRendering:
         """Test scene rendering with render state changes through manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()
@@ -499,9 +460,9 @@ class TestSceneRendering:
         """Test scene rendering with edge cases through manager."""
         # Reset singleton state for clean test
         SceneManager._instance = None
-        
-        manager = self.engine.scene_manager
-        
+
+        manager = self.scene_manager
+
         # Create a mock scene using centralized mocks
         mock_scene = Mock()
         mock_scene.all_sprites = Mock()

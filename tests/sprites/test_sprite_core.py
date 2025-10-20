@@ -18,6 +18,7 @@ SPRITE_X = 10
 SPRITE_Y = 20
 SPRITE_WIDTH = 30
 SPRITE_HEIGHT = 40
+EXPECTED_ERROR_COUNT_2 = 2
 SPRITE_WIDTH_100 = 100
 SPRITE_HEIGHT_50 = 50
 SPRITE_WIDTH_200 = 200
@@ -99,9 +100,9 @@ class TestSpriteInitialization:
 
             assert sprite.width == 0
             assert sprite.height == 0
-            
+
             # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == 2
+            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
             # Check that the log messages contain the expected content
             first_call = mock_log.error.call_args_list[0][0][0]
             second_call = mock_log.error.call_args_list[1][0][0]

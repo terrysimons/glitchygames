@@ -28,7 +28,7 @@ class TestVoiceRecognitionManagerNegative(unittest.TestCase):
         import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -123,7 +123,7 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
         import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -137,21 +137,21 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
         with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
              patch("glitchygames.events.voice.sr.Microphone",
                    side_effect=Exception("Microphone not found")):
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
                 mock_log = Mock()
                 mock_get_logger.return_value = mock_log
-                
+
                 manager = VoiceRecognitionManager()
-                
+
                 # Should initialize without errors but without microphone
                 assert manager is not None
                 assert manager.recognizer is not None
                 assert manager.microphone is None
                 assert not manager.is_available()
                 assert not manager.is_listening
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -163,18 +163,18 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
         with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
              patch("glitchygames.events.voice.sr.Microphone",
                    side_effect=Exception("Microphone not found")):
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
                 mock_log = Mock()
                 mock_get_logger.return_value = mock_log
-                
+
                 manager = VoiceRecognitionManager()
-                
+
                 # Should not start listening without microphone
                 manager.start_listening()
                 assert not manager.is_listening
-                
+
                 # Verify the ERROR log messages were called (should be called twice)
                 assert mock_log.error.call_count == 2
                 # Check that both log messages contain the expected content
@@ -192,7 +192,7 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
         import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -273,19 +273,19 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
         """Test VoiceRecognitionManager when microphone is not available."""
         with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
              patch("glitchygames.events.voice.sr.Microphone", side_effect=Exception("No microphone")):  # noqa: E501
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
                 mock_log = Mock()
                 mock_get_logger.return_value = mock_log
-                
+
                 manager = VoiceRecognitionManager()
-                
+
                 # Should handle missing microphone gracefully
                 assert manager is not None
                 assert manager.microphone is None
                 assert not manager.is_available()
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -365,18 +365,18 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
         """Test starting listening when microphone is not available."""
         with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
              patch("glitchygames.events.voice.sr.Microphone", side_effect=Exception("No microphone")):  # noqa: E501
-            
+
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
                 mock_log = Mock()
                 mock_get_logger.return_value = mock_log
-                
+
                 manager = VoiceRecognitionManager()
-                
+
                 # Should not start listening without microphone
                 manager.start_listening()
                 assert not manager.is_listening
-                
+
                 # Verify the ERROR log messages were called (should be called twice)
                 assert mock_log.error.call_count == 2
                 # Check that both log messages contain the expected content
@@ -460,7 +460,7 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
             with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
                 mock_log = Mock()
                 mock_get_logger.return_value = mock_log
-                
+
                 manager = VoiceRecognitionManager()
                 callback = Mock(side_effect=Exception("Callback error"))
 
@@ -472,7 +472,7 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
 
                 # Verify callback was called despite error
                 callback.assert_called_once()
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -489,7 +489,7 @@ class TestBitmapEditorSceneVoiceIntegrationNegative(unittest.TestCase):
         import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -549,7 +549,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive(unittest.TestCase):
         import pygame
         if not pygame.get_init():
             pygame.init()
-        
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()

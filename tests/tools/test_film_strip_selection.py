@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripWidget
+
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values

@@ -7,12 +7,13 @@ mouse interactions, and visual state changes.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import ButtonSprite
+
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -27,15 +28,11 @@ class TestButtonSpriteFunctionality:
 
     def _create_mock_font(self):
         """Create a mock font using MockFactory."""
-        mock_font = Mock()
-        rendered_surface = Mock()
-        rendered_surface.get_rect.return_value = Mock()
-        mock_font.render = Mock(return_value=rendered_surface)
-        return mock_font
+        return MockFactory.create_pygame_font_mock()
 
     def _create_mock_event(self):
         """Create a mock event using MockFactory."""
-        return Mock()
+        return MockFactory.create_pygame_event_mock()
 
     def test_button_mouse_down_up_changes_background(self, mock_pygame_patches):
         """Test that button background changes on mouse down/up events."""

@@ -97,7 +97,7 @@ class GameEngine(events.EventManager):
         """
         if icon is None:
             return
-        
+
         # If it's already a pygame.Surface, use it directly
         if isinstance(icon, pygame.Surface):
             GameEngine.icon = icon
@@ -324,7 +324,7 @@ class GameEngine(events.EventManager):
         # object
         GameEngine.game = game
         self.scene_manager: SceneManager = SceneManager()
-        
+
         # Update the scene manager's update_type from the engine's options
         self.scene_manager.update_type = self.update_type
 

@@ -37,21 +37,21 @@ class TestEventIntegration:
         with patch("sys.argv", ["test_engine.py"]):
             # Create engine with test scene
             engine = GameEngine(game=scene)
-            
+
             # Use centralized mocks for managers
             engine.scene_manager = Mock()
             engine.scene_manager.game_engine = engine
             engine.audio_manager = mock_managers["audio_manager"]
             engine.audio_manager.on_audio_device_added_event = Mock(return_value=True)
-        
+
         # Create a proper HashableEvent
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
-        
+
         # Mock pygame.event.get to return our test event
         with patch("pygame.event.get", return_value=[event]):
             # Process events through the engine
             result = engine.process_events()
-            
+
         # The event should be handled by the engine's audio manager
         assert result is True
 
@@ -68,20 +68,20 @@ class TestEventIntegration:
         # Mock sys.argv to prevent argument parsing issues
         with patch("sys.argv", ["test_engine.py"]):
             engine = GameEngine(game=scene)
-            
+
             # Use centralized mocks for managers
             engine.scene_manager = Mock()
             engine.scene_manager.game_engine = engine
             engine.controller_manager = mock_managers["controller_manager"]
             engine.controller_manager.on_controller_axis_motion_event = Mock(return_value=True)
-        
+
         # Create a proper pygame event with dict attribute
         pygame_event = pygame.event.Event(pygame.CONTROLLERAXISMOTION, axis=0, value=0.5)
         pygame_event.dict = {"type": pygame.CONTROLLERAXISMOTION, "axis": 0, "value": 0.5}
-        
+
         with patch("pygame.event.get", return_value=[pygame_event]):
             result = engine.process_events()
-            
+
         assert result is True
 
     def test_unhandled_event_falls_back_to_stubs(self, mock_pygame_patches, mock_managers):
@@ -107,27 +107,27 @@ class TestEventIntegration:
             # Mock initialize_arguments to prevent it from overriding scene options
             with patch.object(GameEngine, "initialize_arguments", return_value=scene.options):
                 engine = GameEngine(game=scene)
-                
+
                 # Use centralized mocks for managers
                 engine.scene_manager = Mock()
                 engine.scene_manager.game_engine = engine
-                
+
                 # Create a proper audio manager mock that calls the scene's audio event handlers
                 mock_audio_manager = Mock()
                 def audio_device_added_handler(event):
                     scene.on_audio_device_added_event(event)
                 mock_audio_manager.on_audio_device_added_event = audio_device_added_handler
                 engine.audio_manager = mock_audio_manager
-        
+
         # Create a proper HashableEvent
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
-        
+
         with patch("pygame.event.get", return_value=[event]):
             # Use pytest logger wrapper to suppress logs during successful runs
             with patch("glitchygames.events.LOG") as mock_log:
                 with pytest.raises(UnhandledEventError):
                     engine.process_events()
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -150,29 +150,29 @@ class TestEventIntegration:
         # Mock sys.argv to prevent argument parsing issues
         with patch("sys.argv", ["test_engine.py"]):
             engine = GameEngine(game=scene)
-            
+
             # Set up the scene manager to delegate to our scene
             engine.scene_manager.game = scene
-            
+
             # Set up the audio manager to delegate to the scene
             from glitchygames.events.audio import AudioManager
             engine.audio_manager = AudioManager(game=scene)
-            
+
             # Configure the scene manager to handle audio events
             def scene_audio_handler(event):
                 return scene.on_audio_device_added_event(event)
-            
+
             engine.scene_manager.on_audio_device_added_event = scene_audio_handler
-        
+
         # Create multiple HashableEvents
         events = [
             HashableEvent(pygame.AUDIODEVICEADDED, which=1),
             HashableEvent(pygame.AUDIODEVICEADDED, which=2),
         ]
-        
+
         with patch("pygame.event.get", return_value=events):
             result = engine.process_events()
-            
+
         # Events should be routed to the scene
         assert result is True
         assert len(scene.audio_events_received) == 2
@@ -183,21 +183,21 @@ class TestEventIntegration:
         """Test that the engine's event handlers are properly configured."""
         # Use global mocks from mock_pygame_patches fixture
         scene = MockFactory.create_event_test_scene_mock()
-        
+
         # Mock sys.argv to prevent argument parsing issues
         with patch("sys.argv", ["test_engine.py"]):
             engine = GameEngine(game=scene)
-            
+
             # Use centralized mocks for managers
             engine.scene_manager = Mock()
             engine.scene_manager.game_engine = engine
-        
+
         # Check that event handlers are registered
         assert pygame.AUDIODEVICEADDED in GameEngine.EVENT_HANDLERS
         assert pygame.AUDIODEVICEREMOVED in GameEngine.EVENT_HANDLERS
         assert pygame.CONTROLLERAXISMOTION in GameEngine.EVENT_HANDLERS
         assert pygame.CONTROLLERBUTTONDOWN in GameEngine.EVENT_HANDLERS
-        
+
         # Check that handlers point to the right methods
         assert GameEngine.EVENT_HANDLERS[pygame.AUDIODEVICEADDED] == engine.process_audio_event
         assert GameEngine.EVENT_HANDLERS[pygame.CONTROLLERAXISMOTION] == engine.process_controller_event

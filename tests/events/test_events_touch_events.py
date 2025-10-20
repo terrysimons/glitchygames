@@ -52,7 +52,7 @@ class TestTouchEvents:
             with pytest.raises(UnhandledEventError):
                 stub.on_touch_down_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
-            
+
             # Verify the ERROR log message was called
             mock_log.error.assert_called_once()
             # Check that the log message contains the expected content
@@ -62,7 +62,7 @@ class TestTouchEvents:
     def test_touch_down_event(self, mock_pygame_patches):
         """Test touch down event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -73,7 +73,7 @@ class TestTouchEvents:
         # Test touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         scene.on_touch_down_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "touch_down"
@@ -82,7 +82,7 @@ class TestTouchEvents:
     def test_touch_motion_event(self, mock_pygame_patches):
         """Test touch motion event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -93,7 +93,7 @@ class TestTouchEvents:
         # Test touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
         scene.on_touch_motion_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "touch_motion"
@@ -102,7 +102,7 @@ class TestTouchEvents:
     def test_touch_up_event(self, mock_pygame_patches):
         """Test touch up event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -113,7 +113,7 @@ class TestTouchEvents:
         # Test touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
         scene.on_touch_up_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "touch_up"
@@ -122,7 +122,7 @@ class TestTouchEvents:
     def test_multi_touch_down_event(self, mock_pygame_patches):
         """Test multi touch down event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -133,7 +133,7 @@ class TestTouchEvents:
         # Test multi touch down
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         scene.on_multi_touch_down_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "multi_touch_down"
@@ -142,7 +142,7 @@ class TestTouchEvents:
     def test_multi_touch_motion_event(self, mock_pygame_patches):
         """Test multi touch motion event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -153,7 +153,7 @@ class TestTouchEvents:
         # Test multi touch motion
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10)
         scene.on_multi_touch_motion_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "multi_touch_motion"
@@ -162,7 +162,7 @@ class TestTouchEvents:
     def test_multi_touch_up_event(self, mock_pygame_patches):
         """Test multi touch up event handling."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -173,7 +173,7 @@ class TestTouchEvents:
         # Test multi touch up
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100)
         scene.on_multi_touch_up_event(event)
-        
+
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
         assert scene.touch_events_received[0][0] == "multi_touch_up"
@@ -182,7 +182,7 @@ class TestTouchEvents:
     def test_multiple_finger_events(self, mock_pygame_patches):
         """Test multiple finger touch events."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -197,22 +197,22 @@ class TestTouchEvents:
             # Test finger down
             event = HashableEvent(pygame.FINGERDOWN, finger_id=finger_id, x=100, y=100)
             scene.on_touch_down_event(event)
-            
+
             # Test finger motion
             event = HashableEvent(pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10)  # noqa: E501
             scene.on_touch_motion_event(event)
-            
+
             # Test finger up
             event = HashableEvent(pygame.FINGERUP, finger_id=finger_id, x=100, y=100)
             scene.on_touch_up_event(event)
-        
+
         # Verify all events were handled (5 fingers * 3 events each = 15 events)
         assert len(scene.touch_events_received) == 15
 
     def test_touch_events_with_pressure(self, mock_pygame_patches):
         """Test touch events with pressure values."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -225,15 +225,15 @@ class TestTouchEvents:
         # Test touch down with pressure
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100, pressure=0.8)
         scene.on_touch_down_event(event)
-        
+
         # Test touch motion with pressure
         event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6)  # noqa: E501
         scene.on_touch_motion_event(event)
-        
+
         # Test touch up with pressure
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100, pressure=0.0)
         scene.on_touch_up_event(event)
-        
+
         # Verify all events were handled
         assert len(scene.touch_events_received) == 3
         assert scene.touch_events_received[0][0] == "touch_down"
@@ -243,7 +243,7 @@ class TestTouchEvents:
     def test_touch_events_with_different_positions(self, mock_pygame_patches):
         """Test touch events with different positions."""
         from tests.mocks.test_mock_factory import MockFactory
-        
+
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
@@ -266,15 +266,15 @@ class TestTouchEvents:
             # Test touch down
             event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=x, y=y)
             scene.on_touch_down_event(event)
-            
+
             # Test touch motion
             event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=x, y=y, dx=5, dy=5)
             scene.on_touch_motion_event(event)
-            
+
             # Test touch up
             event = HashableEvent(pygame.FINGERUP, finger_id=1, x=x, y=y)
             scene.on_touch_up_event(event)
-        
+
         # Verify all events were handled (5 positions * 3 events each = 15 events)
         assert len(scene.touch_events_received) == 15
 
@@ -295,10 +295,10 @@ class TestTouchManager:
     def test_touch_manager_initialization(self, mock_pygame_patches):
         """Test TouchManager initializes correctly."""
         from glitchygames.events.touch import TouchManager
-        
+
         mock_game = Mock()
         manager = TouchManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "proxies")
         assert isinstance(manager.proxies, list)
@@ -306,18 +306,18 @@ class TestTouchManager:
     def test_touch_manager_events(self, mock_pygame_patches):
         """Test touch event handling through manager."""
         from glitchygames.events.touch import TouchManager
-        
+
         mock_game = Mock()
         manager = TouchManager(game=mock_game)
-        
+
         # Test touch finger down
         touch_down_event = HashableEvent(pygame.FINGERDOWN, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0)
         manager.on_touch_finger_down_event(touch_down_event)
-        
+
         # Test touch finger up
         touch_up_event = HashableEvent(pygame.FINGERUP, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0)
         manager.on_touch_finger_up_event(touch_up_event)
-        
+
         # Test touch finger motion
         touch_motion_event = HashableEvent(pygame.FINGERMOTION, touch_id=1, finger_id=1, x=110, y=110, dx=10, dy=10)
         manager.on_touch_finger_motion_event(touch_motion_event)

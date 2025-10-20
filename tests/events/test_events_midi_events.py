@@ -48,7 +48,7 @@ class TestMidiEvents:
             with pytest.raises(UnhandledEventError):
                 scene.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
-            
+
             # Verify the ERROR log message was called
             mock_log.error.assert_called_once()
             # Check that the log message contains the expected content
@@ -138,7 +138,7 @@ class TestMidiEvents:
     def test_midi_control_change_events(self, mock_pygame_patches):
         """Test MIDI control change events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -155,7 +155,7 @@ class TestMidiEvents:
     def test_midi_program_change_events(self, mock_pygame_patches):
         """Test MIDI program change events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -172,7 +172,7 @@ class TestMidiEvents:
     def test_midi_pitch_bend_events(self, mock_pygame_patches):
         """Test MIDI pitch bend events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -193,7 +193,7 @@ class TestMidiEvents:
     def test_midi_aftertouch_events(self, mock_pygame_patches):
         """Test MIDI aftertouch events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -210,7 +210,7 @@ class TestMidiEvents:
     def test_midi_polyphonic_aftertouch_events(self, mock_pygame_patches):
         """Test MIDI polyphonic aftertouch events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -228,7 +228,7 @@ class TestMidiEvents:
     def test_midi_system_events(self, mock_pygame_patches):
         """Test MIDI system events."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -258,7 +258,7 @@ class TestMidiEvents:
     def test_midi_multiple_devices(self, mock_pygame_patches):
         """Test MIDI events with multiple devices."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -285,7 +285,7 @@ class TestMidiEvents:
     def test_midi_velocity_variations(self, mock_pygame_patches):
         """Test MIDI events with different velocity values."""
         from unittest.mock import patch
-        
+
         stub = MidiEventStubs()
         scene_mock = self._setup_mock_scene_for_stub(stub)
 
@@ -312,7 +312,7 @@ class TestMidiEvents:
             },
             event_handlers={}  # Empty handlers to trigger unhandled_event fallback
         )
-        
+
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
         return scene_mock
@@ -325,7 +325,7 @@ class TestMidiManagerCoverage:
         """Test MidiManager initialization."""
         mock_game = Mock()
         manager = MidiManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "proxies")
         assert isinstance(manager.proxies, list)

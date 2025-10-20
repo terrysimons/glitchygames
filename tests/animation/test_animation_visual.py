@@ -10,8 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
 import pygame
+import pytest
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
