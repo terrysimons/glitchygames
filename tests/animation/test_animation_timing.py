@@ -4,12 +4,19 @@ This module tests that animated sprites properly utilize per-frame timing
 and that the animation system respects individual frame intervals.
 """
 
+import sys
 import time
-import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import pytest
 import pygame
 from glitchygames.sprites import SpriteFactory
+
+# Add project root so direct imports work in isolated runs
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
@@ -34,23 +41,26 @@ MAX_ANIMATION_TIME = 60
 PERFORMANCE_THRESHOLD = 0.1
 
 
-class TestAnimationTiming(unittest.TestCase):
+class TestAnimationTiming:
     """Test animation timing and frame intervals."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized, even if it was quit by previous tests
-        if not pygame.get_init():
-            pygame.init()
-        pygame.display.set_mode((800, 600))
-
+        # Use centralized mocks for pygame initialization
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all the patchers
+        for patcher in self.patchers:
+            patcher.start()
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
+        
         # Load the colors.toml animation for testing
         self.animation_file = get_resource_path("colors.toml")
 
-    @staticmethod
-    def tearDown():
+    def teardown_method(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        # Teardown the centralized mocks
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_animation_frame_timing_structure(self):
         """Test that animation frames have proper timing structure."""
@@ -82,7 +92,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -109,7 +119,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -131,7 +141,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -153,7 +163,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -179,7 +189,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -206,7 +216,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -232,7 +242,7 @@ class TestAnimationTiming(unittest.TestCase):
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         if not hasattr(sprite, "animations") or not sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -267,5 +277,4 @@ class TestAnimationTiming(unittest.TestCase):
         return pixels
 
 
-if __name__ == "__main__":
-    unittest.main()
+# Remove unittest.main() since we're using pytest

@@ -96,6 +96,13 @@ class MockSurface(pygame.Surface):
         if isinstance(color, tuple):
             return pygame.Color(*color)
         return color
+    
+    def get_pixel_data(self):
+        """Get pixel data for this surface."""
+        width, height = self.get_size()
+        # Return different pixel data based on the surface content
+        # This simulates different frame content
+        return [(255, 0, 0)] * (width * height)  # Red pixels for testing
 
     def get_rect(self, **kwargs):
         """Get rect for this surface."""
@@ -180,37 +187,59 @@ class MockFactory:
         # Create the mock sprite
         mock_sprite = Mock(spec=AnimatedSprite)
 
-        # Create properly configured frame
-        mock_frame = Mock()
-        mock_frame.get_size.return_value = frame_size
-        mock_frame.get_width.return_value = frame_size[0]
-        mock_frame.get_height.return_value = frame_size[1]
-        # Calculate pixel count and create pixel data
-        pixel_count = frame_size[0] * frame_size[1]
-        mock_frame.get_pixel_data.return_value = [pixel_color] * pixel_count
+        # Create multiple frames for animation simulation
+        num_frames = 5  # Simulate 5 different frames
+        mock_frames = []
+        
+        for frame_idx in range(num_frames):
+            mock_frame = Mock()
+            mock_frame.get_size.return_value = frame_size
+            mock_frame.get_width.return_value = frame_size[0]
+            mock_frame.get_height.return_value = frame_size[1]
+            
+            # Create different pixel colors for each frame to simulate animation
+            frame_color = (
+                (pixel_color[0] + frame_idx * 20) % 256,
+                (pixel_color[1] + frame_idx * 30) % 256,
+                (pixel_color[2] + frame_idx * 40) % 256
+            )
+            pixel_count = frame_size[0] * frame_size[1]
+            mock_frame.get_pixel_data.return_value = [frame_color] * pixel_count
 
-        # Create frame image with proper methods
-        mock_frame_image = Mock()
-        mock_frame_image.get_width.return_value = frame_size[0]
-        mock_frame_image.get_height.return_value = frame_size[1]
-        mock_frame_image.get_size.return_value = frame_size
-        mock_frame.image = mock_frame_image
+            # Create frame image with proper methods
+            mock_frame_image = Mock()
+            mock_frame_image.get_width.return_value = frame_size[0]
+            mock_frame_image.get_height.return_value = frame_size[1]
+            mock_frame_image.get_size.return_value = frame_size
+            mock_frame.image = mock_frame_image
 
-        # Add duration attribute for animation timing
-        mock_frame.duration = 1.0  # 1 second duration
+            # Add duration attribute for animation timing
+            mock_frame.duration = 1.0  # 1 second duration
+            
+            mock_frames.append(mock_frame)
+
+        # Use the first frame as the default
+        mock_frame = mock_frames[0]
 
         # Add pixels attribute for surface creation
         mock_frame.pixels = [pixel_color] * pixel_count
 
         # Configure sprite properties
-        # Create multiple frames for testing (3 frames per animation)
+        # Create multiple frames for testing (5 frames per animation) with different colors
         mock_frames = []
-        for _ in range(3):  # Create 3 frames
+        for frame_idx in range(5):  # Create 5 frames with different colors
             frame = Mock()
             frame.get_size.return_value = frame_size
             frame.get_width.return_value = frame_size[0]
             frame.get_height.return_value = frame_size[1]
-            frame.get_pixel_data.return_value = [pixel_color] * pixel_count
+            
+            # Create different pixel colors for each frame to simulate animation
+            frame_color = (
+                (pixel_color[0] + frame_idx * 20) % 256,
+                (pixel_color[1] + frame_idx * 30) % 256,
+                (pixel_color[2] + frame_idx * 40) % 256
+            )
+            frame.get_pixel_data.return_value = [frame_color] * pixel_count
 
             # Create frame image with proper methods
             frame_image = Mock()
@@ -223,7 +252,7 @@ class MockFactory:
             frame.duration = 1.0  # 1 second duration
 
             # Add pixels attribute for surface creation
-            frame.pixels = [pixel_color] * pixel_count
+            frame.pixels = [frame_color] * pixel_count
             mock_frames.append(frame)
 
         mock_sprite._animations = {animation_name: mock_frames}
@@ -232,8 +261,20 @@ class MockFactory:
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
 
+        # Add essential sprite attributes
+        mock_sprite.image = mock_frames[0].image
+        # Create a proper rect with all required attributes
+        rect = pygame.Rect(0, 0, frame_size[0], frame_size[1])
+        rect.top = 0
+        rect.bottom = frame_size[1]
+        rect.left = 0
+        rect.right = frame_size[0]
+        mock_sprite.rect = rect
+        mock_sprite.animations = {animation_name: mock_frames}
+        mock_sprite.dirty = 1  # Required for pygame.sprite.DirtySprite
+
         # Add frames attribute that canvas_interfaces.py expects
-        mock_sprite.frames = {animation_name: [mock_frame]}
+        mock_sprite.frames = {animation_name: mock_frames}
 
         # Add missing methods and attributes for comprehensive testing
         def mock_play():
@@ -255,6 +296,18 @@ class MockFactory:
 
         def mock_set_frame(frame_idx):
             mock_sprite.current_frame = frame_idx
+            # Update the sprite's image and rect to match the current frame
+            if (mock_sprite.current_animation in mock_sprite._animations and
+                frame_idx < len(mock_sprite._animations[mock_sprite.current_animation])):
+                current_frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
+                mock_sprite.image = current_frame.image
+                # Create a new rect with proper attributes
+                new_rect = pygame.Rect(0, 0, frame_size[0], frame_size[1])
+                new_rect.top = 0
+                new_rect.bottom = frame_size[1]
+                new_rect.left = 0
+                new_rect.right = frame_size[0]
+                mock_sprite.rect = new_rect
         mock_sprite.set_frame = mock_set_frame
 
         def mock_get_pixel_data():
@@ -267,6 +320,15 @@ class MockFactory:
                 return frame.get_pixel_data()
             return [pixel_color] * pixel_count
         mock_sprite.get_pixel_data = mock_get_pixel_data
+        
+        # Also add a method to get pixel data for a specific frame
+        def mock_get_frame_pixel_data(frame_idx):
+            if (mock_sprite.current_animation in mock_sprite._animations and
+                frame_idx < len(mock_sprite._animations[mock_sprite.current_animation])):
+                frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
+                return frame.get_pixel_data()
+            return [pixel_color] * pixel_count
+        mock_sprite.get_frame_pixel_data = mock_get_frame_pixel_data
 
         def mock_add_animation(name, frames):
             mock_sprite._animations[name] = frames
@@ -930,6 +992,67 @@ class MockFactory:
         draw_line_patcher = patch("pygame.draw.line")
         draw_rect_patcher = patch("pygame.draw.rect")
 
+        # Sprite group mocking - create proper mocks for LayeredDirty and other sprite groups
+        def mock_layered_dirty_constructor(*args, **kwargs):
+            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock."""
+            mock_group = Mock()
+            mock_group._spritelist = []
+            mock_group._old_rect = {}
+            mock_group._clip = None
+            
+            def mock_draw(surface):
+                """Mock draw method that handles sprites properly."""
+                for sprite in mock_group._spritelist:
+                    if hasattr(sprite, 'image') and hasattr(sprite, 'rect'):
+                        # Update _old_rect to prevent TypeError
+                        if sprite not in mock_group._old_rect:
+                            mock_group._old_rect[sprite] = sprite.rect.copy()
+                        # Draw the sprite
+                        surface.blit(sprite.image, sprite.rect)
+            
+            def mock_add(*sprites):
+                """Mock add method."""
+                for sprite in sprites:
+                    if sprite not in mock_group._spritelist:
+                        mock_group._spritelist.append(sprite)
+                        # Initialize _old_rect for the sprite
+                        if hasattr(sprite, 'rect'):
+                            mock_group._old_rect[sprite] = sprite.rect.copy()
+            
+            def mock_remove(*sprites):
+                """Mock remove method."""
+                for sprite in sprites:
+                    if sprite in mock_group._spritelist:
+                        mock_group._spritelist.remove(sprite)
+                    if sprite in mock_group._old_rect:
+                        del mock_group._old_rect[sprite]
+            
+            mock_group.draw = mock_draw
+            mock_group.add = mock_add
+            mock_group.remove = mock_remove
+            mock_group.__iter__ = lambda self: iter(mock_group._spritelist)
+            mock_group.__len__ = lambda self: len(mock_group._spritelist)
+            mock_group.__contains__ = lambda self, sprite: sprite in mock_group._spritelist
+            
+            return mock_group
+        
+        layered_dirty_patcher = patch("pygame.sprite.LayeredDirty", side_effect=mock_layered_dirty_constructor)
+        sprite_group_patcher = patch("pygame.sprite.Group", side_effect=mock_layered_dirty_constructor)
+        
+        # Mock SpriteFactory.load_sprite to return our mocked animated sprite
+        def mock_sprite_factory_load_sprite(*, filename: str = None):
+            """Mock SpriteFactory.load_sprite to return a mocked animated sprite."""
+            return MockFactory.create_animated_sprite_mock(
+                animation_name="idle",
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+                current_frame=0,
+                is_playing=True,
+                is_looping=True
+            )
+        
+        sprite_factory_patcher = patch("glitchygames.sprites.SpriteFactory.load_sprite", side_effect=mock_sprite_factory_load_sprite)
+
         # Draw function mocking - create mocks that handle MockSurface objects
         import pygame  # noqa: PLC0415
         original_draw_polygon = pygame.draw.polygon
@@ -1118,7 +1241,7 @@ class MockFactory:
 
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-                draw_rect_patcher, draw_polygon_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
+                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
                 sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -1141,8 +1264,8 @@ class MockFactory:
         """
         (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-         draw_rect_patcher, draw_polygon_patcher, _, _, _,
-         transform_scale_patcher, surface_constructor_patcher, _, font_manager_patcher, clock_patcher,  # noqa: E501
+         draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher,  # noqa: E501
+         transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
          sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -1167,6 +1290,10 @@ class MockFactory:
         draw_line_patcher.stop()
         draw_rect_patcher.stop()
         draw_polygon_patcher.stop()
+        layered_dirty_patcher.stop()
+        sprite_group_patcher.stop()
+        sprite_factory_patcher.stop()
+        key_patcher.stop()
         transform_scale_patcher.stop()
         surface_constructor_patcher.stop()
         font_manager_patcher.stop()
