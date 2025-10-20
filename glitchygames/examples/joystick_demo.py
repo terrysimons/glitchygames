@@ -267,11 +267,8 @@ class TextSprite(Sprite):
         # Use static FontManager methods instead of instance
         # Get the joystick manager from the game engine instead of creating a new one
         # Access it through the scene manager's game engine
-        if hasattr(game, 'scene_manager') and hasattr(game.scene_manager, 'game_engine') and game.scene_manager.game_engine:
-            self.joystick_manager = game.scene_manager.game_engine.joystick_manager
-        else:
-            # Fallback: create a new instance if game engine not available
-            self.joystick_manager = JoystickManager(game=game)
+        from glitchygames.engine import GameEngine
+        self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         # Track previous button states to detect changes
@@ -505,7 +502,7 @@ class TextSprite(Sprite):
 
                 def print(self, surface, string: str) -> None:
                     font = FontManager.get_font("freetype")
-                    rendered = font.render(string, fgcolor=WHITE, size=14)
+                    rendered = font.render(string, fgcolor=WHITE, size=10)
                     if isinstance(rendered, tuple):
                         rendered = rendered[0]
                     surface.blit(rendered, (self.x, self.y))
@@ -521,7 +518,7 @@ class TextSprite(Sprite):
                 def unindent(self) -> None:
                     self.x -= 10
 
-            self.text_box = _InlineTextBox(start_x=10, start_y=10)
+            self.text_box = _InlineTextBox(start_x=10, start_y=10, line_height=12)
 
         pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
 
@@ -534,18 +531,39 @@ class TextSprite(Sprite):
 
         # Build list of active pygame joystick objects from proxies
         active = [
-            (jid, proxy.joystick)
+            (jid, proxy, proxy.joystick)
             for jid, proxy in self.joystick_manager.joysticks.items()
             if hasattr(proxy, 'joystick') and proxy.joystick is not None
         ]
         self.text_box.print(self.image, f'Number of joysticks: {len(active)}')
         if active:
-            for i, (jid, js) in enumerate(active):
+            for i, (jid, proxy, js) in enumerate(active):
+                # Deep debug: names and GUIDs from both proxy and raw pygame joystick
+                proxy_name = None
+                js_name = None
+                proxy_guid = getattr(proxy, "_guid", None)
+                js_guid = None
+                try:
+                    proxy_name = proxy.get_name() if hasattr(proxy, "get_name") else None
+                except Exception as e:
+                    print(f"DEBUG name proxy exception for jid={jid}: {e}")
+                try:
+                    js_name = js.get_name() if hasattr(js, "get_name") else None
+                except Exception as e:
+                    print(f"DEBUG name js exception for jid={jid}: {e}")
+                try:
+                    js_guid = js.get_guid() if hasattr(js, "get_guid") else None
+                except Exception as e:
+                    print(f"DEBUG guid js exception for jid={jid}: {e}")
+
+
+
                 self.text_box.print(self.image, f'Joystick {i} (id={jid}')
 
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
-                self.text_box.print(self.image, f'Joystick name: {js.get_name()}')
+                # Display the proxy name explicitly; this is expected to be specific (e.g., "Xbox 360 Controller")
+                self.text_box.print(self.image, f'Joystick name: {proxy_name}')
 
                 # Usually axis run in pairs, up/down for one, and left/right for
                 # the other.

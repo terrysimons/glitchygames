@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+
+// Rule: Do not add generic suffixes (like _simple, _complex, etc.) to test filenames. Instead, review the existing test suites and use one if it matches your new tests. If none are appropriate, create a new test suite with a descriptive, specific name.
+//
+// Rule: Always use pytest's `assert` statements for your test verifications, rather than unittest or plain `assert` style from other frameworks.
+//
+// Rule: When mocking, use the centralized mocks provided by the project whenever possible or appropriate.
+//
+// Rule: Run linting checks after running tests for any modified files.
+//
+// Rule: Remember that failures could be due to real bugs in the code, so consider whether a fix is warranted or if the test is the culprit, but assume it's the test and verify and if you find no fault in the test logic, then check the code.
+//
+// Rule: Look for opportunities to improve test performance by centralizing logic or setup/teardown.

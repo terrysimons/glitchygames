@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+
+// Rule: After making changes to any code, run the relevant test suite(s) that cover or validate your changes to ensure nothing regresses.
+//
+// Rule: Indicate somehow which agent was used in every reply.
+//
+// Rule: Be strict with method creation and force named arguments to require the name= (with **) but only in this package's native APIs - not external library calls.
+//
+// Rule: Don't use unclear abbreviated variable names like: "anim_name" - instead, use longer form "animation_name", for example, for clearer readability.  This project's coding focus is readability over complexity.  If unsure, ask.
+//
+// Rule: Always write documentation strings for languages that support it.
+//
+// Rule: Always use type annotations for languages that support it.
