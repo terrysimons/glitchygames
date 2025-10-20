@@ -4345,9 +4345,8 @@ class BitmapEditorScene(Scene):
         new_canvas_dialog_scene = NewCanvasDialogScene(
             options=self.options, previous_scene=self
         )
-        new_canvas_dialog_scene.all_sprites.clear(
-            new_canvas_dialog_scene.screen, self.screenshot
-        )
+        # Set the dialog's background to the screenshot
+        new_canvas_dialog_scene.background = self.screenshot
         self.next_scene = new_canvas_dialog_scene
         self.dirty = 1
 
@@ -4366,7 +4365,8 @@ class BitmapEditorScene(Scene):
         """
         # Create a fresh dialog scene each time
         load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
-        load_dialog_scene.all_sprites.clear(load_dialog_scene.screen, self.screenshot)
+        # Set the dialog's background to the screenshot
+        load_dialog_scene.background = self.screenshot
         self.next_scene = load_dialog_scene
         self.dirty = 1
 
@@ -4385,7 +4385,8 @@ class BitmapEditorScene(Scene):
         """
         # Create a fresh dialog scene each time
         save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
-        save_dialog_scene.all_sprites.clear(save_dialog_scene.screen, self.screenshot)
+        # Set the dialog's background to the screenshot
+        save_dialog_scene.background = self.screenshot
         self.next_scene = save_dialog_scene
         self.dirty = 1
 
