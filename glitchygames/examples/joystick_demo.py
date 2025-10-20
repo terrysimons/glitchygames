@@ -788,6 +788,7 @@ class Game(Scene):
         """
         super().__init__(options=options)
         self.time = options.get("time")
+        self.input_mode = options.get("input_mode", "controller")  # 'joystick' or 'controller'
         self.next_scene = JoystickScene()
 
         # TODO: Write an FPS layer that uses time.ns_time()
@@ -809,18 +810,29 @@ class Game(Scene):
         # pygame.event.set_blocked(self.joystick_events)
         # pygame.event.set_blocked(self.keyboard_events)
 
-        # Block controller events to avoid conflicts with joystick events
-        pygame.event.set_blocked([
-            pygame.CONTROLLERAXISMOTION,
-            pygame.CONTROLLERBUTTONDOWN,
-            pygame.CONTROLLERBUTTONUP,
-            pygame.CONTROLLERDEVICEADDED,
-            pygame.CONTROLLERDEVICEREMAPPED,
-            pygame.CONTROLLERDEVICEREMOVED,
-            pygame.CONTROLLERTOUCHPADDOWN,
-            pygame.CONTROLLERTOUCHPADMOTION,
-            pygame.CONTROLLERTOUCHPADUP
-        ])
+        # Configure input mode: block the opposite family of events
+        if self.input_mode == "joystick":
+            pygame.event.set_blocked([
+                pygame.CONTROLLERAXISMOTION,
+                pygame.CONTROLLERBUTTONDOWN,
+                pygame.CONTROLLERBUTTONUP,
+                pygame.CONTROLLERDEVICEADDED,
+                pygame.CONTROLLERDEVICEREMAPPED,
+                pygame.CONTROLLERDEVICEREMOVED,
+                pygame.CONTROLLERTOUCHPADDOWN,
+                pygame.CONTROLLERTOUCHPADMOTION,
+                pygame.CONTROLLERTOUCHPADUP,
+            ])
+        else:
+            pygame.event.set_blocked([
+                pygame.JOYAXISMOTION,
+                pygame.JOYBUTTONDOWN,
+                pygame.JOYBUTTONUP,
+                pygame.JOYDEVICEADDED,
+                pygame.JOYDEVICEREMOVED,
+                pygame.JOYHATMOTION,
+                pygame.JOYBALLMOTION,
+            ])
 
         # Let's hook up the 'pew pew' event.
         # self.register_game_event('pew pew', self.on_pew_pew_event)
@@ -858,6 +870,12 @@ class Game(Scene):
         )
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
+        )
+        parser.add_argument(
+            "--input-mode",
+            choices=["joystick", "controller"],
+            default="controller",
+            help="Choose input event family to use (default: controller)",
         )
 
 

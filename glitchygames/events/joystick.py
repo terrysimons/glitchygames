@@ -342,34 +342,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         self.proxies = [self.game]
 
-    def _debug_dump_state(self: Self, context: str | None = None) -> None:
-        """Dump current manager/proxy state to debug logs."""
-        try:
-            header = f"JoystickManager State Dump{f' ({context})' if context else ''}: count={len(self.joysticks)} keys={list(self.joysticks.keys())}"
-            self.log.debug(header)
-            for jid, proxy in self.joysticks.items():
-                try:
-                    name = proxy.get_name() if hasattr(proxy, "get_name") else None
-                except Exception:
-                    name = None
-                try:
-                    guid = getattr(proxy, "_guid", None)
-                except Exception:
-                    guid = None
-                try:
-                    get_id = proxy.joystick.get_id() if hasattr(proxy, "joystick") and hasattr(proxy.joystick, "get_id") else None
-                except Exception:
-                    get_id = None
-                try:
-                    instance = proxy.joystick.get_instance_id() if hasattr(proxy, "joystick") and hasattr(proxy.joystick, "get_instance_id") else None
-                except Exception:
-                    instance = None
-                self.log.debug(
-                    f"  jid={jid} name={name} guid={guid} get_id={get_id} instance_id={instance} proxy_id={getattr(proxy, '_id', None)}"
-                )
-        except Exception as e:
-            self.log.debug(f"State dump error: {e}")
-
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add joystick-specific arguments to the global parser.
@@ -549,9 +521,6 @@ class JoystickManager(JoystickEvents, ResourceManager):
         # The joystick proxy overrides the joystick object
         self.log.debug(f"Added Joystick #{event.device_index}: {joystick_proxy}")
         self.log.debug(f"JOYDEVICEADDED triggered: on_joy_device_added({event})")
-
-        # Dump manager/proxy state after device added
-        self._debug_dump_state(context="after JOYDEVICEADDED")
 
         # Need to notify the game after the joystick exists, using stable instance_id
         if instance_id in self.joysticks:
