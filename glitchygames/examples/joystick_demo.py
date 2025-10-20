@@ -264,10 +264,7 @@ class TextSprite(Sprite):
         self.rect = self.image.get_rect()
         self.rect.x += x
         self.rect.y += y
-        # Use static FontManager methods instead of instance
-        # Get the joystick manager from the game engine instead of creating a new one
-        # Access it through the scene manager's game engine
-        from glitchygames.engine import GameEngine
+        # Create a joystick manager for this demo
         self.joystick_manager = JoystickManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
@@ -277,213 +274,17 @@ class TextSprite(Sprite):
             if hasattr(joystick, '_buttons'):
                 self._previous_button_states[joystick_id] = joystick._buttons.copy()
 
-        # Draw some text to show joystick info
-        self._draw_text()
+        # Initial render using the textbox implementation
+        self.update_textbox()
 
     def _draw_text(self):
-        """Draw text showing joystick information."""
-        print(f"DEBUG: _draw_text called, joystick_count: {self.joystick_count}")
-
-        # Filter out joysticks without pygame joystick objects
-        active_joysticks = {}
-        print(f"DEBUG: Total joysticks in manager: {len(self.joystick_manager.joysticks)}")
-        print(f"DEBUG: Joystick manager keys: {list(self.joystick_manager.joysticks.keys())}")
-        for joystick_id, joystick in self.joystick_manager.joysticks.items():
-            print(f"DEBUG: Checking joystick {joystick_id}: has joystick={hasattr(joystick, 'joystick')}, joystick is not None={joystick.joystick is not None if hasattr(joystick, 'joystick') else 'No joystick attr'}")
-            if hasattr(joystick, 'joystick') and joystick.joystick is not None:
-                active_joysticks[joystick_id] = joystick
-                print(f"DEBUG: Added joystick {joystick_id} to active_joysticks")
-            else:
-                print(f"DEBUG: Skipped joystick {joystick_id} - not active")
-
-        font = FontManager.get_font()
-        text = f"Joysticks: {len(active_joysticks)}"
-        print(f"DEBUG: Rendering text: {text}")
-        text_surface = font.render(text, fgcolor=WHITE, size=16)
-        if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
-            text_surface = text_surface[0]
-        print(f"DEBUG: Text surface size: {text_surface.get_size()}")
-        self.image.blit(text_surface, (10, 10))
-
-        # Draw detailed joystick information
-        y_offset = 30
-        for joystick_id, joystick in active_joysticks.items():
-            # Show joystick name and basic info
-            if hasattr(joystick, 'joystick'):
-                name = joystick.joystick.get_name()
-                instance_id = joystick.joystick.get_instance_id()
-                button_count = joystick.joystick.get_numbuttons()
-                axis_count = joystick.joystick.get_numaxes()
-
-                # Controller name label - centered and full width
-                print(f"DEBUG: Controller name for Joy {joystick_id}: '{name}'")
-                print(f"DEBUG: Joy {joystick_id} - Instance ID: {instance_id}, GUID: {joystick.joystick.get_guid() if hasattr(joystick.joystick, 'get_guid') else 'No GUID'}")
-                print(f"DEBUG: Joy {joystick_id} - JoystickProxy._id: {joystick._id if hasattr(joystick, '_id') else 'No _id'}")
-                print(f"DEBUG: Joy {joystick_id} - JoystickProxy.joystick.get_id(): {joystick.joystick.get_id() if hasattr(joystick.joystick, 'get_id') else 'No get_id'}")
-                name_label = f"Controller: {name}"
-                name_surface = font.render(name_label, fgcolor=WHITE, size=18)
-                if isinstance(name_surface, tuple):
-                    name_surface = name_surface[0]
-                self.image.blit(name_surface, (10, y_offset))
-                y_offset += 22
-
-                # Main joystick info line - full width
-                joystick_info = f"Joy {joystick_id}: Instance {instance_id}, Buttons: {button_count}, Axes: {axis_count}"
-                button_surface = font.render(joystick_info, fgcolor=WHITE, size=14)
-                if isinstance(button_surface, tuple):
-                    button_surface = button_surface[0]
-                self.image.blit(button_surface, (10, y_offset))
-                y_offset += 18
-
-                # Show button states if available
-                if hasattr(joystick, '_buttons'):
-                    button_states = joystick._buttons
-                    # Show first 8 buttons on one line, rest on next line
-                    buttons_line1 = f"  Buttons [0-7]: {button_states[:8]}"
-                    buttons_line2 = f"  Buttons [8+]: {button_states[8:]}" if len(button_states) > 8 else ""
-
-                    button1_surface = font.render(buttons_line1, fgcolor=WHITE, size=12)
-                    if isinstance(button1_surface, tuple):
-                        button1_surface = button1_surface[0]
-                    self.image.blit(button1_surface, (10, y_offset))
-                    y_offset += 16
-
-                    if buttons_line2:
-                        button2_surface = font.render(buttons_line2, fgcolor=WHITE, size=12)
-                        if isinstance(button2_surface, tuple):
-                            button2_surface = button2_surface[0]
-                        self.image.blit(button2_surface, (10, y_offset))
-                        y_offset += 16
-
-                # Show axis states if available
-                if hasattr(joystick, '_axes'):
-                    axis_states = joystick._axes
-                    axis_info = f"  Axes: {[round(x, 2) for x in axis_states[:4]]}"  # Show first 4 axes
-                    axis_surface = font.render(axis_info, fgcolor=WHITE, size=12)
-                    if isinstance(axis_surface, tuple):
-                        axis_surface = axis_surface[0]
-                    self.image.blit(axis_surface, (10, y_offset))
-                    y_offset += 16
-
-                # Show hat states if available
-                if hasattr(joystick, '_hats'):
-                    hat_states = joystick._hats
-                    hat_info = f"  Hats: {hat_states}"
-                    hat_surface = font.render(hat_info, fgcolor=WHITE, size=12)
-                    if isinstance(hat_surface, tuple):
-                        hat_surface = hat_surface[0]
-                    self.image.blit(hat_surface, (10, y_offset))
-                    y_offset += 16
-
-                # Show ball states if available
-                if hasattr(joystick, '_balls'):
-                    ball_states = joystick._balls
-                    ball_info = f"  Balls: {ball_states}"
-                    ball_surface = font.render(ball_info, fgcolor=WHITE, size=12)
-                    if isinstance(ball_surface, tuple):
-                        ball_surface = ball_surface[0]
-                    self.image.blit(ball_surface, (10, y_offset))
-                    y_offset += 16
-
-                # Show joystick GUID if available
-                if hasattr(joystick.joystick, 'get_guid'):
-                    guid = joystick.joystick.get_guid()
-                    # Format GUID with dashes for readability
-                    if len(guid) >= 32:
-                        # Insert dashes at positions 8, 12, 16, 20
-                        formatted_guid = f"{guid[:8]}-{guid[8:12]}-{guid[12:16]}-{guid[16:20]}-{guid[20:]}"
-                    else:
-                        formatted_guid = guid
-                    guid_info = f"  GUID: {formatted_guid}"
-                    guid_surface = font.render(guid_info, fgcolor=WHITE, size=10)
-                    if isinstance(guid_surface, tuple):
-                        guid_surface = guid_surface[0]
-                    self.image.blit(guid_surface, (10, y_offset))
-                    y_offset += 14
-
-                y_offset += 10  # Extra spacing between joysticks
-            else:
-                # Fallback for joysticks without pygame joystick object
-                joystick_info = f"Joy {joystick_id}: {type(joystick).__name__} - No pygame joystick object"
-                button_surface = font.render(joystick_info, fgcolor=WHITE, size=12)
-                if isinstance(button_surface, tuple):
-                    button_surface = button_surface[0]
-                self.image.blit(button_surface, (10, y_offset))
-                y_offset += 20
+        """Obsolete text rendering path (removed)."""
+        return
 
     def update(self):
         """Update the text display."""
-        if self.use_textbox:
-            self.update_textbox()
-            return
-
-        # Check if any button states have changed
-        changed_joysticks = []
-        for joystick_id, joystick in self.joystick_manager.joysticks.items():
-            # Only check joysticks with actual pygame joystick objects
-            if hasattr(joystick, 'joystick') and joystick.joystick is not None and hasattr(joystick, '_buttons'):
-                current_buttons = joystick._buttons
-                if joystick_id in self._previous_button_states:
-                    if current_buttons != self._previous_button_states[joystick_id]:
-                        changed_joysticks.append(joystick_id)
-                        self._previous_button_states[joystick_id] = current_buttons.copy()
-                else:
-                    # New joystick
-                    changed_joysticks.append(joystick_id)
-                    self._previous_button_states[joystick_id] = current_buttons.copy()
-
-        # Only redraw if something changed
-        if changed_joysticks:
-            print(f"DEBUG: Button states changed for joysticks: {changed_joysticks}")
-            # Show which specific buttons changed for each joystick
-            for joystick_id in changed_joysticks:
-                if joystick_id in self.joystick_manager.joysticks:
-                    joystick = self.joystick_manager.joysticks[joystick_id]
-                    if hasattr(joystick, '_buttons'):
-                        print(f"DEBUG: Joy {joystick_id} new buttons: {joystick._buttons}")
-            # Clear the image and redraw
-            self.image.fill(self.background_color)
-            self._draw_text()
-            self.dirty = 1
-
-        # Alternative TextBox implementation - uncommented and renamed
-        class TextBoxSprite:
-            def __init__(self: Self, font_controller, x, y, line_height=15):
-                self.image = None
-                self.rect = None
-                self.start_x = x
-                self.start_y = y
-                self.x = self.start_x
-                self.y = self.start_y
-                self.line_height = line_height
-
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)
-                self.font = pygame.freetype.SysFont(name=font_controller.font,
-                                                    size=font_controller.font_size)
-
-            def print(self: Self, surface, string):
-                (self.image, self.rect) = self.font.render(string, WHITE)
-                surface.blit(self.image, (self.x, self.y))
-                self.rect.x = self.x
-                self.rect.y = self.y
-                self.y += self.line_height
-
-            def reset(self):
-                self.x = self.start_x
-                self.y = self.start_y
-
-            def indent(self):
-                self.x += 10
-
-            def unindent(self):
-                self.x -= 10
-
-        self.text_box = TextBoxSprite(font_controller=self.font_manager, x=10, y=10)
-
-        # Flag to switch between text implementations
-        self.use_textbox = False
-
-#         self.dirty = 2
+        self.update_textbox()
+        return
 
     def update_textbox(self):
         """Alternative update method using TextBoxSprite"""
