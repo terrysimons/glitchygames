@@ -1,10 +1,26 @@
 """Test paddle game objects with simplified approach."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
 from glitchygames.movement.vertical import Vertical
+
+from tests.mocks import MockFactory
+
+
+class BasePaddleTest:
+    """Base test class with common helper methods for paddle tests."""
+
+    def _create_mock_screen(self, left=0, right=800, top=0, bottom=600):
+        """Create a mock screen using MockFactory."""
+        mock_screen = MockFactory.create_pygame_surface_mock()
+        mock_screen.left = left
+        mock_screen.right = right
+        mock_screen.top = top
+        mock_screen.bottom = bottom
+        return mock_screen
+
 
 # Constants for magic values
 POS_100 = 100
@@ -15,7 +31,7 @@ SIZE_20 = 20
 SIZE_100 = 100
 
 
-class TestPaddleBasicFunctionality:
+class TestPaddleBasicFunctionality(BasePaddleTest):
     """Test basic paddle functionality without complex movement."""
 
     def test_base_paddle_initialization(self, mock_pygame_patches):
@@ -43,7 +59,7 @@ class TestPaddleBasicFunctionality:
 
     def test_base_paddle_initialization_with_groups(self, mock_pygame_patches):
         """Test BasePaddle initialization with custom groups."""
-        groups = Mock()
+        groups = MockFactory.create_pygame_sprite_group_mock()
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
@@ -77,7 +93,7 @@ class TestPaddleBasicFunctionality:
     def test_base_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test BasePaddle initialization with collision sound."""
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
-            mock_sound = Mock()
+            mock_sound = MockFactory.create_pygame_surface_mock()
             mock_load_sound.return_value = mock_sound
 
             paddle = BasePaddle(
@@ -112,7 +128,7 @@ class TestPaddleBasicFunctionality:
         assert not hasattr(paddle, "snd")
 
 
-class TestPaddleMovement:
+class TestPaddleMovement(BasePaddleTest):
     """Test paddle movement functionality."""
 
     def test_move_horizontal(self, mock_pygame_patches):
@@ -158,7 +174,7 @@ class TestPaddleMovement:
         assert paddle.rect.y == original_y + 4
 
 
-class TestPaddleBoundaryDetection:
+class TestPaddleBoundaryDetection(BasePaddleTest):
     """Test paddle boundary detection methods."""
 
     def test_is_at_bottom_of_screen(self, mock_pygame_patches):
@@ -231,8 +247,7 @@ class TestPaddleBoundaryDetection:
         )
 
         # Set screen dimensions
-        paddle.screen = Mock()
-        paddle.screen.left = 0
+        paddle.screen = self._create_mock_screen(left=0)
 
         # Test at left - paddle at x=0 with speed=5 would go to x=-5, which is < screen.left=0
         paddle.rect.x = 0
@@ -258,8 +273,7 @@ class TestPaddleBoundaryDetection:
         )
 
         # Set screen dimensions
-        paddle.screen = Mock()
-        paddle.screen.right = 800
+        paddle.screen = self._create_mock_screen(right=800)
 
         # Test at right - paddle at x=750 with speed=5 would go to x=755,
         # which is > screen.right=800
@@ -275,7 +289,7 @@ class TestPaddleBoundaryDetection:
         assert paddle.is_at_right_of_screen() is False
 
 
-class TestHorizontalPaddle:
+class TestHorizontalPaddle(BasePaddleTest):
     """Test HorizontalPaddle class."""
 
     def test_horizontal_paddle_initialization(self, mock_pygame_patches):
@@ -297,7 +311,7 @@ class TestHorizontalPaddle:
 
     def test_horizontal_paddle_initialization_with_groups(self, mock_pygame_patches):
         """Test HorizontalPaddle initialization with custom groups."""
-        groups = Mock()
+        groups = MockFactory.create_pygame_sprite_group_mock()
         paddle = HorizontalPaddle(
             name="horizontal_paddle",
             size=(SIZE_100, SIZE_20),
@@ -312,7 +326,7 @@ class TestHorizontalPaddle:
     def test_horizontal_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test HorizontalPaddle initialization with collision sound."""
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
-            mock_sound = Mock()
+            mock_sound = MockFactory.create_pygame_surface_mock()
             mock_load_sound.return_value = mock_sound
 
             paddle = HorizontalPaddle(
@@ -327,7 +341,7 @@ class TestHorizontalPaddle:
             assert paddle.snd == mock_sound
 
 
-class TestVerticalPaddle:
+class TestVerticalPaddle(BasePaddleTest):
     """Test VerticalPaddle class."""
 
     def test_vertical_paddle_initialization(self, mock_pygame_patches):
@@ -349,7 +363,7 @@ class TestVerticalPaddle:
 
     def test_vertical_paddle_initialization_with_groups(self, mock_pygame_patches):
         """Test VerticalPaddle initialization with custom groups."""
-        groups = Mock()
+        groups = MockFactory.create_pygame_sprite_group_mock()
         paddle = VerticalPaddle(
             name="vertical_paddle",
             size=(SIZE_20, SIZE_100),
@@ -364,7 +378,7 @@ class TestVerticalPaddle:
     def test_vertical_paddle_initialization_with_collision_sound(self, mock_pygame_patches):
         """Test VerticalPaddle initialization with collision sound."""
         with patch("glitchygames.game_objects.paddle.load_sound") as mock_load_sound:
-            mock_sound = Mock()
+            mock_sound = MockFactory.create_pygame_surface_mock()
             mock_load_sound.return_value = mock_sound
 
             paddle = VerticalPaddle(
@@ -379,7 +393,7 @@ class TestVerticalPaddle:
             assert paddle.snd == mock_sound
 
 
-class TestPaddleIntegration:
+class TestPaddleIntegration(BasePaddleTest):
     """Test paddle integration scenarios."""
 
     def test_horizontal_paddle_full_cycle(self, mock_pygame_patches):
@@ -399,7 +413,7 @@ class TestPaddleIntegration:
         assert paddle.rect.x == original_x + 3
 
         # Test boundary detection
-        paddle.screen = Mock()
+        paddle.screen = MockFactory.create_pygame_surface_mock()
         paddle.screen.left = 0
         paddle.rect.x = 0
         paddle.rect.left = 0  # Set left to 0
@@ -439,9 +453,7 @@ class TestPaddleIntegration:
             speed=5,
         )
 
-        h_paddle.screen = Mock()
-        h_paddle.screen.left = 0
-        h_paddle.screen.right = 800  # Set screen width
+        h_paddle.screen = self._create_mock_screen(left=0, right=800)
         h_paddle.rect.left = 0  # Set left to 0
         h_paddle.rect.right = SIZE_100  # Set right to width
         h_paddle._move.current_speed = -5  # Moving left
@@ -457,8 +469,7 @@ class TestPaddleIntegration:
             speed=5,
         )
 
-        v_paddle.screen = Mock()
-        v_paddle.screen.top = 0
+        v_paddle.screen = self._create_mock_screen(top=0)
         v_paddle.rect.y = 0
         v_paddle.rect.top = 0  # Set top to 0
         v_paddle._move.current_speed = -5  # Moving up

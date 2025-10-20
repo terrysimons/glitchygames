@@ -40,10 +40,9 @@ class TestExamplesSprites(unittest.TestCase):
             for file_path in self.sprites_dir.glob("*.toml"):
                 self.toml_files.append(file_path)
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        # pygame.quit() is handled by MockFactory teardown
 
     def test_load_all_toml_sprites(self):
         """Test that all TOML sprite files can be loaded."""

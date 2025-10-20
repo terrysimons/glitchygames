@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -17,7 +18,7 @@ from glitchygames.sprites.animated import (
     detect_file_format,
 )
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test values
 TEST_FRAME_INDEX = 5
@@ -28,6 +29,10 @@ class TestAnimatedSpriteFrameManager:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -105,6 +110,10 @@ class TestSpriteFrame:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -172,6 +181,10 @@ class TestAnimatedSprite:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -182,20 +195,20 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_initialization(self):
         """Test AnimatedSprite initialization."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         assert isinstance(sprite, AnimatedSprite)
         # The name comes from the loaded file, not the default
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert not sprite.description
 
     def test_animated_sprite_play_pause_stop(self):
         """Test play, pause, and stop methods."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test play - use the actual animation name from the loaded file
-        sprite.play("Bitmap Canvas")
-        assert sprite.current_animation == "Bitmap Canvas"
+        sprite.play("idle")
+        assert sprite.current_animation == "idle"
 
         # Test pause
         sprite.pause()
@@ -207,7 +220,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_add_remove_animation(self):
         """Test adding and removing animations."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test adding animation
         sprite.add_animation("walk", [])
@@ -219,7 +232,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_management(self):
         """Test frame management."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test frame management - use set_frame method instead of direct assignment
         sprite.set_frame(0)
@@ -231,7 +244,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_looping(self):
         """Test animation looping."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test looping property
         sprite.looping = True
@@ -242,7 +255,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_surface_caching(self):
         """Test surface caching."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test surface caching - use the image attribute instead of get_surface method
         # AnimatedSprite has an image attribute that contains the current surface
@@ -251,7 +264,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_animation_order(self):
         """Test animation order."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test animation order
         sprite.animation_order = ["walk", "run"]
@@ -259,19 +272,19 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_observers(self):
         """Test frame observers."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
         _observer = Mock()
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have add_frame_observer/remove_frame_observer methods
         # So we test that the sprite can be created and has basic properties
         assert sprite is not None
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert sprite.current_animation is not None
 
     def test_animated_sprite_save_load_functionality(self):
         """Test save and load functionality."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test save functionality
         with patch("pathlib.Path.open") as mock_open:
@@ -280,7 +293,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_file_format_detection(self):
         """Test file format detection."""
-        _sprite = AnimatedSprite(filename="test.toml")
+        _sprite = AnimatedSprite(filename="static.toml")
 
         # Test format detection - use the module-level function
         format_type = detect_file_format("test.toml")
@@ -288,22 +301,22 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_error_handling(self):
         """Test error handling."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test error handling for invalid operations
-        with pytest.raises(ValueError, match="Animation not found"):
+        with pytest.raises(ValueError, match="Animation 'nonexistent' not found"):
             sprite.play("nonexistent")
 
     def test_animated_sprite_frame_manager_integration(self):
         """Test integration with frame manager."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test frame manager integration
         assert isinstance(sprite.frame_manager, FrameManager)
 
     def test_animated_sprite_animation_switching(self):
         """Test animation switching."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test switching between animations
         sprite.add_animation("walk", [])
@@ -317,7 +330,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_bounds(self):
         """Test frame bounds checking."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test frame bounds - use set_frame method instead of direct assignment
         sprite.set_frame(0)
@@ -329,7 +342,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_surface_generation(self):
         """Test surface generation."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test surface generation - use the image attribute instead of generate_surface method
         # AnimatedSprite has an image attribute that contains the current surface
@@ -338,7 +351,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_animation_metadata(self):
         """Test animation metadata."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test animation metadata
         sprite.add_animation("walk", [], metadata={"speed": 1.0})
@@ -346,41 +359,41 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_import_fallback(self):
         """Test import fallback functionality."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have _import_fallback method, so we test basic functionality
         assert sprite is not None
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert sprite.current_animation is not None
 
     def test_animated_sprite_bitmappy_integration(self):
         """Test integration with bitmappy."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have bitmappy_integration attribute, so we test basic functionality
         assert sprite is not None
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert sprite.current_animation is not None
 
     def test_animated_sprite_logging(self):
         """Test logging functionality."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have _log_info method, so we test basic functionality
         assert sprite is not None
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert sprite.current_animation is not None
 
     def test_animated_sprite_constants(self):
         """Test sprite constants."""
-        sprite = AnimatedSprite(filename="test.toml")
+        sprite = AnimatedSprite(filename="static.toml")
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have DEFAULT_FRAME_RATE or MAX_FRAMES constants
         # So we test that the sprite can be created and has basic properties
         assert sprite is not None
-        assert sprite.name == "Bitmap Canvas"
+        assert sprite.name == "idle"
         assert sprite.current_animation is not None

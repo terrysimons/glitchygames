@@ -8,6 +8,7 @@ timing and playback control.
 import abc
 import hashlib
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import Self
 
@@ -621,20 +622,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._animations[animation_name] = []
 
         frames = self._animations[animation_name]
-        
+
         # Check if this animation had only 1 frame before adding the new frame
         # If so, we should start the animation since it now has multiple frames
         was_single_frame = len(frames) == 1
-        
+
         if index == -1:
             frames.append(frame)
         else:
             frames.insert(index, frame)
-        
+
         # If this was a single-frame animation and we just added a second frame,
         # start the animation to make it play
-        MULTI_FRAME_THRESHOLD = 2
-        if was_single_frame and len(frames) == MULTI_FRAME_THRESHOLD:
+        multi_frame_threshold = 2
+        if was_single_frame and len(frames) == multi_frame_threshold:
             self.log.info(f"Animation '{animation_name}' now has 2 frames, starting animation")
             self._is_playing = True
             self._is_looping = True  # Enable looping for multi-frame animations
@@ -899,7 +900,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug(f"    Skipping empty frame {frame_index}")
             return None
 
-        width, height, normalized_lines = self._validate_toml_frame_dimensions(pixel_lines, frame_index)
+        width, height, normalized_lines = self._validate_toml_frame_dimensions(
+            pixel_lines, frame_index
+        )
         surface = AnimatedSprite._create_toml_surface(width, height, normalized_lines, color_map)
 
         # Check for per-frame frame_interval, otherwise use global frame_interval
@@ -910,7 +913,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self.log.debug(f"    Using global frame_interval: {frame_duration}")
 
         frame = SpriteFrame(surface, duration=frame_duration)
-        frame.pixels = AnimatedSprite._extract_toml_pixels(normalized_lines, width, height, color_map)
+        frame.pixels = AnimatedSprite._extract_toml_pixels(
+            normalized_lines, width, height, color_map
+        )
 
         self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
         return frame
@@ -932,37 +937,39 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # Strip trailing whitespace and normalize the line
             normalized_line = line.rstrip()
             normalized_lines.append(normalized_line)
-        
+
         # Find the most common line length (mode) to handle AI inconsistencies
         line_lengths = [len(line) for line in normalized_lines]
-        from collections import Counter
         length_counts = Counter(line_lengths)
         most_common_length = length_counts.most_common(1)[0][0]
-        
+
         # If there are inconsistencies, try to normalize to the most common length
         if len(set(line_lengths)) > 1:
             self.log.warning(
                 f"    Frame {frame_index}: Inconsistent line lengths detected. "
                 f"Most common length: {most_common_length}, lengths found: {set(line_lengths)}"
             )
-            
+
             # Normalize lines to the most common length
             normalized_lines = []
             for line in pixel_lines:
-                line = line.rstrip()
-                if len(line) > most_common_length:
+                normalized_line = line.rstrip()
+                if len(normalized_line) > most_common_length:
                     # Truncate if too long
-                    line = line[:most_common_length]
-                elif len(line) < most_common_length:
+                    normalized_line = normalized_line[:most_common_length]
+                elif len(normalized_line) < most_common_length:
                     # Pad with the last character if too short
-                    if line:
-                        line = line + line[-1] * (most_common_length - len(line))
+                    if normalized_line:
+                        padding_length = most_common_length - len(normalized_line)
+                        normalized_line += normalized_line[-1] * padding_length
                     else:
-                        line = "M" * most_common_length  # Default to 'M' for empty lines
-                normalized_lines.append(line)
-            
-            self.log.info(f"    Frame {frame_index}: Normalized to {most_common_length} characters per line")
-        
+                        normalized_line = "M" * most_common_length  # Default to 'M' for empty lines
+                normalized_lines.append(normalized_line)
+
+            self.log.info(
+                f"    Frame {frame_index}: Normalized to {most_common_length} characters per line"
+            )
+
         # Use normalized lines for validation
         expected_width = len(normalized_lines[0])
         for i, line in enumerate(normalized_lines):

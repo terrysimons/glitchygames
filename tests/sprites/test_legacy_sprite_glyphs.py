@@ -12,7 +12,8 @@ import pygame
 import pytest
 from glitchygames.sprites import SPRITE_GLYPHS
 from scripts.raw_sprite_loader import BitmappyLegacySprite
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Constants for test values
 MAX_RGB_VALUE = 255
@@ -27,6 +28,10 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         # Set up centralized mocks
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
@@ -234,10 +239,9 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
             for char in row:
                 assert char in glyphs, f"Character '{char}' should be in universal glyphs"
 
-    @staticmethod
-    def test_legacy_sprite_empty_surface():
+    def test_legacy_sprite_empty_surface(self):
         """Test legacy sprite with empty surface."""
-        # Create empty surface
+        # Create empty surface using mocked pygame
         surface = pygame.Surface((0, 0))
 
         # Create legacy sprite

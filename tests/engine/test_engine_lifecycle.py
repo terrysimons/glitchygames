@@ -5,21 +5,19 @@ This module tests GameEngine start/stop, game loop, and quit functionality.
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameEngine, GameManager
-from glitchygames.scenes import Scene
+from glitchygames.engine import GameEngine  # noqa: I001
+from tests.mocks import MockFactory
 
 
 class TestEngineLifecycle:
     """Test GameEngine lifecycle functionality."""
-
 
     def test_game_engine_quit_game(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine.quit_game method."""
@@ -137,11 +135,7 @@ class TestEngineLifecycle:
             engine = GameEngine(game=MockGame)
 
             # Use centralized mock factory for joystick manager
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path(__file__).parent.parent))
-            from mocks.test_mock_factory import MockFactory
-            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
             mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
 
             # Mock all the manager classes
@@ -158,26 +152,24 @@ class TestEngineLifecycle:
                 MidiManager=Mock,
                 MouseManager=Mock,
                 WindowManager=Mock
-            ):
-                # Mock the game initialization
-                with patch.object(engine, "game") as mock_game_class:
-                    mock_game_instance = Mock()
-                    mock_game_class.return_value = mock_game_instance
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
 
-                    # Mock scene manager
-                    engine.scene_manager = Mock()
-                    engine.scene_manager.switch_to_scene = Mock()
-                    engine.scene_manager.start = Mock()
+                # Mock scene manager
+                engine.scene_manager = Mock()
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock()
 
-                    # Set up joysticks list properly - this will be overridden by start()
-                    engine.joysticks = []
-                    engine.joystick_count = 0
+                # Set up joysticks list properly - this will be overridden by start()
+                engine.joysticks = []
+                engine.joystick_count = 0
 
-                    # Test start method - should not crash
-                    engine.start()
+                # Test start method - should not crash
+                engine.start()
 
-                    # Verify game was initialized
-                    mock_game_class.assert_called_once()
+                # Verify game was initialized
+                mock_game_class.assert_called_once()
 
     def test_start_method_with_profiling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine.start method with profiling enabled."""
@@ -200,11 +192,7 @@ class TestEngineLifecycle:
             engine = GameEngine(game=MockGame)
 
             # Use centralized mock factory for joystick manager
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path(__file__).parent.parent))
-            from mocks.test_mock_factory import MockFactory
-            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
             mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
 
             # Mock all the manager classes
@@ -221,35 +209,33 @@ class TestEngineLifecycle:
                 MidiManager=Mock,
                 MouseManager=Mock,
                 WindowManager=Mock
-            ):
-                # Mock the game initialization
-                with patch.object(engine, "game") as mock_game_class:
-                    mock_game_instance = Mock()
-                    mock_game_class.return_value = mock_game_instance
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
 
-                    # Mock scene manager
-                    engine.scene_manager = Mock()
-                    engine.scene_manager.switch_to_scene = Mock()
-                    engine.scene_manager.start = Mock()
+                # Mock scene manager
+                engine.scene_manager = Mock()
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock()
 
-                    # Mock joystick manager
-                    engine.joystick_manager = Mock()
-                    engine.joystick_manager.joysticks = {}  # Empty dictionary (no joysticks connected)
+                # Mock joystick manager
+                engine.joystick_manager = Mock()
+                engine.joystick_manager.joysticks = {}  # Empty dictionary (no joysticks connected)  # noqa: E501
 
-                    # Set up joysticks list properly
-                    engine.joysticks = []
-                    engine.joystick_count = 0
+                # Set up joysticks list properly
+                engine.joysticks = []
+                engine.joystick_count = 0
 
-                    # Mock cProfile to avoid actual profiling
-                    with patch("cProfile.Profile") as mock_profile:
-                        mock_profile_instance = Mock()
-                        mock_profile.return_value = mock_profile_instance
+                # Mock cProfile to avoid actual profiling
+                with patch("cProfile.Profile") as mock_profile:
+                    mock_profile_instance = Mock()
+                    mock_profile.return_value = mock_profile_instance
 
-                        # Test start method with profiling
-                        engine.start()
+                    # Test start method with profiling
+                    engine.start()
 
-                        # Verify game was initialized
-                        mock_game_class.assert_called_once()
+                    # Verify game was initialized
+                    mock_game_class.assert_called_once()
 
     def test_start_method_exception_handling(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine.start method exception handling."""
@@ -269,11 +255,7 @@ class TestEngineLifecycle:
             engine = GameEngine(game=MockGame)
 
             # Use centralized mock factory for joystick manager
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path(__file__).parent.parent))
-            from mocks.test_mock_factory import MockFactory
-            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
             mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
 
             # Mock all the manager classes to raise exceptions
@@ -290,24 +272,26 @@ class TestEngineLifecycle:
                 MidiManager=Mock,
                 MouseManager=Mock,
                 WindowManager=Mock
-            ):
-                # Mock the game initialization
-                with patch.object(engine, "game") as mock_game_class:
-                    mock_game_instance = Mock()
-                    mock_game_class.return_value = mock_game_instance
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
 
-                    # Mock scene manager
-                    engine.scene_manager = Mock()
-                    engine.scene_manager.switch_to_scene = Mock()
-                    engine.scene_manager.start = Mock()
+                # Mock scene manager
+                engine.scene_manager = Mock()
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock()
 
-                    # Set up joysticks list properly
-                    engine.joysticks = []
-                    engine.joystick_count = 0
+                # Set up joysticks list properly
+                engine.joysticks = []
+                engine.joystick_count = 0
 
-                    # Test start method with exception handling
-                    # The engine should handle exceptions gracefully (not raise them)
+                # Test start method with exception handling
+                # The engine should handle exceptions gracefully (not raise them)
+                # Suppress the expected exception log output
+                with patch("glitchygames.engine.LOG.exception") as mock_log:
                     engine.start()
+                    # Verify the exception was logged
+                    mock_log.assert_called_once()
 
-                    # Verify game was initialized
-                    mock_game_class.assert_called_once()
+                # Verify game was initialized
+                mock_game_class.assert_called_once()

@@ -65,10 +65,7 @@ class BasePaddle(Sprite):
         if collision_sound:
             self.snd = load_sound(collision_sound)
         # Create Speed object based on axis type
-        if axis == Horizontal:
-            speed_obj = Speed(speed, 0)
-        else:  # Vertical
-            speed_obj = Speed(0, speed)
+        speed_obj = Speed(speed, 0) if axis == Horizontal else Speed(0, speed)
         self._move = axis(speed_obj)
         self.dirty = 1
 

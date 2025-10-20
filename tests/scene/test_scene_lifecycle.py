@@ -9,7 +9,6 @@ This module tests the lifecycle of scenes including:
 """
 
 import sys
-import unittest
 from pathlib import Path
 
 # Add project root so direct imports work in isolated runs
@@ -17,25 +16,30 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
 
-from mocks.test_mock_factory import MockFactory
 
-
-class TestSceneLifecycle(unittest.TestCase):
+class TestSceneLifecycle:
     """Test scene lifecycle functionality."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
+        # Reset singleton state for clean test
+        SceneManager._instance = None
 
-    def tearDown(self):
+        # Create a mock game scene class for the engine
+        class MockGameScene(Scene):
+            NAME = "MockGameScene"
+            VERSION = "1.0"
+
+            def __init__(self, options=None, groups=None):
+                super().__init__(options=options, groups=groups)
+
+        # Create a simple scene manager for testing (centralized mocks handle pygame)
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Reset singleton state for clean test
+        SceneManager._instance = None
 
     def test_scene_creation(self):
         """Test scene creation and initialization."""
@@ -70,7 +74,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_lifecycle_with_manager(self):
         """Test complete scene lifecycle with manager."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene = Scene()
 
         # Switch to scene using the correct API
@@ -79,7 +83,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_transition(self):
         """Test scene transition."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene1 = Scene()
         scene2 = Scene()
 
@@ -100,7 +104,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_state_persistence(self):
         """Test scene state persistence during transitions."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene1 = Scene()
         scene2 = Scene()
 
@@ -153,7 +157,7 @@ class TestSceneLifecycle(unittest.TestCase):
 
     def test_scene_lifecycle_with_manager_integration(self):
         """Test scene lifecycle with full manager integration."""
-        manager = SceneManager()
+        manager = self.scene_manager
 
         # Create multiple scenes
         scene1 = Scene()

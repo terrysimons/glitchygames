@@ -155,15 +155,23 @@ class BitmappyLegacySprite(Sprite):
             raw_pixels = []
             colors = set()
         else:
-            raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
+            try:
+                raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
 
-            # We're utilizing the generator to give us RGB triplets.
-            # We need a list here becasue we'll use set() to pull out the
-            # unique values, but we also need to consume the list again
-            # down below, so we can't solely use a generator.
-            raw_pixels = list(raw_pixels)
-            # This gives us the unique rgb triplets in the image.
-            colors = set(raw_pixels)
+                # We're utilizing the generator to give us RGB triplets.
+                # We need a list here becasue we'll use set() to pull out the
+                # unique values, but we also need to consume the list again
+                # down below, so we can't solely use a generator.
+                raw_pixels = list(raw_pixels)
+                # This gives us the unique rgb triplets in the image.
+                colors = set(raw_pixels)
+            except ValueError as e:
+                # Handle empty pixel data
+                if "Empty pixel data" in str(e):
+                    raw_pixels = []
+                    colors = set()
+                else:
+                    raise
 
         config.add_section("sprite")
         config.set("sprite", "name", self.name)

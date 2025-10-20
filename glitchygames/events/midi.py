@@ -29,6 +29,8 @@ class MidiManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        self.game = game
+        self.proxies = []
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

@@ -28,9 +28,7 @@ class TestOnLoadFileEvent(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        # Initialize pygame with display for each test
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # pygame.init() is handled by the pytest fixture
 
         # Create a test animated sprite
         self.animated_sprite = self._create_test_animated_sprite()
@@ -53,10 +51,9 @@ class TestOnLoadFileEvent(unittest.TestCase):
         self.scene.canvas = self.canvas
         self.scene.all_sprites = pygame.sprite.LayeredDirty()
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up after each test method."""
-        pygame.quit()
+        # pygame.quit() is handled by MockFactory teardown
 
     @staticmethod
     def _create_test_animated_sprite():
@@ -204,33 +201,47 @@ pixels = \"\"\"
         # Create mock event with non-existent file
         event = self._create_mock_event("nonexistent.toml")
 
-        # Mock the detect_file_format function to raise FileNotFoundError
-        with patch("glitchygames.tools.bitmappy.detect_file_format") as mock_detect:
-            mock_detect.side_effect = FileNotFoundError("File not found")
+        # Mock the _load_sprite_from_file method to raise FileNotFoundError
+        with patch.object(self.scene.canvas, "_load_sprite_from_file") as mock_load:
+            mock_load.side_effect = FileNotFoundError("File not found")
 
-            # Call the method
-            self.scene.canvas.on_load_file_event(event)
+            # Use pytest logger wrapper to suppress logs during successful runs
+            # Mock the instance logger instead of the module logger
+            with patch.object(self.scene.canvas, "log") as mock_log:
+                # Call the method - it should handle the exception gracefully
+                self.scene.canvas.on_load_file_event(event)
 
-            # Verify error was handled gracefully
-            # (The method should not raise an exception)
+                # Verify error was handled gracefully
+                # (The method should not raise an exception)
+                
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "File not found" in call_args
 
     def test_load_invalid_file_format(self):
         """Test handling of invalid file format."""
         # Create mock event
         event = self._create_mock_event("invalid.txt")
 
-        # Mock the detect_file_format function
-        with patch("glitchygames.tools.bitmappy.detect_file_format") as mock_detect:
-            mock_detect.return_value = "unknown"
+        # Mock the _load_sprite_from_file method to raise ValueError
+        with patch.object(self.scene.canvas, "_load_sprite_from_file") as mock_load:
+            mock_load.side_effect = ValueError("Invalid file format")
 
-            # Mock AnimatedSprite.load to raise an exception
-            with patch.object(AnimatedSprite, "load") as mock_load:
-                mock_load.side_effect = ValueError("Invalid file format")
-
+            # Use pytest logger wrapper to suppress logs during successful runs
+            # Mock the instance logger instead of the module logger
+            with patch.object(self.scene.canvas, "log") as mock_log:
                 # Call the method
                 self.scene.canvas.on_load_file_event(event)
 
                 # Verify error was handled gracefully
+                
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Error in on_load_file_event for animated sprite" in call_args
 
     def test_canvas_resize_on_different_dimensions(self):
         """Test that canvas resizes when sprite has different dimensions."""
@@ -282,15 +293,20 @@ pixels = \"\"\"
                 with patch.object(self.scene.canvas, "_load_sprite_from_file") as mock_load:
                     mock_load.return_value = mock_loaded_sprite
 
-                    # Mock the resize method
-                    with patch.object(
+                # Mock the resize method and other methods to prevent side effects
+                with (
+                    patch.object(
                         self.scene.canvas, "_resize_canvas_to_sprite_size"
-                    ) as mock_resize:
-                        # Call the method
-                        self.scene.canvas.on_load_file_event(event)
+                    ) as mock_resize,
+                    patch.object(self.scene.canvas, "_setup_animation_state"),
+                    patch.object(self.scene.canvas, "_update_ui_components"),
+                    patch.object(self.scene.canvas, "_finalize_sprite_loading"),
+                ):
+                    # Call the method
+                    self.scene.canvas.on_load_file_event(event)
 
-                        # Verify resize was called
-                        mock_resize.assert_called_once_with(10, 10)
+                    # Verify resize was called
+                    mock_resize.assert_called_once_with(10, 10)
 
         finally:
             # Clean up

@@ -9,7 +9,6 @@ This module tests scene event handling including:
 """
 
 import sys
-import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -18,25 +17,54 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
-class TestSceneEvents(unittest.TestCase):
+class TestSceneEvents:
     """Test scene event handling functionality."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
+        # Reset singleton state for clean test
+        SceneManager._instance = None
 
-    def tearDown(self):
+        # Create a mock game scene class for the engine
+        class MockGameScene(Scene):
+            NAME = "MockGameScene"
+            VERSION = "1.0"
+
+            def __init__(self, options=None, groups=None):
+                super().__init__(options=options, groups=groups)
+
+        # Create a simple scene manager for testing (centralized mocks handle pygame)
+        self.scene_manager = SceneManager()
+
+    def _create_mock_args(self):
+        """Create mock command line arguments."""
+        mock_args = Mock()
+        mock_args.fps = 60
+        mock_args.resolution = "800x600"
+        mock_args.windowed = True
+        mock_args.use_gfxdraw = False
+        mock_args.update_type = "update"
+        mock_args.fps_refresh_rate = 1000
+        mock_args.profile = False
+        mock_args.test_flag = False
+        mock_args.font_name = "Arial"
+        mock_args.font_size = 16
+        mock_args.font_bold = False
+        mock_args.font_italic = False
+        mock_args.font_antialias = True
+        mock_args.font_dpi = 72
+        mock_args.font_system = "pygame"
+        mock_args.log_level = "info"
+        mock_args.no_unhandled_events = False
+        return mock_args
+
+    def teardown_method(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Reset singleton state for clean test
+        SceneManager._instance = None
 
     def test_scene_event_handling(self):
         """Test basic scene event handling."""
@@ -64,7 +92,7 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_routing(self):
         """Test scene event routing."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene1 = Scene()
 
         # Switch to scene1
@@ -83,8 +111,10 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_handling_with_manager(self):
         """Test scene event handling with manager."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene = Scene()
+        # Set up proper background surface for the scene
+        scene.background = MockFactory.create_pygame_surface_mock()
 
         # Switch to scene
         manager.switch_to_scene(scene)
@@ -96,8 +126,10 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_handling_multiple_scenes(self):
         """Test event handling with multiple scenes."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene1 = Scene()
+        # Set up proper background surface for the scene
+        scene1.background = MockFactory.create_pygame_surface_mock()
 
         # Switch to scene1
         manager.switch_to_scene(scene1)
@@ -108,9 +140,12 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_handling_scene_transition(self):
         """Test event handling during scene transition."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene1 = Scene()
         scene2 = Scene()
+        # Set up proper background surfaces for the scenes
+        scene1.background = MockFactory.create_pygame_surface_mock()
+        scene2.background = MockFactory.create_pygame_surface_mock()
 
         # Switch to scene1
         manager.switch_to_scene(scene1)
@@ -149,7 +184,7 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_handling_with_manager_integration(self):
         """Test scene event handling with full manager integration."""
-        manager = SceneManager()
+        manager = self.scene_manager
 
         # Create scenes with custom event handling
         class EventScene(Scene):
@@ -159,6 +194,9 @@ class TestSceneEvents(unittest.TestCase):
 
         scene1 = EventScene()
         scene2 = EventScene()
+        # Set up proper background surfaces for the scenes
+        scene1.background = MockFactory.create_pygame_surface_mock()
+        scene2.background = MockFactory.create_pygame_surface_mock()
 
         # Switch to scene1
         manager.switch_to_scene(scene1)
@@ -192,8 +230,10 @@ class TestSceneEvents(unittest.TestCase):
 
     def test_scene_event_handling_with_manager_exceptions(self):
         """Test scene event handling with manager exceptions."""
-        manager = SceneManager()
+        manager = self.scene_manager
         scene = Scene()
+        # Set up proper background surface for the scene
+        scene.background = MockFactory.create_pygame_surface_mock()
 
         # Switch to scene
         manager.switch_to_scene(scene)

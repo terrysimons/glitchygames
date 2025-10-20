@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
+
 from tests.mocks.test_mock_factory import MockFactory
 
 # Add the project root to the path
@@ -59,8 +60,14 @@ class TestBallSpriteInitialization(unittest.TestCase):
         # Direction is set by reset() during initialization, so it will be random
         assert 0 <= ball.direction <= DIRECTION_360  # Reset sets random direction
         assert isinstance(ball.speed, Speed)
-        assert ball.speed.x == SPEED_2  # Updated default speed
-        assert ball.speed.y == SPEED_1  # Updated default speed
+        # Speed is calculated from random direction in reset(), so we can't predict exact values
+        # But we can test that it's a reasonable speed magnitude
+        # (around 3.35 based on initial 3.0, 1.5)
+        speed_magnitude = (ball.speed.x**2 + ball.speed.y**2)**0.5
+        min_speed_magnitude = 3.0
+        max_speed_magnitude = 4.0
+        # Should be around 3.35 (sqrt(3^2 + 1.5^2))
+        assert min_speed_magnitude <= speed_magnitude <= max_speed_magnitude
         assert ball.dirty == SPEED_2
 
     def test_ball_sprite_initialization_custom(self):
@@ -93,7 +100,7 @@ class TestBallSpriteInitialization(unittest.TestCase):
 
     def test_ball_sprite_initialization_with_collision_sound(self):
         """Test BallSprite initialization with collision sound."""
-        with patch("pygame.mixer.Sound") as mock_sound_class:
+        with patch("glitchygames.game_objects.sounds.pygame.mixer.Sound") as mock_sound_class:
             mock_sound = Mock()
             mock_sound_class.return_value = mock_sound
 
@@ -178,7 +185,7 @@ class TestBallSpriteBounce(unittest.TestCase):
 
             ball._do_bounce()
 
-            assert ball.rect.y == 0
+            assert ball.rect.y == 1  # Small buffer to prevent sticking
             assert ball.speed.y == SPEED_2  # Reversed
             ball.snd.play.assert_called_once()
 
@@ -194,7 +201,8 @@ class TestBallSpriteBounce(unittest.TestCase):
 
             ball._do_bounce()
 
-            assert ball.rect.y == Y_580  # screen_height - height
+            expected_bottom_y = 579  # screen_height - height - 1 (buffer to prevent sticking)
+            assert ball.rect.y == expected_bottom_y
             assert ball.speed.y == SPEED_NEG_2  # Reversed
             ball.snd.play.assert_called_once()
 
@@ -208,7 +216,7 @@ class TestBallSpriteBounce(unittest.TestCase):
 
             ball._do_bounce()
 
-            assert ball.rect.y == 0
+            assert ball.rect.y == 1  # Small buffer to prevent sticking
             assert ball.speed.y == SPEED_2
 
     def test_do_bounce_no_collision(self):
@@ -364,17 +372,17 @@ class TestBallSpriteUpdate(unittest.TestCase):
         """Test ball bounces off left wall."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
-            ball.rect.x = -5  # Left of screen
+            ball.rect.x = -25  # Left of screen (less than -width)
             ball.direction = 45
             ball.speed.x = -2
 
-            with patch.object(ball, "reset") as mock_reset:
+            with patch.object(ball, "kill") as mock_kill:
                 ball.update()
 
-                # Should reverse direction and set x to 1, then move by speed.x
-                # Since x becomes negative after movement, reset() should be called
-                mock_reset.assert_called_once()
-                assert ball.direction == DIRECTION_315  # (360 - 45) % 360
+                # Should kill() when ball goes off-screen (no direction change for left/right)
+                mock_kill.assert_called_once()
+                expected_direction = 45  # Direction should remain unchanged
+                assert ball.direction == expected_direction
 
     def test_ball_update_right_wall_bounce(self):
         """Test ball bounces off right wall."""
@@ -386,12 +394,13 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.direction = 45
             ball.speed.x = 2
 
-            with patch.object(ball, "reset") as mock_reset:
+            with patch.object(ball, "kill") as mock_kill:
                 ball.update()
 
-                # Should reverse direction and then reset() is called due to off-screen
-                mock_reset.assert_called_once()
-                assert ball.direction == DIRECTION_315  # (360 - 45) % 360
+                # Should kill() when ball goes off-screen (no direction change for left/right)
+                mock_kill.assert_called_once()
+                expected_direction = 45  # Direction should remain unchanged
+                assert ball.direction == expected_direction
 
     def test_ball_update_reset_on_exit(self):
         """Test ball resets when exiting screen."""
@@ -400,26 +409,26 @@ class TestBallSpriteUpdate(unittest.TestCase):
             ball.rect.x = 1000  # Way off screen
             ball.rect.y = 100
 
-            with patch.object(ball, "reset") as mock_reset:
+            with patch.object(ball, "kill") as mock_kill:
                 ball.update()
-                mock_reset.assert_called_once()
+                mock_kill.assert_called_once()
 
-    def test_ball_update_reset_on_vertical_exit(self):
-        """Test ball resets when exiting screen vertically."""
+    def test_ball_update_no_kill_on_vertical_exit(self):
+        """Test ball does NOT kill when exiting screen vertically (only horizontal exits kill)."""
         with patch("pygame.draw.circle"):
             ball = BallSprite()
             ball.rect.x = 100
             ball.rect.y = 1000  # Way off screen
             ball.screen_height = 600  # Set screen height so ball is off screen
-            ball.speed.y = 0  # Don't move vertically to ensure reset is called
+            ball.speed.y = 0  # Don't move vertically
 
             # Mock _do_bounce to not interfere with the test
             with (
                 patch.object(ball, "_do_bounce"),
-                patch.object(ball, "reset") as mock_reset,
+                patch.object(ball, "kill") as mock_kill,
             ):
                 ball.update()
-                mock_reset.assert_called_once()
+                mock_kill.assert_not_called()  # Should NOT be called for vertical exits
 
     def test_ball_update_calls_do_bounce(self):
         """Test ball update calls _do_bounce."""
@@ -493,4 +502,5 @@ class TestBallSpriteIntegration(unittest.TestCase):
 
             # Speed should be significantly higher (1.1^3 = 1.331)
             expected_speed = original_speed * (1.1 ** 3)
-            assert ball.speed.x == expected_speed
+            floating_point_tolerance = 1e-10  # Use approximate equality for floating point
+            assert abs(ball.speed.x - expected_speed) < floating_point_tolerance

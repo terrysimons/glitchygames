@@ -4,6 +4,7 @@ This module defines the abstract interfaces that allow the bitmap editor to work
 with both static BitmappySprites and animated sprites through a unified API.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
@@ -11,6 +12,9 @@ import pygame
 
 # Import the default file format constant
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
+
+LOG = logging.getLogger("game.tools.canvas_interfaces")
+LOG.addHandler(logging.NullHandler())
 
 
 class CanvasInterface(Protocol):
@@ -408,8 +412,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
-                print(f"DEBUG RENDERER: border_thickness={border_thickness}")
-                
+                LOG.debug(f"DEBUG RENDERER: border_thickness={border_thickness}")
+
                 for i, pixel in enumerate(frame_pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -431,7 +435,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
-                
+
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
@@ -453,7 +457,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
             # Use the border thickness set by the canvas sprite
             border_thickness = self.canvas_sprite.border_thickness
-            
+
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height

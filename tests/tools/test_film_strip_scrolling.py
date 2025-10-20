@@ -4,7 +4,8 @@ from unittest.mock import Mock
 
 import pygame
 from glitchygames.tools.bitmappy import BitmapEditorScene
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 MAX_VISIBLE_STRIPS = 2
@@ -24,11 +25,8 @@ class TestFilmStripScrolling:
         if not pygame.get_init():
             pygame.init()
 
-        # Create mock factory
-        self.mock_factory = MockFactory()
-
-        # Set up pygame mocks
-        self.patchers = self.mock_factory.setup_pygame_mocks()
+        # Set up pygame mocks using static method
+        self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
 
@@ -39,8 +37,8 @@ class TestFilmStripScrolling:
 
     def teardown_method(self):
         """Clean up test fixtures."""
-        # Stop all patchers
-        self.mock_factory.teardown_pygame_mocks(self.patchers)
+        # Stop all patchers using static method
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_scroll_film_strips_up(self):
         """Test scrolling film strips up functionality."""

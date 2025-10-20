@@ -4,12 +4,19 @@ These tests are designed to expose bugs and missing functionality
 in the animation system before implementing fixes.
 """
 
-import unittest
+import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pygame
+import pytest
 from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+
+# Add project root so direct imports work in isolated runs
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test thresholds
 DEFAULT_FRAME_INTERVAL = 0.5
@@ -28,19 +35,23 @@ def get_resource_path(filename: str) -> str:
     )
 
 
-class TestAnimationSystemAudit(unittest.TestCase):
+class TestAnimationSystemAudit:
     """Test cases that expose animation system issues."""
 
-    @staticmethod
-    def setUp():
+    def setup_method(self):
         """Set up test fixtures."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        # Use centralized mocks for pygame initialization
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all the patchers
+        for patcher in self.patchers:
+            patcher.start()
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
-    @staticmethod
-    def tearDown():
+    def teardown_method(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        # Teardown the centralized mocks
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_frame_interval_bug_exposure(self):
         """Test that exposes the frame_interval property bug.
@@ -62,7 +73,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
             assert isinstance(interval, float)
             assert interval > 0
         except (AttributeError, KeyError, IndexError) as e:
-            self.fail(f"frame_interval property failed: {e}")
+            pytest.fail(f"frame_interval property failed: {e}")
 
     @staticmethod
     def test_animations_property_interface_mismatch():
@@ -113,7 +124,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
             assert len(sprite._animations["test_anim"]) == 1
 
         except AttributeError as e:
-            self.fail(f"add_frame method missing: {e}")
+            pytest.fail(f"add_frame method missing: {e}")
 
     def test_missing_remove_frame_method(self):
         """Test that exposes missing remove_frame method.
@@ -136,7 +147,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
             assert len(sprite._animations["test_anim"]) == EXPECTED_FRAME_COUNT
 
         except AttributeError as e:
-            self.fail(f"remove_frame method missing: {e}")
+            pytest.fail(f"remove_frame method missing: {e}")
 
     def test_get_frame_error_handling(self):
         """Test that exposes missing error handling in get_frame method.
@@ -148,21 +159,21 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # Test invalid animation name
         try:
             sprite.get_frame("nonexistent_animation", 0)
-            self.fail("Expected ValueError for invalid animation name")
+            pytest.fail("Expected ValueError for invalid animation name")
         except ValueError:
             pass
 
         # Test invalid frame index
         try:
             sprite.get_frame("timing_demo", 999)
-            self.fail("Expected IndexError for invalid frame index")
+            pytest.fail("Expected IndexError for invalid frame index")
         except IndexError:
             pass
 
         # Test negative frame index
         try:
             sprite.get_frame("timing_demo", -1)
-            self.fail("Expected IndexError for negative frame index")
+            pytest.fail("Expected IndexError for negative frame index")
         except IndexError:
             pass
 
@@ -229,13 +240,13 @@ class TestAnimationSystemAudit(unittest.TestCase):
             assert "frame_count" in metadata
             assert "total_duration" in metadata
         except AttributeError:
-            self.fail("get_animation_metadata method missing")
+            pytest.fail("get_animation_metadata method missing")
 
         # Test setting animation metadata
         try:
             sprite.set_animation_metadata("timing_demo", {"is_looping": True})
         except AttributeError:
-            self.fail("set_animation_metadata method missing")
+            pytest.fail("set_animation_metadata method missing")
 
     def test_animation_validation(self):
         """Test that exposes missing animation validation.
@@ -247,7 +258,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
         # Test invalid animation name in set_animation
         try:
             sprite.set_animation("nonexistent_animation")
-            self.fail("Expected ValueError for invalid animation name")
+            pytest.fail("Expected ValueError for invalid animation name")
         except ValueError:
             pass
 
@@ -257,7 +268,7 @@ class TestAnimationSystemAudit(unittest.TestCase):
 
         try:
             sprite.set_frame(999)
-            self.fail("Expected IndexError for invalid frame index")
+            pytest.fail("Expected IndexError for invalid frame index")
         except IndexError:
             pass
 
@@ -288,5 +299,4 @@ class TestAnimationSystemAudit(unittest.TestCase):
         assert sprite.get_current_frame() is not None
 
 
-if __name__ == "__main__":
-    unittest.main()
+# Remove unittest.main() since we're using pytest

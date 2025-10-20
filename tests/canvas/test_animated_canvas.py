@@ -23,7 +23,7 @@ from glitchygames.tools.canvas_interfaces import (
 )
 from glitchygames.tools.film_strip import FilmStripWidget
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestAnimatedCanvasSprite(unittest.TestCase):
@@ -52,6 +52,15 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
             pixel_width=16,
             pixel_height=16,
         )
+
+        # Create a film strip widget for testing
+        self.canvas.film_strip = FilmStripWidget(
+            x=100,
+            y=0,
+            width=400,
+            height=100
+        )
+        self.canvas.film_strip.set_animated_sprite(self.animated_sprite)
 
     def tearDown(self):
         """Clean up after each test method."""
@@ -315,8 +324,8 @@ class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
             pixel_height=16,
         )
 
-        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)
-        assert canvas.current_animation == ""
+        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)  # noqa: E501
+        assert not canvas.current_animation
         assert canvas.current_frame == 0
 
     @staticmethod

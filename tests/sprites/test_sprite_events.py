@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.sprites import Sprite
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestSpriteEventHandlers:
@@ -19,6 +19,9 @@ class TestSpriteEventHandlers:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()

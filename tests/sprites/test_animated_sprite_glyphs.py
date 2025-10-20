@@ -13,20 +13,27 @@ import pytest
 from glitchygames.sprites import SPRITE_GLYPHS
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
+from tests.mocks.test_mock_factory import MockFactory
+
 
 class TestAnimatedSpriteGlyphs(unittest.TestCase):
     """Test animated sprite universal character set implementation."""
 
     def setUp(self):
         """Set up test fixtures."""
-        pygame.init()
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
-    @staticmethod
-    def tearDown():
+    def tearDown(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_animated_sprite_toml_save_load(self):
         """Test animated sprite TOML save and load with universal character set."""

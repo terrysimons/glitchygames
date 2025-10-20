@@ -12,7 +12,55 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mocks.test_mock_factory import MockFactory
+from glitchygames.scenes import Scene, SceneManager  # noqa: I001
+from tests.mocks import MockFactory
+
+
+def pytest_configure(config):
+    """Configure pytest to enable strict event handling for all tests."""
+    # This ensures that unhandled events cause tests to fail, catching bugs
+    # The no_unhandled_events flag is enabled globally in mock_game fixture
+    pass
+
+
+@pytest.fixture(autouse=True)
+def setup_conditional_pygame_mocks(request):
+    """Set up pygame mocks conditionally based on test file."""
+    # Check if this is a scene test that needs mocks
+    test_file = str(request.node.fspath)
+    needs_mocks = "scene" in test_file.lower()
+    
+    if needs_mocks:
+        # Ensure pygame is properly initialized for mocks
+        import pygame
+        if not pygame.get_init():
+            pygame.init()
+        # Ensure display mode is set (needed after pygame.quit() from other tests)
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+        
+        # Use full pygame mocks for scene tests to prevent infinite loops
+        patchers = MockFactory.setup_pygame_mocks()
+        for patcher in patchers:
+            patcher.start()
+
+        yield patchers
+
+        # Teardown the full mocks
+        MockFactory.teardown_pygame_mocks(patchers)
+    else:
+        # No mocks needed for this test
+        yield []
+
+
+@pytest.fixture(autouse=True)
+def reset_scene_manager_singleton():
+    """Reset SceneManager singleton before each test to prevent contamination."""
+    # Reset singleton state for clean test isolation
+    SceneManager._instance = None
+    yield
+    # Clean up after test
+    SceneManager._instance = None
 
 
 @pytest.fixture
@@ -23,7 +71,7 @@ def mock_game_args():
     mock_args.resolution = "800x600"  # String format expected by GameEngine
     mock_args.windowed = True
     mock_args.use_gfxdraw = False
-    mock_args.update_type = "timestep"
+    mock_args.update_type = "update"
     mock_args.fps_refresh_rate = 1
     mock_args.profile = False
     mock_args.test_flag = False
@@ -35,23 +83,29 @@ def mock_game_args():
 @pytest.fixture
 def mock_pygame_patches():
     """Set up pygame mocks for testing."""
+    # Ensure pygame is properly initialized for mocks
+    import pygame
+    if not pygame.get_init():
+        pygame.init()
+    # Ensure display mode is set (needed after pygame.quit() from other tests)
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((800, 600))
+    
     patchers = MockFactory.setup_pygame_mocks()
     for patcher in patchers:
         patcher.start()
-    
+
     yield patchers
-    
+
     MockFactory.teardown_pygame_mocks(patchers)
 
 
 @pytest.fixture
 def mock_game():
     """Create a mock game scene for testing."""
-    from glitchygames.scenes import Scene
-    
     class MockGame(Scene):
         """Simple mock game scene for testing."""
-        
+
         NAME = "MockGame"
         VERSION = "1.0"
 
@@ -59,7 +113,7 @@ def mock_game():
             if options is None:
                 options = {
                     "debug_events": False,
-                    "no_unhandled_events": False
+                    "no_unhandled_events": True  # Enable globally to catch unhandled events as bugs
                 }
             if groups is None:
                 groups = Mock()  # Mock pygame.sprite.Group
@@ -67,16 +121,15 @@ def mock_game():
             self.fps = 60
             self.background_color = (0, 0, 0)
             self.next_scene = self
-        
+
         @classmethod
         def args(cls, parser):
             """Add mock game arguments."""
             parser.add_argument("--test-flag", action="store_true", help="Test flag")
             return parser
-        
+
         def update(self):
             """Mock update method."""
-            pass
 
     return MockGame
 
@@ -84,10 +137,10 @@ def mock_game():
 @pytest.fixture
 def mock_game_with_args(mock_game):
     """Create a mock game that properly handles command line arguments."""
-    
+
     class MockGameWithArgs(mock_game):
         """Mock game that properly handles command line arguments."""
-        
+
         @classmethod
         def args(cls, parser):
             """Add mock game arguments."""
@@ -106,7 +159,6 @@ def mock_surface():
 @pytest.fixture
 def mock_joystick_manager():
     """Create a mock joystick manager for testing."""
-    from tests.mocks.test_mock_factory import MockFactory
     return MockFactory.create_joystick_manager_mock(joystick_count=0)  # No joysticks by default
 
 

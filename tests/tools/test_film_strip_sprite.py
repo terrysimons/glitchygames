@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy, film_strip
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestFilmStripSprite(unittest.TestCase):

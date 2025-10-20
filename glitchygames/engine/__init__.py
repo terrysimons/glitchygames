@@ -19,6 +19,7 @@ from glitchygames.color import PURPLE
 from glitchygames.events.audio import AudioManager
 from glitchygames.events.controller import ControllerManager
 from glitchygames.events.drop import DropManager
+from glitchygames.events.game import GameManager
 from glitchygames.events.joystick import JoystickManager
 from glitchygames.events.keyboard import KeyboardManager
 from glitchygames.events.midi import MidiManager
@@ -42,190 +43,6 @@ ASSET_PATH: Path = Path(__file__).parent / "assets"
 TEST_MODE = False
 
 
-class GameManager(events.ResourceManager):
-    """Game event manager."""
-
-    log: logging.Logger = LOG
-
-    class GameProxy(events.ResourceManager):
-        """Game event proxy."""
-
-        log: logging.Logger = LOG
-
-        def __init__(self: Self, game: Scene) -> None:
-            """Initialize the game proxy.
-
-            Args:
-                game: the game instance
-
-            Returns:
-                None
-
-            """
-            super().__init__(game=game)
-            self.game: Scene = game
-            self.proxies: list = [self.game]
-
-        def on_active_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle active event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # ACTIVEEVENT      gain, state
-            self.game.on_active_event(event=event)
-
-        def on_fps_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle fps event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # FPSEVENT is pygame.USEREVENT + 1
-            self.game.on_fps_event(event=event)
-
-        def on_game_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle game event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # GAMEEVENT is pygame.USEREVENT + 2
-            self.game.on_game_event(event=event)
-
-        def on_menu_item_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle menu item event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # MENUEVENT is pygame.USEREVENT + 3
-            self.game.on_menu_item_event(event=event)
-
-        def on_sys_wm_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle sys wm event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # SYSWMEVENT
-            self.game.on_sys_wm_event(event=event)
-
-        def on_user_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle user event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # USEREVENT        code
-            self.game.on_user_event(event=event)
-
-        def on_video_expose_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle video expose event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # VIDEOEXPOSE      none
-            self.game.on_video_expose_event(event=event)
-
-        def on_video_resize_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle video resize event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # VIDEORESIZE      size, w, h
-            self.game.on_video_resize_event(event=event)
-
-        def on_quit_event(self: Self, event: events.HashableEvent) -> None:
-            """Handle quit event.
-
-            Args:
-                event: The pygame event.
-
-            Returns:
-                None
-
-            """
-            # QUIT             none
-            self.game.on_quit_event(event=event)
-
-    def __init__(self: Self, game: Scene) -> None:
-        """Initialize the game event manager.
-
-        Args:
-            game: The game instance.
-
-        Returns:
-            None
-
-        """
-        super().__init__(game=game)
-        self.proxies: list[GameManager.GameProxy] = [GameManager.GameProxy(game=game)]
-
-    @classmethod
-    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Add arguments to the argument parser.
-
-        Args:
-            parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
-
-        """
-        group = parser.add_argument_group("Game Options")
-        group.add_argument(
-            "-l",
-            "--log-level",
-            help="set the logging level",
-            choices=["debug", "info", "warning", "error", "critical"],
-            default="info",
-        )
-        group.add_argument(
-            "--no-unhandled-events",
-            help="fail on unhandled events",
-            action="store_true",
-            default=False,
-        )
-        group.add_argument(
-            "-p", "--profile", help="enable profiling", action="store_true", default=False
-        )
-
-        return parser
 
 
 class GameEngine(events.EventManager):
@@ -278,8 +95,14 @@ class GameEngine(events.EventManager):
             None
 
         """
-        # If it's not a pygame.Surface, assume it's a path
-        if icon and not isinstance(icon, pygame.Surface):
+        if icon is None:
+            return
+
+        # If it's already a pygame.Surface, use it directly
+        if isinstance(icon, pygame.Surface):
+            GameEngine.icon = icon
+        else:
+            # If it's not a pygame.Surface, assume it's a path
             icon_path: Path = Path(icon)
 
             with contextlib.suppress(FileNotFoundError):
@@ -502,6 +325,9 @@ class GameEngine(events.EventManager):
         GameEngine.game = game
         self.scene_manager: SceneManager = SceneManager()
 
+        # Update the scene manager's update_type from the engine's options
+        self.scene_manager.update_type = self.update_type
+
         # Resolution initialization.
         # Convert our resolution to a tuple
         (desired_width, desired_height) = self.desired_resolution.split("x")
@@ -509,7 +335,9 @@ class GameEngine(events.EventManager):
         if self.windowed:
             self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
-            self.mode_flags = pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+            self.mode_flags = (
+                pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+            )
 
         self.desired_resolution: tuple[int, int] = self.suggested_resolution(
             desired_width,
@@ -587,6 +415,9 @@ class GameEngine(events.EventManager):
         """
         for event_type in events.AUDIO_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_audio_event
+
+        for event_type in events.APP_EVENTS:
+            GameEngine.EVENT_HANDLERS[event_type] = self.process_app_event
 
         for event_type in events.MIDI_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_midi_event
@@ -858,6 +689,7 @@ class GameEngine(events.EventManager):
         """
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger("game")
+
         self.log.info("Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
@@ -878,6 +710,8 @@ class GameEngine(events.EventManager):
             self.scene_manager.game_engine = self
 
             self.registered_events = {}
+            from glitchygames.events.app import AppManager
+            self.app_manager = AppManager(game=self.scene_manager)
             self.audio_manager = AudioManager(game=self.scene_manager)
             self.drop_manager = DropManager(game=self.scene_manager)
             self.controller_manager = ControllerManager(game=self.scene_manager)
@@ -900,7 +734,7 @@ class GameEngine(events.EventManager):
 
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
-        except Exception as e:
+        except Exception:
             self.log.exception("Error starting game.")
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed
@@ -1025,6 +859,42 @@ class GameEngine(events.EventManager):
 
         return False
 
+    def process_app_event(self: Self, event: events.HashableEvent) -> bool:
+        """Process an app event.
+
+        Args:
+            event (events.HashableEvent): The event.
+
+        Returns:
+            bool: True if the event was handled, False otherwise.
+
+        """
+        if event.type == pygame.APP_DIDENTERBACKGROUND:
+            self.app_manager.on_app_did_enter_background_event(event)
+            return True
+
+        if event.type == pygame.APP_DIDENTERFOREGROUND:
+            self.app_manager.on_app_did_enter_foreground_event(event)
+            return True
+
+        if event.type == pygame.APP_WILLENTERBACKGROUND:
+            self.app_manager.on_app_will_enter_background_event(event)
+            return True
+
+        if event.type == pygame.APP_WILLENTERFOREGROUND:
+            self.app_manager.on_app_will_enter_foreground_event(event)
+            return True
+
+        if event.type == pygame.APP_LOWMEMORY:
+            self.app_manager.on_app_low_memory_event(event)
+            return True
+
+        if event.type == pygame.APP_TERMINATING:
+            self.app_manager.on_app_terminating_event(event)
+            return True
+
+        return False
+
     def process_controller_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a controller event.
 
@@ -1137,11 +1007,13 @@ class GameEngine(events.EventManager):
 
         """
         if event.type == pygame.MIDIIN:
-            self.log.info(f"MIDIIN: {event} NOT IMPLEMENTED")
+            # MIDIIN device_id, status, data1, data2
+            self.scene_manager.handle_event(event)
             return True
 
         if event.type == pygame.MIDIOUT:
-            self.log.info(f"MIDIOUT: {event} NOT IMPLEMENTED")
+            # MIDIOUT device_id, status, data1, data2
+            self.scene_manager.handle_event(event)
             return True
 
         return False

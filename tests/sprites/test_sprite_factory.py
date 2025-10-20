@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -11,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.sprites import SpriteFactory
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestSpriteFactory:
@@ -19,6 +20,10 @@ class TestSpriteFactory:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -171,7 +176,7 @@ class TestSpriteFactory:
                 "has_frame_sections": False
             }
 
-            with pytest.raises(ValueError, match="Mixed content"):
+            with pytest.raises(ValueError, match="Invalid sprite file"):
                 SpriteFactory.load_sprite(filename="mixed.toml")
 
     def test_sprite_factory_load_sprite_invalid_file(self):

@@ -1,7 +1,8 @@
 """Tests for scene-based film strip system."""
 
 from glitchygames.tools import bitmappy
-from tests.mocks.test_mock_factory import MockFactory
+
+from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 ANIMATION_COUNT = 3

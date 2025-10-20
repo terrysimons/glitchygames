@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -16,7 +17,11 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 
-from mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory
+
+# Test constants
+EXPECTED_ERROR_COUNT_2 = 2
+EXPECTED_ERROR_COUNT_3 = 3
 
 
 class TestBitmappySprite:
@@ -24,6 +29,10 @@ class TestBitmappySprite:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -106,15 +115,34 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
             mock_color_map.return_value = {"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
-            result = sprite.deflate("toml")
-            assert result is not None
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                result = sprite.deflate("toml")
+                assert result is not None
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Pixels list length mismatch: 2 vs expected 1024" in call_args
 
     def test_bitmappy_sprite_deflate_method_unsupported_format(self):
         """Test BitmappySprite deflate method with unsupported format."""
         sprite = BitmappySprite()
 
-        with pytest.raises(ValueError, match="Unsupported format"):
-            sprite.deflate("json")
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            with pytest.raises(ValueError, match="Unsupported format"):
+                sprite.deflate("json")
+
+            # Verify the ERROR log message was called (multiple times expected)
+            assert mock_log.error.call_count >= 1
+            # Check that the log messages contain the expected content
+            call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+            assert any("Pixels list length mismatch: 0 vs expected 1024" in msg
+                      for msg in call_args_list)
+            assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_method_too_many_colors(self):
         """Test BitmappySprite deflate method with too many colors."""
@@ -122,8 +150,18 @@ class TestBitmappySprite:
         # Create sprite with too many colors
         sprite.pixels = [(i, i, i) for i in range(100)]
 
-        with pytest.raises(ValueError, match="Too many colors"):
-            sprite.deflate("toml")
+        # Use pytest logger wrapper to suppress logs during successful runs
+        with patch.object(sprite, "log") as mock_log:
+            with pytest.raises(ValueError, match="Too many colors"):
+                sprite.deflate("toml")
+
+            # Verify the ERROR log message was called (multiple times expected)
+            assert mock_log.error.call_count >= 1
+            # Check that the log messages contain the expected content
+            call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+            assert any("Pixels list length mismatch: 100 vs expected 1024" in msg
+                      for msg in call_args_list)
+            assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_pads_and_truncates_pixels(self):
         """Test BitmappySprite deflate method padding and truncating pixels."""
@@ -134,8 +172,17 @@ class TestBitmappySprite:
             mock_color_map.return_value = {
                 "A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)
             }
-            result = sprite.deflate("toml")
-            assert result is not None
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                result = sprite.deflate("toml")
+                assert result is not None
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Pixels list length mismatch: 3 vs expected 1024" in call_args
 
     def test_bitmappy_sprite_deflate_dangerous_char_replacement(self):
         """Test BitmappySprite deflate method dangerous character replacement."""
@@ -144,8 +191,17 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._create_color_map") as mock_color_map:
             mock_color_map.return_value = {"A": (1, 1, 1), "X": (255, 0, 255)}
-            result = sprite.deflate("toml")
-            assert result is not None
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                result = sprite.deflate("toml")
+                assert result is not None
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Pixels list length mismatch: 1 vs expected 1024" in call_args
 
     def test_bitmappy_sprite_deflate_missing_color_in_map(self):
         """Test BitmappySprite deflate method with missing color in map."""
@@ -156,8 +212,19 @@ class TestBitmappySprite:
             mock_color_map.return_value = {
                 "A": (255, 0, 0), "X": (255, 0, 255)
             }  # Missing second color
-            result = sprite.deflate("toml")
-            assert result is not None
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                result = sprite.deflate("toml")
+                assert result is not None
+
+                # Verify the ERROR log messages were called
+                assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+                # Check that the log messages contain the expected content
+                first_call = mock_log.error.call_args_list[0][0][0]
+                second_call = mock_log.error.call_args_list[1][0][0]
+                assert "Pixels list length mismatch: 2 vs expected 1024" in first_call
+                assert "Color (0, 255, 0) not found in color_map" in second_call
 
     def test_bitmappy_sprite_inflate_method(self):
         """Test BitmappySprite inflate method."""
@@ -165,7 +232,7 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite._inflate_toml") as mock_inflate:
             mock_inflate.return_value = {"pixels": [(255, 0, 0)]}
-            result = sprite.inflate("test.toml")
+            result = sprite.inflate_from_file("test.toml")
             assert result is not None
 
     def test_bitmappy_sprite_save_static_only_method(self):
@@ -184,8 +251,17 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
-            with pytest.raises(ValueError, match="Unsupported format: xml"):
-                sprite._save_static_only("test.xml")
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                with pytest.raises(ValueError, match="Unsupported format: xml"):
+                    sprite._save_static_only("test.xml")
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Error in save" in call_args
 
     def test_bitmappy_sprite_create_toml_config_coverage(self):
         """Test BitmappySprite create_toml_config coverage."""
@@ -207,8 +283,21 @@ class TestBitmappySprite:
                 "A": (255, 0, 0), "X": (255, 0, 255)
             }  # Missing second color
             color_map = mock_color_map.return_value
-            result = sprite._process_pixel_rows(color_map)
-            assert result is not None
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                result = sprite._process_pixel_rows(color_map)
+                assert result is not None
+
+                # Verify the ERROR log messages were called
+                assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_3
+                # Check that the log messages contain the expected content
+                first_call = mock_log.error.call_args_list[0][0][0]
+                second_call = mock_log.error.call_args_list[1][0][0]
+                third_call = mock_log.error.call_args_list[2][0][0]
+                assert "Color (0, 255, 0) not found in color_map" in first_call
+                assert "Color (0, 0, 255) not found in color_map" in second_call
+                assert "Color (255, 255, 0) not found in color_map" in third_call
 
     def test_bitmappy_sprite_save_static_only_unsupported_format_error(self):
         """Test BitmappySprite save_static_only with unsupported format error."""
@@ -216,8 +305,17 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: xml")
-            with pytest.raises(ValueError, match="Unsupported format: xml"):
-                sprite._save_static_only("test.xml")
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                with pytest.raises(ValueError, match="Unsupported format: xml"):
+                    sprite._save_static_only("test.xml")
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Error in save" in call_args
 
     def test_bitmappy_sprite_save_static_only_method_unsupported_format_json(self):
         """Test BitmappySprite save_static_only method with unsupported format."""
@@ -225,8 +323,17 @@ class TestBitmappySprite:
 
         with patch("glitchygames.sprites.BitmappySprite.deflate") as mock_deflate:
             mock_deflate.side_effect = ValueError("Unsupported format: json")
-            with pytest.raises(ValueError, match="Unsupported format: json"):
-                sprite._save_static_only("test.json")
+
+            # Use pytest logger wrapper to suppress logs during successful runs
+            with patch.object(sprite, "log") as mock_log:
+                with pytest.raises(ValueError, match="Unsupported format: json"):
+                    sprite._save_static_only("test.json")
+
+                # Verify the ERROR log message was called
+                mock_log.error.assert_called_once()
+                # Check that the log message contains the expected content
+                call_args = mock_log.error.call_args[0][0]
+                assert "Error in save" in call_args
 
     def test_get_pixel_string_method(self):
         """Test get_pixel_string method."""
@@ -277,6 +384,10 @@ class TestSingletonBitmappySprite:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()
@@ -304,6 +415,10 @@ class TestFocusableSingletonBitmappySprite:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
         self.patchers = MockFactory.setup_pygame_mocks()
         for patcher in self.patchers:
             patcher.start()

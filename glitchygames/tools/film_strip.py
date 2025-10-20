@@ -6,9 +6,16 @@ between frames in animated sprites, with sprocket separators between animations.
 
 # No typing imports needed
 
+import logging
+from copy import deepcopy
+from typing import ClassVar
+
 import pygame
 from glitchygames.fonts import FontManager
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
+
+LOG = logging.getLogger("game.tools.film_strip")
+LOG.addHandler(logging.NullHandler())
 
 
 class FilmStripWidget:
@@ -44,7 +51,7 @@ class FilmStripWidget:
     """
 
     # Color cycling background colors (refactored from MiniView)
-    BACKGROUND_COLORS: list[tuple[int, int, int]] = [
+    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int]]] = [
         (0, 255, 255),  # Cyan
         (0, 0, 0),  # Black
         (128, 128, 128),  # Gray
@@ -56,6 +63,12 @@ class FilmStripWidget:
         (64, 64, 64),  # Dark Gray
         (192, 192, 192),  # Light Gray
     ]
+
+    # Debug dump interval in seconds
+    DEBUG_DUMP_INTERVAL: ClassVar[float] = 5.0
+
+    # Number of frames to show at a time in the film strip
+    FRAMES_PER_VIEW: ClassVar[int] = 4
 
     def __init__(self, x: int, y: int, width: int, height: int):
         """Initialize the film strip widget."""
@@ -94,7 +107,8 @@ class FilmStripWidget:
         self.frame_background = (100, 70, 55)  # Copper brown film strip background
         self.preview_background = (120, 90, 70)  # Copper brown background for preview area
         self.preview_border = (140, 110, 85)  # Lighter copper brown border for preview
-        self.animation_border = (80, 60, 45)  # Even darker copper brown border for animation frame only
+        # Even darker copper brown border for animation frame only
+        self.animation_border = (80, 60, 45)
 
         # Layout cache
         self.frame_layouts: dict[tuple[str, int], pygame.Rect] = {}
@@ -123,8 +137,9 @@ class FilmStripWidget:
 
     def set_animated_sprite(self, animated_sprite: AnimatedSprite) -> None:
         """Set the animated sprite to display."""
-        print(f"FilmStripWidget: set_animated_sprite called with sprite: {animated_sprite}")
-        print(f"FilmStripWidget: Sprite has {len(animated_sprite._animations)} animations: {list(animated_sprite._animations.keys())}")
+        LOG.debug(f"FilmStripWidget: set_animated_sprite called with sprite: {animated_sprite}")
+        LOG.debug(f"FilmStripWidget: Sprite has {len(animated_sprite._animations)} animations: "
+                  f"{list(animated_sprite._animations.keys())}")
 
         self.animated_sprite = animated_sprite
         # Use sprite introspection to find the first animation
@@ -132,83 +147,103 @@ class FilmStripWidget:
             if hasattr(animated_sprite, "_animation_order") and animated_sprite._animation_order:
                 # Use the first animation in the file order
                 self.current_animation = animated_sprite._animation_order[0]
-                print(f"FilmStripWidget: Using first animation from _animation_order: {self.current_animation}")
+                LOG.debug(f"FilmStripWidget: Using first animation from _animation_order: "
+                          f"{self.current_animation}")
             else:
                 # Fall back to the first key in _animations
                 self.current_animation = next(iter(animated_sprite._animations.keys()))
-                print(f"FilmStripWidget: Using first animation from _animations: {self.current_animation}")
+                LOG.debug(f"FilmStripWidget: Using first animation from _animations: "
+                          f"{self.current_animation}")
 
             # Configure the animated sprite to loop and start playing for preview
-            print(f"FilmStripWidget: Setting animation to '{self.current_animation}'")
+            LOG.debug(f"FilmStripWidget: Setting animation to '{self.current_animation}'")
             animated_sprite.set_animation(self.current_animation)
-            print(f"FilmStripWidget: After set_animation - current_animation: {getattr(animated_sprite, 'current_animation', 'None')}")
+            LOG.debug(f"FilmStripWidget: After set_animation - current_animation: "
+                      f"{getattr(animated_sprite, 'current_animation', 'None')}")
 
-            print("FilmStripWidget: Setting is_looping to True")
+            LOG.debug("FilmStripWidget: Setting is_looping to True")
             animated_sprite.is_looping = True  # Enable looping for continuous preview
-            print(f"FilmStripWidget: After setting is_looping - is_looping: {getattr(animated_sprite, 'is_looping', 'None')}")
+            LOG.debug(f"FilmStripWidget: After setting is_looping - is_looping: "
+                      f"{getattr(animated_sprite, 'is_looping', 'None')}")
 
-            print("FilmStripWidget: Calling play()")
+            LOG.debug("FilmStripWidget: Calling play()")
             animated_sprite.play()  # Start playing the animation
-            print(f"FilmStripWidget: After play() - is_playing: {getattr(animated_sprite, 'is_playing', 'None')}")
-            print(f"FilmStripWidget: After play() - current_frame: {getattr(animated_sprite, 'current_frame', 'None')}")
+            LOG.debug(f"FilmStripWidget: After play() - is_playing: "
+                      f"{getattr(animated_sprite, 'is_playing', 'None')}")
+            LOG.debug(f"FilmStripWidget: After play() - current_frame: "
+                      f"{getattr(animated_sprite, 'current_frame', 'None')}")
         else:
             self.current_animation = ""
-            print("FilmStripWidget: No animations found, setting current_animation to empty string")
+            LOG.debug(
+                "FilmStripWidget: No animations found, setting current_animation to empty string"
+            )
         self.current_frame = 0
         self.scroll_offset = 0  # Horizontal scroll offset for rolling effect
-        print(f"FilmStripWidget: Final state - current_animation: {self.current_animation}, current_frame: {self.current_frame}")
+        LOG.debug(f"FilmStripWidget: Final state - current_animation: {self.current_animation}, "
+                  f"current_frame: {self.current_frame}")
 
         # Initialize animation timing for previews
         self._initialize_preview_animations()
 
         # Mark as dirty since we've set up animations to play
         self.mark_dirty()
-        print("FilmStripWidget: Marked as dirty after setting up animations")
-        print(f"FilmStripWidget: _force_redraw after mark_dirty: {getattr(self, '_force_redraw', False)}")
+        LOG.debug("FilmStripWidget: Marked as dirty after setting up animations")
+        LOG.debug(f"FilmStripWidget: _force_redraw after mark_dirty: "
+                  f"{getattr(self, '_force_redraw', False)}")
 
         self._calculate_layout()
         self._update_height()
 
     def _initialize_preview_animations(self) -> None:
         """Initialize animation timing for all previews."""
-        print("FilmStripWidget: _initialize_preview_animations called")
+        LOG.debug("FilmStripWidget: _initialize_preview_animations called")
 
         if not self.animated_sprite:
-            print("FilmStripWidget: No animated_sprite in _initialize_preview_animations, returning")
+            LOG.debug("FilmStripWidget: No animated_sprite in _initialize_preview_animations, "
+                      "returning")
             return
 
-        print(f"FilmStripWidget: Initializing preview animations for {len(self.animated_sprite._animations)} animations")
+        LOG.debug(f"FilmStripWidget: Initializing preview animations for "
+                  f"{len(self.animated_sprite._animations)} animations")
 
         for anim_name, frames in self.animated_sprite._animations.items():
-            print(f"FilmStripWidget: Initializing animation '{anim_name}' with {len(frames)} frames")
+            LOG.debug(f"FilmStripWidget: Initializing animation '{anim_name}' with "
+                      f"{len(frames)} frames")
             # Initialize timing for this animation
             # For single-frame animations, start with a small time offset to ensure animation advances
             if len(frames) == 1:
                 # Single-frame animations need to start with a small time to ensure they advance
-                self.preview_animation_times[anim_name] = 0.001  # Small offset to ensure animation starts
-                print("FilmStripWidget: Single-frame animation, setting time to 0.001")
+                # Small offset to ensure animation starts
+                self.preview_animation_times[anim_name] = 0.001
+                LOG.debug("FilmStripWidget: Single-frame animation, setting time to 0.001")
             else:
                 self.preview_animation_times[anim_name] = 0.0
-                print("FilmStripWidget: Multi-frame animation, setting time to 0.0")
-            self.preview_animation_speeds[anim_name] = 1.0  # Normal speed
-            print(f"FilmStripWidget: Set animation '{anim_name}' speed to 1.0")
+                LOG.debug("FilmStripWidget: Multi-frame animation, setting time to 0.0")
+            # Normal speed
+            self.preview_animation_speeds[anim_name] = 1.0
+            LOG.debug(f"FilmStripWidget: Set animation '{anim_name}' speed to 1.0")
 
             # Extract frame durations
             frame_durations = []
             for i, frame in enumerate(frames):
                 if hasattr(frame, "duration"):
                     frame_durations.append(frame.duration)
-                    print(f"FilmStripWidget: Frame {i} duration: {frame.duration}")
+                    LOG.debug(f"FilmStripWidget: Frame {i} duration: {frame.duration}")
                 else:
-                    frame_durations.append(1.0)  # Default 1 second
-                    print(f"FilmStripWidget: Frame {i} using default duration: 1.0")
+                    # Default 1 second
+                    frame_durations.append(1.0)
+                    LOG.debug(f"FilmStripWidget: Frame {i} using default duration: 1.0")
             self.preview_frame_durations[anim_name] = frame_durations
-            print(f"FilmStripWidget: Animation '{anim_name}' frame durations: {frame_durations}")
+            LOG.debug(f"FilmStripWidget: Animation '{anim_name}' frame durations: "
+                      f"{frame_durations}")
 
-        print("FilmStripWidget: Preview animation initialization complete")
-        print(f"FilmStripWidget: Final preview_animation_times: {self.preview_animation_times}")
-        print(f"FilmStripWidget: Final preview_animation_speeds: {self.preview_animation_speeds}")
-        print(f"FilmStripWidget: Final preview_frame_durations: {self.preview_frame_durations}")
+        LOG.debug("FilmStripWidget: Preview animation initialization complete")
+        LOG.debug(f"FilmStripWidget: Final preview_animation_times: "
+                  f"{self.preview_animation_times}")
+        LOG.debug(f"FilmStripWidget: Final preview_animation_speeds: "
+                  f"{self.preview_animation_speeds}")
+        LOG.debug(f"FilmStripWidget: Final preview_frame_durations: "
+                  f"{self.preview_frame_durations}")
 
     def update_animations(self, dt: float) -> None:
         """Update animation timing for all previews.
@@ -235,56 +270,56 @@ class FilmStripWidget:
         self._debug_start_time += dt
 
         # Debug dump every 5 seconds
-        if self._debug_start_time - self._debug_last_dump_time >= 5.0:
-                print("=" * 80)
-                print(f"FILM STRIP ANIMATION STATE DUMP AT {self._debug_start_time:.1f} SECONDS")
-                print("=" * 80)
-                print("FilmStripWidget debug info:")
-                print(f"  _debug_start_time: {self._debug_start_time}")
-                print(f"  dt: {dt}")
-                print(f"  animated_sprite: {self.animated_sprite}")
-                print(f"  current_animation: {self.current_animation}")
-                print(f"  current_frame: {self.current_frame}")
-                print(f"  scroll_offset: {self.scroll_offset}")
-                print(f"  _force_redraw: {getattr(self, '_force_redraw', False)}")
-                print(f"  preview_animation_times: {getattr(self, 'preview_animation_times', {})}")
-                print(f"  preview_animation_speeds: {getattr(self, 'preview_animation_speeds', {})}")
-                print(f"  preview_frame_durations: {getattr(self, 'preview_frame_durations', {})}")
+        if self._debug_start_time - self._debug_last_dump_time >= self.DEBUG_DUMP_INTERVAL:
+            LOG.debug("=" * 80)
+            LOG.debug(f"FILM STRIP ANIMATION STATE DUMP AT {self._debug_start_time:.1f} SECONDS")
+            LOG.debug("=" * 80)
+            LOG.debug("FilmStripWidget debug info:")
+            LOG.debug(f"  _debug_start_time: {self._debug_start_time}")
+            LOG.debug(f"  dt: {dt}")
+            LOG.debug(f"  animated_sprite: {self.animated_sprite}")
+            LOG.debug(f"  current_animation: {self.current_animation}")
+            LOG.debug(f"  current_frame: {self.current_frame}")
+            LOG.debug(f"  scroll_offset: {self.scroll_offset}")
+            LOG.debug(f"  _force_redraw: {getattr(self, '_force_redraw', False)}")
+            LOG.debug(f"  preview_animation_times: {getattr(self, 'preview_animation_times', {})}")
+            LOG.debug(f"  preview_animation_speeds: {getattr(self, 'preview_animation_speeds', {})}")
+            LOG.debug(f"  preview_frame_durations: {getattr(self, 'preview_frame_durations', {})}")
 
-                if self.animated_sprite:
-                    print("AnimatedSprite debug info:")
-                    print(f"  current_animation: {getattr(self.animated_sprite, 'current_animation', 'None')}")
-                    print(f"  current_frame: {getattr(self.animated_sprite, 'current_frame', 'None')}")
-                    print(f"  is_playing: {getattr(self.animated_sprite, 'is_playing', 'None')}")
-                    print(f"  is_looping: {getattr(self.animated_sprite, 'is_looping', 'None')}")
-                    print(f"  _is_playing: {getattr(self.animated_sprite, '_is_playing', 'None')}")
-                    print(f"  _is_looping: {getattr(self.animated_sprite, '_is_looping', 'None')}")
-                    print(f"  _frame_timer: {getattr(self.animated_sprite, '_frame_timer', 'None')}")
-                    print(f"  _animations: {getattr(self.animated_sprite, '_animations', {})}")
-                    print(f"  _animation_order: {getattr(self.animated_sprite, '_animation_order', [])}")
-                    print(f"  frame_manager.current_animation: {getattr(self.animated_sprite.frame_manager, 'current_animation', 'None')}")
-                    print(f"  frame_manager.current_frame: {getattr(self.animated_sprite.frame_manager, 'current_frame', 'None')}")
+            if self.animated_sprite:
+                LOG.debug("AnimatedSprite debug info:")
+                LOG.debug(f"  current_animation: {getattr(self.animated_sprite, 'current_animation', 'None')}")
+                LOG.debug(f"  current_frame: {getattr(self.animated_sprite, 'current_frame', 'None')}")
+                LOG.debug(f"  is_playing: {getattr(self.animated_sprite, 'is_playing', 'None')}")
+                LOG.debug(f"  is_looping: {getattr(self.animated_sprite, 'is_looping', 'None')}")
+                LOG.debug(f"  _is_playing: {getattr(self.animated_sprite, '_is_playing', 'None')}")
+                LOG.debug(f"  _is_looping: {getattr(self.animated_sprite, '_is_looping', 'None')}")
+                LOG.debug(f"  _frame_timer: {getattr(self.animated_sprite, '_frame_timer', 'None')}")
+                LOG.debug(f"  _animations: {getattr(self.animated_sprite, '_animations', {})}")
+                LOG.debug(f"  _animation_order: {getattr(self.animated_sprite, '_animation_order', [])}")
+                LOG.debug(f"  frame_manager.current_animation: {getattr(self.animated_sprite.frame_manager, 'current_animation', 'None')}")
+                LOG.debug(f"  frame_manager.current_frame: {getattr(self.animated_sprite.frame_manager, 'current_frame', 'None')}")
 
-                    # Dump animation details
-                    if hasattr(self.animated_sprite, "_animations") and self.animated_sprite._animations:
-                        for anim_name, frames in self.animated_sprite._animations.items():
-                            print(f"  Animation '{anim_name}':")
-                            print(f"    frame count: {len(frames)}")
-                            for i, frame in enumerate(frames):
-                                print(f"    frame {i}: duration={getattr(frame, 'duration', 'None')}, image={getattr(frame, 'image', 'None')}")
+                # Dump animation details
+                if hasattr(self.animated_sprite, "_animations") and self.animated_sprite._animations:
+                    for anim_name, frames in self.animated_sprite._animations.items():
+                        LOG.debug(f"  Animation '{anim_name}':")
+                        LOG.debug(f"    frame count: {len(frames)}")
+                        for i, frame in enumerate(frames):
+                            LOG.debug(f"    frame {i}: duration={getattr(frame, 'duration', 'None')}, image={getattr(frame, 'image', 'None')}")
 
-                    # Dump frame manager state
-                    if hasattr(self.animated_sprite, "frame_manager"):
-                        fm = self.animated_sprite.frame_manager
-                        print("  FrameManager debug info:")
-                        print(f"    _current_animation: {getattr(fm, '_current_animation', 'None')}")
-                        print(f"    _current_frame: {getattr(fm, '_current_frame', 'None')}")
-                        print(f"    _observers: {getattr(fm, '_observers', [])}")
+                # Dump frame manager state
+                if hasattr(self.animated_sprite, "frame_manager"):
+                    fm = self.animated_sprite.frame_manager
+                    LOG.debug("  FrameManager debug info:")
+                    LOG.debug(f"    _current_animation: {getattr(fm, '_current_animation', 'None')}")
+                    LOG.debug(f"    _current_frame: {getattr(fm, '_current_frame', 'None')}")
+                    LOG.debug(f"    _observers: {getattr(fm, '_observers', [])}")
 
-                print("=" * 80)
+            LOG.debug("=" * 80)
 
-                # Update last dump time for next 5-second interval
-                self._debug_last_dump_time = self._debug_start_time
+            # Update last dump time for next 5-second interval
+            self._debug_last_dump_time = self._debug_start_time
 
         # Update the animated sprite with delta time to advance frames
         # This is the main animation advancement - it updates the sprite's internal
@@ -345,7 +380,7 @@ class FilmStripWidget:
 
         # CRITICAL: Add bounds checking to prevent invalid frame indices
         if not frame_durations or len(frame_durations) == 0:
-            print(f"FilmStripWidget: CRITICAL - No frame durations for animation '{anim_name}'")
+            LOG.error(f"FilmStripWidget: CRITICAL - No frame durations for animation '{anim_name}'")
             return 0
 
         # Find which frame we should be showing during animation
@@ -357,7 +392,7 @@ class FilmStripWidget:
             if current_time <= accumulated_time + duration:
                 # Ensure the frame index is within bounds
                 if frame_idx >= len(frame_durations):
-                    print(f"FilmStripWidget: CRITICAL - Frame index {frame_idx} out of bounds for {len(frame_durations)} frames")
+                    LOG.error(f"FilmStripWidget: CRITICAL - Frame index {frame_idx} out of bounds for {len(frame_durations)} frames")
                     return max(0, len(frame_durations) - 1)
                 return frame_idx
             accumulated_time += duration
@@ -484,7 +519,7 @@ class FilmStripWidget:
             return
 
         # Calculate which 4-frame window should be shown
-        frames_per_view = 4
+        frames_per_view = self.FRAMES_PER_VIEW
         current_start_frame = self.scroll_offset // (self.frame_width + self.tab_width + 2)
         current_end_frame = min(current_start_frame + frames_per_view, len(frames))
 
@@ -505,7 +540,7 @@ class FilmStripWidget:
         # Update scroll offset to show the new window
         self.scroll_offset = new_start_frame * (self.frame_width + self.tab_width + 2)
 
-        print(f"FilmStripWidget: Scrolling to show frame {frame_index}, new window: {new_start_frame}-{new_start_frame + frames_per_view - 1}")
+        LOG.debug(f"FilmStripWidget: Scrolling to show frame {frame_index}, new window: {new_start_frame}-{new_start_frame + frames_per_view - 1}")
 
         # Recalculate layout with new scroll offset
         self._calculate_layout()
@@ -519,35 +554,46 @@ class FilmStripWidget:
             True if copy was successful, False otherwise
 
         """
-        print("FilmStripWidget: [FILM STRIP COPY] copy_current_frame called")
-        print(f"FilmStripWidget: [FILM STRIP COPY] animated_sprite: {self.animated_sprite}")
-        print(f"FilmStripWidget: [FILM STRIP COPY] current_animation: {self.current_animation}")
-        print(f"FilmStripWidget: [FILM STRIP COPY] current_frame: {self.current_frame}")
+        LOG.debug("FilmStripWidget: [FILM STRIP COPY] copy_current_frame called")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP COPY] animated_sprite: {self.animated_sprite}")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP COPY] current_animation: {self.current_animation}")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP COPY] current_frame: {self.current_frame}")
 
         if not self.animated_sprite or not self.current_animation:
-            print("FilmStripWidget: [FILM STRIP COPY] No animation selected for copying")
+            LOG.debug("FilmStripWidget: [FILM STRIP COPY] No animation selected for copying")
             return False
 
         if self.current_animation not in self.animated_sprite._animations:
-            print(f"FilmStripWidget: [FILM STRIP COPY] Animation '{self.current_animation}' not found")
+            LOG.debug(f"FilmStripWidget: [FILM STRIP COPY] Animation '{self.current_animation}' not found")
             return False
 
         frames = self.animated_sprite._animations[self.current_animation]
-        print(f"FilmStripWidget: [FILM STRIP COPY] Animation has {len(frames)} frames")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP COPY] Animation has {len(frames)} frames"
+        )
         if self.current_frame >= len(frames):
-            print(f"FilmStripWidget: [FILM STRIP COPY] Frame {self.current_frame} out of range (max: {len(frames)-1})")
+            LOG.debug(
+            f"FilmStripWidget: [FILM STRIP COPY] Frame {self.current_frame} "
+            f"out of range (max: {len(frames) - 1})"
+        )
             return False
 
         # Get the current frame
         current_frame = frames[self.current_frame]
-        print(f"FilmStripWidget: [FILM STRIP COPY] Got frame object: {current_frame}")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP COPY] Got frame object: {current_frame}"
+        )
 
         # Create a deep copy of the frame data
-        from copy import deepcopy
         self._copied_frame = deepcopy(current_frame)
-        print("FilmStripWidget: [FILM STRIP COPY] Created deep copy, stored in _copied_frame")
+        LOG.debug(
+            "FilmStripWidget: [FILM STRIP COPY] Created deep copy, stored in _copied_frame"
+        )
 
-        print(f"FilmStripWidget: [FILM STRIP COPY] Successfully copied frame {self.current_frame} from animation '{self.current_animation}'")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP COPY] Successfully copied frame "
+            f"{self.current_frame} from animation '{self.current_animation}'"
+        )
         return True
 
     def paste_to_current_frame(self) -> bool:
@@ -557,49 +603,61 @@ class FilmStripWidget:
             True if paste was successful, False otherwise
 
         """
-        print("FilmStripWidget: [FILM STRIP PASTE] paste_to_current_frame called")
-        print(f"FilmStripWidget: [FILM STRIP PASTE] _copied_frame: {self._copied_frame}")
-        print(f"FilmStripWidget: [FILM STRIP PASTE] animated_sprite: {self.animated_sprite}")
-        print(f"FilmStripWidget: [FILM STRIP PASTE] current_animation: {self.current_animation}")
-        print(f"FilmStripWidget: [FILM STRIP PASTE] current_frame: {self.current_frame}")
+        LOG.debug("FilmStripWidget: [FILM STRIP PASTE] paste_to_current_frame called")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP PASTE] _copied_frame: {self._copied_frame}")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP PASTE] animated_sprite: {self.animated_sprite}")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP PASTE] current_animation: {self.current_animation}")
+        LOG.debug(f"FilmStripWidget: [FILM STRIP PASTE] current_frame: {self.current_frame}")
 
         if not self._copied_frame:
-            print("FilmStripWidget: [FILM STRIP PASTE] No frame in clipboard to paste")
+            LOG.debug("FilmStripWidget: [FILM STRIP PASTE] No frame in clipboard to paste")
             return False
 
         if not self.animated_sprite or not self.current_animation:
-            print("FilmStripWidget: [FILM STRIP PASTE] No animation selected for pasting")
+            LOG.debug("FilmStripWidget: [FILM STRIP PASTE] No animation selected for pasting")
             return False
 
         if self.current_animation not in self.animated_sprite._animations:
-            print(f"FilmStripWidget: [FILM STRIP PASTE] Animation '{self.current_animation}' not found")
+            LOG.debug(
+            f"FilmStripWidget: [FILM STRIP PASTE] Animation '{self.current_animation}' not found"
+        )
             return False
 
         frames = self.animated_sprite._animations[self.current_animation]
-        print(f"FilmStripWidget: [FILM STRIP PASTE] Animation has {len(frames)} frames")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP PASTE] Animation has {len(frames)} frames"
+        )
         if self.current_frame >= len(frames):
-            print(f"FilmStripWidget: [FILM STRIP PASTE] Frame {self.current_frame} out of range (max: {len(frames)-1})")
+            LOG.debug(
+                f"FilmStripWidget: [FILM STRIP PASTE] Frame {self.current_frame} "
+                f"out of range (max: {len(frames) - 1})"
+            )
             return False
 
-        print(f"FilmStripWidget: [FILM STRIP PASTE] Replacing frame {self.current_frame} with copied frame")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP PASTE] Replacing frame {self.current_frame} "
+            f"with copied frame"
+        )
         # Replace the current frame with the copied frame
-        from copy import deepcopy
         frames[self.current_frame] = deepcopy(self._copied_frame)
-        print("FilmStripWidget: [FILM STRIP PASTE] Frame replacement completed")
+        LOG.debug("FilmStripWidget: [FILM STRIP PASTE] Frame replacement completed")
 
-        print(f"FilmStripWidget: [FILM STRIP PASTE] Successfully pasted frame to frame {self.current_frame} in animation '{self.current_animation}'")
+        LOG.debug(
+            f"FilmStripWidget: [FILM STRIP PASTE] Successfully pasted frame to "
+            f"frame {self.current_frame} in animation '{self.current_animation}'"
+        )
 
         # Mark as dirty to trigger redraw
         self.mark_dirty()
-        print("FilmStripWidget: [FILM STRIP PASTE] Marked as dirty")
+        LOG.debug("FilmStripWidget: [FILM STRIP PASTE] Marked as dirty")
 
         # Notify parent scene if available
         if hasattr(self, "parent_scene") and self.parent_scene:
-            print("FilmStripWidget: [FILM STRIP PASTE] Notifying parent scene")
+            LOG.debug("FilmStripWidget: [FILM STRIP PASTE] Notifying parent scene")
             if hasattr(self.parent_scene, "_on_frame_pasted"):
                 self.parent_scene._on_frame_pasted(self.current_animation, self.current_frame)
         else:
-            print("FilmStripWidget: [FILM STRIP PASTE] No parent scene to notify")
+            LOG.debug("FilmStripWidget: [FILM STRIP PASTE] No parent scene to notify")
 
         return True
 
@@ -673,7 +731,7 @@ class FilmStripWidget:
         center_x = (left_group_end + right_group_start) // 2
 
         # Calculate label width dynamically for each animation
-        for anim_name in self.animated_sprite._animations.keys():
+        for anim_name in self.animated_sprite._animations:
             # Get text width for this animation
             font = FontManager.get_font()
             text_surface = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
@@ -696,10 +754,10 @@ class FilmStripWidget:
     def _calculate_frame_layouts(self) -> None:
         """Calculate layout for frame positions."""
         if not self.animated_sprite:
-            print("FilmStripWidget: No animated sprite, skipping frame layout calculation")
+            LOG.debug("FilmStripWidget: No animated sprite, skipping frame layout calculation")
             return
 
-        print(f"FilmStripWidget: Calculating frame layouts for {len(self.animated_sprite._animations)} animations")
+        LOG.debug(f"FilmStripWidget: Calculating frame layouts for {len(self.animated_sprite._animations)} animations")
 
         # CRITICAL: Clear old removal button layouts to prevent stale data
         self.removal_button_layouts = {}
@@ -719,16 +777,16 @@ class FilmStripWidget:
         available_width_for_frames = self.rect.width - self.preview_width - self.preview_padding - 20  # Total width minus preview area minus margins
         frame_width_with_spacing = self.frame_width + self.inter_frame_gap  # 64 + 0 = 64 pixels
         max_frames_before_overlap = available_width_for_frames // frame_width_with_spacing
-        print(f"Max frames before overlapping animation box: {max_frames_before_overlap}")
+        LOG.debug(f"Max frames before overlapping animation box: {max_frames_before_overlap}")
 
         for anim_name, frames in self.animated_sprite._animations.items():
-            # Show only 4 frames at a time (0-3), with scrolling to navigate
+            # Show only frames at a time (0-3), with scrolling to navigate
             # Calculate which frames to show based on scroll offset
-            frames_per_view = 4  # Show 4 frames at a time (indices 0, 1, 2, 3)
+            frames_per_view = self.FRAMES_PER_VIEW  # Show frames at a time (indices 0, 1, 2, 3)
             start_frame = self.scroll_offset // (self.frame_width + self.tab_width + 2)  # Calculate starting frame based on scroll
             end_frame = min(start_frame + frames_per_view, len(frames))
             frames_to_show = frames[start_frame:end_frame]
-            print(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name} (frames {start_frame}-{end_frame-1})")
+            LOG.debug(f"FilmStripWidget: Processing {len(frames_to_show)} frames for animation {anim_name} (frames {start_frame}-{end_frame - 1})")
             for frame_idx, _frame in enumerate(frames_to_show):
                 # Adjust frame_idx to be relative to the actual frame position
                 actual_frame_idx = start_frame + frame_idx
@@ -764,7 +822,7 @@ class FilmStripWidget:
                     self.frame_width,
                     self.frame_height,
                 )
-                print(f"FilmStripWidget: Created frame rect for {anim_name}[{actual_frame_idx}] at {frame_rect}")
+                LOG.debug(f"FilmStripWidget: Created frame rect for {anim_name}[{actual_frame_idx}] at {frame_rect}")
                 self.frame_layouts[anim_name, actual_frame_idx] = frame_rect
 
                 # Add removal button rectangle to the left of each frame (only if not single-frame)
@@ -782,9 +840,9 @@ class FilmStripWidget:
                         removal_button_width,
                         removal_button_height,
                     )
-                    print(f"FilmStripWidget: Created removal button rect for {anim_name}[{actual_frame_idx}] at {removal_button_rect}")
+                    LOG.debug(f"FilmStripWidget: Created removal button rect for {anim_name}[{actual_frame_idx}] at {removal_button_rect}")
                     # Store removal button rectangles in a separate dictionary
-                    if not hasattr(self, 'removal_button_layouts'):
+                    if not hasattr(self, "removal_button_layouts"):
                         self.removal_button_layouts = {}
                     self.removal_button_layouts[anim_name, actual_frame_idx] = removal_button_rect
 
@@ -803,7 +861,7 @@ class FilmStripWidget:
         y_offset = top_margin
         preview_x = self.rect.width - self.preview_width - 1
 
-        for anim_name in self.animated_sprite._animations.keys():
+        for anim_name in self.animated_sprite._animations:
             # Center the preview between top and bottom sprockets, moved down 3 pixels
             if len(self.animated_sprite._animations) == 1:
                 # Calculate center between top sprockets (y=7) and bottom sprockets (y=rect.height-15)
@@ -860,13 +918,13 @@ class FilmStripWidget:
 
     def get_frame_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Get the animation and frame at the given position."""
-        print(f"FilmStripWidget: Checking position {pos} against {len(self.frame_layouts)} frame layouts")
+        LOG.debug(f"FilmStripWidget: Checking position {pos} against {len(self.frame_layouts)} frame layouts")
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
-            print(f"FilmStripWidget: Checking {anim_name}[{frame_idx}] at {frame_rect}")
+            LOG.debug(f"FilmStripWidget: Checking {anim_name}[{frame_idx}] at {frame_rect}")
             if frame_rect.collidepoint(pos):
-                print(f"FilmStripWidget: Found collision with {anim_name}[{frame_idx}]")
+                LOG.debug(f"FilmStripWidget: Found collision with {anim_name}[{frame_idx}]")
                 return (anim_name, frame_idx)
-        print("FilmStripWidget: No collision found")
+        LOG.debug("FilmStripWidget: No collision found")
         return None
 
     def get_animation_at_position(self, pos: tuple[int, int]) -> str | None:
@@ -883,12 +941,12 @@ class FilmStripWidget:
             and animation in self.animated_sprite._animations
             and 0 <= frame < len(self.animated_sprite._animations[animation])
         ):
-            print(f"FilmStripWidget: Setting selected frame to {animation}, {frame}")
+            LOG.debug(f"FilmStripWidget: Setting selected frame to {animation}, {frame}")
             self.current_animation = animation
             self.selected_frame = frame  # Update the selected frame (static thumbnails)
             # Mark as dirty to trigger preview update
             self.mark_dirty()
-            print(f"FilmStripWidget: Selected frame is now {self.current_animation}, {self.selected_frame}")
+            LOG.debug(f"FilmStripWidget: Selected frame is now {self.current_animation}, {self.selected_frame}")
 
             # Notify parent scene about the selection change
             if hasattr(self, "parent_scene") and self.parent_scene:
@@ -896,17 +954,17 @@ class FilmStripWidget:
 
     def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Handle a click on the film strip."""
-        print(f"FilmStripWidget: handle_click called with position {pos}")
-        print(f"FilmStripWidget: frame_layouts has {len(self.frame_layouts)} entries")
+        LOG.debug(f"FilmStripWidget: handle_click called with position {pos}")
+        LOG.debug(f"FilmStripWidget: frame_layouts has {len(self.frame_layouts)} entries")
 
         # First check if a removal button was clicked
         if self._handle_removal_button_click(pos):
-            print("FilmStripWidget: Removal button was clicked, not processing frame click")
+            LOG.debug("FilmStripWidget: Removal button was clicked, not processing frame click")
             return None  # Removal button was clicked, don't process frame click
 
         # Check if a tab was clicked
         if self._handle_tab_click(pos):
-            print("FilmStripWidget: Tab was clicked, not processing frame click")
+            LOG.debug("FilmStripWidget: Tab was clicked, not processing frame click")
             return None  # Tab was clicked, don't process frame click
 
         # Check if clicking on a frame
@@ -915,8 +973,8 @@ class FilmStripWidget:
             animation, frame_idx = clicked_frame
             # Use this film strip's animation name instead of the frame's animation name
             # since each film strip represents a specific animation
-            strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else animation
-            print(f"FilmStripWidget: Frame clicked, calling set_current_frame({strip_animation}, {frame_idx})")
+            strip_animation = next(iter(self.animated_sprite._animations.keys())) if self.animated_sprite and self.animated_sprite._animations else animation
+            LOG.debug(f"FilmStripWidget: Frame clicked, calling set_current_frame({strip_animation}, {frame_idx})")
             self.set_current_frame(strip_animation, frame_idx)
             return (strip_animation, frame_idx)
 
@@ -925,13 +983,13 @@ class FilmStripWidget:
         if clicked_animation and clicked_animation in self.animated_sprite._animations:
             # Use this film strip's animation name instead of the clicked animation name
             # since each film strip represents a specific animation
-            strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else clicked_animation
+            strip_animation = next(iter(self.animated_sprite._animations.keys())) if self.animated_sprite and self.animated_sprite._animations else clicked_animation
             # When clicking on an animation strip, use the scene's global selected_frame
             # instead of the strip's own selected_frame
             global_selected_frame = 0
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
-            print(f"FilmStripWidget: Animation clicked, calling set_current_frame({strip_animation}, {global_selected_frame})")
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
+            LOG.debug(f"FilmStripWidget: Animation clicked, calling set_current_frame({strip_animation}, {global_selected_frame})")
             self.set_current_frame(strip_animation, global_selected_frame)
             return (strip_animation, global_selected_frame)
 
@@ -944,16 +1002,16 @@ class FilmStripWidget:
         if self.rect.collidepoint(pos):
             # Click is within the film strip widget but not on any specific element
             # This means the user clicked on the parent strip itself
-            strip_animation = list(self.animated_sprite._animations.keys())[0] if self.animated_sprite and self.animated_sprite._animations else ""
+            strip_animation = next(iter(self.animated_sprite._animations.keys())) if self.animated_sprite and self.animated_sprite._animations else ""
             # Use the scene's global selected_frame to maintain consistency
             global_selected_frame = 0
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
-            print(f"FilmStripWidget: Parent strip clicked, selecting strip and calling set_current_frame({strip_animation}, {global_selected_frame})")
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
+            LOG.debug(f"FilmStripWidget: Parent strip clicked, selecting strip and calling set_current_frame({strip_animation}, {global_selected_frame})")
             self.set_current_frame(strip_animation, global_selected_frame)
             return (strip_animation, global_selected_frame)
 
-        print("FilmStripWidget: No frame or animation clicked")
+        LOG.debug("FilmStripWidget: No frame or animation clicked")
         return None
 
     def handle_hover(self, pos: tuple[int, int]) -> None:
@@ -969,12 +1027,12 @@ class FilmStripWidget:
                 # Cycle background color for all frames in this animation
                 self.background_color_index = (self.background_color_index + 1) % len(self.BACKGROUND_COLORS)
                 self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-                print(f"Film strip background color changed to {self.background_color}")
+                LOG.debug(f"Film strip background color changed to {self.background_color}")
                 # When clicking on preview area, use the scene's global selected_frame
                 # instead of the strip's own selected_frame
                 global_selected_frame = 0
-                if hasattr(self, 'parent_scene') and self.parent_scene:
-                    global_selected_frame = getattr(self.parent_scene, 'selected_frame', 0)
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
                 return (anim_name, global_selected_frame)
         return None
 
@@ -987,8 +1045,7 @@ class FilmStripWidget:
         # Fill with cycling background color
         frame_surface.fill(self.background_color)
 
-
-        frame_img = self._get_frame_image_for_rendering(frame, is_selected)
+        frame_img = self._get_frame_image_for_rendering(frame, is_selected=is_selected)
 
         if frame_img:
             self._draw_scaled_image(frame_surface, frame_img)
@@ -1018,9 +1075,8 @@ class FilmStripWidget:
 
     def _create_frame_surface(self) -> pygame.Surface:
         """Create the base frame surface with transparent background."""
-        frame_surface = pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
         # No background fill - transparent so only the 3D beveled border shows
-        return frame_surface
+        return pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
 
     def _draw_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
         """Draw the frame number at the bottom center of the frame."""
@@ -1030,8 +1086,8 @@ class FilmStripWidget:
 
             # Get total frames for current animation
             total_frames = 1  # Default fallback
-            if (hasattr(self, 'animated_sprite') and self.animated_sprite and
-                hasattr(self, 'current_animation') and self.current_animation and
+            if (hasattr(self, "animated_sprite") and self.animated_sprite and
+                hasattr(self, "current_animation") and self.current_animation and
                 self.current_animation in self.animated_sprite._animations):
                 total_frames = len(self.animated_sprite._animations[self.current_animation])
 
@@ -1046,11 +1102,11 @@ class FilmStripWidget:
 
             # Draw text
             surface.blit(text_surface, (text_x, text_y))
-        except Exception as e:
-            # Silently fail if font rendering fails
-            pass
+        except Exception:
+            # Log font rendering failures
+            LOG.exception("Font rendering failed")
 
-    def _get_frame_image_for_rendering(self, frame, is_selected: bool):
+    def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
         """Get the appropriate frame image for rendering."""
         # Always use the actual animation frame data, not canvas content
         if hasattr(frame, "image") and frame.image:
@@ -1058,7 +1114,7 @@ class FilmStripWidget:
             frame_img = frame.image
         else:
             frame_img = None
-            print("Film strip: No frame data available")
+            LOG.debug("Film strip: No frame data available")
 
         # Always use animation frame data, never canvas content
 
@@ -1185,11 +1241,11 @@ class FilmStripWidget:
                 # CRITICAL: Add bounds checking to prevent index out of range errors
                 frames = self.animated_sprite._animations[anim_name]
                 if current_frame_idx >= len(frames) or current_frame_idx < 0:
-                    print(f"FilmStripWidget: CRITICAL - Invalid preview frame index {current_frame_idx} for animation '{anim_name}' with {len(frames)} frames")
+                    LOG.error(f"FilmStripWidget: CRITICAL - Invalid preview frame index {current_frame_idx} for animation '{anim_name}' with {len(frames)} frames")
                     # Reset to frame 0 if invalid
                     current_frame_idx = 0
                     # Also reset the preview animation time to prevent future issues
-                    if hasattr(self, 'preview_animation_times') and anim_name in self.preview_animation_times:
+                    if hasattr(self, "preview_animation_times") and anim_name in self.preview_animation_times:
                         self.preview_animation_times[anim_name] = 0.0
 
                 frame = frames[current_frame_idx]
@@ -1235,7 +1291,6 @@ class FilmStripWidget:
         # Center the scaled image within the preview area
         center_x = preview_rect.x + (self.preview_width - new_width) // 2
         center_y = preview_rect.y + (self.preview_height - new_height) // 2
-
 
         # Make magenta (255, 0, 255) transparent for testing
         scaled_image.set_colorkey((255, 0, 255))
@@ -1284,7 +1339,7 @@ class FilmStripWidget:
 
         # Debug: Print render count every 50 renders
         if self._render_count % 50 == 0:
-            print(f"FilmStripWidget: Render #{self._render_count}, current_frame={self.current_frame}")
+            LOG.debug(f"FilmStripWidget: Render #{self._render_count}, current_frame={self.current_frame}")
 
         # Clear the film strip area
         surface.fill(self.film_background, self.rect)
@@ -1441,13 +1496,12 @@ class FilmStripWidget:
             elif frames and current_frame_idx < len(frames):
                 # Multiple frames: animate the triangle
                 # Get the actual frame duration from the sprite frame
-                frame = frames[current_frame_idx]
-                frame_duration = getattr(frame, 'duration', 0.5)  # Default to 0.5 if no duration
+                # frame = frames[current_frame_idx]
+                # frame_duration = getattr(frame, "duration", 0.5)  # Default to 0.5 if no duration
 
                 # Calculate progress within the current frame (0.0 to 1.0)
-                frame_start_time = sum(self.preview_frame_durations.get(anim_name, [0.5])[:current_frame_idx])
-                frame_elapsed = current_time - frame_start_time
-                frame_progress = min(frame_elapsed / frame_duration, 1.0) if frame_duration > 0 else 0.0
+                # frame_start_time = sum(self.preview_frame_durations.get(anim_name, [0.5])[:current_frame_idx])
+                # frame_elapsed = current_time - frame_start_time
 
                 # Calculate overall animation progress
                 total_duration = sum(self.preview_frame_durations.get(anim_name, [0.5]))
@@ -1474,7 +1528,7 @@ class FilmStripWidget:
 
             # Get total frames for this animation
             total_frames = 1  # Default fallback
-            if (hasattr(self, 'animated_sprite') and self.animated_sprite and
+            if (hasattr(self, "animated_sprite") and self.animated_sprite and
                 anim_name in self.animated_sprite._animations):
                 total_frames = len(self.animated_sprite._animations[anim_name])
 
@@ -1492,9 +1546,9 @@ class FilmStripWidget:
 
             # Draw text
             surface.blit(text_surface, (text_x, text_y))
-        except Exception as e:
-            # Silently fail if font rendering fails
-            pass
+        except Exception:
+            # Log font rendering failures
+            LOG.exception("Font rendering failed")
 
     def _draw_triangle_preview(self, surface: pygame.Surface, center_x: int, center_y: int) -> None:
         """Draw a triangle for the preview with different color."""
@@ -1536,13 +1590,11 @@ class FilmStripWidget:
 
     def _draw_film_sprockets(self, surface: pygame.Surface) -> None:
         """Draw film strip sprockets on the main background."""
-
         sprocket_color = (60, 50, 40)  # Even darker grey-brown color
 
         # Draw sprockets along the top edge - aligned with bottom sprockets, avoiding label area
         # Calculate the label area to avoid overlapping
-        available_width = self.rect.width - self.preview_width - self.preview_padding
-        preview_start_x = available_width + self.preview_padding
+        # available_width = self.rect.width - self.preview_width - self.preview_padding
 
         # Use pre-calculated animation layouts to avoid label area
         label_left = 0
@@ -1577,7 +1629,6 @@ class FilmStripWidget:
                     rect = pygame.Rect(x - 3, 7 + top_margin - 20, 6, 6)  # 6x6 rectangle centered at (x, 10 + top_margin - 20)
                     pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
-
         # Draw two sets of sprockets along the bottom edge - same distance from bottom as top sprockets are from top
         # Top sprockets are at y=7, so bottom sprockets should be at height-7
         bottom_sprocket_y = self.rect.height - 7
@@ -1603,12 +1654,11 @@ class FilmStripWidget:
                     rect = pygame.Rect(x - 3, bottom_sprocket_y - 5, 6, 6)  # 6x6 rectangle 5 pixels above first set
                     pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
-
     def _calculate_frames_width(self) -> int:
         """Calculate the total width needed for all frames and sprockets."""
         frames_width = 0
         animation_names = list(self.animated_sprite._animations.keys())
-        for i, (anim_name, frames) in enumerate(self.animated_sprite._animations.items()):
+        for i, (_, frames) in enumerate(self.animated_sprite._animations.items()):
             frames_width += len(frames) * (self.frame_width + self.frame_spacing)
             # Add sprocket width between animations (not after the last one)
             if i < len(animation_names) - 1:
@@ -1768,7 +1818,7 @@ class FilmStripWidget:
                         else:
                             self.parent_scene._add_new_animation()
                     return True
-                elif isinstance(tab, FilmStripDeleteTab):
+                if isinstance(tab, FilmStripDeleteTab):
                     # Delete the current animation (film strip)
                     if hasattr(self, "parent_scene") and self.parent_scene:
                         current_animation = self.current_animation
@@ -1778,10 +1828,9 @@ class FilmStripWidget:
                             if len(animations) > 1:
                                 self.parent_scene._delete_animation(current_animation)
                     return True
-                else:
-                    # Regular frame tab - create a new frame at the specified position
-                    self._insert_frame_at_tab(tab)
-                    return True
+                # Regular frame tab - create a new frame at the specified position
+                self._insert_frame_at_tab(tab)
+                return True
         return False
 
     def _handle_tab_hover(self, pos: tuple[int, int]) -> bool:
@@ -1816,19 +1865,18 @@ class FilmStripWidget:
 
         # Create a new blank frame with magenta background
         # Get the canvas dimensions from the parent scene
-        if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas"):
-            frame_width = self.parent_scene.canvas.pixels_across
-            frame_height = self.parent_scene.canvas.pixels_tall
-        else:
-            frame_width = 32  # Fallback to default frame size
-            frame_height = 32
-            
+        if not (hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas")):
+            return  # Cannot create frame without parent scene canvas dimensions
+        
+        frame_width = self.parent_scene.canvas.pixels_across
+        frame_height = self.parent_scene.canvas.pixels_tall
+
         new_surface = pygame.Surface((frame_width, frame_height))
         new_surface.fill((255, 0, 255))  # Magenta background
 
         # Create a new SpriteFrame
         new_frame = SpriteFrame(new_surface, duration=0.5)
-        
+
         # Initialize the pixel data for the new frame
         new_frame.pixels = [(255, 0, 255)] * (frame_width * frame_height)
 
@@ -1873,8 +1921,9 @@ class FilmStripWidget:
 
         Returns:
             True if a removal button was clicked, False otherwise
+
         """
-        if not hasattr(self, 'removal_button_layouts') or not self.removal_button_layouts:
+        if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             return False
 
         for (anim_name, frame_idx), button_rect in self.removal_button_layouts.items():
@@ -1883,12 +1932,11 @@ class FilmStripWidget:
                 if (self.animated_sprite and
                     anim_name in self.animated_sprite._animations and
                     frame_idx < len(self.animated_sprite._animations[anim_name])):
-                    print(f"FilmStripWidget: Removal button clicked for {anim_name}[{frame_idx}]")
+                    LOG.debug(f"FilmStripWidget: Removal button clicked for {anim_name}[{frame_idx}]")
                     self._remove_frame(anim_name, frame_idx)
                     return True
-                else:
-                    print(f"FilmStripWidget: Cannot remove frame - index {frame_idx} out of range")
-                    return False
+                LOG.debug(f"FilmStripWidget: Cannot remove frame - index {frame_idx} out of range")
+                return False
         return False
 
     def _remove_frame(self, animation_name: str, frame_index: int) -> None:
@@ -1897,29 +1945,30 @@ class FilmStripWidget:
         Args:
             animation_name: Name of the animation
             frame_index: Index of the frame to remove
+
         """
         if not self.animated_sprite or animation_name not in self.animated_sprite._animations:
-            print(f"FilmStripWidget: Cannot remove frame - animation '{animation_name}' not found")
+            LOG.debug(f"FilmStripWidget: Cannot remove frame - animation '{animation_name}' not found")
             return
 
         frames = self.animated_sprite._animations[animation_name]
         if frame_index < 0 or frame_index >= len(frames):
-            print(f"FilmStripWidget: Cannot remove frame - index {frame_index} out of range")
+            LOG.debug(f"FilmStripWidget: Cannot remove frame - index {frame_index} out of range")
             return
 
         # Don't allow removing the last frame of an animation
         if len(frames) <= 1:
-            print(f"FilmStripWidget: Cannot remove the last frame of animation '{animation_name}'")
+            LOG.debug(f"FilmStripWidget: Cannot remove the last frame of animation '{animation_name}'")
             return
 
-        print(f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'")
+        LOG.debug(f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'")
 
         # Remove the frame
         frames.pop(frame_index)
 
         # Adjust current frame if necessary
-        if (hasattr(self, 'current_animation') and self.current_animation == animation_name and
-            hasattr(self, 'current_frame') and self.current_frame >= frame_index):
+        if (hasattr(self, "current_animation") and self.current_animation == animation_name and
+            hasattr(self, "current_frame") and self.current_frame >= frame_index):
             # If we removed a frame before or at the current position, adjust the current frame
             if self.current_frame > 0:
                 self.current_frame -= 1
@@ -1929,10 +1978,10 @@ class FilmStripWidget:
 
         # CRITICAL: Also update the animated sprite's frame manager
         if (self.animated_sprite and
-            hasattr(self.animated_sprite, 'frame_manager') and
+            hasattr(self.animated_sprite, "frame_manager") and
             self.animated_sprite.frame_manager.current_animation == animation_name):
 
-            print(f"FilmStripWidget: Before removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frame_index: {frame_index}")
+            LOG.debug(f"FilmStripWidget: Before removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frame_index: {frame_index}")
 
             # Adjust the animated sprite's current frame
             if self.animated_sprite.frame_manager.current_frame >= frame_index:
@@ -1945,12 +1994,12 @@ class FilmStripWidget:
             if self.animated_sprite.frame_manager.current_frame >= len(frames):
                 self.animated_sprite.frame_manager.current_frame = max(0, len(frames) - 1)
 
-            print(f"FilmStripWidget: After removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frames count: {len(frames)}")
+            LOG.debug(f"FilmStripWidget: After removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frames count: {len(frames)}")
 
             # CRITICAL: Force the animated sprite to stop if it's trying to access an invalid frame
             if (self.animated_sprite.frame_manager.current_frame >= len(frames) or
                 self.animated_sprite.frame_manager.current_frame < 0):
-                print(f"FilmStripWidget: CRITICAL - Invalid frame index {self.animated_sprite.frame_manager.current_frame}, stopping animation")
+                LOG.error(f"FilmStripWidget: CRITICAL - Invalid frame index {self.animated_sprite.frame_manager.current_frame}, stopping animation")
                 self.animated_sprite.stop()
                 self.animated_sprite.frame_manager.current_frame = 0
 
@@ -1968,15 +2017,13 @@ class FilmStripWidget:
         # CRITICAL: Adjust scroll offset to ensure 4 frames are visible after removal
         # Calculate the maximum scroll offset based on remaining frames
         remaining_frames = len(frames)
-        if remaining_frames > 4:
+        if remaining_frames > self.FRAMES_PER_VIEW:
             # Calculate frame spacing for scroll offset adjustment
-            frame_spacing = self.frame_width + self.tab_width + self.inter_frame_gap
-            max_scroll = max(0, remaining_frames - 4)
+            max_scroll = max(0, remaining_frames - self.FRAMES_PER_VIEW)
             # Ensure scroll offset doesn't exceed the maximum
-            if self.scroll_offset > max_scroll:
-                self.scroll_offset = max_scroll
+            self.scroll_offset = min(self.scroll_offset, max_scroll)
         else:
-            # If 4 or fewer frames remain, reset scroll to show all frames
+            # If FRAMES_PER_VIEW or fewer frames remain, reset scroll to show all frames
             self.scroll_offset = 0
 
         # Recalculate layouts after frame removal
@@ -1988,7 +2035,7 @@ class FilmStripWidget:
         # Mark as dirty to trigger redraw
         self.mark_dirty()
 
-        print(f"FilmStripWidget: Frame removed. Animation '{animation_name}' now has {len(frames)} frames")
+        LOG.debug(f"FilmStripWidget: Frame removed. Animation '{animation_name}' now has {len(frames)} frames")
 
     def _render_removal_button(self, surface: pygame.Surface, anim_name: str, frame_idx: int) -> None:
         """Render a removal button for a specific frame.
@@ -1997,8 +2044,9 @@ class FilmStripWidget:
             surface: Surface to render on
             anim_name: Animation name
             frame_idx: Frame index
+
         """
-        if not hasattr(self, 'removal_button_layouts') or not self.removal_button_layouts:
+        if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             return
 
         button_key = (anim_name, frame_idx)
@@ -2195,6 +2243,7 @@ class FilmStripDeleteTab:
             y: Y position of the tab
             width: Width of the tab (default 40, wider than vertical tabs)
             height: Height of the tab (default 10, shorter than vertical tabs)
+
         """
         self.rect = pygame.Rect(x, y, width, height)
         self.is_clicked = False
@@ -2215,6 +2264,7 @@ class FilmStripDeleteTab:
 
         Args:
             surface: The pygame surface to render to
+
         """
         # Determine color based on state
         if self.is_clicked:
@@ -2246,6 +2296,7 @@ class FilmStripDeleteTab:
 
         Returns:
             True if the tab was clicked, False otherwise
+
         """
         if self.rect.collidepoint(pos):
             self.is_clicked = True
@@ -2260,6 +2311,7 @@ class FilmStripDeleteTab:
 
         Returns:
             True if the tab is being hovered, False otherwise
+
         """
         self.is_hovered = self.rect.collidepoint(pos)
         return self.is_hovered
@@ -2274,6 +2326,7 @@ class FilmStripDeleteTab:
         Args:
             insertion_type: "delete" for strip deletion
             target_frame_index: The frame index this tab is associated with
+
         """
         self.insertion_type = insertion_type
         self.target_frame_index = target_frame_index
@@ -2312,6 +2365,7 @@ class FilmStripTab:
             y: Y position of the tab
             width: Width of the tab (default 40, wider than vertical tabs)
             height: Height of the tab (default 10, shorter than vertical tabs)
+
         """
         self.rect = pygame.Rect(x, y, width, height)
         self.is_clicked = False
@@ -2332,6 +2386,7 @@ class FilmStripTab:
 
         Args:
             surface: The pygame surface to render to
+
         """
         # Determine color based on state
         if self.is_clicked:
@@ -2366,6 +2421,7 @@ class FilmStripTab:
 
         Returns:
             True if the tab was clicked, False otherwise
+
         """
         if self.rect.collidepoint(pos):
             self.is_clicked = True
@@ -2380,6 +2436,7 @@ class FilmStripTab:
 
         Returns:
             True if the tab is being hovered, False otherwise
+
         """
         self.is_hovered = self.rect.collidepoint(pos)
         return self.is_hovered
@@ -2394,6 +2451,7 @@ class FilmStripTab:
         Args:
             insertion_type: "before" or "after" (typically "after" for bottom tabs)
             target_frame_index: The frame index this tab is associated with
+
         """
         self.insertion_type = insertion_type
         self.target_frame_index = target_frame_index

@@ -1,10 +1,16 @@
 """Tests for film strip frame addition functionality."""
 
-import pytest
+from unittest.mock import Mock
+
 import pygame
-from unittest.mock import Mock, MagicMock
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
+
+from tests.mocks import MockFactory
+
+# Test constants to avoid magic values
+TEST_DURATION_0_001 = 0.001
+TEST_SIZE_2 = 2
 
 
 class TestFilmStripFrameAddition:
@@ -12,19 +18,27 @@ class TestFilmStripFrameAddition:
 
     def setup_method(self):
         """Set up test fixtures."""
-        pygame.init()
-        self.surface1 = pygame.Surface((8, 8))
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+
+        self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface1.fill((255, 0, 0))  # Red
-        
-        self.surface2 = pygame.Surface((8, 8))
+
+        self.surface2 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface2.fill((0, 255, 0))  # Green
-        
-        self.surface3 = pygame.Surface((8, 8))
+
+        self.surface3 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface3.fill((0, 0, 255))  # Blue
 
     def teardown_method(self):
         """Clean up after tests."""
         pygame.quit()
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_film_strip_reinitializes_after_frame_addition(self):
         """Test that film strip reinitializes preview animations after frame addition."""
@@ -35,38 +49,44 @@ class TestFilmStripFrameAddition:
         animated_sprite.frame_manager.current_animation = "idle"
         animated_sprite._is_playing = False
         animated_sprite._is_looping = False
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
-        
-        # Mock parent scene
+
+        # Mock parent scene with proper canvas dimensions
         film_strip.parent_scene = Mock()
         film_strip.parent_scene._on_frame_inserted = Mock()
-        
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+
         # Verify initial state - single frame, animation started by film strip
         assert len(animated_sprite._animations["idle"]) == 1
         assert animated_sprite._is_playing  # Film strip starts animation
         assert "idle" in film_strip.preview_animation_times
-        assert film_strip.preview_animation_times["idle"] == 0.001  # Single frame offset
-        
+        assert film_strip.preview_animation_times["idle"] == TEST_DURATION_0_001  # Single frame
+
         # Create a tab for frame insertion
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
-        
+
         # Insert frame at tab
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Verify frame was added and animation started
-        assert len(animated_sprite._animations["idle"]) == 2
+        assert len(animated_sprite._animations["idle"]) == TEST_SIZE_2
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
-        
+
         # Verify film strip reinitialized its preview animations
         # The preview animation time should be reset to 0.0 for multi-frame
         assert film_strip.preview_animation_times["idle"] == 0.0
-        
+
         # Verify parent scene was notified
         film_strip.parent_scene._on_frame_inserted.assert_called_once_with("idle", 1)
 
@@ -77,26 +97,29 @@ class TestFilmStripFrameAddition:
         animated_sprite = AnimatedSprite()
         animated_sprite._animations = {"idle": [frame1]}
         animated_sprite.frame_manager.current_animation = "idle"
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
         film_strip.parent_scene = Mock()
         film_strip.parent_scene._on_frame_inserted = Mock()
-        
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+
         # Create tab for "before" insertion
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("before", 0)
-        
+
         # Insert frame before first frame
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Verify frame was inserted at index 0
-        assert len(animated_sprite._animations["idle"]) == 2
+        assert len(animated_sprite._animations["idle"]) == TEST_SIZE_2
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
-        
+
         # Verify parent scene was notified with correct index
         film_strip.parent_scene._on_frame_inserted.assert_called_once_with("idle", 0)
 
@@ -107,26 +130,29 @@ class TestFilmStripFrameAddition:
         animated_sprite = AnimatedSprite()
         animated_sprite._animations = {"idle": [frame1]}
         animated_sprite.frame_manager.current_animation = "idle"
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
         film_strip.parent_scene = Mock()
         film_strip.parent_scene._on_frame_inserted = Mock()
-        
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+
         # Create tab for "after" insertion
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
-        
+
         # Insert frame after first frame
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Verify frame was inserted at index 1
-        assert len(animated_sprite._animations["idle"]) == 2
+        assert len(animated_sprite._animations["idle"]) == TEST_SIZE_2
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
-        
+
         # Verify parent scene was notified with correct index
         film_strip.parent_scene._on_frame_inserted.assert_called_once_with("idle", 1)
 
@@ -135,14 +161,14 @@ class TestFilmStripFrameAddition:
         # Create film strip widget without animated sprite
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.parent_scene = Mock()
-        
+
         # Create tab
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
-        
+
         # Should not crash
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Should not call parent scene
         film_strip.parent_scene._on_frame_inserted.assert_not_called()
 
@@ -152,20 +178,20 @@ class TestFilmStripFrameAddition:
         frame1 = SpriteFrame(self.surface1, duration=0.5)
         animated_sprite = AnimatedSprite()
         animated_sprite._animations = {"idle": [frame1]}
-        
+
         # Create film strip widget without parent scene
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
         film_strip.parent_scene = None
-        
+
         # Create tab
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
-        
+
         # Should not crash
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Frame should NOT be added when there's no parent scene
         # (the method returns early without doing anything)
         assert len(animated_sprite._animations["idle"]) == 1
@@ -178,25 +204,27 @@ class TestFilmStripFrameAddition:
         animated_sprite = AnimatedSprite()
         animated_sprite._animations = {"idle": [frame1]}
         animated_sprite.frame_manager.current_animation = "idle"
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
         film_strip.parent_scene = Mock()
         film_strip.parent_scene._on_frame_inserted = Mock()
-        
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+
         # Add second frame
-        frame2 = SpriteFrame(self.surface2, duration=0.1)
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Verify preview animation timing was reinitialized
         assert film_strip.preview_animation_times["idle"] == 0.0  # Multi-frame timing
         assert film_strip.preview_animation_speeds["idle"] == 1.0
-        assert len(film_strip.preview_frame_durations["idle"]) == 2
-        
+        assert len(film_strip.preview_frame_durations["idle"]) == TEST_SIZE_2
+
         # Test that animation updates work
         film_strip.update_animations(0.05)  # 50ms
         assert film_strip.current_frame == animated_sprite.current_frame
@@ -212,28 +240,30 @@ class TestFilmStripFrameAddition:
             "walk": [frame1, frame2]  # Multi frame
         }
         animated_sprite.frame_manager.current_animation = "idle"
-        
+
         # Create film strip widget
         film_strip = FilmStripWidget(x=0, y=0, width=100, height=50)
         film_strip.set_animated_sprite(animated_sprite)
         film_strip.current_animation = "idle"
         film_strip.parent_scene = Mock()
         film_strip.parent_scene._on_frame_inserted = Mock()
-        
+        film_strip.parent_scene.canvas = Mock()
+        film_strip.parent_scene.canvas.pixels_across = 8
+        film_strip.parent_scene.canvas.pixels_tall = 8
+
         # Add frame to idle animation
-        frame3 = SpriteFrame(self.surface3, duration=0.5)
         tab = FilmTabWidget(x=0, y=0, width=20, height=20)
         tab.set_insertion_type("after", 0)
         film_strip._insert_frame_at_tab(tab)
-        
+
         # Verify idle animation started
-        assert len(animated_sprite._animations["idle"]) == 2
+        assert len(animated_sprite._animations["idle"]) == TEST_SIZE_2
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
-        
+
         # Verify walk animation unchanged
-        assert len(animated_sprite._animations["walk"]) == 2
-        
+        assert len(animated_sprite._animations["walk"]) == TEST_SIZE_2
+
         # Verify preview animations were reinitialized for all animations
         assert "idle" in film_strip.preview_animation_times
         assert "walk" in film_strip.preview_animation_times

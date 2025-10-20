@@ -961,7 +961,7 @@ class TextSprite(BitmappySprite):
 
         # Make this instance also act as its own text_box for compatibility
         self.text_box = self
-        
+
         # Initialize cursor state for blinking
         self._cursor_timer = 0
         self._cursor_visible = True
@@ -1008,10 +1008,11 @@ class TextSprite(BitmappySprite):
     def update(self):
         """Update the sprite."""
         # Handle cursor blinking for active text boxes
-        if hasattr(self, 'active') and self.active:
+        if hasattr(self, "active") and self.active:
             old_visible = self._cursor_visible
             self._cursor_timer += 1
-            if self._cursor_timer >= 30:  # Blink every 30 frames (0.5 seconds at 60fps)
+            # Blink every 30 frames (0.5 seconds at 60fps)
+            if self._cursor_timer >= 30:  # noqa: PLR2004
                 self._cursor_visible = not self._cursor_visible
                 self._cursor_timer = 0
                 # Force redraw when cursor visibility changes
@@ -1022,11 +1023,11 @@ class TextSprite(BitmappySprite):
         else:
             # Reset dirty flag when not active
             self.dirty = 1
-        
+
         if self.dirty:
             self.update_text(self._text)
 
-    def update_text(self, text):
+    def update_text(self, text):  # noqa: PLR0912
         """Update the text surface."""
         # Check if background is transparent (alpha = 0)
         rgba_length = 4
@@ -1040,12 +1041,11 @@ class TextSprite(BitmappySprite):
         if is_transparent:
             # For transparent backgrounds, use a transparent surface
             self.image.fill((0, 0, 0, 0))
-        else:
+        elif hasattr(self, "active") and self.active:
             # Use different background color when active (editing)
-            if hasattr(self, 'active') and self.active:
-                self.image.fill((50, 50, 50))  # Darker background when editing
-            else:
-                self.image.fill(self.background_color)
+            self.image.fill((50, 50, 50))  # Darker background when editing
+        else:
+            self.image.fill(self.background_color)
 
         # Create text surface using FontManager for consistent font handling
         font = FontManager.get_font()
@@ -1073,22 +1073,22 @@ class TextSprite(BitmappySprite):
                 # Fall back to pygame.font style (returns surface)
                 if is_transparent:
                     # For transparent backgrounds, don't pass background color to pygame.font
-                    text_surface = font.render(str(text), antialias=True, color=self.text_color)
+                    text_surface = font.render(str(text), True, self.text_color)
                 else:
                     # For solid backgrounds, pass the background color
                     text_surface = font.render(
                         str(text),
-                        antialias=True,
-                        color=self.text_color,
-                        background=self.background_color,
+                        True,
+                        self.text_color,
+                        self.background_color,
                     )
         elif is_transparent:
             # This is a pygame.font.Font with transparent background
             # For transparent backgrounds, don't pass background color to pygame.font
-            text_surface = font.render(str(text), antialias=True, color=self.text_color)
+            text_surface = font.render(str(text), True, self.text_color)
         else:
             # For solid backgrounds, render without background parameter for pygame.font
-            text_surface = font.render(str(text), antialias=True, color=self.text_color)
+            text_surface = font.render(str(text), True, self.text_color)
 
         # Position the text in the center of our surface
         if text_rect is None:
@@ -1099,9 +1099,9 @@ class TextSprite(BitmappySprite):
 
         # Blit text onto our surface
         self.image.blit(text_surface, text_rect)
-        
+
         # Add blinking cursor if text box is active
-        if hasattr(self, 'active') and self.active:
+        if hasattr(self, "active") and self.active:
             self._draw_cursor(text_rect, font)
 
     def _draw_cursor(self, text_rect, font):
@@ -1112,15 +1112,15 @@ class TextSprite(BitmappySprite):
                 cursor_x = text_rect.right + 2  # 2 pixels after the text
                 cursor_y = text_rect.top
                 cursor_height = text_rect.height
-                
+
                 # Ensure cursor is within bounds
                 if cursor_x < self.width and cursor_y < self.height:
                     # Draw a vertical line for the cursor
                     pygame.draw.line(
-                        self.image, 
-                        self.text_color, 
-                        (cursor_x, cursor_y), 
-                        (cursor_x, cursor_y + cursor_height), 
+                        self.image,
+                        self.text_color,
+                        (cursor_x, cursor_y),
+                        (cursor_x, cursor_y + cursor_height),
                         2  # 2 pixel wide cursor
                     )
             except (TypeError, AttributeError):
@@ -1785,7 +1785,7 @@ class SliderSprite(BitmappySprite):
             self.on_left_mouse_button_down_event(event)
             self.dirty = 1
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self: Self,
         x: int,
         y: int,
@@ -1858,11 +1858,11 @@ class SliderSprite(BitmappySprite):
         text_height = 20
         slider_center_y = y + height // 2
         text_y = slider_center_y - text_height // 2 + 2
-        
+
         # Calculate text box width to fit between slider end and color well start
         # This will be set by the parent scene after color well is created
         text_width = 44  # Default width, will be updated by parent scene (4 pixels wider)
-        
+
         self.text_sprite = TextSprite(
             x=text_x,
             y=text_y,
@@ -1875,16 +1875,16 @@ class SliderSprite(BitmappySprite):
         # Make text sprite interactive for editing
         self.text_sprite.focusable = True
         self.text_sprite.active = False  # Start inactive
-        
+
         # Store original value for restoration
         self.original_value = self._value
-        
+
         # Add keyboard event handling for text input
-        def handle_text_input(event):
-            if self.text_sprite.active:
+        def handle_text_input(event):  # noqa: PLR0912
+            if self.text_sprite.active:  # noqa: PLR1702
                 if event.key == pygame.K_RETURN:
                     # Handle Enter key
-                    if self.text_sprite.text.strip() == "":
+                    if not self.text_sprite.text.strip():
                         # Empty text, restore original value
                         self.text_sprite.text = str(self.original_value)
                         self.text_sprite.active = False
@@ -1894,32 +1894,31 @@ class SliderSprite(BitmappySprite):
                         try:
                             # Check if input is hex (contains letters) or decimal
                             text = self.text_sprite.text.strip().lower()
-                            if any(c in 'abcdef' for c in text):
+                            if any(c in "abcdef" for c in text):
                                 # Hex input - convert to decimal
                                 new_value = int(text, 16)
                             else:
                                 # Decimal input
                                 new_value = int(text)
-                            
-                            if 0 <= new_value <= 255:
+
+                            if 0 <= new_value <= 255:  # noqa: PLR2004
                                 # Valid value, update slider
                                 self.value = new_value
-                                
-                                # Convert text to appropriate format based on parent's format setting
-                                if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":
+
+                                # Convert text to appropriate format based on parent's format setting  # noqa: E501
+                                if (hasattr(self.parent, "slider_input_format") and
+                                    self.parent.slider_input_format == "%X"):
                                     self.text_sprite.text = f"{new_value:02X}"
-                                    print(f"DEBUG: SliderSprite converting {new_value} to hex: {self.text_sprite.text}")
                                 else:
                                     self.text_sprite.text = str(new_value)
-                                    print(f"DEBUG: SliderSprite converting {new_value} to decimal: {self.text_sprite.text}")
-                                
+
                                 self.text_sprite.active = False
                                 # Force text sprite to update and remove highlighting
                                 self.text_sprite.update_text(self.text_sprite.text)
                                 self.text_sprite.dirty = 2  # Force redraw
                                 # Update parent scene
                                 if hasattr(self.parent, "on_slider_event"):
-                                    trigger = pygame.event.Event(0, {"name": self.name, "value": new_value})
+                                    trigger = pygame.event.Event(0, {"name": self.name, "value": new_value})  # noqa: E501
                                     self.parent.on_slider_event(event=event, trigger=trigger)
                             else:
                                 # Invalid range, restore original value
@@ -1936,24 +1935,23 @@ class SliderSprite(BitmappySprite):
                     self.text_sprite.text = str(self.original_value)
                     self.text_sprite.active = False
                     self.text_sprite.update_text(self.text_sprite.text)
-                else:
+                elif event.unicode.isdigit() or event.unicode.lower() in "abcdef" or event.key == pygame.K_BACKSPACE:  # noqa: E501
                     # Handle normal text input - allow both digits and hex characters
-                    if event.unicode.isdigit() or event.unicode.lower() in 'abcdef' or event.key == pygame.K_BACKSPACE:
-                        if event.key == pygame.K_BACKSPACE:
-                            self.text_sprite.text = self.text_sprite.text[:-1]
-                        else:
-                            self.text_sprite.text += event.unicode.lower()  # Convert to lowercase for consistency
-                        
-                        # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
-                        if len(self.text_sprite.text) > 3:
-                            self.text_sprite.text = self.text_sprite.text[:3]
-                        
-                        # Force text sprite to update and redraw
-                        self.text_sprite.update_text(self.text_sprite.text)
-                        self.text_sprite.dirty = 2
-        
+                    if event.key == pygame.K_BACKSPACE:
+                        self.text_sprite.text = self.text_sprite.text[:-1]
+                    else:
+                        self.text_sprite.text += event.unicode.lower()
+
+                    # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
+                    if len(self.text_sprite.text) > 3:  # noqa: PLR2004
+                        self.text_sprite.text = self.text_sprite.text[:3]
+
+                    # Force text sprite to update and redraw
+                    self.text_sprite.update_text(self.text_sprite.text)
+                    self.text_sprite.dirty = 2
+
         self.text_sprite.on_key_down_event = handle_text_input
-        
+
         # Add mouse click handling to activate text editing
         def handle_text_click(event):
             if self.text_sprite.rect.collidepoint(event.pos):
@@ -1966,12 +1964,12 @@ class SliderSprite(BitmappySprite):
                 self.text_sprite.dirty = 2
                 return True
             return False
-        
+
         self.text_sprite.on_left_mouse_button_down_event = handle_text_click
-        
+
         # Ensure slider rect is properly set for mouse detection
         self.rect = pygame.Rect(x, y, width, height)
-        
+
         # Ensure drag boundaries are properly set
         self.min_x = x
         self.max_x = x + width - 5
@@ -2141,6 +2139,14 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+
+            # Update text display based on current format
+            if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":  # noqa: E501
+                self.text_sprite.text = f"{self._value:02X}"
+            else:
+                self.text_sprite.text = str(self._value)
+            self.text_sprite.update_text(self.text_sprite.text)
+            self.text_sprite.dirty = 2  # Force redraw
         else:
             self.log.info(f"Mouse click not on slider {self.name} rect")
 
@@ -2164,6 +2170,14 @@ class SliderSprite(BitmappySprite):
                 self.log.info(f"Parent {self.parent} has no on_slider_event")
 
             self.value = self._value  # Update display after event
+
+            # Update text display based on current format
+            if hasattr(self.parent, "slider_input_format") and self.parent.slider_input_format == "%X":  # noqa: E501
+                self.text_sprite.text = f"{self._value:02X}"
+            else:
+                self.text_sprite.text = str(self._value)
+            self.text_sprite.update_text(self.text_sprite.text)
+            self.text_sprite.dirty = 2  # Force redraw
         else:
             self.log.info(f"Mouse motion on slider {self.name} but not dragging")
 
@@ -2364,7 +2378,7 @@ class TabControlSprite(BitmappySprite):
         # Tab options
         self.tabs = ["%d", "%X"]
         self.active_tab = 0  # Start with %d (decimal)
-        
+
         # Visual properties
         self.tab_height = height
         self.tab_width = width // len(self.tabs)
@@ -2390,12 +2404,12 @@ class TabControlSprite(BitmappySprite):
             # Calculate which tab was clicked
             relative_x = event.pos[0] - self.rect.x
             clicked_tab = relative_x // self.tab_width
-            
+
             if 0 <= clicked_tab < len(self.tabs):
                 self.active_tab = clicked_tab
                 self.dirty = 2  # Force redraw
                 self.log.info(f"Tab control: Switched to tab {self.tabs[self.active_tab]}")
-                
+
                 # Notify parent if it has a tab change handler
                 if hasattr(self.parent, "on_tab_change_event"):
                     self.parent.on_tab_change_event(self.tabs[self.active_tab])
@@ -2416,22 +2430,19 @@ class TabControlSprite(BitmappySprite):
         if self.dirty:
             # Clear the surface
             self.image.fill((0, 0, 0, 0))  # Transparent background
-            
+
             # Draw tabs
             for i, tab_text in enumerate(self.tabs):
                 tab_x = i * self.tab_width
                 tab_rect = pygame.Rect(tab_x, 0, self.tab_width, self.tab_height)
-                
+
                 # Choose colors based on active state
-                if i == self.active_tab:
-                    bg_color = self.active_color
-                else:
-                    bg_color = self.inactive_color
-                
+                bg_color = self.active_color if i == self.active_tab else self.inactive_color
+
                 # Draw tab background
                 pygame.draw.rect(self.image, bg_color, tab_rect)
                 pygame.draw.rect(self.image, self.border_color, tab_rect, 1)
-                
+
                 # Draw tab text
                 try:
                     font = pygame.font.Font(None, 16)
@@ -2730,6 +2741,8 @@ class MultiLineTextBox(BitmappySprite):
             focusable=True,
         )
 
+        # Store original text for cursor position mapping first
+        self._original_text = text
         self._text = text
         self.text = text
         self.active = False
@@ -2814,6 +2827,115 @@ class MultiLineTextBox(BitmappySprite):
 
         return "\n".join(wrapped_lines)
 
+    def _map_cursor_pos_to_wrapped_text(self, original_pos: int) -> int:
+        """Map cursor position from original text to wrapped text position."""
+        if original_pos >= len(self._original_text):
+            return len(self._text)
+
+        # Find the character at the original position
+        target_char = self._original_text[original_pos]
+
+        # Count how many times this character appears before the target position
+        char_count_before_target = self._original_text[:original_pos].count(target_char)
+
+        # Find the corresponding position in wrapped text
+        wrapped_pos = 0
+        char_count = 0
+
+        for i, char in enumerate(self._text):
+            if char == target_char:
+                if char_count == char_count_before_target:
+                    return i
+                char_count += 1
+            wrapped_pos = i
+
+        # If we can't find an exact match, return the closest position
+        return min(wrapped_pos, len(self._text))
+
+    def _get_cursor_line_and_column_in_wrapped_text(self, original_cursor_pos: int) -> tuple[int, int]:  # noqa: E501
+        """Get the line and column of the cursor in the wrapped text."""
+        # Map cursor position to wrapped text
+        wrapped_cursor_pos = self._map_cursor_pos_to_wrapped_text(original_cursor_pos)
+
+        # Count lines before cursor in wrapped text
+        lines_before_cursor = self._text[:wrapped_cursor_pos].count("\n")
+
+        # Find the start of the current line in wrapped text
+        current_line_start = (
+            self._text[:wrapped_cursor_pos].rindex("\n") + 1
+            if "\n" in self._text[:wrapped_cursor_pos]
+            else 0
+        )
+
+        # Calculate column position
+        column_pos = wrapped_cursor_pos - current_line_start
+
+        return lines_before_cursor, column_pos
+
+    def _move_cursor_up(self) -> None:
+        """Move cursor up one line in the wrapped text."""
+        current_line, current_column = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)  # noqa: E501
+
+        if current_line > 0:
+            # Move to the previous line
+            wrapped_lines = self._text.split("\n")
+            prev_line = wrapped_lines[current_line - 1]
+
+            # Try to maintain the same column position, but don't exceed the line length
+            target_column = min(current_column, len(prev_line))
+
+            # Calculate the new cursor position in the original text
+            new_cursor_pos = self._map_wrapped_position_to_original(current_line - 1, target_column)
+            self.cursor_pos = new_cursor_pos
+        else:
+            # Already at the top line, move to the beginning
+            self.cursor_pos = 0
+
+    def _move_cursor_down(self) -> None:
+        """Move cursor down one line in the wrapped text."""
+        current_line, current_column = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)  # noqa: E501
+
+        wrapped_lines = self._text.split("\n")
+        if current_line < len(wrapped_lines) - 1:
+            # Move to the next line
+            next_line = wrapped_lines[current_line + 1]
+
+            # Try to maintain the same column position, but don't exceed the line length
+            target_column = min(current_column, len(next_line))
+
+            # Calculate the new cursor position in the original text
+            new_cursor_pos = self._map_wrapped_position_to_original(current_line + 1, target_column)
+            self.cursor_pos = new_cursor_pos
+        else:
+            # Already at the bottom line, move to the end
+            self.cursor_pos = len(self._original_text)
+
+    def _map_wrapped_position_to_original(self, line: int, column: int) -> int:
+        """Map a position in wrapped text (line, column) back to original text position."""
+        wrapped_lines = self._text.split("\n")
+
+        if line >= len(wrapped_lines):
+            return len(self._original_text)
+
+        # Get the text up to the target position in wrapped text
+        target_wrapped_pos = sum(len(wrapped_lines[i]) + 1 for i in range(line)) + column
+        target_wrapped_pos = min(target_wrapped_pos, len(self._text))
+
+        # Find the corresponding position in original text
+        # This is a simplified approach - we'll map character by character
+        original_pos = 0
+        wrapped_pos = 0
+
+        for i, char in enumerate(self._original_text):
+            if wrapped_pos >= target_wrapped_pos:
+                break
+            original_pos = i
+            wrapped_pos += 1
+            if char == "\n":
+                wrapped_pos += 1  # Account for newlines in wrapped text
+
+        return original_pos
+
     @property
     def text(self) -> str:
         """Get the text content."""
@@ -2822,7 +2944,9 @@ class MultiLineTextBox(BitmappySprite):
     @text.setter
     def text(self, value: str) -> None:
         """Set the text content with automatic wrapping."""
-        if value != self._text:
+        if value != self._original_text:
+            # Store the original text before wrapping
+            self._original_text = str(value)
             # Calculate available width for text (accounting for padding)
             available_width = self.width - 10  # 5px padding on each side
             wrapped_text = self._wrap_text(str(value), available_width)
@@ -2862,7 +2986,7 @@ class MultiLineTextBox(BitmappySprite):
             lines = self._text.split("\n")
 
             # Adjust scroll if needed to keep cursor visible
-            cursor_line = self._text[: self.cursor_pos].count("\n")
+            cursor_line, _ = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)
             if cursor_line - self.scroll_offset >= self.visible_lines:
                 self.scroll_offset = cursor_line - self.visible_lines + 1
             elif cursor_line < self.scroll_offset:
@@ -2881,7 +3005,7 @@ class MultiLineTextBox(BitmappySprite):
                         text_surface, _ = self.font.render(line, self.text_color)
                     else:
                         # pygame.font.Font - render returns surface
-                        text_surface = self.font.render(line, antialias=True, color=self.text_color)
+                        text_surface = self.font.render(line, True, self.text_color)
                     self.image.blit(text_surface, (5, y_offset))
                 y_offset += line_height
 
@@ -2893,22 +3017,24 @@ class MultiLineTextBox(BitmappySprite):
                 self.cursor_blink_time = current_time
 
             if self.cursor_visible:
-                # Count newlines before cursor to determine y position
-                lines_before_cursor = self._text[: self.cursor_pos].count("\n")
+                # Get the correct line and column position in the wrapped text
+                lines_before_cursor, column_pos = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)  # noqa: E501
+
                 # Only draw cursor if it's in the visible range
                 if (
                     self.scroll_offset
                     <= lines_before_cursor
                     < self.scroll_offset + self.visible_lines
                 ):
-                    # Get text width of current line up to cursor
-                    current_line_start = (
-                        self._text[: self.cursor_pos].rindex("\n") + 1
-                        if "\n" in self._text[: self.cursor_pos]
-                        else 0
-                    )
-                    current_line_text = self._text[current_line_start : self.cursor_pos]
-                    text_width = self._get_text_width(current_line_text)
+                    # Get the current line text in wrapped text
+                    wrapped_lines = self._text.split("\n")
+                    if lines_before_cursor < len(wrapped_lines):
+                        current_line_text = wrapped_lines[lines_before_cursor]
+                        # Get text width up to the column position
+                        text_up_to_cursor = current_line_text[:column_pos]
+                        text_width = self._get_text_width(text_up_to_cursor)
+                    else:
+                        text_width = 0
 
                     cursor_x = text_width + 5
                     cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
@@ -2939,17 +3065,40 @@ class MultiLineTextBox(BitmappySprite):
             # Enable key repeat for backspace
             pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
 
-            # Calculate cursor position
+            # Calculate cursor position based on wrapped text, then map to original
             x_rel = event.pos[0] - self.rect.x - 5
+            y_rel = event.pos[1] - self.rect.y - 5
+
+            # Get line height
+            if hasattr(self.font, "get_linesize"):
+                line_height = self.font.get_linesize()
+            else:
+                line_height = self.font.size if hasattr(self.font, "size") else 24
+
+            # Determine which line was clicked
+            clicked_line = max(0, int(y_rel // line_height))
+
+            # Get the wrapped lines
+            wrapped_lines = self._text.split("\n")
+            if clicked_line >= len(wrapped_lines):
+                clicked_line = len(wrapped_lines) - 1
+
+            # Find the character position within the clicked line
+            clicked_line_text = wrapped_lines[clicked_line]
             text_width = 0
-            for i, char in enumerate(self._text):
+            char_pos_in_line = 0
+
+            for i, char in enumerate(clicked_line_text):
                 char_width = self._get_text_width(char)
                 if text_width + (char_width / 2) > x_rel:
-                    self.cursor_pos = i
+                    char_pos_in_line = i
                     break
                 text_width += char_width
             else:
-                self.cursor_pos = len(self._text)
+                char_pos_in_line = len(clicked_line_text)
+
+            # Map the wrapped position back to original text position
+            self.cursor_pos = self._map_wrapped_position_to_original(clicked_line, char_pos_in_line)
 
             self.log.debug(f"Activated: cursor_pos={self.cursor_pos}")
             self.log.debug("Text input started")
@@ -3023,7 +3172,7 @@ class MultiLineTextBox(BitmappySprite):
                 else:
                     pyperclip.copy(self._text)
             except (ImportError, AttributeError):
-                self.log.exception("Error copying text")
+                self.log.error("Error copying text")
             return
         if is_paste:
             try:
@@ -3035,7 +3184,7 @@ class MultiLineTextBox(BitmappySprite):
                     self.text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
             except (ImportError, AttributeError):
-                self.log.exception("Error pasting text")
+                self.log.error("Error pasting text")
             return
 
         # Handle cut (Ctrl+X)
@@ -3063,7 +3212,7 @@ class MultiLineTextBox(BitmappySprite):
                     self.text = ""
                     self.cursor_pos = 0
             except (ImportError, AttributeError):
-                self.log.exception("Error cutting text")
+                self.log.error("Error cutting text")
             return
 
         # Handle select all (Ctrl+A)
@@ -3105,6 +3254,10 @@ class MultiLineTextBox(BitmappySprite):
             self.cursor_pos = max(0, self.cursor_pos - 1)
         elif event.key == pygame.K_RIGHT:
             self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+        elif event.key == pygame.K_UP:
+            self._move_cursor_up()
+        elif event.key == pygame.K_DOWN:
+            self._move_cursor_down()
         elif event.unicode and event.unicode >= " ":
             before_cursor = self._text[: self.cursor_pos]
             after_cursor = self._text[self.cursor_pos :]

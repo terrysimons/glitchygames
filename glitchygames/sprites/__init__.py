@@ -1001,8 +1001,8 @@ class BitmappySprite(Sprite):
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
 
-    # Define valid characters for sprite format - no '#' since it conflicts with YAML comments
-    SPRITE_CHARS = ".XO@$%&=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    # Use the universal character set from constants
+    from .constants import SPRITE_GLYPHS
 
     def __init__(
         self: Self,
@@ -1113,9 +1113,13 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._load_static_toml(filename)
-        else:
-            raise ValueError(f"Unsupported file format: {file_format}. Only TOML format is supported.")
+        raise ValueError(
+            f"Unsupported file format: {file_format}. Only TOML format is supported."
+        )
 
+    def _raise_too_many_colors_error(self, color_count: int) -> None:
+        """Raise an error for too many colors."""
+        raise ValueError(f"Too many colors: {color_count} > {len(SPRITE_GLYPHS)}")
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file."""
@@ -1171,7 +1175,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Created rect: {rect}")
 
         except Exception:
-            self.log.exception("Error in TOML load")
+            self.log.error("Error in TOML load")
             raise
         else:
             # Return the successfully loaded sprite data
@@ -1253,7 +1257,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Successfully saved to {filename}")
 
         except Exception:
-            self.log.exception("Error in save")
+            self.log.error("Error in save")
             raise
 
     def deflate(self: Self, file_format: str = "toml") -> dict:
@@ -1269,14 +1273,30 @@ class BitmappySprite(Sprite):
         try:
             self.log.debug(f"Starting deflate for {self.name} in {file_format} format")
 
+            # Handle empty surfaces
+            pixels_across = getattr(self, "pixels_across", self.width)
+            pixels_tall = getattr(self, "pixels_tall", self.height)
+            expected_pixels = pixels_across * pixels_tall
+            
+            if expected_pixels == 0:
+                # Return minimal config for empty surface
+                if file_format == "toml":
+                    return {
+                        "sprite": {
+                            "name": self.name,
+                            "pixels_across": 0,
+                            "pixels_tall": 0,
+                            "pixels": []
+                        }
+                    }
+                else:
+                    self._raise_unsupported_format_error(file_format)
+
             # Ensure pixels attribute exists
             if not hasattr(self, "pixels"):
                 self.pixels = []
 
             # Validate pixels list
-            pixels_across = getattr(self, "pixels_across", self.width)
-            pixels_tall = getattr(self, "pixels_tall", self.height)
-            expected_pixels = pixels_across * pixels_tall
             if len(self.pixels) != expected_pixels:
                 self.log.error(
                     f"Pixels list length mismatch: {len(self.pixels)} vs expected {expected_pixels}"
@@ -1297,7 +1317,7 @@ class BitmappySprite(Sprite):
 
             # Check if there are too many colors
             if len(unique_colors) > len(SPRITE_GLYPHS):
-                raise ValueError(f"Too many colors: {len(unique_colors)} > {len(SPRITE_GLYPHS)}")
+                self._raise_too_many_colors_error(len(unique_colors))
 
             # Create color to character mapping using the helper method
             color_map = self._create_color_map()
@@ -1312,19 +1332,23 @@ class BitmappySprite(Sprite):
                 self._raise_unsupported_format_error(file_format)
 
         except Exception:
-            self.log.exception("Error in deflate")
+            self.log.error("Error in deflate")
             raise
         else:
             # Return the successfully created configuration
             return config
 
-    def _process_pixel_rows(self, color_map: dict, pixels_across: int = None, pixels_tall: int = None) -> list[str]:
+    def _process_pixel_rows(
+        self, color_map: dict, pixels_across: int | None = None, pixels_tall: int | None = None
+    ) -> list[str]:
         """Process pixels into rows of characters.
 
         Args:
             color_map: Mapping of colors to characters
-            pixels_across: Number of pixels across (optional, uses self.pixels_across if not provided)
-            pixels_tall: Number of pixels tall (optional, uses self.pixels_tall if not provided)
+            pixels_across: Number of pixels across
+                (optional, uses self.pixels_across if not provided)
+            pixels_tall: Number of pixels tall
+                (optional, uses self.pixels_tall if not provided)
 
         Returns:
             List of pixel rows as strings
@@ -1353,7 +1377,9 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _create_toml_config(self, pixel_rows: list[str] = None, color_map: dict = None) -> dict:
+    def _create_toml_config(
+        self, pixel_rows: list[str] | None = None, color_map: dict | None = None
+    ) -> dict:
         """Create TOML configuration.
 
         Args:
@@ -1413,10 +1439,6 @@ class BitmappySprite(Sprite):
         """Raise an error for unsupported file format."""
         raise ValueError(f"Unsupported format: {file_format}")
 
-    @staticmethod
-    def _raise_too_many_colors_error(max_colors: int) -> None:
-        """Raise an error for too many colors."""
-        raise ValueError(f"Too many colors (max {max_colors})")
 
     def _create_color_map(self: Self) -> dict:
         """Create a color map from the sprite's pixels.
@@ -1510,8 +1532,8 @@ class BitmappySprite(Sprite):
 
             # Convert rows to pixels
             pixels = []
-            for y, row in enumerate(rows):
-                for x, char in enumerate(row):
+            for row in rows:
+                for char in row:
                     if char in color_map:
                         pixels.append(color_map[char])
                     else:
@@ -1526,10 +1548,10 @@ class BitmappySprite(Sprite):
             }
 
         except Exception:
-            self.log.exception("Error in TOML inflate")
+            self.log.error("Error in TOML inflate")
             raise
 
-    def inflate(self: Self, filename: str) -> dict:
+    def inflate_from_file(self: Self, filename: str) -> dict:
         """Inflate a sprite from a file.
 
         Args:
@@ -1544,8 +1566,7 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._inflate_toml(filename)
-        else:
-            raise ValueError(f"Unsupported format: {file_format}")
+        raise ValueError(f"Unsupported format: {file_format}")
 
     def on_left_mouse_drag_event(
         self: Self, event: pygame.event.Event, trigger: object | None
@@ -1886,10 +1907,9 @@ class SpriteFactory:
 
         if filename_str.endswith(".toml"):
             return "toml"
-        elif filename_str.endswith(".yaml") or filename_str.endswith(".yml"):
+        if filename_str.endswith((".yaml", ".yml")):
             return "yaml"
-        else:
-            return "unknown"
+        return "unknown"
 
     @staticmethod
     def _analyze_file(filename) -> dict:
@@ -1922,21 +1942,17 @@ class SpriteFactory:
         # Check for sprite.pixels (ignore empty strings and empty lists)
         if "sprite" in data and "pixels" in data["sprite"]:
             pixels = data["sprite"]["pixels"]
-            if isinstance(pixels, str) and pixels.strip():
-                has_sprite_pixels = True
-            elif isinstance(pixels, list) and pixels:
+            if ((isinstance(pixels, str) and pixels.strip())
+                or (isinstance(pixels, list) and pixels)):
                 has_sprite_pixels = True
 
         # Check for animation sections (both keys and arrays of tables)
-        if "animation" in data or "animations" in data:
-            has_animation_sections = True
-        elif isinstance(data.get("animation"), list) and data["animation"]:
+        if ("animation" in data or "animations" in data
+            or (isinstance(data.get("animation"), list) and data["animation"])):
             has_animation_sections = True
 
         # Check for frame sections (both keys and arrays of tables)
-        if "frame" in data:
-            has_frame_sections = True
-        elif isinstance(data.get("frame"), list) and data["frame"]:
+        if "frame" in data or (isinstance(data.get("frame"), list) and data["frame"]):
             has_frame_sections = True
 
         # Check for nested frame sections within animation arrays
@@ -2056,4 +2072,3 @@ def _get_color_map(self: Self) -> dict:
 # Add methods to BitmappySprite class
 BitmappySprite._get_pixel_string = _get_pixel_string
 BitmappySprite._get_color_map = _get_color_map
-

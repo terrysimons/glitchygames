@@ -34,7 +34,8 @@ include = [
 bitmappy = "glitchygames.tools.bitmappy:main"
 
 [tool.poetry.dependencies]
-python = ">= 3.13, < 4.0"
+# keep your python version here, e.g.:
+python = ">=3.13.0,<4.0"
 toml = "*"
 pygame = "*"
 future = "*"
@@ -42,37 +43,44 @@ cookiecutter = "*"
 pyperclip = "*"
 aisuite = {extras = ["all"], version = "^0.1.12"}
 numpy = "^2.3.3"
+speechrecognition = "^3.10.0"
+pyaudio = "^0.2.11"
 
-[tool.poetry.group.dev.dependencies]
-nox = "*"
-nox-poetry = "*"
-pytest = "*"
-pytest-cov = "*"
-pytest-xdist = "*"
-pytest-benchmark = "*"
-coverage = "*"
-bandit = "*"
-safety = "*"
-ruff = "*"
-pre-commit = "*"
-poetry-plugin-export = "*"
-pyright = "*"
+# --- docs extras as optional main deps ---
+mkdocs = { version = "1.6.1", optional = true }
+mkdocstrings = { version = "^0", optional = true, extras = ["crystal", "python"] }
+mkdocs-material = { version = "^9.6", optional = true }
+mkdocs-gen-files = { version = "^0", optional = true }
+mkdocs-literate-nav = { version = "^0", optional = true }
+mkdocs-section-index = { version = "^0", optional = true }
+pymdown-extensions = { version = "*", optional = true }
+mkdocs-autorefs = { version = "^1.4", optional = true }
+mkdocs-macros-plugin = { version = "^1.4", optional = true }
+mkdocstrings-python = { version = "^1.18", optional = true }
 
-[tool.poetry.group.docs.dependencies]
-mkdocs = "1.6.1"
-mkdocstrings = {extras = ["crystal", "python"], version = "^0"}
-mkdocs-material = "^9.6"
-mkdocs-gen-files = "^0"
-mkdocs-literate-nav = "^0"
-mkdocs-section-index = "^0"
-pymdown-extensions = "*"
-mkdocs-autorefs = "^1.4"
-mkdocs-macros-plugin = "^1.4"
-mkdocstrings-python = "^1.18"
+# --- dev extras as optional main deps ---
+nox = { version = "*", optional = true }
+nox-poetry = { version = "*", optional = true }
+pytest = { version = "*", optional = true }
+pytest-cov = { version = "*", optional = true }
+pytest-xdist = { version = "*", optional = true }
+pytest-benchmark = { version = "*", optional = true }
+coverage = { version = "*", optional = true }
+bandit = { version = "*", optional = true }
+safety = { version = "*", optional = true }
+ruff = { version = "*", optional = true }
+pre-commit = { version = "*", optional = true }
+poetry-plugin-export = { version = "*", optional = true }
+pyright = { version = "*", optional = true }
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
 dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
+
+
+
+
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -82,6 +90,7 @@ python_functions = ["test_*"]
 # Exclude examples directory from test collection
 norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
 addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+# Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
 source = ["glitchygames"]

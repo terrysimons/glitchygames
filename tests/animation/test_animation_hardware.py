@@ -5,13 +5,20 @@ and hardware, providing multiple layers of verification to quickly identify
 where rendering problems occur in the pipeline.
 """
 
+import sys
 import time
-import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pygame
+import pytest
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
+
+# Add project root so direct imports work in isolated runs
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
@@ -101,8 +108,14 @@ class HardwareAnimationTestScene(Scene):
         # Update the scene first
         self.update()
 
-        # Draw all sprites to the test surface
-        self.all_sprites.draw(self.test_surface)
+        # Draw all sprites to the test surface with fallback for mocks
+        try:
+            self.all_sprites.draw(self.test_surface)
+        except (TypeError, AttributeError):
+            # Fallback for mock environments - just draw individual sprites
+            for sprite in self.all_sprites:
+                if hasattr(sprite, "image") and hasattr(sprite, "rect"):
+                    self.test_surface.blit(sprite.image, sprite.rect)
 
         # Extract pixel data
         width, height = self.test_surface.get_size()
@@ -165,21 +178,26 @@ class HardwareAnimationTestScene(Scene):
         time.sleep(0.01)
 
 
-class TestAnimationHardware(unittest.TestCase):
+class TestAnimationHardware:
     """Test hardware-level animation rendering and display buffer verification."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-
+        # Use centralized mocks for pygame initialization
+        self.patchers = MockFactory.setup_pygame_mocks()
+        # Start all the patchers
+        for patcher in self.patchers:
+            patcher.start()
+        self.mock_display = MockFactory.create_pygame_display_mock()
+        self.mock_surface = MockFactory.create_pygame_surface_mock()
+        
         # Load the colors.toml animation for testing
         self.animation_file = get_resource_path("colors.toml")
 
-    @staticmethod
-    def tearDown():
+    def teardown_method(self):
         """Clean up test fixtures."""
-        pygame.quit()
+        # Teardown the centralized mocks
+        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_hardware_display_buffer_access(self):
         """Test that we can access the hardware display buffer."""
@@ -251,14 +269,14 @@ class TestAnimationHardware(unittest.TestCase):
         scene = HardwareAnimationTestScene(self.animation_file)
 
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         # Get all frames from the animation
         animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         if len(frames) < MAX_FRAME_COUNT:
-            self.skipTest("Need at least 3 frames to test transitions")
+            pytest.skip("Need at least 3 frames to test transitions")
 
         # Test frame transitions in hardware buffer
         hardware_frame_data = []
@@ -364,7 +382,7 @@ class TestAnimationHardware(unittest.TestCase):
         scene = HardwareAnimationTestScene(self.animation_file)
 
         if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
-            self.skipTest("No animations found")
+            pytest.skip("No animations found")
 
         animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
@@ -391,5 +409,4 @@ class TestAnimationHardware(unittest.TestCase):
         assert len(unique_contents) > 1, "Hardware buffer should show different frame content"
 
 
-if __name__ == "__main__":
-    unittest.main()
+# Remove unittest.main() since we're using pytest

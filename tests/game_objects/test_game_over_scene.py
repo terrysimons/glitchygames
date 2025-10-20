@@ -9,6 +9,7 @@ import pygame
 from glitchygames.examples.game_over_scene import GameOverScene
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
+
 from tests.mocks.test_mock_factory import MockFactory
 
 # Add the project root to the path
@@ -22,6 +23,9 @@ class TestGameOverScene(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Reset singleton state for clean test
+        SceneManager._instance = None
+
         self.patchers = MockFactory.setup_pygame_mocks()
         # Start all patchers
         for patcher in self.patchers:
@@ -149,34 +153,32 @@ class TestGameOverIntegration(unittest.TestCase):
             # Create a minimal game instance
             game = Game(options={})
 
-            # Mock the scene manager to capture the scene switch
-            mock_scene_manager = Mock()
-            game.scene_manager = mock_scene_manager
+            # Mock the collision detection to prevent memory issues
+            with (
+                patch.object(game, "_handle_ball_collisions"),
+                patch("pygame.sprite.collide_rect", return_value=False),
+            ):
+                # Create some mock balls and add them to the game
+                mock_ball1 = Mock()
+                mock_ball1.alive.return_value = False  # Dead ball
+                mock_ball1.speed = Mock()
+                mock_ball1.speed.x = 1  # Set speed.x to avoid comparison error
+                mock_ball1.speed.y = 1  # Set speed.y to avoid math operations error
 
-            # Create some mock balls and add them to the game
-            mock_ball1 = Mock()
-            mock_ball1.alive.return_value = False  # Dead ball
-            mock_ball1.speed = Mock()
-            mock_ball1.speed.x = 1  # Set speed.x to avoid comparison error
-            mock_ball1.speed.y = 1  # Set speed.y to avoid math operations error
+                mock_ball2 = Mock()
+                mock_ball2.alive.return_value = False  # Dead ball
+                mock_ball2.speed = Mock()
+                mock_ball2.speed.x = 1  # Set speed.x to avoid comparison error
+                mock_ball2.speed.y = 1  # Set speed.y to avoid math operations error
 
-            mock_ball2 = Mock()
-            mock_ball2.alive.return_value = False  # Dead ball
-            mock_ball2.speed = Mock()
-            mock_ball2.speed.x = 1  # Set speed.x to avoid comparison error
-            mock_ball2.speed.y = 1  # Set speed.y to avoid math operations error
+                game.balls = [mock_ball1, mock_ball2]
 
-            game.balls = [mock_ball1, mock_ball2]
+                # Call update to trigger Game Over
+                game.update()
 
-            # Call update to trigger Game Over
-            game.update()
-
-            # Verify that switch_to_scene was called
-            mock_scene_manager.switch_to_scene.assert_called_once()
-
-            # Verify the argument is the mocked GameOverScene
-            called_scene = mock_scene_manager.switch_to_scene.call_args[0][0]
-            assert called_scene == mock_game_over_scene
+                # Verify that next_scene was set to the mocked GameOverScene
+                assert game.next_scene == mock_game_over_scene
+                assert game.previous_scene == game
 
     def test_game_over_scene_gets_game_engine_reference(self):
         """Test that Game Over scene gets game engine reference from scene manager.
@@ -197,6 +199,11 @@ class TestGameOverIntegration(unittest.TestCase):
             # Create a scene manager with game engine
             scene_manager = SceneManager()
             mock_game_engine = Mock()
+            mock_game_engine.OPTIONS = {
+                "update_type": "dirty",
+                "fps_refresh_rate": 1,
+                "target_fps": 60
+            }
             scene_manager.game_engine = mock_game_engine
 
             # Create a Game Over scene (this will be the mocked version)
