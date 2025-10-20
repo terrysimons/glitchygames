@@ -166,6 +166,7 @@ class InputConfirmationDialogScene(Scene):
         if isinstance(self, SaveDialogScene):
             self.previous_scene.canvas.on_save_file_event(filename)
         elif isinstance(self, LoadDialogScene):
+            print(f"DEBUG: Dialog calling canvas.on_load_file_event with filename: {filename}")
             self.previous_scene.canvas.on_load_file_event(filename)
         elif isinstance(self, NewCanvasDialogScene):
             self.previous_scene.canvas.on_new_file_event(filename)
@@ -348,7 +349,9 @@ class LoadDialogScene(InputConfirmationDialogScene):
 
         """
         self.log.info(f"Load File: event: {event}, trigger: {trigger}")
-        self.previous_scene.canvas.on_load_file_event(self.dialog.input_box, self.dialog.input_box)
+        # Get the filename from the input box text
+        filename = self.dialog.input_box.text
+        self.previous_scene.canvas.on_load_file_event(filename)
         self.dismiss()
 
 

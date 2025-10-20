@@ -142,6 +142,12 @@ class FilmStripWidget:
                   f"{list(animated_sprite._animations.keys())}")
 
         self.animated_sprite = animated_sprite
+        
+        # Clear any stale animation state from previous sprites
+        self.preview_animation_times.clear()
+        self.preview_animation_speeds.clear()
+        self.preview_frame_durations.clear()
+        
         # Use sprite introspection to find the first animation
         if animated_sprite._animations:
             if hasattr(animated_sprite, "_animation_order") and animated_sprite._animation_order:

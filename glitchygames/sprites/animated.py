@@ -709,24 +709,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def _set_initial_animation(self: Self) -> None:
         """Set the initial animation and frame."""
         if self._animations:
-            # First try to find "idle" animation, then fall back to first animation in file order
-            if "idle" in self._animations:
-                self.frame_manager.current_animation = "idle"
-                self.log.debug(
-                    f"Set initial animation to 'idle' with {len(self._animations['idle'])} frames"
-                )
-            else:
-                # Use the first animation as it appears in the file
-                initial_animation = (
-                    self._animation_order[0]
-                    if self._animation_order
-                    else next(iter(self._animations.keys()))
-                )
-                self.frame_manager.current_animation = initial_animation
-                self.log.debug(
-                    f"No 'idle' animation found, using first animation in file: "
-                    f"'{initial_animation}' with {len(self._animations[initial_animation])} frames"
-                )
+            # Use the first animation as it appears in the file
+            initial_animation = (
+                self._animation_order[0]
+                if self._animation_order
+                else next(iter(self._animations.keys()))
+            )
+            self.frame_manager.current_animation = initial_animation
+            self.log.debug(
+                f"Set initial animation to first animation in file: "
+                f"'{initial_animation}' with {len(self._animations[initial_animation])} frames"
+            )
             self.frame_manager.current_frame = 0
         else:
             self.frame_manager.current_animation = ""

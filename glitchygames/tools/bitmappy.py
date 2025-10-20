@@ -108,11 +108,12 @@ CRITICAL RULES:
 LOG = logging.getLogger("game.tools.bitmappy")
 
 # Set up logging
-# if not LOG.handlers:
-#     handler = logging.StreamHandler()
-#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-#     handler.setFormatter(formatter)
-#     LOG.addHandler(handler)
+if not LOG.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    LOG.addHandler(handler)
+    LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -765,6 +766,14 @@ class FilmStripSprite(BitmappySprite):
         strip sprites need to update every frame, not just when dirty, because
         they contain independent animation timing that must advance continuously.
         """
+        # Check if this sprite has been killed - if so, don't update
+        if not hasattr(self, "groups") or not self.groups() or len(self.groups()) == 0:
+            LOG.debug(f"DEBUG: FilmStripSprite update skipped - not in groups: {hasattr(self, 'groups')}, groups: {self.groups() if hasattr(self, 'groups') else 'None'}")
+            # Clear the widget reference to prevent any lingering updates
+            if hasattr(self, "film_strip_widget"):
+                self.film_strip_widget = None
+            return
+
         # Debug: Track if this sprite is being updated
         if not hasattr(self, "_update_count"):
             self._update_count = 0
@@ -815,6 +824,14 @@ class FilmStripSprite(BitmappySprite):
 
         # Render the film strip widget
         self.film_strip_widget.render(self.image)
+
+    def kill(self):
+        """Kill the sprite and clean up the widget reference."""
+        # Clear the widget reference to prevent any lingering updates
+        if hasattr(self, "film_strip_widget"):
+            self.film_strip_widget = None
+        # Call the parent kill method
+        super().kill()
 
     def on_left_mouse_button_down_event(self, event):
         """Handle mouse clicks on the film strip."""
@@ -1645,8 +1662,10 @@ class AnimatedCanvasSprite(BitmappySprite):
     def on_load_file_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle load file event for animated sprites."""
         self.log.debug("=== Starting on_load_file_event for animated sprite ===")
+        LOG.debug(f"DEBUG: Canvas on_load_file_event called with event: {event}")
         try:
             filename = event if isinstance(event, str) else event.text
+            LOG.debug(f"DEBUG: Loading sprite from filename: {filename}")
 
             # Load the sprite from file
             loaded_sprite = self._load_sprite_from_file(filename)
@@ -1672,7 +1691,10 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
         except Exception as e:
-            self.log.error("Error in on_load_file_event for animated sprite")
+            self.log.error(f"Error in on_load_file_event for animated sprite: {e}")
+            self.log.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            self.log.error(f"Traceback: {traceback.format_exc()}")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error loading sprite: {e}"
@@ -1799,13 +1821,17 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Film strips will be created by the parent scene
 
         # Notify parent scene about sprite load
+        LOG.debug(f"DEBUG: Checking callbacks - hasattr(parent_scene): {hasattr(self, 'parent_scene')}, hasattr(on_sprite_loaded): {hasattr(self, 'on_sprite_loaded')}")
         if hasattr(self, "parent_scene") and self.parent_scene:
             self.log.debug("Calling parent scene _on_sprite_loaded")
+            LOG.debug(f"DEBUG: Calling parent scene _on_sprite_loaded")
             self.parent_scene._on_sprite_loaded(loaded_sprite)
         elif hasattr(self, "on_sprite_loaded") and self.on_sprite_loaded:
             self.log.debug("Calling on_sprite_loaded callback")
+            LOG.debug(f"DEBUG: Calling on_sprite_loaded callback")
             self.on_sprite_loaded(loaded_sprite)
         else:
+            LOG.debug(f"DEBUG: No callback found - hasattr(parent_scene): {hasattr(self, 'parent_scene')}, hasattr(on_sprite_loaded): {hasattr(self, 'on_sprite_loaded')}")
             self.log.debug("No parent scene or callback found")
 
     def _setup_animation_state(self, loaded_sprite: AnimatedSprite) -> None:
@@ -2611,12 +2637,27 @@ class BitmapEditorScene(Scene):
         )
         self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
 
-    def _create_multiple_film_strips(self, groups) -> None:
-        """Create multiple independent film strips - one for each animation."""
+    def _create_film_strips(self, groups) -> None:
+        """Create film strips for the current animated sprite - handles all loading scenarios."""
+        LOG.debug(f"DEBUG: _create_film_strips called")
+        LOG.debug(f"DEBUG: hasattr(self, 'canvas'): {hasattr(self, 'canvas')}")
+        if hasattr(self, "canvas"):
+            LOG.debug(f"DEBUG: self.canvas: {self.canvas}")
+            if self.canvas:
+                LOG.debug(f"DEBUG: hasattr(self.canvas, 'animated_sprite'): {hasattr(self.canvas, 'animated_sprite')}")
+                if hasattr(self.canvas, "animated_sprite"):
+                    LOG.debug(f"DEBUG: self.canvas.animated_sprite: {self.canvas.animated_sprite}")
+                    if self.canvas.animated_sprite:
+                        LOG.debug(f"DEBUG: hasattr(self.canvas.animated_sprite, '_animations'): {hasattr(self.canvas.animated_sprite, '_animations')}")
+                        if hasattr(self.canvas.animated_sprite, "_animations"):
+                            LOG.debug(f"DEBUG: self.canvas.animated_sprite._animations: {self.canvas.animated_sprite._animations}")
+
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite or not self.canvas.animated_sprite._animations:
+            LOG.debug(f"DEBUG: _create_film_strips returning early - conditions not met")
             return
 
         animated_sprite = self.canvas.animated_sprite
+        LOG.debug(f"DEBUG: _create_film_strips proceeding with animated_sprite: {animated_sprite}")
 
         # Calculate film strip dimensions
         # Position to the right of the canvas
@@ -2633,13 +2674,32 @@ class BitmapEditorScene(Scene):
         current_y = film_strip_y_start  # Start at canvas Y position
 
         # Create a separate film strip for each animation
+        LOG.debug(f"DEBUG: Starting film strip creation loop")
         for strip_index, (anim_name, frames) in enumerate(animated_sprite._animations.items()):
+            LOG.debug(f"DEBUG: Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
             LOG.debug(f"Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
             # Create a single animated sprite with just this animation
+            # Use the proper constructor to ensure all attributes are initialized
             single_anim_sprite = AnimatedSprite()
             single_anim_sprite._animations = {anim_name: frames}
+            single_anim_sprite._animation_order = [anim_name]  # Set animation order
+
+            # Properly initialize the frame manager state
             single_anim_sprite.frame_manager.current_animation = anim_name
             single_anim_sprite.frame_manager.current_frame = 0
+
+            # Set up the sprite to be ready for animation
+            single_anim_sprite.set_animation(anim_name)
+            single_anim_sprite.is_looping = True
+            single_anim_sprite.play()
+
+            # DEBUG: Log the sprite state
+            LOG.debug(f"Created single_anim_sprite for {anim_name}:")
+            LOG.debug(f"  _animations: {list(single_anim_sprite._animations.keys())}")
+            LOG.debug(f"  _animation_order: {single_anim_sprite._animation_order}")
+            LOG.debug(f"  current_animation: {single_anim_sprite.current_animation}")
+            LOG.debug(f"  is_playing: {single_anim_sprite.is_playing}")
+            LOG.debug(f"  is_looping: {single_anim_sprite.is_looping}")
 
             # Animation setup will be handled by set_animated_sprite method
 
@@ -2706,17 +2766,31 @@ class BitmapEditorScene(Scene):
                 self.canvas.film_strip = film_strip
                 self.canvas.film_strip_sprite = film_strip_sprite
 
+            # CRITICAL: Mark film strip sprite as dirty and force initial redraw
+            # This ensures the film strip updates properly on first load
+            film_strip_sprite.dirty = 2  # Full surface blit
+            film_strip.mark_dirty()
+            film_strip_sprite.force_redraw()
+
             # Move to next strip position
             current_y += film_strip.rect.height + strip_spacing
 
         # Create scroll arrows
         self._create_scroll_arrows()
 
+        # CRITICAL: Ensure all film strip sprites are marked as dirty for initial render
+        # This fixes the issue where film strips don't update on first load
+        for film_strip_sprite in self.film_strip_sprites.values():
+            film_strip_sprite.dirty = 2  # Full surface blit
+            film_strip_sprite.force_redraw()
+
         # Update visibility to show only 2 strips at a time
         self._update_film_strip_visibility()
 
         # Select the first film strip and set its frame 0 as active
+        LOG.debug(f"DEBUG: About to call _select_initial_film_strip")
         self._select_initial_film_strip()
+        LOG.debug(f"DEBUG: _create_film_strips completed successfully")
 
     def _select_initial_film_strip(self):
         """Select the first film strip and set its frame 0 as active on initialization."""
@@ -3185,8 +3259,15 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
-                second_strip_bottom = self.film_strips[1].rect.bottom
+            # Safely get the second film strip to handle race conditions during sprite loading
+            try:
+                # Convert to list to safely access by index
+                film_strip_list = list(self.film_strips.values())
+                if len(film_strip_list) >= 2 and hasattr(film_strip_list[1], "rect"):
+                    second_strip_bottom = film_strip_list[1].rect.bottom
+            except (IndexError, KeyError, AttributeError):
+                # Handle race condition where film strips are in transition
+                second_strip_bottom = 0
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
             debug_y = min(debug_y, self.screen_height - debug_height)
@@ -3246,8 +3327,15 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
-            if len(self.film_strips) >= 2 and hasattr(self.film_strips[1], "rect"):
-                second_strip_bottom = self.film_strips[1].rect.bottom
+            # Safely get the second film strip to handle race conditions during sprite loading
+            try:
+                # Convert to list to safely access by index
+                film_strip_list = list(self.film_strips.values())
+                if len(film_strip_list) >= 2 and hasattr(film_strip_list[1], "rect"):
+                    second_strip_bottom = film_strip_list[1].rect.bottom
+            except (IndexError, KeyError, AttributeError):
+                # Handle race condition where film strips are in transition
+                second_strip_bottom = 0
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
             # Ensure it doesn't go above the bottom of the screen
             debug_y = min(debug_y, self.screen_height - debug_height)
@@ -3390,14 +3478,28 @@ class BitmapEditorScene(Scene):
             self.log.debug("No scroll offset change needed")
 
     def _setup_film_strips(self) -> None:
-        """Set up multiple independent film strips - one for each animation."""
+        """Set up film strips for the current animated sprite."""
         # Initialize film strip storage
         self.film_strips = {}
         self.film_strip_sprites = {}
 
-        # Create multiple independent film strips if we have an animated sprite
+        # Create film strips if we have an animated sprite
+        LOG.debug(f"DEBUG: Checking conditions for _create_film_strips")
+        LOG.debug(f"DEBUG: hasattr(canvas): {hasattr(self, 'canvas')}")
+        if hasattr(self, "canvas"):
+            LOG.debug(f"DEBUG: self.canvas: {self.canvas}")
+            if self.canvas:
+                LOG.debug(f"DEBUG: hasattr(animated_sprite): {hasattr(self.canvas, 'animated_sprite')}")
+                if hasattr(self.canvas, "animated_sprite"):
+                    LOG.debug(f"DEBUG: self.canvas.animated_sprite: {self.canvas.animated_sprite}")
+                    if self.canvas.animated_sprite:
+                        LOG.debug(f"DEBUG: hasattr(_animations): {hasattr(self.canvas.animated_sprite, '_animations')}")
+                        if hasattr(self.canvas.animated_sprite, "_animations"):
+                            LOG.debug(f"DEBUG: _animations: {self.canvas.animated_sprite._animations}")
         if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite and self.canvas.animated_sprite._animations:
-            self._create_multiple_film_strips(self.all_sprites)
+            LOG.debug(f"DEBUG: About to call _create_film_strips (first call)")
+            self._create_film_strips(self.all_sprites)
+            LOG.debug(f"DEBUG: Finished calling _create_film_strips (first call)")
 
         # Set up parent scene reference for canvas
         if hasattr(self, "canvas") and self.canvas:
@@ -3406,10 +3508,16 @@ class BitmapEditorScene(Scene):
     def _on_sprite_loaded(self, loaded_sprite: AnimatedSprite) -> None:
         """Handle when a new sprite is loaded - recreate film strips."""
         self.log.debug("=== _on_sprite_loaded called ===")
+        LOG.debug(f"DEBUG: _on_sprite_loaded called with sprite: {loaded_sprite}")
+        LOG.debug(f"DEBUG: Sprite has animations: {hasattr(loaded_sprite, '_animations')}")
+        if hasattr(loaded_sprite, '_animations'):
+            LOG.debug(f"DEBUG: Sprite animations: {list(loaded_sprite._animations.keys())}")
 
         # Clear existing film strips
+        LOG.debug(f"DEBUG: Checking film_strips - hasattr: {hasattr(self, 'film_strips')}")
         if hasattr(self, "film_strips") and self.film_strips:
             self.log.debug(f"Clearing {len(self.film_strips)} existing film strips")
+            LOG.debug(f"DEBUG: Clearing {len(self.film_strips)} existing film strips")
             for film_strip_sprite in self.film_strip_sprites.values():
                 film_strip_sprite.kill()
             self.film_strips.clear()
@@ -3451,7 +3559,9 @@ class BitmapEditorScene(Scene):
                     self.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(f"Canvas pixels initialized: len={len(self.canvas.pixels)}")
 
-            self._create_multiple_film_strips(self.all_sprites)
+            LOG.debug(f"DEBUG: About to call _create_film_strips (second call)")
+            self._create_film_strips(self.all_sprites)
+            LOG.debug(f"DEBUG: Finished calling _create_film_strips (second call)")
             self.log.debug("Film strips created for loaded sprite")
 
             # Initialize global selection to first frame of first animation
@@ -4061,8 +4171,10 @@ class BitmapEditorScene(Scene):
             # Set up the callback on the canvas to call the main scene
             self.canvas.on_sprite_loaded = self._on_sprite_loaded
             self.log.debug("Set up on_sprite_loaded callback for canvas")
+            LOG.debug(f"DEBUG: Set up on_sprite_loaded callback for canvas")
         else:
             self.log.debug("No canvas found to set up callback")
+            LOG.debug(f"DEBUG: No canvas found to set up callback")
 
         # Query model capabilities for optimal token usage
         try:
@@ -4083,11 +4195,8 @@ class BitmapEditorScene(Scene):
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
-        self.new_canvas_dialog_scene = NewCanvasDialogScene(
-            options=self.options, previous_scene=self
-        )
-        self.load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
-        self.save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
+        # Dialog scenes are now created fresh each time they're needed
+        # No need to store persistent dialog scene instances
 
         # These are set up in the GameEngine class.
         if not hasattr(self, "_initialized"):
@@ -4232,10 +4341,14 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.new_canvas_dialog_scene.all_sprites.clear(
-            self.new_canvas_dialog_scene.screen, self.screenshot
+        # Create a fresh dialog scene each time
+        new_canvas_dialog_scene = NewCanvasDialogScene(
+            options=self.options, previous_scene=self
         )
-        self.next_scene = self.new_canvas_dialog_scene
+        new_canvas_dialog_scene.all_sprites.clear(
+            new_canvas_dialog_scene.screen, self.screenshot
+        )
+        self.next_scene = new_canvas_dialog_scene
         self.dirty = 1
 
     def on_load_dialog_event(self: Self, event: pygame.event.Event) -> None:
@@ -4251,8 +4364,10 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.load_dialog_scene.all_sprites.clear(self.load_dialog_scene.screen, self.screenshot)
-        self.next_scene = self.load_dialog_scene
+        # Create a fresh dialog scene each time
+        load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
+        load_dialog_scene.all_sprites.clear(load_dialog_scene.screen, self.screenshot)
+        self.next_scene = load_dialog_scene
         self.dirty = 1
 
     def on_save_dialog_event(self: Self, event: pygame.event.Event) -> None:
@@ -4268,8 +4383,10 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.save_dialog_scene.all_sprites.clear(self.save_dialog_scene.screen, self.screenshot)
-        self.next_scene = self.save_dialog_scene
+        # Create a fresh dialog scene each time
+        save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
+        save_dialog_scene.all_sprites.clear(save_dialog_scene.screen, self.screenshot)
+        self.next_scene = save_dialog_scene
         self.dirty = 1
 
     def on_color_well_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -4828,7 +4945,7 @@ class BitmapEditorScene(Scene):
                         frame_count = len(single_animation.frames)
                     else:
                         frame_count = len(single_animation)
-                    
+
                     if frame_count == 1:
                         # Only send the frame, not the strip
                         relevant_examples = [examples[0]]  # Just the frame
@@ -5707,7 +5824,7 @@ pixels = \"\"\"
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                 for anim_name, film_strip_sprite in self.film_strip_sprites.items():
                     if hasattr(film_strip_sprite, "dirty") and film_strip_sprite.dirty:
-                        self.log.debug(f"Film strip sprite {anim_name} is dirty: {film_strip_sprite.dirty}")
+                        pass
 
             # Check for frame transitions
             frame_index = self.canvas.animated_sprite.current_frame
@@ -6391,7 +6508,7 @@ def main() -> None:
 
     """
 
-    LOG.setLevel(logging.INFO)
+    LOG.setLevel(logging.DEBUG)
 
     # Set up signal handling to prevent multiprocessing issues on macOS
     def signal_handler(signum):
