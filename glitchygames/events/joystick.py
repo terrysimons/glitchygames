@@ -45,6 +45,8 @@ class JoystickManager(JoystickEvents, ResourceManager):
             """
             # Prefer stable instance_id when available
             self._id = instance_id if instance_id is not None else joystick_id
+            # Store the device index for reference
+            self._device_id = joystick_id
             try:
                 if instance_id is not None and hasattr(pygame.joystick.Joystick, "from_instance_id"):
                     self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)
@@ -259,7 +261,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             """
             joystick_info = [
                 f"Joystick Name: {self.get_name()}",
-                f"\tJoystick Id: {self._id}",
+                f"\tJoystick Id: {self._device_id}",
                 f"\tJoystick Inited: {self.get_init()}",
                 f"\tJoystick Axis Count: {self.get_numaxes()}",
                 f"\tJoystick Trackball Count: {self.get_numballs()}",
@@ -516,6 +518,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         joystick_proxy = JoystickManager.JoystickProxy(
             joystick_id=event.device_index, instance_id=instance_id, game=self.game
         )
+        self.log.debug(f"Created JoystickProxy with device_index={event.device_index}, instance_id={instance_id}, _device_id={joystick_proxy._device_id}")
         self.joysticks[instance_id] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
@@ -547,4 +550,4 @@ class JoystickManager(JoystickEvents, ResourceManager):
         # Need to notify the game first.
         if event.instance_id in self.joysticks:
             self.joysticks[event.instance_id].on_joy_device_removed_event(event)
-            del self.joysticks[event.instance_id]
+            self.joysticks.pop(event.instance_id, None)

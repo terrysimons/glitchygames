@@ -17,6 +17,7 @@ from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, WHITE, YELLOW
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickManager
 from glitchygames.fonts import FontManager
+from glitchygames.ui import TabControlSprite
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 from pygame import Rect
@@ -264,8 +265,12 @@ class TextSprite(Sprite):
         self.rect = self.image.get_rect()
         self.rect.x += x
         self.rect.y += y
-        # Create a joystick manager for this demo
-        self.joystick_manager = JoystickManager()
+        # Create a joystick manager for this demo, connected to the scene for events
+        self.joystick_manager = JoystickManager(game=game)
+
+        # Also create a controller manager for controller events
+        from glitchygames.events.controller import ControllerManager
+        self.controller_manager = ControllerManager(game=game)
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         # Track previous button states to detect changes
@@ -281,13 +286,17 @@ class TextSprite(Sprite):
         """Obsolete text rendering path (removed)."""
         return
 
-    def update(self):
+    def update(self, filter_controller_index=None):
         """Update the text display."""
-        self.update_textbox()
+        self.update_textbox(filter_controller_index)
         return
 
-    def update_textbox(self):
-        """Alternative update method using TextBoxSprite"""
+    def update_textbox(self, filter_controller_index=None):
+        """Alternative update method using TextBoxSprite
+
+        Args:
+            filter_controller_index (int | None): If set, only show info for this controller index
+        """
         self.image.fill(self.background_color)
 
         # Lazy initialize the textbox helper on first use
@@ -306,6 +315,10 @@ class TextSprite(Sprite):
                     rendered = font.render(string, fgcolor=WHITE, size=10)
                     if isinstance(rendered, tuple):
                         rendered = rendered[0]
+                    # Debug: check if text would go beyond surface bounds
+                    text_width = rendered.get_width()
+                    if self.x + text_width > surface.get_width():
+                        print(f"DEBUG: Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}")
                     surface.blit(rendered, (self.x, self.y))
                     self.y += self.line_height
 
@@ -319,9 +332,9 @@ class TextSprite(Sprite):
                 def unindent(self) -> None:
                     self.x -= 10
 
-            self.text_box = _InlineTextBox(start_x=10, start_y=10, line_height=12)
+            self.text_box = _InlineTextBox(start_x=0, start_y=0, line_height=12)
 
-        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
+        # Removed border to maximize text space
 
         self.text_box.reset()
         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
@@ -332,70 +345,109 @@ class TextSprite(Sprite):
 
         # Build list of active pygame joystick objects from proxies
         active = [
-            (jid, proxy, proxy.joystick)
-            for jid, proxy in self.joystick_manager.joysticks.items()
+            (joystick_id, proxy, proxy.joystick)
+            for joystick_id, proxy in self.joystick_manager.joysticks.items()
             if hasattr(proxy, 'joystick') and proxy.joystick is not None
         ]
-        self.text_box.print(self.image, f'Number of joysticks: {len(active)}')
+
+        # Filter to show only selected controller if filter is set
+        if filter_controller_index is not None:
+            print(f"DEBUG: Filtering for controller {filter_controller_index}")
+            # Filter by current device ID, not the stored device ID
+            filtered_active = []
+            for joystick_id, proxy, joystick in active:
+                # Find the current device index for this joystick
+                current_device_id = None
+                for i in range(pygame.joystick.get_count()):
+                    try:
+                        current_joystick = pygame.joystick.Joystick(i)
+                        if current_joystick is joystick:
+                            current_device_id = i
+                            break
+                    except Exception:
+                        pass
+
+                print(f"DEBUG: Joystick {joystick_id} has current_device_id={current_device_id}")
+                if current_device_id == filter_controller_index:
+                    filtered_active.append((joystick_id, proxy, joystick))
+                    print(f"DEBUG: Added joystick {joystick_id} to filtered results")
+
+            if filtered_active:
+                active = filtered_active
+                self.text_box.print(self.image, f'Showing controller {filter_controller_index} (of {len(self.joystick_manager.joysticks)} total)')
+            else:
+                self.text_box.print(self.image, f'Controller {filter_controller_index} not found')
+        else:
+            self.text_box.print(self.image, f'Number of joysticks: {len(active)}')
+
         if active:
-            for i, (jid, proxy, js) in enumerate(active):
+            for i, (joystick_id, proxy, joystick) in enumerate(active):
                 # Deep debug: names and GUIDs from both proxy and raw pygame joystick
-                proxy_name = None
-                js_name = None
-                proxy_guid = getattr(proxy, "_guid", None)
-                js_guid = None
-                try:
-                    proxy_name = proxy.get_name() if hasattr(proxy, "get_name") else None
-                except Exception as e:
-                    print(f"DEBUG name proxy exception for jid={jid}: {e}")
-                try:
-                    js_name = js.get_name() if hasattr(js, "get_name") else None
-                except Exception as e:
-                    print(f"DEBUG name js exception for jid={jid}: {e}")
-                try:
-                    js_guid = js.get_guid() if hasattr(js, "get_guid") else None
-                except Exception as e:
-                    print(f"DEBUG guid js exception for jid={jid}: {e}")
+                proxy_name = proxy.get_name() if hasattr(proxy, "get_name") else None
+                joystick_name = joystick.get_name() if hasattr(joystick, "get_name") else None
+                joystick_guid = (
+                    "-".join(joystick.get_guid()[i:i+4].upper() for i in range(0, len(joystick.get_guid()), 4))
+                    if hasattr(joystick, "get_guid") and joystick.get_guid() else None
+                )
+                device_id = proxy._device_id if hasattr(proxy, '_device_id') else joystick_id
+                instance_id = joystick.get_instance_id() if \
+                    hasattr(joystick, "get_instance_id") \
+                        else None
 
-
-
-                self.text_box.print(self.image, f'Joystick {i} (id={jid}')
+                self.text_box.print(self.image, f'Joystick {device_id} (id={joystick_id})')
 
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
                 # Display the proxy name explicitly; this is expected to be specific (e.g., "Xbox 360 Controller")
                 self.text_box.print(self.image, f'Joystick name: {proxy_name}')
 
+                # Display the GUID/UUID
+                if joystick_guid:
+                    self.text_box.print(self.image, f'Joystick GUID: {joystick_guid}')
+
+                # Display ID and instance ID
+                try:
+                    device_id = joystick.get_id()
+                    self.text_box.print(self.image, f'Device ID: {device_id}')
+                except Exception:
+                    pass
+
+                try:
+                    instance_id = joystick.get_instance_id()
+                    self.text_box.print(self.image, f'Instance ID: {instance_id}')
+                except Exception:
+                    pass
+
                 # Usually axis run in pairs, up/down for one, and left/right for
                 # the other.
-                axes = js.get_numaxes()
+                axes = joystick.get_numaxes()
                 self.text_box.print(self.image, f'Number of axes: {axes}')
 
                 self.text_box.indent()
                 for j in range(axes):
                        self.text_box.print(
-                            self.image, f'Axis {j} value: {js.get_axis(j):>6.3f}'
+                            self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
                         )
                 self.text_box.unindent()
 
-                buttons = js.get_numbuttons()
+                buttons = joystick.get_numbuttons()
                 self.text_box.print(self.image, f'Number of buttons: {buttons}')
 
                 self.text_box.indent()
                 for j in range(buttons):
                     self.text_box.print(
-                        self.image, f'Button {j:>2} value: {js.get_button(j)}'
+                        self.image, f'Button {j:>2} value: {joystick.get_button(j)}'
                     )
                 self.text_box.unindent()
 
                 # Hat switch. All or nothing for direction, not like joysticks.
                 # Value comes back in an array.
-                hats = js.get_numhats()
+                hats = joystick.get_numhats()
                 self.text_box.print(self.image, f'Number of hats: {hats}')
 
                 self.text_box.indent()
                 for j in range(hats):
-                    self.text_box.print(self.image, f'Hat {j} value: {str(js.get_hat(j))}')
+                    self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
                 self.text_box.unindent()
                 self.text_box.unindent()
 
@@ -430,12 +482,34 @@ class JoystickScene(Scene):
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
 
+        # Controller tabs state
+        self.tab_control = None
+        self.active_controller_index = None
+        self.last_controller_count = pygame.joystick.get_count()
+        self._rebuild_controller_tabs()
+
     def update(self):
         """Update the scene."""
         super().update()  # Call parent update
 
+        # Fallback: check for controller count changes if events aren't firing
+        current_count = pygame.joystick.get_count()
+        if current_count != self.last_controller_count:
+            print(f"DEBUG: Controller count changed from {self.last_controller_count} to {current_count}")
+            self.last_controller_count = current_count
+            self._rebuild_controller_tabs()
+
         # Manually update the text sprite to refresh button states
-        self.text_sprite.update()
+        self.text_sprite.update(filter_controller_index=self.active_controller_index)
+
+        # Keep tabs centered if window size changes dynamically
+        if self.tab_control is not None:
+            if len(self.tab_control.tabs) > 0:
+                total_width = self.tab_control.tab_width * len(self.tab_control.tabs)
+                new_x = (self.screen.get_width() - total_width) // 2
+                if new_x != self.tab_control.rect.x:
+                    self.tab_control.rect.x = new_x
+                    self.tab_control.dirty = 2
 
     def load_resources(self: Self) -> None:
         """Load the resources.
@@ -496,6 +570,216 @@ class JoystickScene(Scene):
                 y += 32
             else:
                 x += 32
+
+    def _rebuild_controller_tabs(self: Self) -> None:
+        """Create or update the controller index tabs centered at the top."""
+        pygame_count = pygame.joystick.get_count()
+
+        # Get the joystick manager from the engine
+        joystick_manager = None
+        if hasattr(self, 'game') and hasattr(self.game, 'joystick_manager'):
+            joystick_manager = self.game.joystick_manager
+            print(f"DEBUG: Using engine's joystick manager")
+        elif hasattr(self, 'text_sprite') and hasattr(self.text_sprite, 'joystick_manager'):
+            joystick_manager = self.text_sprite.joystick_manager
+            print(f"DEBUG: Using text sprite's joystick manager")
+
+        # Force cleanup of stale entries in joystick manager
+        if joystick_manager:
+            # Get current pygame joystick instance IDs
+            current_instance_ids = set()
+            for i in range(pygame.joystick.get_count()):
+                try:
+                    joystick = pygame.joystick.Joystick(i)
+                    instance_id = joystick.get_instance_id()
+                    current_instance_ids.add(instance_id)
+                except Exception:
+                    pass
+
+            # Remove any joystick manager entries that don't match current pygame joysticks
+            stale_ids = []
+            for joystick_id, proxy in joystick_manager.joysticks.items():
+                if hasattr(proxy, 'joystick') and proxy.joystick is not None:
+                    try:
+                        instance_id = proxy.joystick.get_instance_id()
+                        if instance_id not in current_instance_ids:
+                            print(f"DEBUG: Joystick {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale")
+                            stale_ids.append(joystick_id)
+                    except Exception as e:
+                        print(f"DEBUG: Marking joystick {joystick_id} as stale for removal: {e}")
+                        stale_ids.append(joystick_id)
+
+            # Remove stale entries
+            for stale_id in stale_ids:
+                if stale_id in joystick_manager.joysticks:
+                    print(f"DEBUG: Removing stale joystick {stale_id}")
+                    del joystick_manager.joysticks[stale_id]
+
+        # Get unique controller device IDs from the joystick manager proxies
+        unique_ids = []
+        if joystick_manager:
+            print(f"DEBUG: Joystick manager has {len(joystick_manager.joysticks)} entries after cleanup")
+            for joystick_id, proxy in joystick_manager.joysticks.items():
+                print(f"DEBUG: Found joystick_id={joystick_id}, proxy={proxy}")
+                if hasattr(proxy, 'joystick') and proxy.joystick is not None:
+                    # Check if the joystick is still actually connected
+                    try:
+                        # Try to access a property to see if the joystick is still valid
+                        name = proxy.joystick.get_name()
+                        # Find the current device index by matching the joystick object
+                        device_id = None
+                        for i in range(pygame.joystick.get_count()):
+                            try:
+                                current_joystick = pygame.joystick.Joystick(i)
+                                # Match by object identity to get current device index
+                                if current_joystick is proxy.joystick:
+                                    device_id = i
+                                    break
+                            except Exception:
+                                pass
+
+                        if device_id is None:
+                            # Fallback to stored device_id or joystick_id
+                            device_id = getattr(proxy, '_device_id', joystick_id)
+
+                        print(f"DEBUG: Found current device_id={device_id} for joystick_id={joystick_id}, name='{name}' (should be actual pygame device index)")
+
+                        guid = proxy.joystick.get_guid()
+                        print(f"DEBUG: Proxy has valid joystick '{name}', device_id={device_id}, guid={guid}, adding device ID {device_id}")
+                        print(f"DEBUG: Found joystick_id={joystick_id}, device_id={device_id}, guid={guid}, proxy={proxy}")
+                        # Use device_id instead of joystick_id for tabs
+                        if device_id not in unique_ids:
+                            unique_ids.append(device_id)
+                        else:
+                            print(f"DEBUG: Skipping duplicate device ID {device_id}")
+                    except Exception as e:
+                        print(f"DEBUG: Joystick {joystick_id} is stale/invalid: {e}")
+                else:
+                    print(f"DEBUG: Proxy has no valid joystick, skipping ID {joystick_id}")
+
+        # Sort IDs for consistent ordering
+        unique_ids = sorted(unique_ids)
+        count = len(unique_ids)
+        print(f"DEBUG: Rebuilding tabs, pygame count: {pygame_count}, unique IDs: {unique_ids}, count: {count}")
+
+        # No controllers: remove tab control if present
+        if count == 0:
+            if self.tab_control is not None:
+                with contextlib.suppress(Exception):
+                    self.all_sprites.remove(self.tab_control)
+                self.tab_control = None
+                self.active_controller_index = None
+            return
+
+        # Build labels from unique controller IDs
+        labels = [str(controller_id) for controller_id in unique_ids]
+
+        # Visual sizing
+        per_tab_width = 36
+        tab_height = 18
+        total_width = per_tab_width * len(labels)
+        x = (self.screen.get_width() - total_width) // 2
+        y = 2
+
+        if self.tab_control is None:
+            self.tab_control = TabControlSprite(
+                name="Controller Tabs",
+                x=x,
+                y=y,
+                width=total_width,
+                height=tab_height,
+                parent=self,
+                groups=self.all_sprites,
+            )
+        else:
+            # Remove and recreate the tab control to ensure clean visual update
+            with contextlib.suppress(Exception):
+                self.all_sprites.remove(self.tab_control)
+            self.tab_control = TabControlSprite(
+                name="Controller Tabs",
+                x=x,
+                y=y,
+                width=total_width,
+                height=tab_height,
+                parent=self,
+                groups=self.all_sprites,
+            )
+
+        # Update labels and layout
+        self.tab_control.tabs = labels
+        if len(labels) > 0:
+            self.tab_control.tab_width = max(1, total_width // len(labels))
+
+        print(f"DEBUG: Tab labels: {labels}")
+        print(f"DEBUG: unique_ids used for labels: {unique_ids}")
+        print(f"DEBUG: Current active_controller_index: {self.active_controller_index}")
+
+        # Handle active tab selection when controllers are removed
+        if self.active_controller_index is None or self.active_controller_index not in unique_ids:
+            # Reset to first tab if no valid selection or selected controller was removed
+            print(f"DEBUG: Resetting to first tab (active_controller_index={self.active_controller_index}, unique_ids={unique_ids})")
+            self.tab_control.active_tab = 0
+            self.active_controller_index = unique_ids[0] if unique_ids else None
+        else:
+            # Keep current selection if it's still valid - find the tab index for this controller ID
+            tab_index = unique_ids.index(self.active_controller_index)
+            print(f"DEBUG: Keeping current selection: {self.active_controller_index} at tab index {tab_index}")
+            self.tab_control.active_tab = tab_index
+
+        print(f"DEBUG: Final tab state - active_tab: {self.tab_control.active_tab}, active_controller_index: {self.active_controller_index}")
+
+        # Force complete redraw to ensure clean appearance
+        self.tab_control.dirty = 2
+        self.tab_control.update()
+
+        # Refresh the text display to show the correct controller info
+        self.text_sprite.update(filter_controller_index=self.active_controller_index)
+
+    def on_tab_change_event(self: Self, tab_label: str) -> None:
+        """Handle tab selection; filter display to show only selected controller."""
+        print(f"DEBUG: on_tab_change_event called with tab_label: {tab_label}")
+        try:
+            # Convert tab label (which is a string representation of controller ID) back to int
+            self.active_controller_index = int(tab_label)
+            print(f"DEBUG: Set active_controller_index to: {self.active_controller_index}")
+        except Exception as e:
+            print(f"DEBUG: Failed to parse tab_label '{tab_label}': {e}")
+            self.active_controller_index = None
+        # Force text sprite to refresh with new filter
+        self.text_sprite.update(filter_controller_index=self.active_controller_index)
+        # Force tab control redraw
+        if self.tab_control is not None:
+            self.tab_control.dirty = 2
+
+    # Device hotplug events: rebuild tabs
+    def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        print(f"DEBUG: Joystick device added event: {event}")
+        # Update the fallback counter to trigger rebuild
+        self.last_controller_count = pygame.joystick.get_count()
+        print(f"DEBUG: Triggering tab rebuild due to joystick device added")
+        self._rebuild_controller_tabs()
+
+    def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        print(f"DEBUG: Joystick device removed event: {event}")
+        # Update the fallback counter to trigger rebuild
+        self.last_controller_count = pygame.joystick.get_count()
+        print(f"DEBUG: Triggering tab rebuild due to joystick device removed")
+        self._rebuild_controller_tabs()
+
+    # Controller device events: rebuild tabs
+    def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        print(f"DEBUG: Controller device added event: {event}")
+        # Update the fallback counter to trigger rebuild
+        self.last_controller_count = pygame.joystick.get_count()
+        print(f"DEBUG: Triggering tab rebuild due to controller device added")
+        self._rebuild_controller_tabs()
+
+    def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        print(f"DEBUG: Controller device removed event: {event}")
+        # Update the fallback counter to trigger rebuild
+        self.last_controller_count = pygame.joystick.get_count()
+        print(f"DEBUG: Triggering tab rebuild due to controller device removed")
+        self._rebuild_controller_tabs()
 
     def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse motion events.
