@@ -690,7 +690,7 @@ class GameEngine(events.EventManager):
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger("game")
 
-        self.log.info("Starting game engine for game: {type(self).NAME}")
+        self.log.info(f"Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
                 "Game not initialized.  Pass a game class to the GameEngine constructor."
@@ -816,6 +816,10 @@ class GameEngine(events.EventManager):
             pump_events = pygame.fastevent.get
 
         for raw_event in pump_events():
+            # Debug: Log all events to see what's coming through
+            if raw_event.type in [pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP, pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP]:
+                print(f"DEBUG: Raw button event: {raw_event}")
+            
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
             if hasattr(self._active_scene, "process_event"):

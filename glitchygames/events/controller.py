@@ -81,6 +81,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             self._attached = self.controller.attached()
 
             self._numaxes = len(self.AXIS)
+            # Start with hardcoded button count, but allow dynamic growth
             self._numbuttons = len(self.BUTTONS)
             self._mapping = self.controller.get_mapping()
 
@@ -115,6 +116,12 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 None
 
             """
+            self.log.debug(f"CONTROLLERBUTTONDOWN triggered: {event}")
+            # Ensure storage accommodates this button index
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 1
             self.game.on_controller_button_down_event(event)
 
@@ -128,6 +135,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 None
 
             """
+            self.log.debug(f"CONTROLLERBUTTONUP triggered: {event}")
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 0
             self.game.on_controller_button_up_event(event)
 

@@ -6,14 +6,17 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
+import multiprocessing
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, YELLOW
+from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, WHITE, YELLOW
 from glitchygames.engine import GameEngine
+from glitchygames.events.joystick import JoystickManager
+from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 from pygame import Rect
@@ -37,14 +40,16 @@ class ShapesSprite(Sprite):
 
         """
         super().__init__(*args, **kwargs)
-        self.use_gfxdraw = True
+        self.use_gfxdraw = False
 
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
-        self.screen.convert()
-        self.screen.fill(BLACK)
-        self.image = self.screen
+
+        # Create a proper sprite surface instead of using the screen
+        self.image = pygame.Surface((self.screen_width, self.screen_height))
+        self.image.convert()
+        self.image.fill(BLACK)
         self.rect = self.image.get_rect()
 
         self.point = None
@@ -102,13 +107,13 @@ class ShapesSprite(Sprite):
         # it with the line API.
         if self.use_gfxdraw:
             pygame.gfxdraw.pixel(
-                self.screen, self.screen_width // 2, self.screen_height // 2, YELLOW
+                self.image, self.screen_width // 2, self.screen_height // 2, YELLOW
             )
 
             self.point = (self.screen_width // 2, self.screen_height // 2)
         else:
             self.point = pygame.draw.line(
-                self.screen,
+                self.image,
                 YELLOW,
                 (self.screen_width // 2, self.screen_height // 2),
                 (self.screen_width // 2, self.screen_height // 2),
@@ -127,7 +132,7 @@ class ShapesSprite(Sprite):
         # Draw a blue circle.
         if self.use_gfxdraw:
             pygame.gfxdraw.circle(
-                self.screen,
+                self.image,
                 self.screen_width // 2,
                 self.screen_height // 2,
                 self.screen_height // 2,
@@ -135,7 +140,7 @@ class ShapesSprite(Sprite):
             )
         else:
             pygame.draw.circle(
-                self.screen,
+                self.image,
                 BLUE,
                 (self.screen_width // 2, self.screen_height // 2),
                 self.screen_height // 2,
@@ -167,14 +172,14 @@ class ShapesSprite(Sprite):
         pointlist = (top_point, left_point, right_point)
 
         if self.use_gfxdraw:
-            pygame.gfxdraw.polygon(self.screen, pointlist, GREEN)
+            pygame.gfxdraw.polygon(self.image, pointlist, GREEN)
 
             # You could also use:
-            # pygame.gfxdraw.trigon(self.screen, x1, y1, x2, y2, x3, y3, GREEN)
+            # pygame.gfxdraw.trigon(self.image, x1, y1, x2, y2, x3, y3, GREEN)
 
             self.triangle = pointlist
         else:
-            self.triangle = pygame.draw.polygon(self.screen, GREEN, pointlist, 1)
+            self.triangle = pygame.draw.polygon(self.image, GREEN, pointlist, 1)
 
     @property
     def rectangle(self: Self) -> pygame.rect.Rect:
@@ -206,30 +211,39 @@ class ShapesSprite(Sprite):
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
         if self.use_gfxdraw:
-            pygame.gfxdraw.rectangle(self.screen, self.rectangle, PURPLE)
+            pygame.gfxdraw.rectangle(self.image, self.rectangle, PURPLE)
         else:
-            self.rectangle = pygame.draw.rect(self.screen, PURPLE, self.rectangle, 1)
+            pygame.draw.rect(self.image, PURPLE, self.rectangle, 1)
 
 
 # TODO: Refactor this into ui.py and/or remove it
-# class TextSprite(Sprite):
-#     def __init__(self: Self, background_color=BLACKLUCENT, alpha=0, x=0, y=0):
-#         self.background_color = background_color
-#         self.alpha = alpha
-#         self.x = x
-#         self.y = y
-#         self.text_box = None
-#         super().__init__()
+class TextSprite(Sprite):
+    def __init__(self: Self, background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=None):
+        self.background_color = background_color
+        self.alpha = alpha
+        self.x = x
+        self.y = y
+        self.text_box = None
+        # Enable alternative textbox mode by default
+        self.use_textbox = True
 
-#         # Quick and dirty, for now.
-#         self.image = pygame.Surface((200, 200))
-#         self.screen = pygame.display.get_surface()
+        # Get screen dimensions first
+        self.screen = pygame.display.get_surface()
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
 
-#         if not alpha:
-#             self.image.set_colorkey(self.background_color)
-#             self.image.convert()
-#         else:
-#             # Enabling set_alpha() and also setting a color
+        super().__init__(x=x, y=y, width=self.screen_width, height=self.screen_height, groups=groups)
+
+        # Quick and dirty, for now.
+        self.image = pygame.Surface((self.screen_width, self.screen_height))
+
+        # Make background transparent
+        if not alpha:
+            self.image.set_colorkey(self.background_color)
+            self.image.convert()
+        else:
+            self.image.convert_alpha()
+            self.image.set_alpha(self.alpha)
 #             # key will let you hide the background
 #             # but things that are blited otherwise will
 #             # be translucent.  This can be an easy
@@ -247,104 +261,324 @@ class ShapesSprite(Sprite):
 #             self.image.convert_alpha()
 #             self.image.set_alpha(self.alpha)
 
-#         self.rect = self.image.get_rect()
-#         self.rect.x += x
-#         self.rect.y += y
-#         self.font_manager = FontManager()
-#         self.joystick_manager = JoystickManager()
-#         self.joystick_count = len(self.joystick_manager.joysticks)
+        self.rect = self.image.get_rect()
+        self.rect.x += x
+        self.rect.y += y
+        # Use static FontManager methods instead of instance
+        # Get the joystick manager from the game engine instead of creating a new one
+        # Access it through the scene manager's game engine
+        if hasattr(game, 'scene_manager') and hasattr(game.scene_manager, 'game_engine') and game.scene_manager.game_engine:
+            self.joystick_manager = game.scene_manager.game_engine.joystick_manager
+        else:
+            # Fallback: create a new instance if game engine not available
+            self.joystick_manager = JoystickManager(game=game)
+        self.joystick_count = len(self.joystick_manager.joysticks)
 
-#         # Interiting from object is default in Python 3.
-#         # Linters complain if you do it.
-#         class TextBox:
-#             def __init__(self: Self, font_controller, x, y, line_height=15):
-#                 super().__init__()
-#                 self.image = None
-#                 self.rect = None
-#                 self.start_x = x
-#                 self.start_y = y
-#                 self.x = self.start_x
-#                 self.y = self.start_y
-#                 self.line_height = line_height
+        # Track previous button states to detect changes
+        self._previous_button_states = {}
+        for joystick_id, joystick in self.joystick_manager.joysticks.items():
+            if hasattr(joystick, '_buttons'):
+                self._previous_button_states[joystick_id] = joystick._buttons.copy()
 
-#                 pygame.freetype.set_default_resolution(font_controller.font_dpi)
-#                 self.font = pygame.freetype.SysFont(name=font_controller.font,
-#                                                     size=font_controller.font_size)
+        # Draw some text to show joystick info
+        self._draw_text()
 
-#             def print(self: Self, surface, string):
-#                 (self.image, self.rect) = self.font.render(string, WHITE)
-#                 surface.blit(self.image, (self.x, self.y))
-#                 self.rect.x = self.x
-#                 self.rect.y = self.y
-#                 self.y += self.line_height
+    def _draw_text(self):
+        """Draw text showing joystick information."""
+        print(f"DEBUG: _draw_text called, joystick_count: {self.joystick_count}")
 
-#             def reset(self):
-#                 self.x = self.start_x
-#                 self.y = self.start_y
+        # Filter out joysticks without pygame joystick objects
+        active_joysticks = {}
+        print(f"DEBUG: Total joysticks in manager: {len(self.joystick_manager.joysticks)}")
+        print(f"DEBUG: Joystick manager keys: {list(self.joystick_manager.joysticks.keys())}")
+        for joystick_id, joystick in self.joystick_manager.joysticks.items():
+            print(f"DEBUG: Checking joystick {joystick_id}: has joystick={hasattr(joystick, 'joystick')}, joystick is not None={joystick.joystick is not None if hasattr(joystick, 'joystick') else 'No joystick attr'}")
+            if hasattr(joystick, 'joystick') and joystick.joystick is not None:
+                active_joysticks[joystick_id] = joystick
+                print(f"DEBUG: Added joystick {joystick_id} to active_joysticks")
+            else:
+                print(f"DEBUG: Skipped joystick {joystick_id} - not active")
 
-#             def indent(self):
-#                 self.x += 10
+        font = FontManager.get_font()
+        text = f"Joysticks: {len(active_joysticks)}"
+        print(f"DEBUG: Rendering text: {text}")
+        text_surface = font.render(text, fgcolor=WHITE, size=16)
+        if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
+            text_surface = text_surface[0]
+        print(f"DEBUG: Text surface size: {text_surface.get_size()}")
+        self.image.blit(text_surface, (10, 10))
 
-#             def unindent(self):
-#                 self.x -= 10
+        # Draw detailed joystick information
+        y_offset = 30
+        for joystick_id, joystick in active_joysticks.items():
+            # Show joystick name and basic info
+            if hasattr(joystick, 'joystick'):
+                name = joystick.joystick.get_name()
+                instance_id = joystick.joystick.get_instance_id()
+                button_count = joystick.joystick.get_numbuttons()
+                axis_count = joystick.joystick.get_numaxes()
 
-#         self.text_box = TextBox(font_controller=self.font_manager, x=10, y=10)
+                # Controller name label - centered and full width
+                print(f"DEBUG: Controller name for Joy {joystick_id}: '{name}'")
+                print(f"DEBUG: Joy {joystick_id} - Instance ID: {instance_id}, GUID: {joystick.joystick.get_guid() if hasattr(joystick.joystick, 'get_guid') else 'No GUID'}")
+                print(f"DEBUG: Joy {joystick_id} - JoystickProxy._id: {joystick._id if hasattr(joystick, '_id') else 'No _id'}")
+                print(f"DEBUG: Joy {joystick_id} - JoystickProxy.joystick.get_id(): {joystick.joystick.get_id() if hasattr(joystick.joystick, 'get_id') else 'No get_id'}")
+                name_label = f"Controller: {name}"
+                name_surface = font.render(name_label, fgcolor=WHITE, size=18)
+                if isinstance(name_surface, tuple):
+                    name_surface = name_surface[0]
+                self.image.blit(name_surface, (10, y_offset))
+                y_offset += 22
+
+                # Main joystick info line - full width
+                joystick_info = f"Joy {joystick_id}: Instance {instance_id}, Buttons: {button_count}, Axes: {axis_count}"
+                button_surface = font.render(joystick_info, fgcolor=WHITE, size=14)
+                if isinstance(button_surface, tuple):
+                    button_surface = button_surface[0]
+                self.image.blit(button_surface, (10, y_offset))
+                y_offset += 18
+
+                # Show button states if available
+                if hasattr(joystick, '_buttons'):
+                    button_states = joystick._buttons
+                    # Show first 8 buttons on one line, rest on next line
+                    buttons_line1 = f"  Buttons [0-7]: {button_states[:8]}"
+                    buttons_line2 = f"  Buttons [8+]: {button_states[8:]}" if len(button_states) > 8 else ""
+
+                    button1_surface = font.render(buttons_line1, fgcolor=WHITE, size=12)
+                    if isinstance(button1_surface, tuple):
+                        button1_surface = button1_surface[0]
+                    self.image.blit(button1_surface, (10, y_offset))
+                    y_offset += 16
+
+                    if buttons_line2:
+                        button2_surface = font.render(buttons_line2, fgcolor=WHITE, size=12)
+                        if isinstance(button2_surface, tuple):
+                            button2_surface = button2_surface[0]
+                        self.image.blit(button2_surface, (10, y_offset))
+                        y_offset += 16
+
+                # Show axis states if available
+                if hasattr(joystick, '_axes'):
+                    axis_states = joystick._axes
+                    axis_info = f"  Axes: {[round(x, 2) for x in axis_states[:4]]}"  # Show first 4 axes
+                    axis_surface = font.render(axis_info, fgcolor=WHITE, size=12)
+                    if isinstance(axis_surface, tuple):
+                        axis_surface = axis_surface[0]
+                    self.image.blit(axis_surface, (10, y_offset))
+                    y_offset += 16
+
+                # Show hat states if available
+                if hasattr(joystick, '_hats'):
+                    hat_states = joystick._hats
+                    hat_info = f"  Hats: {hat_states}"
+                    hat_surface = font.render(hat_info, fgcolor=WHITE, size=12)
+                    if isinstance(hat_surface, tuple):
+                        hat_surface = hat_surface[0]
+                    self.image.blit(hat_surface, (10, y_offset))
+                    y_offset += 16
+
+                # Show ball states if available
+                if hasattr(joystick, '_balls'):
+                    ball_states = joystick._balls
+                    ball_info = f"  Balls: {ball_states}"
+                    ball_surface = font.render(ball_info, fgcolor=WHITE, size=12)
+                    if isinstance(ball_surface, tuple):
+                        ball_surface = ball_surface[0]
+                    self.image.blit(ball_surface, (10, y_offset))
+                    y_offset += 16
+
+                # Show joystick GUID if available
+                if hasattr(joystick.joystick, 'get_guid'):
+                    guid = joystick.joystick.get_guid()
+                    # Format GUID with dashes for readability
+                    if len(guid) >= 32:
+                        # Insert dashes at positions 8, 12, 16, 20
+                        formatted_guid = f"{guid[:8]}-{guid[8:12]}-{guid[12:16]}-{guid[16:20]}-{guid[20:]}"
+                    else:
+                        formatted_guid = guid
+                    guid_info = f"  GUID: {formatted_guid}"
+                    guid_surface = font.render(guid_info, fgcolor=WHITE, size=10)
+                    if isinstance(guid_surface, tuple):
+                        guid_surface = guid_surface[0]
+                    self.image.blit(guid_surface, (10, y_offset))
+                    y_offset += 14
+
+                y_offset += 10  # Extra spacing between joysticks
+            else:
+                # Fallback for joysticks without pygame joystick object
+                joystick_info = f"Joy {joystick_id}: {type(joystick).__name__} - No pygame joystick object"
+                button_surface = font.render(joystick_info, fgcolor=WHITE, size=12)
+                if isinstance(button_surface, tuple):
+                    button_surface = button_surface[0]
+                self.image.blit(button_surface, (10, y_offset))
+                y_offset += 20
+
+    def update(self):
+        """Update the text display."""
+        if self.use_textbox:
+            self.update_textbox()
+            return
+
+        # Check if any button states have changed
+        changed_joysticks = []
+        for joystick_id, joystick in self.joystick_manager.joysticks.items():
+            # Only check joysticks with actual pygame joystick objects
+            if hasattr(joystick, 'joystick') and joystick.joystick is not None and hasattr(joystick, '_buttons'):
+                current_buttons = joystick._buttons
+                if joystick_id in self._previous_button_states:
+                    if current_buttons != self._previous_button_states[joystick_id]:
+                        changed_joysticks.append(joystick_id)
+                        self._previous_button_states[joystick_id] = current_buttons.copy()
+                else:
+                    # New joystick
+                    changed_joysticks.append(joystick_id)
+                    self._previous_button_states[joystick_id] = current_buttons.copy()
+
+        # Only redraw if something changed
+        if changed_joysticks:
+            print(f"DEBUG: Button states changed for joysticks: {changed_joysticks}")
+            # Show which specific buttons changed for each joystick
+            for joystick_id in changed_joysticks:
+                if joystick_id in self.joystick_manager.joysticks:
+                    joystick = self.joystick_manager.joysticks[joystick_id]
+                    if hasattr(joystick, '_buttons'):
+                        print(f"DEBUG: Joy {joystick_id} new buttons: {joystick._buttons}")
+            # Clear the image and redraw
+            self.image.fill(self.background_color)
+            self._draw_text()
+            self.dirty = 1
+
+        # Alternative TextBox implementation - uncommented and renamed
+        class TextBoxSprite:
+            def __init__(self: Self, font_controller, x, y, line_height=15):
+                self.image = None
+                self.rect = None
+                self.start_x = x
+                self.start_y = y
+                self.x = self.start_x
+                self.y = self.start_y
+                self.line_height = line_height
+
+                pygame.freetype.set_default_resolution(font_controller.font_dpi)
+                self.font = pygame.freetype.SysFont(name=font_controller.font,
+                                                    size=font_controller.font_size)
+
+            def print(self: Self, surface, string):
+                (self.image, self.rect) = self.font.render(string, WHITE)
+                surface.blit(self.image, (self.x, self.y))
+                self.rect.x = self.x
+                self.rect.y = self.y
+                self.y += self.line_height
+
+            def reset(self):
+                self.x = self.start_x
+                self.y = self.start_y
+
+            def indent(self):
+                self.x += 10
+
+            def unindent(self):
+                self.x -= 10
+
+        self.text_box = TextBoxSprite(font_controller=self.font_manager, x=10, y=10)
+
+        # Flag to switch between text implementations
+        self.use_textbox = False
 
 #         self.dirty = 2
 
-#     def update(self):
-#         self.image.fill(self.background_color)
+    def update_textbox(self):
+        """Alternative update method using TextBoxSprite"""
+        self.image.fill(self.background_color)
 
-#         pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
+        # Lazy initialize the textbox helper on first use
+        if self.text_box is None:
+            # Minimal inline helper using freetype via FontManager
+            class _InlineTextBox:
+                def __init__(self, start_x: int, start_y: int, line_height: int = 15):
+                    self.start_x = start_x
+                    self.start_y = start_y
+                    self.x = start_x
+                    self.y = start_y
+                    self.line_height = line_height
 
-#         self.text_box.reset()
-#         self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
+                def print(self, surface, string: str) -> None:
+                    font = FontManager.get_font("freetype")
+                    rendered = font.render(string, fgcolor=WHITE, size=14)
+                    if isinstance(rendered, tuple):
+                        rendered = rendered[0]
+                    surface.blit(rendered, (self.x, self.y))
+                    self.y += self.line_height
 
-#         self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
+                def reset(self) -> None:
+                    self.x = self.start_x
+                    self.y = self.start_y
 
-#         self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
+                def indent(self) -> None:
+                    self.x += 10
 
-#         self.text_box.print(self.image, f'Number of joysticks: {self.joystick_count}')
-#         if self.joystick_count:
-#             for i, joystick in enumerate(self.joystick_manager.joysticks):
-#                 self.text_box.print(self.image, f'Joystick {i}')
+                def unindent(self) -> None:
+                    self.x -= 10
 
-#                 # Get the name from the OS for the controller/joystick
-#                 self.text_box.indent()
-#                 self.text_box.print(self.image, f'Joystick name: {joystick.get_name()}')
+            self.text_box = _InlineTextBox(start_x=10, start_y=10)
 
-#                 # Usually axis run in pairs, up/down for one, and left/right for
-#                 # the other.
-#                 axes = joystick.get_numaxes()
-#                 self.text_box.print(self.image, f'Number of axes: {axes}')
+        pygame.draw.rect(self.image, WHITE, self.image.get_rect(), 7)
 
-#                 self.text_box.indent()
-#                 for j in range(axes):
-#                        self.text_box.print(
-#                            self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
-#                        )
-#                 self.text_box.unindent()
+        self.text_box.reset()
+        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
 
-#                 buttons = joystick.get_numbuttons()
-#                 self.text_box.print(self.image, f'Number of buttons: {joystick.get_numbuttons()}')
+        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
 
-#                 self.text_box.indent()
-#                 for j in range(buttons):
-#                     self.text_box.print(
-#                         self.image, f'Button {j:>2} value: {joystick.get_button(i)}'
-#                     )
-#                 self.text_box.unindent()
+        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
 
-#                 # Hat switch. All or nothing for direction, not like joysticks.
-#                 # Value comes back in an array.
-#                 hats = 0
-#                 self.text_box.print(self.image, f'Number of hats: {hats}')
+        # Build list of active pygame joystick objects from proxies
+        active = [
+            (jid, proxy.joystick)
+            for jid, proxy in self.joystick_manager.joysticks.items()
+            if hasattr(proxy, 'joystick') and proxy.joystick is not None
+        ]
+        self.text_box.print(self.image, f'Number of joysticks: {len(active)}')
+        if active:
+            for i, (jid, js) in enumerate(active):
+                self.text_box.print(self.image, f'Joystick {i} (id={jid}')
 
-#                 self.text_box.indent()
-#                 for j in range(hats):
-#                     self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
-#                     self.text_box.unindent()
-#                 self.text_box.unindent()
+                # Get the name from the OS for the controller/joystick
+                self.text_box.indent()
+                self.text_box.print(self.image, f'Joystick name: {js.get_name()}')
+
+                # Usually axis run in pairs, up/down for one, and left/right for
+                # the other.
+                axes = js.get_numaxes()
+                self.text_box.print(self.image, f'Number of axes: {axes}')
+
+                self.text_box.indent()
+                for j in range(axes):
+                       self.text_box.print(
+                            self.image, f'Axis {j} value: {js.get_axis(j):>6.3f}'
+                        )
+                self.text_box.unindent()
+
+                buttons = js.get_numbuttons()
+                self.text_box.print(self.image, f'Number of buttons: {buttons}')
+
+                self.text_box.indent()
+                for j in range(buttons):
+                    self.text_box.print(
+                        self.image, f'Button {j:>2} value: {js.get_button(j)}'
+                    )
+                self.text_box.unindent()
+
+                # Hat switch. All or nothing for direction, not like joysticks.
+                # Value comes back in an array.
+                hats = js.get_numhats()
+                self.text_box.print(self.image, f'Number of hats: {hats}')
+
+                self.text_box.indent()
+                for j in range(hats):
+                    self.text_box.print(self.image, f'Hat {j} value: {str(js.get_hat(j))}')
+                self.text_box.unindent()
+                self.text_box.unindent()
 
 
 class JoystickScene(Scene):
@@ -367,15 +601,22 @@ class JoystickScene(Scene):
         self.tiles = []
 
         # self.load_resources()
-        self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480)
-        # self.text_sprite = TextSprite(background_color=BLACKLUCENT, alpha=0, x=0, y=0)
+        self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480, groups=groups)
+        self.text_sprite = TextSprite(background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=self)
 
-        # self.all_sprites = pygame.sprite.LayeredDirty(
-        #     tuple(self.shapes_sprite)
-        # )
+        # Add the sprites to the all_sprites group (text on top)
+        self.all_sprites.add(self.text_sprite)
+        self.all_sprites.add(self.shapes_sprite)
 
         self.all_sprites.clear(self.screen, self.background)
         self.load_resources()
+
+    def update(self):
+        """Update the scene."""
+        super().update()  # Call parent update
+
+        # Manually update the text sprite to refresh button states
+        self.text_sprite.update()
 
     def load_resources(self: Self) -> None:
         """Load the resources.
@@ -391,7 +632,27 @@ class JoystickScene(Scene):
         for resource in Path("resources").glob("*"):
             with contextlib.suppress(IsADirectoryError):
                 self.log.info(f"Load Resource: {resource}")
-                self.tiles.append(self.load_graphic(resource))
+                graphic = self.load_graphic(resource)
+                if graphic is not None:
+                    self.tiles.append(graphic)
+
+    def load_graphic(self: Self, resource: Path) -> pygame.Surface | None:
+        """Load an image file as a pygame Surface, or return None if not an image.
+
+        Args:
+            resource (Path): The file path to load.
+
+        Returns:
+            pygame.Surface | None: Loaded surface or None on failure.
+        """
+        # Only attempt to load common image types
+        if resource.suffix.lower() not in {".png", ".jpg", ".jpeg", ".bmp", ".gif"}:
+            return None
+        try:
+            return pygame.image.load(str(resource)).convert_alpha()
+        except Exception as e:
+            self.log.info(f"Skipping resource {resource}: {e}")
+            return None
 
     def render(self: Self, screen: pygame.Surface) -> None:
         """Render the scene.
@@ -529,6 +790,19 @@ class Game(Scene):
         # pygame.event.set_blocked(self.mouse_events)
         # pygame.event.set_blocked(self.joystick_events)
         # pygame.event.set_blocked(self.keyboard_events)
+
+        # Block controller events to avoid conflicts with joystick events
+        pygame.event.set_blocked([
+            pygame.CONTROLLERAXISMOTION,
+            pygame.CONTROLLERBUTTONDOWN,
+            pygame.CONTROLLERBUTTONUP,
+            pygame.CONTROLLERDEVICEADDED,
+            pygame.CONTROLLERDEVICEREMAPPED,
+            pygame.CONTROLLERDEVICEREMOVED,
+            pygame.CONTROLLERTOUCHPADDOWN,
+            pygame.CONTROLLERTOUCHPADMOTION,
+            pygame.CONTROLLERTOUCHPADUP
+        ])
 
         # Let's hook up the 'pew pew' event.
         # self.register_game_event('pew pew', self.on_pew_pew_event)

@@ -103,6 +103,11 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             """
             # JOYBUTTONDOWN    joy, button
+            # Ensure storage accommodates this button index
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 1
             self.game.on_joy_button_down_event(event)
 
@@ -117,6 +122,10 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
             """
             # JOYBUTTONUP      joy, button
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 0
             self.game.on_joy_button_up_event(event)
 
@@ -282,16 +291,12 @@ class JoystickManager(JoystickEvents, ResourceManager):
         self.log.info(f"Joystick Count: {pygame.joystick.get_count()}")
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
-        for joystick in joysticks:
+        for pygame_joystick_index, joystick in enumerate(joysticks):
             joystick.init()
 
-            try:
-                joystick_id = joystick.get_instance_id()
-            except AttributeError:
-                joystick_id = joystick.get_id()
-
-            joystick_proxy = JoystickManager.JoystickProxy(joystick_id=joystick_id, game=self.game)
-            self.joysticks[joystick_id] = joystick_proxy
+            # Use the pygame joystick index as the key, not the instance_id
+            joystick_proxy = JoystickManager.JoystickProxy(joystick_id=pygame_joystick_index, game=self.game)
+            self.joysticks[pygame_joystick_index] = joystick_proxy
 
             # The joystick proxy overrides the joystick object
             self.log.info(f"Added Joystick: {joystick_proxy}")
@@ -426,6 +431,11 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         """
         # JOYDEVICEADDED device_index, guid
+
+        # Check if joystick already exists to prevent duplicates
+        if event.device_index in self.joysticks:
+            self.log.debug(f"Joystick #{event.device_index} already exists, skipping duplicate creation")
+            return
 
         # Note: There is a bug in pygame where a reinitialized
         # controller object due to hotplug ends up with an incorrect
