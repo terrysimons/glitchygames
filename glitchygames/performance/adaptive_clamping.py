@@ -24,14 +24,11 @@ class AdaptiveClamping:
         """Initialize the adaptive clamping system."""
         if not self._initialized:
             self._dt_history = []
-            self._fps_history = []
-            self._fps_histogram = {}  # Bucket FPS values for efficient storage
+            self._scene_data = {}  # Track performance per scene: {scene_name: {'fps_history': [], 'fps_histogram': {}, 'frame_times': []}}
             self._last_performance_log_time = 0.0
             self._fps_log_interval_ms = 1000.0  # Default 1 second
-            self._per_scene_data = {}  # Track performance per scene
             self._current_scene = None
             self._target_fps = 0.0  # 0 means unlimited FPS
-            self._frame_times = []  # Track actual frame times for spare time calculation
             self._initialized = True
     
     def get_adaptive_dt(self: Self, dt: float) -> float:
@@ -103,28 +100,14 @@ class AdaptiveClamping:
             scene_name (str): Name of the current scene.
         """
         if scene_name != self._current_scene:
-            # Save current scene data if switching - ACCUMULATE, don't overwrite
-            if self._current_scene and self._current_scene in self._per_scene_data:
-                # Append to existing scene data instead of overwriting
-                self._per_scene_data[self._current_scene]['fps_history'].extend(self._fps_history)
-                
-                # Merge histograms instead of overwriting
-                for fps_int, count in self._fps_histogram.items():
-                    if fps_int in self._per_scene_data[self._current_scene]['fps_histogram']:
-                        self._per_scene_data[self._current_scene]['fps_histogram'][fps_int] += count
-                    else:
-                        self._per_scene_data[self._current_scene]['fps_histogram'][fps_int] = count
-            
-            # Initialize new scene data
-            if scene_name not in self._per_scene_data:
-                self._per_scene_data[scene_name] = {
+            # Initialize new scene data if it doesn't exist
+            if scene_name not in self._scene_data:
+                self._scene_data[scene_name] = {
                     'fps_history': [],
-                    'fps_histogram': {}
+                    'fps_histogram': {},
+                    'frame_times': []
                 }
             
-            # Load scene data
-            self._fps_history = self._per_scene_data[scene_name]['fps_history']
-            self._fps_histogram = self._per_scene_data[scene_name]['fps_histogram']
             self._current_scene = scene_name
     
     def track_fps_from_event(self: Self, fps: float, frame_time: float = None) -> None:
@@ -134,30 +117,27 @@ class AdaptiveClamping:
             fps (float): The current FPS value from pygame.clock.get_fps().
             frame_time (float, optional): Actual frame time in seconds for spare time calculation.
         """
-        # This is the primary FPS tracking method - called from FPS events
-        self._fps_history.append(fps)
-        if len(self._fps_history) > 10000:  # Keep last 10,000 FPS readings (~83s at 120fps, ~42s at 240fps)
-            self._fps_history.pop(0)
-        
-        # Track frame times for spare time calculation (only for capped FPS)
-        if frame_time is not None and self._target_fps > 0:
-            self._frame_times.append(frame_time)
-            if len(self._frame_times) > 1000:  # Keep last 1000 frame times
-                self._frame_times.pop(0)
-            # Debug: print spare time info occasionally
-            if len(self._frame_times) % 100 == 0 and len(self._frame_times) > 0:
-                target_frame_time = 1.0 / self._target_fps
-                avg_frame_time = sum(self._frame_times) / len(self._frame_times)
-                spare_time = target_frame_time - avg_frame_time
-                print(f"DEBUG: Target: {target_frame_time*1000:.1f}ms, Actual: {avg_frame_time*1000:.1f}ms, Spare: {spare_time*1000:.1f}ms")
-        
-        # Also populate histogram buckets for real-time tracking
-        # Round FPS to nearest integer for histogram bucketing
-        fps_int = int(round(fps))
-        if fps_int in self._fps_histogram:
-            self._fps_histogram[fps_int] += 1
-        else:
-            self._fps_histogram[fps_int] = 1
+        # Track data for the current scene
+        if self._current_scene and self._current_scene in self._scene_data:
+            scene_data = self._scene_data[self._current_scene]
+            
+            # Track FPS history
+            scene_data['fps_history'].append(fps)
+            if len(scene_data['fps_history']) > 10000:  # Keep last 10,000 FPS readings
+                scene_data['fps_history'].pop(0)
+            
+            # Track frame times for spare time calculation (only for capped FPS)
+            if frame_time is not None and self._target_fps > 0:
+                scene_data['frame_times'].append(frame_time)
+                if len(scene_data['frame_times']) > 1000:  # Keep last 1000 frame times
+                    scene_data['frame_times'].pop(0)
+            
+            # Track histogram
+            fps_int = int(round(fps))
+            if fps_int in scene_data['fps_histogram']:
+                scene_data['fps_histogram'][fps_int] += 1
+            else:
+                scene_data['fps_histogram'][fps_int] = 1
     
     def _track_fps(self: Self, fps: float) -> None:
         """Track FPS in histogram buckets for efficient storage.
@@ -201,11 +181,16 @@ class AdaptiveClamping:
         Returns:
             dict: Complete performance statistics with histogram data.
         """
-        if not self._fps_history:
+        # Aggregate all scene data for global report
+        all_fps_history = []
+        for scene_name, scene_data in self._scene_data.items():
+            all_fps_history.extend(scene_data['fps_history'])
+        
+        if not all_fps_history:
             return {"message": "Not enough data"}
         
         # Calculate basic stats
-        fps_values = [fps for fps in self._fps_history if fps > 0]  # Filter out invalid FPS
+        fps_values = [fps for fps in all_fps_history if fps > 0]  # Filter out invalid FPS
         if not fps_values:
             return {"message": "No valid FPS data collected"}
         
@@ -250,7 +235,7 @@ class AdaptiveClamping:
         """
         per_scene_stats = {}
         
-        for scene_name, scene_data in self._per_scene_data.items():
+        for scene_name, scene_data in self._scene_data.items():
             fps_history = scene_data['fps_history']
             fps_histogram = scene_data['fps_histogram']
             
@@ -342,18 +327,35 @@ class AdaptiveClamping:
         else:
             return "F (Very Poor)"   # <70% of target
     
-    def get_spare_time_stats(self: Self) -> dict:
+    def get_spare_time_stats(self: Self, scene_name: str = None) -> dict:
         """Calculate spare time statistics for capped frame rates.
+        
+        Args:
+            scene_name (str, optional): Scene name to get stats for. If None, aggregates all scenes.
         
         Returns:
             dict: Spare time statistics including average spare time and capacity.
         """
-        print(f"DEBUG: target_fps={self._target_fps}, frame_times_count={len(self._frame_times)}")
-        if self._target_fps == 0 or not self._frame_times:
+        if self._target_fps == 0:
             return {"message": "Not applicable for unlimited FPS"}
         
+        if scene_name:
+            # Get frame times for specific scene
+            if scene_name not in self._scene_data:
+                return {"message": "Scene not found"}
+            frame_times = self._scene_data[scene_name]['frame_times']
+            if not frame_times:
+                return {"message": "No frame time data for this scene"}
+        else:
+            # Aggregate frame times from all scenes for global report
+            frame_times = []
+            for scene_name, scene_data in self._scene_data.items():
+                frame_times.extend(scene_data['frame_times'])
+            if not frame_times:
+                return {"message": "No frame time data available"}
+        
         target_frame_time = 1.0 / self._target_fps
-        avg_frame_time = sum(self._frame_times) / len(self._frame_times)
+        avg_frame_time = sum(frame_times) / len(frame_times)
         avg_spare_time = target_frame_time - avg_frame_time
         spare_capacity_percent = (avg_spare_time / target_frame_time) * 100
         
@@ -385,9 +387,7 @@ class AdaptiveClamping:
         print(f"🏆 Performance Grade: {stats['performance_grade']}")
         
         # Add spare time information for capped FPS
-        print(f"DEBUG: Calling get_spare_time_stats() for global report")
         spare_stats = self.get_spare_time_stats()
-        print(f"DEBUG: global spare_stats = {spare_stats}")
         if "message" not in spare_stats:
             print(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms")
             print(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms")
@@ -490,9 +490,7 @@ class AdaptiveClamping:
             print(f"🏆 Performance Grade: {stats['performance_grade']}")
             
             # Add spare time information for capped FPS
-            print(f"DEBUG: Calling get_spare_time_stats() for scene {scene_name}")
-            spare_stats = self.get_spare_time_stats()
-            print(f"DEBUG: spare_stats = {spare_stats}")
+            spare_stats = self.get_spare_time_stats(scene_name)
             if "message" not in spare_stats:
                 print(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms")
                 print(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms")

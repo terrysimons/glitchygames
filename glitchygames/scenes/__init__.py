@@ -196,8 +196,6 @@ class SceneManager(SceneInterface, events.EventManager):
             try:
                 from glitchygames.performance import performance_manager
                 current_fps = self.clock.get_fps()
-                if actual_processing_time > 0:  # Debug: only print occasionally
-                    print(f"DEBUG: frame_time={actual_processing_time*1000:.1f}ms, fps={current_fps:.1f}")
                 performance_manager.track_fps_from_event(current_fps, actual_processing_time)
             except ImportError:
                 pass  # Performance module not available
