@@ -397,10 +397,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         """
         # CONTROLLERDEVICEREMOVED instance_id
-        self.controllers[event.instance_id].on_controller_device_removed_event(event)
-        del self.controllers[event.instance_id]
-        self.log.debug(f"Removed Controller #{event.instance_id}")
-        self.log.debug(f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})")
+        if event.instance_id in self.controllers:
+            self.controllers[event.instance_id].on_controller_device_removed_event(event)
+            del self.controllers[event.instance_id]
+            self.log.debug(f"Removed Controller #{event.instance_id}")
+            self.log.debug(f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})")
 
     def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad down events.

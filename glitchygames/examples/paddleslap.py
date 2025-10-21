@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 import pygame
 from glitchygames.color import BLACKLUCENT, WHITE
+from glitchygames.examples.pause_scene import PauseScene
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickManager
 from glitchygames.examples.game_over_scene import GameOverScene
@@ -216,6 +217,7 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)
         # FPS will be set by command line arguments or default to 60
+        self._space_pressed = False
 
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
@@ -228,7 +230,7 @@ class Game(Scene):
             (20, 80),
             (0, v_center - 40),
             WHITE,
-            Speed(y=10, increment=1),
+            400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
         self.player2 = VerticalPaddle(
@@ -236,14 +238,14 @@ class Game(Scene):
             (20, 80),
             (self.screen_width - 20, v_center - 40),
             WHITE,
-            Speed(y=10, increment=1),
+            400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
         self.balls = []
         for _ in range(self.options.get("balls", 1)):
             ball = BallSprite(collision_sound=SFX.BOUNCE)
-            # Set a more reasonable speed for the ball
-            ball.speed = Speed(3.0, 1.5)  # Balanced starting speed
+            # Set a more reasonable speed for the ball (pixels per second)
+            ball.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
             self.balls.append(ball)
@@ -319,7 +321,9 @@ class Game(Scene):
 
         """
         for ball in self.balls:
+            # Check collision with player1 (left paddle)
             if pygame.sprite.collide_rect(self.player1, ball) and ball.speed.x <= 0:
+                # Don't immediately reposition - let the speed change handle separation
                 self.player1.snd.play()
                 log.debug(
                     f"PADDLE 1 HIT: ball speed before="
@@ -335,7 +339,9 @@ class Game(Scene):
                 # Spawn a new ball at default speed
                 self._spawn_new_ball()
 
+            # Check collision with player2 (right paddle)
             if pygame.sprite.collide_rect(self.player2, ball) and ball.speed.x > 0:
+                # Don't immediately reposition - let the speed change handle separation
                 self.player2.snd.play()
                 log.debug(
                     f"PADDLE 2 HIT: ball speed before="
@@ -391,7 +397,7 @@ class Game(Scene):
         """
         # Create new ball at default speed
         new_ball = BallSprite(collision_sound=SFX.BOUNCE)
-        new_ball.speed = Speed(3.0, 1.5)  # Balanced starting speed
+        new_ball.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
         new_ball.color = (secrets.randbelow(256), secrets.randbelow(256), secrets.randbelow(256))
         # Add collision cooldown tracking
         new_ball.collision_cooldowns = {}
@@ -590,17 +596,7 @@ class Game(Scene):
         # Handle ESC/q to quit
         super().on_key_up_event(event)
 
-        unpressed_keys = pygame.key.get_pressed()
-
-        # KEYUP            key, mod
-        if unpressed_keys[pygame.K_UP]:
-            self.player1.stop()
-        if unpressed_keys[pygame.K_DOWN]:
-            self.player1.stop()
-        if unpressed_keys[pygame.K_w]:
-            self.player2.stop()
-        if unpressed_keys[pygame.K_s]:
-            self.player2.stop()
+        # Paddles continue moving until they hit boundaries - no key release handling needed
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events.
@@ -612,18 +608,54 @@ class Game(Scene):
             None
 
         """
-        # KEYDOWN            key, mod
-        # self.log.info(f'Key Down Event: {event}')
-        pressed_keys = pygame.key.get_pressed()
-
-        if pressed_keys[pygame.K_w]:
+        # Handle specific key presses instead of scanning all keys
+        if event.key == pygame.K_SPACE:
+            # Track that spacebar is pressed (but don't act on it yet)
+            self._space_pressed = True
+        elif event.key == pygame.K_w:
+            log.debug(f"PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}")
             self.player1.up()
-        if pressed_keys[pygame.K_s]:
+        elif event.key == pygame.K_s:
+            log.debug(f"PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}")
             self.player1.down()
-        if pressed_keys[pygame.K_UP]:
+        elif event.key == pygame.K_UP:
+            log.debug(f"PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}")
             self.player2.up()
-        if pressed_keys[pygame.K_DOWN]:
+        elif event.key == pygame.K_DOWN:
+            log.debug(f"PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}")
             self.player2.down()
+
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle key up events.
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        Returns:
+            None
+
+        """
+        if event.key == pygame.K_SPACE and self._space_pressed:
+            # Spacebar was pressed and now released - pause the game
+            self._space_pressed = False
+            self._pause_game()
+        else:
+            # Handle ESC/q to quit
+            super().on_key_up_event(event)
+
+    def _pause_game(self: Self) -> None:
+        """Pause the game by switching to pause scene.
+        
+        Returns:
+            None
+        """
+        # Create the pause scene (it will get the screenshot from the previous scene)
+        pause_scene = PauseScene(options=self.options)
+        
+        # Switch to the pause scene
+        self.scene_manager.switch_to_scene(pause_scene)
+        
+        self.log.info("Game paused")
 
 
 def main() -> None:

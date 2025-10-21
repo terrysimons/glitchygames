@@ -105,7 +105,7 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the bottom of the screen, False otherwise.
 
         """
-        return self.rect.bottom + self._move.current_speed > self.screen_height
+        return self.rect.bottom >= self.screen_height
 
     def is_at_top_of_screen(self: Self) -> bool:
         """Check if the paddle is at the top of the screen.
@@ -117,7 +117,7 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the top of the screen, False otherwise.
 
         """
-        return self.rect.top + self._move.current_speed < 0
+        return self.rect.top <= 0
 
     def is_at_left_of_screen(self: Self) -> bool:
         """Check if the paddle is at the left of the screen.
@@ -242,6 +242,7 @@ class HorizontalPaddle(BasePaddle):
             None
 
         """
+        print(f"PADDLE MOVE: {self.name} STOP called - current_speed: {self._move.current_speed}")
         self._move.stop()
         self.dirty = 1
 
@@ -268,7 +269,8 @@ class HorizontalPaddle(BasePaddle):
             None
 
         """
-        self.rect.x += self._move.current_speed * dt
+        # Use the movement class's get_movement_with_dt method for frame-rate independent movement
+        self.rect.x += self._move.get_movement_with_dt(dt)
         self.dirty = 1
 
 
@@ -326,14 +328,16 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        if self.is_at_top_of_screen():
+        # Movement is now handled in dt_tick() for frame-rate independence
+        # Constrain position at boundaries AND stop movement to prevent bouncing
+        if self.rect.y < 0:
+            print(f"PADDLE BOUNDARY: {self.name} hit TOP boundary at y={self.rect.y}, stopping movement")
             self.rect.y = 0
-            self.stop()
-        elif self.is_at_bottom_of_screen():
+            self.stop()  # Stop movement to prevent bouncing
+        elif self.rect.y + self.rect.height > self.screen_height:
+            print(f"PADDLE BOUNDARY: {self.name} hit BOTTOM boundary at y={self.rect.y}, stopping movement")
             self.rect.y = self.screen_height - self.rect.height
-            self.stop()
-        else:
-            self.move_vertical()
+            self.stop()  # Stop movement to prevent bouncing
 
     def up(self: Self) -> None:
         """Move up.
@@ -345,6 +349,7 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
+        print(f"PADDLE MOVE: {self.name} UP called - current_speed: {self._move.current_speed}")
         self._move.up()
         self.dirty = 1
 
@@ -358,6 +363,7 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
+        print(f"PADDLE MOVE: {self.name} DOWN called - current_speed: {self._move.current_speed}")
         self._move.down()
         self.dirty = 1
 
@@ -371,6 +377,7 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
+        print(f"PADDLE MOVE: {self.name} STOP called - current_speed: {self._move.current_speed}")
         self._move.stop()
         self.dirty = 1
 
@@ -397,5 +404,12 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        self.rect.y += self._move.current_speed * dt
+        # Use centralized performance manager for adaptive clamping
+        from glitchygames.performance import performance_manager
+        dt = performance_manager.get_adaptive_dt(dt)
+        
+        # Use the movement class's get_movement_with_dt method for frame-rate independent movement
+        movement = self._move.get_movement_with_dt(dt)
+        
+        self.rect.y += movement
         self.dirty = 1

@@ -48,7 +48,7 @@ class BallSprite(Sprite):
         self.image.convert()
         self.image.set_colorkey(0)
         self.direction = 0
-        self.speed = Speed(3.0, 1.5)  # Balanced default speed
+        self.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
         if collision_sound:
             self.snd = game_objects.load_sound(collision_sound)
         self.color = WHITE
@@ -174,8 +174,8 @@ class BallSprite(Sprite):
         current_speed = math.sqrt(self.speed.x**2 + self.speed.y**2)
 
         # Logarithmic scaling: faster balls get smaller increases
-        # Base multiplier decreases as speed increases
-        log_multiplier = multiplier * (1.0 - math.log(current_speed / 3.0) * 0.1)
+        # Base multiplier decreases as speed increases (using new base speed of 1)
+        log_multiplier = multiplier * (1.0 - math.log(current_speed / 1.0) * 0.1)
 
         # Ensure minimum multiplier of 1.05 (5% minimum increase)
         log_multiplier = max(log_multiplier, 1.05)
@@ -193,8 +193,19 @@ class BallSprite(Sprite):
             None
 
         """
-        self.rect.y += self.speed.y * dt
-        self.rect.x += self.speed.x * dt
+        # Use centralized performance manager for adaptive clamping
+        from glitchygames.performance import performance_manager
+        dt = performance_manager.get_adaptive_dt(dt)
+        
+        # Calculate movement
+        move_x = self.speed.x * dt
+        move_y = self.speed.y * dt
+        
+        self.rect.y += move_y
+        self.rect.x += move_x
+        
+        # Ensure the ball is marked as dirty for redrawing
+        self.dirty = 1
 
         self._do_bounce()
 
@@ -217,15 +228,6 @@ class BallSprite(Sprite):
             None
 
         """
-        self.rect.y += self.speed.y
-        self.rect.x += self.speed.x
-
-        self._do_bounce()
-
-        if self.rect.x > self.screen_width or self.rect.x < -self.width:
-            # Mark ball for deletion instead of resetting
-            self.kill()
-
-        # Don't reset for vertical boundaries - let bounce handle them
-        # if self.rect.y > self.screen_height or self.rect.y < 0:
-        #     self.reset()
+        # Movement is now handled in dt_tick() for frame-rate independence
+        # This method is kept for compatibility but no longer moves the ball
+        pass

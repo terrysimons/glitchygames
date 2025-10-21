@@ -74,3 +74,15 @@ class Vertical:
 
         """
         self._change_speed(0)
+
+    def get_movement_with_dt(self: Self, dt: float) -> float:
+        """Get the movement amount for this frame with delta time applied.
+
+        Args:
+            dt (float): The delta time in seconds.
+
+        Returns:
+            float: The movement amount for this frame.
+
+        """
+        return self.current_speed * dt

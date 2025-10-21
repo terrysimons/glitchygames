@@ -74,8 +74,8 @@ class GameOverScene(Scene):
         super().update()
         log.debug("GameOverScene update() called")
 
-    def handle_key_down(self: Self, event) -> None:
-        """Handle key down events.
+    def on_key_down_event(self: Self, event) -> None:
+        """Handle key down events for the Game Over scene.
 
         Args:
             event: The key down event.
@@ -85,15 +85,34 @@ class GameOverScene(Scene):
 
         """
         if event.key == pygame.K_SPACE:
-            # Restart the game - switch to the previous scene
-            if self.scene_manager.previous_scene:
-                self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
+            # Restart the game - create a new instance of the game
+            self._restart_game()
         elif event.key == pygame.K_ESCAPE:
             # Quit the game
             self.scene_manager.quit()
         else:
             # Let the base Scene class handle other keys (like 'q' for quit)
-            super().handle_key_down(event)
+            super().on_key_down_event(event)
+
+    def _restart_game(self: Self) -> None:
+        """Restart the game by creating a new instance of the game scene.
+
+        Returns:
+            None
+
+        """
+        # Get the game class from the previous scene
+        if self.scene_manager.previous_scene:
+            game_class = type(self.scene_manager.previous_scene)
+            log.info(f"Restarting game with class: {game_class}")
+            
+            # Create a new instance of the game with the same options
+            new_game = game_class(options=self.options)
+            
+            # Switch to the new game instance
+            self.scene_manager.switch_to_scene(new_game)
+        else:
+            log.warning("No previous scene found to restart")
 
 
 class TextSprite(Sprite):
