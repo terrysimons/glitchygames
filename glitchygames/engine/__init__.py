@@ -717,14 +717,14 @@ class GameEngine(events.EventManager):
             self.audio_manager = AudioManager(game=self.scene_manager)
             self.drop_manager = DropManager(game=self.scene_manager)
 
-            is_pygame_ce = False
+            using_pygame_ce = False
             try:
-                is_pygame_ce = importlib.metadata.distribution("pygame").metadata["Name"] == "pygame-ce"
+                using_pygame_ce = importlib.metadata.distribution("pygame").metadata["Name"] == "pygame-ce"
             except (NameError, importlib.metadata.PackageNotFoundError):
-                is_pygame_ce = importlib.metadata.distribution("pygame-ce").metadata["Name"] == "pygame-ce"
+                using_pygame_ce = importlib.metadata.distribution("pygame-ce").metadata["Name"] == "pygame-ce"
                 LOG.warning("Pygame CE detected, disabling controller manager.")
 
-            if is_pygame_ce:
+            if using_pygame_ce:
                 self.controller_manager = None
                 # Disable Controller Events
                 pygame.event.set_blocked(events.CONTROLLER_EVENTS)
@@ -759,6 +759,18 @@ class GameEngine(events.EventManager):
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed
         finally:
+            # Print performance report before shutdown
+            try:
+                from glitchygames.performance import performance_manager
+                # Configure performance manager with the same log interval as FPS
+                performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+                # Configure performance manager with target FPS for grading
+                performance_manager.set_target_fps(self.fps)
+                performance_manager.print_shutdown_report()
+                performance_manager.print_per_scene_shutdown_report()
+            except ImportError:
+                pass  # Performance module not available
+
             pygame.display.quit()
             pygame.quit()
 

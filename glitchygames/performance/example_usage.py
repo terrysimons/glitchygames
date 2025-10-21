@@ -12,11 +12,11 @@ class ExampleGameObject:
         self.speed = 100  # pixels per second
     
     def dt_tick(self, dt: float) -> None:
-        """Update with adaptive delta time clamping."""
-        # Get adaptively clamped delta time
+        """Update with adaptive delta time adjustment."""
+        # Get adaptively adjusted delta time for consistent speed
         dt = performance_manager.get_adaptive_dt(dt)
         
-        # Use the clamped dt for movement
+        # Use the adjusted dt for movement
         self.x += self.speed * dt
         self.y += self.speed * dt
     

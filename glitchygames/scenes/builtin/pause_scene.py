@@ -4,7 +4,7 @@
 import pygame
 from typing import Self
 
-from glitchygames.scenes import Scene
+from .. import Scene
 from glitchygames.sprites import Sprite
 from glitchygames.color import WHITE
 
@@ -114,6 +114,6 @@ class PauseScene(Scene):
             # Spacebar was pressed and now released - resume the game
             self._space_pressed = False
             self.log.info("Resuming game...")
-            self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
+            self.resume()
         else:
             super().on_key_up_event(event)

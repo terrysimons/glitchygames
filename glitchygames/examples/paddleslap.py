@@ -18,10 +18,9 @@ if TYPE_CHECKING:
 
 import pygame
 from glitchygames.color import BLACKLUCENT, WHITE
-from glitchygames.examples.pause_scene import PauseScene
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickManager
-from glitchygames.examples.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin.game_over_scene import GameOverScene
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
@@ -638,24 +637,11 @@ class Game(Scene):
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - pause the game
             self._space_pressed = False
-            self._pause_game()
+            self.pause()
         else:
             # Handle ESC/q to quit
             super().on_key_up_event(event)
 
-    def _pause_game(self: Self) -> None:
-        """Pause the game by switching to pause scene.
-        
-        Returns:
-            None
-        """
-        # Create the pause scene (it will get the screenshot from the previous scene)
-        pause_scene = PauseScene(options=self.options)
-        
-        # Switch to the pause scene
-        self.scene_manager.switch_to_scene(pause_scene)
-        
-        self.log.info("Game paused")
 
 
 def main() -> None:
