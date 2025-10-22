@@ -1144,8 +1144,10 @@ class MockFactory:
 
         # Surface mocking - create real surfaces for drawing operations
         def mock_surface_constructor(*args, **kwargs):
-            """Mock pygame.Surface constructor that returns a MockSurface."""
-            return MockSurface(*args, **kwargs)
+            """Mock pygame.Surface constructor that returns a real pygame surface."""
+            # Create a real pygame surface using the original constructor
+            import pygame.surface
+            return pygame.surface.Surface(*args, **kwargs)
         surface_constructor_patcher = patch("pygame.Surface", side_effect=mock_surface_constructor)
 
         # FontManager mock - create a mock font that returns a proper surface

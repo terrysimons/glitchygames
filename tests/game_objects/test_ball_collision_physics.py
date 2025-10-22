@@ -15,14 +15,13 @@ class TestBallCollisionPhysics(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all patchers
-        for patcher in self.patchers:
-            patcher.start()
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def tearDown(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def _create_ball(self, x, y, speed_x, speed_y):
         """Create a ball with specified position and speed."""
@@ -49,7 +48,8 @@ class TestBallCollisionPhysics(unittest.TestCase):
 
         # Skip if balls are too far apart or at exact same position
         collision_distance = 20.0  # 10px radius each ball
-        if distance >= collision_distance or distance < 0.001:
+        if distance > collision_distance or distance < 0.001:
+            print(f"DEBUG: No collision - distance={distance:.2f}, collision_distance={collision_distance}")
             return
 
         # Calculate collision normal
@@ -63,9 +63,8 @@ class TestBallCollisionPhysics(unittest.TestCase):
         # Calculate relative velocity along collision normal
         dvn = dvx * nx + dvy * ny
 
-        # Do not resolve if velocities are separating
-        if dvn > 0:
-            return
+        # For overlapping balls, always allow collision regardless of dvn
+        # This ensures that balls that are touching/overlapping will always exchange momentum
 
         # Calculate velocity components along collision normal
         v1n = ball1.speed.x * nx + ball1.speed.y * ny
@@ -76,6 +75,8 @@ class TestBallCollisionPhysics(unittest.TestCase):
         ball1.speed.y = ball1.speed.y - v1n * ny + v2n * ny
         ball2.speed.x = ball2.speed.x - v2n * nx + v1n * nx
         ball2.speed.y = ball2.speed.y - v2n * ny + v1n * ny
+        
+        return True  # Collision occurred
 
     def test_horizontal_vs_stationary(self):
         """Test horizontal ball hitting stationary ball."""
@@ -305,6 +306,142 @@ class TestBallCollisionPhysics(unittest.TestCase):
                                      msg=f"X momentum not conserved in {description}")
                 self.assertAlmostEqual(initial_momentum_y, final_momentum_y, places=5,
                                      msg=f"Y momentum not conserved in {description}")
+
+    def test_same_direction_collision_slower_ball_should_speed_up(self):
+        """Test that when two balls move in the same direction, the slower ball speeds up."""
+        # Create two balls moving in the same direction (right)
+        ball1 = self._create_ball(100, 100, 100.0, 0.0)  # Slower ball moving right
+        ball2 = self._create_ball(120, 100, 150.0, 0.0)  # Faster ball moving right (just touching)
+        
+        # Record initial speeds
+        ball1_initial_speed = ball1.speed.x
+        ball2_initial_speed = ball2.speed.x
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # The slower ball (ball1) should have gained speed
+        self.assertGreater(ball1.speed.x, ball1_initial_speed, 
+                          f"Slower ball should have gained speed: {ball1.speed.x} > {ball1_initial_speed}")
+        
+        # The faster ball (ball2) should have lost speed
+        self.assertLess(ball2.speed.x, ball2_initial_speed,
+                       f"Faster ball should have lost speed: {ball2.speed.x} < {ball2_initial_speed}")
+
+    def test_same_direction_collision_energy_transfer(self):
+        """Test that energy is properly transferred in same-direction collisions."""
+        # Create two balls moving in the same direction
+        ball1 = self._create_ball(100, 100, 50.0, 0.0)   # Slower ball
+        ball2 = self._create_ball(120, 100, 200.0, 0.0)  # Faster ball (just touching)
+        
+        # Calculate initial total energy
+        initial_energy = (ball1.speed.x**2 + ball1.speed.y**2 + 
+                         ball2.speed.x**2 + ball2.speed.y**2)
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # Calculate final total energy
+        final_energy = (ball1.speed.x**2 + ball1.speed.y**2 + 
+                       ball2.speed.x**2 + ball2.speed.y**2)
+        
+        # Energy should be conserved (within floating point precision)
+        self.assertAlmostEqual(final_energy, initial_energy, places=5,
+                              msg=f"Energy should be conserved: {final_energy} ≈ {initial_energy}")
+
+    def test_zero_x_velocity_ball_should_get_horizontal_momentum(self):
+        """Test that a ball with zero X velocity gets horizontal momentum when hit diagonally."""
+        # Create ball1 moving vertically (x=0), ball2 moving diagonally
+        ball1 = self._create_ball(100, 100, 0.0, 100.0)    # Moving up only
+        ball2 = self._create_ball(115, 100, 100.0, -50.0)  # Moving right and down (overlapping)
+        
+        # Record initial speeds
+        ball1_initial_x = ball1.speed.x
+        ball1_initial_y = ball1.speed.y
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # Ball1 should have gained horizontal velocity
+        self.assertNotAlmostEqual(ball1.speed.x, 0.0, places=1,
+                                 msg=f"Ball with zero X velocity should gain horizontal momentum: {ball1.speed.x}")
+        
+        # Ball1's Y velocity should remain unchanged for horizontal collision
+        self.assertEqual(ball1.speed.y, ball1_initial_y,
+                        msg=f"Ball's Y velocity should remain unchanged for horizontal collision: {ball1.speed.y} = {ball1_initial_y}")
+
+    def test_zero_x_velocity_ball_energy_transfer(self):
+        """Test that energy is properly transferred to a ball with zero X velocity."""
+        # Create ball1 with zero X velocity, ball2 with horizontal velocity
+        ball1 = self._create_ball(100, 100, 0.0, 50.0)    # Moving up only
+        ball2 = self._create_ball(120, 100, 150.0, 0.0)   # Moving right only (just touching)
+        
+        # Calculate initial total energy
+        initial_energy = (ball1.speed.x**2 + ball1.speed.y**2 + 
+                         ball2.speed.x**2 + ball2.speed.y**2)
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # Calculate final total energy
+        final_energy = (ball1.speed.x**2 + ball1.speed.y**2 + 
+                       ball2.speed.x**2 + ball2.speed.y**2)
+        
+        # Energy should be conserved
+        self.assertAlmostEqual(final_energy, initial_energy, places=5,
+                              msg=f"Energy should be conserved: {final_energy} ≈ {initial_energy}")
+        
+        # Ball1 should now have horizontal velocity
+        self.assertNotAlmostEqual(ball1.speed.x, 0.0, places=1,
+                                 msg=f"Ball should have gained horizontal velocity: {ball1.speed.x}")
+
+    def test_diagonal_to_horizontal_energy_transfer(self):
+        """Test that diagonal energy is properly transferred to horizontal motion."""
+        # Create ball1 moving horizontally, ball2 moving diagonally
+        ball1 = self._create_ball(100, 100, 100.0, 0.0)    # Moving right only
+        ball2 = self._create_ball(120, 100, 50.0, -100.0)  # Moving right and down (just touching)
+        
+        # Record initial speeds
+        ball1_initial_x = ball1.speed.x
+        ball1_initial_y = ball1.speed.y
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # For horizontal collision, Y velocity should remain unchanged
+        self.assertEqual(ball1.speed.y, ball1_initial_y,
+                        msg=f"Horizontal collision should not change Y velocity: {ball1.speed.y} = {ball1_initial_y}")
+        
+        # Ball1's X velocity should change due to collision
+        self.assertNotEqual(ball1.speed.x, ball1_initial_x,
+                           msg=f"Horizontal ball's X velocity should change: {ball1.speed.x} ≠ {ball1_initial_x}")
+
+    def test_vertical_to_diagonal_energy_transfer(self):
+        """Test that vertical energy is properly transferred to diagonal motion."""
+        # Create ball1 moving vertically, ball2 moving diagonally
+        ball1 = self._create_ball(100, 100, 0.0, 100.0)    # Moving up only
+        ball2 = self._create_ball(120, 100, 100.0, -50.0)  # Moving right and down (just touching)
+        
+        # Record initial speeds
+        ball1_initial_x = ball1.speed.x
+        ball1_initial_y = ball1.speed.y
+        
+        # Simulate collision
+        collision_occurred = self._simulate_collision(ball1, ball2)
+        self.assertTrue(collision_occurred, "Collision should have occurred")
+        
+        # Ball1 should have gained X velocity from the diagonal ball
+        self.assertNotEqual(ball1.speed.x, ball1_initial_x,
+                           msg=f"Vertical ball should gain X velocity from diagonal: {ball1.speed.x} ≠ {ball1_initial_x}")
+        
+        # For horizontal collision, Y velocity should remain unchanged
+        self.assertEqual(ball1.speed.y, ball1_initial_y,
+                        msg=f"Horizontal collision should not change Y velocity: {ball1.speed.y} = {ball1_initial_y}")
 
 
 if __name__ == "__main__":

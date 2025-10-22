@@ -18,14 +18,13 @@ class TestBallBounceConfiguration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all patchers
-        for patcher in self.patchers:
-            patcher.start()
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def tearDown(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def test_default_bounce_settings(self):
         """Test that default bounce settings are correct."""

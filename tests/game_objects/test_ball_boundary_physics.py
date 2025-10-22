@@ -20,22 +20,14 @@ class TestBallBoundaryPhysics(unittest.TestCase):
     """Test enhanced ball boundary physics."""
 
     def setUp(self):
-        """Set up test fixtures using centralized mocks."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-        
-        # Ensure pygame is initialized and display mode is set for sprites
-        if not pygame.get_init():
-            pygame.init()
-        if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+        """Set up test fixtures."""
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def tearDown(self):
         """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
-        pygame.quit()
+        # Centralized mocks are handled by conftest.py
+        pass
 
     def test_ball_initialization_with_boundary_settings(self):
         """Test that ball initializes with correct boundary settings."""

@@ -26,9 +26,9 @@ def pytest_configure(config):
 @pytest.fixture(autouse=True)
 def setup_conditional_pygame_mocks(request):
     """Set up pygame mocks conditionally based on test file."""
-    # Check if this is a scene test that needs mocks
+    # Check if this is a scene test or game objects test that needs mocks
     test_file = str(request.node.fspath)
-    needs_mocks = "scene" in test_file.lower()
+    needs_mocks = "scene" in test_file.lower() or "game_objects" in test_file.lower()
     
     if needs_mocks:
         # Ensure pygame is properly initialized for mocks

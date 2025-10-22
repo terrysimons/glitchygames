@@ -228,16 +228,16 @@ class Game(Scene):
         v_center = self.screen_height / 2
         self.player1 = VerticalPaddle(
             "Player 1",
-            (20, self.screen_height),  # Full height paddle for testing
-            (0, 0),  # Start at top of screen
+            (20, 100),  # Smaller paddle - 100 pixels tall
+            (0, v_center - 50),  # Center vertically
             WHITE,
             400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
         self.player2 = VerticalPaddle(
             "Player 2",
-            (20, self.screen_height),  # Full height paddle for testing
-            (self.screen_width - 20, 0),  # Start at top of screen
+            (20, 100),  # Smaller paddle - 100 pixels tall
+            (self.screen_width - 20, v_center - 50),  # Center vertically
             WHITE,
             400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
@@ -496,12 +496,22 @@ class Game(Scene):
         # Set speed based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_SPEED:
             # Random direction with lower base speed for new balls
+            # Ensure both X and Y speeds are non-zero by avoiding cardinal directions
             angle = secrets.randbelow(360) * (2 * math.pi / 360)
             base_speed = 150.0  # Lower speed for new balls
-            new_ball.speed = Speed(
-                base_speed * math.cos(angle),
-                base_speed * math.sin(angle)
-            )
+            
+            # Calculate initial speeds
+            speed_x = base_speed * math.cos(angle)
+            speed_y = base_speed * math.sin(angle)
+            
+            # Ensure minimum speed in both directions (avoid zero speeds)
+            min_speed = 50.0  # Minimum 50 pixels per second in each direction
+            if abs(speed_x) < min_speed:
+                speed_x = min_speed if speed_x >= 0 else -min_speed
+            if abs(speed_y) < min_speed:
+                speed_y = min_speed if speed_y >= 0 else -min_speed
+                
+            new_ball.speed = Speed(speed_x, speed_y)
         else:
             # Fixed speed (default ball speed)
             new_ball.speed = Speed(250.0, 125.0)
@@ -594,28 +604,10 @@ class Game(Scene):
                 collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
 
                 # Skip if balls are too far apart or at exact same position
-                if distance >= collision_distance or distance < 0.001:
+                if distance > collision_distance or distance < 0.001:
                     continue
 
-                current_time = time.time()
-
-                # Check if balls are in cooldown period
-                ball1_id = id(ball1)
-                ball2_id = id(ball2)
-
-                # Check if ball1 has cooldown with ball2 (keyed by the other ball's id)
-                if (
-                    ball2_id in ball1.collision_cooldowns
-                    and ball1.collision_cooldowns[ball2_id] > current_time - 2.0
-                ):
-                    continue
-
-                # Check if ball2 has cooldown with ball1 (keyed by the other ball's id)
-                if (
-                    ball1_id in ball2.collision_cooldowns
-                    and ball2.collision_cooldowns[ball1_id] > current_time - 2.0
-                ):
-                    continue
+                # No cooldown for ball-to-ball collisions - balls should be able to collide freely
 
                 # Play collision sound
                 if hasattr(ball1, "snd") and ball1.snd is not None:
@@ -641,9 +633,23 @@ class Game(Scene):
                 # Calculate relative velocity along collision normal
                 dvn = dvx * nx + dvy * ny
 
-                # Do not resolve if velocities are separating (balls moving away from each other)
+                # Simplified collision logic: always allow collision if balls are overlapping
+                # or if they're moving toward each other (dvn <= 0)
                 if dvn > 0:
-                    continue
+                    # Balls are moving away from each other - only allow collision if they're overlapping
+                    # or if there's a significant speed difference (faster ball catching up)
+                    ball1_speed_magnitude = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+                    ball2_speed_magnitude = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+                    
+                    # Allow collision if balls are overlapping (distance < collision_distance)
+                    # or if there's a significant speed difference
+                    if distance >= collision_distance:
+                        if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
+                            speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(ball1_speed_magnitude, ball2_speed_magnitude)
+                            if speed_ratio < 1.2:  # Lower threshold for more collisions
+                                continue  # Skip if speeds are too similar and balls aren't overlapping
+                        else:
+                            continue  # Skip if one ball has zero speed
 
                 # Proper elastic collision physics for equal mass balls
                 # Decompose velocities into normal and tangential components
@@ -700,9 +706,7 @@ class Game(Scene):
                 ball2.rect.x += separation_x
                 ball2.rect.y += separation_y
 
-                # Set cooldown timestamps to prevent immediate re-collision
-                ball1.collision_cooldowns[ball2_id] = current_time
-                ball2.collision_cooldowns[ball1_id] = current_time
+                # No cooldown for ball-to-ball collisions - balls should be able to collide freely
 
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button down events.

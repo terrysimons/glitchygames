@@ -294,8 +294,18 @@ class BallSprite(Sprite):
         radians = math.radians(self.direction)
         # Use a fixed, symmetric speed magnitude instead of calculating from current speed
         speed_magnitude = 250.0  # Fixed speed in pixels per second
-        self.speed.x = speed_magnitude * math.cos(radians)
-        self.speed.y = speed_magnitude * math.sin(radians)
+        speed_x = speed_magnitude * math.cos(radians)
+        speed_y = speed_magnitude * math.sin(radians)
+        
+        # Ensure minimum speed in both directions (avoid zero speeds)
+        min_speed = 50.0  # Minimum 50 pixels per second in each direction
+        if abs(speed_x) < min_speed:
+            speed_x = min_speed if speed_x >= 0 else -min_speed
+        if abs(speed_y) < min_speed:
+            speed_y = min_speed if speed_y >= 0 else -min_speed
+            
+        self.speed.x = speed_x
+        self.speed.y = speed_y
 
         # self.rally.reset()
 
