@@ -2084,7 +2084,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Returns:
             None
         """
-        from .builtin.pause_scene import PauseScene
+        from .builtin_scenes.pause_scene import PauseScene
         
         # Create the pause scene
         pause_scene = PauseScene(options=self.options)
@@ -2118,7 +2118,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Returns:
             None
         """
-        from .builtin.game_over_scene import GameOverScene
+        from .builtin_scenes.game_over_scene import GameOverScene
         
         # Create the game over scene
         game_over_scene = GameOverScene(options=self.options)

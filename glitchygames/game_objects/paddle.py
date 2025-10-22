@@ -269,7 +269,11 @@ class HorizontalPaddle(BasePaddle):
 
         """
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
-        self.rect.x += self._move.get_movement_with_dt(dt)
+        movement = self._move.get_movement_with_dt(dt)
+        
+        # Use proper rounding to avoid precision loss from integer truncation
+        self.rect.x += round(movement)
+        
         self.dirty = 1
 
 
@@ -405,5 +409,7 @@ class VerticalPaddle(BasePaddle):
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
         
-        self.rect.y += movement
+        # Use proper rounding to avoid precision loss from integer truncation
+        self.rect.y += round(movement)
+        
         self.dirty = 1
