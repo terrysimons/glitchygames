@@ -242,7 +242,6 @@ class HorizontalPaddle(BasePaddle):
             None
 
         """
-        print(f"PADDLE MOVE: {self.name} STOP called - current_speed: {self._move.current_speed}")
         self._move.stop()
         self.dirty = 1
 
@@ -331,11 +330,9 @@ class VerticalPaddle(BasePaddle):
         # Movement is now handled in dt_tick() for frame-rate independence
         # Constrain position at boundaries AND stop movement to prevent bouncing
         if self.rect.y < 0:
-            print(f"PADDLE BOUNDARY: {self.name} hit TOP boundary at y={self.rect.y}, stopping movement")
             self.rect.y = 0
             self.stop()  # Stop movement to prevent bouncing
         elif self.rect.y + self.rect.height > self.screen_height:
-            print(f"PADDLE BOUNDARY: {self.name} hit BOTTOM boundary at y={self.rect.y}, stopping movement")
             self.rect.y = self.screen_height - self.rect.height
             self.stop()  # Stop movement to prevent bouncing
 
@@ -349,7 +346,6 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        print(f"PADDLE MOVE: {self.name} UP called - current_speed: {self._move.current_speed}")
         self._move.up()
         self.dirty = 1
 
@@ -363,7 +359,6 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        print(f"PADDLE MOVE: {self.name} DOWN called - current_speed: {self._move.current_speed}")
         self._move.down()
         self.dirty = 1
 
@@ -377,7 +372,6 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        print(f"PADDLE MOVE: {self.name} STOP called - current_speed: {self._move.current_speed}")
         self._move.stop()
         self.dirty = 1
 

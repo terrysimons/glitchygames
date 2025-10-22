@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 import pygame
 from glitchygames import events
 from glitchygames.color import PURPLE
+from glitchygames.events.app import AppManager
 from glitchygames.events.audio import AudioManager
 from glitchygames.events.controller import ControllerManager
 from glitchygames.events.drop import DropManager
