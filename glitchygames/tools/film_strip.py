@@ -1235,23 +1235,36 @@ class FilmStripWidget:
         # Add 3D beveled border like the right side animation frame
         self._add_3d_beveled_border(frame_surface)
 
-        # Add red border for selected frame - check global selection state
-        is_selected_frame = False
+        # Add border for selected frame - use same color as indicator
+        selection_color = None
+        
+        # Check keyboard selection (white indicator)
         if hasattr(self, "parent_scene") and self.parent_scene:
-            is_selected_frame = (
-                hasattr(self.parent_scene, "selected_animation") and
+            if (hasattr(self.parent_scene, "selected_animation") and
                 hasattr(self.parent_scene, "selected_frame") and
                 self.parent_scene.selected_animation == animation_name and
-                self.parent_scene.selected_frame == frame_index
-            )
+                self.parent_scene.selected_frame == frame_index):
+                selection_color = (255, 255, 255)  # White for keyboard
+        
+        # Check controller selection (use controller's color)
+        if not selection_color and hasattr(self, "parent_scene") and self.parent_scene:
+            if hasattr(self.parent_scene, "controller_selections"):
+                for controller_id, controller_selection in self.parent_scene.controller_selections.items():
+                    if controller_selection.is_active():
+                        controller_animation, controller_frame = controller_selection.get_selection()
+                        if controller_animation == animation_name and controller_frame == frame_index:
+                            # Get controller color from multi-controller manager singleton
+                            from .multi_controller_manager import MultiControllerManager
+                            manager = MultiControllerManager.get_instance()
+                            for instance_id, info in manager.controllers.items():
+                                if info.controller_id == controller_id:
+                                    selection_color = info.color
+                                    break
+                            break
 
-        # OLD SYSTEM DISABLED - Using new multi-controller system instead
-        # The old SelectionManager system has been replaced by the new multi-controller system
-        # which draws triangles instead of borders
-
-        # Add red border for keyboard selection last (on top)
-        if is_selected_frame:
-            pygame.draw.rect(frame_surface, self.selection_color, (0, 0, self.frame_width, self.frame_height), 3)
+        # Draw selection border with the appropriate color
+        if selection_color:
+            pygame.draw.rect(frame_surface, selection_color, (0, 0, self.frame_width, self.frame_height), 3)
 
         # Draw frame number at the bottom center
         self._draw_frame_number(frame_surface, frame_index)
@@ -1619,11 +1632,11 @@ class FilmStripWidget:
 
     def _draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
         """Draw multi-controller indicators using the new system with proper color binding."""
-        print(f"DEBUG: _draw_multi_controller_indicators_new called for animation: {self.current_animation}")
+        # print(f"DEBUG: _draw_multi_controller_indicators_new called for animation: {self.current_animation}")
         
         # Check if this film strip has any selections
         if not self.animated_sprite or not self.current_animation:
-            print("DEBUG: No animated sprite or current animation")
+            # print("DEBUG: No animated sprite or current animation")
             return
 
         # Get keyboard selection info
@@ -1637,9 +1650,21 @@ class FilmStripWidget:
         # Get multi-controller selections
         controller_selections = []
         if hasattr(self, "parent_scene") and self.parent_scene:
+            # Initialize multi-controller system if it doesn't exist
+            if not hasattr(self.parent_scene, "controller_selections"):
+                print("DEBUG: Initializing multi-controller system in parent scene")
+                from .multi_controller_manager import MultiControllerManager
+                from .controller_selection import ControllerSelection
+                from .visual_collision_manager import VisualCollisionManager
+                
+                self.parent_scene.multi_controller_manager = MultiControllerManager()
+                self.parent_scene.controller_selections = {}
+                self.parent_scene.visual_collision_manager = VisualCollisionManager()
+            
             if hasattr(self.parent_scene, "controller_selections"):
-                print(f"DEBUG: Found {len(self.parent_scene.controller_selections)} controller selections")
+                # print(f"DEBUG: Found {len(self.parent_scene.controller_selections)} controller selections")
                 for controller_id, controller_selection in self.parent_scene.controller_selections.items():
+                    print(f"DEBUG: Checking controller {controller_id} - is_active: {controller_selection.is_active()}")
                     if controller_selection.is_active():
                         animation, frame = controller_selection.get_selection()
                         print(f"DEBUG: Controller {controller_id} active - animation='{animation}', frame={frame}")
@@ -1658,12 +1683,22 @@ class FilmStripWidget:
                                     'frame': frame,
                                     'color': controller_info.color
                                 })
+                            else:
+                                print(f"DEBUG: No controller_info found for controller {controller_id}")
+                        else:
+                            print(f"DEBUG: Controller {controller_id} animation '{animation}' != current animation '{self.current_animation}'")
+                    else:
+                        print(f"DEBUG: Controller {controller_id} is not active")
             else:
-                print("DEBUG: No controller_selections found")
+                # print("DEBUG: No controller_selections found")
+                pass
         else:
-            print("DEBUG: No parent_scene found")
+            # print("DEBUG: No parent_scene found")
+            pass
 
-        print(f"DEBUG: Drawing {len(controller_selections)} controller selections")
+        # print(f"DEBUG: Drawing {len(controller_selections)} controller selections")
+        # print(f"DEBUG: Controller selections details: {controller_selections}")
+        # print(f"DEBUG: Keyboard animation: '{keyboard_animation}', frame: {keyboard_frame}")
         # Draw all indicators using the new system
         self._draw_multi_controller_indicators(surface, keyboard_animation, keyboard_frame, controller_selections)
 
@@ -1688,7 +1723,7 @@ class FilmStripWidget:
                     hasattr(self.parent_scene, '_last_debug_keyboard_frame') and
                     (self.parent_scene._last_debug_keyboard_animation != keyboard_animation or 
                      self.parent_scene._last_debug_keyboard_frame != keyboard_frame)):
-                    print(f"DEBUG: Keyboard selection - animation='{keyboard_animation}', frame={keyboard_frame}")
+                    # print(f"DEBUG: Keyboard selection - animation='{keyboard_animation}', frame={keyboard_frame}")
                     self.parent_scene._last_debug_keyboard_animation = keyboard_animation
                     self.parent_scene._last_debug_keyboard_frame = keyboard_frame
 
@@ -1735,11 +1770,24 @@ class FilmStripWidget:
         
         # Add controller selections
         for controller_selection in controller_selections:
+            # Calculate color-based priority (Red=0, Green=1, Blue=2, Yellow=3)
+            color = controller_selection['color']
+            if color == (255, 0, 0):    # Red
+                priority = 0
+            elif color == (0, 255, 0):  # Green
+                priority = 1
+            elif color == (0, 0, 255):  # Blue
+                priority = 2
+            elif color == (255, 255, 0): # Yellow
+                priority = 3
+            else:
+                priority = 999  # Unknown colors go last
+            
             all_selections.append({
                 'type': f'controller_{controller_selection["controller_id"]}',
                 'frame': controller_selection['frame'],
                 'color': controller_selection['color'],
-                'priority': controller_selection['controller_id'] + 1
+                'priority': priority
             })
         
         # Group selections by frame
@@ -1776,8 +1824,21 @@ class FilmStripWidget:
             else:
                 controller_selections.append(selection)
         
-        # Sort controllers by priority
-        controller_selections.sort(key=lambda x: x['priority'])
+        # Sort controllers by color order (Red, Green, Blue, Yellow)
+        def get_color_priority(selection):
+            color = selection['color']
+            if color == (255, 0, 0):    # Red
+                return 0
+            elif color == (0, 255, 0):  # Green
+                return 1
+            elif color == (0, 0, 255):  # Blue
+                return 2
+            elif color == (255, 255, 0): # Yellow
+                return 3
+            else:
+                return 999  # Unknown colors go last
+        
+        controller_selections.sort(key=get_color_priority)
         
         # Calculate total number of indicators
         total_indicators = len(controller_selections) + (1 if keyboard_selection else 0)

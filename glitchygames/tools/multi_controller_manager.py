@@ -45,6 +45,8 @@ class MultiControllerManager:
     
     Manages up to 4 simultaneous controllers with automatic assignment,
     reconnection handling, and status tracking.
+    
+    This is a singleton class to ensure consistent color assignment across the application.
     """
     
     # Controller color scheme
@@ -58,13 +60,36 @@ class MultiControllerManager:
     MAX_CONTROLLERS = 4
     ASSIGNMENT_TIMEOUT = 5.0  # seconds
     
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        """Ensure only one instance exists (singleton pattern)."""
+        if cls._instance is None:
+            cls._instance = super(MultiControllerManager, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        """Initialize the multi-controller manager."""
+        """Initialize the multi-controller manager (only once)."""
+        if self._initialized:
+            return
+            
         self.controllers: Dict[int, ControllerInfo] = {}
         self.assigned_controllers: Dict[int, int] = {}  # instance_id -> controller_id
         self.next_controller_id = 0
+        self.next_color_index = 0  # Track color assignment order
         self.last_scan_time = 0
         self.scan_interval = 1.0  # seconds
+        self._initialized = True
+        
+        print("DEBUG: MultiControllerManager singleton initialized")
+    
+    @classmethod
+    def get_instance(cls):
+        """Get the singleton instance of MultiControllerManager."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
         
     def scan_for_controllers(self) -> List[int]:
         """
@@ -106,7 +131,8 @@ class MultiControllerManager:
     def _handle_controller_connect(self, instance_id: int) -> None:
         """Handle a new controller connection."""
         controller_id = self._get_next_controller_id()
-        color = self.CONTROLLER_COLORS[controller_id % len(self.CONTROLLER_COLORS)]
+        # Don't assign color here - it will be assigned when controller is activated
+        color = (128, 128, 128)  # Default gray color until activated
         
         self.controllers[instance_id] = ControllerInfo(
             controller_id=controller_id,
@@ -116,6 +142,12 @@ class MultiControllerManager:
         )
         
         print(f"DEBUG: Controller {controller_id} connected (instance_id={instance_id}, color={color})")
+    
+    def _get_next_controller_id(self) -> int:
+        """Get the next available controller ID."""
+        controller_id = self.next_controller_id
+        self.next_controller_id = (self.next_controller_id + 1) % self.MAX_CONTROLLERS
+        return controller_id
     
     def _handle_controller_disconnect(self, instance_id: int) -> None:
         """Handle controller disconnection."""
@@ -129,12 +161,28 @@ class MultiControllerManager:
                 
             del self.controllers[instance_id]
     
-    def _get_next_controller_id(self) -> int:
-        """Get the next available controller ID."""
-        controller_id = self.next_controller_id
-        self.next_controller_id = (self.next_controller_id + 1) % self.MAX_CONTROLLERS
-        return controller_id
     
+    def assign_color_to_controller(self, controller_id: int) -> None:
+        """Assign a color to a controller based on activation order."""
+        print(f"DEBUG: assign_color_to_controller called with controller_id={controller_id}")
+        print(f"DEBUG: Available controllers: {list(self.controllers.keys())}")
+        print(f"DEBUG: Current next_color_index: {self.next_color_index}")
+        
+        # Find the controller by controller_id and assign the next color
+        for instance_id, info in self.controllers.items():
+            print(f"DEBUG: Checking instance_id={instance_id}, info.controller_id={info.controller_id}")
+            if info.controller_id == controller_id:
+                color = self.CONTROLLER_COLORS[self.next_color_index % len(self.CONTROLLER_COLORS)]
+                old_color = info.color
+                info.color = color
+                self.next_color_index += 1
+                print(f"DEBUG: Assigned color {color} to controller {controller_id} (was {old_color})")
+                print(f"DEBUG: next_color_index is now {self.next_color_index}")
+                break
+        else:
+            print(f"DEBUG: Controller {controller_id} not found in controllers: {list(self.controllers.keys())}")
+            print(f"DEBUG: Available controller_ids: {[info.controller_id for info in self.controllers.values()]}")
+
     def assign_controller(self, instance_id: int) -> Optional[int]:
         """
         Assign a controller on first button press.
