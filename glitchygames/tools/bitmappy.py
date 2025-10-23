@@ -7308,7 +7308,6 @@ pixels = \"\"\"
         controller_selection.deactivate()
         print(f"DEBUG: Controller {controller_id} cancelled")
 
-
     def _reinitialize_multi_controller_system(self, preserved_controller_selections=None) -> None:
         """Reinitialize the multi-controller system when film strips are reconstructed.
 
@@ -7355,7 +7354,8 @@ pixels = \"\"\"
         # Reinitialize controller selections for existing controllers
         for instance_id, controller_info in self.multi_controller_manager.controllers.items():
             print(f"DEBUG: Processing controller {instance_id}, status: {controller_info.status.value}")
-            if controller_info.status.value == "connected":
+            # Accept controllers with any status (connected, assigned, or active)
+            if controller_info.status.value in ["connected", "assigned", "active"]:
                 controller_id = controller_info.controller_id
 
                 # Check if controller selection already exists
@@ -7369,84 +7369,8 @@ pixels = \"\"\"
                     controller_selection.update_activity()
                     print(f"DEBUG: Updated existing controller selection for controller {controller_id}")
 
-                # Restore active state if controller was active before reconstruction
-                if controller_id in active_controllers:
-                    if self.film_strips:
-                        # Always reset to first strip and frame 0 when loading new files
-                        # since animation names and structure will be different
-                        first_animation = list(self.film_strips.keys())[0]
-                        controller_selection.set_selection(first_animation, 0)
-                        controller_selection.activate()
-                        print(f"DEBUG: Reset active controller {controller_id} to first animation '{first_animation}', frame 0 (ignoring previous selection)")
-                        print(f"DEBUG: Controller {controller_id} is now active: {controller_selection.is_active()}")
-                        print(f"DEBUG: Controller {controller_id} selection: {controller_selection.get_selection()}")
-                        print(f"DEBUG: Available film strips: {list(self.film_strips.keys())}")
-                    else:
-                        print(f"DEBUG: No film strips available for active controller {controller_id}")
-                else:
-                    print(f"DEBUG: Controller {controller_id} was not active before reconstruction, keeping it inactive")
-
-        print(f"DEBUG: Multi-controller system reinitialized with {len(self.controller_selections)} controller selections")
-
-    def _reinitialize_multi_controller_system(self, preserved_controller_selections=None) -> None:
-        """Reinitialize the multi-controller system when film strips are reconstructed.
-
-        This ensures that existing controller selections are preserved and properly
-        initialized when film strips are recreated (e.g., when loading an animation file).
-
-        Args:
-            preserved_controller_selections: Optional dict of preserved controller selections
-                from before film strip reconstruction.
-        """
-        print("DEBUG: Reinitializing multi-controller system")
-        print(f"DEBUG: Current controller_selections: {list(self.controller_selections.keys())}")
-        print(f"DEBUG: Current film_strips: {list(self.film_strips.keys()) if hasattr(self, 'film_strips') and self.film_strips else 'None'}")
-
-        # Check if controller_selections is empty (scene was recreated)
-        if not self.controller_selections:
-            print("DEBUG: controller_selections is empty - scene was likely recreated")
-            # If scene was recreated, we can't preserve controller selections
-            # Controllers will need to be reactivated manually
-            return
-
-        # Use preserved controller selections if provided, otherwise use current ones
-        if preserved_controller_selections is not None:
-            active_controllers = preserved_controller_selections
-            print(f"DEBUG: Using preserved controller selections: {active_controllers}")
-        else:
-            # Store the active state of controllers before reconstruction
-            active_controllers = {}
-            print(f"DEBUG: Checking {len(self.controller_selections)} existing controller selections")
-            for controller_id, controller_selection in self.controller_selections.items():
-                is_active = controller_selection.is_active()
-                print(f"DEBUG: Controller {controller_id} is_active: {is_active}")
-                if is_active:
-                    animation, frame = controller_selection.get_selection()
-                    active_controllers[controller_id] = (animation, frame)
-                    print(f"DEBUG: Storing active controller {controller_id} with animation '{animation}', frame {frame}")
-
-        print(f"DEBUG: Found {len(active_controllers)} active controllers to preserve")
-
-        # Scan for controllers and update manager
-        self.multi_controller_manager.scan_for_controllers()
-        print(f"DEBUG: Found {len(self.multi_controller_manager.controllers)} controllers in manager")
-
-        # Reinitialize controller selections for existing controllers
-        for instance_id, controller_info in self.multi_controller_manager.controllers.items():
-            print(f"DEBUG: Processing controller {instance_id}, status: {controller_info.status.value}")
-            if controller_info.status.value == "connected":
-                controller_id = controller_info.controller_id
-
-                # Check if controller selection already exists
-                if controller_id not in self.controller_selections:
-                    # Create new controller selection (but don't activate it)
-                    self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
-                    print(f"DEBUG: Created new controller selection for controller {controller_id} (inactive)")
-                else:
-                    # Update existing controller selection
-                    controller_selection = self.controller_selections[controller_id]
-                    controller_selection.update_activity()
-                    print(f"DEBUG: Updated existing controller selection for controller {controller_id}")
+                # Get the controller_selection reference for activation
+                controller_selection = self.controller_selections[controller_id]
 
                 # Restore active state if controller was active before reconstruction
                 if controller_id in active_controllers:
