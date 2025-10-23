@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import TYPE_CHECKING, ClassVar, Self, Dict
 
 import pygame
 import toml
@@ -65,6 +65,9 @@ from .canvas_interfaces import (
     AnimatedSpriteSerializer,
 )
 from .film_strip import FilmStripWidget
+from .multi_controller_manager import MultiControllerManager
+from .controller_selection import ControllerSelection
+from .visual_collision_manager import VisualCollisionManager
 
 if TYPE_CHECKING:
     import argparse
@@ -2791,11 +2794,7 @@ class BitmapEditorScene(Scene):
         LOG.debug(f"DEBUG: About to call _select_initial_film_strip")
         self._select_initial_film_strip()
 
-        # Ensure controller selection is still valid after film strip creation
-        print(f"DEBUG: Calling _validate_controller_selection from _create_film_strips")
-        print(f"DEBUG: Before validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
-        self._validate_controller_selection()
-        print(f"DEBUG: After validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        # OLD SYSTEM REMOVED - Using new multi-controller system instead
 
         LOG.debug(f"DEBUG: _create_film_strips completed successfully")
 
@@ -3601,25 +3600,18 @@ class BitmapEditorScene(Scene):
 
         # Update keyboard selection in all film strips using SelectionManager
         print(f"DEBUG BitmapEditorScene: Updating keyboard selection for animation='{animation}', frame={frame}")
-        print(f"DEBUG BitmapEditorScene: Controller selection state - animation='{getattr(self, 'controller_selected_animation', 'None')}', frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        # OLD SYSTEM REMOVED - Using new multi-controller system instead
+        # OLD SYSTEM DISABLED - Using new multi-controller system instead
+        # The old SelectionManager system has been replaced by the new multi-controller system
         if hasattr(self, "film_strips") and self.film_strips:
             print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
-            for strip_name, strip_widget in self.film_strips.items():
-                if hasattr(strip_widget, "selection_manager"):
-                    print(f"DEBUG BitmapEditorScene: Updating SelectionManager for strip '{strip_name}'")
-                    strip_widget.selection_manager.update_selection("keyboard", animation, frame)
-                else:
-                    print(f"DEBUG BitmapEditorScene: Strip '{strip_name}' has no selection_manager")
+            # OLD SYSTEM DISABLED - SelectionManager calls removed
 
         # Update film strip selection state
         self._update_film_strip_selection_state()
         self.selected_strip = film_strip_widget
 
-        # Ensure controller selection is still valid after film strip changes
-        print(f"DEBUG: Calling _validate_controller_selection from _on_film_strip_frame_selected")
-        print(f"DEBUG: Before validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
-        self._validate_controller_selection()
-        print(f"DEBUG: After validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        # OLD SYSTEM REMOVED - Using new multi-controller system instead
 
         # Mark all film strips as dirty so they redraw with correct selection state
         if hasattr(self, "film_strips") and self.film_strips:
@@ -4186,16 +4178,18 @@ class BitmapEditorScene(Scene):
         self.selected_animation = ""
         self.selected_frame = 0
 
-        # Initialize controller selection state (independent from keyboard selection)
-        self.controller_selected_animation = ""
-        self.controller_selected_frame = 0
-        self.controller_selection_active = False
+        # OLD SYSTEM REMOVED - Using new multi-controller system instead
 
         # Debug state tracking to prevent redundant logging
         self._last_debug_controller_animation = ""
         self._last_debug_controller_frame = -1
         self._last_debug_keyboard_animation = ""
         self._last_debug_keyboard_frame = -1
+
+        # Initialize multi-controller system
+        self.multi_controller_manager = MultiControllerManager()
+        self.controller_selections: Dict[int, ControllerSelection] = {}
+        self.visual_collision_manager = VisualCollisionManager()
 
         # Controller input state tracking to prevent jittery behavior
         self._controller_axis_deadzone = 500  # Only respond to values beyond this threshold (for larger scale values)
@@ -6542,7 +6536,7 @@ pixels = \"\"\"
 
     # Controller Support Methods
     def on_controller_button_down_event(self, event: pygame.event.Event) -> None:
-        """Handle controller button down events for frame selection.
+        """Handle controller button down events for multi-controller system.
 
         Args:
             event (pygame.event.Event): The controller button down event.
@@ -6551,60 +6545,73 @@ pixels = \"\"\"
             None
 
         """
-        print(f"DEBUG: Controller button down event received: button={event.button}")
-        print(f"DEBUG: START button constant value: {pygame.CONTROLLER_BUTTON_START}")
-        print(f"DEBUG: A button constant value: {pygame.CONTROLLER_BUTTON_A}")
-        print(f"DEBUG: B button constant value: {pygame.CONTROLLER_BUTTON_B}")
-        print(f"DEBUG: DPAD_UP constant value: {pygame.CONTROLLER_BUTTON_DPAD_UP}")
-        print(f"DEBUG: DPAD_DOWN constant value: {pygame.CONTROLLER_BUTTON_DPAD_DOWN}")
-        print(f"DEBUG: DPAD_LEFT constant value: {pygame.CONTROLLER_BUTTON_DPAD_LEFT}")
-        print(f"DEBUG: DPAD_RIGHT constant value: {pygame.CONTROLLER_BUTTON_DPAD_RIGHT}")
+        # Scan for controllers and update manager
+        self.multi_controller_manager.scan_for_controllers()
+
+        # Get controller info
+        instance_id = event.instance_id
+        controller_info = self.multi_controller_manager.get_controller_info(instance_id)
+
+        if not controller_info:
+            print(f"DEBUG: No controller info found for instance_id {instance_id}")
+            return
+
+        print(f"DEBUG: Controller button down event received: button={event.button}, instance_id={instance_id}")
         LOG.debug(f"Controller button down: {event.button}")
 
+        # Handle controller assignment on first button press
+        if controller_info.status.value == "connected":
+            controller_id = self.multi_controller_manager.assign_controller(instance_id)
+            if controller_id is not None:
+                # Create controller selection for this controller
+                self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+                print(f"DEBUG: Controller {controller_id} assigned and selection created")
+
+        # Get controller ID for this instance
+        controller_id = self.multi_controller_manager.get_controller_id(instance_id)
+        if controller_id is None:
+            print(f"DEBUG: No controller ID found for instance_id {instance_id}")
+            return
+
+        # Get or create controller selection
+        if controller_id not in self.controller_selections:
+            self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+
+        controller_selection = self.controller_selections[controller_id]
+
+        # Update controller activity
+        self.multi_controller_manager.update_controller_activity(instance_id)
+        controller_selection.update_activity()
+
+        # Handle button presses
         if event.button == pygame.CONTROLLER_BUTTON_A:
-            # A button: Select current frame (only if controller selection is active)
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                LOG.debug("Controller: A button pressed - selecting current frame")
-                self._controller_select_current_frame()
-            else:
-                print("DEBUG: Controller selection not active, ignoring A button")
+            # A button: Select current frame
+            LOG.debug(f"Controller {controller_id}: A button pressed - selecting current frame")
+            self._multi_controller_select_current_frame(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_B:
             # B button: Cancel/go back
-            LOG.debug("Controller: B button pressed - cancel")
-            self._controller_cancel()
+            LOG.debug(f"Controller {controller_id}: B button pressed - cancel")
+            self._multi_controller_cancel(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            # D-pad left: Previous frame (only if controller selection is active)
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                LOG.debug("Controller: D-pad left pressed - previous frame")
-                self._controller_previous_frame()
-            else:
-                print("DEBUG: Controller selection not active, ignoring D-pad left")
+            # D-pad left: Previous frame
+            LOG.debug(f"Controller {controller_id}: D-pad left pressed - previous frame")
+            self._multi_controller_previous_frame(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            # D-pad right: Next frame (only if controller selection is active)
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                LOG.debug("Controller: D-pad right pressed - next frame")
-                self._controller_next_frame()
-            else:
-                print("DEBUG: Controller selection not active, ignoring D-pad right")
+            # D-pad right: Next frame
+            LOG.debug(f"Controller {controller_id}: D-pad right pressed - next frame")
+            self._multi_controller_next_frame(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            # D-pad up: Previous animation (only if controller selection is active)
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                LOG.debug("Controller: D-pad up pressed - previous animation")
-                self._controller_previous_animation()
-            else:
-                print("DEBUG: Controller selection not active, ignoring D-pad up")
+            # D-pad up: Previous animation
+            LOG.debug(f"Controller {controller_id}: D-pad up pressed - previous animation")
+            self._multi_controller_previous_animation(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_START:
-            # Start button: Initialize controller selection
-            print("DEBUG: START button pressed - initializing controller selection")
-            LOG.debug("Controller: Start button pressed - initialize controller selection")
-            self._initialize_controller_selection()
+            # Start button: Activate controller
+            LOG.debug(f"Controller {controller_id}: Start button pressed - activate controller")
+            self._multi_controller_activate(controller_id)
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            # D-pad down: Next animation (only if controller selection is active)
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                LOG.debug("Controller: D-pad down pressed - next animation")
-                self._controller_next_animation()
-            else:
-                print("DEBUG: Controller selection not active, ignoring D-pad down")
+            # D-pad down: Next animation
+            LOG.debug(f"Controller {controller_id}: D-pad down pressed - next animation")
+            self._multi_controller_next_animation(controller_id)
 
     def on_controller_button_up_event(self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -6637,14 +6644,15 @@ pixels = \"\"\"
         # Map joystick buttons to controller actions
         # Button 9 is likely START button
         if event.button == 9:  # START button
-            print("DEBUG: Joystick START button pressed - initializing controller selection")
-            self._initialize_controller_selection()
+            print("DEBUG: Joystick START button pressed - activating multi-controller system")
+            # Use new multi-controller system instead of old single-controller system
+            controller_id = getattr(event, 'instance_id', 0)
+            self._multi_controller_activate(controller_id)
         elif event.button == 0:  # A button
-            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
-                print("DEBUG: Joystick A button pressed - selecting current frame")
-                self._select_current_frame()
-            else:
-                print("DEBUG: Controller selection not active, ignoring joystick A button")
+            print("DEBUG: Joystick A button pressed - selecting current frame with multi-controller system")
+            # Use new multi-controller system instead of old single-controller system
+            controller_id = getattr(event, 'instance_id', 0)
+            self._multi_controller_select_current_frame(controller_id)
         elif event.button == 1:  # B button
             print("DEBUG: Joystick B button pressed - cancel")
             self._controller_cancel()
@@ -6682,17 +6690,21 @@ pixels = \"\"\"
 
         # Map hat directions to controller actions
         if event.value == 1:  # Up
-            print("DEBUG: Joystick hat up - calling _controller_previous_animation")
-            self._controller_previous_animation()
+            print("DEBUG: Joystick hat up - DISABLED (use multi-controller system)")
+            # OLD SYSTEM DISABLED - Use multi-controller system instead
+            return
         elif event.value == 2:  # Right
-            print("DEBUG: Joystick hat right - calling _controller_next_frame")
-            self._controller_next_frame()
+            print("DEBUG: Joystick hat right - DISABLED (use multi-controller system)")
+            # OLD SYSTEM DISABLED - Use multi-controller system instead
+            return
         elif event.value == 4:  # Down
-            print("DEBUG: Joystick hat down - calling _controller_next_animation")
-            self._controller_next_animation()
+            print("DEBUG: Joystick hat down - DISABLED (use multi-controller system)")
+            # OLD SYSTEM DISABLED - Use multi-controller system instead
+            return
         elif event.value == 8:  # Left
-            print("DEBUG: Joystick hat left - calling _controller_previous_frame")
-            self._controller_previous_frame()
+            print("DEBUG: Joystick hat left - DISABLED (use multi-controller system)")
+            # OLD SYSTEM DISABLED - Use multi-controller system instead
+            return
 
     def on_joy_axis_motion_event(self, event: pygame.event.Event) -> None:
         """Handle joystick axis motion events - disabled to prevent jittery behavior.
@@ -6772,13 +6784,13 @@ pixels = \"\"\"
                 return
 
             if event.value < -self._controller_axis_hat_threshold:  # Left stick left (hat-like behavior)
-                print("DEBUG: Left stick left - calling _controller_previous_frame")
-                self._controller_previous_frame()
-                self._controller_axis_cooldown[event.axis] = current_time
+                print("DEBUG: Left stick left - DISABLED (use multi-controller system)")
+                # OLD SYSTEM DISABLED - Use multi-controller system instead
+                return
             elif event.value > self._controller_axis_hat_threshold:  # Left stick right (hat-like behavior)
-                print("DEBUG: Left stick right - calling _controller_next_frame")
-                self._controller_next_frame()
-                self._controller_axis_cooldown[event.axis] = current_time
+                print("DEBUG: Left stick right - DISABLED (use multi-controller system)")
+                # OLD SYSTEM DISABLED - Use multi-controller system instead
+                return
 
             self._controller_axis_last_values[event.axis] = event.value
 
@@ -6800,13 +6812,13 @@ pixels = \"\"\"
                 return
 
             if event.value < -self._controller_axis_hat_threshold:  # Left stick up (hat-like behavior)
-                print("DEBUG: Left stick up - calling _controller_previous_animation")
-                self._controller_previous_animation()
-                self._controller_axis_cooldown[event.axis] = current_time
+                print("DEBUG: Left stick up - DISABLED (use multi-controller system)")
+                # OLD SYSTEM DISABLED - Use multi-controller system instead
+                return
             elif event.value > self._controller_axis_hat_threshold:  # Left stick down (hat-like behavior)
-                print("DEBUG: Left stick down - calling _controller_next_animation")
-                self._controller_next_animation()
-                self._controller_axis_cooldown[event.axis] = current_time
+                print("DEBUG: Left stick down - DISABLED (use multi-controller system)")
+                # OLD SYSTEM DISABLED - Use multi-controller system instead
+                return
 
             self._controller_axis_last_values[event.axis] = event.value
 
@@ -6829,296 +6841,338 @@ pixels = \"\"\"
         LOG.debug("Controller cancel action")
 
     def _controller_select_current_frame(self) -> None:
-        """Select the frame that the controller is currently pointing to."""
-        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
-            print("DEBUG: No controller selected animation or frame to select")
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _controller_select_current_frame called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _controller_previous_frame(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _controller_previous_frame called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _controller_next_frame(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _controller_next_frame called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _controller_previous_animation(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _controller_previous_animation called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _controller_next_animation(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _controller_next_animation called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _scroll_to_controller_animation(self, animation_name: str) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _scroll_to_controller_animation called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _validate_controller_selection(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _validate_controller_selection called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _initialize_controller_selection(self) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system."""
+        print("DEBUG: _initialize_controller_selection called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    def _controller_select_frame(self, animation: str, frame: int) -> None:
+        """DEPRECATED: Old single-controller system - now disabled in favor of multi-controller system.
+
+        This method is kept for compatibility but should not be used.
+        Use the new multi-controller system instead.
+        """
+        print(f"DEBUG: _controller_select_frame called but DISABLED - use multi-controller system instead")
+        # OLD SYSTEM DISABLED - Use multi-controller system instead
+        return
+
+    # Multi-Controller System Methods
+    def _multi_controller_activate(self, controller_id: int) -> None:
+        """Activate a controller for navigation.
+
+        Args:
+            controller_id: Controller ID to activate
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for activation")
             return
 
-        animation = self.controller_selected_animation
-        frame = self.controller_selected_frame
+        controller_selection = self.controller_selections[controller_id]
+        controller_selection.activate()
 
-        print(f"DEBUG: Controller selecting frame - animation='{animation}', frame={frame}")
+        # Initialize to first available animation if not set
+        if not controller_selection.get_animation():
+            if hasattr(self, 'film_strips') and self.film_strips:
+                first_animation = list(self.film_strips.keys())[0]
+                controller_selection.set_selection(first_animation, 0)
+                print(f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0")
+
+        # Update visual collision manager
+        self._update_controller_visual_indicator(controller_id)
+
+        print(f"DEBUG: Controller {controller_id} activated")
+
+    def _multi_controller_select_current_frame(self, controller_id: int) -> None:
+        """Select the frame that the controller is currently pointing to.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for frame selection")
+            return
+
+        controller_selection = self.controller_selections[controller_id]
+        animation, frame = controller_selection.get_selection()
+
+        if not animation:
+            print(f"DEBUG: Controller {controller_id} has no animation selected")
+            return
+
+        print(f"DEBUG: Controller {controller_id} selecting frame - animation='{animation}', frame={frame}")
 
         # Find the film strip widget for this animation
         if hasattr(self, 'film_strips') and self.film_strips:
             for strip_name, strip_widget in self.film_strips.items():
                 if strip_name == animation:
                     # Call the same method that keyboard selection uses
-                    print(f"DEBUG: Controller calling _on_film_strip_frame_selected for '{animation}', frame {frame}")
+                    print(f"DEBUG: Controller {controller_id} calling _on_film_strip_frame_selected for '{animation}', frame {frame}")
                     self._on_film_strip_frame_selected(strip_widget, animation, frame)
                     break
         else:
-            print("DEBUG: No film strips available for controller selection")
+            print(f"DEBUG: No film strips available for controller {controller_id} selection")
 
-    def _controller_previous_frame(self) -> None:
-        """Navigate to previous frame in current animation."""
-        print("DEBUG: _controller_previous_frame called")
-        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
-            print("DEBUG: No controller selected animation or frame")
-            LOG.debug("Controller previous frame: No controller selected animation or frame")
+    def _multi_controller_cancel(self, controller_id: int) -> None:
+        """Cancel controller selection.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for cancel")
             return
 
-        print(f"DEBUG: Controller previous frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
-        LOG.debug(f"Controller previous frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
+        controller_selection = self.controller_selections[controller_id]
+        controller_selection.deactivate()
 
-        # Find the current animation's film strip
-        if hasattr(self, 'film_strips') and self.film_strips:
-            for strip_name, strip_widget in self.film_strips.items():
-                if strip_name == self.controller_selected_animation:
-                    # Get the number of frames in this animation
-                    if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                        # Use the correct method to get frame count
-                        frame_count = strip_widget.animated_sprite.current_animation_frame_count
-                        LOG.debug(f"Controller previous frame: Found {frame_count} frames in animation {strip_name}")
-                        if frame_count > 0:
-                            # Move to previous frame (with wrap-around)
-                            new_frame = (self.controller_selected_frame - 1) % frame_count
-                            print(f"DEBUG: Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
-                            LOG.debug(f"Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
-                            self._controller_select_frame(self.controller_selected_animation, new_frame)
+        # Remove visual indicator
+        self.visual_collision_manager.remove_controller_indicator(controller_id)
 
-                            # Scroll the film strip to show the selected frame if it's off-screen
-                            if hasattr(strip_widget, 'update_scroll_for_frame'):
-                                strip_widget.update_scroll_for_frame(new_frame)
-                                print(f"DEBUG: Controller previous frame: Scrolled film strip to show frame {new_frame}")
-                    else:
-                        LOG.debug(f"Controller previous frame: No animated sprite found for {strip_name}")
-                    break
-        else:
-            LOG.debug("Controller previous frame: No film strips found")
+        print(f"DEBUG: Controller {controller_id} cancelled")
 
-    def _controller_next_frame(self) -> None:
-        """Navigate to next frame in current animation."""
-        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
-            LOG.debug("Controller next frame: No controller selected animation or frame")
+    def _multi_controller_previous_frame(self, controller_id: int) -> None:
+        """Move to previous frame for a controller.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for previous frame")
             return
 
-        LOG.debug(f"Controller next frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
+        controller_selection = self.controller_selections[controller_id]
+        animation, frame = controller_selection.get_selection()
 
-        # Find the current animation's film strip
-        if hasattr(self, 'film_strips') and self.film_strips:
-            for strip_name, strip_widget in self.film_strips.items():
-                if strip_name == self.controller_selected_animation:
-                    # Get the number of frames in this animation
-                    if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                        # Use the correct method to get frame count
-                        frame_count = strip_widget.animated_sprite.current_animation_frame_count
-                        LOG.debug(f"Controller next frame: Found {frame_count} frames in animation {strip_name}")
-                        if frame_count > 0:
-                            # Move to next frame (with wrap-around)
-                            new_frame = (self.controller_selected_frame + 1) % frame_count
-                            LOG.debug(f"Controller next frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
-                            self._controller_select_frame(self.controller_selected_animation, new_frame)
+        if not animation or animation not in self.film_strips:
+            print(f"DEBUG: Controller {controller_id} has no valid animation for previous frame")
+            return
 
-                            # Scroll the film strip to show the selected frame if it's off-screen
-                            if hasattr(strip_widget, 'update_scroll_for_frame'):
-                                strip_widget.update_scroll_for_frame(new_frame)
-                                print(f"DEBUG: Controller next frame: Scrolled film strip to show frame {new_frame}")
-                    else:
-                        LOG.debug(f"Controller next frame: No animated sprite found for {strip_name}")
-                    break
-        else:
-            LOG.debug("Controller next frame: No film strips found")
+        strip_widget = self.film_strips[animation]
+        if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+            frame_count = strip_widget.animated_sprite.current_animation_frame_count
+            new_frame = (frame - 1) % frame_count
+            controller_selection.set_frame(new_frame)
 
-    def _controller_previous_animation(self) -> None:
-        """Navigate to previous animation."""
+            # Scroll the film strip to show the selected frame if it's off-screen
+            if hasattr(strip_widget, 'update_scroll_for_frame'):
+                strip_widget.update_scroll_for_frame(new_frame)
+                print(f"DEBUG: Controller {controller_id} previous frame: Scrolled film strip to show frame {new_frame}")
+
+            # Update visual indicator
+            self._update_controller_visual_indicator(controller_id)
+
+            print(f"DEBUG: Controller {controller_id} previous frame: {frame} -> {new_frame}")
+
+    def _multi_controller_next_frame(self, controller_id: int) -> None:
+        """Move to next frame for a controller.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for next frame")
+            return
+
+        controller_selection = self.controller_selections[controller_id]
+        animation, frame = controller_selection.get_selection()
+
+        if not animation or animation not in self.film_strips:
+            print(f"DEBUG: Controller {controller_id} has no valid animation for next frame")
+            return
+
+        strip_widget = self.film_strips[animation]
+        if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+            frame_count = strip_widget.animated_sprite.current_animation_frame_count
+            new_frame = (frame + 1) % frame_count
+            controller_selection.set_frame(new_frame)
+
+            # Scroll the film strip to show the selected frame if it's off-screen
+            if hasattr(strip_widget, 'update_scroll_for_frame'):
+                strip_widget.update_scroll_for_frame(new_frame)
+                print(f"DEBUG: Controller {controller_id} next frame: Scrolled film strip to show frame {new_frame}")
+
+            # Update visual indicator
+            self._update_controller_visual_indicator(controller_id)
+
+            print(f"DEBUG: Controller {controller_id} next frame: {frame} -> {new_frame}")
+
+    def _multi_controller_previous_animation(self, controller_id: int) -> None:
+        """Move to previous animation for a controller.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for previous animation")
+            return
+
+        controller_selection = self.controller_selections[controller_id]
+        current_animation, current_frame = controller_selection.get_selection()
+
         if not hasattr(self, 'film_strips') or not self.film_strips:
-            return
-
-        # Get list of animation names
-        animation_names = list(self.film_strips.keys())
-        if not animation_names:
-            return
-
-        # Find current animation index
-        current_index = 0
-        if hasattr(self, 'controller_selected_animation') and self.controller_selected_animation in animation_names:
-            current_index = animation_names.index(self.controller_selected_animation)
-
-        # Move to previous animation (with wrap-around)
-        new_index = (current_index - 1) % len(animation_names)
-        new_animation = animation_names[new_index]
-
-        # Try to preserve the frame index from the previous animation
-        target_frame = 0
-        if hasattr(self, 'controller_selected_frame'):
-            target_frame = self.controller_selected_frame
-
-            # Check if the target frame exists in the new animation
-            if new_animation in self.film_strips:
-                strip_widget = self.film_strips[new_animation]
-                if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                    frame_count = strip_widget.animated_sprite.current_animation_frame_count
-                    if target_frame >= frame_count:
-                        target_frame = frame_count - 1  # Use the last available frame
-                    if target_frame < 0:
-                        target_frame = 0
-
-        print(f"DEBUG: Controller previous animation: Moving to '{new_animation}', frame {target_frame}")
-        self._controller_select_frame(new_animation, target_frame)
-
-        # Scroll the film strip view to show the selected animation if it's off-screen
-        self._scroll_to_controller_animation(new_animation)
-
-    def _controller_next_animation(self) -> None:
-        """Navigate to next animation."""
-        if not hasattr(self, 'film_strips') or not self.film_strips:
-            return
-
-        # Get list of animation names
-        animation_names = list(self.film_strips.keys())
-        if not animation_names:
-            return
-
-        # Find current animation index
-        current_index = 0
-        if hasattr(self, 'controller_selected_animation') and self.controller_selected_animation in animation_names:
-            current_index = animation_names.index(self.controller_selected_animation)
-
-        # Move to next animation (with wrap-around)
-        new_index = (current_index + 1) % len(animation_names)
-        new_animation = animation_names[new_index]
-
-        # Try to preserve the frame index from the previous animation
-        target_frame = 0
-        if hasattr(self, 'controller_selected_frame'):
-            target_frame = self.controller_selected_frame
-
-            # Check if the target frame exists in the new animation
-            if new_animation in self.film_strips:
-                strip_widget = self.film_strips[new_animation]
-                if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                    frame_count = strip_widget.animated_sprite.current_animation_frame_count
-                    if target_frame >= frame_count:
-                        target_frame = frame_count - 1  # Use the last available frame
-                    if target_frame < 0:
-                        target_frame = 0
-
-        print(f"DEBUG: Controller next animation: Moving to '{new_animation}', frame {target_frame}")
-        self._controller_select_frame(new_animation, target_frame)
-
-        # Scroll the film strip view to show the selected animation if it's off-screen
-        self._scroll_to_controller_animation(new_animation)
-
-    def _scroll_to_controller_animation(self, animation_name: str) -> None:
-        """Scroll the film strip view to show the controller's selected animation if it's not visible."""
-        if not hasattr(self, 'film_strips') or not self.film_strips:
+            print(f"DEBUG: No film strips available for controller {controller_id} previous animation")
             return
 
         # Get all animation names in order
         animation_names = list(self.film_strips.keys())
-        if animation_name not in animation_names:
+        if not animation_names:
+            print(f"DEBUG: No animations available for controller {controller_id} previous animation")
             return
 
-        # Find the index of the target animation
-        target_index = animation_names.index(animation_name)
+        # Find current animation index
+        try:
+            current_index = animation_names.index(current_animation)
+        except ValueError:
+            current_index = 0
 
-        # Calculate the scroll offset needed to show this animation
-        # We want to show the target animation in the visible area
-        if target_index < self.film_strip_scroll_offset:
-            # Target animation is above the visible area, scroll up
-            self.film_strip_scroll_offset = target_index
-            print(f"DEBUG: Controller animation scroll: Scrolling up to show animation {animation_name} at index {target_index}")
-        elif target_index >= self.film_strip_scroll_offset + self.max_visible_strips:
-            # Target animation is below the visible area, scroll down
-            self.film_strip_scroll_offset = target_index - self.max_visible_strips + 1
-            print(f"DEBUG: Controller animation scroll: Scrolling down to show animation {animation_name} at index {target_index}")
-        else:
-            # Target animation is already visible, no scrolling needed
-            print(f"DEBUG: Controller animation scroll: Animation {animation_name} is already visible at index {target_index}")
-            return
+        # Move to previous animation
+        new_index = (current_index - 1) % len(animation_names)
+        new_animation = animation_names[new_index]
 
-        # Update visibility and scroll arrows
-        self._update_film_strip_visibility()
-        self._update_scroll_arrows()
+        # Try to preserve the frame index from the previous animation
+        target_frame = controller_selection.preserve_frame_for_animation(
+            new_animation,
+            self.film_strips[new_animation].animated_sprite.current_animation_frame_count
+        )
 
-        # Update the film strip selection to show the current frame
-        self._update_film_strip_selection()
+        print(f"DEBUG: Controller {controller_id} previous animation: Moving to '{new_animation}', frame {target_frame}")
+        controller_selection.set_selection(new_animation, target_frame)
 
-    def _validate_controller_selection(self) -> None:
-        """Validate and update controller selection if it's pointing to invalid animation."""
-        if not hasattr(self, 'controller_selection_active') or not self.controller_selection_active:
-            print("DEBUG: Controller selection not active, skipping validation")
-            return
+        # Scroll the film strip view to show the selected animation if it's off-screen
+        self._scroll_to_controller_animation(new_animation)
 
-        if not hasattr(self, 'film_strips') or not self.film_strips:
-            print("DEBUG: No film strips available, skipping validation")
-            return
+        # Update visual indicator
+        self._update_controller_visual_indicator(controller_id)
 
-        # Check if controller selection animation still exists
-        controller_animation = getattr(self, 'controller_selected_animation', '')
-        controller_frame = getattr(self, 'controller_selected_frame', 0)
-
-        print(f"DEBUG: Validating controller selection - animation='{controller_animation}', frame={controller_frame}")
-        print(f"DEBUG: Available film strips: {list(self.film_strips.keys())}")
-        print(f"DEBUG: Controller selection active: {getattr(self, 'controller_selection_active', False)}")
-
-        if controller_animation not in self.film_strips:
-            print(f"DEBUG: Controller selection animation '{controller_animation}' no longer exists")
-            # Try to find the same strip name in the new film strips
-            # Look for strips that might have the same base name
-            target_animation = None
-            for strip_name in self.film_strips.keys():
-                # Check if this strip has the same base name as the controller selection
-                if controller_animation in strip_name or strip_name in controller_animation:
-                    target_animation = strip_name
-                    print(f"DEBUG: Found similar strip '{target_animation}' for controller selection")
-                    break
-
-            # If no similar strip found, use the first available strip
-            if target_animation is None:
-                target_animation = list(self.film_strips.keys())[0]
-                print(f"DEBUG: No similar strip found, using first available: '{target_animation}'")
-
-            # Update controller selection to the target animation, keeping the same frame index
-            print(f"DEBUG: Updating controller selection to '{target_animation}', frame {controller_frame}")
-            self._controller_select_frame(target_animation, controller_frame)
-        else:
-            # Controller selection is still valid - update SelectionManager but don't change the selection
-            print(f"DEBUG: Controller selection is valid, updating SelectionManager only")
-            # Update the SelectionManager to ensure the controller selection is properly registered
-            self._controller_select_frame(controller_animation, controller_frame)
-
-    def _initialize_controller_selection(self) -> None:
-        """Initialize controller selection to the first animation strip."""
-        if hasattr(self, 'film_strips') and self.film_strips:
-            # Always use the first available animation and frame 0
-            first_animation = list(self.film_strips.keys())[0]
-            self.controller_selection_active = True
-            print(f"DEBUG: Initialized controller selection to first strip: animation='{first_animation}', frame=0")
-            # Use _controller_select_frame to properly update the SelectionManager
-            self._controller_select_frame(first_animation, 0)
-        else:
-            print("DEBUG: No film strips available for controller selection initialization")
-
-    def _controller_select_frame(self, animation: str, frame: int) -> None:
-        """Select a specific frame in an animation.
+    def _multi_controller_next_animation(self, controller_id: int) -> None:
+        """Move to next animation for a controller.
 
         Args:
-            animation (str): The animation name.
-            frame (int): The frame index.
-
-        Returns:
-            None
-
+            controller_id: Controller ID
         """
-        # Update controller selection state
-        self.controller_selected_animation = animation
-        self.controller_selected_frame = frame
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for next animation")
+            return
 
-        # Update controller selection in all film strips using SelectionManager
-        print(f"DEBUG BitmapEditorScene: Updating controller selection for animation='{animation}', frame={frame}")
-        if hasattr(self, 'film_strips') and self.film_strips:
-            print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
-            for strip_name, strip_widget in self.film_strips.items():
-                if hasattr(strip_widget, "selection_manager"):
-                    print(f"DEBUG BitmapEditorScene: Updating controller SelectionManager for strip '{strip_name}'")
-                    # Update controller selection (preview only, doesn't update sprite)
-                    strip_widget.selection_manager.update_selection("controller", animation, frame)
-                    # Mark the film strip as dirty to redraw with new selection
-                    strip_widget.mark_dirty()
-                else:
-                    print(f"DEBUG BitmapEditorScene: Strip '{strip_name}' has no selection_manager")
+        controller_selection = self.controller_selections[controller_id]
+        current_animation, current_frame = controller_selection.get_selection()
+
+        if not hasattr(self, 'film_strips') or not self.film_strips:
+            print(f"DEBUG: No film strips available for controller {controller_id} next animation")
+            return
+
+        # Get all animation names in order
+        animation_names = list(self.film_strips.keys())
+        if not animation_names:
+            print(f"DEBUG: No animations available for controller {controller_id} next animation")
+            return
+
+        # Find current animation index
+        try:
+            current_index = animation_names.index(current_animation)
+        except ValueError:
+            current_index = 0
+
+        # Move to next animation
+        new_index = (current_index + 1) % len(animation_names)
+        new_animation = animation_names[new_index]
+
+        # Try to preserve the frame index from the previous animation
+        target_frame = controller_selection.preserve_frame_for_animation(
+            new_animation,
+            self.film_strips[new_animation].animated_sprite.current_animation_frame_count
+        )
+
+        print(f"DEBUG: Controller {controller_id} next animation: Moving to '{new_animation}', frame {target_frame}")
+        controller_selection.set_selection(new_animation, target_frame)
+
+        # Scroll the film strip view to show the selected animation if it's off-screen
+        self._scroll_to_controller_animation(new_animation)
+
+        # Update visual indicator
+        self._update_controller_visual_indicator(controller_id)
+
+    def _update_controller_visual_indicator(self, controller_id: int) -> None:
+        """Update visual indicator for a controller.
+
+        Args:
+            controller_id: Controller ID
+        """
+        if controller_id not in self.controller_selections:
+            return
+
+        controller_selection = self.controller_selections[controller_id]
+        animation, frame = controller_selection.get_selection()
+
+        if not animation or animation not in self.film_strips:
+            return
+
+        # Get controller color
+        controller_info = None
+        for instance_id, info in self.multi_controller_manager.controllers.items():
+            if info.controller_id == controller_id:
+                controller_info = info
+                break
+
+        if not controller_info:
+            return
+
+        # Calculate position (this would need to be implemented based on your UI layout)
+        # For now, we'll use a placeholder position
+        position = (100 + controller_id * 50, 100)
+
+        # Add or update visual indicator
+        if controller_id not in self.visual_collision_manager.indicators:
+            self.visual_collision_manager.add_controller_indicator(
+                controller_id,
+                controller_info.instance_id,
+                controller_info.color,
+                position
+            )
+        else:
+            self.visual_collision_manager.update_controller_position(controller_id, position)
 
 
 def main() -> None:
