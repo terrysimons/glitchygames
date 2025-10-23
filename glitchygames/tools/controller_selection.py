@@ -103,7 +103,8 @@ class ControllerSelection:
         frame_changed = self.state.selected_frame != frame_index
         
         if animation_changed or frame_changed:
-            if animation_changed:
+            # Only add to history if we had a previous selection (not initial empty state)
+            if animation_changed and self.state.selected_animation:
                 # Preserve frame index when switching animations
                 self.state.navigation_history.append({
                     'animation': self.state.selected_animation,

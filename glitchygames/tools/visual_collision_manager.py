@@ -197,11 +197,11 @@ class VisualCollisionManager:
             if controller_id in self.indicators:
                 if i < len(offsets):
                     self.indicators[controller_id].offset = offsets[i]
+                    print(f"DEBUG: Applied offset {offsets[i]} to controller {controller_id}")
                 else:
                     # Fallback to default offset
                     self.indicators[controller_id].offset = (0, 0)
-                
-                print(f"DEBUG: Applied offset {offsets[i]} to controller {controller_id}")
+                    print(f"DEBUG: Applied fallback offset (0, 0) to controller {controller_id}")
     
     def _calculate_offsets(self, count: int) -> List[Tuple[int, int]]:
         """
