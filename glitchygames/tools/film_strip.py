@@ -90,7 +90,6 @@ class SelectionIndicator:
             bool: True if indicator should be shown
         """
         result = self.current_animation == animation and self.current_frame == frame
-        print(f"DEBUG SelectionIndicator.is_active: {self.selection_type} - checking animation='{animation}'=='{self.current_animation}' and frame={frame}=={self.current_frame} -> {result}")
         return result
 
 
@@ -1649,7 +1648,14 @@ class FilmStripWidget:
                         if controller_indicator:
                             controller_animation = controller_indicator.current_animation
                             controller_frame = controller_indicator.current_frame
-                            print(f"DEBUG: Controller selection - animation='{controller_animation}', frame={controller_frame}")
+                            # Only print if state changed
+                            if (hasattr(self.parent_scene, '_last_debug_controller_animation') and 
+                                hasattr(self.parent_scene, '_last_debug_controller_frame') and
+                                (self.parent_scene._last_debug_controller_animation != controller_animation or 
+                                 self.parent_scene._last_debug_controller_frame != controller_frame)):
+                                print(f"DEBUG: Controller selection - animation='{controller_animation}', frame={controller_frame}")
+                                self.parent_scene._last_debug_controller_animation = controller_animation
+                                self.parent_scene._last_debug_controller_frame = controller_frame
                             break
 
         # Get keyboard selection info
@@ -1659,7 +1665,14 @@ class FilmStripWidget:
             if hasattr(self.parent_scene, "selected_animation") and hasattr(self.parent_scene, "selected_frame"):
                 keyboard_animation = self.parent_scene.selected_animation
                 keyboard_frame = self.parent_scene.selected_frame
-                print(f"DEBUG: Keyboard selection - animation='{keyboard_animation}', frame={keyboard_frame}")
+                # Only print if state changed
+                if (hasattr(self.parent_scene, '_last_debug_keyboard_animation') and 
+                    hasattr(self.parent_scene, '_last_debug_keyboard_frame') and
+                    (self.parent_scene._last_debug_keyboard_animation != keyboard_animation or 
+                     self.parent_scene._last_debug_keyboard_frame != keyboard_frame)):
+                    print(f"DEBUG: Keyboard selection - animation='{keyboard_animation}', frame={keyboard_frame}")
+                    self.parent_scene._last_debug_keyboard_animation = keyboard_animation
+                    self.parent_scene._last_debug_keyboard_frame = keyboard_frame
 
         # Draw triangles for both selections if they're in this animation
         if controller_animation == self.current_animation and keyboard_animation == self.current_animation and controller_frame == keyboard_frame:
@@ -1667,7 +1680,6 @@ class FilmStripWidget:
             frame_key = (self.current_animation, controller_frame)
             if frame_key in self.frame_layouts:
                 frame_rect = self.frame_layouts[frame_key]
-                print(f"DEBUG: Drawing both triangles with offset for frame {controller_frame}")
                 self._draw_triangle(surface, frame_rect.centerx - 6, frame_rect.top - 4, (255, 0, 0))  # Red triangle (left)
                 self._draw_triangle(surface, frame_rect.centerx + 6, frame_rect.top - 4, (0, 255, 0))  # Green triangle (right)
         else:
@@ -1677,7 +1689,6 @@ class FilmStripWidget:
                 frame_key = (self.current_animation, controller_frame)
                 if frame_key in self.frame_layouts:
                     frame_rect = self.frame_layouts[frame_key]
-                    print(f"DEBUG: Drawing controller triangle for frame {controller_frame}")
                     self._draw_triangle(surface, frame_rect.centerx, frame_rect.top - 4, (0, 255, 0))
 
             if keyboard_animation == self.current_animation:
@@ -1685,7 +1696,6 @@ class FilmStripWidget:
                 frame_key = (self.current_animation, keyboard_frame)
                 if frame_key in self.frame_layouts:
                     frame_rect = self.frame_layouts[frame_key]
-                    print(f"DEBUG: Drawing keyboard triangle for frame {keyboard_frame}")
                     self._draw_triangle(surface, frame_rect.centerx, frame_rect.top - 4, (255, 0, 0))
 
     def _draw_preview_triangle(self, surface: pygame.Surface, preview_rect: pygame.Rect) -> None:

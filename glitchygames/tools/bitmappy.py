@@ -2790,13 +2790,13 @@ class BitmapEditorScene(Scene):
         # Select the first film strip and set its frame 0 as active
         LOG.debug(f"DEBUG: About to call _select_initial_film_strip")
         self._select_initial_film_strip()
-        
+
         # Ensure controller selection is still valid after film strip creation
         print(f"DEBUG: Calling _validate_controller_selection from _create_film_strips")
         print(f"DEBUG: Before validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
         self._validate_controller_selection()
         print(f"DEBUG: After validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
-        
+
         LOG.debug(f"DEBUG: _create_film_strips completed successfully")
 
     def _select_initial_film_strip(self):
@@ -4190,6 +4190,19 @@ class BitmapEditorScene(Scene):
         self.controller_selected_animation = ""
         self.controller_selected_frame = 0
         self.controller_selection_active = False
+
+        # Debug state tracking to prevent redundant logging
+        self._last_debug_controller_animation = ""
+        self._last_debug_controller_frame = -1
+        self._last_debug_keyboard_animation = ""
+        self._last_debug_keyboard_frame = -1
+
+        # Controller input state tracking to prevent jittery behavior
+        self._controller_axis_deadzone = 500  # Only respond to values beyond this threshold (for larger scale values)
+        self._controller_axis_hat_threshold = 500  # Threshold for hat-like behavior (0.5 in normalized scale)
+        self._controller_axis_last_values = {}  # Track last axis values
+        self._controller_axis_cooldown = {}  # Track cooldown timers for each axis
+        self._controller_axis_cooldown_duration = 0.2  # 200ms cooldown between actions
 
         # Set up all components
         self._setup_menu_bar()
@@ -6540,13 +6553,19 @@ pixels = \"\"\"
         """
         print(f"DEBUG: Controller button down event received: button={event.button}")
         print(f"DEBUG: START button constant value: {pygame.CONTROLLER_BUTTON_START}")
+        print(f"DEBUG: A button constant value: {pygame.CONTROLLER_BUTTON_A}")
+        print(f"DEBUG: B button constant value: {pygame.CONTROLLER_BUTTON_B}")
+        print(f"DEBUG: DPAD_UP constant value: {pygame.CONTROLLER_BUTTON_DPAD_UP}")
+        print(f"DEBUG: DPAD_DOWN constant value: {pygame.CONTROLLER_BUTTON_DPAD_DOWN}")
+        print(f"DEBUG: DPAD_LEFT constant value: {pygame.CONTROLLER_BUTTON_DPAD_LEFT}")
+        print(f"DEBUG: DPAD_RIGHT constant value: {pygame.CONTROLLER_BUTTON_DPAD_RIGHT}")
         LOG.debug(f"Controller button down: {event.button}")
 
         if event.button == pygame.CONTROLLER_BUTTON_A:
             # A button: Select current frame (only if controller selection is active)
             if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
                 LOG.debug("Controller: A button pressed - selecting current frame")
-                self._select_current_frame()
+                self._controller_select_current_frame()
             else:
                 print("DEBUG: Controller selection not active, ignoring A button")
         elif event.button == pygame.CONTROLLER_BUTTON_B:
@@ -6611,6 +6630,8 @@ pixels = \"\"\"
 
         """
         print(f"DEBUG: Joystick button down event received: button={event.button}")
+        print(f"DEBUG: Joystick instance_id: {getattr(event, 'instance_id', 'N/A')}")
+        print(f"DEBUG: Joystick joy: {getattr(event, 'joy', 'N/A')}")
         LOG.debug(f"Joystick button down: {event.button}")
 
         # Map joystick buttons to controller actions
@@ -6641,6 +6662,66 @@ pixels = \"\"\"
         print(f"DEBUG: Joystick button up event received: button={event.button}")
         LOG.debug(f"Joystick button up: {event.button}")
 
+    def on_joy_hat_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle joystick hat motion events - requires threshold to prevent jittery behavior.
+
+        Args:
+            event (pygame.event.Event): The joystick hat motion event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Joystick hat motion: hat={event.hat}, value={event.value}")
+
+        # Only respond to strong hat inputs (threshold > 0.5)
+        # Hat values: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
+        if abs(event.value) < 0.5:
+            print("DEBUG: Joystick hat motion below threshold, ignoring")
+            return
+
+        # Map hat directions to controller actions
+        if event.value == 1:  # Up
+            print("DEBUG: Joystick hat up - calling _controller_previous_animation")
+            self._controller_previous_animation()
+        elif event.value == 2:  # Right
+            print("DEBUG: Joystick hat right - calling _controller_next_frame")
+            self._controller_next_frame()
+        elif event.value == 4:  # Down
+            print("DEBUG: Joystick hat down - calling _controller_next_animation")
+            self._controller_next_animation()
+        elif event.value == 8:  # Left
+            print("DEBUG: Joystick hat left - calling _controller_previous_frame")
+            self._controller_previous_frame()
+
+    def on_joy_axis_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle joystick axis motion events - disabled to prevent jittery behavior.
+
+        Args:
+            event (pygame.event.Event): The joystick axis motion event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Joystick axis motion (DISABLED): axis={event.axis}, value={event.value}")
+        # Disabled to prevent jittery behavior
+        pass
+
+    def on_joy_ball_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle joystick ball motion events - disabled to prevent jittery behavior.
+
+        Args:
+            event (pygame.event.Event): The joystick ball motion event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Joystick ball motion (DISABLED): ball={event.ball}, rel={event.rel}")
+        # Disabled to prevent jittery behavior
+        pass
+
     def on_controller_axis_motion_event(self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
 
@@ -6651,24 +6732,83 @@ pixels = \"\"\"
             None
 
         """
+        # REMOVE: Disabled to prevent jittery behavior
+        return
         print(f"DEBUG: Controller axis motion: axis={event.axis}, value={event.value}")
+        print(f"DEBUG: LEFT_X axis constant: {pygame.CONTROLLER_AXIS_LEFTX}")
+        print(f"DEBUG: LEFT_Y axis constant: {pygame.CONTROLLER_AXIS_LEFTY}")
+        print(f"DEBUG: RIGHT_X axis constant: {pygame.CONTROLLER_AXIS_RIGHTX}")
+        print(f"DEBUG: RIGHT_Y axis constant: {pygame.CONTROLLER_AXIS_RIGHTY}")
+        print(f"DEBUG: Controller selection active: {getattr(self, 'controller_selection_active', False)}")
+
         # Left stick for fine frame navigation (only if controller selection is active)
         if not hasattr(self, 'controller_selection_active') or not self.controller_selection_active:
             print("DEBUG: Controller selection not active, ignoring analog stick input")
             return
 
+        # Get current time for cooldown tracking
+        import time
+        current_time = time.time()
+
         if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
-            if event.value < -0.5:  # Left stick left
+            # Apply deadzone and cooldown to prevent jittery behavior
+            if abs(event.value) < self._controller_axis_deadzone:
+                # Within deadzone - reset cooldown and last value
+                self._controller_axis_cooldown[event.axis] = 0
+                self._controller_axis_last_values[event.axis] = 0
+                return
+
+            # Check cooldown
+            if (event.axis in self._controller_axis_cooldown and
+                current_time - self._controller_axis_cooldown[event.axis] < self._controller_axis_cooldown_duration):
+                return
+
+            # Check if direction changed (prevents rapid back-and-forth)
+            last_value = self._controller_axis_last_values.get(event.axis, 0)
+            if (last_value < 0 and event.value > 0) or (last_value > 0 and event.value < 0):
+                # Direction changed, reset cooldown
+                self._controller_axis_cooldown[event.axis] = current_time
+                self._controller_axis_last_values[event.axis] = event.value
+                return
+
+            if event.value < -self._controller_axis_hat_threshold:  # Left stick left (hat-like behavior)
                 print("DEBUG: Left stick left - calling _controller_previous_frame")
                 self._controller_previous_frame()
-            elif event.value > 0.5:  # Left stick right
+                self._controller_axis_cooldown[event.axis] = current_time
+            elif event.value > self._controller_axis_hat_threshold:  # Left stick right (hat-like behavior)
                 print("DEBUG: Left stick right - calling _controller_next_frame")
                 self._controller_next_frame()
+                self._controller_axis_cooldown[event.axis] = current_time
+
+            self._controller_axis_last_values[event.axis] = event.value
+
         elif event.axis == pygame.CONTROLLER_AXIS_LEFTY:
-            if event.value < -0.5:  # Left stick up
+            # Apply same anti-jitter logic to Y axis
+            if abs(event.value) < self._controller_axis_deadzone:
+                self._controller_axis_cooldown[event.axis] = 0
+                self._controller_axis_last_values[event.axis] = 0
+                return
+
+            if (event.axis in self._controller_axis_cooldown and
+                current_time - self._controller_axis_cooldown[event.axis] < self._controller_axis_cooldown_duration):
+                return
+
+            last_value = self._controller_axis_last_values.get(event.axis, 0)
+            if (last_value < 0 and event.value > 0) or (last_value > 0 and event.value < 0):
+                self._controller_axis_cooldown[event.axis] = current_time
+                self._controller_axis_last_values[event.axis] = event.value
+                return
+
+            if event.value < -self._controller_axis_hat_threshold:  # Left stick up (hat-like behavior)
+                print("DEBUG: Left stick up - calling _controller_previous_animation")
                 self._controller_previous_animation()
-            elif event.value > 0.5:  # Left stick down
+                self._controller_axis_cooldown[event.axis] = current_time
+            elif event.value > self._controller_axis_hat_threshold:  # Left stick down (hat-like behavior)
+                print("DEBUG: Left stick down - calling _controller_next_animation")
                 self._controller_next_animation()
+                self._controller_axis_cooldown[event.axis] = current_time
+
+            self._controller_axis_last_values[event.axis] = event.value
 
     def _select_current_frame(self) -> None:
         """Select the currently highlighted frame."""
@@ -6687,6 +6827,28 @@ pixels = \"\"\"
         """Handle controller cancel action."""
         # For now, just log the action
         LOG.debug("Controller cancel action")
+
+    def _controller_select_current_frame(self) -> None:
+        """Select the frame that the controller is currently pointing to."""
+        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
+            print("DEBUG: No controller selected animation or frame to select")
+            return
+
+        animation = self.controller_selected_animation
+        frame = self.controller_selected_frame
+
+        print(f"DEBUG: Controller selecting frame - animation='{animation}', frame={frame}")
+
+        # Find the film strip widget for this animation
+        if hasattr(self, 'film_strips') and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == animation:
+                    # Call the same method that keyboard selection uses
+                    print(f"DEBUG: Controller calling _on_film_strip_frame_selected for '{animation}', frame {frame}")
+                    self._on_film_strip_frame_selected(strip_widget, animation, frame)
+                    break
+        else:
+            print("DEBUG: No film strips available for controller selection")
 
     def _controller_previous_frame(self) -> None:
         """Navigate to previous frame in current animation."""
@@ -6714,6 +6876,11 @@ pixels = \"\"\"
                             print(f"DEBUG: Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
                             LOG.debug(f"Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
                             self._controller_select_frame(self.controller_selected_animation, new_frame)
+
+                            # Scroll the film strip to show the selected frame if it's off-screen
+                            if hasattr(strip_widget, 'update_scroll_for_frame'):
+                                strip_widget.update_scroll_for_frame(new_frame)
+                                print(f"DEBUG: Controller previous frame: Scrolled film strip to show frame {new_frame}")
                     else:
                         LOG.debug(f"Controller previous frame: No animated sprite found for {strip_name}")
                     break
@@ -6742,6 +6909,11 @@ pixels = \"\"\"
                             new_frame = (self.controller_selected_frame + 1) % frame_count
                             LOG.debug(f"Controller next frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
                             self._controller_select_frame(self.controller_selected_animation, new_frame)
+
+                            # Scroll the film strip to show the selected frame if it's off-screen
+                            if hasattr(strip_widget, 'update_scroll_for_frame'):
+                                strip_widget.update_scroll_for_frame(new_frame)
+                                print(f"DEBUG: Controller next frame: Scrolled film strip to show frame {new_frame}")
                     else:
                         LOG.debug(f"Controller next frame: No animated sprite found for {strip_name}")
                     break
@@ -6767,8 +6939,26 @@ pixels = \"\"\"
         new_index = (current_index - 1) % len(animation_names)
         new_animation = animation_names[new_index]
 
-        # Select first frame of the new animation
-        self._controller_select_frame(new_animation, 0)
+        # Try to preserve the frame index from the previous animation
+        target_frame = 0
+        if hasattr(self, 'controller_selected_frame'):
+            target_frame = self.controller_selected_frame
+
+            # Check if the target frame exists in the new animation
+            if new_animation in self.film_strips:
+                strip_widget = self.film_strips[new_animation]
+                if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+                    frame_count = strip_widget.animated_sprite.current_animation_frame_count
+                    if target_frame >= frame_count:
+                        target_frame = frame_count - 1  # Use the last available frame
+                    if target_frame < 0:
+                        target_frame = 0
+
+        print(f"DEBUG: Controller previous animation: Moving to '{new_animation}', frame {target_frame}")
+        self._controller_select_frame(new_animation, target_frame)
+
+        # Scroll the film strip view to show the selected animation if it's off-screen
+        self._scroll_to_controller_animation(new_animation)
 
     def _controller_next_animation(self) -> None:
         """Navigate to next animation."""
@@ -6789,8 +6979,61 @@ pixels = \"\"\"
         new_index = (current_index + 1) % len(animation_names)
         new_animation = animation_names[new_index]
 
-        # Select first frame of the new animation
-        self._controller_select_frame(new_animation, 0)
+        # Try to preserve the frame index from the previous animation
+        target_frame = 0
+        if hasattr(self, 'controller_selected_frame'):
+            target_frame = self.controller_selected_frame
+
+            # Check if the target frame exists in the new animation
+            if new_animation in self.film_strips:
+                strip_widget = self.film_strips[new_animation]
+                if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+                    frame_count = strip_widget.animated_sprite.current_animation_frame_count
+                    if target_frame >= frame_count:
+                        target_frame = frame_count - 1  # Use the last available frame
+                    if target_frame < 0:
+                        target_frame = 0
+
+        print(f"DEBUG: Controller next animation: Moving to '{new_animation}', frame {target_frame}")
+        self._controller_select_frame(new_animation, target_frame)
+
+        # Scroll the film strip view to show the selected animation if it's off-screen
+        self._scroll_to_controller_animation(new_animation)
+
+    def _scroll_to_controller_animation(self, animation_name: str) -> None:
+        """Scroll the film strip view to show the controller's selected animation if it's not visible."""
+        if not hasattr(self, 'film_strips') or not self.film_strips:
+            return
+
+        # Get all animation names in order
+        animation_names = list(self.film_strips.keys())
+        if animation_name not in animation_names:
+            return
+
+        # Find the index of the target animation
+        target_index = animation_names.index(animation_name)
+
+        # Calculate the scroll offset needed to show this animation
+        # We want to show the target animation in the visible area
+        if target_index < self.film_strip_scroll_offset:
+            # Target animation is above the visible area, scroll up
+            self.film_strip_scroll_offset = target_index
+            print(f"DEBUG: Controller animation scroll: Scrolling up to show animation {animation_name} at index {target_index}")
+        elif target_index >= self.film_strip_scroll_offset + self.max_visible_strips:
+            # Target animation is below the visible area, scroll down
+            self.film_strip_scroll_offset = target_index - self.max_visible_strips + 1
+            print(f"DEBUG: Controller animation scroll: Scrolling down to show animation {animation_name} at index {target_index}")
+        else:
+            # Target animation is already visible, no scrolling needed
+            print(f"DEBUG: Controller animation scroll: Animation {animation_name} is already visible at index {target_index}")
+            return
+
+        # Update visibility and scroll arrows
+        self._update_film_strip_visibility()
+        self._update_scroll_arrows()
+
+        # Update the film strip selection to show the current frame
+        self._update_film_strip_selection()
 
     def _validate_controller_selection(self) -> None:
         """Validate and update controller selection if it's pointing to invalid animation."""
