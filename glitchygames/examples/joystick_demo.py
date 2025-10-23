@@ -1261,12 +1261,6 @@ class Game(Scene):
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
         )
-        parser.add_argument(
-            "--input-mode",
-            choices=["joystick", "controller"],
-            default="controller",
-            help="Choose input event family to use (default: controller)",
-        )
 
 
 def main() -> None:

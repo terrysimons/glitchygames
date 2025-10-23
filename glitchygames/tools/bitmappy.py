@@ -3592,6 +3592,17 @@ class BitmapEditorScene(Scene):
         self.selected_animation = animation
         self.selected_frame = frame
 
+        # Update keyboard selection in all film strips using SelectionManager
+        print(f"DEBUG BitmapEditorScene: Updating keyboard selection for animation='{animation}', frame={frame}")
+        if hasattr(self, "film_strips") and self.film_strips:
+            print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
+            for strip_name, strip_widget in self.film_strips.items():
+                if hasattr(strip_widget, "selection_manager"):
+                    print(f"DEBUG BitmapEditorScene: Updating SelectionManager for strip '{strip_name}'")
+                    strip_widget.selection_manager.update_selection("keyboard", animation, frame)
+                else:
+                    print(f"DEBUG BitmapEditorScene: Strip '{strip_name}' has no selection_manager")
+
         # Update film strip selection state
         self._update_film_strip_selection_state()
         self.selected_strip = film_strip_widget
@@ -4156,6 +4167,14 @@ class BitmapEditorScene(Scene):
         self.film_strip_drag_start_y = None
         self.film_strip_drag_start_offset = None
         self.is_dragging_film_strips = False
+        
+        # Initialize selection state for multi-selection system
+        self.selected_animation = ""
+        self.selected_frame = 0
+        
+        # Initialize controller selection state (independent from keyboard selection)
+        self.controller_selected_animation = ""
+        self.controller_selected_frame = 0
 
         # Set up all components
         self._setup_menu_bar()
@@ -4172,9 +4191,9 @@ class BitmapEditorScene(Scene):
             self.canvas.on_sprite_loaded = self._on_sprite_loaded
             self.log.debug("Set up on_sprite_loaded callback for canvas")
             LOG.debug(f"DEBUG: Set up on_sprite_loaded callback for canvas")
-        else:
-            self.log.debug("No canvas found to set up callback")
-            LOG.debug(f"DEBUG: No canvas found to set up callback")
+            
+        # Initialize controller selection to first available animation and frame
+        self._initialize_controller_selection()
 
         # Query model capabilities for optimal token usage
         try:
@@ -6493,6 +6512,244 @@ pixels = \"\"\"
             raise
         else:
             return config
+
+    # Controller Support Methods
+    def on_controller_button_down_event(self, event: pygame.event.Event) -> None:
+        """Handle controller button down events for frame selection.
+
+        Args:
+            event (pygame.event.Event): The controller button down event.
+
+        Returns:
+            None
+
+        """
+        LOG.debug(f"Controller button down: {event.button}")
+
+        if event.button == pygame.CONTROLLER_BUTTON_A:
+            # A button: Select current frame
+            LOG.debug("Controller: A button pressed - selecting current frame")
+            self._select_current_frame()
+        elif event.button == pygame.CONTROLLER_BUTTON_B:
+            # B button: Cancel/go back
+            LOG.debug("Controller: B button pressed - cancel")
+            self._controller_cancel()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            # D-pad left: Previous frame
+            LOG.debug("Controller: D-pad left pressed - previous frame")
+            self._controller_previous_frame()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            # D-pad right: Next frame
+            LOG.debug("Controller: D-pad right pressed - next frame")
+            self._controller_next_frame()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+            # D-pad up: Previous animation
+            LOG.debug("Controller: D-pad up pressed - previous animation")
+            self._controller_previous_animation()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+            # D-pad down: Next animation
+            LOG.debug("Controller: D-pad down pressed - next animation")
+            self._controller_next_animation()
+
+    def on_controller_button_up_event(self, event: pygame.event.Event) -> None:
+        """Handle controller button up events.
+
+        Args:
+            event (pygame.event.Event): The controller button up event.
+
+        Returns:
+            None
+
+        """
+        # Currently no button up actions needed
+        pass
+
+    def on_controller_axis_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle controller axis motion events.
+
+        Args:
+            event (pygame.event.Event): The controller axis motion event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Controller axis motion: axis={event.axis}, value={event.value}")
+        # Left stick for fine frame navigation
+        if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
+            if event.value < -0.5:  # Left stick left
+                print("DEBUG: Left stick left - calling _controller_previous_frame")
+                self._controller_previous_frame()
+            elif event.value > 0.5:  # Left stick right
+                print("DEBUG: Left stick right - calling _controller_next_frame")
+                self._controller_next_frame()
+        elif event.axis == pygame.CONTROLLER_AXIS_LEFTY:
+            if event.value < -0.5:  # Left stick up
+                self._controller_previous_animation()
+            elif event.value > 0.5:  # Left stick down
+                self._controller_next_animation()
+
+    def _select_current_frame(self) -> None:
+        """Select the currently highlighted frame."""
+        if not hasattr(self, 'selected_animation') or not hasattr(self, 'selected_frame'):
+            return
+
+        # Find the active film strip
+        if hasattr(self, 'film_strips') and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == self.selected_animation:
+                    # Trigger frame selection
+                    self._on_film_strip_frame_selected(strip_widget, self.selected_animation, self.selected_frame)
+                    break
+
+    def _controller_cancel(self) -> None:
+        """Handle controller cancel action."""
+        # For now, just log the action
+        LOG.debug("Controller cancel action")
+
+    def _controller_previous_frame(self) -> None:
+        """Navigate to previous frame in current animation."""
+        print("DEBUG: _controller_previous_frame called")
+        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
+            print("DEBUG: No controller selected animation or frame")
+            LOG.debug("Controller previous frame: No controller selected animation or frame")
+            return
+
+        print(f"DEBUG: Controller previous frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
+        LOG.debug(f"Controller previous frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
+
+        # Find the current animation's film strip
+        if hasattr(self, 'film_strips') and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == self.controller_selected_animation:
+                    # Get the number of frames in this animation
+                    if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+                        # Use the correct method to get frame count
+                        frame_count = strip_widget.animated_sprite.current_animation_frame_count
+                        LOG.debug(f"Controller previous frame: Found {frame_count} frames in animation {strip_name}")
+                        if frame_count > 0:
+                            # Move to previous frame (with wrap-around)
+                            new_frame = (self.controller_selected_frame - 1) % frame_count
+                            print(f"DEBUG: Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
+                            LOG.debug(f"Controller previous frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
+                            self._controller_select_frame(self.controller_selected_animation, new_frame)
+                    else:
+                        LOG.debug(f"Controller previous frame: No animated sprite found for {strip_name}")
+                    break
+        else:
+            LOG.debug("Controller previous frame: No film strips found")
+
+    def _controller_next_frame(self) -> None:
+        """Navigate to next frame in current animation."""
+        if not hasattr(self, 'controller_selected_animation') or not hasattr(self, 'controller_selected_frame'):
+            LOG.debug("Controller next frame: No controller selected animation or frame")
+            return
+
+        LOG.debug(f"Controller next frame: Current animation={self.controller_selected_animation}, frame={self.controller_selected_frame}")
+
+        # Find the current animation's film strip
+        if hasattr(self, 'film_strips') and self.film_strips:
+            for strip_name, strip_widget in self.film_strips.items():
+                if strip_name == self.controller_selected_animation:
+                    # Get the number of frames in this animation
+                    if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
+                        # Use the correct method to get frame count
+                        frame_count = strip_widget.animated_sprite.current_animation_frame_count
+                        LOG.debug(f"Controller next frame: Found {frame_count} frames in animation {strip_name}")
+                        if frame_count > 0:
+                            # Move to next frame (with wrap-around)
+                            new_frame = (self.controller_selected_frame + 1) % frame_count
+                            LOG.debug(f"Controller next frame: Moving from frame {self.controller_selected_frame} to {new_frame}")
+                            self._controller_select_frame(self.controller_selected_animation, new_frame)
+                    else:
+                        LOG.debug(f"Controller next frame: No animated sprite found for {strip_name}")
+                    break
+        else:
+            LOG.debug("Controller next frame: No film strips found")
+
+    def _controller_previous_animation(self) -> None:
+        """Navigate to previous animation."""
+        if not hasattr(self, 'film_strips') or not self.film_strips:
+            return
+
+        # Get list of animation names
+        animation_names = list(self.film_strips.keys())
+        if not animation_names:
+            return
+
+        # Find current animation index
+        current_index = 0
+        if hasattr(self, 'controller_selected_animation') and self.controller_selected_animation in animation_names:
+            current_index = animation_names.index(self.controller_selected_animation)
+
+        # Move to previous animation (with wrap-around)
+        new_index = (current_index - 1) % len(animation_names)
+        new_animation = animation_names[new_index]
+
+        # Select first frame of the new animation
+        self._controller_select_frame(new_animation, 0)
+
+    def _controller_next_animation(self) -> None:
+        """Navigate to next animation."""
+        if not hasattr(self, 'film_strips') or not self.film_strips:
+            return
+
+        # Get list of animation names
+        animation_names = list(self.film_strips.keys())
+        if not animation_names:
+            return
+
+        # Find current animation index
+        current_index = 0
+        if hasattr(self, 'controller_selected_animation') and self.controller_selected_animation in animation_names:
+            current_index = animation_names.index(self.controller_selected_animation)
+
+        # Move to next animation (with wrap-around)
+        new_index = (current_index + 1) % len(animation_names)
+        new_animation = animation_names[new_index]
+
+        # Select first frame of the new animation
+        self._controller_select_frame(new_animation, 0)
+
+    def _initialize_controller_selection(self) -> None:
+        """Initialize controller selection to first available animation and frame."""
+        if hasattr(self, 'film_strips') and self.film_strips:
+            # Get the first available animation
+            first_animation = list(self.film_strips.keys())[0]
+            self.controller_selected_animation = first_animation
+            self.controller_selected_frame = 0
+            print(f"DEBUG: Initialized controller selection to animation='{first_animation}', frame=0")
+        else:
+            print("DEBUG: No film strips available for controller selection initialization")
+
+    def _controller_select_frame(self, animation: str, frame: int) -> None:
+        """Select a specific frame in an animation.
+
+        Args:
+            animation (str): The animation name.
+            frame (int): The frame index.
+
+        Returns:
+            None
+
+        """
+        # Update controller selection state
+        self.controller_selected_animation = animation
+        self.controller_selected_frame = frame
+        
+        # Update controller selection in all film strips using SelectionManager
+        print(f"DEBUG BitmapEditorScene: Updating controller selection for animation='{animation}', frame={frame}")
+        if hasattr(self, 'film_strips') and self.film_strips:
+            print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
+            for strip_name, strip_widget in self.film_strips.items():
+                if hasattr(strip_widget, "selection_manager"):
+                    print(f"DEBUG BitmapEditorScene: Updating controller SelectionManager for strip '{strip_name}'")
+                    # Update controller selection (preview only, doesn't update sprite)
+                    strip_widget.selection_manager.update_selection("controller", animation, frame)
+                    # Mark the film strip as dirty to redraw with new selection
+                    strip_widget.mark_dirty()
+                else:
+                    print(f"DEBUG BitmapEditorScene: Strip '{strip_name}' has no selection_manager")
 
 
 def main() -> None:

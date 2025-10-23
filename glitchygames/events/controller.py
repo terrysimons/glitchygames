@@ -297,7 +297,14 @@ class ControllerManager(ControllerEvents, ResourceManager):
             argparse.ArgumentParser: The argument parser.
 
         """
-        group = parser.add_argument_group("Controller Options")  # noqa: F841
+        group = parser.add_argument_group("Controller Options")
+
+        group.add_argument(
+            "--input-mode",
+            choices=["joystick", "controller"],
+            default="controller",
+            help="Choose input event family to use (default: controller)",
+        )
 
         return parser
 

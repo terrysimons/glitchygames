@@ -18,6 +18,177 @@ LOG = logging.getLogger("game.tools.film_strip")
 LOG.addHandler(logging.NullHandler())
 
 
+class SelectionIndicator:
+    """Represents a single selection indicator (triangle) for a specific input type."""
+
+    def __init__(self, selection_type: str, color: tuple, behavior: str):
+        """Initialize a selection indicator.
+
+        Args:
+            selection_type (str): Type of selection ("keyboard", "controller", etc.)
+            color (tuple): RGB color for the triangle
+            behavior (str): Behavior type ("update_sprite", "preview_only")
+        """
+        self.selection_type = selection_type
+        self.color = color
+        self.border_color = color  # Same as fill color
+        self.behavior = behavior
+        self.current_frame = 0
+        self.current_animation = ""
+        self.size = 2  # Triangle size
+
+    def draw_triangle(self, surface: pygame.Surface, center_x: int, center_y: int, offset_x: int = 0) -> None:
+        """Draw triangle with optional horizontal offset for multiple indicators.
+
+        Args:
+            surface (pygame.Surface): Surface to draw on
+            center_x (int): Center X coordinate
+            center_y (int): Center Y coordinate
+            offset_x (int): Horizontal offset for multiple indicators
+        """
+        # Apply horizontal offset
+        adjusted_x = center_x + offset_x
+
+        # Calculate positions for a triangle pointing down
+        triangle_points = [
+            (adjusted_x, center_y + self.size),  # Bottom point
+            (adjusted_x - self.size, center_y - self.size),  # Top left
+            (adjusted_x + self.size, center_y - self.size)  # Top right
+        ]
+
+        # Draw filled triangle
+        pygame.draw.polygon(surface, self.color, triangle_points)
+        # Draw border
+        pygame.draw.polygon(surface, self.border_color, triangle_points, 1)
+
+    def handle_selection(self, animation: str, frame: int) -> bool:
+        """Handle selection based on behavior type.
+
+        Args:
+            animation (str): Animation name
+            frame (int): Frame index
+
+        Returns:
+            bool: True if selection should update sprite, False for preview only
+        """
+        print(f"DEBUG SelectionIndicator.handle_selection: {self.selection_type} - animation='{animation}', frame={frame}")
+        self.current_animation = animation
+        self.current_frame = frame
+        print(f"DEBUG SelectionIndicator.handle_selection: After update - current_animation='{self.current_animation}', current_frame={self.current_frame}")
+
+        # Return True if this indicator should update the sprite
+        return self.behavior == "update_sprite"
+
+    def is_active(self, animation: str, frame: int) -> bool:
+        """Check if this indicator should be shown for the given frame.
+
+        Args:
+            animation (str): Animation name
+            frame (int): Frame index
+
+        Returns:
+            bool: True if indicator should be shown
+        """
+        result = self.current_animation == animation and self.current_frame == frame
+        print(f"DEBUG SelectionIndicator.is_active: {self.selection_type} - checking animation='{animation}'=='{self.current_animation}' and frame={frame}=={self.current_frame} -> {result}")
+        return result
+
+
+class SelectionManager:
+    """Manages multiple selection indicators for different input types."""
+
+    def __init__(self):
+        """Initialize the selection manager with default indicators."""
+        self.indicators = {}
+        self.add_indicator("keyboard", (255, 0, 0), "update_sprite")
+        self.add_indicator("controller", (0, 255, 0), "preview_only")
+
+    def add_indicator(self, selection_type: str, color: tuple, behavior: str) -> None:
+        """Add a new selection indicator type.
+
+        Args:
+            selection_type (str): Type of selection
+            color (tuple): RGB color for the triangle
+            behavior (str): Behavior type
+        """
+        self.indicators[selection_type] = SelectionIndicator(selection_type, color, behavior)
+
+    def get_active_indicators(self, animation: str, frame: int) -> list:
+        """Get all indicators that should be shown for a given frame.
+
+        Args:
+            animation (str): Animation name
+            frame (int): Frame index
+
+        Returns:
+            list: List of active SelectionIndicator objects
+        """
+        print(f"DEBUG SelectionManager: Checking {len(self.indicators)} indicators for animation='{animation}', frame={frame}")
+        active = []
+        for indicator in self.indicators.values():
+            print(f"DEBUG SelectionManager: Checking {indicator.selection_type} - current_animation='{indicator.current_animation}', current_frame={indicator.current_frame}")
+            if indicator.is_active(animation, frame):
+                print(f"DEBUG SelectionManager: {indicator.selection_type} is ACTIVE")
+                active.append(indicator)
+            else:
+                print(f"DEBUG SelectionManager: {indicator.selection_type} is NOT active")
+        return active
+
+    def draw_indicators(self, surface: pygame.Surface, frame_rect: pygame.Rect, active_indicators: list) -> None:
+        """Draw multiple indicators with offset positioning.
+
+        Args:
+            surface (pygame.Surface): Surface to draw on
+            frame_rect (pygame.Rect): Frame rectangle
+            active_indicators (list): List of active indicators to draw
+        """
+        if not active_indicators:
+            return
+
+        # Calculate base position
+        center_x = frame_rect.centerx
+        triangle_y = frame_rect.top - 4  # 4 pixels above the frame
+
+        # Calculate offsets for multiple indicators
+        if len(active_indicators) == 1:
+            # Single indicator - center it
+            offsets = [0]
+        elif len(active_indicators) == 2:
+            # Two indicators - offset left and right
+            offset_amount = 6  # Distance from center
+            offsets = [-offset_amount, offset_amount]
+        else:
+            # Multiple indicators - distribute evenly
+            total_width = 12  # Total width for distribution
+            start_offset = -total_width // 2
+            offsets = [start_offset + (i * total_width // (len(active_indicators) - 1))
+                      for i in range(len(active_indicators))]
+
+        # Draw each indicator with its offset
+        for i, indicator in enumerate(active_indicators):
+            offset_x = offsets[i] if i < len(offsets) else 0
+            indicator.draw_triangle(surface, center_x, triangle_y, offset_x)
+
+    def update_selection(self, selection_type: str, animation: str, frame: int) -> bool:
+        """Update selection for a specific input type.
+
+        Args:
+            selection_type (str): Type of selection to update
+            animation (str): Animation name
+            frame (int): Frame index
+
+        Returns:
+            bool: True if selection should update sprite, False for preview only
+        """
+        print(f"DEBUG SelectionManager.update_selection: selection_type='{selection_type}', animation='{animation}', frame={frame}")
+        if selection_type in self.indicators:
+            result = self.indicators[selection_type].handle_selection(animation, frame)
+            print(f"DEBUG SelectionManager.update_selection: Result={result}")
+            return result
+        print(f"DEBUG SelectionManager.update_selection: selection_type '{selection_type}' not found in indicators")
+        return False
+
+
 class FilmStripWidget:
     """Film reel-style widget for frame selection in animated sprites.
 
@@ -118,6 +289,9 @@ class FilmStripWidget:
 
         # Animation timing for previews
         self.preview_animation_times: dict[str, float] = {}  # Current time for each animation
+
+        # Selection manager for multiple selection types
+        self.selection_manager = SelectionManager()
         self.preview_animation_speeds: dict[str, float] = {}  # Speed multiplier for each animation
         self.preview_frame_durations: dict[str, list[float]] = {}  # Frame durations
 
@@ -142,12 +316,12 @@ class FilmStripWidget:
                   f"{list(animated_sprite._animations.keys())}")
 
         self.animated_sprite = animated_sprite
-        
+
         # Clear any stale animation state from previous sprites
         self.preview_animation_times.clear()
         self.preview_animation_speeds.clear()
         self.preview_frame_durations.clear()
-        
+
         # Use sprite introspection to find the first animation
         if animated_sprite._animations:
             if hasattr(animated_sprite, "_animation_order") and animated_sprite._animation_order:
@@ -1071,6 +1245,23 @@ class FilmStripWidget:
                 self.parent_scene.selected_frame == frame_index
             )
 
+        # Add green border for controller selection first (behind)
+        is_controller_selected_frame = False
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            # Check if this frame has controller selection by looking at the SelectionManager
+            if hasattr(self.parent_scene, "film_strips") and self.parent_scene.film_strips:
+                for strip_name, strip_widget in self.parent_scene.film_strips.items():
+                    if hasattr(strip_widget, "selection_manager"):
+                        # Check if controller indicator is active for this frame
+                        controller_indicator = strip_widget.selection_manager.indicators.get("controller")
+                        if controller_indicator and controller_indicator.is_active(animation_name, frame_index):
+                            is_controller_selected_frame = True
+                            break
+
+        if is_controller_selected_frame:
+            pygame.draw.rect(frame_surface, (0, 255, 0), (0, 0, self.frame_width, self.frame_height), 3)
+
+        # Add red border for keyboard selection last (on top)
         if is_selected_frame:
             pygame.draw.rect(frame_surface, self.selection_color, (0, 0, self.frame_width, self.frame_height), 3)
 
@@ -1439,38 +1630,63 @@ class FilmStripWidget:
         self.mark_dirty()
 
     def _draw_triforce_indicator(self, surface: pygame.Surface) -> None:
-        """Draw a triangle indicator pointing to the active animation frame."""
-        # Always draw the triangle indicator for every film strip
+        """Draw triangle indicators for both keyboard and controller selections."""
+        LOG.debug(f"Drawing triforce indicator for animation: {self.current_animation}")
+
+        # Check if this film strip has any selections
         if not self.animated_sprite or not self.current_animation:
-            # If no animation, draw triangle at a default position
-            default_x = self.rect.centerx
-            default_y = self.rect.centery + 20  # Below the center of the strip
-            self._draw_triangle(surface, default_x, default_y)
+            LOG.debug("No animated sprite or current animation")
             return
 
-        # Get the current animation's frame index from the preview
-        current_frame_idx = self.get_current_preview_frame(self.current_animation)
+        # Get controller selection info
+        controller_animation = ""
+        controller_frame = -1
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            if hasattr(self.parent_scene, "film_strips") and self.parent_scene.film_strips:
+                for strip_name, strip_widget in self.parent_scene.film_strips.items():
+                    if hasattr(strip_widget, "selection_manager"):
+                        controller_indicator = strip_widget.selection_manager.indicators.get("controller")
+                        if controller_indicator:
+                            controller_animation = controller_indicator.current_animation
+                            controller_frame = controller_indicator.current_frame
+                            print(f"DEBUG: Controller selection - animation='{controller_animation}', frame={controller_frame}")
+                            break
 
-        # Find the frame layout for the current animation and frame
-        frame_key = (self.current_animation, current_frame_idx)
-        if frame_key not in self.frame_layouts:
-            # If frame layout not found, draw triangle at a default position
-            default_x = self.rect.centerx
-            default_y = self.rect.centery + 20  # Below the center of the strip
-            self._draw_triangle(surface, default_x, default_y)
-            return
+        # Get keyboard selection info
+        keyboard_animation = ""
+        keyboard_frame = -1
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            if hasattr(self.parent_scene, "selected_animation") and hasattr(self.parent_scene, "selected_frame"):
+                keyboard_animation = self.parent_scene.selected_animation
+                keyboard_frame = self.parent_scene.selected_frame
+                print(f"DEBUG: Keyboard selection - animation='{keyboard_animation}', frame={keyboard_frame}")
 
-        frame_rect = self.frame_layouts[frame_key]
+        # Draw triangles for both selections if they're in this animation
+        if controller_animation == self.current_animation and keyboard_animation == self.current_animation and controller_frame == keyboard_frame:
+            # Both selections on same frame - draw with offset
+            frame_key = (self.current_animation, controller_frame)
+            if frame_key in self.frame_layouts:
+                frame_rect = self.frame_layouts[frame_key]
+                print(f"DEBUG: Drawing both triangles with offset for frame {controller_frame}")
+                self._draw_triangle(surface, frame_rect.centerx - 6, frame_rect.top - 4, (255, 0, 0))  # Red triangle (left)
+                self._draw_triangle(surface, frame_rect.centerx + 6, frame_rect.top - 4, (0, 255, 0))  # Green triangle (right)
+        else:
+            # Draw triangles independently
+            if controller_animation == self.current_animation:
+                # Draw controller triangle
+                frame_key = (self.current_animation, controller_frame)
+                if frame_key in self.frame_layouts:
+                    frame_rect = self.frame_layouts[frame_key]
+                    print(f"DEBUG: Drawing controller triangle for frame {controller_frame}")
+                    self._draw_triangle(surface, frame_rect.centerx, frame_rect.top - 4, (0, 255, 0))
 
-        # Calculate the position below the frame, centered horizontally
-        frame_center_x = frame_rect.centerx
-        frame_bottom_y = frame_rect.bottom
-
-        # Position triangle 4 pixels below the frame selector
-        triangle_y = frame_bottom_y + 4  # 4 pixels below the frame selector
-
-        # Draw triangle below the frame
-        self._draw_triangle(surface, frame_center_x, triangle_y)
+            if keyboard_animation == self.current_animation:
+                # Draw keyboard triangle
+                frame_key = (self.current_animation, keyboard_frame)
+                if frame_key in self.frame_layouts:
+                    frame_rect = self.frame_layouts[frame_key]
+                    print(f"DEBUG: Drawing keyboard triangle for frame {keyboard_frame}")
+                    self._draw_triangle(surface, frame_rect.centerx, frame_rect.top - 4, (255, 0, 0))
 
     def _draw_preview_triangle(self, surface: pygame.Surface, preview_rect: pygame.Rect) -> None:
         """Draw a triangle underneath the animation preview that moves from left to right."""
@@ -1575,18 +1791,17 @@ class FilmStripWidget:
         # Draw border
         pygame.draw.polygon(surface, border_color, triangle_points, 1)
 
-    def _draw_triangle(self, surface: pygame.Surface, center_x: int, center_y: int) -> None:
+    def _draw_triangle(self, surface: pygame.Surface, center_x: int, center_y: int, color: tuple = (255, 0, 0)) -> None:
         """Draw a simple triangle pointing to the given center coordinates."""
         # Triangle properties
         size = 2  # Smaller size
-        color = (255, 255, 0)  # Golden yellow
-        border_color = (255, 255, 255)  # White border
+        border_color = color  # Same color as fill
 
-        # Calculate positions for a simple triangle pointing up
+        # Calculate positions for a simple triangle pointing down
         triangle_points = [
-            (center_x, center_y - size),  # Top point
-            (center_x - size, center_y + size),  # Bottom left
-            (center_x + size, center_y + size)  # Bottom right
+            (center_x, center_y + size),  # Bottom point
+            (center_x - size, center_y - size),  # Top left
+            (center_x + size, center_y - size)  # Top right
         ]
 
         # Draw filled triangle
@@ -1873,7 +2088,7 @@ class FilmStripWidget:
         # Get the canvas dimensions from the parent scene
         if not (hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas")):
             return  # Cannot create frame without parent scene canvas dimensions
-        
+
         frame_width = self.parent_scene.canvas.pixels_across
         frame_height = self.parent_scene.canvas.pixels_tall
 

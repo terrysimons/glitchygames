@@ -822,8 +822,6 @@ class Game(Scene):
             # Handle ESC/q to quit
             super().on_key_up_event(event)
 
-
-
 def main() -> None:
     """Run the main function.
 
