@@ -2790,6 +2790,13 @@ class BitmapEditorScene(Scene):
         # Select the first film strip and set its frame 0 as active
         LOG.debug(f"DEBUG: About to call _select_initial_film_strip")
         self._select_initial_film_strip()
+        
+        # Ensure controller selection is still valid after film strip creation
+        print(f"DEBUG: Calling _validate_controller_selection from _create_film_strips")
+        print(f"DEBUG: Before validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        self._validate_controller_selection()
+        print(f"DEBUG: After validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        
         LOG.debug(f"DEBUG: _create_film_strips completed successfully")
 
     def _select_initial_film_strip(self):
@@ -3594,6 +3601,7 @@ class BitmapEditorScene(Scene):
 
         # Update keyboard selection in all film strips using SelectionManager
         print(f"DEBUG BitmapEditorScene: Updating keyboard selection for animation='{animation}', frame={frame}")
+        print(f"DEBUG BitmapEditorScene: Controller selection state - animation='{getattr(self, 'controller_selected_animation', 'None')}', frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
         if hasattr(self, "film_strips") and self.film_strips:
             print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
             for strip_name, strip_widget in self.film_strips.items():
@@ -3606,6 +3614,12 @@ class BitmapEditorScene(Scene):
         # Update film strip selection state
         self._update_film_strip_selection_state()
         self.selected_strip = film_strip_widget
+
+        # Ensure controller selection is still valid after film strip changes
+        print(f"DEBUG: Calling _validate_controller_selection from _on_film_strip_frame_selected")
+        print(f"DEBUG: Before validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
+        self._validate_controller_selection()
+        print(f"DEBUG: After validation - controller_selected_animation='{getattr(self, 'controller_selected_animation', 'None')}', controller_selected_frame={getattr(self, 'controller_selected_frame', 'None')}, active={getattr(self, 'controller_selection_active', 'None')}")
 
         # Mark all film strips as dirty so they redraw with correct selection state
         if hasattr(self, "film_strips") and self.film_strips:
@@ -4167,14 +4181,15 @@ class BitmapEditorScene(Scene):
         self.film_strip_drag_start_y = None
         self.film_strip_drag_start_offset = None
         self.is_dragging_film_strips = False
-        
+
         # Initialize selection state for multi-selection system
         self.selected_animation = ""
         self.selected_frame = 0
-        
+
         # Initialize controller selection state (independent from keyboard selection)
         self.controller_selected_animation = ""
         self.controller_selected_frame = 0
+        self.controller_selection_active = False
 
         # Set up all components
         self._setup_menu_bar()
@@ -4191,9 +4206,8 @@ class BitmapEditorScene(Scene):
             self.canvas.on_sprite_loaded = self._on_sprite_loaded
             self.log.debug("Set up on_sprite_loaded callback for canvas")
             LOG.debug(f"DEBUG: Set up on_sprite_loaded callback for canvas")
-            
-        # Initialize controller selection to first available animation and frame
-        self._initialize_controller_selection()
+
+        # Controller selection will be initialized when START button is pressed
 
         # Query model capabilities for optimal token usage
         try:
@@ -6524,32 +6538,54 @@ pixels = \"\"\"
             None
 
         """
+        print(f"DEBUG: Controller button down event received: button={event.button}")
+        print(f"DEBUG: START button constant value: {pygame.CONTROLLER_BUTTON_START}")
         LOG.debug(f"Controller button down: {event.button}")
 
         if event.button == pygame.CONTROLLER_BUTTON_A:
-            # A button: Select current frame
-            LOG.debug("Controller: A button pressed - selecting current frame")
-            self._select_current_frame()
+            # A button: Select current frame (only if controller selection is active)
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                LOG.debug("Controller: A button pressed - selecting current frame")
+                self._select_current_frame()
+            else:
+                print("DEBUG: Controller selection not active, ignoring A button")
         elif event.button == pygame.CONTROLLER_BUTTON_B:
             # B button: Cancel/go back
             LOG.debug("Controller: B button pressed - cancel")
             self._controller_cancel()
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            # D-pad left: Previous frame
-            LOG.debug("Controller: D-pad left pressed - previous frame")
-            self._controller_previous_frame()
+            # D-pad left: Previous frame (only if controller selection is active)
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                LOG.debug("Controller: D-pad left pressed - previous frame")
+                self._controller_previous_frame()
+            else:
+                print("DEBUG: Controller selection not active, ignoring D-pad left")
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            # D-pad right: Next frame
-            LOG.debug("Controller: D-pad right pressed - next frame")
-            self._controller_next_frame()
+            # D-pad right: Next frame (only if controller selection is active)
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                LOG.debug("Controller: D-pad right pressed - next frame")
+                self._controller_next_frame()
+            else:
+                print("DEBUG: Controller selection not active, ignoring D-pad right")
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            # D-pad up: Previous animation
-            LOG.debug("Controller: D-pad up pressed - previous animation")
-            self._controller_previous_animation()
+            # D-pad up: Previous animation (only if controller selection is active)
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                LOG.debug("Controller: D-pad up pressed - previous animation")
+                self._controller_previous_animation()
+            else:
+                print("DEBUG: Controller selection not active, ignoring D-pad up")
+        elif event.button == pygame.CONTROLLER_BUTTON_START:
+            # Start button: Initialize controller selection
+            print("DEBUG: START button pressed - initializing controller selection")
+            LOG.debug("Controller: Start button pressed - initialize controller selection")
+            self._initialize_controller_selection()
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            # D-pad down: Next animation
-            LOG.debug("Controller: D-pad down pressed - next animation")
-            self._controller_next_animation()
+            # D-pad down: Next animation (only if controller selection is active)
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                LOG.debug("Controller: D-pad down pressed - next animation")
+                self._controller_next_animation()
+            else:
+                print("DEBUG: Controller selection not active, ignoring D-pad down")
 
     def on_controller_button_up_event(self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -6564,6 +6600,47 @@ pixels = \"\"\"
         # Currently no button up actions needed
         pass
 
+    def on_joy_button_down_event(self, event: pygame.event.Event) -> None:
+        """Handle joystick button down events (for controllers detected as joysticks).
+
+        Args:
+            event (pygame.event.Event): The joystick button down event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Joystick button down event received: button={event.button}")
+        LOG.debug(f"Joystick button down: {event.button}")
+
+        # Map joystick buttons to controller actions
+        # Button 9 is likely START button
+        if event.button == 9:  # START button
+            print("DEBUG: Joystick START button pressed - initializing controller selection")
+            self._initialize_controller_selection()
+        elif event.button == 0:  # A button
+            if hasattr(self, 'controller_selection_active') and self.controller_selection_active:
+                print("DEBUG: Joystick A button pressed - selecting current frame")
+                self._select_current_frame()
+            else:
+                print("DEBUG: Controller selection not active, ignoring joystick A button")
+        elif event.button == 1:  # B button
+            print("DEBUG: Joystick B button pressed - cancel")
+            self._controller_cancel()
+
+    def on_joy_button_up_event(self, event: pygame.event.Event) -> None:
+        """Handle joystick button up events.
+
+        Args:
+            event (pygame.event.Event): The joystick button up event.
+
+        Returns:
+            None
+
+        """
+        print(f"DEBUG: Joystick button up event received: button={event.button}")
+        LOG.debug(f"Joystick button up: {event.button}")
+
     def on_controller_axis_motion_event(self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
 
@@ -6575,7 +6652,11 @@ pixels = \"\"\"
 
         """
         print(f"DEBUG: Controller axis motion: axis={event.axis}, value={event.value}")
-        # Left stick for fine frame navigation
+        # Left stick for fine frame navigation (only if controller selection is active)
+        if not hasattr(self, 'controller_selection_active') or not self.controller_selection_active:
+            print("DEBUG: Controller selection not active, ignoring analog stick input")
+            return
+
         if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
             if event.value < -0.5:  # Left stick left
                 print("DEBUG: Left stick left - calling _controller_previous_frame")
@@ -6711,14 +6792,59 @@ pixels = \"\"\"
         # Select first frame of the new animation
         self._controller_select_frame(new_animation, 0)
 
+    def _validate_controller_selection(self) -> None:
+        """Validate and update controller selection if it's pointing to invalid animation."""
+        if not hasattr(self, 'controller_selection_active') or not self.controller_selection_active:
+            print("DEBUG: Controller selection not active, skipping validation")
+            return
+
+        if not hasattr(self, 'film_strips') or not self.film_strips:
+            print("DEBUG: No film strips available, skipping validation")
+            return
+
+        # Check if controller selection animation still exists
+        controller_animation = getattr(self, 'controller_selected_animation', '')
+        controller_frame = getattr(self, 'controller_selected_frame', 0)
+
+        print(f"DEBUG: Validating controller selection - animation='{controller_animation}', frame={controller_frame}")
+        print(f"DEBUG: Available film strips: {list(self.film_strips.keys())}")
+        print(f"DEBUG: Controller selection active: {getattr(self, 'controller_selection_active', False)}")
+
+        if controller_animation not in self.film_strips:
+            print(f"DEBUG: Controller selection animation '{controller_animation}' no longer exists")
+            # Try to find the same strip name in the new film strips
+            # Look for strips that might have the same base name
+            target_animation = None
+            for strip_name in self.film_strips.keys():
+                # Check if this strip has the same base name as the controller selection
+                if controller_animation in strip_name or strip_name in controller_animation:
+                    target_animation = strip_name
+                    print(f"DEBUG: Found similar strip '{target_animation}' for controller selection")
+                    break
+
+            # If no similar strip found, use the first available strip
+            if target_animation is None:
+                target_animation = list(self.film_strips.keys())[0]
+                print(f"DEBUG: No similar strip found, using first available: '{target_animation}'")
+
+            # Update controller selection to the target animation, keeping the same frame index
+            print(f"DEBUG: Updating controller selection to '{target_animation}', frame {controller_frame}")
+            self._controller_select_frame(target_animation, controller_frame)
+        else:
+            # Controller selection is still valid - update SelectionManager but don't change the selection
+            print(f"DEBUG: Controller selection is valid, updating SelectionManager only")
+            # Update the SelectionManager to ensure the controller selection is properly registered
+            self._controller_select_frame(controller_animation, controller_frame)
+
     def _initialize_controller_selection(self) -> None:
-        """Initialize controller selection to first available animation and frame."""
+        """Initialize controller selection to the first animation strip."""
         if hasattr(self, 'film_strips') and self.film_strips:
-            # Get the first available animation
+            # Always use the first available animation and frame 0
             first_animation = list(self.film_strips.keys())[0]
-            self.controller_selected_animation = first_animation
-            self.controller_selected_frame = 0
-            print(f"DEBUG: Initialized controller selection to animation='{first_animation}', frame=0")
+            self.controller_selection_active = True
+            print(f"DEBUG: Initialized controller selection to first strip: animation='{first_animation}', frame=0")
+            # Use _controller_select_frame to properly update the SelectionManager
+            self._controller_select_frame(first_animation, 0)
         else:
             print("DEBUG: No film strips available for controller selection initialization")
 
@@ -6736,7 +6862,7 @@ pixels = \"\"\"
         # Update controller selection state
         self.controller_selected_animation = animation
         self.controller_selected_frame = frame
-        
+
         # Update controller selection in all film strips using SelectionManager
         print(f"DEBUG BitmapEditorScene: Updating controller selection for animation='{animation}', frame={frame}")
         if hasattr(self, 'film_strips') and self.film_strips:
