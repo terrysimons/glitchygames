@@ -202,6 +202,7 @@ def load_ai_training_data():
             try:
                 # Parse the file directly instead of using SpriteFactory to avoid display requirements
                 if AI_TRAINING_FORMAT == "toml":
+                    import toml
                     with config_file.open(encoding="utf-8") as f:
                         config_data = toml.load(f)
 
@@ -228,13 +229,41 @@ def load_ai_training_data():
                 AI_TRAINING_DATA.append(sprite_data)
                 LOG.info(f"Successfully loaded sprite config: {config_file.name}")
 
+                # Create and print the BitmappySprite object for colorized ASCII output
+                try:
+                    # Use the ASCII renderer directly instead of creating BitmappySprite
+                    from glitchygames.tools.ascii_renderer import ASCIIRenderer
+                    import toml
+                    
+                    # Load TOML data directly
+                    with open(str(config_file), 'r') as f:
+                        toml_data = toml.load(f)
+                    
+                    # Get sprite name
+                    sprite_name = toml_data.get('sprite', {}).get('name', config_file.stem)
+                    
+                    print(f"\n🎨 Sprite: {sprite_name}")
+                    print("=" * 50)
+                    
+                    # Render with ASCII renderer
+                    renderer = ASCIIRenderer()
+                    result = renderer.render_sprite(toml_data)
+                    print(result)
+                    print("=" * 50)
+
+                except Exception as e:
+                    LOG.warning(f"Could not display {config_file.name}: {e}")
+                    # Show a simple fallback message
+                    print(f"\n❌ Could not display {config_file.name}: {e}")
+                    print("=" * 50)
+
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 LOG.warning(f"Error loading sprite config {config_file}: {e}")
     else:
         LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
     LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
-    LOG.debug(f"AI training data: {AI_TRAINING_DATA}")
+    print(f"\n🎮 All {len(AI_TRAINING_DATA)} sprites loaded and displayed above!")
 
 
 class GGUnhandledMenuItemError(Exception):
