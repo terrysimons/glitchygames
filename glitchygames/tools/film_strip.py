@@ -959,9 +959,9 @@ class FilmStripWidget:
             if hasattr(self, "parent_scene") and self.parent_scene:
                 self.parent_scene._on_film_strip_frame_selected(self, animation, frame)
 
-    def handle_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
+    def handle_click(self, pos: tuple[int, int], *, is_right_click: bool = False, is_shift_click: bool = False) -> tuple[str, int] | None:
         """Handle a click on the film strip."""
-        LOG.debug(f"FilmStripWidget: handle_click called with position {pos}")
+        LOG.debug(f"FilmStripWidget: handle_click called with position {pos}, right_click={is_right_click}, shift_click={is_shift_click}")
         LOG.debug(f"FilmStripWidget: frame_layouts has {len(self.frame_layouts)} entries")
 
         # First check if a removal button was clicked
@@ -981,6 +981,13 @@ class FilmStripWidget:
             # Use this film strip's animation name instead of the frame's animation name
             # since each film strip represents a specific animation
             strip_animation = next(iter(self.animated_sprite._animations.keys())) if self.animated_sprite and self.animated_sprite._animations else animation
+            
+            # Handle onion skinning toggle for right-click or shift-click
+            if is_right_click or is_shift_click:
+                self._toggle_onion_skinning(strip_animation, frame_idx)
+                LOG.debug(f"FilmStripWidget: Toggled onion skinning for {strip_animation}[{frame_idx}]")
+                return None  # Don't change frame selection for onion skinning toggle
+            
             LOG.debug(f"FilmStripWidget: Frame clicked, calling set_current_frame({strip_animation}, {frame_idx})")
             self.set_current_frame(strip_animation, frame_idx)
             return (strip_animation, frame_idx)
@@ -1095,6 +1102,9 @@ class FilmStripWidget:
 
         # Draw frame number at the bottom center
         self._draw_frame_number(frame_surface, frame_index)
+        
+        # Draw onion skinning indicator
+        self._draw_onion_skinning_indicator(frame_surface, animation_name, frame_index)
 
         return frame_surface
 
@@ -1130,6 +1140,58 @@ class FilmStripWidget:
         except Exception:
             # Log font rendering failures
             LOG.exception("Font rendering failed")
+
+    def _draw_onion_skinning_indicator(self, surface: pygame.Surface, animation_name: str, frame_index: int) -> None:
+        """Draw onion skinning indicator on the frame thumbnail."""
+        try:
+            # Import onion skinning manager
+            from .onion_skinning import get_onion_skinning_manager
+            
+            # Check if this frame has onion skinning enabled
+            onion_manager = get_onion_skinning_manager()
+            is_onion_skinned = onion_manager.is_frame_onion_skinned(animation_name, frame_index)
+            
+            if is_onion_skinned:
+                # Draw a small semi-transparent overlay in the top-right corner
+                overlay_size = 12
+                overlay_x = self.frame_width - overlay_size - 2  # 2 pixels from right edge
+                overlay_y = 2  # 2 pixels from top edge
+                
+                # Create semi-transparent surface for overlay
+                overlay_surface = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
+                overlay_surface.fill((255, 255, 0, 128))  # Semi-transparent yellow
+                
+                # Draw a small circle or square to indicate onion skinning
+                pygame.draw.circle(overlay_surface, (255, 255, 0, 200), (overlay_size // 2, overlay_size // 2), overlay_size // 2 - 1)
+                
+                # Blit the overlay to the frame surface
+                surface.blit(overlay_surface, (overlay_x, overlay_y))
+                
+        except Exception:
+            # Log onion skinning indicator failures
+            LOG.exception("Onion skinning indicator rendering failed")
+
+    def _toggle_onion_skinning(self, animation_name: str, frame_index: int) -> None:
+        """Toggle onion skinning for a specific frame."""
+        try:
+            from .onion_skinning import get_onion_skinning_manager
+            
+            onion_manager = get_onion_skinning_manager()
+            new_state = onion_manager.toggle_frame_onion_skinning(animation_name, frame_index)
+            
+            LOG.debug(f"Onion skinning toggled for {animation_name}[{frame_index}]: {new_state}")
+            
+            # Mark the film strip as dirty to trigger a redraw
+            self._force_redraw = True
+            
+            # Force canvas redraw to show onion skinning changes
+            if hasattr(self, "parent_scene") and self.parent_scene:
+                if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
+                    self.parent_scene.canvas.force_redraw()
+                    LOG.debug("Forced canvas redraw for onion skinning toggle")
+            
+        except Exception:
+            LOG.exception("Failed to toggle onion skinning")
 
     def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
         """Get the appropriate frame image for rendering."""

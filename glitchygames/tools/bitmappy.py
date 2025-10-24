@@ -877,9 +877,12 @@ class FilmStripSprite(BitmappySprite):
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
 
+            # Check for shift-click using pygame's current key state
+            is_shift_click = pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+            
             # Handle click in the film strip widget
-            LOG.debug(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y})")
-            clicked_frame = self.film_strip_widget.handle_click((film_x, film_y))
+            LOG.debug(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}), shift={is_shift_click}")
+            clicked_frame = self.film_strip_widget.handle_click((film_x, film_y), is_shift_click=is_shift_click)
             LOG.debug(f"FilmStripSprite: Clicked frame: {clicked_frame}")
 
             if clicked_frame:
@@ -898,6 +901,22 @@ class FilmStripSprite(BitmappySprite):
         else:
             LOG.debug("FilmStripSprite: Click is outside bounds or no widget")
 
+    def on_right_mouse_button_down_event(self, event):
+        """Handle right mouse clicks on the film strip for onion skinning."""
+        LOG.debug(f"FilmStripSprite: Right mouse click at {event.pos}, rect: {self.rect}")
+        if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
+            LOG.debug("FilmStripSprite: Right click is within bounds and sprite is visible, converting coordinates")
+            # Convert screen coordinates to film strip coordinates
+            film_x = event.pos[0] - self.rect.x
+            film_y = event.pos[1] - self.rect.y
+
+            # Handle right-click in the film strip widget for onion skinning
+            LOG.debug(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}), right_click=True")
+            clicked_frame = self.film_strip_widget.handle_click((film_x, film_y), is_right_click=True)
+            LOG.debug(f"FilmStripSprite: Right-clicked frame: {clicked_frame}")
+        else:
+            LOG.debug("FilmStripSprite: Right click is outside bounds or no widget")
+
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
@@ -905,7 +924,7 @@ class FilmStripSprite(BitmappySprite):
             return
 
         # Check for Ctrl+C (copy)
-        if event.key == pygame.K_c and (event.mod & pygame.KMOD_CTRL):
+        if event.key == pygame.K_c and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("FilmStripSprite: Ctrl+C detected - copying current frame")
             success = self.film_strip_widget.copy_current_frame()
             if success:
@@ -915,7 +934,7 @@ class FilmStripSprite(BitmappySprite):
             return True
 
         # Check for Ctrl+V (paste)
-        if event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL):
+        if event.key == pygame.K_v and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("FilmStripSprite: Ctrl+V detected - pasting to current frame")
             success = self.film_strip_widget.paste_to_current_frame()
             if success:
@@ -3751,10 +3770,10 @@ class BitmapEditorScene(Scene):
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
-        LOG.debug(f"BitmapEditorScene: on_key_down_event called with key={event.key}, mod={event.mod}")
+        LOG.debug(f"BitmapEditorScene: on_key_down_event called with key={event.key}, mod={getattr(event, 'mod', 0)}")
 
         # Check for Ctrl+C (copy) - handle this BEFORE calling parent method
-        if event.key == pygame.K_c and (event.mod & pygame.KMOD_CTRL):
+        if event.key == pygame.K_c and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("BitmapEditorScene: [SCENE HANDLER] Ctrl+C detected - copying current frame")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
@@ -3766,7 +3785,7 @@ class BitmapEditorScene(Scene):
             return True
 
         # Check for Ctrl+V (paste) - handle this BEFORE calling parent method
-        if event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL):
+        if event.key == pygame.K_v and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("BitmapEditorScene: [SCENE HANDLER] Ctrl+V detected - pasting to current frame")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
@@ -6020,6 +6039,18 @@ pixels = \"\"\"
                 return True
             return
 
+        # Handle onion skinning keyboard shortcuts
+        if event.key == pygame.K_o:
+            self.log.debug("O key pressed - toggling global onion skinning")
+            from .onion_skinning import get_onion_skinning_manager
+            onion_manager = get_onion_skinning_manager()
+            new_state = onion_manager.toggle_global_onion_skinning()
+            print(f"Onion skinning {'enabled' if new_state else 'disabled'}")
+            # Force canvas redraw to show/hide onion skinning
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.force_redraw()
+            return
+        
         # Check if any controller is in slider mode for arrow key navigation
         any_controller_in_slider_mode = False
         if hasattr(self, 'mode_switcher'):

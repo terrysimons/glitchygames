@@ -479,8 +479,6 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             frames = self.canvas_sprite.animated_sprite.frames
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
-                frame = frames[current_animation][current_frame]
-
                 # Create a new surface for the frame
                 self.canvas_sprite.image = pygame.Surface((
                     self.canvas_sprite.width,
@@ -488,7 +486,12 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 ))
                 self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
 
-                # Draw the frame pixels
+                # Render onion skinning frames first (if enabled)
+                from .onion_skinning_renderer import render_onion_skinning_frames
+                render_onion_skinning_frames(self.canvas_sprite, current_animation, current_frame, frames)
+
+                # Draw the current frame pixels on top
+                frame = frames[current_animation][current_frame]
                 if hasattr(frame, "get_pixel_data"):
                     frame_pixels = frame.get_pixel_data()
                 else:
