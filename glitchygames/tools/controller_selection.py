@@ -24,6 +24,7 @@ class ControllerSelectionState:
     instance_id: int
     selected_animation: str = ""
     selected_frame: int = 0
+    selected_slider: str = "R"  # R, G, or B
     is_active: bool = False
     last_update_time: float = 0.0
     navigation_history: list = None
@@ -144,6 +145,28 @@ class ControllerSelection:
             Current frame index
         """
         return self.state.selected_frame
+    
+    def set_slider(self, slider_name: str) -> None:
+        """
+        Set the selected slider for this controller.
+        
+        Args:
+            slider_name: Name of the slider (R, G, or B)
+        """
+        if slider_name in ["R", "G", "B"] and self.state.selected_slider != slider_name:
+            self.state.selected_slider = slider_name
+            self.state.last_update_time = time.time()
+            
+            print(f"DEBUG: Controller {self.controller_id} selected slider '{slider_name}'")
+    
+    def get_slider(self) -> str:
+        """
+        Get the current slider selection.
+        
+        Returns:
+            Name of the selected slider (R, G, or B)
+        """
+        return self.state.selected_slider
     
     def activate(self) -> None:
         """Activate this controller for navigation."""

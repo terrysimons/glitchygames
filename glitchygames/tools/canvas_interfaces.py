@@ -6,7 +6,7 @@ with both static BitmappySprites and animated sprites through a unified API.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 import pygame
 
@@ -195,11 +195,24 @@ class StaticCanvasRenderer(CanvasRenderer):
         for i, pixel in enumerate(self.canvas_sprite.pixels):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
             y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-            pygame.draw.rect(
-                self.canvas_sprite.image,
-                pixel,
-                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-            )
+            
+            # Check if any controller is active on this pixel
+            controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+            if controller_indicator_color:
+                # Draw controller indicator instead of normal pixel
+                pygame.draw.rect(
+                    self.canvas_sprite.image,
+                    controller_indicator_color,
+                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                )
+            else:
+                # Draw normal pixel
+                pygame.draw.rect(
+                    self.canvas_sprite.image,
+                    pixel,
+                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                )
+            
             # Only draw border if border_thickness > 0
             if self.canvas_sprite.border_thickness > 0:
                 pygame.draw.rect(
@@ -215,6 +228,30 @@ class StaticCanvasRenderer(CanvasRenderer):
     def get_pixel_size(self) -> tuple[int, int]:
         """Get the size of individual pixels in the renderer."""
         return (self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
+    
+    def _get_controller_indicator_for_pixel(self, pixel_index: int) -> Optional[tuple[int, int, int]]:
+        """Check if any controller is active on this pixel and return indicator color."""
+        # Get the parent scene to access controller data
+        if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
+            scene = self.canvas_sprite.parent_scene
+            if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
+                # Check all controllers for canvas mode
+                for controller_id, controller_selection in scene.controller_selections.items():
+                    if scene.mode_switcher.get_controller_mode(controller_id) == 'canvas':
+                        # Get controller position
+                        position = scene.mode_switcher.get_controller_position(controller_id)
+                        if position and position.is_valid:
+                            # Convert position to pixel index
+                            x, y = position.position
+                            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                                controller_pixel_index = y * self.canvas_sprite.pixels_across + x
+                                if controller_pixel_index == pixel_index:
+                                    # Get controller color
+                                    if hasattr(scene, 'multi_controller_manager'):
+                                        controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
+                                        if controller_info:
+                                            return controller_info.color
+        return None
 
 
 class AnimatedCanvasInterface:
@@ -417,11 +454,24 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 for i, pixel in enumerate(frame_pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-                    pygame.draw.rect(
-                        self.canvas_sprite.image,
-                        pixel,
-                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                    )
+                    
+                    # Check if any controller is active on this pixel
+                    controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                    if controller_indicator_color:
+                        # Draw controller indicator instead of normal pixel
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            controller_indicator_color,
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                    else:
+                        # Draw normal pixel
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            pixel,
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                    
                     # Only draw border if border_thickness > 0
                     if border_thickness > 0:
                         pygame.draw.rect(
@@ -439,11 +489,24 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-                    pygame.draw.rect(
-                        self.canvas_sprite.image,
-                        pixel,
-                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                    )
+                    
+                    # Check if any controller is active on this pixel
+                    controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                    if controller_indicator_color:
+                        # Draw controller indicator instead of normal pixel
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            controller_indicator_color,
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                    else:
+                        # Draw normal pixel
+                        pygame.draw.rect(
+                            self.canvas_sprite.image,
+                            pixel,
+                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                    
                     # Only draw border if border_thickness > 0
                     if border_thickness > 0:
                         pygame.draw.rect(
@@ -461,11 +524,24 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    pixel,
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                )
+                
+                # Check if any controller is active on this pixel
+                controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                if controller_indicator_color:
+                    # Draw controller indicator instead of normal pixel
+                    pygame.draw.rect(
+                        self.canvas_sprite.image,
+                        controller_indicator_color,
+                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                    )
+                else:
+                    # Draw normal pixel
+                    pygame.draw.rect(
+                        self.canvas_sprite.image,
+                        pixel,
+                        (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                    )
+                
                 # Only draw border if border_thickness > 0
                 if border_thickness > 0:
                     pygame.draw.rect(
@@ -480,3 +556,27 @@ class AnimatedCanvasRenderer(CanvasRenderer):
     def get_pixel_size(self) -> tuple[int, int]:
         """Get the size of individual pixels in the renderer."""
         return (self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
+    
+    def _get_controller_indicator_for_pixel(self, pixel_index: int) -> Optional[tuple[int, int, int]]:
+        """Check if any controller is active on this pixel and return indicator color."""
+        # Get the parent scene to access controller data
+        if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
+            scene = self.canvas_sprite.parent_scene
+            if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
+                # Check all controllers for canvas mode
+                for controller_id, controller_selection in scene.controller_selections.items():
+                    if scene.mode_switcher.get_controller_mode(controller_id) == 'canvas':
+                        # Get controller position
+                        position = scene.mode_switcher.get_controller_position(controller_id)
+                        if position and position.is_valid:
+                            # Convert position to pixel index
+                            x, y = position.position
+                            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                                controller_pixel_index = y * self.canvas_sprite.pixels_across + x
+                                if controller_pixel_index == pixel_index:
+                                    # Get controller color
+                                    if hasattr(scene, 'multi_controller_manager'):
+                                        controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
+                                        if controller_info:
+                                            return controller_info.color
+        return None

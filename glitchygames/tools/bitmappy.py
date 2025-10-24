@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, ClassVar, Self, Dict
 import pygame
 import toml
 
+
+
 # Try to import aisuite, but don't fail if it's not available
 try:
     import aisuite as ai
@@ -1519,6 +1521,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.force_redraw()
             self.dirty = 0
 
+
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
         if hasattr(self, "animated_sprite") and self.animated_sprite:
@@ -1529,6 +1532,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Use the interface-based rendering while maintaining existing behavior
         self.image = self.canvas_renderer.force_redraw(self)
         self.log.debug(f"Animated canvas force redraw complete with {len(self.pixels)} pixels")
+
 
     def on_left_mouse_button_down_event(self, event):
         """Handle the left mouse button down event."""
@@ -4208,6 +4212,10 @@ class BitmapEditorScene(Scene):
         # Initialize multi-controller system
         self.multi_controller_manager = MultiControllerManager()
         self.controller_selections: Dict[int, ControllerSelection] = {}
+
+        # Initialize mode switching system
+        from glitchygames.tools.controller_mode_system import ModeSwitcher
+        self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
 
         # Controller input state tracking to prevent jittery behavior
@@ -5880,6 +5888,9 @@ pixels = \"\"\"
             # Mark the main scene as dirty every frame to ensure sprite groups are updated
             self.dirty = 1
 
+            # Render visual indicators for multi-controller system
+            self._render_visual_indicators()
+
             # Debug: Check if film strip sprites are being updated
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                 for anim_name, film_strip_sprite in self.film_strip_sprites.items():
@@ -6610,79 +6621,173 @@ pixels = \"\"\"
         # Handle button presses
         print(f"DEBUG: Processing button {event.button} for controller {controller_id}")
 
-        if event.button == pygame.CONTROLLER_BUTTON_A:
+        # Get controller mode for mode-specific handling
+        controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+        print(f"DEBUG: Controller {controller_id} is in mode: {controller_mode}")
+
+        # Handle mode-specific button presses
+        if controller_mode and controller_mode.value == "canvas":
+            self._handle_canvas_button_press(controller_id, event.button)
+        elif controller_mode and controller_mode.value == "slider":
+            self._handle_slider_button_press(controller_id, event.button)
+        else:
+            # Default to film strip mode handling
+            self._handle_film_strip_button_press(controller_id, event.button)
+
+    def _handle_film_strip_button_press(self, controller_id: int, button: int) -> None:
+        """Handle button presses for film strip mode."""
+        if button == pygame.CONTROLLER_BUTTON_A:
             # A button: Select current frame
             print(f"DEBUG: Controller {controller_id}: A button pressed - selecting current frame")
             LOG.debug(f"Controller {controller_id}: A button pressed - selecting current frame")
             self._multi_controller_select_current_frame(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_B:
+        elif button == pygame.CONTROLLER_BUTTON_B:
             # B button: Cancel/go back
             print(f"DEBUG: Controller {controller_id}: B button pressed - cancel")
             LOG.debug(f"Controller {controller_id}: B button pressed - cancel")
             self._multi_controller_cancel(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Previous frame
             print(f"DEBUG: Controller {controller_id}: D-pad left pressed - previous frame")
             LOG.debug(f"Controller {controller_id}: D-pad left pressed - previous frame")
             self._multi_controller_previous_frame(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
             # D-pad right: Next frame
             print(f"DEBUG: Controller {controller_id}: D-pad right pressed - next frame")
             LOG.debug(f"Controller {controller_id}: D-pad right pressed - next frame")
             self._multi_controller_next_frame(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             # D-pad up: Previous animation
             print(f"DEBUG: Controller {controller_id}: D-pad up pressed - previous animation")
             LOG.debug(f"Controller {controller_id}: D-pad up pressed - previous animation")
             self._multi_controller_previous_animation(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_START:
+        elif button == pygame.CONTROLLER_BUTTON_START:
             # Start button: Activate controller
             print(f"DEBUG: Controller {controller_id}: Start button pressed - activate controller")
             LOG.debug(f"Controller {controller_id}: Start button pressed - activate controller")
             self._multi_controller_activate(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             # D-pad down: Next animation
             print(f"DEBUG: Controller {controller_id}: D-pad down pressed - next animation")
             LOG.debug(f"Controller {controller_id}: D-pad down pressed - next animation")
             self._multi_controller_next_animation(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
+        elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
             # Left shoulder button: Move controller indicator left (like D-pad left)
             print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER button pressed - moving indicator left")
             LOG.debug(f"Controller {controller_id}: LEFT SHOULDER button pressed - moving indicator left")
             self._multi_controller_previous_frame(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
+        elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
             # Right shoulder button: Move controller indicator right (like D-pad right)
             print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER button pressed - moving indicator right")
             LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER button pressed - moving indicator right")
             self._multi_controller_next_frame(controller_id)
-        elif event.button == pygame.CONTROLLER_BUTTON_LEFTSTICK:
+        elif button == pygame.CONTROLLER_BUTTON_LEFTSTICK:
             # Left stick button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: LEFT STICK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: LEFT STICK button pressed - UNHANDLED")
-        elif event.button == pygame.CONTROLLER_BUTTON_RIGHTSTICK:
+        elif button == pygame.CONTROLLER_BUTTON_RIGHTSTICK:
             # Right stick button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: RIGHT STICK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: RIGHT STICK button pressed - UNHANDLED")
-        elif event.button == pygame.CONTROLLER_BUTTON_X:
+        elif button == pygame.CONTROLLER_BUTTON_X:
             # X button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: X button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: X button pressed - UNHANDLED")
-        elif event.button == pygame.CONTROLLER_BUTTON_Y:
+        elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: Y button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: Y button pressed - UNHANDLED")
-        elif event.button == pygame.CONTROLLER_BUTTON_BACK:
+        elif button == pygame.CONTROLLER_BUTTON_BACK:
             # Back button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: BACK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: BACK button pressed - UNHANDLED")
-        elif event.button == pygame.CONTROLLER_BUTTON_GUIDE:
+        elif button == pygame.CONTROLLER_BUTTON_GUIDE:
             # Guide button: Currently unhandled
             print(f"DEBUG: Controller {controller_id}: GUIDE button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: GUIDE button pressed - UNHANDLED")
         else:
             # Unknown button
-            print(f"DEBUG: Controller {controller_id}: UNKNOWN button {event.button} pressed - UNHANDLED")
-            LOG.debug(f"Controller {controller_id}: UNKNOWN button {event.button} pressed - UNHANDLED")
+            print(f"DEBUG: Controller {controller_id}: UNKNOWN button {button} pressed - UNHANDLED")
+            LOG.debug(f"Controller {controller_id}: UNKNOWN button {button} pressed - UNHANDLED")
+
+    def _handle_canvas_button_press(self, controller_id: int, button: int) -> None:
+        """Handle button presses for canvas mode."""
+        if button == pygame.CONTROLLER_BUTTON_A:
+            # A button: Paint at current canvas position
+            print(f"DEBUG: Controller {controller_id}: A button pressed - painting on canvas")
+            LOG.debug(f"Controller {controller_id}: A button pressed - painting on canvas")
+            self._canvas_paint_at_controller_position(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_B:
+            # B button: Erase at current canvas position
+            print(f"DEBUG: Controller {controller_id}: B button pressed - erasing on canvas")
+            LOG.debug(f"Controller {controller_id}: B button pressed - erasing on canvas")
+            self._canvas_erase_at_controller_position(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            # D-pad left: Move canvas cursor left
+            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - move canvas cursor left")
+            LOG.debug(f"Controller {controller_id}: D-pad left pressed - move canvas cursor left")
+            self._canvas_move_cursor(controller_id, -1, 0)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            # D-pad right: Move canvas cursor right
+            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - move canvas cursor right")
+            LOG.debug(f"Controller {controller_id}: D-pad right pressed - move canvas cursor right")
+            self._canvas_move_cursor(controller_id, 1, 0)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+            # D-pad up: Move canvas cursor up
+            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - move canvas cursor up")
+            LOG.debug(f"Controller {controller_id}: D-pad up pressed - move canvas cursor up")
+            self._canvas_move_cursor(controller_id, 0, -1)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+            # D-pad down: Move canvas cursor down
+            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - move canvas cursor down")
+            LOG.debug(f"Controller {controller_id}: D-pad down pressed - move canvas cursor down")
+            self._canvas_move_cursor(controller_id, 0, 1)
+        elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
+            # Left shoulder button: Previous frame (same as film strip)
+            print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER button pressed - previous frame")
+            LOG.debug(f"Controller {controller_id}: LEFT SHOULDER button pressed - previous frame")
+            self._multi_controller_previous_frame(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
+            # Right shoulder button: Next frame (same as film strip)
+            print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER button pressed - next frame")
+            LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER button pressed - next frame")
+            self._multi_controller_next_frame(controller_id)
+        else:
+            # Other buttons not handled in canvas mode
+            print(f"DEBUG: Controller {controller_id}: Button {button} not handled in canvas mode")
+            LOG.debug(f"Controller {controller_id}: Button {button} not handled in canvas mode")
+
+    def _handle_slider_button_press(self, controller_id: int, button: int) -> None:
+        """Handle button presses for slider mode."""
+        if button == pygame.CONTROLLER_BUTTON_A:
+            # A button: Select current slider
+            print(f"DEBUG: Controller {controller_id}: A button pressed - select slider")
+            LOG.debug(f"Controller {controller_id}: A button pressed - select slider")
+            self._slider_select_current(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            # D-pad left: Move slider left/decrease value
+            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - decrease slider")
+            LOG.debug(f"Controller {controller_id}: D-pad left pressed - decrease slider")
+            self._slider_adjust_value(controller_id, -1)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            # D-pad right: Move slider right/increase value
+            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - increase slider")
+            LOG.debug(f"Controller {controller_id}: D-pad right pressed - increase slider")
+            self._slider_adjust_value(controller_id, 1)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
+            # D-pad up: Previous slider
+            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - previous slider")
+            LOG.debug(f"Controller {controller_id}: D-pad up pressed - previous slider")
+            self._slider_previous(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
+            # D-pad down: Next slider
+            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - next slider")
+            LOG.debug(f"Controller {controller_id}: D-pad down pressed - next slider")
+            self._slider_next(controller_id)
+        else:
+            # Other buttons not handled in slider mode
+            print(f"DEBUG: Controller {controller_id}: Button {button} not handled in slider mode")
+            LOG.debug(f"Controller {controller_id}: Button {button} not handled in slider mode")
 
     def on_controller_button_up_event(self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -6695,6 +6800,183 @@ pixels = \"\"\"
 
         """
         # Currently no button up actions needed
+        pass
+
+    # Canvas Mode Implementation Methods
+    def _canvas_paint_at_controller_position(self, controller_id: int) -> None:
+        """Paint at the controller's current canvas position."""
+        # Get controller's canvas position
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: Controller {controller_id} has no valid canvas position")
+            return
+
+        # Get current color from the color picker
+        current_color = self._get_current_color()
+
+        # Paint at the position
+        if hasattr(self, 'canvas') and self.canvas:
+            # Use the canvas interface to set the pixel
+            if hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.set_pixel_at(position.position[0], position.position[1], current_color)
+            else:
+                # Fallback: directly set pixel if interface not available
+                x, y = position.position[0], position.position[1]
+                if 0 <= x < self.canvas.pixels_across and 0 <= y < self.canvas.pixels_tall:
+                    pixel_num = y * self.canvas.pixels_across + x
+                    self.canvas.pixels[pixel_num] = current_color
+                    self.canvas.dirty_pixels[pixel_num] = True
+                    self.canvas.dirty = 1
+            print(f"DEBUG: Painted at canvas position {position.position} with color {current_color}")
+
+    def _canvas_erase_at_controller_position(self, controller_id: int) -> None:
+        """Erase at the controller's current canvas position."""
+        # Get controller's canvas position
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: Controller {controller_id} has no valid canvas position")
+            return
+
+        # Erase at the position (paint with background color)
+        if hasattr(self, 'canvas') and self.canvas:
+            background_color = (0, 0, 0)  # Black background
+            # Use the canvas interface to set the pixel
+            if hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.set_pixel_at(position.position[0], position.position[1], background_color)
+            else:
+                # Fallback: directly set pixel if interface not available
+                x, y = position.position[0], position.position[1]
+                if 0 <= x < self.canvas.pixels_across and 0 <= y < self.canvas.pixels_tall:
+                    pixel_num = y * self.canvas.pixels_across + x
+                    self.canvas.pixels[pixel_num] = background_color
+                    self.canvas.dirty_pixels[pixel_num] = True
+                    self.canvas.dirty = 1
+            print(f"DEBUG: Erased at canvas position {position.position}")
+
+    def _canvas_move_cursor(self, controller_id: int, dx: int, dy: int) -> None:
+        """Move the controller's canvas cursor."""
+        # Get current position
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position:
+            # Initialize at (0, 0) if no position
+            new_position = (0, 0)
+        else:
+            new_position = (position.position[0] + dx, position.position[1] + dy)
+
+        # Clamp to canvas bounds
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_width = getattr(self.canvas, 'width', 32)
+            canvas_height = getattr(self.canvas, 'height', 32)
+            new_position = (
+                max(0, min(canvas_width - 1, new_position[0])),
+                max(0, min(canvas_height - 1, new_position[1]))
+            )
+
+        # Update position
+        self.mode_switcher.save_controller_position(controller_id, new_position)
+
+        # Update visual indicator
+        self._update_controller_canvas_visual_indicator(controller_id)
+
+        print(f"DEBUG: Controller {controller_id} canvas cursor moved to {new_position}")
+
+    def _update_controller_canvas_visual_indicator(self, controller_id: int) -> None:
+        """Update the visual indicator for a controller's canvas position."""
+        # Get controller info
+        controller_info = self.multi_controller_manager.get_controller_info(controller_id)
+        if not controller_info:
+            return
+
+        # Get current canvas position
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position:
+            return
+
+        # Update visual indicator
+        if hasattr(self, 'visual_collision_manager'):
+            # Remove old indicator
+            self.visual_collision_manager.remove_controller_indicator(controller_id)
+
+            # Add new canvas indicator
+            from glitchygames.tools.visual_collision_manager import LocationType
+            self.visual_collision_manager.add_controller_indicator(
+                controller_id, controller_info.instance_id,
+                controller_info.color, position.position, LocationType.CANVAS)
+
+    def _get_current_color(self) -> tuple:
+        """Get the current color from the color picker."""
+        # Get color from sliders if available
+        if hasattr(self, 'red_slider') and hasattr(self, 'green_slider') and hasattr(self, 'blue_slider'):
+            try:
+                red = int(self.red_slider.get_value())
+                green = int(self.green_slider.get_value())
+                blue = int(self.blue_slider.get_value())
+                return (red, green, blue)
+            except (ValueError, AttributeError):
+                pass
+
+        # Default to white if sliders not available
+        return (255, 255, 255)
+
+    # Slider Mode Implementation Methods
+    def _slider_select_current(self, controller_id: int) -> None:
+        """Select the current slider for the controller."""
+        print(f"DEBUG: Controller {controller_id} selected current slider")
+
+        # Get the controller's current mode to determine which slider
+        if hasattr(self, 'mode_switcher'):
+            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+
+            # Update the appropriate slider value based on controller position
+            position = self.mode_switcher.get_controller_position(controller_id)
+            if position and position.is_valid:
+                # Convert position to slider value (0-255)
+                slider_value = int((position.position[0] / 255.0) * 255)
+                slider_value = max(0, min(255, slider_value))
+
+                # Update the slider based on mode
+                if controller_mode and controller_mode.value == "r_slider":
+                    self.red_slider.value = slider_value
+                    print(f"DEBUG: Set R slider to {slider_value}")
+                elif controller_mode and controller_mode.value == "g_slider":
+                    self.green_slider.value = slider_value
+                    print(f"DEBUG: Set G slider to {slider_value}")
+                elif controller_mode and controller_mode.value == "b_slider":
+                    self.blue_slider.value = slider_value
+                    print(f"DEBUG: Set B slider to {slider_value}")
+
+    def _slider_adjust_value(self, controller_id: int, delta: int) -> None:
+        """Adjust the current slider's value."""
+        print(f"DEBUG: Controller {controller_id} adjusted slider by {delta}")
+
+        # Get the controller's current mode to determine which slider
+        if hasattr(self, 'mode_switcher'):
+            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+
+            # Adjust the appropriate slider based on mode
+            if controller_mode and controller_mode.value == "r_slider":
+                new_value = max(0, min(255, self.red_slider.value + delta))
+                self.red_slider.value = new_value
+                print(f"DEBUG: Adjusted R slider to {new_value}")
+            elif controller_mode and controller_mode.value == "g_slider":
+                new_value = max(0, min(255, self.green_slider.value + delta))
+                self.green_slider.value = new_value
+                print(f"DEBUG: Adjusted G slider to {new_value}")
+            elif controller_mode and controller_mode.value == "b_slider":
+                new_value = max(0, min(255, self.blue_slider.value + delta))
+                self.blue_slider.value = new_value
+                print(f"DEBUG: Adjusted B slider to {new_value}")
+
+    def _slider_previous(self, controller_id: int) -> None:
+        """Move to the previous slider (now handled by L2/R2 mode switching)."""
+        print(f"DEBUG: Controller {controller_id} moved to previous slider")
+        # This is now handled by L2/R2 mode switching, so this is just for D-pad compatibility
+        pass
+
+    def _slider_next(self, controller_id: int) -> None:
+        """Move to the next slider (now handled by L2/R2 mode switching)."""
+        print(f"DEBUG: Controller {controller_id} moved to next slider")
+        # This is now handled by L2/R2 mode switching, so this is just for D-pad compatibility
         pass
 
     def on_joy_button_down_event(self, event: pygame.event.Event) -> None:
@@ -6795,6 +7077,12 @@ pixels = \"\"\"
             None
 
         """
+        # Handle trigger axis motion for mode switching (axes 4 and 5)
+        if event.axis in [4, 5]:  # TRIGGERLEFT and TRIGGERRIGHT
+            print(f"DEBUG: Trigger axis motion detected: axis={event.axis}, value={event.value}")
+            self._handle_trigger_axis_motion(event)
+            return
+
         print(f"DEBUG: Joystick axis motion (DISABLED): axis={event.axis}, value={event.value}")
         # Disabled to prevent jittery behavior
         pass
@@ -6823,7 +7111,12 @@ pixels = \"\"\"
             None
 
         """
-        # REMOVE: Disabled to prevent jittery behavior
+        # Handle trigger axis motion for mode switching
+        if event.axis in [pygame.CONTROLLER_AXIS_TRIGGERLEFT, pygame.CONTROLLER_AXIS_TRIGGERRIGHT]:
+            self._handle_trigger_axis_motion(event)
+            return
+
+        # REMOVE: Disabled to prevent jittery behavior for stick axes
         return
         print(f"DEBUG: Controller axis motion: axis={event.axis}, value={event.value}")
         print(f"DEBUG: LEFT_X axis constant: {pygame.CONTROLLER_AXIS_LEFTX}")
@@ -6900,6 +7193,423 @@ pixels = \"\"\"
                 return
 
             self._controller_axis_last_values[event.axis] = event.value
+
+    def _handle_trigger_axis_motion(self, event: pygame.event.Event) -> None:
+        """Handle trigger axis motion for mode switching.
+
+        Args:
+            event (pygame.event.Event): The controller/joystick axis motion event.
+        """
+        # Get controller ID for this instance
+        # For joystick events, we need to find the controller by device index
+        if hasattr(event, 'instance_id') and event.instance_id is not None:
+            # Controller event
+            instance_id = event.instance_id
+            controller_id = self.multi_controller_manager.get_controller_id(instance_id)
+            print(f"DEBUG: Controller event - instance_id={instance_id}, controller_id={controller_id}")
+        else:
+            # Joystick event - use device index directly
+            device_index = event.joy
+            controller_id = device_index
+
+            print(f"DEBUG: Joystick event - using device index {device_index} as controller ID {controller_id}")
+
+        if controller_id is None:
+            print(f"DEBUG: No controller ID found for event")
+            return
+
+        # Register controller with mode switcher if not already registered
+        if controller_id not in self.mode_switcher.controller_modes:
+            from glitchygames.tools.controller_mode_system import ControllerMode
+            self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
+            print(f"DEBUG: Registered controller {controller_id} with mode switcher")
+
+        # Get current time
+        import time
+        current_time = time.time()
+
+        # Get trigger values
+        l2_value = 0.0
+        r2_value = 0.0
+
+        # Get current trigger values
+        if hasattr(event, 'instance_id'):
+            # Controller event - get from controller object
+            if hasattr(self, 'multi_controller_manager'):
+                controller_info = self.multi_controller_manager.get_controller_info(event.instance_id)
+                print(f"DEBUG: Controller info lookup - instance_id={event.instance_id}, controller_info={controller_info}")
+                if controller_info:
+                    # Get the controller object directly from pygame using instance_id
+                    try:
+                        controller = pygame.joystick.Joystick(event.instance_id)
+                        # Convert pygame trigger values (-1.0 to 1.0) to our expected range (0.0 to 1.0)
+                        l2_raw = controller.get_axis(pygame.CONTROLLER_AXIS_TRIGGERLEFT)
+                        r2_raw = controller.get_axis(pygame.CONTROLLER_AXIS_TRIGGERRIGHT)
+                        l2_value = (l2_raw + 1.0) / 2.0  # Convert -1.0..1.0 to 0.0..1.0
+                        r2_value = (r2_raw + 1.0) / 2.0  # Convert -1.0..1.0 to 0.0..1.0
+                        print(f"DEBUG: Controller {controller_id} triggers - L2: {l2_value:.2f}, R2: {r2_value:.2f}")
+                    except Exception as e:
+                        print(f"DEBUG: Error getting controller object for instance_id={event.instance_id}: {e}")
+                        l2_value = 0.0
+                        r2_value = 0.0
+                else:
+                    print(f"DEBUG: No controller info found for instance_id={event.instance_id}")
+        else:
+            # Joystick event - get both trigger values from joystick
+            print(f"DEBUG: Processing joystick event for controller {controller_id}, joy={event.joy}")
+            try:
+                joystick = pygame.joystick.Joystick(event.joy)
+                print(f"DEBUG: Created joystick object for joy {event.joy}")
+                l2_raw = joystick.get_axis(4)  # TRIGGERLEFT
+                r2_raw = joystick.get_axis(5)  # TRIGGERRIGHT
+
+                # Convert joystick raw values to 0.0..1.0 range
+                # Joystick values are typically in the range -32768 to 32767
+                # We need to normalize them to 0.0 to 1.0
+                l2_value = max(0.0, min(1.0, (l2_raw + 32768.0) / 65535.0))
+                r2_value = max(0.0, min(1.0, (r2_raw + 32768.0) / 65535.0))
+
+                print(f"DEBUG: Joystick {controller_id} raw values - L2: {l2_raw:.2f}, R2: {r2_raw:.2f}")
+                print(f"DEBUG: Joystick {controller_id} triggers - L2: {l2_value:.2f}, R2: {r2_value:.2f}")
+            except Exception as e:
+                print(f"DEBUG: Error getting joystick trigger values: {e}")
+                l2_value = 0.0
+                r2_value = 0.0
+
+        # Handle mode switching
+        new_mode = self.mode_switcher.handle_trigger_input(
+            controller_id, l2_value, r2_value, current_time)
+
+        if new_mode:
+            print(f"DEBUG: Controller {controller_id} switched to mode: {new_mode.value}")
+            self._update_controller_visual_indicator_for_mode(controller_id, new_mode)
+        else:
+            print(f"DEBUG: No mode switch for controller {controller_id} - L2: {l2_value:.2f}, R2: {r2_value:.2f}")
+
+    def _update_controller_visual_indicator_for_mode(self, controller_id: int, new_mode) -> None:
+        """Update visual indicator for controller's new mode.
+
+        Args:
+            controller_id: Controller ID
+            new_mode: New mode (ControllerMode enum)
+        """
+        print(f"DEBUG: Updating visual indicator for controller {controller_id} to mode {new_mode.value} (selected controller)")
+
+        # Import LocationType
+        from glitchygames.tools.visual_collision_manager import LocationType
+
+        # Get controller info
+        controller_info = self.multi_controller_manager.get_controller_info(controller_id)
+        if not controller_info:
+            print(f"DEBUG: No controller info found for controller {controller_id}")
+            return
+
+        # Get location type for new mode
+        location_type = self.mode_switcher.get_controller_location_type(controller_id)
+        if not location_type:
+            print(f"DEBUG: No location type found for controller {controller_id}")
+            return
+
+        print(f"DEBUG: Location type for controller {controller_id}: {location_type}")
+
+        # Get current position for the new mode
+        position_data = self.mode_switcher.get_controller_position(controller_id)
+        if position_data and position_data.is_valid:
+            position = position_data.position
+            print(f"DEBUG: Using saved position for controller {controller_id}: {position}")
+        else:
+            # Default position based on mode
+            if new_mode.value == "canvas":
+                position = (0, 0)  # Start at top-left of canvas
+            elif new_mode.value in ["r_slider", "g_slider", "b_slider"]:
+                position = (0, 0)  # Start at top of slider
+            else:  # film_strip
+                position = (100, 100)  # Default position
+            print(f"DEBUG: Using default position for controller {controller_id}: {position}")
+
+        # Update visual indicator
+        if hasattr(self, 'visual_collision_manager'):
+            print(f"DEBUG: Adding new indicator for controller {controller_id} at {position} with location type {location_type}")
+            # Remove any existing indicator for this controller first
+            self.visual_collision_manager.remove_controller_indicator(controller_id)
+            # Add new indicator for the new mode
+            self.visual_collision_manager.add_controller_indicator(
+                controller_id, controller_info.instance_id,
+                controller_info.color, position, location_type)
+
+            print(f"DEBUG: Updated visual indicator for controller {controller_id} to {new_mode.value} mode at {position}")
+
+            # Mark the appropriate area as dirty to trigger redraw
+            print(f"DEBUG: Checking location_type {location_type} for dirty marking")
+            print(f"DEBUG: LocationType.CANVAS = {LocationType.CANVAS}")
+            print(f"DEBUG: location_type == LocationType.CANVAS: {location_type == LocationType.CANVAS}")
+            if location_type == LocationType.CANVAS:
+                print(f"DEBUG: Canvas check - hasattr(self, 'canvas'): {hasattr(self, 'canvas')}")
+                if hasattr(self, 'canvas'):
+                    # Force a complete redraw to update visual indicators
+                    self.canvas.force_redraw()
+                    print(f"DEBUG: Forced canvas redraw for controller {controller_id}")
+                else:
+                    print(f"DEBUG: No canvas object found for controller {controller_id}")
+            elif location_type == LocationType.SLIDER:
+                # Mark all sliders as dirty
+                if hasattr(self, 'red_slider'):
+                    self.red_slider.text_sprite.dirty = 2
+                if hasattr(self, 'green_slider'):
+                    self.green_slider.text_sprite.dirty = 2
+                if hasattr(self, 'blue_slider'):
+                    self.blue_slider.text_sprite.dirty = 2
+                # Mark the main scene as dirty to trigger proper redraw
+                self.dirty = 1
+                print(f"DEBUG: Marked sliders and scene as dirty for controller {controller_id}")
+            elif location_type == LocationType.FILM_STRIP:
+                # Mark film strips as dirty
+                if hasattr(self, 'film_strips'):
+                    for strip_widget in self.film_strips.values():
+                        strip_widget.mark_dirty()
+                print(f"DEBUG: Marked film strips as dirty for controller {controller_id}")
+
+            # Also mark film strips as dirty to ensure old triangles are removed
+            # This is needed because film strips use controller_selections, not VisualCollisionManager
+            if hasattr(self, 'film_strips'):
+                for strip_widget in self.film_strips.values():
+                    strip_widget.mark_dirty()
+                print(f"DEBUG: Marked film strips as dirty to remove old indicators")
+
+            # Also force canvas redraw to ensure old canvas indicators are removed
+            # This is needed because canvas visual indicators are drawn on the canvas surface
+            if hasattr(self, 'canvas'):
+                self.canvas.force_redraw()
+                print(f"DEBUG: Forced canvas redraw to remove old indicators")
+
+        else:
+            print(f"DEBUG: No visual_collision_manager found")
+
+    def _render_visual_indicators(self) -> None:
+        """Render visual indicators for multi-controller system."""
+        if not hasattr(self, 'controller_selections'):
+            return
+
+        # Initialize slider indicators dictionary if needed
+        if not hasattr(self, 'slider_indicators'):
+            self.slider_indicators = {}
+
+        # Get the screen surface
+        screen = pygame.display.get_surface()
+        if not screen:
+            return
+
+        # Update all slider indicators with collision avoidance
+        self._update_all_slider_indicators()
+
+        # Note: Film strip and canvas indicators are handled by their respective widgets
+
+    def _create_slider_indicator_sprite(self, controller_id: int, color: tuple, slider_rect: pygame.Rect) -> BitmappySprite:
+        """Create a proper Bitmappy sprite for slider indicator."""
+        # Create a circular indicator sprite
+        indicator_size = 16
+        center_x = slider_rect.x + slider_rect.width // 2
+        center_y = slider_rect.y + slider_rect.height // 2
+
+        # Create the sprite
+        indicator = BitmappySprite(
+            name=f"SliderIndicator_{controller_id}",
+            x=center_x - indicator_size // 2,
+            y=center_y - indicator_size // 2,
+            width=indicator_size,
+            height=indicator_size,
+            groups=self.all_sprites,
+        )
+
+        # Make the background transparent
+        indicator.image.set_colorkey((0, 0, 0))  # Make black transparent
+        indicator.image.fill((0, 0, 0))  # Fill with black first
+
+        # Draw the indicator on the sprite surface
+        pygame.draw.circle(indicator.image, color, (indicator_size // 2, indicator_size // 2), 8)
+        pygame.draw.circle(indicator.image, (255, 255, 255), (indicator_size // 2, indicator_size // 2), 8, 2)
+
+        return indicator
+
+    def _update_slider_indicator(self, controller_id: int, color: tuple) -> None:
+        """Update or create slider indicator for a controller."""
+        # Remove any existing indicator for this controller
+        self._remove_slider_indicator(controller_id)
+
+        # Get the controller's current mode to determine which slider
+        if hasattr(self, 'mode_switcher'):
+            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+
+            # Create indicator on the appropriate slider based on mode
+            if controller_mode and controller_mode.value == "r_slider" and hasattr(self, 'red_slider'):
+                indicator = self._create_slider_indicator_sprite(controller_id, color, self.red_slider.rect)
+                self.slider_indicators[controller_id] = indicator
+
+            elif controller_mode and controller_mode.value == "g_slider" and hasattr(self, 'green_slider'):
+                indicator = self._create_slider_indicator_sprite(controller_id, color, self.green_slider.rect)
+                self.slider_indicators[controller_id] = indicator
+
+            elif controller_mode and controller_mode.value == "b_slider" and hasattr(self, 'blue_slider'):
+                indicator = self._create_slider_indicator_sprite(controller_id, color, self.blue_slider.rect)
+                self.slider_indicators[controller_id] = indicator
+
+    def _update_all_slider_indicators(self) -> None:
+        """Update all slider indicators with collision avoidance."""
+        # Clear all existing slider indicators
+        for controller_id in list(self.slider_indicators.keys()):
+            self._remove_slider_indicator(controller_id)
+
+        # Group controllers by slider
+        slider_groups = {
+            'r_slider': [],
+            'g_slider': [],
+            'b_slider': []
+        }
+
+        # Collect all active controllers in slider modes
+        for controller_id, controller_selection in self.controller_selections.items():
+            if controller_selection.is_active():
+                if hasattr(self, 'mode_switcher'):
+                    controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+                    if controller_mode and controller_mode.value in slider_groups:
+                        # Get controller color
+                        controller_info = None
+                        if hasattr(self, "multi_controller_manager"):
+                            for instance_id, info in self.multi_controller_manager.controllers.items():
+                                if info.controller_id == controller_id:
+                                    controller_info = info
+                                    break
+
+                        if controller_info:
+                            slider_groups[controller_mode.value].append({
+                                'controller_id': controller_id,
+                                'color': controller_info.color
+                            })
+
+        # Create indicators for each slider with collision avoidance
+        for slider_mode, controllers in slider_groups.items():
+            if controllers and len(controllers) > 0:
+                self._create_slider_indicators_with_collision_avoidance(slider_mode, controllers)
+
+    def _create_slider_indicators_with_collision_avoidance(self, slider_mode: str, controllers: list) -> None:
+        """Create slider indicators with collision avoidance for multiple controllers."""
+        # Get the appropriate slider
+        slider = None
+        if slider_mode == "r_slider" and hasattr(self, 'red_slider'):
+            slider = self.red_slider
+        elif slider_mode == "g_slider" and hasattr(self, 'green_slider'):
+            slider = self.green_slider
+        elif slider_mode == "b_slider" and hasattr(self, 'blue_slider'):
+            slider = self.blue_slider
+
+        if not slider:
+            return
+
+        # Sort controllers by color priority (same as film strip)
+        def get_color_priority(controller):
+            color = controller['color']
+            if color == (255, 0, 0):    # Red
+                return 0
+            elif color == (0, 255, 0):  # Green
+                return 1
+            elif color == (0, 0, 255):  # Blue
+                return 2
+            elif color == (255, 255, 0): # Yellow
+                return 3
+            else:
+                return 999  # Unknown colors go last
+
+        controllers.sort(key=get_color_priority)
+
+        # Calculate positioning with collision avoidance
+        indicator_size = 16
+        indicator_spacing = 20  # Space between indicator centers
+
+        # Calculate total width needed for all indicators
+        total_width = (len(controllers) - 1) * indicator_spacing
+
+        # Calculate starting position to center the group
+        slider_rect = slider.rect
+        start_x = slider_rect.centerx - (total_width // 2)
+        center_y = slider_rect.centery
+
+        # Create indicators with proper spacing
+        current_x = start_x
+        for controller in controllers:
+            # Create indicator at calculated position
+            indicator = BitmappySprite(
+                name=f"SliderIndicator_{controller['controller_id']}",
+                x=current_x - indicator_size // 2,
+                y=center_y - indicator_size // 2,
+                width=indicator_size,
+                height=indicator_size,
+                groups=self.all_sprites,
+            )
+
+            # Make the background transparent
+            indicator.image.set_colorkey((0, 0, 0))
+            indicator.image.fill((0, 0, 0))
+
+            # Draw the indicator
+            pygame.draw.circle(indicator.image, controller['color'], (indicator_size // 2, indicator_size // 2), 8)
+            pygame.draw.circle(indicator.image, (255, 255, 255), (indicator_size // 2, indicator_size // 2), 8, 2)
+
+            # Store the indicator
+            self.slider_indicators[controller['controller_id']] = indicator
+
+            # Move to next position
+            current_x += indicator_spacing
+
+    def _remove_slider_indicator(self, controller_id: int) -> None:
+        """Remove slider indicator for a controller."""
+        if hasattr(self, 'slider_indicators') and controller_id in self.slider_indicators:
+            indicator = self.slider_indicators[controller_id]
+            # Remove from sprite groups
+            if hasattr(self, 'all_sprites'):
+                self.all_sprites.remove(indicator)
+            # Remove from tracking
+            del self.slider_indicators[controller_id]
+
+    def render(self, screen: pygame.Surface) -> None:
+        """Render the scene with visual indicators."""
+        # Call the parent render method first
+        super().render(screen)
+
+        # Then render visual indicators on top
+        self._render_visual_indicators()
+
+    def _draw_visual_indicator(self, screen, indicator) -> None:
+        """Draw a single visual indicator on the screen."""
+        if not indicator.is_visible:
+            print(f"DEBUG: Indicator for controller {indicator.controller_id} is not visible")
+            return
+
+        # Calculate final position with offset
+        final_x = indicator.position[0] + indicator.offset[0]
+        final_y = indicator.position[1] + indicator.offset[1]
+
+        print(f"DEBUG: Drawing indicator for controller {indicator.controller_id} at ({final_x}, {final_y}) with shape {indicator.shape.value}")
+
+        # Set transparency
+        color = (*indicator.color, int(255 * indicator.transparency))
+
+        # Draw based on shape
+        if indicator.shape.value == "triangle":
+            # Draw triangle (film strip indicator)
+            points = [
+                (final_x, final_y - indicator.size // 2),
+                (final_x - indicator.size // 2, final_y + indicator.size // 2),
+                (final_x + indicator.size // 2, final_y + indicator.size // 2)
+            ]
+            pygame.draw.polygon(screen, indicator.color, points)
+        elif indicator.shape.value == "square":
+            # Draw square (canvas indicator)
+            rect = pygame.Rect(final_x - indicator.size // 2, final_y - indicator.size // 2,
+                             indicator.size, indicator.size)
+            pygame.draw.rect(screen, indicator.color, rect)
+        elif indicator.shape.value == "circle":
+            # Draw circle (slider indicator)
+            pygame.draw.circle(screen, indicator.color, (final_x, final_y), indicator.size // 2)
 
     def _select_current_frame(self) -> None:
         """Select the currently highlighted frame."""
