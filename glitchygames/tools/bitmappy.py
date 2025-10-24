@@ -4191,6 +4191,9 @@ class BitmapEditorScene(Scene):
         self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
 
+        # Selected frame visibility toggle for canvas comparison
+        self.selected_frame_visible = True
+
         # Controller input state tracking to prevent jittery behavior
         self._controller_axis_deadzone = 500  # Only respond to values beyond this threshold (for larger scale values)
         self._controller_axis_hat_threshold = 500  # Threshold for hat-like behavior (0.5 in normalized scale)
@@ -6674,11 +6677,26 @@ pixels = \"\"\"
             print(f"DEBUG: Controller {controller_id}: A button pressed - selecting current frame")
             LOG.debug(f"Controller {controller_id}: A button pressed - selecting current frame")
             self._multi_controller_select_current_frame(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_B:
+            # B button (Circle): RESERVED for undo operations
+            print(f"DEBUG: Controller {controller_id}: B button pressed - RESERVED for undo operations")
+            LOG.debug(f"Controller {controller_id}: B button pressed - RESERVED for undo operations")
+            # TODO: Implement undo functionality
         elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button (Triangle): Toggle onion skinning for selected frame
             print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling onion skinning")
             LOG.debug(f"Controller {controller_id}: Y button pressed - toggling onion skinning")
             self._multi_controller_toggle_onion_skinning(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_X:
+            # X button (Square): RESERVED for redo operations (only when selected frame is visible)
+            if self.selected_frame_visible:
+                print(f"DEBUG: Controller {controller_id}: X button pressed - RESERVED for redo operations")
+                LOG.debug(f"Controller {controller_id}: X button pressed - RESERVED for redo operations")
+                # TODO: Implement redo functionality
+            else:
+                print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
+                LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
+                # X button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Previous frame
             print(f"DEBUG: Controller {controller_id}: D-pad left pressed - previous frame")
@@ -6746,29 +6764,49 @@ pixels = \"\"\"
     def _handle_canvas_button_press(self, controller_id: int, button: int) -> None:
         """Handle button presses for canvas mode."""
         if button == pygame.CONTROLLER_BUTTON_A:
-            # A button: Start controller drag operation
-            print(f"DEBUG: Controller {controller_id}: A button pressed - starting controller drag")
-            LOG.debug(f"Controller {controller_id}: A button pressed - starting controller drag")
+            # A button: Start controller drag operation (only when selected frame is visible)
+            if self.selected_frame_visible:
+                print(f"DEBUG: Controller {controller_id}: A button pressed - starting controller drag")
+                LOG.debug(f"Controller {controller_id}: A button pressed - starting controller drag")
 
-            # Initialize controller drag tracking if not exists
-            if not hasattr(self, 'controller_drags'):
-                self.controller_drags = {}
+                # Initialize controller drag tracking if not exists
+                if not hasattr(self, 'controller_drags'):
+                    self.controller_drags = {}
 
-            # Start drag operation for this controller
-            self.controller_drags[controller_id] = {
-                'active': True,
-                'start_position': self.mode_switcher.get_controller_position(controller_id),
-                'pixels_drawn': [],
-                'start_time': time.time()
-            }
+                # Start drag operation for this controller
+                self.controller_drags[controller_id] = {
+                    'active': True,
+                    'start_position': self.mode_switcher.get_controller_position(controller_id),
+                    'pixels_drawn': [],
+                    'start_time': time.time()
+                }
 
-            # Paint at the current position
-            self._canvas_paint_at_controller_position(controller_id)
+                # Paint at the current position
+                self._canvas_paint_at_controller_position(controller_id)
+            else:
+                print(f"DEBUG: Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)")
+                LOG.debug(f"Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)")
+                # A button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_B:
-            # B button: Erase at current canvas position
-            print(f"DEBUG: Controller {controller_id}: B button pressed - erasing on canvas")
-            LOG.debug(f"Controller {controller_id}: B button pressed - erasing on canvas")
-            self._canvas_erase_at_controller_position(controller_id)
+            # B button (Circle): RESERVED for undo operations
+            print(f"DEBUG: Controller {controller_id}: B button pressed - RESERVED for undo operations")
+            LOG.debug(f"Controller {controller_id}: B button pressed - RESERVED for undo operations")
+            # TODO: Implement undo functionality
+        elif button == pygame.CONTROLLER_BUTTON_Y:
+            # Y button (Triangle): Toggle selected frame visibility on canvas
+            print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling selected frame visibility")
+            LOG.debug(f"Controller {controller_id}: Y button pressed - toggling selected frame visibility")
+            self._multi_controller_toggle_selected_frame_visibility(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_X:
+            # X button (Square): RESERVED for redo operations (only when selected frame is visible)
+            if self.selected_frame_visible:
+                print(f"DEBUG: Controller {controller_id}: X button pressed - RESERVED for redo operations")
+                LOG.debug(f"Controller {controller_id}: X button pressed - RESERVED for redo operations")
+                # TODO: Implement redo functionality
+            else:
+                print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
+                LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
+                # X button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Start continuous movement left
             print(f"DEBUG: Controller {controller_id}: D-pad left pressed - start continuous movement left")
@@ -8738,6 +8776,23 @@ pixels = \"\"\"
 
         print(f"DEBUG: Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]")
         LOG.debug(f"Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]")
+
+        # Force redraw of the canvas to show the change
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.force_redraw()
+
+    def _multi_controller_toggle_selected_frame_visibility(self, controller_id: int) -> None:
+        """Toggle visibility of the selected frame on the canvas for comparison.
+
+        Args:
+            controller_id: Controller ID (not used but kept for consistency)
+        """
+        # Toggle the selected frame visibility
+        self.selected_frame_visible = not self.selected_frame_visible
+        status = "visible" if self.selected_frame_visible else "hidden"
+
+        print(f"DEBUG: Controller {controller_id}: Selected frame {status} on canvas")
+        LOG.debug(f"Controller {controller_id}: Selected frame {status} on canvas")
 
         # Force redraw of the canvas to show the change
         if hasattr(self, 'canvas') and self.canvas:

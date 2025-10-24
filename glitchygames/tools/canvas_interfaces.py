@@ -555,6 +555,12 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite.image.blit(onion_accumulator, (0, 0))
 
                 # Finally, blit the selected frame at 100% opacity (skip 255,0,255 pixels)
+                # Check if selected frame should be visible (for comparison mode)
+                selected_frame_visible = True
+                if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
+                    selected_frame_visible = getattr(self.canvas_sprite.parent_scene, 'selected_frame_visible', True)
+                
+                # Always get frame data for controller indicators, even if frame is hidden
                 frame = frames[current_animation][current_frame]
                 if hasattr(frame, "get_pixel_data"):
                     frame_pixels = frame.get_pixel_data()
@@ -570,17 +576,60 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 border_thickness = self.canvas_sprite.border_thickness
                 LOG.debug(f"DEBUG RENDERER: border_thickness={border_thickness}")
                 
-                # Blit each pixel of the selected frame at 100% opacity
-                for i, pixel in enumerate(frame_pixels):
-                    x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-                    y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-                    
-                    # Check if any controller is active on this pixel (even for transparent pixels)
-                    controller_indicator_color = self._get_controller_indicator_for_pixel(i)
-                    
-                    # Skip transparent pixels (magenta) - 100% transparent, but still check for controller indicators
-                    if pixel == (255, 0, 255):
-                        # Only draw controller indicator for transparent pixels
+                if selected_frame_visible:
+                    # Blit each pixel of the selected frame at 100% opacity
+                    for i, pixel in enumerate(frame_pixels):
+                        x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
+                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        
+                        # Check if any controller is active on this pixel (even for transparent pixels)
+                        controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                        
+                        # Skip transparent pixels (magenta) - 100% transparent, but still check for controller indicators
+                        if pixel == (255, 0, 255):
+                            # Only draw controller indicator for transparent pixels
+                            if controller_indicator_color:
+                                self._draw_plus_indicator(
+                                    self.canvas_sprite.image,
+                                    controller_indicator_color,
+                                    x, y,
+                                    self.canvas_sprite.pixel_width,
+                                    self.canvas_sprite.pixel_height
+                                )
+                            continue
+                        
+                        if controller_indicator_color:
+                            # Draw normal pixel first
+                            pygame.draw.rect(
+                                self.canvas_sprite.image,
+                                pixel,
+                                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                            )
+                            # Draw plus sign indicator on top
+                            self._draw_plus_indicator(
+                                self.canvas_sprite.image,
+                                controller_indicator_color,
+                                x, y,
+                                self.canvas_sprite.pixel_width,
+                                self.canvas_sprite.pixel_height
+                            )
+                        else:
+                            # Draw normal pixel at 100% opacity (0% transparent)
+                            pygame.draw.rect(
+                                self.canvas_sprite.image,
+                                pixel,
+                                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                            )
+                else:
+                    # Selected frame is hidden, but still draw controller indicators
+                    for i, pixel in enumerate(frame_pixels):
+                        x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
+                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        
+                        # Check if any controller is active on this pixel
+                        controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                        
+                        # Only draw controller indicators, no pixels
                         if controller_indicator_color:
                             self._draw_plus_indicator(
                                 self.canvas_sprite.image,
@@ -589,33 +638,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 self.canvas_sprite.pixel_width,
                                 self.canvas_sprite.pixel_height
                             )
-                        continue
-                    
-                    if controller_indicator_color:
-                        # Draw normal pixel first
-                        pygame.draw.rect(
-                            self.canvas_sprite.image,
-                            pixel,
-                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                        )
-                        # Draw plus sign indicator on top
-                        self._draw_plus_indicator(
-                            self.canvas_sprite.image,
-                            controller_indicator_color,
-                            x, y,
-                            self.canvas_sprite.pixel_width,
-                            self.canvas_sprite.pixel_height
-                        )
-                    else:
-                        # Draw normal pixel at 100% opacity (0% transparent)
-                        pygame.draw.rect(
-                            self.canvas_sprite.image,
-                            pixel,
-                            (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                        )
                 
-                # Draw borders on the main canvas
-                if border_thickness > 0:
+                # Draw borders on the main canvas (only if selected frame is visible)
+                if selected_frame_visible and border_thickness > 0:
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
