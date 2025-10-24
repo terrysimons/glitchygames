@@ -924,7 +924,7 @@ class FilmStripSprite(BitmappySprite):
             return
 
         # Check for Ctrl+C (copy)
-        if event.key == pygame.K_c and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
+        if event.key == pygame.K_c and (event.get('mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("FilmStripSprite: Ctrl+C detected - copying current frame")
             success = self.film_strip_widget.copy_current_frame()
             if success:
@@ -934,7 +934,7 @@ class FilmStripSprite(BitmappySprite):
             return True
 
         # Check for Ctrl+V (paste)
-        if event.key == pygame.K_v and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
+        if event.key == pygame.K_v and (event.get('mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("FilmStripSprite: Ctrl+V detected - pasting to current frame")
             success = self.film_strip_widget.paste_to_current_frame()
             if success:
@@ -3770,10 +3770,10 @@ class BitmapEditorScene(Scene):
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
-        LOG.debug(f"BitmapEditorScene: on_key_down_event called with key={event.key}, mod={getattr(event, 'mod', 0)}")
+        LOG.debug(f"BitmapEditorScene: on_key_down_event called with key={event.key}, mod={event.get('mod', 0)}")
 
         # Check for Ctrl+C (copy) - handle this BEFORE calling parent method
-        if event.key == pygame.K_c and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
+        if event.key == pygame.K_c and (event.get('mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("BitmapEditorScene: [SCENE HANDLER] Ctrl+C detected - copying current frame")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
@@ -3785,7 +3785,7 @@ class BitmapEditorScene(Scene):
             return True
 
         # Check for Ctrl+V (paste) - handle this BEFORE calling parent method
-        if event.key == pygame.K_v and (getattr(event, 'mod', 0) & pygame.KMOD_CTRL):
+        if event.key == pygame.K_v and (event.get('mod', 0) & pygame.KMOD_CTRL):
             LOG.debug("BitmapEditorScene: [SCENE HANDLER] Ctrl+V detected - pasting to current frame")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_animation: {getattr(self, 'selected_animation', 'None')}")
             LOG.debug(f"BitmapEditorScene: [SCENE HANDLER] Current selected_frame: {getattr(self, 'selected_frame', 'None')}")
