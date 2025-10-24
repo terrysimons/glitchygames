@@ -6674,11 +6674,11 @@ pixels = \"\"\"
             print(f"DEBUG: Controller {controller_id}: A button pressed - selecting current frame")
             LOG.debug(f"Controller {controller_id}: A button pressed - selecting current frame")
             self._multi_controller_select_current_frame(controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_B:
-            # B button: Cancel/go back
-            print(f"DEBUG: Controller {controller_id}: B button pressed - cancel")
-            LOG.debug(f"Controller {controller_id}: B button pressed - cancel")
-            self._multi_controller_cancel(controller_id)
+        elif button == pygame.CONTROLLER_BUTTON_Y:
+            # Y button (Triangle): Toggle onion skinning for selected frame
+            print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling onion skinning")
+            LOG.debug(f"Controller {controller_id}: Y button pressed - toggling onion skinning")
+            self._multi_controller_toggle_onion_skinning(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Previous frame
             print(f"DEBUG: Controller {controller_id}: D-pad left pressed - previous frame")
@@ -8710,6 +8710,38 @@ pixels = \"\"\"
             )
         else:
             self.visual_collision_manager.update_controller_position(controller_id, position)
+
+    def _multi_controller_toggle_onion_skinning(self, controller_id: int) -> None:
+        """Toggle onion skinning for the controller's selected frame.
+
+        Args:
+            controller_id: Controller ID to toggle onion skinning for
+        """
+        if controller_id not in self.controller_selections:
+            print(f"DEBUG: Controller {controller_id} not found for onion skinning toggle")
+            return
+
+        controller_selection = self.controller_selections[controller_id]
+        animation, frame = controller_selection.get_selection()
+
+        if not animation or frame is None:
+            print(f"DEBUG: Controller {controller_id} has no valid selection for onion skinning toggle")
+            return
+
+        # Get onion skinning manager
+        from .onion_skinning import get_onion_skinning_manager
+        onion_manager = get_onion_skinning_manager()
+
+        # Toggle onion skinning for this frame
+        is_enabled = onion_manager.toggle_frame_onion_skinning(animation, frame)
+        status = "enabled" if is_enabled else "disabled"
+
+        print(f"DEBUG: Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]")
+        LOG.debug(f"Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]")
+
+        # Force redraw of the canvas to show the change
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.force_redraw()
 
     def _multi_controller_select_current_frame(self, controller_id: int) -> None:
         """Select the current frame that the controller is pointing to.
