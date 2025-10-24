@@ -1476,7 +1476,7 @@ class FilmStripWidget:
                 # Use the pre-filtered controller selections from the parent scene
                 controller_selections = self.parent_scene.film_strip_controller_selections.get(self.current_animation, [])
         
-        # Draw all indicators using the existing system
+        # Draw all indicators using the existing system (collision avoidance handles both keyboard and controllers)
         self._draw_multi_controller_indicators(surface, keyboard_animation, keyboard_frame, controller_selections)
 
     def _draw_triforce_indicator(self, surface: pygame.Surface) -> None:

@@ -166,8 +166,17 @@ class ModeSwitcher:
     def __init__(self):
         self.controller_modes: Dict[int, ControllerModeState] = {}
         self.trigger_detector = TriggerDetector()
-        self.mode_cycle = [
-            ControllerMode.FILM_STRIP, 
+        # R2 cycle: B -> G -> R -> canvas -> film strip
+        self.r2_cycle = [
+            ControllerMode.B_SLIDER,
+            ControllerMode.G_SLIDER, 
+            ControllerMode.R_SLIDER, 
+            ControllerMode.CANVAS, 
+            ControllerMode.FILM_STRIP
+        ]
+        # L2 cycle: film strip -> canvas -> R -> G -> B
+        self.l2_cycle = [
+            ControllerMode.FILM_STRIP,
             ControllerMode.CANVAS, 
             ControllerMode.R_SLIDER, 
             ControllerMode.G_SLIDER, 
@@ -175,7 +184,7 @@ class ModeSwitcher:
         ]
     
     def register_controller(self, controller_id: int, 
-                          initial_mode: ControllerMode = ControllerMode.FILM_STRIP) -> None:
+                          initial_mode: ControllerMode = ControllerMode.CANVAS) -> None:
         """Register a new controller with mode state."""
         self.controller_modes[controller_id] = ControllerModeState(controller_id, initial_mode)
     
@@ -224,14 +233,23 @@ class ModeSwitcher:
         
         # Determine new mode
         current_mode = self.controller_modes[controller_id].current_mode
-        current_index = self.mode_cycle.index(current_mode)
         
-        if l2_pressed:  # Previous mode
-            new_index = (current_index - 1) % len(self.mode_cycle)
-        else:  # r2_pressed - Next mode
-            new_index = (current_index + 1) % len(self.mode_cycle)
+        # Special case: R2 on film strip does nothing
+        if r2_pressed and current_mode == ControllerMode.FILM_STRIP:
+            return None
         
-        new_mode = self.mode_cycle[new_index]
+        if l2_pressed:  # L2 cycle: film strip -> canvas -> R -> G -> B
+            if current_mode not in self.l2_cycle:
+                return None
+            current_index = self.l2_cycle.index(current_mode)
+            new_index = (current_index + 1) % len(self.l2_cycle)
+            new_mode = self.l2_cycle[new_index]
+        else:  # R2 cycle: B -> G -> R -> canvas -> film strip
+            if current_mode not in self.r2_cycle:
+                return None
+            current_index = self.r2_cycle.index(current_mode)
+            new_index = (current_index + 1) % len(self.r2_cycle)
+            new_mode = self.r2_cycle[new_index]
         
         # Switch mode
         self.controller_modes[controller_id].switch_to_mode(new_mode, current_time)
