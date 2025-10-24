@@ -479,18 +479,56 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             frames = self.canvas_sprite.animated_sprite.frames
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
-                # Create a new surface for the frame
+                # Create a single transparent buffer for all frames
                 self.canvas_sprite.image = pygame.Surface((
                     self.canvas_sprite.width,
                     self.canvas_sprite.height,
-                ))
-                self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
+                ), pygame.SRCALPHA)
+                self.canvas_sprite.image.fill((0, 0, 0, 0))  # Transparent background
 
-                # Render onion skinning frames first (if enabled)
-                from .onion_skinning_renderer import render_onion_skinning_frames
-                render_onion_skinning_frames(self.canvas_sprite, current_animation, current_frame, frames)
+                # Get onion skinning manager
+                from .onion_skinning import get_onion_skinning_manager
+                onion_manager = get_onion_skinning_manager()
+                
+                # If onion skinning is enabled, blit all non-selected frames at 50% transparency
+                if onion_manager.is_global_onion_skinning_enabled():
+                    # Get all frames except the current one for onion skinning
+                    total_frames = len(frames[current_animation])
+                    onion_frames = onion_manager.get_onion_skinned_frames(current_animation, current_frame, total_frames)
+                    LOG.debug(f"Rendering onion frames: {onion_frames}")
+                    
+                    for frame_idx in onion_frames:
+                        if frame_idx < len(frames[current_animation]):
+                            frame = frames[current_animation][frame_idx]
+                            if hasattr(frame, "get_pixel_data"):
+                                frame_pixels = frame.get_pixel_data()
+                            else:
+                                frame_pixels = getattr(
+                                    frame,
+                                    "pixels",
+                                    [(255, 0, 255)] * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
+                                )
+                            
+                            # Blit each pixel with 50% transparency (skip 255,0,255 pixels)
+                            for i, pixel in enumerate(frame_pixels):
+                                # Skip transparent pixels (magenta) - 100% transparent
+                                if pixel == (255, 0, 255):
+                                    continue
+                                    
+                                x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
+                                y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                                
+                                # Draw pixel with 50% transparency
+                                alpha = int(255 * onion_manager.onion_transparency)
+                                transparent_pixel = (*pixel, alpha)
+                                
+                                pygame.draw.rect(
+                                    self.canvas_sprite.image,
+                                    transparent_pixel,
+                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
+                                )
 
-                # Draw the current frame pixels on top
+                # Finally, blit the selected frame at 100% opacity (skip 255,0,255 pixels)
                 frame = frames[current_animation][current_frame]
                 if hasattr(frame, "get_pixel_data"):
                     frame_pixels = frame.get_pixel_data()
@@ -505,8 +543,13 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
                 LOG.debug(f"DEBUG RENDERER: border_thickness={border_thickness}")
-
+                
+                # Blit each pixel of the selected frame at 100% opacity
                 for i, pixel in enumerate(frame_pixels):
+                    # Skip transparent pixels (magenta) - 100% transparent
+                    if pixel == (255, 0, 255):
+                        continue
+                        
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                     
@@ -528,15 +571,18 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             self.canvas_sprite.pixel_height
                         )
                     else:
-                        # Draw normal pixel
+                        # Draw normal pixel at 100% opacity (0% transparent)
                         pygame.draw.rect(
                             self.canvas_sprite.image,
                             pixel,
                             (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                         )
-                    
-                    # Only draw border if border_thickness > 0
-                    if border_thickness > 0:
+                
+                # Draw borders on the main canvas
+                if border_thickness > 0:
+                    for i, pixel in enumerate(frame_pixels):
+                        x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
+                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                         pygame.draw.rect(
                             self.canvas_sprite.image,
                             (64, 64, 64),

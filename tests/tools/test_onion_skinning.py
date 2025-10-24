@@ -6,7 +6,6 @@ import pygame
 from unittest.mock import Mock, patch
 
 from glitchygames.tools.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
-from glitchygames.tools.onion_skinning_renderer import render_onion_skinning_frames
 
 
 class TestOnionSkinningManager:
@@ -62,8 +61,8 @@ class TestOnionSkinningManager:
         assert not manager.is_frame_onion_skinned("animation1", 1)
         assert not manager.is_frame_onion_skinned("animation2", 0)
     
-    def test_get_onion_skinned_frames(self):
-        """Test getting all onion skinned frames for an animation."""
+    def test_get_onion_skinned_frames_old_approach(self):
+        """Test the old approach for getting onion skinned frames (deprecated)."""
         manager = OnionSkinningManager()
         
         # Enable onion skinning for frames 0, 2, and 4
@@ -71,13 +70,12 @@ class TestOnionSkinningManager:
         manager.toggle_frame_onion_skinning("animation1", 2)
         manager.toggle_frame_onion_skinning("animation1", 4)
         
-        # Get onion skinned frames (excluding current frame 1)
-        onion_frames = manager.get_onion_skinned_frames("animation1", 1)
-        assert onion_frames == {0, 2, 4}
-        
-        # Get onion skinned frames (excluding current frame 0)
-        onion_frames = manager.get_onion_skinned_frames("animation1", 0)
-        assert onion_frames == {2, 4}
+        # Test the old individual frame checking approach
+        assert manager.is_frame_onion_skinned("animation1", 0)
+        assert not manager.is_frame_onion_skinned("animation1", 1)
+        assert manager.is_frame_onion_skinned("animation1", 2)
+        assert not manager.is_frame_onion_skinned("animation1", 3)
+        assert manager.is_frame_onion_skinned("animation1", 4)
     
     def test_global_onion_skinning_toggle(self):
         """Test global onion skinning toggle."""
@@ -154,72 +152,23 @@ class TestOnionSkinningManager:
         assert manager.is_frame_onion_skinned("animation1", 0)
         assert not manager.is_frame_onion_skinned("animation1", 1)
         assert manager.is_frame_onion_skinned("animation1", 2)
-
-
-class TestOnionSkinningRenderer:
-    """Test cases for onion skinning renderer."""
     
-    def test_render_onion_skinning_frames_no_frames(self):
-        """Test rendering when no onion skinning frames are enabled."""
-        # Mock canvas sprite
-        canvas_sprite = Mock()
-        canvas_sprite.width = 64
-        canvas_sprite.height = 64
-        canvas_sprite.pixels_across = 8
-        canvas_sprite.pixels_tall = 8
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.image = Mock()
+    def test_get_onion_skinned_frames_new_approach(self):
+        """Test the new get_onion_skinned_frames method that returns all non-current frames."""
+        manager = OnionSkinningManager()
         
-        # Mock frames
-        frames = {
-            "animation1": [
-                Mock(get_pixel_data=lambda: [(255, 0, 0)] * 64),
-                Mock(get_pixel_data=lambda: [(0, 255, 0)] * 64),
-            ]
-        }
+        # Test with global onion skinning enabled
+        assert manager.global_onion_skinning_enabled is True
         
-        # Mock onion manager to return no onion frames
-        with patch('glitchygames.tools.onion_skinning.get_onion_skinning_manager') as mock_get_manager:
-            mock_manager = Mock()
-            mock_manager.get_onion_skinned_frames.return_value = set()
-            mock_get_manager.return_value = mock_manager
-            
-            # Should not raise any exceptions
-            render_onion_skinning_frames(canvas_sprite, "animation1", 0, frames)
-    
-    def test_render_onion_skinning_frames_with_frames(self):
-        """Test rendering when onion skinning frames are enabled."""
-        # Mock canvas sprite
-        canvas_sprite = Mock()
-        canvas_sprite.width = 64
-        canvas_sprite.height = 64
-        canvas_sprite.pixels_across = 8
-        canvas_sprite.pixels_tall = 8
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.image = Mock()
+        # Should return all frames except current when global is enabled
+        onion_frames = manager.get_onion_skinned_frames("animation1", 1, 5)  # 5 total frames, current is 1
+        expected_frames = {0, 2, 3, 4}  # All frames except 1
+        assert onion_frames == expected_frames
         
-        # Mock frames
-        frames = {
-            "animation1": [
-                Mock(get_pixel_data=lambda: [(255, 0, 0)] * 64),
-                Mock(get_pixel_data=lambda: [(0, 255, 0)] * 64),
-            ]
-        }
-        
-        # Mock onion manager to return onion frames
-        with patch('glitchygames.tools.onion_skinning.get_onion_skinning_manager') as mock_get_manager:
-            mock_manager = Mock()
-            mock_manager.get_onion_skinned_frames.return_value = {1}  # Frame 1 should be onion skinned
-            mock_manager.onion_transparency = 0.5
-            mock_get_manager.return_value = mock_manager
-            
-            # Should not raise any exceptions
-            render_onion_skinning_frames(canvas_sprite, "animation1", 0, frames)
-            
-            # Verify that blit was called on the canvas image
-            canvas_sprite.image.blit.assert_called_once()
+        # Test with global onion skinning disabled
+        manager.global_onion_skinning_enabled = False
+        onion_frames = manager.get_onion_skinned_frames("animation1", 1, 5)
+        assert onion_frames == set()  # Should return empty set
 
 
 class TestOnionSkinningIntegration:

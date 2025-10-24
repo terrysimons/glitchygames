@@ -69,12 +69,13 @@ class OnionSkinningManager:
             
         return self.onion_skinning_enabled.get(animation, {}).get(frame, False)
     
-    def get_onion_skinned_frames(self, animation: str, current_frame: int) -> Set[int]:
+    def get_onion_skinned_frames(self, animation: str, current_frame: int, total_frames: int) -> Set[int]:
         """Get all frames that should be rendered with onion skinning.
         
         Args:
             animation: Name of the animation
             current_frame: Current frame being edited (excluded from onion frames)
+            total_frames: Total number of frames in the animation
             
         Returns:
             Set[int]: Set of frame indices that should be onion skinned
@@ -82,14 +83,9 @@ class OnionSkinningManager:
         if not self.global_onion_skinning_enabled:
             return set()
         
-        onion_frames = set()
-        animation_frames = self.onion_skinning_enabled.get(animation, {})
-        
-        for frame_idx, is_enabled in animation_frames.items():
-            if is_enabled and frame_idx != current_frame:
-                onion_frames.add(frame_idx)
-        
-        return onion_frames
+        # NEW APPROACH: Return all frames except current when global onion skinning is enabled
+        all_frames = set(range(total_frames))
+        return all_frames - {current_frame}
     
     def toggle_global_onion_skinning(self) -> bool:
         """Toggle global onion skinning on/off.
@@ -99,6 +95,14 @@ class OnionSkinningManager:
         """
         self.global_onion_skinning_enabled = not self.global_onion_skinning_enabled
         LOG.debug(f"Global onion skinning toggled: {self.global_onion_skinning_enabled}")
+        return self.global_onion_skinning_enabled
+    
+    def is_global_onion_skinning_enabled(self) -> bool:
+        """Check if global onion skinning is enabled.
+        
+        Returns:
+            bool: True if global onion skinning is enabled
+        """
         return self.global_onion_skinning_enabled
     
     def set_transparency(self, transparency: float) -> None:

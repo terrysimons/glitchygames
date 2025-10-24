@@ -229,33 +229,8 @@ def load_ai_training_data():
                 AI_TRAINING_DATA.append(sprite_data)
                 LOG.info(f"Successfully loaded sprite config: {config_file.name}")
 
-                # Create and print the BitmappySprite object for colorized ASCII output
-                try:
-                    # Use the ASCII renderer directly instead of creating BitmappySprite
-                    from glitchygames.tools.ascii_renderer import ASCIIRenderer
-                    import toml
-                    
-                    # Load TOML data directly
-                    with open(str(config_file), 'r') as f:
-                        toml_data = toml.load(f)
-                    
-                    # Get sprite name
-                    sprite_name = toml_data.get('sprite', {}).get('name', config_file.stem)
-                    
-                    print(f"\n🎨 Sprite: {sprite_name}")
-                    print("=" * 50)
-                    
-                    # Render with ASCII renderer
-                    renderer = ASCIIRenderer()
-                    result = renderer.render_sprite(toml_data)
-                    print(result)
-                    print("=" * 50)
-
-                except Exception as e:
-                    LOG.warning(f"Could not display {config_file.name}: {e}")
-                    # Show a simple fallback message
-                    print(f"\n❌ Could not display {config_file.name}: {e}")
-                    print("=" * 50)
+                # Colorized ASCII output disabled for performance
+                # (Previously printed colorized sprite output here)
 
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 LOG.warning(f"Error loading sprite config {config_file}: {e}")
@@ -263,7 +238,7 @@ def load_ai_training_data():
         LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
     LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
-    print(f"\n🎮 All {len(AI_TRAINING_DATA)} sprites loaded and displayed above!")
+    # Colorized output disabled for performance
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -879,7 +854,7 @@ class FilmStripSprite(BitmappySprite):
 
             # Check for shift-click using pygame's current key state
             is_shift_click = pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
-            
+
             # Handle click in the film strip widget
             LOG.debug(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}), shift={is_shift_click}")
             clicked_frame = self.film_strip_widget.handle_click((film_x, film_y), is_shift_click=is_shift_click)
@@ -6050,7 +6025,7 @@ pixels = \"\"\"
             if hasattr(self, "canvas") and self.canvas:
                 self.canvas.force_redraw()
             return
-        
+
         # Check if any controller is in slider mode for arrow key navigation
         any_controller_in_slider_mode = False
         if hasattr(self, 'mode_switcher'):
