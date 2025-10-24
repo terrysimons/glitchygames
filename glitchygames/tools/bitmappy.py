@@ -7434,7 +7434,8 @@ pixels = \"\"\"
         # Update film strip controller selections
         self._update_film_strip_controller_selections()
 
-        # Note: Canvas indicators are handled by their respective widgets
+        # Update canvas indicators
+        self._update_canvas_indicators()
 
     def _create_slider_indicator_sprite(self, controller_id: int, color: tuple, slider_rect: pygame.Rect) -> BitmappySprite:
         """Create a proper Bitmappy sprite for slider indicator."""
@@ -7641,6 +7642,55 @@ pixels = \"\"\"
                             print(f"DEBUG BitmapEditorScene: Added controller {controller_id} to film strip selections for animation {animation}")
 
         print(f"DEBUG BitmapEditorScene: Final film_strip_controller_selections: {self.film_strip_controller_selections}")
+
+    def _update_canvas_indicators(self) -> None:
+        """Update canvas indicators for controllers in canvas mode."""
+        if not hasattr(self, 'canvas') or not self.canvas:
+            return
+
+        # Get all active controllers in canvas mode
+        canvas_controllers = []
+        for controller_id, controller_selection in self.controller_selections.items():
+            if controller_selection.is_active():
+                # Only include controllers in CANVAS mode
+                controller_mode = None
+                if hasattr(self, 'mode_switcher'):
+                    controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+
+                if controller_mode and controller_mode.value == "canvas":
+                    # Get controller color
+                    controller_info = None
+                    if hasattr(self, "multi_controller_manager"):
+                        for instance_id, info in self.multi_controller_manager.controllers.items():
+                            if info.controller_id == controller_id:
+                                controller_info = info
+                                break
+
+                    if controller_info:
+                        # Get controller position
+                        position = self.mode_switcher.get_controller_position(controller_id)
+                        if position and position.is_valid:
+                            canvas_controllers.append({
+                                'controller_id': controller_id,
+                                'position': position.position,
+                                'color': controller_info.color
+                            })
+
+        # Update canvas with controller indicators
+        if canvas_controllers:
+            print(f"DEBUG BitmapEditorScene: Updating canvas with {len(canvas_controllers)} controller indicators")
+            # Store controller data for canvas to use
+            self.canvas_controller_indicators = canvas_controllers
+            # Pass controller data to canvas for drawing
+            if hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.controller_indicators = canvas_controllers
+            # Force canvas redraw to show indicators
+            self.canvas.force_redraw()
+        else:
+            # Clear controller indicators if no controllers in canvas mode
+            self.canvas_controller_indicators = []
+            if hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.controller_indicators = []
 
     def _register_new_controllers(self) -> None:
         """Register any new controllers that have been detected."""

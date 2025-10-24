@@ -196,21 +196,23 @@ class StaticCanvasRenderer(CanvasRenderer):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
             y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
             
+            # Draw normal pixel first
+            pygame.draw.rect(
+                self.canvas_sprite.image,
+                pixel,
+                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+            )
+            
             # Check if any controller is active on this pixel
             controller_indicator_color = self._get_controller_indicator_for_pixel(i)
             if controller_indicator_color:
-                # Draw controller indicator instead of normal pixel
-                pygame.draw.rect(
+                # Draw plus sign indicator on top
+                self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                )
-            else:
-                # Draw normal pixel
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    pixel,
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                    x, y,
+                    self.canvas_sprite.pixel_width,
+                    self.canvas_sprite.pixel_height
                 )
             
             # Only draw border if border_thickness > 0
@@ -237,7 +239,8 @@ class StaticCanvasRenderer(CanvasRenderer):
             if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
                 # Check all controllers for canvas mode
                 for controller_id, controller_selection in scene.controller_selections.items():
-                    if scene.mode_switcher.get_controller_mode(controller_id) == 'canvas':
+                    controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
+                    if controller_mode and controller_mode.value == 'canvas':
                         # Get controller position
                         position = scene.mode_switcher.get_controller_position(controller_id)
                         if position and position.is_valid:
@@ -252,6 +255,55 @@ class StaticCanvasRenderer(CanvasRenderer):
                                         if controller_info:
                                             return controller_info.color
         return None
+
+    def _draw_plus_indicator(self, surface: pygame.Surface, color: tuple[int, int, int], x: int, y: int, width: int, height: int) -> None:
+        """Draw a box indicator with controller color and inverse color borders."""
+        print(f"DEBUG: Drawing indicator at ({x}, {y}) with size ({width}, {height})")
+        
+        # The x,y coordinates are the top-left corner of the pixel box
+        # Calculate the center of the pixel box in screen coordinates
+        center_x = x + self.canvas_sprite.pixel_width // 2
+        center_y = y + self.canvas_sprite.pixel_height // 2
+        print(f"DEBUG: Pixel box at ({x}, {y}) -> Center at ({center_x}, {center_y})")
+        
+        # Convert screen coordinates to pixel coordinates
+        pixel_x = center_x // self.canvas_sprite.pixel_width
+        pixel_y = center_y // self.canvas_sprite.pixel_height
+        print(f"DEBUG: Screen center ({center_x}, {center_y}) -> Pixel coords ({pixel_x}, {pixel_y})")
+        
+        # Get the color of the specific pixel
+        pixel_color = self._get_pixel_color_at_position(pixel_x, pixel_y)
+        inverse_color = self._get_inverse_color(pixel_color)
+        print(f"DEBUG: Pixel color: {pixel_color}, Inverse color: {inverse_color}, Controller color: {color}")
+        
+        # Draw outer box with controller color (1 pixel wide)
+        pygame.draw.rect(surface, color, (x + 1, y + 1, width - 2, height - 2), 1)
+        
+        # Draw inner box with inverse color for contrast (2 pixels wide)
+        pygame.draw.rect(surface, inverse_color, (x + 2, y + 2, width - 4, height - 4), 2)
+
+    def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
+        """Get the pixel color at the specified position."""
+        if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
+            print(f"DEBUG: Canvas sprite pixels_across: {self.canvas_sprite.pixels_across}, pixels_tall: {self.canvas_sprite.pixels_tall}")
+            print(f"DEBUG: Requesting pixel at ({x}, {y})")
+            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                pixel_index = y * self.canvas_sprite.pixels_across + x
+                print(f"DEBUG: Calculated pixel_index: {pixel_index}, total pixels: {len(self.canvas_sprite.pixels)}")
+                if pixel_index < len(self.canvas_sprite.pixels):
+                    pixel_color = self.canvas_sprite.pixels[pixel_index]
+                    print(f"DEBUG: Getting pixel color at ({x}, {y}): {pixel_color}")
+                    return pixel_color
+                else:
+                    print(f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})")
+            else:
+                print(f"DEBUG: Coordinates ({x}, {y}) out of bounds")
+        print(f"DEBUG: Pixel not found at ({x}, {y}), returning black")
+        return (0, 0, 0)  # Default to black if pixel not found
+
+    def _get_inverse_color(self, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        """Get the inverse color for contrast."""
+        return (255 - color[0], 255 - color[1], 255 - color[2])
 
 
 class AnimatedCanvasInterface:
@@ -458,11 +510,19 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     # Check if any controller is active on this pixel
                     controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                     if controller_indicator_color:
-                        # Draw controller indicator instead of normal pixel
+                        # Draw normal pixel first
                         pygame.draw.rect(
                             self.canvas_sprite.image,
-                            controller_indicator_color,
+                            pixel,
                             (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                        # Draw plus sign indicator on top
+                        self._draw_plus_indicator(
+                            self.canvas_sprite.image,
+                            controller_indicator_color,
+                            x, y,
+                            self.canvas_sprite.pixel_width,
+                            self.canvas_sprite.pixel_height
                         )
                     else:
                         # Draw normal pixel
@@ -493,11 +553,19 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     # Check if any controller is active on this pixel
                     controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                     if controller_indicator_color:
-                        # Draw controller indicator instead of normal pixel
+                        # Draw normal pixel first
                         pygame.draw.rect(
                             self.canvas_sprite.image,
-                            controller_indicator_color,
+                            pixel,
                             (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                        )
+                        # Draw plus sign indicator on top
+                        self._draw_plus_indicator(
+                            self.canvas_sprite.image,
+                            controller_indicator_color,
+                            x, y,
+                            self.canvas_sprite.pixel_width,
+                            self.canvas_sprite.pixel_height
                         )
                     else:
                         # Draw normal pixel
@@ -565,7 +633,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
                 # Check all controllers for canvas mode
                 for controller_id, controller_selection in scene.controller_selections.items():
-                    if scene.mode_switcher.get_controller_mode(controller_id) == 'canvas':
+                    controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
+                    if controller_mode and controller_mode.value == 'canvas':
                         # Get controller position
                         position = scene.mode_switcher.get_controller_position(controller_id)
                         if position and position.is_valid:
@@ -580,3 +649,52 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                         if controller_info:
                                             return controller_info.color
         return None
+
+    def _draw_plus_indicator(self, surface: pygame.Surface, color: tuple[int, int, int], x: int, y: int, width: int, height: int) -> None:
+        """Draw a box indicator with controller color and inverse color borders."""
+        print(f"DEBUG: Drawing indicator at ({x}, {y}) with size ({width}, {height})")
+        
+        # The x,y coordinates are the top-left corner of the pixel box
+        # Calculate the center of the pixel box in screen coordinates
+        center_x = x + self.canvas_sprite.pixel_width // 2
+        center_y = y + self.canvas_sprite.pixel_height // 2
+        print(f"DEBUG: Pixel box at ({x}, {y}) -> Center at ({center_x}, {center_y})")
+        
+        # Convert screen coordinates to pixel coordinates
+        pixel_x = center_x // self.canvas_sprite.pixel_width
+        pixel_y = center_y // self.canvas_sprite.pixel_height
+        print(f"DEBUG: Screen center ({center_x}, {center_y}) -> Pixel coords ({pixel_x}, {pixel_y})")
+        
+        # Get the color of the specific pixel
+        pixel_color = self._get_pixel_color_at_position(pixel_x, pixel_y)
+        inverse_color = self._get_inverse_color(pixel_color)
+        print(f"DEBUG: Pixel color: {pixel_color}, Inverse color: {inverse_color}, Controller color: {color}")
+        
+        # Draw outer box with controller color (1 pixel wide)
+        pygame.draw.rect(surface, color, (x + 1, y + 1, width - 2, height - 2), 1)
+        
+        # Draw inner box with inverse color for contrast (2 pixels wide)
+        pygame.draw.rect(surface, inverse_color, (x + 2, y + 2, width - 4, height - 4), 2)
+
+    def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
+        """Get the pixel color at the specified position."""
+        if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
+            print(f"DEBUG: Canvas sprite pixels_across: {self.canvas_sprite.pixels_across}, pixels_tall: {self.canvas_sprite.pixels_tall}")
+            print(f"DEBUG: Requesting pixel at ({x}, {y})")
+            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                pixel_index = y * self.canvas_sprite.pixels_across + x
+                print(f"DEBUG: Calculated pixel_index: {pixel_index}, total pixels: {len(self.canvas_sprite.pixels)}")
+                if pixel_index < len(self.canvas_sprite.pixels):
+                    pixel_color = self.canvas_sprite.pixels[pixel_index]
+                    print(f"DEBUG: Getting pixel color at ({x}, {y}): {pixel_color}")
+                    return pixel_color
+                else:
+                    print(f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})")
+            else:
+                print(f"DEBUG: Coordinates ({x}, {y}) out of bounds")
+        print(f"DEBUG: Pixel not found at ({x}, {y}), returning black")
+        return (0, 0, 0)  # Default to black if pixel not found
+
+    def _get_inverse_color(self, color: tuple[int, int, int]) -> tuple[int, int, int]:
+        """Get the inverse color for contrast."""
+        return (255 - color[0], 255 - color[1], 255 - color[2])
