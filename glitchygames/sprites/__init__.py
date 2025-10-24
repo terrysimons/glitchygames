@@ -1277,7 +1277,7 @@ class BitmappySprite(Sprite):
             pixels_across = getattr(self, "pixels_across", self.width)
             pixels_tall = getattr(self, "pixels_tall", self.height)
             expected_pixels = pixels_across * pixels_tall
-            
+
             if expected_pixels == 0:
                 # Return minimal config for empty surface
                 if file_format == "toml":
@@ -1722,6 +1722,76 @@ class BitmappySprite(Sprite):
 
         """
         self.log.debug(f"{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}")
+
+    def __str__(self: Self) -> str:
+        """Return a colorized ASCII representation of the sprite.
+
+        Returns:
+            str: Colorized TOML representation of the sprite with all frames
+        """
+        try:
+            # Import here to avoid circular imports
+            from glitchygames.tools.ascii_renderer import ASCIIRenderer
+
+            # Load TOML data from file
+            if not self.filename:
+                return f'{type(self)} "{self.name}" (no file loaded)'
+
+            import toml
+            with open(self.filename, 'r') as f:
+                toml_data = toml.load(f)
+
+            # Check if it's an animated sprite and show all frames
+            if 'animation' in toml_data and len(toml_data['animation']) > 0:
+                output_lines = []
+
+                # Show sprite header once
+                if 'sprite' in toml_data and 'name' in toml_data['sprite']:
+                    output_lines.append('[sprite]')
+                    output_lines.append(f'name = "{toml_data["sprite"]["name"]}"')
+                    output_lines.append('')
+
+                # Show all animations and frames
+                for anim_idx, animation in enumerate(toml_data['animation']):
+                    namespace = animation.get('namespace', f'animation_{anim_idx}')
+                    output_lines.append(f'# Namespace: {namespace}')
+                    output_lines.append('')
+
+                    if 'frame' in animation:
+                        for frame_idx, frame in enumerate(animation['frame']):
+                            output_lines.append(f'# Frame {frame_idx}:')
+
+                            if 'pixels' in frame:
+                                # Create a temporary sprite data for this frame
+                                frame_data = {
+                                    'sprite': {
+                                        'name': toml_data.get('sprite', {}).get('name', 'unnamed'),
+                                        'pixels': frame['pixels']
+                                    },
+                                    'colors': toml_data.get('colors', {})
+                                }
+
+                                # Render this frame with colorized output
+                                renderer = ASCIIRenderer()
+                                frame_result = renderer.render_sprite(frame_data)
+                                output_lines.append(frame_result)
+                                output_lines.append('')
+                            else:
+                                output_lines.append('# No pixels data in this frame')
+                                output_lines.append('')
+                    else:
+                        output_lines.append('# No frames found in this animation')
+                        output_lines.append('')
+
+                return '\n'.join(output_lines)
+            else:
+                # Static sprite - show normally
+                renderer = ASCIIRenderer()
+                return renderer.render_sprite(toml_data)
+
+        except Exception as e:
+            # Fallback to basic representation if rendering fails
+            return f'{type(self)} "{self.name}" (error rendering: {e})'
 
 
 class Singleton:
