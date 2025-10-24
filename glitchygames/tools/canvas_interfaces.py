@@ -485,7 +485,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite.height,
                 ), pygame.SRCALPHA)
                 self.canvas_sprite.image = self.canvas_sprite.image.convert_alpha()
-                self.canvas_sprite.image.fill((0, 0, 0, 255))  # Black background to match canvas
+                self.canvas_sprite.image.fill((255, 0, 255, 255))  # Magenta background at 100% opacity
 
                 # Get onion skinning manager
                 from .onion_skinning import get_onion_skinning_manager
@@ -572,15 +572,25 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 
                 # Blit each pixel of the selected frame at 100% opacity
                 for i, pixel in enumerate(frame_pixels):
-                    # Skip transparent pixels (magenta) - 100% transparent
-                    if pixel == (255, 0, 255):
-                        continue
-                        
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                     
-                    # Check if any controller is active on this pixel
+                    # Check if any controller is active on this pixel (even for transparent pixels)
                     controller_indicator_color = self._get_controller_indicator_for_pixel(i)
+                    
+                    # Skip transparent pixels (magenta) - 100% transparent, but still check for controller indicators
+                    if pixel == (255, 0, 255):
+                        # Only draw controller indicator for transparent pixels
+                        if controller_indicator_color:
+                            self._draw_plus_indicator(
+                                self.canvas_sprite.image,
+                                controller_indicator_color,
+                                x, y,
+                                self.canvas_sprite.pixel_width,
+                                self.canvas_sprite.pixel_height
+                            )
+                        continue
+                    
                     if controller_indicator_color:
                         # Draw normal pixel first
                         pygame.draw.rect(

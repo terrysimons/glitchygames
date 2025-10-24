@@ -8232,15 +8232,17 @@ pixels = \"\"\"
                                     break
 
                         if controller_info and animation:
-                            # Group by animation
-                            if animation not in self.film_strip_controller_selections:
-                                self.film_strip_controller_selections[animation] = []
+                            # Only include controllers that have been properly initialized (not default gray)
+                            if controller_info.color != (128, 128, 128):
+                                # Group by animation
+                                if animation not in self.film_strip_controller_selections:
+                                    self.film_strip_controller_selections[animation] = []
 
-                            self.film_strip_controller_selections[animation].append({
-                                'controller_id': controller_id,
-                                'frame': frame,
-                                'color': controller_info.color
-                            })
+                                self.film_strip_controller_selections[animation].append({
+                                    'controller_id': controller_id,
+                                    'frame': frame,
+                                    'color': controller_info.color
+                                })
 
     def _update_canvas_indicators(self) -> None:
         """Update canvas indicators for controllers in canvas mode."""
