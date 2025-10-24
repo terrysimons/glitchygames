@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import cProfile
+import importlib
 import logging
 import multiprocessing
 import platform
@@ -16,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 import pygame
 from glitchygames import events
 from glitchygames.color import PURPLE
+from glitchygames.events.app import AppManager
 from glitchygames.events.audio import AudioManager
 from glitchygames.events.controller import ControllerManager
 from glitchygames.events.drop import DropManager
@@ -116,7 +118,7 @@ class GameEngine(events.EventManager):
 
         Supported Arguments:
             -f, --target-fps
-            --fps-refresh-rate
+            --fps-log-interval-ms
             -w, --windowed
             -r, --resolution
             --use-gfxdraw
@@ -140,8 +142,9 @@ class GameEngine(events.EventManager):
             default=0.0,
         )
         group.add_argument(
-            "--fps-refresh-rate",
-            help="how often to update the FPS counter in ms (default: 1000)",
+            "--fps-log-interval-ms",
+            help="how often to log the FPS counter in ms (default: 1000)",
+            type=float,
             default=1000,
         )
         group.add_argument(
@@ -284,12 +287,12 @@ class GameEngine(events.EventManager):
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
-        self.fps: float = options.get("fps", 0.0)
+        self.fps: float = options.get("target_fps", 0.0)
         self.update_type = options.get("update_type")
         self.use_gfxdraw = options.get("use_gfxdraw")
         self.windowed = options.get("windowed")
         self.desired_resolution = options.get("resolution")
-        self.fps_refresh_rate = options.get("fps_refresh_rate")
+        self.fps_log_interval_ms = options.get("fps_log_interval_ms")
         self.pygame_version = {"major": 0, "minor": 0, "patch": 0}
 
         self.pygame_version["major"] = pygame.version.vernum[0]
@@ -690,7 +693,7 @@ class GameEngine(events.EventManager):
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger("game")
 
-        self.log.info("Starting game engine for game: {type(self).NAME}")
+        self.log.info(f"Starting game engine for game: {type(self).NAME}")
         if self.game is None:
             raise RuntimeError(
                 "Game not initialized.  Pass a game class to the GameEngine constructor."
@@ -714,7 +717,23 @@ class GameEngine(events.EventManager):
             self.app_manager = AppManager(game=self.scene_manager)
             self.audio_manager = AudioManager(game=self.scene_manager)
             self.drop_manager = DropManager(game=self.scene_manager)
-            self.controller_manager = ControllerManager(game=self.scene_manager)
+
+            using_pygame_ce = False
+            try:
+                using_pygame_ce = importlib.metadata.distribution("pygame").metadata["Name"] == "pygame-ce"
+            except (NameError, importlib.metadata.PackageNotFoundError):
+                using_pygame_ce = importlib.metadata.distribution("pygame-ce").metadata["Name"] == "pygame-ce"
+                LOG.warning("Pygame CE detected, disabling controller manager.")
+
+            if using_pygame_ce:
+                self.controller_manager = None
+                # Disable Controller Events
+                pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            else:
+                self.controller_manager = ControllerManager(game=self.scene_manager)
+                # Enable controller events for button presses and axis movements
+                pygame._sdl2.controller.set_eventstate(True)
+
             self.touch_manager = TouchManager(game=self.scene_manager)
             # https://glitchy-games.atlassian.net/browse/GG-23
             self.font_manager = FontManager(game=self.scene_manager)
@@ -735,10 +754,24 @@ class GameEngine(events.EventManager):
             self.scene_manager.switch_to_scene(self.game)
             self.scene_manager.start()
         except Exception:
-            self.log.exception("Error starting game.")
+            current_scene = getattr(self.scene_manager, 'current_scene', None)
+            scene_name = getattr(current_scene, 'NAME', 'Unknown') if current_scene else 'None'
+            self.log.exception(f"Runtime error during game execution @ scene '{scene_name}'")
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed
         finally:
+            # Print performance report before shutdown
+            try:
+                from glitchygames.performance import performance_manager
+                # Configure performance manager with the same log interval as FPS
+                performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+                # Configure performance manager with target FPS for grading
+                performance_manager.set_target_fps(self.fps)
+                performance_manager.print_shutdown_report()
+                performance_manager.print_per_scene_shutdown_report()
+            except ImportError:
+                pass  # Performance module not available
+
             pygame.display.quit()
             pygame.quit()
 
@@ -905,6 +938,7 @@ class GameEngine(events.EventManager):
             bool: True if the event was handled, False otherwise.
 
         """
+
         if event.type == pygame.CONTROLLERAXISMOTION:
             self.controller_manager.on_controller_axis_motion_event(event)
             return True
@@ -1326,6 +1360,27 @@ class GameEngine(events.EventManager):
             None
 
         """
+        # Debug: Special handling for event type 1543
+        if event.type == 1543:
+            event_name = pygame.event.event_name(event.type)
+            print(f"DEBUG: process_unimplemented_event received event type {event.type} ({event_name}): {event}")
+            print(f"DEBUG: Event dict contents: {dict(event)}")
+            print(f"DEBUG: Event attributes: {[attr for attr in dir(event) if not attr.startswith('_')]}")
+
+            # Check if this might be a controller event by looking at controller count
+            current_controller_count = pygame._sdl2.controller.get_count()
+            print(f"DEBUG: Current controller count when event 1543 received: {current_controller_count}")
+
+            # Check if this event has any controller-related attributes
+            print(f"DEBUG: Event has device_index: {hasattr(event, 'device_index')}")
+            print(f"DEBUG: Event has guid: {hasattr(event, 'guid')}")
+            print(f"DEBUG: Event has instance_id: {hasattr(event, 'instance_id')}")
+
+            # Try to get the raw event object if possible
+            print(f"DEBUG: Event type: {type(event)}")
+            print(f"DEBUG: Event repr: {repr(event)}")
+            print(f"DEBUG: pygame.event.event_name(event.type): {pygame.event.event_name(event.type)}")
+
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
                 f"(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}"

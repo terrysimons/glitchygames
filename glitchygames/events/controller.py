@@ -81,6 +81,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             self._attached = self.controller.attached()
 
             self._numaxes = len(self.AXIS)
+            # Start with hardcoded button count, but allow dynamic growth
             self._numbuttons = len(self.BUTTONS)
             self._mapping = self.controller.get_mapping()
 
@@ -115,6 +116,12 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 None
 
             """
+            self.log.debug(f"CONTROLLERBUTTONDOWN triggered: {event}")
+            # Ensure storage accommodates this button index
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 1
             self.game.on_controller_button_down_event(event)
 
@@ -128,6 +135,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 None
 
             """
+            self.log.debug(f"CONTROLLERBUTTONUP triggered: {event}")
+            if event.button < 0:
+                return
+            if event.button >= len(self._buttons):
+                self._buttons.extend([0] * (event.button + 1 - len(self._buttons)))
             self._buttons[event.button] = 0
             self.game.on_controller_button_up_event(event)
 
@@ -285,7 +297,14 @@ class ControllerManager(ControllerEvents, ResourceManager):
             argparse.ArgumentParser: The argument parser.
 
         """
-        group = parser.add_argument_group("Controller Options")  # noqa: F841
+        group = parser.add_argument_group("Controller Options")
+
+        group.add_argument(
+            "--input-mode",
+            choices=["joystick", "controller"],
+            default="controller",
+            help="Choose input event family to use (default: controller)",
+        )
 
         return parser
 
@@ -385,10 +404,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         """
         # CONTROLLERDEVICEREMOVED instance_id
-        self.controllers[event.instance_id].on_controller_device_removed_event(event)
-        del self.controllers[event.instance_id]
-        self.log.debug(f"Removed Controller #{event.instance_id}")
-        self.log.debug(f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})")
+        if event.instance_id in self.controllers:
+            self.controllers[event.instance_id].on_controller_device_removed_event(event)
+            del self.controllers[event.instance_id]
+            self.log.debug(f"Removed Controller #{event.instance_id}")
+            self.log.debug(f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})")
 
     def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad down events.

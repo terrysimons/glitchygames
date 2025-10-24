@@ -22,6 +22,8 @@ nav:
     - glitchygames.templates: "glitchygames/templates/index.md"
     - glitchygames.tools: "glitchygames/tools/index.md"
     - glitchygames.ui: "glitchygames/ui/index.md"
+  - Documentation:
+    - Multi-Controller System: "multi_controller_system.md"
 
 validation:
   omitted_files: warn

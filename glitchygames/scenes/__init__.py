@@ -60,7 +60,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # Display surface quit or not initialized, will be set later
             self.screen = None
         self.update_type = "update"
-        self.fps_refresh_rate = 1000
+        self.fps_log_interval_ms = 1000
         self.target_fps = 0
         self.dt = 0
         self.timer = 0
@@ -96,11 +96,19 @@ class SceneManager(SceneInterface, events.EventManager):
         if self._game_engine:
             self.OPTIONS = self._game_engine.OPTIONS
             self.update_type = self.OPTIONS["update_type"]
-            self.fps_refresh_rate = self.OPTIONS["fps_refresh_rate"]
+            self.fps_log_interval_ms = self.OPTIONS["fps_log_interval_ms"]
             self.target_fps = self.OPTIONS.get("target_fps", 60)
-            self.log.info(f"Screen update type: {self.update_type}")
-            self.log.info(f"FPS Refresh Rate: {self.fps_refresh_rate}")
-            self.log.info(f"Target FPS: {self.target_fps}")
+        self.log.info(f"Screen update type: {self.update_type}")
+        self.log.info(f"FPS Log Interval: {self.fps_log_interval_ms}ms")
+        self.log.info(f"Target FPS: {self.target_fps}")
+        
+        # Configure performance manager with the same log interval and target FPS
+        try:
+            from glitchygames.performance import performance_manager
+            performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+            performance_manager.set_target_fps(self.target_fps)
+        except ImportError:
+            pass  # Performance module not available
 
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
@@ -128,19 +136,23 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         if next_scene != self.active_scene:
+            # Track the previous scene BEFORE any cleanup or setup
+            self.previous_scene = self.active_scene
             self._reset_scene_timers()
             self._log_scene_switch(next_scene)
             self._cleanup_current_scene()
             self._setup_new_scene(next_scene)
             self._log_blocked_events(next_scene)
-            # Track the previous scene before switching
-            # Set previous_scene to the running scene if it's None
-            if self.previous_scene is None and self.active_scene is not None:
-                self.previous_scene = self.active_scene
-            else:
-                self.previous_scene = self.active_scene
             self.active_scene = next_scene
             self._configure_active_scene()
+            
+            # Update performance manager with current scene
+            try:
+                from glitchygames.performance import performance_manager
+                if next_scene:  # Only track performance for real scenes, not None
+                    performance_manager.set_current_scene(next_scene.NAME)
+            except ImportError:
+                pass  # Performance module not available
 
     def play(self: Self) -> None:
         """Play the game."""
@@ -158,16 +170,35 @@ class SceneManager(SceneInterface, events.EventManager):
         current_time: float = previous_time
 
         while self.active_scene is not None and self.quit_requested is False:
-            self._tick_clock()
+            # Tick the clock for FPS control
+            if self.target_fps > 0:
+                self.clock.tick(self.target_fps)
+            else:
+                self.clock.tick()
 
             now: float = time.perf_counter()
             self.dt: float = now - previous_time
             previous_time = now
 
+            # Start timing ONLY the actual processing (after tick_clock)
+            processing_start = time.perf_counter()
+            
             self._update_scene()
             self._process_events()
             self._render_scene()
             self._update_display()
+            
+            # End timing the actual processing
+            processing_end = time.perf_counter()
+            actual_processing_time = processing_end - processing_start
+            
+            # Feed FPS data to performance manager with actual processing time
+            try:
+                from glitchygames.performance import performance_manager
+                current_fps = self.clock.get_fps()
+                performance_manager.track_fps_from_event(current_fps, actual_processing_time)
+            except ImportError:
+                pass  # Performance module not available
 
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()
@@ -367,7 +398,10 @@ class SceneManager(SceneInterface, events.EventManager):
             True if FPS event should be posted
 
         """
-        return (current_time - previous_fps_time) * 1000 >= float(self.OPTIONS["fps_refresh_rate"])
+        # Update FPS measurements at half the log interval for better accuracy
+        # but still log at the specified interval
+        update_interval_ms = float(self.OPTIONS["fps_log_interval_ms"]) / 2.0
+        return (current_time - previous_fps_time) * 1000 >= update_interval_ms
 
     def _post_fps_event(self) -> None:
         """Post FPS event."""
@@ -383,6 +417,18 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             # For unlimited FPS, just tick without limiting
             self.clock.tick()
+        
+        # Feed FPS data directly to performance manager for accurate tracking
+        try:
+            from glitchygames.performance import performance_manager
+            current_fps = self.clock.get_fps()
+            # Calculate actual frame time for spare time calculation
+            frame_time = self.dt if hasattr(self, 'dt') else 0.0
+            if frame_time > 0:  # Debug: only print occasionally
+                print(f"DEBUG: frame_time={frame_time*1000:.1f}ms, fps={current_fps:.1f}")
+            performance_manager.track_fps_from_event(current_fps, frame_time)
+        except ImportError:
+            pass  # Performance module not available
 
     def _update_scene(self) -> None:
         """Update the active scene."""
@@ -1949,12 +1995,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
-        # Only log FPS once per second to reduce log spam
+        # Log FPS at the specified interval to reduce log spam
         current_time = time.perf_counter()
         if not hasattr(self, "_last_fps_log_time"):
             self._last_fps_log_time = 0
 
-        if current_time - self._last_fps_log_time >= 1.0:  # Log once per second
+        # Use the configured log interval instead of hardcoded 1.0 second
+        log_interval_seconds = float(self.scene_manager.fps_log_interval_ms) / 1000.0
+        if current_time - self._last_fps_log_time >= log_interval_seconds:
             self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event.fps}')
             self._last_fps_log_time = current_time
 
@@ -2026,3 +2074,56 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         self.log.info(f"Text submitted: '{text}'")
+
+    def pause(self: Self) -> None:
+        """Pause the current scene.
+        
+        Default implementation switches to a PauseScene.
+        Scenes can override this method to provide custom pause behavior.
+        
+        Returns:
+            None
+        """
+        from .builtin_scenes.pause_scene import PauseScene
+        
+        # Create the pause scene
+        pause_scene = PauseScene(options=self.options)
+        
+        # Switch to the pause scene
+        self.scene_manager.switch_to_scene(pause_scene)
+        
+        self.log.info("Scene paused")
+
+    def resume(self: Self) -> None:
+        """Resume the current scene.
+        
+        Default implementation switches back to the previous scene.
+        Scenes can override this method to provide custom resume behavior.
+        
+        Returns:
+            None
+        """
+        if self.scene_manager.previous_scene:
+            self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
+            self.log.info("Scene resumed")
+        else:
+            self.log.warning("No previous scene found to resume")
+
+    def game_over(self: Self) -> None:
+        """Handle game over for the current scene.
+        
+        Default implementation switches to a GameOverScene.
+        Scenes can override this method to provide custom game over behavior.
+        
+        Returns:
+            None
+        """
+        from .builtin_scenes.game_over_scene import GameOverScene
+        
+        # Create the game over scene
+        game_over_scene = GameOverScene(options=self.options)
+        
+        # Switch to the game over scene
+        self.scene_manager.switch_to_scene(game_over_scene)
+        
+        self.log.info("Game over")

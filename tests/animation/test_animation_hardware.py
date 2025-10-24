@@ -10,8 +10,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pygame
 import pytest
+import pygame
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
@@ -108,14 +108,8 @@ class HardwareAnimationTestScene(Scene):
         # Update the scene first
         self.update()
 
-        # Draw all sprites to the test surface with fallback for mocks
-        try:
-            self.all_sprites.draw(self.test_surface)
-        except (TypeError, AttributeError):
-            # Fallback for mock environments - just draw individual sprites
-            for sprite in self.all_sprites:
-                if hasattr(sprite, "image") and hasattr(sprite, "rect"):
-                    self.test_surface.blit(sprite.image, sprite.rect)
+        # Draw all sprites to the test surface
+        self.all_sprites.draw(self.test_surface)
 
         # Extract pixel data
         width, height = self.test_surface.get_size()
@@ -190,7 +184,7 @@ class TestAnimationHardware:
             patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
-        
+
         # Load the colors.toml animation for testing
         self.animation_file = get_resource_path("colors.toml")
 

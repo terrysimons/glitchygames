@@ -2027,6 +2027,66 @@ class SliderSprite(BitmappySprite):
             else:
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
+        
+        # Draw visual indicators for multi-controller system
+        self._draw_slider_visual_indicators()
+
+    def _draw_slider_visual_indicators(self):
+        """Draw visual indicators for multi-controller system on sliders."""
+        if not hasattr(self, 'parent') or not self.parent:
+            return
+            
+        # Check if parent has visual collision manager
+        if not hasattr(self.parent, 'visual_collision_manager'):
+            return
+            
+        from glitchygames.tools.visual_collision_manager import LocationType
+        
+        # Get slider indicators from the visual collision manager
+        slider_indicators = self.parent.visual_collision_manager.get_indicators_by_location(LocationType.SLIDER)
+        if not slider_indicators:
+            return
+            
+        print(f"DEBUG: Drawing {len(slider_indicators)} slider indicators on {self.name} slider")
+        
+        # Draw each indicator on this slider
+        for controller_id, indicator in slider_indicators.items():
+            # Calculate position relative to this slider
+            slider_x = self.rect.x
+            slider_y = self.rect.y
+            slider_width = self.rect.width
+            
+            # Map indicator position to slider coordinates
+            # For now, use a simple mapping - this could be improved
+            indicator_x = slider_x + (indicator.position[0] % slider_width)
+            indicator_y = slider_y + indicator.position[1]
+            
+            # Draw the indicator based on its shape
+            if indicator.shape.value == "circle":
+                # Draw circle (slider indicator)
+                pygame.draw.circle(self.image, indicator.color, 
+                                 (indicator_x - slider_x, indicator_y - slider_y), 
+                                 indicator.size // 2)
+            elif indicator.shape.value == "square":
+                # Draw square
+                rect = pygame.Rect(indicator_x - slider_x - indicator.size // 2,
+                                 indicator_y - slider_y - indicator.size // 2,
+                                 indicator.size, indicator.size)
+                pygame.draw.rect(self.image, indicator.color, rect)
+            elif indicator.shape.value == "triangle":
+                # Draw triangle
+                points = [
+                    (indicator_x - slider_x, indicator_y - slider_y - indicator.size // 2),
+                    (indicator_x - slider_x - indicator.size // 2, indicator_y - slider_y + indicator.size // 2),
+                    (indicator_x - slider_x + indicator.size // 2, indicator_y - slider_y + indicator.size // 2)
+                ]
+                pygame.draw.polygon(self.image, indicator.color, points)
+
+    def update(self):
+        """Update the slider appearance when dirty."""
+        if self.dirty:
+            self.update_slider_appearance()
+            self.dirty = 0
 
     # def update_color_well(self):
     #     """Update the color well with current value."""

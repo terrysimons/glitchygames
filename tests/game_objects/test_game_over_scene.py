@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pygame
-from glitchygames.examples.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
 
@@ -15,7 +15,7 @@ from tests.mocks.test_mock_factory import MockFactory
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-PATCH_TARGET_GAME_OVER_SCENE = "glitchygames.examples.game_over_scene.GameOverScene"
+PATCH_TARGET_GAME_OVER_SCENE = "glitchygames.scenes.builtin_scenes.game_over_scene.GameOverScene"
 
 
 class TestGameOverScene(unittest.TestCase):
@@ -112,12 +112,12 @@ class TestGameOverScene(unittest.TestCase):
         # Test SPACE key (restart)
         space_event = Mock()
         space_event.key = pygame.K_SPACE
-        scene.handle_key_down(space_event)
+        scene.on_key_down_event(space_event)
 
         # Test ESC key (quit)
         esc_event = Mock()
         esc_event.key = pygame.K_ESCAPE
-        scene.handle_key_down(esc_event)
+        scene.on_key_down_event(esc_event)
 
 
 class TestGameOverIntegration(unittest.TestCase):
@@ -202,7 +202,8 @@ class TestGameOverIntegration(unittest.TestCase):
             mock_game_engine.OPTIONS = {
                 "update_type": "dirty",
                 "fps_refresh_rate": 1,
-                "target_fps": 60
+                "target_fps": 60,
+                "fps_log_interval_ms": 1000
             }
             scene_manager.game_engine = mock_game_engine
 
