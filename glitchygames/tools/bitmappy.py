@@ -6011,7 +6011,7 @@ pixels = \"\"\"
             elif event.key == pygame.K_DOWN:
                 self.log.debug("DOWN arrow pressed - navigating to next slider mode")
                 self._handle_slider_mode_navigation("down")
-                return
+            return
 
         # Handle animation navigation and film strip scrolling (UP/DOWN arrows)
         if event.key == pygame.K_UP:
@@ -6771,10 +6771,9 @@ pixels = \"\"\"
         print(f"DEBUG: _handle_slider_button_press called for controller {controller_id}, button {button}")
 
         if button == pygame.CONTROLLER_BUTTON_A:
-            # A button: Select current slider
-            print(f"DEBUG: Controller {controller_id}: A button pressed - select slider")
-            LOG.debug(f"Controller {controller_id}: A button pressed - select slider")
-            self._slider_select_current(controller_id)
+            # A button: No action in slider mode
+            print(f"DEBUG: Controller {controller_id}: A button pressed - no action in slider mode")
+            LOG.debug(f"Controller {controller_id}: A button pressed - no action in slider mode")
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Start continuous decrease
             print(f"DEBUG: Controller {controller_id}: D-pad left pressed - start continuous decrease")
@@ -6806,7 +6805,7 @@ pixels = \"\"\"
             LOG.debug(f"Controller {controller_id}: Right shoulder pressed - start continuous increase by 8")
             self._start_slider_continuous_adjustment(controller_id, 8)
         else:
-            # Other buttons not handled in slider mode
+            # Other buttons not handled in slider mode (including B button)
             print(f"DEBUG: Controller {controller_id}: Button {button} not handled in slider mode")
             LOG.debug(f"Controller {controller_id}: Button {button} not handled in slider mode")
 
@@ -6832,6 +6831,11 @@ pixels = \"\"\"
                            pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
             print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous adjustment")
             self._stop_slider_continuous_adjustment(controller_id)
+
+            # Update color well when slider adjustment is finished (only if controller is in slider mode)
+            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+            if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
+                self._update_color_well_from_sliders()
 
         # Handle A button release in canvas mode (end controller drag)
         if event.button == pygame.CONTROLLER_BUTTON_A:
@@ -7017,31 +7021,35 @@ pixels = \"\"\"
         return (255, 255, 255)
 
     # Slider Mode Implementation Methods
-    def _slider_select_current(self, controller_id: int) -> None:
-        """Select the current slider for the controller."""
-        print(f"DEBUG: Controller {controller_id} selected current slider")
+    def _update_color_well_from_sliders(self) -> None:
+        """Update the color well with current slider values."""
+        print(f"DEBUG: _update_color_well_from_sliders called")
+        if hasattr(self, 'color_well') and self.color_well:
+            # Get current slider values
+            red_value = self.red_slider.value if hasattr(self, 'red_slider') else 0
+            green_value = self.green_slider.value if hasattr(self, 'green_slider') else 0
+            blue_value = self.blue_slider.value if hasattr(self, 'blue_slider') else 0
 
-        # Get the controller's current mode to determine which slider
-        if hasattr(self, 'mode_switcher'):
-            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+            print(f"DEBUG: Slider values - R:{red_value}, G:{green_value}, B:{blue_value}")
+            print(f"DEBUG: Color well before update: {self.color_well.active_color}")
 
-            # Update the appropriate slider value based on controller position
-            position = self.mode_switcher.get_controller_position(controller_id)
-            if position and position.is_valid:
-                # Convert position to slider value (0-255)
-                slider_value = int((position.position[0] / 255.0) * 255)
-                slider_value = max(0, min(255, slider_value))
+            # Update color well
+            self.color_well.active_color = (red_value, green_value, blue_value)
 
-                # Update the slider based on mode
-                if controller_mode and controller_mode.value == "r_slider":
-                    self.red_slider.value = slider_value
-                    print(f"DEBUG: Set R slider to {slider_value}")
-                elif controller_mode and controller_mode.value == "g_slider":
-                    self.green_slider.value = slider_value
-                    print(f"DEBUG: Set G slider to {slider_value}")
-                elif controller_mode and controller_mode.value == "b_slider":
-                    self.blue_slider.value = slider_value
-                    print(f"DEBUG: Set B slider to {slider_value}")
+            # Force color well to redraw
+            if hasattr(self.color_well, 'dirty'):
+                self.color_well.dirty = 1
+
+            # Also dirty the main scene to ensure redraw
+            self.dirty = 1
+
+            # Force color well to update its display
+            if hasattr(self.color_well, 'force_redraw'):
+                self.color_well.force_redraw()
+
+            print(f"DEBUG: Updated color well to ({red_value}, {green_value}, {blue_value})")
+        else:
+            print(f"DEBUG: No color_well found or color_well is None")
 
     def _handle_slider_mode_navigation(self, direction: str, controller_id: int = None) -> None:
         """Handle arrow key navigation between slider modes."""
@@ -7111,6 +7119,8 @@ pixels = \"\"\"
                 old_value = self.red_slider.value
                 new_value = max(0, min(255, old_value + delta))
                 print(f"DEBUG: R slider: {old_value} -> {new_value}")
+                # Update the slider value
+                self.red_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = pygame.event.Event(0, {"name": "R", "value": new_value})
                 self.on_slider_event(pygame.event.Event(0), trigger)
@@ -7119,6 +7129,8 @@ pixels = \"\"\"
                 old_value = self.green_slider.value
                 new_value = max(0, min(255, old_value + delta))
                 print(f"DEBUG: G slider: {old_value} -> {new_value}")
+                # Update the slider value
+                self.green_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = pygame.event.Event(0, {"name": "G", "value": new_value})
                 self.on_slider_event(pygame.event.Event(0), trigger)
@@ -7127,6 +7139,8 @@ pixels = \"\"\"
                 old_value = self.blue_slider.value
                 new_value = max(0, min(255, old_value + delta))
                 print(f"DEBUG: B slider: {old_value} -> {new_value}")
+                # Update the slider value
+                self.blue_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = pygame.event.Event(0, {"name": "B", "value": new_value})
                 self.on_slider_event(pygame.event.Event(0), trigger)
@@ -7204,6 +7218,15 @@ pixels = \"\"\"
 
                 # Apply the adjustment
                 self._slider_adjust_value(controller_id, delta)
+
+                # Update color well during continuous adjustment
+                controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+                print(f"DEBUG: Continuous adjustment - controller {controller_id} mode: {controller_mode.value if controller_mode else 'None'}")
+                if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
+                    print(f"DEBUG: Calling _update_color_well_from_sliders during continuous adjustment")
+                    self._update_color_well_from_sliders()
+                else:
+                    print(f"DEBUG: Not updating color well - controller not in slider mode")
 
                 # Update last adjustment time
                 adjustment_data['last_adjustment'] = current_time
@@ -7628,24 +7651,19 @@ pixels = \"\"\"
 
     def _render_visual_indicators(self) -> None:
         """Render visual indicators for multi-controller system."""
-        print("DEBUG BitmapEditorScene: _render_visual_indicators called")
-
         # Initialize controller selections if needed
         if not hasattr(self, 'controller_selections'):
             self.controller_selections = {}
-            print("DEBUG BitmapEditorScene: Initialized controller_selections")
 
         # Initialize mode switcher if needed
         if not hasattr(self, 'mode_switcher'):
             from glitchygames.tools.controller_mode_system import ModeSwitcher
             self.mode_switcher = ModeSwitcher()
-            print("DEBUG BitmapEditorScene: Initialized mode_switcher")
 
         # Initialize multi-controller manager if needed
         if not hasattr(self, 'multi_controller_manager'):
             from glitchygames.tools.multi_controller_manager import MultiControllerManager
             self.multi_controller_manager = MultiControllerManager()
-            print("DEBUG BitmapEditorScene: Initialized multi_controller_manager")
 
         # Scan for new controllers
         if hasattr(self, 'multi_controller_manager'):
@@ -7653,12 +7671,6 @@ pixels = \"\"\"
 
         # Register any new controllers
         self._register_new_controllers()
-
-        # Debug: Check if multi-controller manager has any controllers
-        if hasattr(self, 'multi_controller_manager'):
-            print(f"DEBUG BitmapEditorScene: Multi-controller manager has {len(self.multi_controller_manager.controllers)} controllers")
-            for instance_id, controller_info in self.multi_controller_manager.controllers.items():
-                print(f"DEBUG BitmapEditorScene: Controller instance {instance_id}, controller_id {controller_info.controller_id}")
 
         # Initialize slider indicators dictionary if needed
         if not hasattr(self, 'slider_indicators'):
@@ -7837,8 +7849,6 @@ pixels = \"\"\"
 
     def _update_film_strip_controller_selections(self) -> None:
         """Update film strip controller selections for all animations."""
-        print(f"DEBUG BitmapEditorScene: _update_film_strip_controller_selections called")
-
         # Initialize film strip controller selections if needed
         if not hasattr(self, 'film_strip_controller_selections'):
             self.film_strip_controller_selections = {}
@@ -7846,24 +7856,18 @@ pixels = \"\"\"
         # Clear existing selections
         self.film_strip_controller_selections.clear()
 
-        print(f"DEBUG BitmapEditorScene: controller_selections count: {len(self.controller_selections) if hasattr(self, 'controller_selections') else 'No controller_selections'}")
-
         # Collect all active controllers in film strip mode
         if hasattr(self, 'controller_selections'):
             for controller_id, controller_selection in self.controller_selections.items():
-                print(f"DEBUG BitmapEditorScene: Controller {controller_id}, active: {controller_selection.is_active()}")
-
                 # Check if controller is active in controller_selections
                 if controller_selection.is_active():
                     # Only include controllers in FILM_STRIP mode
                     controller_mode = None
                     if hasattr(self, 'mode_switcher'):
                         controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-                        print(f"DEBUG BitmapEditorScene: Controller {controller_id} mode: {controller_mode.value if controller_mode else 'None'}")
 
                     if controller_mode and controller_mode.value == "film_strip":
                         animation, frame = controller_selection.get_selection()
-                        print(f"DEBUG BitmapEditorScene: Controller {controller_id} selection: {animation}[{frame}]")
 
                         # Get controller color
                         controller_info = None
@@ -7883,9 +7887,6 @@ pixels = \"\"\"
                                 'frame': frame,
                                 'color': controller_info.color
                             })
-                            print(f"DEBUG BitmapEditorScene: Added controller {controller_id} to film strip selections for animation {animation}")
-
-        print(f"DEBUG BitmapEditorScene: Final film_strip_controller_selections: {self.film_strip_controller_selections}")
 
     def _update_canvas_indicators(self) -> None:
         """Update canvas indicators for controllers in canvas mode."""
