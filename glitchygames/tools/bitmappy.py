@@ -7387,8 +7387,37 @@ pixels = \"\"\"
 
     def _render_visual_indicators(self) -> None:
         """Render visual indicators for multi-controller system."""
+        print("DEBUG BitmapEditorScene: _render_visual_indicators called")
+
+        # Initialize controller selections if needed
         if not hasattr(self, 'controller_selections'):
-            return
+            self.controller_selections = {}
+            print("DEBUG BitmapEditorScene: Initialized controller_selections")
+
+        # Initialize mode switcher if needed
+        if not hasattr(self, 'mode_switcher'):
+            from glitchygames.tools.controller_mode_system import ModeSwitcher
+            self.mode_switcher = ModeSwitcher()
+            print("DEBUG BitmapEditorScene: Initialized mode_switcher")
+
+        # Initialize multi-controller manager if needed
+        if not hasattr(self, 'multi_controller_manager'):
+            from glitchygames.tools.multi_controller_manager import MultiControllerManager
+            self.multi_controller_manager = MultiControllerManager()
+            print("DEBUG BitmapEditorScene: Initialized multi_controller_manager")
+
+        # Scan for new controllers
+        if hasattr(self, 'multi_controller_manager'):
+            self.multi_controller_manager.scan_for_controllers()
+
+        # Register any new controllers
+        self._register_new_controllers()
+
+        # Debug: Check if multi-controller manager has any controllers
+        if hasattr(self, 'multi_controller_manager'):
+            print(f"DEBUG BitmapEditorScene: Multi-controller manager has {len(self.multi_controller_manager.controllers)} controllers")
+            for instance_id, controller_info in self.multi_controller_manager.controllers.items():
+                print(f"DEBUG BitmapEditorScene: Controller instance {instance_id}, controller_id {controller_info.controller_id}")
 
         # Initialize slider indicators dictionary if needed
         if not hasattr(self, 'slider_indicators'):
@@ -7402,7 +7431,10 @@ pixels = \"\"\"
         # Update all slider indicators with collision avoidance
         self._update_all_slider_indicators()
 
-        # Note: Film strip and canvas indicators are handled by their respective widgets
+        # Update film strip controller selections
+        self._update_film_strip_controller_selections()
+
+        # Note: Canvas indicators are handled by their respective widgets
 
     def _create_slider_indicator_sprite(self, controller_id: int, color: tuple, slider_rect: pygame.Rect) -> BitmappySprite:
         """Create a proper Bitmappy sprite for slider indicator."""
@@ -7559,6 +7591,79 @@ pixels = \"\"\"
 
             # Move to next position
             current_x += indicator_spacing
+
+    def _update_film_strip_controller_selections(self) -> None:
+        """Update film strip controller selections for all animations."""
+        print(f"DEBUG BitmapEditorScene: _update_film_strip_controller_selections called")
+
+        # Initialize film strip controller selections if needed
+        if not hasattr(self, 'film_strip_controller_selections'):
+            self.film_strip_controller_selections = {}
+
+        # Clear existing selections
+        self.film_strip_controller_selections.clear()
+
+        print(f"DEBUG BitmapEditorScene: controller_selections count: {len(self.controller_selections) if hasattr(self, 'controller_selections') else 'No controller_selections'}")
+
+        # Collect all active controllers in film strip mode
+        if hasattr(self, 'controller_selections'):
+            for controller_id, controller_selection in self.controller_selections.items():
+                print(f"DEBUG BitmapEditorScene: Controller {controller_id}, active: {controller_selection.is_active()}")
+                if controller_selection.is_active():
+                    # Only include controllers in FILM_STRIP mode
+                    controller_mode = None
+                    if hasattr(self, 'mode_switcher'):
+                        controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+                        print(f"DEBUG BitmapEditorScene: Controller {controller_id} mode: {controller_mode.value if controller_mode else 'None'}")
+
+                    if controller_mode and controller_mode.value == "film_strip":
+                        animation, frame = controller_selection.get_selection()
+                        print(f"DEBUG BitmapEditorScene: Controller {controller_id} selection: {animation}[{frame}]")
+
+                        # Get controller color
+                        controller_info = None
+                        if hasattr(self, "multi_controller_manager"):
+                            for instance_id, info in self.multi_controller_manager.controllers.items():
+                                if info.controller_id == controller_id:
+                                    controller_info = info
+                                    break
+
+                        if controller_info and animation:
+                            # Group by animation
+                            if animation not in self.film_strip_controller_selections:
+                                self.film_strip_controller_selections[animation] = []
+
+                            self.film_strip_controller_selections[animation].append({
+                                'controller_id': controller_id,
+                                'frame': frame,
+                                'color': controller_info.color
+                            })
+                            print(f"DEBUG BitmapEditorScene: Added controller {controller_id} to film strip selections for animation {animation}")
+
+        print(f"DEBUG BitmapEditorScene: Final film_strip_controller_selections: {self.film_strip_controller_selections}")
+
+    def _register_new_controllers(self) -> None:
+        """Register any new controllers that have been detected."""
+        if not hasattr(self, 'multi_controller_manager'):
+            return
+
+        # Check for any controllers that aren't registered yet
+        for instance_id, controller_info in self.multi_controller_manager.controllers.items():
+            controller_id = controller_info.controller_id
+            if controller_id not in self.controller_selections:
+                # Register new controller
+                from glitchygames.tools.controller_selection import ControllerSelection
+                self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+
+                # Activate the controller
+                self.controller_selections[controller_id].activate()
+
+                # Register with mode switcher
+                if hasattr(self, 'mode_switcher'):
+                    from glitchygames.tools.controller_mode_system import ControllerMode
+                    self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
+
+                print(f"DEBUG BitmapEditorScene: Registered and activated new controller {controller_id} (instance {instance_id})")
 
     def _remove_slider_indicator(self, controller_id: int) -> None:
         """Remove slider indicator for a controller."""

@@ -1454,9 +1454,6 @@ class FilmStripWidget:
         # Draw multi-controller indicators using new unified system
         self._draw_multi_controller_indicators_new(surface)
 
-        # Mark as dirty to ensure sprockets are redrawn
-        self.mark_dirty()
-
     def _draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
         """Draw multi-controller indicators using the controller selections system."""
         
@@ -1472,28 +1469,12 @@ class FilmStripWidget:
                 keyboard_animation = self.parent_scene.selected_animation
                 keyboard_frame = self.parent_scene.selected_frame
 
-        # Get controller selections from the multi-controller system
+        # Get controller selections from the parent scene
         controller_selections = []
         if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "controller_selections"):
-                for controller_id, controller_selection in self.parent_scene.controller_selections.items():
-                    if controller_selection.is_active():
-                        animation, frame = controller_selection.get_selection()
-                        if animation == self.current_animation:
-                            # Get controller color from multi-controller manager
-                            controller_info = None
-                            if hasattr(self.parent_scene, "multi_controller_manager"):
-                                for instance_id, info in self.parent_scene.multi_controller_manager.controllers.items():
-                                    if info.controller_id == controller_id:
-                                        controller_info = info
-                                        break
-                            
-                            if controller_info:
-                                controller_selections.append({
-                                    'controller_id': controller_id,
-                                    'frame': frame,
-                                    'color': controller_info.color
-                                })
+            if hasattr(self.parent_scene, "film_strip_controller_selections"):
+                # Use the pre-filtered controller selections from the parent scene
+                controller_selections = self.parent_scene.film_strip_controller_selections.get(self.current_animation, [])
         
         # Draw all indicators using the existing system
         self._draw_multi_controller_indicators(surface, keyboard_animation, keyboard_frame, controller_selections)
