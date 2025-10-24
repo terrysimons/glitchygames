@@ -479,24 +479,36 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             frames = self.canvas_sprite.animated_sprite.frames
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
-                # Create a single transparent buffer for all frames
+                # Create a single transparent buffer for all frames (hardware accelerated)
                 self.canvas_sprite.image = pygame.Surface((
                     self.canvas_sprite.width,
                     self.canvas_sprite.height,
                 ), pygame.SRCALPHA)
-                self.canvas_sprite.image.fill((0, 0, 0, 0))  # Transparent background
+                self.canvas_sprite.image = self.canvas_sprite.image.convert_alpha()
+                self.canvas_sprite.image.fill((0, 0, 0, 255))  # Black background to match canvas
 
                 # Get onion skinning manager
                 from .onion_skinning import get_onion_skinning_manager
                 onion_manager = get_onion_skinning_manager()
                 
-                # If onion skinning is enabled, blit all non-selected frames at 50% transparency
+                # If onion skinning is enabled, blend only explicitly enabled frames
                 if onion_manager.is_global_onion_skinning_enabled():
-                    # Get all frames except the current one for onion skinning
-                    total_frames = len(frames[current_animation])
-                    onion_frames = onion_manager.get_onion_skinned_frames(current_animation, current_frame, total_frames)
+                    # Get only frames that have onion skinning explicitly enabled
+                    onion_frames = set()
+                    for frame_idx in range(len(frames[current_animation])):
+                        if frame_idx != current_frame and onion_manager.is_frame_onion_skinned(current_animation, frame_idx):
+                            onion_frames.add(frame_idx)
                     LOG.debug(f"Rendering onion frames: {onion_frames}")
                     
+                    # Create a temporary surface to accumulate onion layers (hardware accelerated)
+                    onion_accumulator = pygame.Surface((
+                        self.canvas_sprite.width,
+                        self.canvas_sprite.height,
+                    ), pygame.SRCALPHA)
+                    onion_accumulator = onion_accumulator.convert_alpha()
+                    onion_accumulator.fill((0, 0, 0, 0))  # Transparent background
+                    
+                    # Blend each onion frame into the accumulator
                     for frame_idx in onion_frames:
                         if frame_idx < len(frames[current_animation]):
                             frame = frames[current_animation][frame_idx]
@@ -509,7 +521,15 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                     [(255, 0, 255)] * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
                                 )
                             
-                            # Blit each pixel with 50% transparency (skip 255,0,255 pixels)
+                            # Create a temporary surface for this onion frame (hardware accelerated)
+                            frame_surface = pygame.Surface((
+                                self.canvas_sprite.width,
+                                self.canvas_sprite.height,
+                            ), pygame.SRCALPHA)
+                            frame_surface = frame_surface.convert_alpha()
+                            frame_surface.fill((0, 0, 0, 0))  # Transparent background
+                            
+                            # Draw each pixel with onion transparency (skip 255,0,255 pixels)
                             for i, pixel in enumerate(frame_pixels):
                                 # Skip transparent pixels (magenta) - 100% transparent
                                 if pixel == (255, 0, 255):
@@ -518,15 +538,21 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                                 
-                                # Draw pixel with 50% transparency
+                                # Draw pixel with onion transparency
                                 alpha = int(255 * onion_manager.onion_transparency)
                                 transparent_pixel = (*pixel, alpha)
                                 
                                 pygame.draw.rect(
-                                    self.canvas_sprite.image,
+                                    frame_surface,
                                     transparent_pixel,
                                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
                                 )
+                            
+                            # Blend this frame into the accumulator using alpha blending
+                            onion_accumulator.blit(frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)
+                    
+                    # Blit the accumulated onion layers onto the main canvas
+                    self.canvas_sprite.image.blit(onion_accumulator, (0, 0))
 
                 # Finally, blit the selected frame at 100% opacity (skip 255,0,255 pixels)
                 frame = frames[current_animation][current_frame]

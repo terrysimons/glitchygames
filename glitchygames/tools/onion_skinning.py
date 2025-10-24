@@ -30,7 +30,7 @@ class OnionSkinningManager:
         self.global_onion_skinning_enabled = True
         
         # Transparency level for onion frames (0.0 = transparent, 1.0 = opaque)
-        self.onion_transparency = 0.5
+        self.onion_transparency = 0.75
         
         LOG.debug("OnionSkinningManager initialized")
     
