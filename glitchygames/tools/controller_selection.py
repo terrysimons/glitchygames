@@ -25,6 +25,7 @@ class ControllerSelectionState:
     selected_animation: str = ""
     selected_frame: int = 0
     selected_slider: str = "R"  # R, G, or B
+    controller_fill_direction: str = "HORIZONTAL"  # HORIZONTAL or VERTICAL
     is_active: bool = False
     last_update_time: float = 0.0
     navigation_history: list = None
@@ -167,6 +168,29 @@ class ControllerSelection:
             Name of the selected slider (R, G, or B)
         """
         return self.state.selected_slider
+    
+    def set_fill_direction(self, direction: str) -> None:
+        """
+        Set the fill direction for this controller.
+        
+        Args:
+            direction: "HORIZONTAL" or "VERTICAL"
+        """
+        if direction in ["HORIZONTAL", "VERTICAL"]:
+            self.state.controller_fill_direction = direction
+            self.state.last_update_time = time.time()
+            print(f"DEBUG: Controller {self.controller_id} fill direction set to {direction}")
+        else:
+            print(f"DEBUG: Invalid fill direction '{direction}' for controller {self.controller_id}")
+    
+    def get_fill_direction(self) -> str:
+        """
+        Get the current fill direction for this controller.
+        
+        Returns:
+            Current fill direction ("HORIZONTAL" or "VERTICAL")
+        """
+        return self.state.controller_fill_direction
     
     def activate(self) -> None:
         """Activate this controller for navigation."""

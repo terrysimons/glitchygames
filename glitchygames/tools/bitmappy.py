@@ -5775,6 +5775,9 @@ pixels = \"\"\"
         # Update continuous slider adjustments
         self._update_slider_continuous_adjustments()
 
+        # Update continuous canvas movements
+        self._update_canvas_continuous_movements()
+
         # Update the animated canvas with delta time
         if (
             hasattr(self, "canvas")
@@ -6732,35 +6735,87 @@ pixels = \"\"\"
             LOG.debug(f"Controller {controller_id}: B button pressed - erasing on canvas")
             self._canvas_erase_at_controller_position(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            # D-pad left: Move canvas cursor left
-            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - move canvas cursor left")
-            LOG.debug(f"Controller {controller_id}: D-pad left pressed - move canvas cursor left")
-            self._canvas_move_cursor(controller_id, -1, 0)
+            # D-pad left: Start continuous movement left
+            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - start continuous movement left")
+            LOG.debug(f"Controller {controller_id}: D-pad left pressed - start continuous movement left")
+            self._start_canvas_continuous_movement(controller_id, -1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            # D-pad right: Move canvas cursor right
-            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - move canvas cursor right")
-            LOG.debug(f"Controller {controller_id}: D-pad right pressed - move canvas cursor right")
-            self._canvas_move_cursor(controller_id, 1, 0)
+            # D-pad right: Start continuous movement right
+            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - start continuous movement right")
+            LOG.debug(f"Controller {controller_id}: D-pad right pressed - start continuous movement right")
+            self._start_canvas_continuous_movement(controller_id, 1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            # D-pad up: Move canvas cursor up
-            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - move canvas cursor up")
-            LOG.debug(f"Controller {controller_id}: D-pad up pressed - move canvas cursor up")
-            self._canvas_move_cursor(controller_id, 0, -1)
+            # D-pad up: Start continuous movement up
+            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - start continuous movement up")
+            LOG.debug(f"Controller {controller_id}: D-pad up pressed - start continuous movement up")
+            self._start_canvas_continuous_movement(controller_id, 0, -1)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            # D-pad down: Move canvas cursor down
-            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - move canvas cursor down")
-            LOG.debug(f"Controller {controller_id}: D-pad down pressed - move canvas cursor down")
-            self._canvas_move_cursor(controller_id, 0, 1)
+            # D-pad down: Start continuous movement down
+            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - start continuous movement down")
+            LOG.debug(f"Controller {controller_id}: D-pad down pressed - start continuous movement down")
+            self._start_canvas_continuous_movement(controller_id, 0, 1)
         elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
-            # Left shoulder button: Previous frame (same as film strip)
-            print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER button pressed - previous frame")
-            LOG.debug(f"Controller {controller_id}: LEFT SHOULDER button pressed - previous frame")
-            self._multi_controller_previous_frame(controller_id)
+            # Left shoulder button: Move or paint 8 pixels based on controller's fill direction and B button state
+            if hasattr(self, 'controller_selections') and controller_id in self.controller_selections:
+                fill_direction = self.controller_selections[controller_id].get_fill_direction()
+                # Check if A button (X on PS5) is currently held down
+                a_button_held = self._is_controller_button_held(controller_id, pygame.CONTROLLER_BUTTON_A)
+
+                if fill_direction == "HORIZONTAL":
+                    if a_button_held:
+                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels left")
+                        LOG.debug(f"Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels left")
+                        self._canvas_paint_horizontal_line(controller_id, -8)
+                    else:
+                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER - jump 8 pixels left")
+                        LOG.debug(f"Controller {controller_id}: LEFT SHOULDER - jump 8 pixels left")
+                        self._canvas_jump_horizontal(controller_id, -8)
+                else:  # VERTICAL
+                    if a_button_held:
+                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels up")
+                        LOG.debug(f"Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels up")
+                        self._canvas_paint_vertical_line(controller_id, -8)
+                    else:
+                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER - jump 8 pixels up")
+                        LOG.debug(f"Controller {controller_id}: LEFT SHOULDER - jump 8 pixels up")
+                        self._canvas_jump_vertical(controller_id, -8)
         elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
-            # Right shoulder button: Next frame (same as film strip)
-            print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER button pressed - next frame")
-            LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER button pressed - next frame")
-            self._multi_controller_next_frame(controller_id)
+            # Right shoulder button: Move or paint 8 pixels based on controller's fill direction and B button state
+            if hasattr(self, 'controller_selections') and controller_id in self.controller_selections:
+                fill_direction = self.controller_selections[controller_id].get_fill_direction()
+                # Check if A button (X on PS5) is currently held down
+                a_button_held = self._is_controller_button_held(controller_id, pygame.CONTROLLER_BUTTON_A)
+
+                if fill_direction == "HORIZONTAL":
+                    if a_button_held:
+                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels right")
+                        LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels right")
+                        self._canvas_paint_horizontal_line(controller_id, 8)
+                    else:
+                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels right")
+                        LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels right")
+                        self._canvas_jump_horizontal(controller_id, 8)
+                else:  # VERTICAL
+                    if a_button_held:
+                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels down")
+                        LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels down")
+                        self._canvas_paint_vertical_line(controller_id, 8)
+                    else:
+                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels down")
+                        LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels down")
+                        self._canvas_jump_vertical(controller_id, 8)
+        elif button == pygame.CONTROLLER_BUTTON_Y:
+            # Y button: Toggle fill direction between HORIZONTAL and VERTICAL for this controller
+            if hasattr(self, 'controller_selections') and controller_id in self.controller_selections:
+                current_direction = self.controller_selections[controller_id].get_fill_direction()
+                if current_direction == "HORIZONTAL":
+                    self.controller_selections[controller_id].set_fill_direction("VERTICAL")
+                    print(f"DEBUG: Controller {controller_id}: Y button pressed - switched to VERTICAL fill")
+                    LOG.debug(f"Controller {controller_id}: Y button pressed - switched to VERTICAL fill")
+                else:
+                    self.controller_selections[controller_id].set_fill_direction("HORIZONTAL")
+                    print(f"DEBUG: Controller {controller_id}: Y button pressed - switched to HORIZONTAL fill")
+                    LOG.debug(f"Controller {controller_id}: Y button pressed - switched to HORIZONTAL fill")
         else:
             # Other buttons not handled in canvas mode
             print(f"DEBUG: Controller {controller_id}: Button {button} not handled in canvas mode")
@@ -6827,8 +6882,7 @@ pixels = \"\"\"
             return
 
         # Handle button releases for continuous slider adjustment
-        if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
-                           pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
+        if event.button in [pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
             print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous adjustment")
             self._stop_slider_continuous_adjustment(controller_id)
 
@@ -6836,6 +6890,12 @@ pixels = \"\"\"
             controller_mode = self.mode_switcher.get_controller_mode(controller_id)
             if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
                 self._update_color_well_from_sliders()
+
+        # Handle button releases for continuous canvas movement
+        if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+                           pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN]:
+            print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous movement")
+            self._stop_canvas_continuous_movement(controller_id)
 
         # Handle A button release in canvas mode (end controller drag)
         if event.button == pygame.CONTROLLER_BUTTON_A:
@@ -7230,6 +7290,265 @@ pixels = \"\"\"
 
                 # Update last adjustment time
                 adjustment_data['last_adjustment'] = current_time
+
+    def _start_canvas_continuous_movement(self, controller_id: int, dx: int, dy: int) -> None:
+        """Start continuous canvas movement with acceleration."""
+        if not hasattr(self, 'canvas_continuous_movements'):
+            self.canvas_continuous_movements = {}
+
+        # Do the first movement immediately for responsive feel
+        self._canvas_move_cursor(controller_id, dx, dy)
+
+        # Initialize continuous movement for this controller
+        current_time = time.time()
+        self.canvas_continuous_movements[controller_id] = {
+            'dx': dx,
+            'dy': dy,
+            'start_time': current_time,
+            'last_movement': current_time,
+            'acceleration_level': 0
+        }
+        print(f"DEBUG: Started continuous canvas movement for controller {controller_id}, direction ({dx}, {dy}) (immediate first movement)")
+
+    def _stop_canvas_continuous_movement(self, controller_id: int) -> None:
+        """Stop continuous canvas movement."""
+        if hasattr(self, 'canvas_continuous_movements') and controller_id in self.canvas_continuous_movements:
+            del self.canvas_continuous_movements[controller_id]
+            print(f"DEBUG: Stopped continuous canvas movement for controller {controller_id}")
+
+    def _update_canvas_continuous_movements(self) -> None:
+        """Update continuous canvas movements with acceleration."""
+        if not hasattr(self, 'canvas_continuous_movements'):
+            return
+
+        current_time = time.time()
+
+        for controller_id, movement_data in list(self.canvas_continuous_movements.items()):
+            # Calculate time since start and since last movement
+            time_since_start = current_time - movement_data['start_time']
+            time_since_last = current_time - movement_data['last_movement']
+
+            # Calculate acceleration level (same as sliders)
+            if time_since_start < 0.8:
+                acceleration_level = 0
+                interval = 0.15  # ~6.7 movements per second
+            elif time_since_start < 1.5:
+                acceleration_level = 1
+                interval = 0.1  # 10 movements per second
+            elif time_since_start < 2.5:
+                acceleration_level = 2
+                interval = 0.05  # 20 movements per second
+            else:
+                acceleration_level = 3
+                interval = 0.025  # 40 movements per second
+
+            # Update acceleration level if changed
+            if acceleration_level != movement_data['acceleration_level']:
+                movement_data['acceleration_level'] = acceleration_level
+                print(f"DEBUG: Controller {controller_id} canvas movement acceleration level {acceleration_level}")
+
+            # Check if enough time has passed for next movement
+            if time_since_last >= interval:
+                # Calculate movement delta based on acceleration level (1, 2, 4, 8)
+                dx = movement_data['dx'] * (2 ** acceleration_level)
+                dy = movement_data['dy'] * (2 ** acceleration_level)
+                dx = max(-8, min(8, dx))  # Cap at ±8
+                dy = max(-8, min(8, dy))  # Cap at ±8
+
+                # Apply the movement
+                self._canvas_move_cursor(controller_id, dx, dy)
+
+                # Update last movement time
+                movement_data['last_movement'] = current_time
+
+    def _canvas_paint_horizontal_line(self, controller_id: int, distance: int) -> None:
+        """Paint a horizontal line of pixels starting from the controller's current position."""
+        print(f"DEBUG: _canvas_paint_horizontal_line called for controller {controller_id}, distance {distance}")
+
+        # Get controller position from mode switcher
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: No valid position found for controller {controller_id}")
+            return
+
+        start_x, start_y = position.position
+        current_color = self._get_current_color()
+
+        print(f"DEBUG: Painting horizontal line from ({start_x}, {start_y}) with distance {distance}, color {current_color}")
+
+        # Get canvas dimensions for boundary checking
+        canvas_width = 0
+        canvas_height = 0
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_width = getattr(self.canvas, 'pixels_across', 0)
+            canvas_height = getattr(self.canvas, 'pixels_tall', 0)
+
+        print(f"DEBUG: Canvas dimensions: {canvas_width}x{canvas_height}")
+
+        # Paint pixels in a horizontal line
+        for i in range(abs(distance)):
+            if distance > 0:
+                # Moving right
+                pixel_x = start_x + i
+            else:
+                # Moving left
+                pixel_x = start_x - i
+
+            pixel_y = start_y
+
+            # Clamp coordinates to canvas bounds
+            if canvas_width > 0:
+                pixel_x = max(0, min(pixel_x, canvas_width - 1))
+            if canvas_height > 0:
+                pixel_y = max(0, min(pixel_y, canvas_height - 1))
+
+            # Paint the pixel using the canvas interface
+            if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)
+                print(f"DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}")
+            else:
+                print(f"DEBUG: No canvas or canvas_interface available")
+
+        # Force canvas redraw
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.force_redraw()
+
+        # Update controller position to the end of the line (clamped to canvas bounds)
+        end_x = start_x + distance
+        if canvas_width > 0:
+            end_x = max(0, min(end_x, canvas_width - 1))
+        if canvas_height > 0:
+            start_y = max(0, min(start_y, canvas_height - 1))
+
+        self.mode_switcher.save_controller_position(controller_id, (end_x, start_y))
+        print(f"DEBUG: Updated controller {controller_id} position to ({end_x}, {start_y}) (clamped to canvas bounds)")
+
+    def _canvas_paint_vertical_line(self, controller_id: int, distance: int) -> None:
+        """Paint a vertical line of pixels starting from the controller's current position."""
+        print(f"DEBUG: _canvas_paint_vertical_line called for controller {controller_id}, distance {distance}")
+
+        # Get controller position from mode switcher
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: No valid position found for controller {controller_id}")
+            return
+
+        start_x, start_y = position.position
+        current_color = self._get_current_color()
+
+        print(f"DEBUG: Painting vertical line from ({start_x}, {start_y}) with distance {distance}, color {current_color}")
+
+        # Get canvas dimensions for boundary checking
+        canvas_width = 0
+        canvas_height = 0
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_width = getattr(self.canvas, 'pixels_across', 0)
+            canvas_height = getattr(self.canvas, 'pixels_tall', 0)
+
+        print(f"DEBUG: Canvas dimensions: {canvas_width}x{canvas_height}")
+
+        # Paint pixels in a vertical line
+        for i in range(abs(distance)):
+            if distance > 0:
+                # Moving down
+                pixel_y = start_y + i
+            else:
+                # Moving up
+                pixel_y = start_y - i
+
+            pixel_x = start_x
+
+            # Clamp coordinates to canvas bounds
+            if canvas_width > 0:
+                pixel_x = max(0, min(pixel_x, canvas_width - 1))
+            if canvas_height > 0:
+                pixel_y = max(0, min(pixel_y, canvas_height - 1))
+
+            # Paint the pixel using the canvas interface
+            if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
+                self.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)
+                print(f"DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}")
+            else:
+                print(f"DEBUG: No canvas or canvas_interface available")
+
+        # Force canvas redraw
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.force_redraw()
+
+        # Update controller position to the end of the line (clamped to canvas bounds)
+        end_y = start_y + distance
+        if canvas_width > 0:
+            start_x = max(0, min(start_x, canvas_width - 1))
+        if canvas_height > 0:
+            end_y = max(0, min(end_y, canvas_height - 1))
+
+        self.mode_switcher.save_controller_position(controller_id, (start_x, end_y))
+        print(f"DEBUG: Updated controller {controller_id} position to ({start_x}, {end_y}) (clamped to canvas bounds)")
+
+    def _is_controller_button_held(self, controller_id: int, button: int) -> bool:
+        """Check if a controller button is currently held down."""
+        try:
+            # Get the controller instance
+            controller = pygame.joystick.Joystick(controller_id)
+            return controller.get_button(button)
+        except (pygame.error, ValueError):
+            return False
+
+    def _canvas_jump_horizontal(self, controller_id: int, distance: int) -> None:
+        """Jump horizontally without painting pixels."""
+        print(f"DEBUG: _canvas_jump_horizontal called for controller {controller_id}, distance {distance}")
+
+        # Get controller position from mode switcher
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: No valid position found for controller {controller_id}")
+            return
+
+        start_x, start_y = position.position
+
+        # Get canvas dimensions for boundary checking
+        canvas_width = 0
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_width = getattr(self.canvas, 'pixels_across', 0)
+
+        # Calculate new position
+        end_x = start_x + distance
+
+        # Clamp to canvas bounds
+        if canvas_width > 0:
+            end_x = max(0, min(end_x, canvas_width - 1))
+
+        # Update controller position
+        self.mode_switcher.save_controller_position(controller_id, (end_x, start_y))
+        print(f"DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({end_x}, {start_y})")
+
+    def _canvas_jump_vertical(self, controller_id: int, distance: int) -> None:
+        """Jump vertically without painting pixels."""
+        print(f"DEBUG: _canvas_jump_vertical called for controller {controller_id}, distance {distance}")
+
+        # Get controller position from mode switcher
+        position = self.mode_switcher.get_controller_position(controller_id)
+        if not position or not position.is_valid:
+            print(f"DEBUG: No valid position found for controller {controller_id}")
+            return
+
+        start_x, start_y = position.position
+
+        # Get canvas dimensions for boundary checking
+        canvas_height = 0
+        if hasattr(self, 'canvas') and self.canvas:
+            canvas_height = getattr(self.canvas, 'pixels_tall', 0)
+
+        # Calculate new position
+        end_y = start_y + distance
+
+        # Clamp to canvas bounds
+        if canvas_height > 0:
+            end_y = max(0, min(end_y, canvas_height - 1))
+
+        # Update controller position
+        self.mode_switcher.save_controller_position(controller_id, (start_x, end_y))
+        print(f"DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({start_x}, {end_y})")
 
     def _slider_previous(self, controller_id: int) -> None:
         """Move to the previous slider (now handled by L2/R2 mode switching)."""
