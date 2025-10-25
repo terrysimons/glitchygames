@@ -1261,6 +1261,26 @@ class AnimatedCanvasSprite(BitmappySprite):
                         self._buffer_pixels[buffer_index] = self.pixels[canvas_index]
         
         self.log.debug(f"Panning system initialized: buffer={self.buffer_width}x{self.buffer_height}, viewport={self.viewport_width}x{self.viewport_height}")
+    
+    def _sync_buffer_with_canvas(self) -> None:
+        """Copy current canvas pixels to the buffer center."""
+        if not hasattr(self, '_buffer_pixels') or not hasattr(self, 'pixels'):
+            return
+            
+        buffer_center_x = (self.buffer_width - self.pixels_across) // 2
+        buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
+        
+        for y in range(self.pixels_tall):
+            for x in range(self.pixels_across):
+                buffer_x = buffer_center_x + x
+                buffer_y = buffer_center_y + y
+                buffer_index = buffer_y * self.buffer_width + buffer_x
+                canvas_index = y * self.pixels_across + x
+                
+                if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
+                    self._buffer_pixels[buffer_index] = self.pixels[canvas_index]
+        
+        self.log.debug(f"Buffer synced with canvas: {len(self.pixels)} pixels copied to center of buffer")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -1523,6 +1543,10 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
+            
+            # Sync the buffer with the canvas pixels after frame is loaded
+            if hasattr(self, '_sync_buffer_with_canvas'):
+                self._sync_buffer_with_canvas()
 
             # Notify the parent scene about the frame change
             if hasattr(self, "parent_scene") and self.parent_scene:
@@ -1844,6 +1868,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update canvas pixels with viewport data
         self.pixels = viewport_pixels
         self.dirty_pixels = [True] * len(self.pixels)
+        
+        # Force redraw to update the visual display including borders
+        self.force_redraw()
 
     def reset_panning(self) -> None:
         """Reset panning to original position."""
@@ -2799,6 +2826,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Update canvas pixels with viewport data
         self.pixels = viewport_pixels
         self.dirty_pixels = [True] * len(self.pixels)
+        
+        # Force redraw to update the visual display including borders
+        self.force_redraw()
 
     def reset_panning(self) -> None:
         """Reset panning to original position."""
@@ -6869,20 +6899,20 @@ pixels = \"\"\"
         # Handle panning with Ctrl+Shift+Arrow keys
         if (mod & pygame.KMOD_CTRL) and (mod & pygame.KMOD_SHIFT) and hasattr(self, "canvas") and self.canvas:
             if event.key == pygame.K_LEFT:
-                self.log.debug("Ctrl+Shift+LEFT arrow pressed - panning left")
-                self._handle_canvas_panning(-1, 0)
-                return
-            elif event.key == pygame.K_RIGHT:
-                self.log.debug("Ctrl+Shift+RIGHT arrow pressed - panning right")
+                self.log.debug("Ctrl+Shift+LEFT arrow pressed - panning right (inverted for user perception)")
                 self._handle_canvas_panning(1, 0)
                 return
+            elif event.key == pygame.K_RIGHT:
+                self.log.debug("Ctrl+Shift+RIGHT arrow pressed - panning left (inverted for user perception)")
+                self._handle_canvas_panning(-1, 0)
+                return
             elif event.key == pygame.K_UP:
-                self.log.debug("Ctrl+Shift+UP arrow pressed - panning up")
-                self._handle_canvas_panning(0, -1)
+                self.log.debug("Ctrl+Shift+UP arrow pressed - panning down (inverted for user perception)")
+                self._handle_canvas_panning(0, 1)
                 return
             elif event.key == pygame.K_DOWN:
-                self.log.debug("Ctrl+Shift+DOWN arrow pressed - panning down")
-                self._handle_canvas_panning(0, 1)
+                self.log.debug("Ctrl+Shift+DOWN arrow pressed - panning up (inverted for user perception)")
+                self._handle_canvas_panning(0, -1)
                 return
 
         # Check if any controller is in slider mode for arrow key navigation

@@ -288,26 +288,30 @@ class TestPanningKeyboardHandling:
         event.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
         
         # Test the actual keyboard handling through the scene
+        # LEFT arrow should now pan right (inverted for user perception)
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(-1, 0)
+        self.canvas.pan_canvas.assert_called_with(1, 0)
         
         # Test Ctrl+Shift+Right
         event.key = pygame.K_RIGHT
         self.canvas.pan_canvas.reset_mock()  # Reset the mock call history
+        # RIGHT arrow should now pan left (inverted for user perception)
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(1, 0)
+        self.canvas.pan_canvas.assert_called_with(-1, 0)
         
         # Test Ctrl+Shift+Up
         event.key = pygame.K_UP
         self.canvas.pan_canvas.reset_mock()
+        # UP arrow should now pan down (inverted for user perception)
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(0, -1)
+        self.canvas.pan_canvas.assert_called_with(0, 1)
         
         # Test Ctrl+Shift+Down
         event.key = pygame.K_DOWN
         self.canvas.pan_canvas.reset_mock()
+        # DOWN arrow should now pan up (inverted for user perception)
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(0, 1)
+        self.canvas.pan_canvas.assert_called_with(0, -1)
 
     def test_arrow_keys_without_ctrl_shift(self):
         """Test that arrow keys without Ctrl+Shift don't trigger panning."""
