@@ -178,6 +178,136 @@ AI_TRAINING_FORMAT = None  # Will be detected from training files
 
 # Load sprite configuration files for AI training
 SPRITE_CONFIG_DIR = resource_path("glitchygames", "examples", "resources", "sprites")
+def _detect_alpha_channel(colors: dict) -> bool:
+    """Detect if colors contain alpha channel information or magenta transparency.
+
+    Args:
+        colors: Dictionary of color definitions
+
+    Returns:
+        bool: True if alpha channel is detected or magenta transparency is present
+    """
+    for color_key, color_data in colors.items():
+        if isinstance(color_data, dict):
+            # Check for alpha key or RGBA values
+            if 'alpha' in color_data or 'a' in color_data:
+                return True
+            # Check if we have 4 values (RGBA) instead of 3 (RGB)
+            if len(color_data) == 4:
+                return True
+            # Check for magenta transparency (255, 0, 255)
+            r = color_data.get('red', color_data.get('r', 0))
+            g = color_data.get('green', color_data.get('g', 0))
+            b = color_data.get('blue', color_data.get('b', 0))
+            if r == 255 and g == 0 and b == 255:
+                return True
+    return False
+
+
+def _detect_alpha_channel_in_animation(animation_data: dict) -> bool:
+    """Detect if animation frames contain alpha channel information.
+
+    Args:
+        animation_data: Animation configuration data
+
+    Returns:
+        bool: True if alpha channel is detected in any frame
+    """
+    # Handle different animation data structures
+    if isinstance(animation_data, dict):
+        for frame_name, frame_data in animation_data.items():
+            if isinstance(frame_data, dict) and 'colors' in frame_data:
+                if _detect_alpha_channel(frame_data['colors']):
+                    return True
+    elif isinstance(animation_data, list):
+        # Handle list-based animation data
+        for frame_data in animation_data:
+            if isinstance(frame_data, dict) and 'colors' in frame_data:
+                if _detect_alpha_channel(frame_data['colors']):
+                    return True
+    return False
+
+
+def _convert_sprite_to_alpha_format(sprite_data: dict) -> dict:
+    """Convert sprite data to proper alpha format.
+
+    Args:
+        sprite_data: Original sprite data
+
+    Returns:
+        dict: Converted sprite data with alpha support
+    """
+    converted_data = sprite_data.copy()
+
+    if sprite_data.get("has_alpha", False):
+        # Convert colors to RGBA format if needed
+        if "colors" in converted_data:
+            converted_data["colors"] = _convert_colors_to_rgba(converted_data["colors"])
+
+        # Convert animation colors if present
+        if "animations" in converted_data:
+            converted_data["animations"] = _convert_animation_colors_to_rgba(converted_data["animations"])
+
+    return converted_data
+
+
+def _convert_colors_to_rgba(colors: dict) -> dict:
+    """Convert color definitions to RGBA format with magenta transparency.
+
+    Args:
+        colors: Original color definitions
+
+    Returns:
+        dict: Colors converted to RGBA format
+    """
+    converted_colors = {}
+
+    for color_key, color_data in colors.items():
+        if isinstance(color_data, dict):
+            # Extract RGB values
+            r = color_data.get('red', color_data.get('r', 0))
+            g = color_data.get('green', color_data.get('g', 0))
+            b = color_data.get('blue', color_data.get('b', 0))
+
+            # Check for magenta transparency (255, 0, 255) = alpha 0
+            if r == 255 and g == 0 and b == 255:
+                a = 0  # Fully transparent
+            else:
+                a = color_data.get('alpha', color_data.get('a', 255))  # Default to opaque
+
+            converted_colors[color_key] = {
+                'red': r,
+                'green': g,
+                'blue': b,
+                'alpha': a
+            }
+        else:
+            converted_colors[color_key] = color_data
+
+    return converted_colors
+
+
+def _convert_animation_colors_to_rgba(animations: dict) -> dict:
+    """Convert animation frame colors to RGBA format.
+
+    Args:
+        animations: Animation data with color definitions
+
+    Returns:
+        dict: Animation data with RGBA colors
+    """
+    converted_animations = {}
+
+    for frame_name, frame_data in animations.items():
+        if isinstance(frame_data, dict) and 'colors' in frame_data:
+            converted_animations[frame_name] = frame_data.copy()
+            converted_animations[frame_name]['colors'] = _convert_colors_to_rgba(frame_data['colors'])
+        else:
+            converted_animations[frame_name] = frame_data
+
+    return converted_animations
+
+
 def load_ai_training_data():
     """Load AI training data from sprite config files."""
     global AI_TRAINING_DATA, AI_TRAINING_FORMAT
@@ -214,6 +344,7 @@ def load_ai_training_data():
                         "name": config_data.get("sprite", {}).get("name", "Unknown"),
                         "format": AI_TRAINING_FORMAT,
                         "sprite_type": "animated" if "animation" in config_data else "static",
+                        "has_alpha": False,  # Will be determined from color data
                     }
 
                     # For static sprites, extract pixel data and colors
@@ -221,16 +352,43 @@ def load_ai_training_data():
                         sprite_data["pixels"] = config_data["sprite"].get("pixels", "")
                         sprite_data["colors"] = config_data.get("colors", {})
 
+                        # Check for alpha channel support in colors
+                        sprite_data["has_alpha"] = _detect_alpha_channel(config_data.get("colors", {}))
+
                     # For animated sprites, extract animation data
                     if "animation" in config_data:
                         sprite_data["animations"] = config_data["animation"]
+                        # Check for alpha in animation frames
+                        sprite_data["has_alpha"] = _detect_alpha_channel_in_animation(config_data["animation"])
 
 
-                AI_TRAINING_DATA.append(sprite_data)
-                LOG.info(f"Successfully loaded sprite config: {config_file.name}")
+                # Convert sprite to proper alpha format if needed
+                converted_sprite_data = _convert_sprite_to_alpha_format(sprite_data)
 
-                # Colorized ASCII output disabled for performance
-                # (Previously printed colorized sprite output here)
+                AI_TRAINING_DATA.append(converted_sprite_data)
+                LOG.info(f"Successfully loaded sprite config: {config_file.name} (alpha: {converted_sprite_data.get('has_alpha', False)})")
+
+                # Create colorized ASCII output using dimensions from TOML data
+                try:
+                    from glitchygames.tools.ascii_renderer import ASCIIRenderer
+                    renderer = ASCIIRenderer()
+
+                    # Calculate dimensions from pixel data
+                    if 'sprite' in config_data and 'pixels' in config_data['sprite']:
+                        pixels_str = config_data['sprite']['pixels']
+                        pixel_lines = pixels_str.strip().split('\n')
+                        height = len(pixel_lines)
+                        width = len(pixel_lines[0]) if pixel_lines else 0
+
+                        # Add dimensions to config_data for ASCIIRenderer
+                        config_data['sprite']['width'] = width
+                        config_data['sprite']['height'] = height
+
+                    colorized_output = renderer.render_sprite(config_data)
+                    print(f"\n🎨 Colorized ASCII Output for {config_file.name}:")
+                    print(colorized_output)
+                except Exception as e:
+                    LOG.debug(f"Could not create colorized output for {config_file.name}: {e}")
 
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 LOG.warning(f"Error loading sprite config {config_file}: {e}")
@@ -238,7 +396,7 @@ def load_ai_training_data():
         LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
     LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
-    # Colorized output disabled for performance
+    print(f"\n📊 Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -791,7 +949,7 @@ class FilmStripSprite(BitmappySprite):
 
         # Debug: Print update count every 100 updates for initial strip
         if self._update_count % 100 == 0:
-            LOG.debug(f"FilmStripSprite: Update #{self._update_count} for strip, dirty={self.dirty}")
+            pass  # Debug logging removed
 
         # Update animations first to advance frame timing
         # This is the core of the preview animation system - it advances the
@@ -1566,14 +1724,23 @@ class AnimatedCanvasSprite(BitmappySprite):
             y = (event.pos[1] - self.rect.y) // self.pixel_height
             self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
 
-            # Mark that user is editing (manual frame selection)
-            self._manual_frame_selected = True
+            # Check for control-click (flood fill mode)
+            is_control_click = pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
 
-            # Don't sync the canvas frame - keep it on the frame being edited
-            # The canvas should stay on the current frame, only the live preview should animate
+            if is_control_click:
+                # Flood fill mode
+                self.log.info(f"Control-click detected - performing flood fill at ({x}, {y})")
+                self._flood_fill(x, y, self.active_color)
+            else:
+                # Normal click mode
+                # Mark that user is editing (manual frame selection)
+                self._manual_frame_selected = True
 
-            # Use the interface to set the pixel
-            self.canvas_interface.set_pixel_at(x, y, self.active_color)
+                # Don't sync the canvas frame - keep it on the frame being edited
+                # The canvas should stay on the current frame, only the live preview should animate
+
+                # Use the interface to set the pixel
+                self.canvas_interface.set_pixel_at(x, y, self.active_color)
 
             # Force redraw the canvas to show the changes
             self.force_redraw()
@@ -2260,6 +2427,51 @@ class AnimatedCanvasSprite(BitmappySprite):
                     surface.set_at((x, y), color)
         return surface
 
+    def _flood_fill(self, start_x: int, start_y: int, fill_color: tuple[int, int, int]) -> None:
+        """Perform flood fill algorithm starting from the given coordinates.
+
+        Args:
+            start_x: Starting X coordinate
+            start_y: Starting Y coordinate
+            fill_color: Color to fill with
+        """
+        # Check bounds
+        if not (0 <= start_x < self.pixels_across and 0 <= start_y < self.pixels_tall):
+            self.log.warning(f"Flood fill coordinates out of bounds: ({start_x}, {start_y})")
+            return
+
+        # Get the target color (the color we're replacing)
+        target_color = self.canvas_interface.get_pixel_at(start_x, start_y)
+
+        # If target color is the same as fill color, no work needed
+        if target_color == fill_color:
+            self.log.info("Target color same as fill color, no flood fill needed")
+            return
+
+        self.log.info(f"Flood fill: replacing {target_color} with {fill_color} starting at ({start_x}, {start_y})")
+
+        # Use iterative flood fill with a stack to avoid recursion depth issues
+        stack = [(start_x, start_y)]
+        filled_pixels = 0
+
+        while stack:
+            x, y = stack.pop()
+
+            # Check bounds and color match
+            if (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall and
+                self.canvas_interface.get_pixel_at(x, y) == target_color):
+
+                # Fill this pixel
+                self.canvas_interface.set_pixel_at(x, y, fill_color)
+                filled_pixels += 1
+
+                # Add adjacent pixels to stack (4-connected)
+                stack.append((x + 1, y))  # Right
+                stack.append((x - 1, y))  # Left
+                stack.append((x, y + 1))  # Down
+                stack.append((x, y - 1))  # Up
+
+        self.log.info(f"Flood fill completed: filled {filled_pixels} pixels")
 
 
 class MiniView(BitmappySprite):
@@ -5821,10 +6033,6 @@ pixels = \"\"\"
                 self._last_animation_log_time = time.time()
             current_time = time.time()
             if current_time - self._last_animation_log_time >= 1.0:
-                self.log.debug(
-                    f"Animation update - is_playing={self.canvas.animated_sprite.is_playing}, "
-                    f"current_frame={self.canvas.animated_sprite.current_frame}"
-                )
                 self._last_animation_log_time = current_time
 
             # Pass delta time to the canvas for animation updates
@@ -6141,9 +6349,13 @@ pixels = \"\"\"
                 self._load_converted_sprite(converted_toml_path)
             else:
                 self.log.error("Failed to convert PNG to bitmappy format")
+        elif file_path.lower().endswith(".toml"):
+            self.log.info("TOML file detected - loading directly")
+            # Load the TOML file directly
+            self._load_converted_sprite(file_path)
         else:
             self.log.info(f"File type not supported: {file_path}")
-            self.log.info("Currently only PNG files are supported for drag and drop")
+            self.log.info("Currently only PNG and TOML files are supported for drag and drop")
 
     def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
         """Convert a PNG file to bitmappy TOML format.
@@ -6519,12 +6731,55 @@ pixels = \"\"\"
                     canvas_sprite.mini_view.dirty = 1
                     canvas_sprite.mini_view.force_redraw()
 
+                # Initialize onion skinning for the loaded sprite
+                if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
+                    self._initialize_onion_skinning_for_sprite(canvas_sprite.animated_sprite)
+
                 self.log.info("Converted sprite loaded successfully into editor")
             else:
                 self.log.warning("Could not find canvas sprite to load converted file")
 
         except Exception:
             self.log.error("Error loading converted sprite into editor")
+
+    def _initialize_onion_skinning_for_sprite(self, loaded_sprite: AnimatedSprite) -> None:
+        """Initialize onion skinning for a newly loaded sprite.
+
+        Args:
+            loaded_sprite: The loaded animated sprite
+        """
+        try:
+            from .onion_skinning import get_onion_skinning_manager
+
+            onion_manager = get_onion_skinning_manager()
+
+            # Clear any existing onion skinning state for this sprite
+            if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:
+                for animation_name in loaded_sprite._animations.keys():
+                    onion_manager.clear_animation_onion_skinning(animation_name)
+                    self.log.debug(f"Cleared onion skinning state for animation: {animation_name}")
+
+            # Initialize onion skinning for all animations in the loaded sprite
+            if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:
+                for animation_name, frames in loaded_sprite._animations.items():
+                    # Enable onion skinning for all frames except the first one
+                    frame_states = {}
+                    for frame_idx in range(len(frames)):
+                        # Enable onion skinning for all frames except frame 0
+                        frame_states[frame_idx] = frame_idx != 0
+
+                    onion_manager.set_animation_onion_state(animation_name, frame_states)
+                    self.log.debug(f"Initialized onion skinning for animation '{animation_name}' with {len(frames)} frames")
+
+            # Ensure global onion skinning is enabled
+            if not onion_manager.is_global_onion_skinning_enabled():
+                onion_manager.toggle_global_onion_skinning()
+                self.log.debug("Enabled global onion skinning for new sprite")
+
+            self.log.info("Onion skinning initialized for loaded sprite")
+
+        except Exception as e:
+            self.log.error(f"Failed to initialize onion skinning for loaded sprite: {e}")
 
     def handle_event(self, event):
         """Handle pygame events."""
@@ -8318,7 +8573,6 @@ pixels = \"\"\"
 
         # Update canvas with controller indicators
         if canvas_controllers:
-            print(f"DEBUG BitmapEditorScene: Updating canvas with {len(canvas_controllers)} controller indicators")
             # Store controller data for canvas to use
             self.canvas_controller_indicators = canvas_controllers
             # Pass controller data to canvas for drawing

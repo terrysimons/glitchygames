@@ -258,23 +258,19 @@ class StaticCanvasRenderer(CanvasRenderer):
 
     def _draw_plus_indicator(self, surface: pygame.Surface, color: tuple[int, int, int], x: int, y: int, width: int, height: int) -> None:
         """Draw a box indicator with controller color and inverse color borders."""
-        print(f"DEBUG: Drawing indicator at ({x}, {y}) with size ({width}, {height})")
         
         # The x,y coordinates are the top-left corner of the pixel box
         # Calculate the center of the pixel box in screen coordinates
         center_x = x + self.canvas_sprite.pixel_width // 2
         center_y = y + self.canvas_sprite.pixel_height // 2
-        print(f"DEBUG: Pixel box at ({x}, {y}) -> Center at ({center_x}, {center_y})")
         
         # Convert screen coordinates to pixel coordinates
         pixel_x = center_x // self.canvas_sprite.pixel_width
         pixel_y = center_y // self.canvas_sprite.pixel_height
-        print(f"DEBUG: Screen center ({center_x}, {center_y}) -> Pixel coords ({pixel_x}, {pixel_y})")
         
         # Get the color of the specific pixel
         pixel_color = self._get_pixel_color_at_position(pixel_x, pixel_y)
         inverse_color = self._get_inverse_color(pixel_color)
-        print(f"DEBUG: Pixel color: {pixel_color}, Inverse color: {inverse_color}, Controller color: {color}")
         
         # Draw outer box with controller color (1 pixel wide)
         pygame.draw.rect(surface, color, (x + 1, y + 1, width - 2, height - 2), 1)
@@ -285,14 +281,10 @@ class StaticCanvasRenderer(CanvasRenderer):
     def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
         """Get the pixel color at the specified position."""
         if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
-            print(f"DEBUG: Canvas sprite pixels_across: {self.canvas_sprite.pixels_across}, pixels_tall: {self.canvas_sprite.pixels_tall}")
-            print(f"DEBUG: Requesting pixel at ({x}, {y})")
             if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
                 pixel_index = y * self.canvas_sprite.pixels_across + x
-                print(f"DEBUG: Calculated pixel_index: {pixel_index}, total pixels: {len(self.canvas_sprite.pixels)}")
                 if pixel_index < len(self.canvas_sprite.pixels):
                     pixel_color = self.canvas_sprite.pixels[pixel_index]
-                    print(f"DEBUG: Getting pixel color at ({x}, {y}): {pixel_color}")
                     return pixel_color
                 else:
                     print(f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})")
@@ -762,23 +754,19 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
     def _draw_plus_indicator(self, surface: pygame.Surface, color: tuple[int, int, int], x: int, y: int, width: int, height: int) -> None:
         """Draw a box indicator with controller color and inverse color borders."""
-        print(f"DEBUG: Drawing indicator at ({x}, {y}) with size ({width}, {height})")
         
         # The x,y coordinates are the top-left corner of the pixel box
         # Calculate the center of the pixel box in screen coordinates
         center_x = x + self.canvas_sprite.pixel_width // 2
         center_y = y + self.canvas_sprite.pixel_height // 2
-        print(f"DEBUG: Pixel box at ({x}, {y}) -> Center at ({center_x}, {center_y})")
         
         # Convert screen coordinates to pixel coordinates
         pixel_x = center_x // self.canvas_sprite.pixel_width
         pixel_y = center_y // self.canvas_sprite.pixel_height
-        print(f"DEBUG: Screen center ({center_x}, {center_y}) -> Pixel coords ({pixel_x}, {pixel_y})")
         
         # Get the color of the specific pixel
         pixel_color = self._get_pixel_color_at_position(pixel_x, pixel_y)
         inverse_color = self._get_inverse_color(pixel_color)
-        print(f"DEBUG: Pixel color: {pixel_color}, Inverse color: {inverse_color}, Controller color: {color}")
         
         # Draw outer box with controller color (1 pixel wide)
         pygame.draw.rect(surface, color, (x + 1, y + 1, width - 2, height - 2), 1)
@@ -789,14 +777,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
     def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
         """Get the pixel color at the specified position."""
         if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
-            print(f"DEBUG: Canvas sprite pixels_across: {self.canvas_sprite.pixels_across}, pixels_tall: {self.canvas_sprite.pixels_tall}")
-            print(f"DEBUG: Requesting pixel at ({x}, {y})")
             if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
                 pixel_index = y * self.canvas_sprite.pixels_across + x
-                print(f"DEBUG: Calculated pixel_index: {pixel_index}, total pixels: {len(self.canvas_sprite.pixels)}")
                 if pixel_index < len(self.canvas_sprite.pixels):
                     pixel_color = self.canvas_sprite.pixels[pixel_index]
-                    print(f"DEBUG: Getting pixel color at ({x}, {y}): {pixel_color}")
                     return pixel_color
                 else:
                     print(f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})")

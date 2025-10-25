@@ -43,14 +43,14 @@ class ASCIIRenderer:
         # This preserves the sprite's character mapping
         return char
     
-    def _extract_colors_from_toml(self, toml_data: Dict[str, Any]) -> Dict[str, Tuple[int, int, int]]:
-        """Extract color mappings from TOML data.
+    def _extract_colors_from_toml(self, toml_data: Dict[str, Any]) -> Dict[str, Tuple[int, int, int, int]]:
+        """Extract color mappings from TOML data with alpha channel support.
         
         Args:
             toml_data: Parsed TOML data
             
         Returns:
-            Dict mapping characters to RGB tuples
+            Dict mapping characters to RGBA tuples
         """
         colors = {}
         
@@ -62,7 +62,15 @@ class ASCIIRenderer:
                     r = int(value['red'])
                     g = int(value['green'])
                     b = int(value['blue'])
-                    colors[key] = (r, g, b)
+                    
+                    # Check for magenta transparency (255, 0, 255) = alpha 0
+                    if r == 255 and g == 0 and b == 255:
+                        a = 0  # Fully transparent
+                    else:
+                        # Default alpha to 255 (opaque) if not specified
+                        a = int(value.get('alpha', value.get('a', 255)))
+                    
+                    colors[key] = (r, g, b, a)
         
         return colors
     
@@ -89,12 +97,12 @@ class ASCIIRenderer:
         
         return None
     
-    def _colorize_pixels(self, pixels: str, colors: Dict[str, Tuple[int, int, int]]) -> str:
-        """Colorize pixels string with terminal colors.
+    def _colorize_pixels(self, pixels: str, colors: Dict[str, Tuple[int, int, int, int]]) -> str:
+        """Colorize pixels string with terminal colors and alpha channel support.
         
         Args:
             pixels: Raw pixels string
-            colors: Color mapping dictionary
+            colors: Color mapping dictionary with RGBA tuples
             
         Returns:
             str: Colorized pixels string
@@ -109,22 +117,43 @@ class ASCIIRenderer:
             colorized_line = ""
             for char in line:
                 if char in colors:
-                    r, g, b = colors[char]
-                    color_code = self.color_mapper.get_color_code(r, g, b)
-                    reset_code = self.color_mapper.get_reset_code()
+                    r, g, b, a = colors[char]
                     
-                    # Use the original character with color
-                    display_char = self._get_pixel_char(char)
+                    # Handle alpha transparency
+                    if a == 0:
+                        # Fully transparent - draw as light grey for contrast
+                        display_char = self._get_transparency_char()
+                        # Use light grey background (192, 192, 192) for better contrast
+                        color_code = self.color_mapper.get_color_code(192, 192, 192)
+                    elif a < 255:
+                        # Semi-transparent - use a lighter version or special character
+                        if a < 128:  # Very transparent
+                            display_char = self._get_transparency_char()
+                        else:  # Semi-transparent
+                            display_char = self._get_pixel_char(char)
+                        
+                        # Adjust color intensity based on alpha
+                        adjusted_r = int(r * (a / 255))
+                        adjusted_g = int(g * (a / 255))
+                        adjusted_b = int(b * (a / 255))
+                        color_code = self.color_mapper.get_color_code(adjusted_r, adjusted_g, adjusted_b)
+                    else:
+                        # Fully opaque
+                        color_code = self.color_mapper.get_color_code(r, g, b)
+                        display_char = self._get_pixel_char(char)
+                    
+                    reset_code = self.color_mapper.get_reset_code()
                     colorized_line += f"{color_code}{display_char}{reset_code}"
                 else:
                     # Handle transparency (magenta) or unknown characters
                     if char == '.':
                         # Check if this is transparency
-                        if (255, 0, 255) in colors.values():
-                            # This is transparency
-                            color_code = self.color_mapper.get_color_code(255, 0, 255)
-                            reset_code = self.color_mapper.get_reset_code()
+                        if any(rgb[:3] == (255, 0, 255) for rgb in colors.values()):
+                            # This is transparency - draw as light grey for contrast
                             display_char = self._get_transparency_char()
+                            # Use light grey background (192, 192, 192) for better contrast
+                            color_code = self.color_mapper.get_color_code(192, 192, 192)
+                            reset_code = self.color_mapper.get_reset_code()
                             colorized_line += f"{color_code}{display_char}{reset_code}"
                         else:
                             colorized_line += char
