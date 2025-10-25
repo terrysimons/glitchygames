@@ -766,9 +766,12 @@ class UndoRedoManager:
         """
         if self.pixel_change_callback:
             try:
-                self.pixel_change_callback(x, y, color)
+                result = self.pixel_change_callback(x, y, color)
                 LOG.debug(f"Applied pixel change at ({x}, {y}) to color {color}")
-                return True
+                # If callback returns None, treat as success (most callbacks don't return anything)
+                # If callback returns False, treat as failure
+                # If callback returns True, treat as success
+                return result is not False
             except Exception as e:
                 LOG.error(f"Error applying pixel change: {e}")
                 return False
