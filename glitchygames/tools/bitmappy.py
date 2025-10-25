@@ -1474,7 +1474,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Only track frame selection if we're not in the middle of an undo/redo operation
                 # or creating a frame (which has its own undo tracking)
                 # Also don't track frame selection if we're in the middle of film strip operations
-                if (not getattr(self.parent_scene, "_applying_undo_redo", False) and 
+                if (not getattr(self.parent_scene, "_applying_undo_redo", False) and
                     not getattr(self.parent_scene, "_creating_frame", False) and
                     not getattr(self.parent_scene, "_creating_animation", False)):
                     # Track frame selection as a film strip operation instead of global
@@ -1734,7 +1734,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Force a complete redraw of the canvas."""
         # Use the interface-based rendering while maintaining existing behavior
         self.image = self.canvas_renderer.force_redraw(self)
-        self.log.debug(f"Animated canvas force redraw complete with {len(self.pixels)} pixels")
 
 
     def on_left_mouse_button_down_event(self, event):
@@ -3044,7 +3043,6 @@ class BitmapEditorScene(Scene):
         # Reinitialize multi-controller system for existing controllers AFTER film strips are fully set up
         # Pass preserved controller selections if available
         preserved_selections = getattr(self, '_preserved_controller_selections', None)
-        print(f"DEBUG: _create_film_strips calling _reinitialize_multi_controller_system with preserved_selections: {preserved_selections}")
         self._reinitialize_multi_controller_system(preserved_selections)
 
     def _select_initial_film_strip(self):
@@ -3244,14 +3242,14 @@ class BitmapEditorScene(Scene):
 
             # Recreate film strips to include the new animation
             self._on_sprite_loaded(self.canvas.animated_sprite)
-            
+
             # Select the 0th frame of the new animation so the user can immediately start editing it
             LOG.debug(f"BitmapEditorScene: Selecting frame 0 of newly created animation '{new_animation_name}'")
             # Set flag to prevent frame selection tracking during animation creation
             self._creating_frame = True
             try:
                 self.canvas.show_frame(new_animation_name, 0)
-                
+
                 # Update the undo/redo manager with the current frame for frame-specific operations
                 if hasattr(self, "undo_redo_manager"):
                     self.undo_redo_manager.set_current_frame(new_animation_name, 0)
@@ -3869,11 +3867,9 @@ class BitmapEditorScene(Scene):
                 if controller_selection.is_active():
                     animation, frame = controller_selection.get_selection()
                     preserved_controller_selections[controller_id] = (animation, frame)
-                    print(f"DEBUG: Preserving active controller {controller_id} with animation '{animation}', frame {frame}")
 
         # Store preserved selections for use in _create_film_strips
         self._preserved_controller_selections = preserved_controller_selections
-        print(f"DEBUG: Stored {len(preserved_controller_selections)} preserved controller selections: {preserved_controller_selections}")
 
         # Clear existing film strips
         LOG.debug(f"DEBUG: Checking film_strips - hasattr: {hasattr(self, 'film_strips')}")
@@ -3955,14 +3951,9 @@ class BitmapEditorScene(Scene):
         self.selected_frame = frame
 
         # Update keyboard selection in all film strips using SelectionManager
-        print(f"DEBUG BitmapEditorScene: Updating keyboard selection for animation='{animation}', frame={frame}")
         # OLD SYSTEM REMOVED - Using new multi-controller system instead
         # OLD SYSTEM DISABLED - Using new multi-controller system instead
         # The old SelectionManager system has been replaced by the new multi-controller system
-        if hasattr(self, "film_strips") and self.film_strips:
-            print(f"DEBUG BitmapEditorScene: Found {len(self.film_strips)} film strips")
-            # OLD SYSTEM DISABLED - SelectionManager calls removed
-
         # Update film strip selection state
         self._update_film_strip_selection_state()
         self.selected_strip = film_strip_widget
@@ -4533,7 +4524,7 @@ class BitmapEditorScene(Scene):
             add_animation_callback=self._add_animation_for_undo_redo,
             delete_animation_callback=self._delete_animation_for_undo_redo
         )
-        
+
         # Set up frame selection callback for undo/redo
         self.undo_redo_manager.set_frame_selection_callback(self._apply_frame_selection_for_undo_redo)
 
@@ -4601,15 +4592,12 @@ class BitmapEditorScene(Scene):
             success = self.undo_redo_manager.undo()
             if success:
                 undo_description = self.undo_redo_manager.get_undo_description()
-                print(f"DEBUG: Undo successful: {undo_description}")
                 LOG.debug(f"Undo successful: {undo_description}")
                 # Force redraw of affected areas
                 self._force_redraw_after_undo_redo()
             else:
-                print("DEBUG: Undo failed")
                 LOG.warning("Undo operation failed")
         else:
-            print("DEBUG: No operations to undo")
             LOG.debug("No operations to undo")
 
     def _handle_redo(self) -> None:
@@ -4622,15 +4610,12 @@ class BitmapEditorScene(Scene):
             success = self.undo_redo_manager.redo()
             if success:
                 redo_description = self.undo_redo_manager.get_redo_description()
-                print(f"DEBUG: Redo successful: {redo_description}")
                 LOG.debug(f"Redo successful: {redo_description}")
                 # Force redraw of affected areas
                 self._force_redraw_after_undo_redo()
             else:
-                print("DEBUG: Redo failed")
                 LOG.warning("Redo operation failed")
         else:
-            print("DEBUG: No operations to redo")
             LOG.debug("No operations to redo")
 
     def _force_redraw_after_undo_redo(self) -> None:
@@ -6419,7 +6404,6 @@ pixels = \"\"\"
     def on_key_down_event(self, event: pygame.event.Event) -> None:
         """Handle keyboard events for frame navigation and text input."""
         self.log.debug(f"Key down event received: key={event.key}")
-        print(f"DEBUG: Key down event received: key={event.key} (name: {pygame.key.name(event.key) if hasattr(pygame.key, 'name') else 'unknown'})")
 
         # Check if debug text box is active and handle text input
         if hasattr(self, "debug_text") and self.debug_text.active:
@@ -6466,19 +6450,16 @@ pixels = \"\"\"
             if mod & pygame.KMOD_SHIFT:
                 # Ctrl+Shift+Z: Redo
                 self.log.debug("Ctrl+Shift+Z pressed - redo")
-                print("DEBUG: Ctrl+Shift+Z pressed - REDO")
                 self._handle_redo()
             else:
                 # Ctrl+Z: Undo
                 self.log.debug("Ctrl+Z pressed - undo")
-                print("DEBUG: Ctrl+Z pressed - UNDO")
                 self._handle_undo()
             return
 
         # Handle Ctrl+Y for redo (alternative shortcut)
         if event.key == pygame.K_y and (mod & pygame.KMOD_CTRL):
             self.log.debug("Ctrl+Y pressed - redo")
-            print("DEBUG: Ctrl+Y pressed - REDO")
             self._handle_redo()
             return
 
@@ -6489,12 +6470,8 @@ pixels = \"\"\"
                 controller_mode = self.mode_switcher.get_controller_mode(controller_id)
                 if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
                     any_controller_in_slider_mode = True
-                    print(f"DEBUG: Found controller {controller_id} in slider mode: {controller_mode.value}")
                     break
 
-        print(f"DEBUG: any_controller_in_slider_mode: {any_controller_in_slider_mode}")
-        print(f"DEBUG: Key pressed: {event.key} (pygame.K_DOWN: {pygame.K_DOWN}, pygame.K_UP: {pygame.K_UP})")
-        print(f"DEBUG: Key name: {pygame.key.name(event.key) if hasattr(pygame.key, 'name') else 'unknown'}")
 
         # Handle slider mode navigation with arrow keys
         if any_controller_in_slider_mode:
@@ -6552,12 +6529,10 @@ pixels = \"\"\"
 
         # Try frame-specific undo first if we have a current frame
         if current_animation is not None and current_frame is not None:
-            print(f"DEBUG: Attempting frame-specific undo for {current_animation}[{current_frame}]")
             if self.undo_redo_manager.can_undo_frame(current_animation, current_frame):
                 success = self.undo_redo_manager.undo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(f"Frame-specific undo successful for {current_animation}[{current_frame}]")
-                    print(f"DEBUG: Frame-specific undo successful for {current_animation}[{current_frame}]")
                     # Force canvas redraw to show the undone changes
                     if hasattr(self, "canvas") and self.canvas:
                         self.canvas.force_redraw()
@@ -6565,18 +6540,17 @@ pixels = \"\"\"
                 else:
                     self.log.warning(f"Frame-specific undo failed for {current_animation}[{current_frame}]")
             else:
-                print(f"DEBUG: No frame-specific undo operations available for {current_animation}[{current_frame}]")
+                self.log.warning("No frame-specific undo operations available")
 
         # Fall back to global undo for film strip operations
         if self.undo_redo_manager.can_undo():
             success = self.undo_redo_manager.undo()
             if success:
                 self.log.info("Global undo successful")
-                print("DEBUG: Global undo successful")
-                
+
                 # CRITICAL: Ensure canvas state is valid after film strip operations
                 self._synchronize_canvas_state_after_undo()
-                
+
                 # Force canvas redraw to show the undone changes
                 if hasattr(self, "canvas") and self.canvas:
                     self.canvas.force_redraw()
@@ -6584,12 +6558,10 @@ pixels = \"\"\"
                 self.log.warning("Global undo failed")
         else:
             self.log.debug("No operations available to undo")
-            print("DEBUG: No operations available to undo")
-            print("DEBUG: Undo failed")
 
     def _synchronize_canvas_state_after_undo(self) -> None:
         """Synchronize canvas state after undo operations to prevent invalid states.
-        
+
         This method ensures that:
         1. The canvas is pointing to a valid animation
         2. The canvas is pointing to a valid frame index
@@ -6598,18 +6570,18 @@ pixels = \"\"\"
         if not hasattr(self, "canvas") or not self.canvas:
             self.log.warning("No canvas available for state synchronization")
             return
-            
+
         if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
             self.log.warning("No animated sprite available for state synchronization")
             return
-            
+
         animations = self.canvas.animated_sprite._animations
         current_animation = getattr(self.canvas, "current_animation", None)
         current_frame = getattr(self.canvas, "current_frame", None)
-        
+
         self.log.debug(f"Canvas state before sync: animation={current_animation}, frame={current_frame}")
         self.log.debug(f"Available animations: {list(animations.keys())}")
-        
+
         # Check if current animation still exists
         if current_animation not in animations:
             self.log.warning(f"Current animation '{current_animation}' no longer exists, switching to first available")
@@ -6622,7 +6594,7 @@ pixels = \"\"\"
             else:
                 self.log.error("No animations available - this should not happen")
                 return
-                
+
         # Check if current frame index is valid
         frames = animations[current_animation]
         if current_frame is None or current_frame < 0 or current_frame >= len(frames):
@@ -6632,13 +6604,13 @@ pixels = \"\"\"
             self.canvas.show_frame(current_animation, valid_frame)
             self.log.info(f"Switched to frame {valid_frame} of animation '{current_animation}'")
             return
-            
+
         # If we get here, the canvas state is valid
         self.log.debug(f"Canvas state is valid: animation='{current_animation}', frame={current_frame}")
-        
+
         # Force a complete canvas refresh to ensure everything is in sync
         self.canvas.force_redraw()
-        
+
         # Update film strips to reflect the current state
         if hasattr(self, "_update_film_strips_for_frame"):
             self._update_film_strips_for_frame(current_animation, current_frame)
@@ -6658,12 +6630,10 @@ pixels = \"\"\"
 
         # Try frame-specific redo first if we have a current frame
         if current_animation is not None and current_frame is not None:
-            print(f"DEBUG: Attempting frame-specific redo for {current_animation}[{current_frame}]")
             if self.undo_redo_manager.can_redo_frame(current_animation, current_frame):
                 success = self.undo_redo_manager.redo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(f"Frame-specific redo successful for {current_animation}[{current_frame}]")
-                    print(f"DEBUG: Frame-specific redo successful for {current_animation}[{current_frame}]")
                     # Force canvas redraw to show the redone changes
                     if hasattr(self, "canvas") and self.canvas:
                         self.canvas.force_redraw()
@@ -6671,18 +6641,17 @@ pixels = \"\"\"
                 else:
                     self.log.warning(f"Frame-specific redo failed for {current_animation}[{current_frame}]")
             else:
-                print(f"DEBUG: No frame-specific redo operations available for {current_animation}[{current_frame}]")
+                self.log.warning("No frame-specific redo operations available")
 
         # Fall back to global redo for film strip operations
         if self.undo_redo_manager.can_redo():
             success = self.undo_redo_manager.redo()
             if success:
                 self.log.info("Global redo successful")
-                print("DEBUG: Global redo successful")
-                
+
                 # CRITICAL: Ensure canvas state is valid after film strip operations
                 self._synchronize_canvas_state_after_undo()
-                
+
                 # Force canvas redraw to show the redone changes
                 if hasattr(self, "canvas") and self.canvas:
                     self.canvas.force_redraw()
@@ -6690,7 +6659,6 @@ pixels = \"\"\"
                 self.log.warning("Global redo failed")
         else:
             self.log.debug("No operations available to redo")
-            print("DEBUG: No operations available to redo")
 
     def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Apply a pixel change for undo/redo operations.
@@ -6715,11 +6683,11 @@ pixels = \"\"\"
 
     def _apply_frame_selection_for_undo_redo(self, animation: str, frame: int) -> bool:
         """Apply a frame selection for undo/redo operations.
-        
+
         Args:
             animation: Name of the animation to select
             frame: Frame index to select
-            
+
         Returns:
             True if the frame selection was applied successfully, False otherwise
         """
@@ -7104,17 +7072,14 @@ pixels = \"\"\"
                     current_animation = getattr(self.canvas, "current_animation", None)
                     current_frame = getattr(self.canvas, "current_frame", None)
 
-                print(f"DEBUG: Frame info - animation: {current_animation}, frame: {current_frame}")
 
                 # Use frame-specific tracking if we have frame information
                 if current_animation is not None and current_frame is not None:
-                    print(f"DEBUG: Using frame-specific tracking for {current_animation}[{current_frame}]")
                     self.canvas_operation_tracker.add_frame_pixel_changes(
                         current_animation, current_frame, self._current_pixel_changes
                     )
                     self.log.debug(f"Submitted {pixel_count} pixel changes for frame {current_animation}[{current_frame}] undo/redo tracking")
                 else:
-                    print(f"DEBUG: Using global tracking (no frame info available)")
                     # Fall back to global tracking
                     self.canvas_operation_tracker.add_pixel_changes(self._current_pixel_changes)
                     self.log.debug(f"Submitted {pixel_count} pixel changes for global undo/redo tracking")
@@ -7702,15 +7667,8 @@ pixels = \"\"\"
         controller_info = self.multi_controller_manager.get_controller_info(instance_id)
 
         if not controller_info:
-            print(f"DEBUG: No controller info found for instance_id {instance_id}")
             return
 
-        print(f"DEBUG: Controller button down event received: button={event.button}, instance_id={instance_id}")
-        print(f"DEBUG: Button constants - A: {pygame.CONTROLLER_BUTTON_A}, B: {pygame.CONTROLLER_BUTTON_B}")
-        print(f"DEBUG: Button constants - LEFT_SHOULDER: {pygame.CONTROLLER_BUTTON_LEFTSHOULDER}, RIGHT_SHOULDER: {pygame.CONTROLLER_BUTTON_RIGHTSHOULDER}")
-        print(f"DEBUG: Button constants - LEFT_STICK: {pygame.CONTROLLER_BUTTON_LEFTSTICK}, RIGHT_STICK: {pygame.CONTROLLER_BUTTON_RIGHTSTICK}")
-        print(f"DEBUG: Button constants - X: {pygame.CONTROLLER_BUTTON_X}, Y: {pygame.CONTROLLER_BUTTON_Y}")
-        print(f"DEBUG: Button constants - BACK: {pygame.CONTROLLER_BUTTON_BACK}, GUIDE: {pygame.CONTROLLER_BUTTON_GUIDE}")
         LOG.debug(f"Controller button down: {event.button}")
 
         # Handle controller assignment on first button press
@@ -7719,12 +7677,10 @@ pixels = \"\"\"
             if controller_id is not None:
                 # Create controller selection for this controller
                 self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
-                print(f"DEBUG: Controller {controller_id} assigned and selection created")
 
         # Get controller ID for this instance
         controller_id = self.multi_controller_manager.get_controller_id(instance_id)
         if controller_id is None:
-            print(f"DEBUG: No controller ID found for instance_id {instance_id}")
             return
 
         # Get or create controller selection
@@ -7738,11 +7694,9 @@ pixels = \"\"\"
         controller_selection.update_activity()
 
         # Handle button presses
-        print(f"DEBUG: Processing button {event.button} for controller {controller_id}")
 
         # Get controller mode for mode-specific handling
         controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-        print(f"DEBUG: Controller {controller_id} is in mode: {controller_mode}")
 
         # Handle mode-specific button presses
         if controller_mode and controller_mode.value == "canvas":
@@ -7765,98 +7719,78 @@ pixels = \"\"\"
         # Handle button releases for continuous slider adjustment
         if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
                            pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
-            print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous adjustment")
             self._stop_slider_continuous_adjustment(controller_id)
 
     def _handle_film_strip_button_press(self, controller_id: int, button: int) -> None:
         """Handle button presses for film strip mode."""
         if button == pygame.CONTROLLER_BUTTON_A:
             # A button: Select current frame
-            print(f"DEBUG: Controller {controller_id}: A button pressed - selecting current frame")
             LOG.debug(f"Controller {controller_id}: A button pressed - selecting current frame")
             self._multi_controller_select_current_frame(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_B:
-            # B button (Circle): RESERVED for undo operations
-            print(f"DEBUG: Controller {controller_id}: B button pressed - RESERVED for undo operations")
-            LOG.debug(f"Controller {controller_id}: B button pressed - RESERVED for undo operations")
-            # TODO: Implement undo functionality
+            # B button (Circle): Undo operations
+            LOG.debug(f"Controller {controller_id}: B button pressed - UNDO")
+            self._handle_undo()
         elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button (Triangle): Toggle onion skinning for selected frame
-            print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling onion skinning")
             LOG.debug(f"Controller {controller_id}: Y button pressed - toggling onion skinning")
             self._multi_controller_toggle_onion_skinning(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_X:
             # X button (Square): RESERVED for redo operations (only when selected frame is visible)
             if self.selected_frame_visible:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - REDO")
                 LOG.debug(f"Controller {controller_id}: X button pressed - REDO")
                 self._handle_redo()
             else:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 # X button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Previous frame
-            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - previous frame")
             LOG.debug(f"Controller {controller_id}: D-pad left pressed - previous frame")
             self._multi_controller_previous_frame(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
             # D-pad right: Next frame
-            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - next frame")
             LOG.debug(f"Controller {controller_id}: D-pad right pressed - next frame")
             self._multi_controller_next_frame(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             # D-pad up: Previous animation
-            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - previous animation")
             LOG.debug(f"Controller {controller_id}: D-pad up pressed - previous animation")
             self._multi_controller_previous_animation(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_START:
             # Start button: Activate controller
-            print(f"DEBUG: Controller {controller_id}: Start button pressed - activate controller")
             LOG.debug(f"Controller {controller_id}: Start button pressed - activate controller")
             self._multi_controller_activate(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             # D-pad down: Next animation
-            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - next animation")
             LOG.debug(f"Controller {controller_id}: D-pad down pressed - next animation")
             self._multi_controller_next_animation(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
             # Left shoulder button: Move controller indicator left (like D-pad left)
-            print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER button pressed - moving indicator left")
             LOG.debug(f"Controller {controller_id}: LEFT SHOULDER button pressed - moving indicator left")
             self._multi_controller_previous_frame(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
             # Right shoulder button: Move controller indicator right (like D-pad right)
-            print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER button pressed - moving indicator right")
             LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER button pressed - moving indicator right")
             self._multi_controller_next_frame(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_LEFTSTICK:
             # Left stick button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: LEFT STICK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: LEFT STICK button pressed - UNHANDLED")
         elif button == pygame.CONTROLLER_BUTTON_RIGHTSTICK:
             # Right stick button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: RIGHT STICK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: RIGHT STICK button pressed - UNHANDLED")
         elif button == pygame.CONTROLLER_BUTTON_X:
             # X button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: X button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: X button pressed - UNHANDLED")
         elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: Y button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: Y button pressed - UNHANDLED")
         elif button == pygame.CONTROLLER_BUTTON_BACK:
             # Back button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: BACK button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: BACK button pressed - UNHANDLED")
         elif button == pygame.CONTROLLER_BUTTON_GUIDE:
             # Guide button: Currently unhandled
-            print(f"DEBUG: Controller {controller_id}: GUIDE button pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: GUIDE button pressed - UNHANDLED")
         else:
             # Unknown button
-            print(f"DEBUG: Controller {controller_id}: UNKNOWN button {button} pressed - UNHANDLED")
             LOG.debug(f"Controller {controller_id}: UNKNOWN button {button} pressed - UNHANDLED")
 
     def _handle_canvas_button_press(self, controller_id: int, button: int) -> None:
@@ -7864,7 +7798,6 @@ pixels = \"\"\"
         if button == pygame.CONTROLLER_BUTTON_A:
             # A button: Start controller drag operation (only when selected frame is visible)
             if self.selected_frame_visible:
-                print(f"DEBUG: Controller {controller_id}: A button pressed - starting controller drag")
                 LOG.debug(f"Controller {controller_id}: A button pressed - starting controller drag")
 
                 # Initialize controller drag tracking if not exists
@@ -7882,47 +7815,38 @@ pixels = \"\"\"
                 # Paint at the current position
                 self._canvas_paint_at_controller_position(controller_id)
             else:
-                print(f"DEBUG: Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)")
                 LOG.debug(f"Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)")
                 # A button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_B:
             # B button (Circle): Undo operations
-            print(f"DEBUG: Controller {controller_id}: B button pressed - UNDO")
             LOG.debug(f"Controller {controller_id}: B button pressed - UNDO")
             self._handle_undo()
         elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button (Triangle): Toggle selected frame visibility on canvas
-            print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling selected frame visibility")
             LOG.debug(f"Controller {controller_id}: Y button pressed - toggling selected frame visibility")
             self._multi_controller_toggle_selected_frame_visibility(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_X:
             # X button (Square): RESERVED for redo operations (only when selected frame is visible)
             if self.selected_frame_visible:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - REDO")
                 LOG.debug(f"Controller {controller_id}: X button pressed - REDO")
                 self._handle_redo()
             else:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 # X button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left: Start continuous movement left
-            print(f"DEBUG: Controller {controller_id}: D-pad left pressed - start continuous movement left")
             LOG.debug(f"Controller {controller_id}: D-pad left pressed - start continuous movement left")
             self._start_canvas_continuous_movement(controller_id, -1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
             # D-pad right: Start continuous movement right
-            print(f"DEBUG: Controller {controller_id}: D-pad right pressed - start continuous movement right")
             LOG.debug(f"Controller {controller_id}: D-pad right pressed - start continuous movement right")
             self._start_canvas_continuous_movement(controller_id, 1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             # D-pad up: Start continuous movement up
-            print(f"DEBUG: Controller {controller_id}: D-pad up pressed - start continuous movement up")
             LOG.debug(f"Controller {controller_id}: D-pad up pressed - start continuous movement up")
             self._start_canvas_continuous_movement(controller_id, 0, -1)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             # D-pad down: Start continuous movement down
-            print(f"DEBUG: Controller {controller_id}: D-pad down pressed - start continuous movement down")
             LOG.debug(f"Controller {controller_id}: D-pad down pressed - start continuous movement down")
             self._start_canvas_continuous_movement(controller_id, 0, 1)
         elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -7934,20 +7858,16 @@ pixels = \"\"\"
 
                 if fill_direction == "HORIZONTAL":
                     if a_button_held:
-                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels left")
                         LOG.debug(f"Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels left")
                         self._canvas_paint_horizontal_line(controller_id, -8)
                     else:
-                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER - jump 8 pixels left")
                         LOG.debug(f"Controller {controller_id}: LEFT SHOULDER - jump 8 pixels left")
                         self._canvas_jump_horizontal(controller_id, -8)
                 else:  # VERTICAL
                     if a_button_held:
-                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels up")
                         LOG.debug(f"Controller {controller_id}: LEFT SHOULDER + A - paint 8 pixels up")
                         self._canvas_paint_vertical_line(controller_id, -8)
                     else:
-                        print(f"DEBUG: Controller {controller_id}: LEFT SHOULDER - jump 8 pixels up")
                         LOG.debug(f"Controller {controller_id}: LEFT SHOULDER - jump 8 pixels up")
                         self._canvas_jump_vertical(controller_id, -8)
         elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
@@ -7959,20 +7879,16 @@ pixels = \"\"\"
 
                 if fill_direction == "HORIZONTAL":
                     if a_button_held:
-                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels right")
                         LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels right")
                         self._canvas_paint_horizontal_line(controller_id, 8)
                     else:
-                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels right")
                         LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels right")
                         self._canvas_jump_horizontal(controller_id, 8)
                 else:  # VERTICAL
                     if a_button_held:
-                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels down")
                         LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER + A - paint 8 pixels down")
                         self._canvas_paint_vertical_line(controller_id, 8)
                     else:
-                        print(f"DEBUG: Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels down")
                         LOG.debug(f"Controller {controller_id}: RIGHT SHOULDER - jump 8 pixels down")
                         self._canvas_jump_vertical(controller_id, 8)
         elif button == pygame.CONTROLLER_BUTTON_Y:
@@ -8054,7 +7970,6 @@ pixels = \"\"\"
 
         # Handle button releases for continuous slider adjustment
         if event.button in [pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
-            print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous adjustment")
             self._stop_slider_continuous_adjustment(controller_id)
 
             # Update color well when slider adjustment is finished (only if controller is in slider mode)
@@ -8065,7 +7980,6 @@ pixels = \"\"\"
         # Handle button releases for continuous canvas movement
         if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
                            pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN]:
-            print(f"DEBUG: Controller {controller_id}: Button {event.button} released - stop continuous movement")
             self._stop_canvas_continuous_movement(controller_id)
 
         # Handle A button release in canvas mode (end controller drag)
@@ -8078,13 +7992,41 @@ pixels = \"\"\"
                     drag_info['end_time'] = time.time()
                     drag_info['end_position'] = self.mode_switcher.get_controller_position(controller_id)
 
-                    print(f"DEBUG: Controller {controller_id}: A button released - ended controller drag")
                     print(f"DEBUG: Controller {controller_id}: Drag operation drew {len(drag_info['pixels_drawn'])} pixels")
 
-                    # TODO: This is where we could trigger undo/redo functionality
-                    # For now, we just log the drag operation
+                    # Submit collected pixels for undo/redo functionality
                     if drag_info['pixels_drawn']:
                         LOG.debug(f"Controller {controller_id}: Drag operation completed with {len(drag_info['pixels_drawn'])} pixels drawn")
+
+                        # Convert controller drag pixels to undo/redo format
+                        pixel_changes = []
+                        for pixel_info in drag_info['pixels_drawn']:
+                            position = pixel_info['position']
+                            color = pixel_info['color']
+                            old_color = pixel_info.get('old_color', (0, 0, 0))  # Use stored old color
+                            x, y = position[0], position[1]
+
+                            pixel_changes.append((x, y, old_color, color))
+
+                        # Submit the pixel changes to the undo/redo system
+                        if pixel_changes and hasattr(self, 'canvas_operation_tracker'):
+                            # Get current frame information for frame-specific tracking
+                            current_animation = None
+                            current_frame = None
+                            if hasattr(self, "canvas") and self.canvas:
+                                current_animation = getattr(self.canvas, "current_animation", None)
+                                current_frame = getattr(self.canvas, "current_frame", None)
+
+                            # Use frame-specific tracking if we have frame information
+                            if current_animation is not None and current_frame is not None:
+                                self.canvas_operation_tracker.add_frame_pixel_changes(
+                                    current_animation, current_frame, pixel_changes
+                                )
+                                LOG.debug(f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for frame {current_animation}[{current_frame}] undo/redo")
+                            else:
+                                # Fall back to global tracking
+                                self.canvas_operation_tracker.add_pixel_changes(pixel_changes)
+                                LOG.debug(f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for global undo/redo")
 
     # Canvas Mode Implementation Methods
     def _canvas_paint_at_controller_position(self, controller_id: int, force: bool = False) -> None:
@@ -8123,6 +8065,16 @@ pixels = \"\"\"
                 print(f"DEBUG: Pixel at {position.position} is already {current_color}, skipping paint")
                 return
 
+        # Get the old color BEFORE changing the pixel for undo functionality
+        old_color = None
+        if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
+            try:
+                old_color = self.canvas.canvas_interface.get_pixel_at(position.position[0], position.position[1])
+            except:
+                old_color = (0, 0, 0)  # Default to black if we can't get the color
+        else:
+            old_color = (0, 0, 0)  # Default to black
+
         # Paint at the position
         if hasattr(self, 'canvas') and self.canvas:
             # Use the canvas interface to set the pixel
@@ -8145,9 +8097,15 @@ pixels = \"\"\"
                     pixel_info = {
                         'position': position.position,
                         'color': current_color,
+                        'old_color': old_color,  # Store the original color for undo
                         'timestamp': time.time()
                     }
                     drag_info['pixels_drawn'].append(pixel_info)
+                    print(f"DEBUG: Controller drag tracking pixel at {position.position}, total pixels: {len(drag_info['pixels_drawn'])}")
+                else:
+                    print(f"DEBUG: Controller drag not active for controller {controller_id}")
+            else:
+                print(f"DEBUG: No controller drags or controller {controller_id} not in controller_drags")
 
             print(f"DEBUG: Painted at canvas position {position.position} with color {current_color}")
 
@@ -8529,6 +8487,12 @@ pixels = \"\"\"
                 # Apply the movement
                 self._canvas_move_cursor(controller_id, dx, dy)
 
+                # If this controller has an active drag operation, paint at the new position
+                if (hasattr(self, 'controller_drags') and
+                    controller_id in self.controller_drags and
+                    self.controller_drags[controller_id]['active']):
+                    self._canvas_paint_at_controller_position(controller_id)
+
                 # Update last movement time
                 movement_data['last_movement'] = current_time
 
@@ -8573,10 +8537,33 @@ pixels = \"\"\"
             if canvas_height > 0:
                 pixel_y = max(0, min(pixel_y, canvas_height - 1))
 
+            # Get the old color BEFORE changing the pixel for undo functionality
+            old_color = None
+            if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
+                try:
+                    old_color = self.canvas.canvas_interface.get_pixel_at(pixel_x, pixel_y)
+                except:
+                    old_color = (0, 0, 0)  # Default to black if we can't get the color
+            else:
+                old_color = (0, 0, 0)  # Default to black
+
             # Paint the pixel using the canvas interface
             if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
                 self.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)
                 print(f"DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}")
+
+                # Track this pixel in the controller drag operation
+                if hasattr(self, 'controller_drags') and controller_id in self.controller_drags:
+                    drag_info = self.controller_drags[controller_id]
+                    if drag_info['active']:
+                        # Record the pixel that was drawn for undo functionality
+                        pixel_info = {
+                            'position': (pixel_x, pixel_y),
+                            'color': current_color,
+                            'old_color': old_color,  # Store the original color for undo
+                            'timestamp': time.time()
+                        }
+                        drag_info['pixels_drawn'].append(pixel_info)
             else:
                 print(f"DEBUG: No canvas or canvas_interface available")
 
@@ -8635,10 +8622,33 @@ pixels = \"\"\"
             if canvas_height > 0:
                 pixel_y = max(0, min(pixel_y, canvas_height - 1))
 
+            # Get the old color BEFORE changing the pixel for undo functionality
+            old_color = None
+            if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
+                try:
+                    old_color = self.canvas.canvas_interface.get_pixel_at(pixel_x, pixel_y)
+                except:
+                    old_color = (0, 0, 0)  # Default to black if we can't get the color
+            else:
+                old_color = (0, 0, 0)  # Default to black
+
             # Paint the pixel using the canvas interface
             if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'canvas_interface'):
                 self.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)
                 print(f"DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}")
+
+                # Track this pixel in the controller drag operation
+                if hasattr(self, 'controller_drags') and controller_id in self.controller_drags:
+                    drag_info = self.controller_drags[controller_id]
+                    if drag_info['active']:
+                        # Record the pixel that was drawn for undo functionality
+                        pixel_info = {
+                            'position': (pixel_x, pixel_y),
+                            'color': current_color,
+                            'old_color': old_color,  # Store the original color for undo
+                            'timestamp': time.time()
+                        }
+                        drag_info['pixels_drawn'].append(pixel_info)
             else:
                 print(f"DEBUG: No canvas or canvas_interface available")
 

@@ -42,9 +42,9 @@ green = 97
 blue = 97
 
 [colors.1]
-red = 0
+red = 255
 green = 0
-blue = 0
+blue = 255
 
 [colors.2]
 red = 56
