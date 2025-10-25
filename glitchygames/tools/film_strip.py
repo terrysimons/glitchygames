@@ -851,7 +851,11 @@ class FilmStripWidget:
                     # Store removal button rectangles in a separate dictionary
                     if not hasattr(self, "removal_button_layouts"):
                         self.removal_button_layouts = {}
+                        LOG.debug("FilmStripWidget: Initialized removal_button_layouts dictionary")
                     self.removal_button_layouts[anim_name, actual_frame_idx] = removal_button_rect
+                    LOG.debug(f"FilmStripWidget: Added removal button to layouts: {anim_name}[{actual_frame_idx}]")
+                else:
+                    LOG.debug(f"FilmStripWidget: Skipping removal button for {anim_name}[{actual_frame_idx}] - only {len(frames)} frame(s)")
 
             # Only increment Y offset if there are multiple animations
             # For single animation, all frames should be at the same Y position
@@ -2130,6 +2134,23 @@ class FilmStripWidget:
         # Insert the frame into the animated sprite
         self.animated_sprite.add_frame(current_animation, new_frame, insert_index)
 
+        # Track frame addition for undo/redo
+        if (hasattr(self, "parent_scene") and 
+            self.parent_scene and 
+            hasattr(self.parent_scene, "film_strip_operation_tracker")):
+            
+            # Create frame data for undo/redo tracking
+            frame_data = {
+                "width": new_frame.image.get_width(),
+                "height": new_frame.image.get_height(),
+                "pixels": new_frame.pixels.copy() if hasattr(new_frame, 'pixels') else [],
+                "duration": new_frame.duration
+            }
+            
+            self.parent_scene.film_strip_operation_tracker.add_frame_added(
+                insert_index, current_animation, frame_data
+            )
+
         # CRITICAL: Reinitialize preview animations after adding a frame
         # This ensures the film strip picks up the new frame count and starts animating
         # if it was previously a single-frame animation
@@ -2138,6 +2159,21 @@ class FilmStripWidget:
         # Notify the parent scene about the frame insertion
         if hasattr(self.parent_scene, "_on_frame_inserted"):
             self.parent_scene._on_frame_inserted(current_animation, insert_index)
+
+        # Select the newly created frame so the user can immediately start editing it
+        LOG.debug(f"FilmStripWidget: Selecting newly created frame {insert_index} in animation '{current_animation}'")
+        self.set_current_frame(current_animation, insert_index)
+        
+        # Also update the canvas to show the new frame
+        if (hasattr(self, "parent_scene") and self.parent_scene and 
+            hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas):
+            # Set flag to prevent frame selection tracking during frame creation
+            self.parent_scene._creating_frame = True
+            try:
+                self.parent_scene.canvas.show_frame(current_animation, insert_index)
+                LOG.debug(f"FilmStripWidget: Updated canvas to show new frame {insert_index}")
+            finally:
+                self.parent_scene._creating_frame = False
 
         # Recalculate layouts to include the new frame
         self.update_layout()
@@ -2164,11 +2200,18 @@ class FilmStripWidget:
             True if a removal button was clicked, False otherwise
 
         """
+        LOG.debug(f"FilmStripWidget: Checking removal button click at {pos}")
+        
         if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
+            LOG.debug("FilmStripWidget: No removal button layouts found")
             return False
 
+        LOG.debug(f"FilmStripWidget: Checking {len(self.removal_button_layouts)} removal buttons")
+        
         for (anim_name, frame_idx), button_rect in self.removal_button_layouts.items():
+            LOG.debug(f"FilmStripWidget: Checking button {anim_name}[{frame_idx}] at {button_rect}")
             if button_rect.collidepoint(pos):
+                LOG.debug(f"FilmStripWidget: Click hit removal button for {anim_name}[{frame_idx}]")
                 # CRITICAL: Add bounds checking to prevent invalid frame removal
                 if (self.animated_sprite and
                     anim_name in self.animated_sprite._animations and
@@ -2178,6 +2221,7 @@ class FilmStripWidget:
                     return True
                 LOG.debug(f"FilmStripWidget: Cannot remove frame - index {frame_idx} out of range")
                 return False
+        LOG.debug("FilmStripWidget: No removal button was clicked")
         return False
 
     def _remove_frame(self, animation_name: str, frame_index: int) -> None:
@@ -2204,45 +2248,71 @@ class FilmStripWidget:
 
         LOG.debug(f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'")
 
-        # Remove the frame
-        frames.pop(frame_index)
-
-        # Adjust current frame if necessary
-        if (hasattr(self, "current_animation") and self.current_animation == animation_name and
-            hasattr(self, "current_frame") and self.current_frame >= frame_index):
-            # If we removed a frame before or at the current position, adjust the current frame
-            if self.current_frame > 0:
-                self.current_frame -= 1
-            else:
-                # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
-                self.current_frame = 0
-
-        # CRITICAL: Also update the animated sprite's frame manager
+        # CRITICAL: Stop animation and reset frame index before deletion to prevent race conditions
         if (self.animated_sprite and
             hasattr(self.animated_sprite, "frame_manager") and
             self.animated_sprite.frame_manager.current_animation == animation_name):
-
-            LOG.debug(f"FilmStripWidget: Before removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frame_index: {frame_index}")
-
-            # Adjust the animated sprite's current frame
+            
+            # Stop the animation to prevent it from accessing frames during deletion
+            self.animated_sprite._is_playing = False
+            
+            # Adjust the current frame index before deletion
             if self.animated_sprite.frame_manager.current_frame >= frame_index:
                 if self.animated_sprite.frame_manager.current_frame > 0:
                     self.animated_sprite.frame_manager.current_frame -= 1
                 else:
                     self.animated_sprite.frame_manager.current_frame = 0
+            
+            LOG.debug(f"FilmStripWidget: Stopped animation and adjusted frame index to {self.animated_sprite.frame_manager.current_frame}")
 
-            # Ensure the current frame is within bounds
-            if self.animated_sprite.frame_manager.current_frame >= len(frames):
-                self.animated_sprite.frame_manager.current_frame = max(0, len(frames) - 1)
+        # Capture frame data for undo/redo before removing
+        frame_data = None
+        if (hasattr(self, "parent_scene") and 
+            self.parent_scene and 
+            hasattr(self.parent_scene, "film_strip_operation_tracker")):
+            
+            # Get the frame data before deletion
+            frame_to_remove = frames[frame_index]
+            frame_data = {
+                "width": frame_to_remove.image.get_width(),
+                "height": frame_to_remove.image.get_height(),
+                "pixels": frame_to_remove.pixels.copy() if hasattr(frame_to_remove, 'pixels') else [],
+                "duration": frame_to_remove.duration
+            }
+            
+            # Track frame deletion for undo/redo
+            self.parent_scene.film_strip_operation_tracker.add_frame_deleted(
+                frame_index, animation_name, frame_data
+            )
 
+        # Remove the frame
+        frames.pop(frame_index)
+
+        # Adjust current frame if necessary and select the previous frame
+        if (hasattr(self, "current_animation") and self.current_animation == animation_name and
+            hasattr(self, "current_frame") and self.current_frame >= frame_index):
+            
+            # If we removed a frame before or at the current position, select the previous frame
+            if self.current_frame > 0:
+                # Select the previous frame
+                self.current_frame -= 1
+                LOG.debug(f"FilmStripWidget: Selected previous frame {self.current_frame} after deletion")
+            else:
+                # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
+                self.current_frame = 0
+                LOG.debug(f"FilmStripWidget: Stayed at frame 0 after deleting frame 0")
+
+        # Ensure the current frame is within bounds after deletion
+        if (self.animated_sprite and
+            hasattr(self.animated_sprite, "frame_manager") and
+            self.animated_sprite.frame_manager.current_animation == animation_name):
+            
+            remaining_frames = len(frames)
+            if remaining_frames > 0:
+                if self.animated_sprite.frame_manager.current_frame >= remaining_frames:
+                    self.animated_sprite.frame_manager.current_frame = max(0, remaining_frames - 1)
+            
             LOG.debug(f"FilmStripWidget: After removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frames count: {len(frames)}")
-
-            # CRITICAL: Force the animated sprite to stop if it's trying to access an invalid frame
-            if (self.animated_sprite.frame_manager.current_frame >= len(frames) or
-                self.animated_sprite.frame_manager.current_frame < 0):
-                LOG.error(f"FilmStripWidget: CRITICAL - Invalid frame index {self.animated_sprite.frame_manager.current_frame}, stopping animation")
-                self.animated_sprite.stop()
-                self.animated_sprite.frame_manager.current_frame = 0
 
             # Mark the animated sprite as dirty to ensure it updates properly
             self.animated_sprite.dirty = 2
@@ -2288,10 +2358,12 @@ class FilmStripWidget:
 
         """
         if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
+            LOG.debug(f"FilmStripWidget: No removal button layouts for {anim_name}[{frame_idx}]")
             return
 
         button_key = (anim_name, frame_idx)
         if button_key not in self.removal_button_layouts:
+            LOG.debug(f"FilmStripWidget: No removal button layout for {anim_name}[{frame_idx}]")
             return
 
         button_rect = self.removal_button_layouts[button_key]
@@ -2299,7 +2371,10 @@ class FilmStripWidget:
         # Don't render removal button if this is the last frame (can't remove it)
         if (anim_name in self.animated_sprite._animations and
             len(self.animated_sprite._animations[anim_name]) <= 1):
+            LOG.debug(f"FilmStripWidget: Skipping removal button for {anim_name}[{frame_idx}] - only one frame")
             return
+
+        LOG.debug(f"FilmStripWidget: Rendering removal button for {anim_name}[{frame_idx}] at {button_rect}")
 
         # Use the same styling as FilmTabWidget
         tab_color = (200, 200, 200)  # Light gray - same as insertion tabs

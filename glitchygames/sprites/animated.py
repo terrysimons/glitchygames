@@ -1278,12 +1278,21 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         frames = self._animations[self.frame_manager.current_animation]
         if not frames:
+            # No frames available, stop animation
+            self._is_playing = False
             return
 
         # Update frame timer
         self._frame_timer += dt
 
         # Use the current frame's duration for timing
+        # Ensure current frame index is within bounds
+        if self.frame_manager.current_frame >= len(frames):
+            self.frame_manager.current_frame = max(0, len(frames) - 1)
+        
+        if self.frame_manager.current_frame < 0:
+            self.frame_manager.current_frame = 0
+            
         current_frame = frames[self.frame_manager.current_frame]
         frame_interval = current_frame.duration
 
