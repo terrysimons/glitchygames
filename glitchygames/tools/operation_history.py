@@ -331,9 +331,10 @@ class FilmStripOperationTracker:
             LOG.debug(f"Frame selection unchanged: {animation}[{frame}]")
             return
             
-        # Use current frame as previous if not provided
+        # Use current frame as previous if not provided, but don't use the same values
         if previous_animation is None or previous_frame is None:
-            previous_animation, previous_frame = animation, frame
+            # If we don't have a previous frame, use the baseline frame 0
+            previous_animation, previous_frame = "strip_1", 0
         
         undo_data = {
             "animation": previous_animation,

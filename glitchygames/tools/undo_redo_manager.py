@@ -206,6 +206,9 @@ class UndoRedoManager:
         
         self.undo_stack.append(operation)
         
+        # Check if we should optimize frame create + frame select operations
+        self._optimize_frame_create_select_operations()
+        
         # Maintain max history limit
         if len(self.undo_stack) > self.max_history:
             removed = self.undo_stack.pop(0)
@@ -215,6 +218,40 @@ class UndoRedoManager:
         self.at_head_of_history = True
         
         LOG.debug(f"Added operation: {description} (undo stack size: {len(self.undo_stack)})")
+    
+    def _optimize_frame_create_select_operations(self) -> None:
+        """Optimize frame create + frame select operations by removing both if they appear consecutively.
+        
+        If the last two operations are:
+        1. FRAME_SELECTION (most recent)
+        2. FILM_STRIP_FRAME_ADD (second most recent)
+        
+        And they're for the same frame, remove both operations since frame creation implies selection.
+        """
+        if len(self.undo_stack) < 2:
+            return
+            
+        # Get the last two operations
+        last_operation = self.undo_stack[-1]
+        second_last_operation = self.undo_stack[-2]
+        
+        # Check if we have a frame create followed by a frame select
+        if (last_operation.operation_type == OperationType.FRAME_SELECTION and 
+            second_last_operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD):
+            
+            # Check if they're for the same frame
+            # Frame selection uses 'animation' and 'frame' keys
+            last_animation = last_operation.redo_data.get("animation")
+            last_frame = last_operation.redo_data.get("frame")
+            
+            # Frame create uses 'animation_name' and 'frame_index' keys (swapped!)
+            second_animation = second_last_operation.redo_data.get("frame_index")  # This is the animation name
+            second_frame = second_last_operation.redo_data.get("animation_name")  # This is the frame number
+            
+            if (last_animation == second_animation and last_frame == second_frame):
+                # Remove only the frame selection, keep the frame create
+                self.undo_stack.pop()  # Remove frame selection
+                LOG.debug(f"Optimized: removed redundant frame select for {last_animation}[{last_frame}]")
     
     def add_frame_operation(self, animation: str, frame: int, operation_type: OperationType, 
                            description: str, undo_data: Dict[str, Any], 
@@ -528,7 +565,7 @@ class UndoRedoManager:
                 pixels = operation.undo_data.get("pixels", [])
                 success = True
                 for pixel_data in pixels:
-                    x, y, old_color = pixel_data
+                    x, y, new_color, old_color = pixel_data  # Fixed: unpack 4 values, not 3
                     if not self._apply_pixel_change(x, y, old_color):
                         success = False
                 return success
@@ -635,7 +672,7 @@ class UndoRedoManager:
                 pixels = operation.redo_data.get("pixels", [])
                 success = True
                 for pixel_data in pixels:
-                    x, y, new_color = pixel_data
+                    x, y, old_color, new_color = pixel_data  # Fixed: unpack 4 values, not 3
                     if not self._apply_pixel_change(x, y, new_color):
                         success = False
                 return success
@@ -719,6 +756,80 @@ class UndoRedoManager:
         # This will be implemented when we integrate with both systems
         LOG.debug(f"Redoing cross-area operation: {operation.description}")
         return True
+    
+    def _undo_frame_selection_operation(self, operation: Operation) -> bool:
+        """Undo a frame selection operation.
+        
+        Args:
+            operation: The frame selection operation to undo
+            
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        try:
+            # Get the previous frame selection from undo_data
+            previous_animation = operation.undo_data.get("animation")
+            previous_frame = operation.undo_data.get("frame")
+            
+            if previous_animation is None or previous_frame is None:
+                LOG.warning("Frame selection undo data missing animation or frame")
+                return False
+                
+            # Switch to the previous frame selection
+            if self.frame_selection_callback:
+                success = self.frame_selection_callback(previous_animation, previous_frame)
+                if success:
+                    # Update the manager's current frame
+                    self.current_frame = (previous_animation, previous_frame)
+                    LOG.debug(f"Frame selection undo: switched to {previous_animation}[{previous_frame}]")
+                    return True
+                else:
+                    LOG.warning(f"Frame selection callback failed for {previous_animation}[{previous_frame}]")
+                    return False
+            else:
+                LOG.warning("Frame selection callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing frame selection: {e}")
+            return False
+    
+    def _redo_frame_selection_operation(self, operation: Operation) -> bool:
+        """Redo a frame selection operation.
+        
+        Args:
+            operation: The frame selection operation to redo
+            
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        try:
+            # Get the frame selection from redo_data
+            animation = operation.redo_data.get("animation")
+            frame = operation.redo_data.get("frame")
+            
+            if animation is None or frame is None:
+                LOG.warning("Frame selection redo data missing animation or frame")
+                return False
+                
+            # Switch to the frame selection
+            if self.frame_selection_callback:
+                success = self.frame_selection_callback(animation, frame)
+                if success:
+                    # Update the manager's current frame
+                    self.current_frame = (animation, frame)
+                    LOG.debug(f"Frame selection redo: switched to {animation}[{frame}]")
+                    return True
+                else:
+                    LOG.warning(f"Frame selection callback failed for {animation}[{frame}]")
+                    return False
+            else:
+                LOG.warning("Frame selection callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing frame selection: {e}")
+            return False
     
     def clear_history(self) -> None:
         """Clear all undo/redo history."""
@@ -916,6 +1027,8 @@ class UndoRedoManager:
             if self.frame_selection_callback:
                 success = self.frame_selection_callback(previous_animation, previous_frame)
                 if success:
+                    # Update the manager's current frame
+                    self.current_frame = (previous_animation, previous_frame)
                     LOG.debug(f"Frame selection undo: switched to {previous_animation}[{previous_frame}]")
                     return True
                 else:
@@ -951,6 +1064,8 @@ class UndoRedoManager:
             if self.frame_selection_callback:
                 success = self.frame_selection_callback(animation, frame)
                 if success:
+                    # Update the manager's current frame
+                    self.current_frame = (animation, frame)
                     LOG.debug(f"Frame selection redo: switched to {animation}[{frame}]")
                     return True
                 else:
