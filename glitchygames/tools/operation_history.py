@@ -1,196 +1,60 @@
 #!/usr/bin/env python3
-"""Operation History Tracker for Undo/Redo System.
-
-This module provides specialized operation tracking for different types of
-editing operations in the Bitmappy editor.
-"""
-
-from __future__ import annotations
+"""Operation history tracking for undo/redo system."""
 
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-import time
+from typing import Any, Dict, List, Tuple
 
-from .undo_redo_manager import OperationType, UndoRedoManager
+from .undo_redo_manager import OperationType
 
 LOG = logging.getLogger(__name__)
+LOG.addHandler(logging.NullHandler())
 
 
-@dataclass
 class PixelChange:
-    """Represents a change to a single pixel."""
+    """Represents a single pixel change."""
     
-    x: int
-    y: int
-    old_color: Tuple[int, int, int]
-    new_color: Tuple[int, int, int]
-    timestamp: float = 0.0
-    
-    def __post_init__(self):
-        if self.timestamp == 0.0:
-            self.timestamp = time.time()
-
-
-@dataclass
-class BrushStroke:
-    """Represents a brush stroke operation."""
-    
-    pixels: List[PixelChange]
-    brush_size: int
-    brush_type: str
-    timestamp: float = 0.0
-    
-    def __post_init__(self):
-        if self.timestamp == 0.0:
-            self.timestamp = time.time()
-
-
-@dataclass
-class FrameOperation:
-    """Represents a frame-level operation."""
-    
-    frame_index: int
-    animation_name: str
-    operation_data: Dict[str, Any]
-    timestamp: float = 0.0
-    
-    def __post_init__(self):
-        if self.timestamp == 0.0:
-            self.timestamp = time.time()
+    def __init__(self, x: int, y: int, old_color: Tuple[int, int, int], new_color: Tuple[int, int, int]):
+        self.x = x
+        self.y = y
+        self.old_color = old_color
+        self.new_color = new_color
 
 
 class CanvasOperationTracker:
-    """Tracks canvas-specific operations for undo/redo."""
+    """Tracks canvas operations for undo/redo."""
     
-    def __init__(self, undo_redo_manager: UndoRedoManager):
-        """Initialize the canvas operation tracker.
-        
-        Args:
-            undo_redo_manager: The undo/redo manager to use
-        """
+    def __init__(self, undo_redo_manager):
         self.undo_redo_manager = undo_redo_manager
-        self.current_stroke: Optional[BrushStroke] = None
-        self.stroke_pixels: List[PixelChange] = []
-        
         LOG.debug("CanvasOperationTracker initialized")
     
-    def start_brush_stroke(self, brush_size: int, brush_type: str) -> None:
-        """Start tracking a new brush stroke.
+    def add_pixel_changes(self, pixels: List[Tuple[int, int, Tuple[int, int, int], Tuple[int, int, int]]]) -> None:
+        """Add pixel changes to the undo/redo history.
         
         Args:
-            brush_size: Size of the brush
-            brush_type: Type of brush being used
+            pixels: List of (x, y, old_color, new_color) tuples
         """
-        if self.current_stroke is not None:
-            # Finish the previous stroke if one exists
-            self.end_brush_stroke()
-        
-        self.current_stroke = BrushStroke(
-            pixels=[],
-            brush_size=brush_size,
-            brush_type=brush_type
-        )
-        self.stroke_pixels = []
-        
-        LOG.debug(f"Started brush stroke: {brush_type} (size: {brush_size})")
-    
-    def add_pixel_change(self, x: int, y: int, old_color: Tuple[int, int, int], 
-                        new_color: Tuple[int, int, int]) -> None:
-        """Add a pixel change to the current stroke.
-        
-        Args:
-            x: X coordinate of the pixel
-            y: Y coordinate of the pixel
-            old_color: Previous color of the pixel
-            new_color: New color of the pixel
-        """
-        if self.current_stroke is None:
-            # Create a single-pixel stroke if none exists
-            self.start_brush_stroke(1, "single_pixel")
-        
-        pixel_change = PixelChange(
-            x=x, y=y, old_color=old_color, new_color=new_color
-        )
-        
-        self.stroke_pixels.append(pixel_change)
-        
-        LOG.debug(f"Added pixel change at ({x}, {y}): {old_color} -> {new_color}")
-    
-    def end_brush_stroke(self) -> None:
-        """End the current brush stroke and add it to history."""
-        if self.current_stroke is None:
-            return
-        
-        # Update the stroke with all collected pixels
-        self.current_stroke.pixels = self.stroke_pixels.copy()
-        
-        if not self.stroke_pixels:
-            # No pixels changed, don't create an operation
-            LOG.debug("Brush stroke ended with no pixel changes")
-            self.current_stroke = None
-            self.stroke_pixels = []
-            return
-        
-        # Create undo/redo data
-        undo_data = {
-            "pixels": [(p.x, p.y, p.old_color) for p in self.stroke_pixels],
-            "brush_size": self.current_stroke.brush_size,
-            "brush_type": self.current_stroke.brush_type
-        }
-        
-        redo_data = {
-            "pixels": [(p.x, p.y, p.new_color) for p in self.stroke_pixels],
-            "brush_size": self.current_stroke.brush_size,
-            "brush_type": self.current_stroke.brush_type
-        }
-        
-        # Add to undo/redo manager
-        description = f"Brush stroke ({self.current_stroke.brush_type}, {len(self.stroke_pixels)} pixels)"
-        self.undo_redo_manager.add_operation(
-            operation_type=OperationType.CANVAS_BRUSH_STROKE,
-            description=description,
-            undo_data=undo_data,
-            redo_data=redo_data,
-            context={"stroke_timestamp": self.current_stroke.timestamp}
-        )
-        
-        LOG.debug(f"Ended brush stroke: {description}")
-        
-        # Reset for next stroke
-        self.current_stroke = None
-        self.stroke_pixels = []
-    
-    def add_pixel_changes(self, pixel_changes: List[Tuple[int, int, Tuple[int, int, int], Tuple[int, int, int]]]) -> None:
-        """Add a list of pixel changes as a single operation.
-        
-        Args:
-            pixel_changes: List of (x, y, old_color, new_color) tuples
-        """
-        if not pixel_changes:
+        if not pixels:
             return
             
-        # Create undo/redo data
-        undo_pixels = [(x, y, old_color) for x, y, old_color, new_color in pixel_changes]
-        redo_pixels = [(x, y, new_color) for x, y, old_color, new_color in pixel_changes]
+        # Convert to PixelChange objects for consistency
+        pixel_changes = []
+        for x, y, old_color, new_color in pixels:
+            pixel_changes.append(PixelChange(x, y, old_color, new_color))
         
-        # Use consistent format for both single and multiple pixel changes
-        undo_data = {
-            "pixels": undo_pixels
-        }
-        redo_data = {
-            "pixels": redo_pixels
-        }
+        # Create undo/redo data
+        undo_pixels = [(pc.x, pc.y, pc.new_color, pc.old_color) for pc in pixel_changes]
+        redo_pixels = [(pc.x, pc.y, pc.old_color, pc.new_color) for pc in pixel_changes]
+        
+        undo_data = {"pixels": undo_pixels}
+        redo_data = {"pixels": redo_pixels}
         
         if len(pixel_changes) == 1:
-            description = f"Pixel change at ({pixel_changes[0][0]}, {pixel_changes[0][1]})"
-            operation_type = OperationType.CANVAS_BRUSH_STROKE  # Use same type for consistency
+            description = f"Pixel change at ({pixel_changes[0].x}, {pixel_changes[0].y})"
         else:
-            description = f"Pixel changes ({len(pixel_changes)} pixels)"
-            operation_type = OperationType.CANVAS_BRUSH_STROKE
-            
+            description = f"Brush stroke ({len(pixel_changes)} pixels)"
+        
         self.undo_redo_manager.add_operation(
-            operation_type=operation_type,
+            operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description=description,
             undo_data=undo_data,
             redo_data=redo_data
@@ -230,11 +94,12 @@ class CanvasOperationTracker:
         
         redo_data = {
             "start_pos": (x, y),
-            "new_color": new_color,
+            "old_color": new_color,
             "affected_pixels": affected_pixels
         }
         
         description = f"Flood fill at ({x}, {y}) - {len(affected_pixels)} pixels"
+        
         self.undo_redo_manager.add_operation(
             operation_type=OperationType.CANVAS_FLOOD_FILL,
             description=description,
@@ -242,10 +107,10 @@ class CanvasOperationTracker:
             redo_data=redo_data
         )
         
-        LOG.debug(f"Added flood fill operation: {description}")
+        LOG.debug(f"Tracked flood fill: {description}")
     
     def add_frame_pixel_changes(self, animation: str, frame: int, pixels: List) -> None:
-        """Track pixel changes for a specific frame.
+        """Add pixel changes for a specific frame.
         
         Args:
             animation: Name of the animation
@@ -254,50 +119,46 @@ class CanvasOperationTracker:
         """
         if not pixels:
             return
-        
-        # Create undo/redo data for the pixel changes
-        undo_pixels = []
-        redo_pixels = []
-        
+            
+        # Convert to consistent format
+        pixel_changes = []
         for pixel in pixels:
-            # Handle both PixelChange objects and tuples
-            if hasattr(pixel, 'x'):  # PixelChange object
-                undo_pixels.append((pixel.x, pixel.y, pixel.old_color))
-                redo_pixels.append((pixel.x, pixel.y, pixel.new_color))
-            elif isinstance(pixel, tuple) and len(pixel) == 4:  # (x, y, old_color, new_color) tuple
-                x, y, old_color, new_color = pixel
-                undo_pixels.append((x, y, old_color))
-                redo_pixels.append((x, y, new_color))
+            if isinstance(pixel, PixelChange):
+                pixel_changes.append((pixel.x, pixel.y, pixel.old_color, pixel.new_color))
             else:
-                LOG.warning(f"Unknown pixel change format: {pixel}")
-                continue
+                # Assume it's a tuple (x, y, old_color, new_color)
+                pixel_changes.append(pixel)
         
-        description = f"Frame {animation}[{frame}] pixel changes ({len(pixels)} pixels)"
+        # Create undo/redo data
+        undo_pixels = [(x, y, new_color, old_color) for x, y, old_color, new_color in pixel_changes]
+        redo_pixels = [(x, y, old_color, new_color) for x, y, old_color, new_color in pixel_changes]
         
-        # Use frame-specific operation tracking
+        undo_data = {"pixels": undo_pixels}
+        redo_data = {"pixels": redo_pixels}
+        
+        if len(pixel_changes) == 1:
+            description = f"Frame {animation}[{frame}] pixel change at ({pixel_changes[0][0]}, {pixel_changes[0][1]})"
+        else:
+            description = f"Frame {animation}[{frame}] pixel changes ({len(pixel_changes)} pixels)"
+        
+        # Add to frame-specific undo stack
         self.undo_redo_manager.add_frame_operation(
             animation=animation,
             frame=frame,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description=description,
-            undo_data={"pixels": undo_pixels},
-            redo_data={"pixels": redo_pixels}
+            undo_data=undo_data,
+            redo_data=redo_data
         )
         
-        LOG.debug(f"Added frame pixel changes for {animation}[{frame}]: {description}")
+        LOG.debug(f"Tracked frame pixel changes: {description}")
 
 
 class FilmStripOperationTracker:
-    """Tracks film strip-specific operations for undo/redo."""
+    """Tracks film strip operations for undo/redo."""
     
-    def __init__(self, undo_redo_manager: UndoRedoManager):
-        """Initialize the film strip operation tracker.
-        
-        Args:
-            undo_redo_manager: The undo/redo manager to use
-        """
+    def __init__(self, undo_redo_manager):
         self.undo_redo_manager = undo_redo_manager
-        
         LOG.debug("FilmStripOperationTracker initialized")
     
     def add_frame_added(self, frame_index: int, animation_name: str, 
@@ -365,7 +226,7 @@ class FilmStripOperationTracker:
         LOG.debug(f"Tracked frame deletion: {description}")
     
     def add_frame_reordered(self, old_index: int, new_index: int, animation_name: str) -> None:
-        """Track when frames are reordered.
+        """Track when a frame is reordered.
         
         Args:
             old_index: Original index of the frame
@@ -386,7 +247,7 @@ class FilmStripOperationTracker:
             "action": "reorder"
         }
         
-        description = f"Moved frame {old_index} to {new_index} in '{animation_name}'"
+        description = f"Reordered frame {old_index} to {new_index} in '{animation_name}'"
         self.undo_redo_manager.add_operation(
             operation_type=OperationType.FILM_STRIP_FRAME_REORDER,
             description=description,
@@ -394,14 +255,14 @@ class FilmStripOperationTracker:
             redo_data=redo_data
         )
         
-        LOG.debug(f"Tracked frame reordering: {description}")
+        LOG.debug(f"Tracked frame reorder: {description}")
     
     def add_animation_added(self, animation_name: str, animation_data: Dict[str, Any]) -> None:
         """Track when an animation is added.
         
         Args:
-            animation_name: Name of the animation
-            animation_data: Data about the animation
+            animation_name: Name of the animation that was added
+            animation_data: Data about the added animation
         """
         undo_data = {
             "animation_name": animation_name,
@@ -428,7 +289,7 @@ class FilmStripOperationTracker:
         """Track when an animation is deleted.
         
         Args:
-            animation_name: Name of the animation
+            animation_name: Name of the animation that was deleted
             animation_data: Data about the deleted animation
         """
         undo_data = {
@@ -451,23 +312,64 @@ class FilmStripOperationTracker:
         )
         
         LOG.debug(f"Tracked animation deletion: {description}")
+    
+    def add_frame_selection(self, animation: str, frame: int) -> None:
+        """Track when a frame is selected.
+        
+        Args:
+            animation: Name of the animation being selected
+            frame: Frame index being selected
+        """
+        # Get the previous frame selection from the undo/redo manager
+        previous_animation = None
+        previous_frame = None
+        if hasattr(self.undo_redo_manager, 'current_frame') and self.undo_redo_manager.current_frame:
+            previous_animation, previous_frame = self.undo_redo_manager.current_frame
+        
+        # Only track if we're actually changing selection
+        if (previous_animation == animation and previous_frame == frame):
+            LOG.debug(f"Frame selection unchanged: {animation}[{frame}]")
+            return
+            
+        # Use current frame as previous if not provided
+        if previous_animation is None or previous_frame is None:
+            previous_animation, previous_frame = animation, frame
+        
+        undo_data = {
+            "animation": previous_animation,
+            "frame": previous_frame
+        }
+        
+        redo_data = {
+            "animation": animation,
+            "frame": frame
+        }
+        
+        description = f"Selected frame {animation}[{frame}]"
+        
+        # Add to global undo stack as a film strip operation
+        self.undo_redo_manager.add_operation(
+            operation_type=OperationType.FRAME_SELECTION,
+            description=description,
+            undo_data=undo_data,
+            redo_data=redo_data
+        )
+        
+        # Update current frame in undo/redo manager
+        self.undo_redo_manager.current_frame = (animation, frame)
+        
+        LOG.debug(f"Tracked frame selection: {description}")
 
 
 class CrossAreaOperationTracker:
-    """Tracks operations that span both canvas and film strip areas."""
+    """Tracks cross-area operations (copy/paste between frames/animations)."""
     
-    def __init__(self, undo_redo_manager: UndoRedoManager):
-        """Initialize the cross-area operation tracker.
-        
-        Args:
-            undo_redo_manager: The undo/redo manager to use
-        """
+    def __init__(self, undo_redo_manager):
         self.undo_redo_manager = undo_redo_manager
-        
         LOG.debug("CrossAreaOperationTracker initialized")
     
-    def add_frame_copy(self, source_frame: int, source_animation: str, 
-                      frame_data: Dict[str, Any]) -> None:
+    def add_frame_copied(self, source_frame: int, source_animation: str, 
+                        frame_data: Dict[str, Any]) -> None:
         """Track when a frame is copied.
         
         Args:
@@ -476,13 +378,15 @@ class CrossAreaOperationTracker:
             frame_data: Data about the copied frame
         """
         undo_data = {
-            "action": "clear_clipboard"
+            "source_frame": source_frame,
+            "source_animation": source_animation,
+            "action": "copy"
         }
         
         redo_data = {
-            "action": "copy",
             "source_frame": source_frame,
             "source_animation": source_animation,
+            "action": "copy",
             "frame_data": frame_data
         }
         
@@ -496,8 +400,8 @@ class CrossAreaOperationTracker:
         
         LOG.debug(f"Tracked frame copy: {description}")
     
-    def add_frame_paste(self, target_frame: int, target_animation: str, 
-                       frame_data: Dict[str, Any]) -> None:
+    def add_frame_pasted(self, target_frame: int, target_animation: str, 
+                         frame_data: Dict[str, Any]) -> None:
         """Track when a frame is pasted.
         
         Args:
@@ -508,7 +412,7 @@ class CrossAreaOperationTracker:
         undo_data = {
             "target_frame": target_frame,
             "target_animation": target_animation,
-            "action": "delete"
+            "action": "paste"
         }
         
         redo_data = {

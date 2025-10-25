@@ -1471,7 +1471,14 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Update the undo/redo manager with the current frame for frame-specific operations
             if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "undo_redo_manager"):
-                self.parent_scene.undo_redo_manager.set_current_frame(animation, frame)
+                # Only track frame selection if we're not in the middle of an undo/redo operation
+                # or creating a frame (which has its own undo tracking)
+                # Also don't track frame selection if we're in the middle of film strip operations
+                if (not getattr(self.parent_scene, "_applying_undo_redo", False) and 
+                    not getattr(self.parent_scene, "_creating_frame", False) and
+                    not getattr(self.parent_scene, "_creating_animation", False)):
+                    # Track frame selection as a film strip operation instead of global
+                    self.parent_scene.film_strip_operation_tracker.add_frame_selection(animation, frame)
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
@@ -3214,24 +3221,43 @@ class BitmapEditorScene(Scene):
 
             # Track animation creation for undo/redo
             if hasattr(self, "film_strip_operation_tracker"):
-                # Create animation data for undo/redo
-                animation_data = {
-                    "frames": [{
-                        "width": animated_frame.image.get_width(),
-                        "height": animated_frame.image.get_height(),
-                        "pixels": animated_frame.pixels.copy() if hasattr(animated_frame, 'pixels') else [],
-                        "duration": animated_frame.duration
-                    }],
-                    "frame_count": 1
-                }
+                # Set flag to prevent frame selection tracking during animation creation
+                self._creating_animation = True
+                try:
+                    # Create animation data for undo/redo
+                    animation_data = {
+                        "frames": [{
+                            "width": animated_frame.image.get_width(),
+                            "height": animated_frame.image.get_height(),
+                            "pixels": animated_frame.pixels.copy() if hasattr(animated_frame, 'pixels') else [],
+                            "duration": animated_frame.duration
+                        }],
+                        "frame_count": 1
+                    }
 
-                # Track animation addition for undo/redo
-                self.film_strip_operation_tracker.add_animation_added(
-                    new_animation_name, animation_data
-                )
+                    # Track animation addition for undo/redo
+                    self.film_strip_operation_tracker.add_animation_added(
+                        new_animation_name, animation_data
+                    )
+                finally:
+                    self._creating_animation = False
 
             # Recreate film strips to include the new animation
             self._on_sprite_loaded(self.canvas.animated_sprite)
+            
+            # Select the 0th frame of the new animation so the user can immediately start editing it
+            LOG.debug(f"BitmapEditorScene: Selecting frame 0 of newly created animation '{new_animation_name}'")
+            # Set flag to prevent frame selection tracking during animation creation
+            self._creating_frame = True
+            try:
+                self.canvas.show_frame(new_animation_name, 0)
+                
+                # Update the undo/redo manager with the current frame for frame-specific operations
+                if hasattr(self, "undo_redo_manager"):
+                    self.undo_redo_manager.set_current_frame(new_animation_name, 0)
+                    LOG.debug(f"BitmapEditorScene: Updated undo/redo manager to track frame 0 of '{new_animation_name}'")
+            finally:
+                self._creating_frame = False
 
             # Scroll to the new animation (last one)
             total_animations = len(self.canvas.animated_sprite._animations)
@@ -4507,6 +4533,9 @@ class BitmapEditorScene(Scene):
             add_animation_callback=self._add_animation_for_undo_redo,
             delete_animation_callback=self._delete_animation_for_undo_redo
         )
+        
+        # Set up frame selection callback for undo/redo
+        self.undo_redo_manager.set_frame_selection_callback(self._apply_frame_selection_for_undo_redo)
 
         # Initialize pixel change tracking
         self._current_pixel_changes = []
@@ -6544,6 +6573,10 @@ pixels = \"\"\"
             if success:
                 self.log.info("Global undo successful")
                 print("DEBUG: Global undo successful")
+                
+                # CRITICAL: Ensure canvas state is valid after film strip operations
+                self._synchronize_canvas_state_after_undo()
+                
                 # Force canvas redraw to show the undone changes
                 if hasattr(self, "canvas") and self.canvas:
                     self.canvas.force_redraw()
@@ -6553,6 +6586,62 @@ pixels = \"\"\"
             self.log.debug("No operations available to undo")
             print("DEBUG: No operations available to undo")
             print("DEBUG: Undo failed")
+
+    def _synchronize_canvas_state_after_undo(self) -> None:
+        """Synchronize canvas state after undo operations to prevent invalid states.
+        
+        This method ensures that:
+        1. The canvas is pointing to a valid animation
+        2. The canvas is pointing to a valid frame index
+        3. The canvas state is consistent with the current animation structure
+        """
+        if not hasattr(self, "canvas") or not self.canvas:
+            self.log.warning("No canvas available for state synchronization")
+            return
+            
+        if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
+            self.log.warning("No animated sprite available for state synchronization")
+            return
+            
+        animations = self.canvas.animated_sprite._animations
+        current_animation = getattr(self.canvas, "current_animation", None)
+        current_frame = getattr(self.canvas, "current_frame", None)
+        
+        self.log.debug(f"Canvas state before sync: animation={current_animation}, frame={current_frame}")
+        self.log.debug(f"Available animations: {list(animations.keys())}")
+        
+        # Check if current animation still exists
+        if current_animation not in animations:
+            self.log.warning(f"Current animation '{current_animation}' no longer exists, switching to first available")
+            if animations:
+                # Switch to the first available animation
+                first_animation = list(animations.keys())[0]
+                self.canvas.show_frame(first_animation, 0)
+                self.log.info(f"Switched to animation '{first_animation}', frame 0")
+                return
+            else:
+                self.log.error("No animations available - this should not happen")
+                return
+                
+        # Check if current frame index is valid
+        frames = animations[current_animation]
+        if current_frame is None or current_frame < 0 or current_frame >= len(frames):
+            self.log.warning(f"Current frame {current_frame} is invalid for animation '{current_animation}' with {len(frames)} frames")
+            # Switch to the last valid frame
+            valid_frame = max(0, len(frames) - 1)
+            self.canvas.show_frame(current_animation, valid_frame)
+            self.log.info(f"Switched to frame {valid_frame} of animation '{current_animation}'")
+            return
+            
+        # If we get here, the canvas state is valid
+        self.log.debug(f"Canvas state is valid: animation='{current_animation}', frame={current_frame}")
+        
+        # Force a complete canvas refresh to ensure everything is in sync
+        self.canvas.force_redraw()
+        
+        # Update film strips to reflect the current state
+        if hasattr(self, "_update_film_strips_for_frame"):
+            self._update_film_strips_for_frame(current_animation, current_frame)
 
     def _handle_redo(self) -> None:
         """Handle redo operation."""
@@ -6590,6 +6679,10 @@ pixels = \"\"\"
             if success:
                 self.log.info("Global redo successful")
                 print("DEBUG: Global redo successful")
+                
+                # CRITICAL: Ensure canvas state is valid after film strip operations
+                self._synchronize_canvas_state_after_undo()
+                
                 # Force canvas redraw to show the redone changes
                 if hasattr(self, "canvas") and self.canvas:
                     self.canvas.force_redraw()
@@ -6619,6 +6712,35 @@ pixels = \"\"\"
                 self._applying_undo_redo = False
         else:
             self.log.warning("Canvas or canvas interface not available for undo/redo")
+
+    def _apply_frame_selection_for_undo_redo(self, animation: str, frame: int) -> bool:
+        """Apply a frame selection for undo/redo operations.
+        
+        Args:
+            animation: Name of the animation to select
+            frame: Frame index to select
+            
+        Returns:
+            True if the frame selection was applied successfully, False otherwise
+        """
+        try:
+            if hasattr(self, "canvas") and self.canvas:
+                # Set flag to prevent undo tracking during undo/redo operations
+                self._applying_undo_redo = True
+                try:
+                    # Switch to the specified frame
+                    self.canvas.show_frame(animation, frame)
+                    self.log.debug(f"Applied undo/redo frame selection: {animation}[{frame}]")
+                    return True
+                finally:
+                    # Always reset the flag
+                    self._applying_undo_redo = False
+            else:
+                self.log.warning("Canvas not available for frame selection undo/redo")
+                return False
+        except Exception as e:
+            self.log.error(f"Error applying frame selection undo/redo: {e}")
+            return False
 
     def _add_frame_for_undo_redo(self, frame_index: int, animation_name: str, frame_data: dict) -> bool:
         """Add a frame for undo/redo operations.
@@ -6955,6 +7077,9 @@ pixels = \"\"\"
                             film_strip_sprite.film_strip_widget._create_film_tabs()
                             film_strip_sprite.film_strip_widget.mark_dirty()
                             film_strip_sprite.dirty = 1
+
+                # CRITICAL: Recreate film strips to reflect the deleted animation
+                self._on_sprite_loaded(self.canvas.animated_sprite)
 
                 self.log.debug(f"Deleted animation '{animation_name}' for undo/redo")
                 return True

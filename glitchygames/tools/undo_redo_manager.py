@@ -37,6 +37,9 @@ class OperationType(Enum):
     FRAME_PASTE = "frame_paste"
     ANIMATION_COPY = "animation_copy"
     ANIMATION_PASTE = "animation_paste"
+    
+    # Frame selection operations
+    FRAME_SELECTION = "frame_selection"
 
 
 @dataclass
@@ -74,6 +77,7 @@ class UndoRedoManager:
         self.is_undoing = False
         self.is_redoing = False
         self.pixel_change_callback: Optional[callable] = None
+        self.frame_selection_callback: Optional[callable] = None
         self.at_head_of_history = True  # Track if we're at the head of undo history
         
         # Frame-specific undo/redo stacks for canvas operations
@@ -100,6 +104,16 @@ class UndoRedoManager:
         """
         self.current_frame = (animation, frame)
         LOG.debug(f"Current frame set to: {animation}[{frame}]")
+    
+    def set_frame_selection_callback(self, callback: callable) -> None:
+        """Set the callback for frame selection operations.
+        
+        Args:
+            callback: Function to call when frame selection needs to be applied
+                     Should accept (animation: str, frame: int) and return bool
+        """
+        self.frame_selection_callback = callback
+        LOG.debug("Frame selection callback set")
     
     def can_undo_frame(self, animation: str, frame: int) -> bool:
         """Check if undo is available for a specific frame.
@@ -243,6 +257,7 @@ class UndoRedoManager:
             self.frame_undo_stacks[frame_key].pop(0)
         
         LOG.debug(f"Added frame operation for {animation}[{frame}]: {description}")
+    
     
     def undo_frame(self, animation: str, frame: int) -> bool:
         """Undo the last operation for a specific frame.
@@ -437,6 +452,8 @@ class UndoRedoManager:
                 OperationType.ANIMATION_PASTE
             ]:
                 return self._undo_cross_area_operation(operation)
+            elif operation.operation_type == OperationType.FRAME_SELECTION:
+                return self._undo_frame_selection_operation(operation)
             else:
                 LOG.warning(f"Unknown operation type: {operation.operation_type}")
                 return False
@@ -477,6 +494,8 @@ class UndoRedoManager:
                 OperationType.ANIMATION_PASTE
             ]:
                 return self._redo_cross_area_operation(operation)
+            elif operation.operation_type == OperationType.FRAME_SELECTION:
+                return self._redo_frame_selection_operation(operation)
             else:
                 LOG.warning(f"Unknown operation type: {operation.operation_type}")
                 return False
@@ -858,4 +877,89 @@ class UndoRedoManager:
             return self.add_animation_callback(animation_name, animation_data)
         else:
             LOG.warning("Add animation callback not set")
+            return False
+    
+    def _delete_animation(self, animation_name: str) -> bool:
+        """Delete an animation.
+        
+        Args:
+            animation_name: Name of the animation to delete
+            
+        Returns:
+            True if the animation was deleted successfully, False otherwise
+        """
+        if self.delete_animation_callback:
+            return self.delete_animation_callback(animation_name)
+        else:
+            LOG.warning("Delete animation callback not set")
+            return False
+    
+    def _undo_frame_selection_operation(self, operation: Operation) -> bool:
+        """Undo a frame selection operation.
+        
+        Args:
+            operation: The frame selection operation to undo
+            
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        try:
+            # Get the previous frame selection from undo_data
+            previous_animation = operation.undo_data.get("animation")
+            previous_frame = operation.undo_data.get("frame")
+            
+            if previous_animation is None or previous_frame is None:
+                LOG.warning("Frame selection undo data missing animation or frame")
+                return False
+                
+            # Switch to the previous frame selection
+            if self.frame_selection_callback:
+                success = self.frame_selection_callback(previous_animation, previous_frame)
+                if success:
+                    LOG.debug(f"Frame selection undo: switched to {previous_animation}[{previous_frame}]")
+                    return True
+                else:
+                    LOG.warning(f"Frame selection callback failed for {previous_animation}[{previous_frame}]")
+                    return False
+            else:
+                LOG.warning("Frame selection callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing frame selection: {e}")
+            return False
+    
+    def _redo_frame_selection_operation(self, operation: Operation) -> bool:
+        """Redo a frame selection operation.
+        
+        Args:
+            operation: The frame selection operation to redo
+            
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        try:
+            # Get the frame selection from redo_data
+            animation = operation.redo_data.get("animation")
+            frame = operation.redo_data.get("frame")
+            
+            if animation is None or frame is None:
+                LOG.warning("Frame selection redo data missing animation or frame")
+                return False
+                
+            # Switch to the frame selection
+            if self.frame_selection_callback:
+                success = self.frame_selection_callback(animation, frame)
+                if success:
+                    LOG.debug(f"Frame selection redo: switched to {animation}[{frame}]")
+                    return True
+                else:
+                    LOG.warning(f"Frame selection callback failed for {animation}[{frame}]")
+                    return False
+            else:
+                LOG.warning("Frame selection callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing frame selection: {e}")
             return False
