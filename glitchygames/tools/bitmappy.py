@@ -1428,6 +1428,10 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Update the canvas interface
                 self.canvas_interface.set_current_frame(self.current_animation, frame_index)
 
+                # Update the undo/redo manager with the current frame for frame-specific operations
+                if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "undo_redo_manager"):
+                    self.parent_scene.undo_redo_manager.set_current_frame(self.current_animation, frame_index)
+
                 # Update mini view and mark as dirty
                 if hasattr(self, "mini_view"):
                     self._update_mini_view_from_current_frame()
@@ -1464,6 +1468,10 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Update the canvas interface
             self.canvas_interface.set_current_frame(animation, frame)
+
+            # Update the undo/redo manager with the current frame for frame-specific operations
+            if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "undo_redo_manager"):
+                self.parent_scene.undo_redo_manager.set_current_frame(animation, frame)
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
@@ -3305,19 +3313,40 @@ class BitmapEditorScene(Scene):
             del self.canvas.animated_sprite._animations[animation_name]
             self.log.info(f"Deleted animation: {animation_name} at index {deleted_index}")
 
-            # Switch to the first remaining animation
+            # Switch to the first remaining animation and select the previous frame
             remaining_animations = list(self.canvas.animated_sprite._animations.keys())
             if remaining_animations:
                 new_animation = remaining_animations[0]
-                self.canvas.show_frame(new_animation, 0)
+
+                # Try to select the previous frame in the remaining animation
+                # If the deleted animation had frames, try to select a frame at a similar position
+                if hasattr(self, "selected_frame") and self.selected_frame > 0:
+                    # Select the previous frame if available
+                    target_frame = max(0, self.selected_frame - 1)
+                else:
+                    # If no previous frame, select the last frame of the remaining animation
+                    target_frame = max(0, len(self.canvas.animated_sprite._animations[new_animation]) - 1)
+
+                # Ensure the target frame is within bounds
+                max_frame = len(self.canvas.animated_sprite._animations[new_animation]) - 1
+                target_frame = min(target_frame, max_frame)
+
+                self.canvas.show_frame(new_animation, target_frame)
 
                 # Update selection state
                 self.selected_animation = new_animation
-                self.selected_frame = 0
+                self.selected_frame = target_frame
+
+                self.log.info(f"Selected frame {target_frame} in animation '{new_animation}' after deleting '{animation_name}'")
 
                 # Recreate film strips to reflect the deletion
                 self.log.debug(f"Recreating film strips after animation deletion. Remaining animations: {remaining_animations}")
                 self._on_sprite_loaded(self.canvas.animated_sprite)
+            else:
+                # No remaining animations - clear selection
+                self.log.info("No remaining animations after deletion")
+                self.selected_animation = None
+                self.selected_frame = None
 
                 # Force update of all film strip widgets to ensure they reflect the deletion
                 if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
@@ -6485,20 +6514,44 @@ pixels = \"\"\"
             self.log.warning("Undo/redo manager not initialized")
             return
 
-        if not self.undo_redo_manager.can_undo():
+        # Get current frame information
+        current_animation = None
+        current_frame = None
+        if hasattr(self, "canvas") and self.canvas:
+            current_animation = getattr(self.canvas, "current_animation", None)
+            current_frame = getattr(self.canvas, "current_frame", None)
+
+        # Try frame-specific undo first if we have a current frame
+        if current_animation is not None and current_frame is not None:
+            print(f"DEBUG: Attempting frame-specific undo for {current_animation}[{current_frame}]")
+            if self.undo_redo_manager.can_undo_frame(current_animation, current_frame):
+                success = self.undo_redo_manager.undo_frame(current_animation, current_frame)
+                if success:
+                    self.log.info(f"Frame-specific undo successful for {current_animation}[{current_frame}]")
+                    print(f"DEBUG: Frame-specific undo successful for {current_animation}[{current_frame}]")
+                    # Force canvas redraw to show the undone changes
+                    if hasattr(self, "canvas") and self.canvas:
+                        self.canvas.force_redraw()
+                    return
+                else:
+                    self.log.warning(f"Frame-specific undo failed for {current_animation}[{current_frame}]")
+            else:
+                print(f"DEBUG: No frame-specific undo operations available for {current_animation}[{current_frame}]")
+
+        # Fall back to global undo for film strip operations
+        if self.undo_redo_manager.can_undo():
+            success = self.undo_redo_manager.undo()
+            if success:
+                self.log.info("Global undo successful")
+                print("DEBUG: Global undo successful")
+                # Force canvas redraw to show the undone changes
+                if hasattr(self, "canvas") and self.canvas:
+                    self.canvas.force_redraw()
+            else:
+                self.log.warning("Global undo failed")
+        else:
             self.log.debug("No operations available to undo")
             print("DEBUG: No operations available to undo")
-            return
-
-        success = self.undo_redo_manager.undo()
-        if success:
-            self.log.info("Undo successful")
-            print("DEBUG: Undo successful")
-            # Force canvas redraw to show the undone changes
-            if hasattr(self, "canvas") and self.canvas:
-                self.canvas.force_redraw()
-        else:
-            self.log.warning("Undo failed")
             print("DEBUG: Undo failed")
 
     def _handle_redo(self) -> None:
@@ -6507,21 +6560,44 @@ pixels = \"\"\"
             self.log.warning("Undo/redo manager not initialized")
             return
 
-        if not self.undo_redo_manager.can_redo():
+        # Get current frame information
+        current_animation = None
+        current_frame = None
+        if hasattr(self, "canvas") and self.canvas:
+            current_animation = getattr(self.canvas, "current_animation", None)
+            current_frame = getattr(self.canvas, "current_frame", None)
+
+        # Try frame-specific redo first if we have a current frame
+        if current_animation is not None and current_frame is not None:
+            print(f"DEBUG: Attempting frame-specific redo for {current_animation}[{current_frame}]")
+            if self.undo_redo_manager.can_redo_frame(current_animation, current_frame):
+                success = self.undo_redo_manager.redo_frame(current_animation, current_frame)
+                if success:
+                    self.log.info(f"Frame-specific redo successful for {current_animation}[{current_frame}]")
+                    print(f"DEBUG: Frame-specific redo successful for {current_animation}[{current_frame}]")
+                    # Force canvas redraw to show the redone changes
+                    if hasattr(self, "canvas") and self.canvas:
+                        self.canvas.force_redraw()
+                    return
+                else:
+                    self.log.warning(f"Frame-specific redo failed for {current_animation}[{current_frame}]")
+            else:
+                print(f"DEBUG: No frame-specific redo operations available for {current_animation}[{current_frame}]")
+
+        # Fall back to global redo for film strip operations
+        if self.undo_redo_manager.can_redo():
+            success = self.undo_redo_manager.redo()
+            if success:
+                self.log.info("Global redo successful")
+                print("DEBUG: Global redo successful")
+                # Force canvas redraw to show the redone changes
+                if hasattr(self, "canvas") and self.canvas:
+                    self.canvas.force_redraw()
+            else:
+                self.log.warning("Global redo failed")
+        else:
             self.log.debug("No operations available to redo")
             print("DEBUG: No operations available to redo")
-            return
-
-        success = self.undo_redo_manager.redo()
-        if success:
-            self.log.info("Redo successful")
-            print("DEBUG: Redo successful")
-            # Force canvas redraw to show the redone changes
-            if hasattr(self, "canvas") and self.canvas:
-                self.canvas.force_redraw()
-        else:
-            self.log.warning("Redo failed")
-            print("DEBUG: Redo failed")
 
     def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Apply a pixel change for undo/redo operations.
@@ -6583,6 +6659,23 @@ pixels = \"\"\"
             # Add the frame to the animation
             self.canvas.animated_sprite.add_frame(animation_name, new_frame, frame_index)
 
+            # Update the canvas's selected frame index if necessary
+            if (hasattr(self, "canvas") and self.canvas and
+                hasattr(self.canvas, "animated_sprite") and
+                self.canvas.animated_sprite.frame_manager.current_animation == animation_name):
+
+                # If we're adding a frame at or before the current position, increment the frame index
+                if self.canvas.animated_sprite.frame_manager.current_frame >= frame_index:
+                    self.canvas.animated_sprite.frame_manager.current_frame += 1
+
+                # Ensure the frame index is within bounds
+                max_frame = len(self.canvas.animated_sprite._animations[animation_name]) - 1
+                if self.canvas.animated_sprite.frame_manager.current_frame > max_frame:
+                    self.canvas.animated_sprite.frame_manager.current_frame = max(0, max_frame)
+
+                # Update the canvas to show the correct frame
+                self.canvas.show_frame(animation_name, self.canvas.animated_sprite.frame_manager.current_frame)
+
             # Update the film strip if it exists
             if hasattr(self, "film_strip_widget") and self.film_strip_widget:
                 self.film_strip_widget._initialize_preview_animations()
@@ -6594,11 +6687,22 @@ pixels = \"\"\"
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                 for film_strip_sprite in self.film_strip_sprites.values():
                     if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                        # Completely refresh the film strip widget to ensure it shows current data
                         film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                        film_strip_sprite.film_strip_widget._calculate_layout()
                         film_strip_sprite.film_strip_widget.update_layout()
                         film_strip_sprite.film_strip_widget._create_film_tabs()
                         film_strip_sprite.film_strip_widget.mark_dirty()
                         film_strip_sprite.dirty = 1
+
+                        # Update the film strip to show the current frame selection
+                        if (hasattr(self.canvas, "current_animation") and
+                            hasattr(self.canvas, "current_frame") and
+                            self.canvas.current_animation == animation_name):
+                            film_strip_sprite.film_strip_widget.set_frame_index(self.canvas.current_frame)
+
+            # Notify the scene about the frame insertion for proper UI updates
+            self._on_frame_inserted(animation_name, frame_index)
 
             self.log.debug(f"Added frame {frame_index} to animation '{animation_name}' for undo/redo")
             return True
@@ -6640,22 +6744,57 @@ pixels = \"\"\"
 
                     frames.pop(frame_index)
 
+                    # Update the canvas's selected frame index if necessary and select the previous frame
+                    if (hasattr(self, "canvas") and self.canvas and
+                        hasattr(self.canvas, "animated_sprite") and
+                        self.canvas.animated_sprite.frame_manager.current_animation == animation_name):
+
+                        # Adjust the canvas's current frame index to select the previous frame
+                        if self.canvas.animated_sprite.frame_manager.current_frame >= frame_index:
+                            if self.canvas.animated_sprite.frame_manager.current_frame > 0:
+                                # Select the previous frame
+                                self.canvas.animated_sprite.frame_manager.current_frame -= 1
+                                self.log.debug(f"Selected previous frame {self.canvas.animated_sprite.frame_manager.current_frame} after frame deletion")
+                            else:
+                                # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
+                                self.canvas.animated_sprite.frame_manager.current_frame = 0
+                                self.log.debug(f"Stayed at frame 0 after deleting frame 0")
+
+                        # Ensure the frame index is within bounds
+                        max_frame = len(self.canvas.animated_sprite._animations[animation_name]) - 1
+                        if self.canvas.animated_sprite.frame_manager.current_frame > max_frame:
+                            self.canvas.animated_sprite.frame_manager.current_frame = max(0, max_frame)
+
+                        # Update the canvas to show the correct frame
+                        self.canvas.show_frame(animation_name, self.canvas.animated_sprite.frame_manager.current_frame)
+
                     # Update the film strip if it exists
                     if hasattr(self, "film_strip_widget") and self.film_strip_widget:
                         self.film_strip_widget._initialize_preview_animations()
                         self.film_strip_widget.update_layout()
                         self.film_strip_widget._create_film_tabs()
                         self.film_strip_widget.mark_dirty()
-                    
+
                     # Force update of all film strip widgets to ensure they reflect the change
                     if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                         for film_strip_sprite in self.film_strip_sprites.values():
                             if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                                # Completely refresh the film strip widget to ensure it shows current data
                                 film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                                film_strip_sprite.film_strip_widget._calculate_layout()
                                 film_strip_sprite.film_strip_widget.update_layout()
                                 film_strip_sprite.film_strip_widget._create_film_tabs()
                                 film_strip_sprite.film_strip_widget.mark_dirty()
                                 film_strip_sprite.dirty = 1
+
+                                # Update the film strip to show the current frame selection
+                                if (hasattr(self.canvas, "current_animation") and
+                                    hasattr(self.canvas, "current_frame") and
+                                    self.canvas.current_animation == animation_name):
+                                    film_strip_sprite.film_strip_widget.set_frame_index(self.canvas.current_frame)
+
+                    # Notify the scene about the frame removal for proper UI updates
+                    self._on_frame_removed(animation_name, frame_index)
 
                     self.log.debug(f"Deleted frame {frame_index} from animation '{animation_name}' for undo/redo")
                     return True
@@ -6765,6 +6904,9 @@ pixels = \"\"\"
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                 for film_strip_sprite in self.film_strip_sprites.values():
                     if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                        # Completely refresh the film strip widget to ensure it shows current data
+                        film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                        film_strip_sprite.film_strip_widget._calculate_layout()
                         film_strip_sprite.film_strip_widget.update_layout()
                         film_strip_sprite.film_strip_widget._create_film_tabs()
                         film_strip_sprite.film_strip_widget.mark_dirty()
@@ -6806,6 +6948,9 @@ pixels = \"\"\"
                 if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
                     for film_strip_sprite in self.film_strip_sprites.values():
                         if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                            # Completely refresh the film strip widget to ensure it shows current data
+                            film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                            film_strip_sprite.film_strip_widget._calculate_layout()
                             film_strip_sprite.film_strip_widget.update_layout()
                             film_strip_sprite.film_strip_widget._create_film_tabs()
                             film_strip_sprite.film_strip_widget.mark_dirty()
@@ -6826,9 +6971,30 @@ pixels = \"\"\"
         if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
             if hasattr(self, "canvas_operation_tracker"):
                 pixel_count = len(self._current_pixel_changes)
-                self.canvas_operation_tracker.add_pixel_changes(self._current_pixel_changes)
+
+                # Get current frame information for frame-specific tracking
+                current_animation = None
+                current_frame = None
+                if hasattr(self, "canvas") and self.canvas:
+                    current_animation = getattr(self.canvas, "current_animation", None)
+                    current_frame = getattr(self.canvas, "current_frame", None)
+
+                print(f"DEBUG: Frame info - animation: {current_animation}, frame: {current_frame}")
+
+                # Use frame-specific tracking if we have frame information
+                if current_animation is not None and current_frame is not None:
+                    print(f"DEBUG: Using frame-specific tracking for {current_animation}[{current_frame}]")
+                    self.canvas_operation_tracker.add_frame_pixel_changes(
+                        current_animation, current_frame, self._current_pixel_changes
+                    )
+                    self.log.debug(f"Submitted {pixel_count} pixel changes for frame {current_animation}[{current_frame}] undo/redo tracking")
+                else:
+                    print(f"DEBUG: Using global tracking (no frame info available)")
+                    # Fall back to global tracking
+                    self.canvas_operation_tracker.add_pixel_changes(self._current_pixel_changes)
+                    self.log.debug(f"Submitted {pixel_count} pixel changes for global undo/redo tracking")
+
                 self._current_pixel_changes = []  # Clear the collection
-                self.log.debug(f"Submitted {pixel_count} pixel changes for undo/redo tracking")
 
     def _check_single_click_timer(self) -> None:
         """Check if we should submit a single click based on timer."""

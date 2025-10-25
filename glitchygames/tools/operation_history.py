@@ -243,6 +243,48 @@ class CanvasOperationTracker:
         )
         
         LOG.debug(f"Added flood fill operation: {description}")
+    
+    def add_frame_pixel_changes(self, animation: str, frame: int, pixels: List) -> None:
+        """Track pixel changes for a specific frame.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            pixels: List of pixel changes (can be PixelChange objects or tuples)
+        """
+        if not pixels:
+            return
+        
+        # Create undo/redo data for the pixel changes
+        undo_pixels = []
+        redo_pixels = []
+        
+        for pixel in pixels:
+            # Handle both PixelChange objects and tuples
+            if hasattr(pixel, 'x'):  # PixelChange object
+                undo_pixels.append((pixel.x, pixel.y, pixel.old_color))
+                redo_pixels.append((pixel.x, pixel.y, pixel.new_color))
+            elif isinstance(pixel, tuple) and len(pixel) == 4:  # (x, y, old_color, new_color) tuple
+                x, y, old_color, new_color = pixel
+                undo_pixels.append((x, y, old_color))
+                redo_pixels.append((x, y, new_color))
+            else:
+                LOG.warning(f"Unknown pixel change format: {pixel}")
+                continue
+        
+        description = f"Frame {animation}[{frame}] pixel changes ({len(pixels)} pixels)"
+        
+        # Use frame-specific operation tracking
+        self.undo_redo_manager.add_frame_operation(
+            animation=animation,
+            frame=frame,
+            operation_type=OperationType.CANVAS_BRUSH_STROKE,
+            description=description,
+            undo_data={"pixels": undo_pixels},
+            redo_data={"pixels": redo_pixels}
+        )
+        
+        LOG.debug(f"Added frame pixel changes for {animation}[{frame}]: {description}")
 
 
 class FilmStripOperationTracker:

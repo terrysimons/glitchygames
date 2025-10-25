@@ -2261,15 +2261,19 @@ class FilmStripWidget:
         # Remove the frame
         frames.pop(frame_index)
 
-        # Adjust current frame if necessary
+        # Adjust current frame if necessary and select the previous frame
         if (hasattr(self, "current_animation") and self.current_animation == animation_name and
             hasattr(self, "current_frame") and self.current_frame >= frame_index):
-            # If we removed a frame before or at the current position, adjust the current frame
+            
+            # If we removed a frame before or at the current position, select the previous frame
             if self.current_frame > 0:
+                # Select the previous frame
                 self.current_frame -= 1
+                LOG.debug(f"FilmStripWidget: Selected previous frame {self.current_frame} after deletion")
             else:
                 # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
                 self.current_frame = 0
+                LOG.debug(f"FilmStripWidget: Stayed at frame 0 after deleting frame 0")
 
         # Ensure the current frame is within bounds after deletion
         if (self.animated_sprite and

@@ -76,6 +76,11 @@ class UndoRedoManager:
         self.pixel_change_callback: Optional[callable] = None
         self.at_head_of_history = True  # Track if we're at the head of undo history
         
+        # Frame-specific undo/redo stacks for canvas operations
+        self.frame_undo_stacks: Dict[tuple[str, int], List[Operation]] = {}  # {(animation, frame): [operations]}
+        self.frame_redo_stacks: Dict[tuple[str, int], List[Operation]] = {}  # {(animation, frame): [operations]}
+        self.current_frame: Optional[tuple[str, int]] = None  # (animation, frame) currently being edited
+        
         LOG.debug(f"UndoRedoManager initialized with max_history={max_history}")
     
     def can_undo(self) -> bool:
@@ -85,6 +90,46 @@ class UndoRedoManager:
             True if undo is available, False otherwise
         """
         return len(self.undo_stack) > 0 and not self.is_undoing
+    
+    def set_current_frame(self, animation: str, frame: int) -> None:
+        """Set the current frame being edited.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+        """
+        self.current_frame = (animation, frame)
+        LOG.debug(f"Current frame set to: {animation}[{frame}]")
+    
+    def can_undo_frame(self, animation: str, frame: int) -> bool:
+        """Check if undo is available for a specific frame.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            
+        Returns:
+            True if undo is available for this frame, False otherwise
+        """
+        frame_key = (animation, frame)
+        return (frame_key in self.frame_undo_stacks and 
+                len(self.frame_undo_stacks[frame_key]) > 0 and 
+                not self.is_undoing)
+    
+    def can_redo_frame(self, animation: str, frame: int) -> bool:
+        """Check if redo is available for a specific frame.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            
+        Returns:
+            True if redo is available for this frame, False otherwise
+        """
+        frame_key = (animation, frame)
+        return (frame_key in self.frame_redo_stacks and 
+                len(self.frame_redo_stacks[frame_key]) > 0 and 
+                not self.is_redoing)
     
     def can_redo(self) -> bool:
         """Check if redo is available.
@@ -156,6 +201,138 @@ class UndoRedoManager:
         self.at_head_of_history = True
         
         LOG.debug(f"Added operation: {description} (undo stack size: {len(self.undo_stack)})")
+    
+    def add_frame_operation(self, animation: str, frame: int, operation_type: OperationType, 
+                           description: str, undo_data: Dict[str, Any], 
+                           redo_data: Dict[str, Any]) -> None:
+        """Add a frame-specific operation to the undo/redo history.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            operation_type: Type of operation
+            description: Human-readable description
+            undo_data: Data needed to undo the operation
+            redo_data: Data needed to redo the operation
+        """
+        frame_key = (animation, frame)
+        
+        # Initialize stacks for this frame if they don't exist
+        if frame_key not in self.frame_undo_stacks:
+            self.frame_undo_stacks[frame_key] = []
+        if frame_key not in self.frame_redo_stacks:
+            self.frame_redo_stacks[frame_key] = []
+        
+        # Clear redo stack for this frame if we're at the head of history
+        if not self.is_undoing and not self.is_redoing:
+            self.frame_redo_stacks[frame_key].clear()
+        
+        operation = Operation(
+            operation_type=operation_type,
+            timestamp=time.time(),
+            description=description,
+            undo_data=undo_data,
+            redo_data=redo_data,
+            context={"frame": frame_key}
+        )
+        
+        self.frame_undo_stacks[frame_key].append(operation)
+        
+        # Limit history size for this frame
+        if len(self.frame_undo_stacks[frame_key]) > self.max_history:
+            self.frame_undo_stacks[frame_key].pop(0)
+        
+        LOG.debug(f"Added frame operation for {animation}[{frame}]: {description}")
+    
+    def undo_frame(self, animation: str, frame: int) -> bool:
+        """Undo the last operation for a specific frame.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        frame_key = (animation, frame)
+        
+        if frame_key not in self.frame_undo_stacks or not self.frame_undo_stacks[frame_key]:
+            LOG.debug(f"No undo operations available for {animation}[{frame}]")
+            return False
+        
+        if self.is_undoing or self.is_redoing:
+            LOG.debug("Already in undo/redo operation")
+            return False
+        
+        self.is_undoing = True
+        
+        try:
+            operation = self.frame_undo_stacks[frame_key].pop()
+            self.frame_redo_stacks[frame_key].append(operation)
+            
+            # Execute the undo operation
+            success = self._execute_undo(operation)
+            
+            if success:
+                LOG.debug(f"Undid frame operation for {animation}[{frame}]: {operation.description}")
+            else:
+                LOG.warning(f"Failed to undo frame operation for {animation}[{frame}]")
+                # Put the operation back if it failed
+                self.frame_undo_stacks[frame_key].append(operation)
+                self.frame_redo_stacks[frame_key].pop()
+            
+            return success
+            
+        except Exception as e:
+            LOG.error(f"Error undoing frame operation for {animation}[{frame}]: {e}")
+            return False
+        finally:
+            self.is_undoing = False
+    
+    def redo_frame(self, animation: str, frame: int) -> bool:
+        """Redo the last undone operation for a specific frame.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        frame_key = (animation, frame)
+        
+        if frame_key not in self.frame_redo_stacks or not self.frame_redo_stacks[frame_key]:
+            LOG.debug(f"No redo operations available for {animation}[{frame}]")
+            return False
+        
+        if self.is_undoing or self.is_redoing:
+            LOG.debug("Already in undo/redo operation")
+            return False
+        
+        self.is_redoing = True
+        
+        try:
+            operation = self.frame_redo_stacks[frame_key].pop()
+            self.frame_undo_stacks[frame_key].append(operation)
+            
+            # Execute the redo operation
+            success = self._execute_redo(operation)
+            
+            if success:
+                LOG.debug(f"Redid frame operation for {animation}[{frame}]: {operation.description}")
+            else:
+                LOG.warning(f"Failed to redo frame operation for {animation}[{frame}]")
+                # Put the operation back if it failed
+                self.frame_redo_stacks[frame_key].append(operation)
+                self.frame_undo_stacks[frame_key].pop()
+            
+            return success
+            
+        except Exception as e:
+            LOG.error(f"Error redoing frame operation for {animation}[{frame}]: {e}")
+            return False
+        finally:
+            self.is_redoing = False
     
     def undo(self) -> bool:
         """Undo the last operation.
