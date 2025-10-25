@@ -586,6 +586,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                                 
+                                # Apply panning offset to drawing coordinates
+                                if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                                    x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                                    y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
+                                
                                 # Draw pixel with onion transparency
                                 alpha = int(255 * onion_manager.onion_transparency)
                                 transparent_pixel = (*pixel, alpha)
@@ -630,6 +635,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                         
+                        # Apply panning offset to drawing coordinates
+                        if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                            x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                            y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
+                            
                         # Check if any controller is active on this pixel (even for transparent pixels)
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
@@ -674,6 +684,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                         
+                        # Apply panning offset to drawing coordinates
+                        if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                            x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                            y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
+                        
                         # Check if any controller is active on this pixel
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
@@ -692,6 +707,12 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        
+                        # Apply panning offset to drawing coordinates
+                        if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                            x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                            y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
+                        
                         pygame.draw.rect(
                             self.canvas_sprite.image,
                             (64, 64, 64),
@@ -707,6 +728,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                    
+                    # Apply panning offset to drawing coordinates
+                    if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                        x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                        y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
                     
                     # Check if any controller is active on this pixel
                     controller_indicator_color = self._get_controller_indicator_for_pixel(i)
@@ -750,6 +776,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                
+                # Apply panning offset to drawing coordinates
+                if hasattr(self.canvas_sprite, 'pan_offset_x') and hasattr(self.canvas_sprite, 'pan_offset_y'):
+                    x += self.canvas_sprite.pan_offset_x * self.canvas_sprite.pixel_width
+                    y += self.canvas_sprite.pan_offset_y * self.canvas_sprite.pixel_height
                 
                 # Check if any controller is active on this pixel
                 controller_indicator_color = self._get_controller_indicator_for_pixel(i)
