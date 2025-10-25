@@ -1,0 +1,459 @@
+[sprite]
+name = "bomb_fuse_burning"
+description = """Make an animation of exactly this 32x32 bomb frame and 3
+additional 32x32 frames of the fuse burning shorter each frame
+across 1.5 seconds."""
+
+[[animation]]
+namespace = "burn"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "burn"
+frame_index = 0
+pixels = """
+................................
+................................
+................................
+................................
+....................aa..........
+....................Ab...B......
+......................cCdD......
+......................eEfF......
+..............gGhH..iIjaJkKlL...
+..............mMnN..oOpPqQrRs...
+.............StTuUvSoojaQkils...
+............vTV...wvvv...b......
+..........wWxWxW................
+..........WXyYzh................
+........wWxXyYYhhW..............
+.......gxhgZZ0Zhgxg.............
+......WxxgX11YYzZxxx............
+......ghxxzYzyYYY0Wh............
+.....gxZy211zYYLYYy0h...........
+.....Vxxy34z3YYYYYXZx...........
+.....VZZXZ4221YYYYyyg...........
+.....VZZXZX41YzY22ZZg...........
+.....VZZXXyY5Y5Y2YZ0g...........
+.....VxxZ00XXXXXX00Zx...........
+......gxZZ0XXX0X00xZ............
+......Wxxxx00X00xxhx............
+.......gxxxZZZZZxxx.............
+........hxxZZZZZxx..............
+...........xxxxx................
+................................
+................................
+................................
+"""
+
+[[animation.frame]]
+namespace = "burn"
+frame_index = 1
+pixels = """
+................................
+................................
+................................
+................................
+................................
+....................Ab...B......
+......................cCjD......
+......................ejfj......
+..............gGhH..iIjEJkKl....
+..............mMnN..oOpEqQrR....
+.............StTuUvSoojEQki.....
+............vTV...wvvv..........
+..........wWxWxW................
+..........WXyYzh................
+........wWxXyYYhhW..............
+.......gxhgZZ0Zhgxg.............
+......WxxgX11YYzZxxx............
+......ghxxzYzyYYY0Wh............
+.....gxZy211zYYLYYy0h...........
+.....Vxxy34z3YYYYYXZx...........
+.....VZZXZ4221YYYYyyg...........
+.....VZZXZX41YzY22ZZg...........
+.....VZZXXyY5Y5Y2YZ0g...........
+.....VxxZ00XXXXXX00Zx...........
+......gxZZ0XXX0X00xZ............
+......Wxxxx00X00xxhx............
+.......gxxxZZZZZxxx.............
+........hxxZZZZZxx..............
+...........ggggg................
+................................
+................................
+................................
+"""
+
+[[animation.frame]]
+namespace = "burn"
+frame_index = 2
+pixels = """
+................................
+................................
+................................
+................................
+................................
+................................
+....................Ab...B......
+......................cCdD......
+..............gGhH..iIjaJk......
+..............mMnN..oOpPqQ......
+.............StTuUvSoojaQ.......
+............vTV...wvvv..........
+..........wWxWxW................
+..........WXyYzh................
+........wWxXyYYhhW..............
+.......gxhgZZ0Zhgxg.............
+......WxxgX11YYzZxxx............
+......ghxxzYzyYYY0Wh............
+.....gxZy211zYYLYYy0h...........
+.....Vxxy34z3YYYYYXZx...........
+.....VZZXZ4221YYYYyyg...........
+.....VZZXZX41YzY22ZZg...........
+.....VZZXXyY5Y5Y2YZ0g...........
+.....VxxZ00XXXXXX00Zx...........
+......gxZZ0XXX0X00xZ............
+......Wxxxx00X00xxhx............
+.......gxxxZZZZZxxx.............
+........hxxZZZZZxx..............
+...........ggggg................
+................................
+................................
+................................
+"""
+
+[[animation.frame]]
+namespace = "burn"
+frame_index = 3
+pixels = """
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+....................Ab...B......
+..............gGhH..iIjaJ.......
+..............mMnN..oOpPq.......
+.............StTuUvSooja........
+............vTV...wvvv..........
+..........wWxWxW................
+..........WXyYzh................
+........wWxXyYYhhW..............
+.......gxhgZZ0Zhgxg.............
+......WxxgX11YYzZxxx............
+......ghxxzYzyYYY0Wh............
+.....gxZy211zYYLYYy0h...........
+.....Vxxy34z3YYYYYXZx...........
+.....VZZXZ4221YYYYyyg...........
+.....VZZXZX41YzY22ZZg...........
+.....VZZXXyY5Y5Y2YZ0g...........
+.....VxxZ00XXXXXX00Zx...........
+......gxZZ0XXX0X00xZ............
+......Wxxxx00X00xxhx............
+.......gxxxZZZZZxxx.............
+........hxxZZZZZxx..............
+...........ggggg................
+................................
+................................
+................................
+"""
+
+[colors]
+[colors."."]
+red = 255
+green = 0
+blue = 255
+
+[colors."a"]
+red = 254
+green = 198
+blue = 64
+
+[colors."A"]
+red = 172
+green = 51
+blue = 36
+
+[colors."b"]
+red = 197
+green = 58
+blue = 39
+
+[colors."B"]
+red = 199
+green = 59
+blue = 38
+
+[colors."c"]
+red = 201
+green = 55
+blue = 40
+
+[colors."C"]
+red = 196
+green = 56
+blue = 37
+
+[colors."d"]
+red = 163
+green = 15
+blue = 25
+
+[colors."D"]
+red = 235
+green = 139
+blue = 52
+
+[colors."e"]
+red = 201
+green = 60
+blue = 39
+
+[colors."E"]
+red = 199
+green = 60
+blue = 39
+
+[colors."f"]
+red = 175
+green = 21
+blue = 31
+
+[colors."F"]
+red = 241
+green = 149
+blue = 57
+
+[colors."g"]
+red = 11
+green = 13
+blue = 13
+
+[colors."G"]
+red = 21
+green = 20
+blue = 23
+
+[colors."h"]
+red = 19
+green = 20
+blue = 23
+
+[colors."H"]
+red = 22
+green = 18
+blue = 20
+
+[colors."i"]
+red = 140
+green = 45
+blue = 35
+
+[colors."I"]
+red = 171
+green = 51
+blue = 39
+
+[colors."j"]
+red = 255
+green = 194
+blue = 63
+
+[colors."J"]
+red = 244
+green = 132
+blue = 56
+
+[colors."k"]
+red = 255
+green = 239
+blue = 151
+
+[colors."K"]
+red = 173
+green = 4
+blue = 7
+
+[colors."l"]
+red = 163
+green = 44
+blue = 36
+
+[colors."L"]
+red = 186
+green = 135
+blue = 121
+
+[colors."m"]
+red = 94
+green = 54
+blue = 24
+
+[colors."M"]
+red = 91
+green = 52
+blue = 22
+
+[colors."n"]
+red = 81
+green = 45
+blue = 21
+
+[colors."N"]
+red = 86
+green = 47
+blue = 21
+
+[colors."o"]
+red = 223
+green = 67
+blue = 42
+
+[colors."O"]
+red = 200
+green = 60
+blue = 38
+
+[colors."p"]
+red = 233
+green = 136
+blue = 50
+
+[colors."P"]
+red = 241
+green = 148
+blue = 55
+
+[colors."q"]
+red = 228
+green = 117
+blue = 27
+
+[colors."Q"]
+red = 247
+green = 197
+blue = 114
+
+[colors."r"]
+red = 177
+green = 7
+blue = 9
+
+[colors."R"]
+red = 200
+green = 59
+blue = 38
+
+[colors."s"]
+red = 210
+green = 153
+blue = 142
+
+[colors."S"]
+red = 41
+green = 24
+blue = 10
+
+[colors."t"]
+red = 212
+green = 121
+blue = 45
+
+[colors."T"]
+red = 208
+green = 119
+blue = 46
+
+[colors."u"]
+red = 167
+green = 93
+blue = 34
+
+[colors."U"]
+red = 163
+green = 91
+blue = 33
+
+[colors."v"]
+red = 40
+green = 23
+blue = 11
+
+[colors."V"]
+red = 1
+green = 1
+blue = 2
+
+[colors."w"]
+red = 5
+green = 5
+blue = 5
+
+[colors."W"]
+red = 3
+green = 5
+blue = 10
+
+[colors."x"]
+red = 17
+green = 28
+blue = 35
+
+[colors."X"]
+red = 38
+green = 58
+blue = 65
+
+[colors."y"]
+red = 46
+green = 66
+blue = 77
+
+[colors."Y"]
+red = 53
+green = 74
+blue = 84
+
+[colors."z"]
+red = 52
+green = 74
+blue = 83
+
+[colors."Z"]
+red = 34
+green = 52
+blue = 59
+
+[colors."0"]
+red = 37
+green = 56
+blue = 64
+
+[colors."1"]
+red = 53
+green = 73
+blue = 83
+
+[colors."2"]
+red = 51
+green = 73
+blue = 83
+
+[colors."3"]
+red = 52
+green = 72
+blue = 83
+
+[colors."4"]
+red = 51
+green = 72
+blue = 83
+
+[colors."5"]
+red = 52
+green = 73
+blue = 83
+
