@@ -4403,6 +4403,16 @@ class BitmapEditorScene(Scene):
         self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
 
+        # Initialize undo/redo system
+        from glitchygames.tools.undo_redo_manager import UndoRedoManager
+        from glitchygames.tools.operation_history import (
+            CanvasOperationTracker, FilmStripOperationTracker, CrossAreaOperationTracker
+        )
+        self.undo_redo_manager = UndoRedoManager(max_history=50)
+        self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager)
+        self.film_strip_operation_tracker = FilmStripOperationTracker(self.undo_redo_manager)
+        self.cross_area_operation_tracker = CrossAreaOperationTracker(self.undo_redo_manager)
+
         # Selected frame visibility toggle for canvas comparison
         self.selected_frame_visible = True
 
@@ -4447,6 +4457,73 @@ class BitmapEditorScene(Scene):
         self.all_sprites.clear(self.screen, self.background)
 
         # TODO: Plumb this into the scene manager
+
+    def _handle_undo(self) -> None:
+        """Handle undo operation.
+
+        Returns:
+            None
+        """
+        if self.undo_redo_manager.can_undo():
+            success = self.undo_redo_manager.undo()
+            if success:
+                undo_description = self.undo_redo_manager.get_undo_description()
+                print(f"DEBUG: Undo successful: {undo_description}")
+                LOG.debug(f"Undo successful: {undo_description}")
+                # Force redraw of affected areas
+                self._force_redraw_after_undo_redo()
+            else:
+                print("DEBUG: Undo failed")
+                LOG.warning("Undo operation failed")
+        else:
+            print("DEBUG: No operations to undo")
+            LOG.debug("No operations to undo")
+
+    def _handle_redo(self) -> None:
+        """Handle redo operation.
+
+        Returns:
+            None
+        """
+        if self.undo_redo_manager.can_redo():
+            success = self.undo_redo_manager.redo()
+            if success:
+                redo_description = self.undo_redo_manager.get_redo_description()
+                print(f"DEBUG: Redo successful: {redo_description}")
+                LOG.debug(f"Redo successful: {redo_description}")
+                # Force redraw of affected areas
+                self._force_redraw_after_undo_redo()
+            else:
+                print("DEBUG: Redo failed")
+                LOG.warning("Redo operation failed")
+        else:
+            print("DEBUG: No operations to redo")
+            LOG.debug("No operations to redo")
+
+    def _force_redraw_after_undo_redo(self) -> None:
+        """Force redraw of affected areas after undo/redo operations.
+
+        Returns:
+            None
+        """
+        # Force canvas redraw
+        if hasattr(self, 'canvas') and self.canvas:
+            self.canvas.dirty = 1
+            self.canvas.force_redraw()
+            LOG.debug("Forced canvas redraw after undo/redo")
+
+        # Force film strip redraw
+        if hasattr(self, 'film_strips') and self.film_strips:
+            for film_strip in self.film_strips:
+                if hasattr(film_strip, 'dirty'):
+                    film_strip.dirty = 1
+            LOG.debug("Forced film strip redraw after undo/redo")
+
+        # Force mini view redraw if it exists
+        if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'mini_view') and self.canvas.mini_view:
+            self.canvas.mini_view.dirty = 1
+            self.canvas.mini_view.force_redraw()
+            LOG.debug("Forced mini view redraw after undo/redo")
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
@@ -6237,6 +6314,20 @@ pixels = \"\"\"
                 self.canvas.force_redraw()
             return
 
+        # Handle undo/redo keyboard shortcuts
+        if event.key == pygame.K_z and pygame.key.get_pressed()[pygame.K_LCTRL]:
+            if pygame.key.get_pressed()[pygame.K_LSHIFT]:
+                # Ctrl+Shift+Z: Redo
+                self.log.debug("Ctrl+Shift+Z pressed - redo")
+                print("DEBUG: Ctrl+Shift+Z pressed - REDO")
+                self._handle_redo()
+            else:
+                # Ctrl+Z: Undo
+                self.log.debug("Ctrl+Z pressed - undo")
+                print("DEBUG: Ctrl+Z pressed - UNDO")
+                self._handle_undo()
+            return
+
         # Check if any controller is in slider mode for arrow key navigation
         any_controller_in_slider_mode = False
         if hasattr(self, 'mode_switcher'):
@@ -6945,9 +7036,9 @@ pixels = \"\"\"
         elif button == pygame.CONTROLLER_BUTTON_X:
             # X button (Square): RESERVED for redo operations (only when selected frame is visible)
             if self.selected_frame_visible:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - RESERVED for redo operations")
-                LOG.debug(f"Controller {controller_id}: X button pressed - RESERVED for redo operations")
-                # TODO: Implement redo functionality
+                print(f"DEBUG: Controller {controller_id}: X button pressed - REDO")
+                LOG.debug(f"Controller {controller_id}: X button pressed - REDO")
+                self._handle_redo()
             else:
                 print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
@@ -7043,10 +7134,10 @@ pixels = \"\"\"
                 LOG.debug(f"Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)")
                 # A button disabled when selected frame is hidden
         elif button == pygame.CONTROLLER_BUTTON_B:
-            # B button (Circle): RESERVED for undo operations
-            print(f"DEBUG: Controller {controller_id}: B button pressed - RESERVED for undo operations")
-            LOG.debug(f"Controller {controller_id}: B button pressed - RESERVED for undo operations")
-            # TODO: Implement undo functionality
+            # B button (Circle): Undo operations
+            print(f"DEBUG: Controller {controller_id}: B button pressed - UNDO")
+            LOG.debug(f"Controller {controller_id}: B button pressed - UNDO")
+            self._handle_undo()
         elif button == pygame.CONTROLLER_BUTTON_Y:
             # Y button (Triangle): Toggle selected frame visibility on canvas
             print(f"DEBUG: Controller {controller_id}: Y button pressed - toggling selected frame visibility")
@@ -7055,9 +7146,9 @@ pixels = \"\"\"
         elif button == pygame.CONTROLLER_BUTTON_X:
             # X button (Square): RESERVED for redo operations (only when selected frame is visible)
             if self.selected_frame_visible:
-                print(f"DEBUG: Controller {controller_id}: X button pressed - RESERVED for redo operations")
-                LOG.debug(f"Controller {controller_id}: X button pressed - RESERVED for redo operations")
-                # TODO: Implement redo functionality
+                print(f"DEBUG: Controller {controller_id}: X button pressed - REDO")
+                LOG.debug(f"Controller {controller_id}: X button pressed - REDO")
+                self._handle_redo()
             else:
                 print(f"DEBUG: Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
                 LOG.debug(f"Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)")
