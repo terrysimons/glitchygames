@@ -416,11 +416,13 @@ class AnimatedCanvasInterface:
                 
                 # Add this pixel change to the current collection
                 self.canvas_sprite.parent_scene._current_pixel_changes.append((x, y, old_color, color))
+                print(f"DEBUG: Canvas interface added pixel ({x}, {y}) to _current_pixel_changes, now has {len(self.canvas_sprite.parent_scene._current_pixel_changes)} pixels")
                 
                 # Start a timer for single clicks (if this is the first pixel)
                 if len(self.canvas_sprite.parent_scene._current_pixel_changes) == 1:
                     import time
                     self.canvas_sprite.parent_scene._pixel_change_timer = time.time()
+                    print(f"DEBUG: Canvas interface started pixel change timer for single click")
             elif controller_drag_active:
                 # Controller drag is active with pixels, don't collect pixels in canvas interface
                 print(f"DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection")

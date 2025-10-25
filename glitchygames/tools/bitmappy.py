@@ -8008,6 +8008,36 @@ pixels = \"\"\"
 
                             pixel_changes.append((x, y, old_color, color))
 
+                        # Debug: Show undo stack before merging
+                        if hasattr(self, 'undo_redo_manager') and self.undo_redo_manager:
+                            print(f"DEBUG: Undo stack before merging has {len(self.undo_redo_manager.undo_stack)} operations")
+                            for i, op in enumerate(self.undo_redo_manager.undo_stack):
+                                print(f"DEBUG:   Operation {i}: {op.operation_type} - {op.description}")
+
+                        # Absorb any pending single pixel operation from canvas interface
+                        # This merges the initial A button pixel with the drag pixels
+                        if hasattr(self, '_current_pixel_changes') and self._current_pixel_changes:
+                            print(f"DEBUG: Absorbing {len(self._current_pixel_changes)} pending pixel(s) from canvas interface")
+                            print(f"DEBUG: Pending pixels: {self._current_pixel_changes}")
+                            # Add the pending pixels to the beginning of the controller drag pixels
+                            pixel_changes = self._current_pixel_changes + pixel_changes
+                            print(f"DEBUG: Merged pixel_changes now has {len(pixel_changes)} pixels")
+                            # Clear the pending pixels to prevent duplicate undo operation
+                            self._current_pixel_changes = []
+
+                            # Remove the old single pixel entry from the undo stack
+                            # This prevents having two separate undo operations
+                            if hasattr(self, 'undo_redo_manager') and self.undo_redo_manager:
+                                # Pop the most recent operation from the undo stack (the single pixel)
+                                if self.undo_redo_manager.undo_stack:
+                                    removed_operation = self.undo_redo_manager.undo_stack.pop()
+                                    print(f"DEBUG: Removed single pixel operation from undo stack: {removed_operation.operation_type}")
+                                    print(f"DEBUG: Undo stack after removal has {len(self.undo_redo_manager.undo_stack)} operations")
+                                else:
+                                    print(f"DEBUG: No operations in undo stack to remove")
+                        else:
+                            print(f"DEBUG: No pending pixels to absorb from canvas interface")
+
                         # Submit the pixel changes to the undo/redo system
                         if pixel_changes and hasattr(self, 'canvas_operation_tracker'):
                             # Get current frame information for frame-specific tracking
