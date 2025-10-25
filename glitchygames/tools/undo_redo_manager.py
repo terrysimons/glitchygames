@@ -40,6 +40,10 @@ class OperationType(Enum):
     
     # Frame selection operations
     FRAME_SELECTION = "frame_selection"
+    
+    # Controller position operations
+    CONTROLLER_POSITION_CHANGE = "controller_position_change"
+    CONTROLLER_MODE_CHANGE = "controller_mode_change"
 
 
 @dataclass
@@ -78,6 +82,10 @@ class UndoRedoManager:
         self.is_redoing = False
         self.pixel_change_callback: Optional[callable] = None
         self.frame_selection_callback: Optional[callable] = None
+        
+        # Controller position callbacks
+        self.controller_position_callback: Optional[callable] = None
+        self.controller_mode_callback: Optional[callable] = None
         
         # Film strip operation callbacks
         self.add_frame_callback: Optional[callable] = None
@@ -155,6 +163,24 @@ class UndoRedoManager:
         """
         self.pixel_change_callback = callback
         LOG.debug("Pixel change callback set")
+    
+    def set_controller_position_callback(self, callback: callable) -> None:
+        """Set the controller position callback.
+        
+        Args:
+            callback: Function to call for controller position operations
+        """
+        self.controller_position_callback = callback
+        LOG.debug("Controller position callback set")
+    
+    def set_controller_mode_callback(self, callback: callable) -> None:
+        """Set the controller mode callback.
+        
+        Args:
+            callback: Function to call for controller mode operations
+        """
+        self.controller_mode_callback = callback
+        LOG.debug("Controller mode callback set")
     
     def can_undo_frame(self, animation: str, frame: int) -> bool:
         """Check if undo is available for a specific frame.
@@ -532,6 +558,10 @@ class UndoRedoManager:
                 return self._undo_cross_area_operation(operation)
             elif operation.operation_type == OperationType.FRAME_SELECTION:
                 return self._undo_frame_selection_operation(operation)
+            elif operation.operation_type == OperationType.CONTROLLER_POSITION_CHANGE:
+                return self._undo_controller_position_operation(operation)
+            elif operation.operation_type == OperationType.CONTROLLER_MODE_CHANGE:
+                return self._undo_controller_mode_operation(operation)
             else:
                 LOG.warning(f"Unknown operation type: {operation.operation_type}")
                 return False
@@ -574,6 +604,10 @@ class UndoRedoManager:
                 return self._redo_cross_area_operation(operation)
             elif operation.operation_type == OperationType.FRAME_SELECTION:
                 return self._redo_frame_selection_operation(operation)
+            elif operation.operation_type == OperationType.CONTROLLER_POSITION_CHANGE:
+                return self._redo_controller_position_operation(operation)
+            elif operation.operation_type == OperationType.CONTROLLER_MODE_CHANGE:
+                return self._redo_controller_mode_operation(operation)
             else:
                 LOG.warning(f"Unknown operation type: {operation.operation_type}")
                 return False
@@ -1293,4 +1327,110 @@ class UndoRedoManager:
                 
         except Exception as e:
             LOG.error(f"Error redoing film strip operation: {e}")
+            return False
+    
+    def _undo_controller_position_operation(self, operation: Operation) -> bool:
+        """Undo a controller position change operation.
+        
+        Args:
+            operation: The operation to undo
+            
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        try:
+            if self.controller_position_callback:
+                controller_id = operation.undo_data.get("controller_id")
+                old_position = operation.undo_data.get("old_position")
+                old_mode = operation.undo_data.get("old_mode")
+                if controller_id is not None and old_position is not None:
+                    return self.controller_position_callback(controller_id, old_position, old_mode)
+                else:
+                    LOG.warning("Controller position undo data missing controller_id or old_position")
+                    return False
+            else:
+                LOG.warning("Controller position callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing controller position operation: {e}")
+            return False
+    
+    def _redo_controller_position_operation(self, operation: Operation) -> bool:
+        """Redo a controller position change operation.
+        
+        Args:
+            operation: The operation to redo
+            
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        try:
+            if self.controller_position_callback:
+                controller_id = operation.redo_data.get("controller_id")
+                new_position = operation.redo_data.get("new_position")
+                new_mode = operation.redo_data.get("new_mode")
+                if controller_id is not None and new_position is not None:
+                    return self.controller_position_callback(controller_id, new_position, new_mode)
+                else:
+                    LOG.warning("Controller position redo data missing controller_id or new_position")
+                    return False
+            else:
+                LOG.warning("Controller position callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing controller position operation: {e}")
+            return False
+    
+    def _undo_controller_mode_operation(self, operation: Operation) -> bool:
+        """Undo a controller mode change operation.
+        
+        Args:
+            operation: The operation to undo
+            
+        Returns:
+            True if undo was successful, False otherwise
+        """
+        try:
+            if self.controller_mode_callback:
+                controller_id = operation.undo_data.get("controller_id")
+                old_mode = operation.undo_data.get("old_mode")
+                if controller_id is not None and old_mode is not None:
+                    return self.controller_mode_callback(controller_id, old_mode)
+                else:
+                    LOG.warning("Controller mode undo data missing controller_id or old_mode")
+                    return False
+            else:
+                LOG.warning("Controller mode callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing controller mode operation: {e}")
+            return False
+    
+    def _redo_controller_mode_operation(self, operation: Operation) -> bool:
+        """Redo a controller mode change operation.
+        
+        Args:
+            operation: The operation to redo
+            
+        Returns:
+            True if redo was successful, False otherwise
+        """
+        try:
+            if self.controller_mode_callback:
+                controller_id = operation.redo_data.get("controller_id")
+                new_mode = operation.redo_data.get("new_mode")
+                if controller_id is not None and new_mode is not None:
+                    return self.controller_mode_callback(controller_id, new_mode)
+                else:
+                    LOG.warning("Controller mode redo data missing controller_id or new_mode")
+                    return False
+            else:
+                LOG.warning("Controller mode callback not set")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing controller mode operation: {e}")
             return False

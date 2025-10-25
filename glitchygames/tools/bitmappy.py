@@ -4512,6 +4512,8 @@ class BitmapEditorScene(Scene):
         self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager)
         self.film_strip_operation_tracker = FilmStripOperationTracker(self.undo_redo_manager)
         self.cross_area_operation_tracker = CrossAreaOperationTracker(self.undo_redo_manager)
+        from glitchygames.tools.operation_history import ControllerPositionOperationTracker
+        self.controller_position_operation_tracker = ControllerPositionOperationTracker(self.undo_redo_manager)
 
         # Set up pixel change callback for undo/redo
         self.undo_redo_manager.set_pixel_change_callback(self._apply_pixel_change_for_undo_redo)
@@ -4527,6 +4529,10 @@ class BitmapEditorScene(Scene):
 
         # Set up frame selection callback for undo/redo
         self.undo_redo_manager.set_frame_selection_callback(self._apply_frame_selection_for_undo_redo)
+
+        # Set up controller position callbacks for undo/redo
+        self.undo_redo_manager.set_controller_position_callback(self._apply_controller_position_for_undo_redo)
+        self.undo_redo_manager.set_controller_mode_callback(self._apply_controller_mode_for_undo_redo)
 
         # Initialize pixel change tracking
         self._current_pixel_changes = []
@@ -7059,6 +7065,87 @@ pixels = \"\"\"
             self.log.error(f"Error deleting animation for undo/redo: {e}")
             return False
 
+    def _apply_controller_position_for_undo_redo(self, controller_id: int, position: tuple[int, int], mode: str = None) -> bool:
+        """Apply a controller position change for undo/redo operations.
+
+        Args:
+            controller_id: ID of the controller
+            position: New position (x, y)
+            mode: Controller mode (optional)
+
+        Returns:
+            True if the position was applied successfully, False otherwise
+        """
+        try:
+            # Set flag to prevent undo tracking during undo/redo operations
+            self._applying_undo_redo = True
+            try:
+                # Update controller position in mode switcher
+                if hasattr(self, "mode_switcher") and self.mode_switcher:
+                    self.mode_switcher.save_controller_position(controller_id, position)
+
+                    # Update visual indicator
+                    if hasattr(self, "_update_controller_canvas_visual_indicator"):
+                        self._update_controller_canvas_visual_indicator(controller_id)
+
+                    self.log.debug(f"Applied undo/redo controller position: {controller_id} -> {position}")
+                    return True
+                else:
+                    self.log.warning("Mode switcher not available for controller position undo/redo")
+                    return False
+            finally:
+                # Always reset the flag
+                self._applying_undo_redo = False
+        except Exception as e:
+            self.log.error(f"Error applying controller position undo/redo: {e}")
+            return False
+
+    def _apply_controller_mode_for_undo_redo(self, controller_id: int, mode: str) -> bool:
+        """Apply a controller mode change for undo/redo operations.
+
+        Args:
+            controller_id: ID of the controller
+            mode: New controller mode
+
+        Returns:
+            True if the mode was applied successfully, False otherwise
+        """
+        try:
+            # Set flag to prevent undo tracking during undo/redo operations
+            self._applying_undo_redo = True
+            try:
+                # Update controller mode in mode switcher
+                if hasattr(self, "mode_switcher") and self.mode_switcher:
+                    from glitchygames.tools.controller_mode_system import ControllerMode
+
+                    # Convert string to ControllerMode enum
+                    try:
+                        controller_mode = ControllerMode(mode)
+                    except ValueError:
+                        self.log.warning(f"Invalid controller mode: {mode}")
+                        return False
+
+                    # Switch to the new mode
+                    import time
+                    current_time = time.time()
+                    self.mode_switcher.controller_modes[controller_id].switch_to_mode(controller_mode, current_time)
+
+                    # Update visual indicator
+                    if hasattr(self, "_update_controller_visual_indicator_for_mode"):
+                        self._update_controller_visual_indicator_for_mode(controller_id, controller_mode)
+
+                    self.log.debug(f"Applied undo/redo controller mode: {controller_id} -> {mode}")
+                    return True
+                else:
+                    self.log.warning("Mode switcher not available for controller mode undo/redo")
+                    return False
+            finally:
+                # Always reset the flag
+                self._applying_undo_redo = False
+        except Exception as e:
+            self.log.error(f"Error applying controller mode undo/redo: {e}")
+            return False
+
     def _submit_pixel_changes_if_ready(self) -> None:
         """Submit collected pixel changes if they're ready (single click or drag ended)."""
         if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
@@ -8169,8 +8256,10 @@ pixels = \"\"\"
         position = self.mode_switcher.get_controller_position(controller_id)
         if not position:
             # Initialize at (0, 0) if no position
+            old_position = (0, 0)
             new_position = (0, 0)
         else:
+            old_position = position.position
             new_position = (position.position[0] + dx, position.position[1] + dy)
 
         # Clamp to canvas bounds
@@ -8181,6 +8270,17 @@ pixels = \"\"\"
                 max(0, min(canvas_width - 1, new_position[0])),
                 max(0, min(canvas_height - 1, new_position[1]))
             )
+
+        # Track controller position change for undo/redo (only if position actually changed)
+        if old_position != new_position and not getattr(self, '_applying_undo_redo', False):
+            if hasattr(self, 'controller_position_operation_tracker'):
+                # Get current mode for context
+                current_mode = self.mode_switcher.get_controller_mode(controller_id)
+                mode_str = current_mode.value if current_mode else None
+
+                self.controller_position_operation_tracker.add_controller_position_change(
+                    controller_id, old_position, new_position, mode_str, mode_str
+                )
 
         # Update position
         self.mode_switcher.save_controller_position(controller_id, new_position)
@@ -9076,6 +9176,17 @@ pixels = \"\"\"
 
         if new_mode:
             print(f"DEBUG: Controller {controller_id} switched to mode: {new_mode.value}")
+
+            # Track controller mode change for undo/redo
+            if not getattr(self, '_applying_undo_redo', False):
+                if hasattr(self, 'controller_position_operation_tracker'):
+                    # Get the old mode before switching
+                    old_mode = self.mode_switcher.get_controller_mode(controller_id)
+                    if old_mode:
+                        self.controller_position_operation_tracker.add_controller_mode_change(
+                            controller_id, old_mode.value, new_mode.value
+                        )
+
             self._update_controller_visual_indicator_for_mode(controller_id, new_mode)
         else:
             print(f"DEBUG: No mode switch for controller {controller_id} - L2: {l2_value:.2f}, R2: {r2_value:.2f}")

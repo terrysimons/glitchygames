@@ -432,3 +432,73 @@ class CrossAreaOperationTracker:
         )
         
         LOG.debug(f"Tracked frame paste: {description}")
+
+
+class ControllerPositionOperationTracker:
+    """Tracks controller position and mode changes for undo/redo."""
+    
+    def __init__(self, undo_redo_manager):
+        self.undo_redo_manager = undo_redo_manager
+        LOG.debug("ControllerPositionOperationTracker initialized")
+    
+    def add_controller_position_change(self, controller_id: int, old_position: Tuple[int, int], 
+                                     new_position: Tuple[int, int], old_mode: str = None, 
+                                     new_mode: str = None) -> None:
+        """Track when a controller position changes.
+        
+        Args:
+            controller_id: ID of the controller
+            old_position: Previous position (x, y)
+            new_position: New position (x, y)
+            old_mode: Previous mode (optional)
+            new_mode: New mode (optional)
+        """
+        undo_data = {
+            "controller_id": controller_id,
+            "old_position": old_position,
+            "old_mode": old_mode
+        }
+        
+        redo_data = {
+            "controller_id": controller_id,
+            "new_position": new_position,
+            "new_mode": new_mode
+        }
+        
+        description = f"Controller {controller_id} moved from {old_position} to {new_position}"
+        self.undo_redo_manager.add_operation(
+            operation_type=OperationType.CONTROLLER_POSITION_CHANGE,
+            description=description,
+            undo_data=undo_data,
+            redo_data=redo_data
+        )
+        
+        LOG.debug(f"Tracked controller position change: {description}")
+    
+    def add_controller_mode_change(self, controller_id: int, old_mode: str, new_mode: str) -> None:
+        """Track when a controller mode changes.
+        
+        Args:
+            controller_id: ID of the controller
+            old_mode: Previous mode
+            new_mode: New mode
+        """
+        undo_data = {
+            "controller_id": controller_id,
+            "old_mode": old_mode
+        }
+        
+        redo_data = {
+            "controller_id": controller_id,
+            "new_mode": new_mode
+        }
+        
+        description = f"Controller {controller_id} mode changed from {old_mode} to {new_mode}"
+        self.undo_redo_manager.add_operation(
+            operation_type=OperationType.CONTROLLER_MODE_CHANGE,
+            description=description,
+            undo_data=undo_data,
+            redo_data=redo_data
+        )
+        
+        LOG.debug(f"Tracked controller mode change: {description}")
