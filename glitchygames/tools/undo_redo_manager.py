@@ -330,18 +330,22 @@ class UndoRedoManager:
             elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
                 # Undo brush stroke
                 pixels = operation.undo_data.get("pixels", [])
+                success = True
                 for pixel_data in pixels:
                     x, y, old_color = pixel_data
-                    self._apply_pixel_change(x, y, old_color)
-                return True
+                    if not self._apply_pixel_change(x, y, old_color):
+                        success = False
+                return success
                 
             elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
                 # Undo flood fill
                 affected_pixels = operation.undo_data.get("affected_pixels", [])
                 old_color = operation.undo_data.get("old_color")
+                success = True
                 for x, y in affected_pixels:
-                    self._apply_pixel_change(x, y, old_color)
-                return True
+                    if not self._apply_pixel_change(x, y, old_color):
+                        success = False
+                return success
                 
             else:
                 LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
@@ -380,6 +384,17 @@ class UndoRedoManager:
                 new_index = operation.undo_data.get("new_index")
                 animation_name = operation.undo_data.get("animation_name")
                 return self._reorder_frame(new_index, old_index, animation_name)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_ANIMATION_ADD:
+                # Undo animation addition by deleting the animation
+                animation_name = operation.undo_data.get("animation_name")
+                return self._delete_animation(animation_name)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_ANIMATION_DELETE:
+                # Undo animation deletion by adding the animation back
+                animation_name = operation.undo_data.get("animation_name")
+                animation_data = operation.undo_data.get("animation_data")
+                return self._add_animation(animation_name, animation_data)
                 
             else:
                 LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
@@ -422,18 +437,22 @@ class UndoRedoManager:
             elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
                 # Redo brush stroke
                 pixels = operation.redo_data.get("pixels", [])
+                success = True
                 for pixel_data in pixels:
                     x, y, new_color = pixel_data
-                    self._apply_pixel_change(x, y, new_color)
-                return True
+                    if not self._apply_pixel_change(x, y, new_color):
+                        success = False
+                return success
                 
             elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
                 # Redo flood fill
                 affected_pixels = operation.redo_data.get("affected_pixels", [])
                 new_color = operation.redo_data.get("new_color")
+                success = True
                 for x, y in affected_pixels:
-                    self._apply_pixel_change(x, y, new_color)
-                return True
+                    if not self._apply_pixel_change(x, y, new_color):
+                        success = False
+                return success
                 
             else:
                 LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
@@ -472,6 +491,17 @@ class UndoRedoManager:
                 new_index = operation.redo_data.get("new_index")
                 animation_name = operation.redo_data.get("animation_name")
                 return self._reorder_frame(old_index, new_index, animation_name)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_ANIMATION_ADD:
+                # Redo animation addition by adding the animation
+                animation_name = operation.redo_data.get("animation_name")
+                animation_data = operation.redo_data.get("animation_data")
+                return self._add_animation(animation_name, animation_data)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_ANIMATION_DELETE:
+                # Redo animation deletion by deleting the animation
+                animation_name = operation.redo_data.get("animation_name")
+                return self._delete_animation(animation_name)
                 
             else:
                 LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
@@ -525,6 +555,27 @@ class UndoRedoManager:
         self.pixel_change_callback = callback
         LOG.debug("Pixel change callback set")
     
+    def set_film_strip_callbacks(self, add_frame_callback: callable = None, 
+                                delete_frame_callback: callable = None,
+                                reorder_frame_callback: callable = None,
+                                add_animation_callback: callable = None,
+                                delete_animation_callback: callable = None) -> None:
+        """Set the callback functions for film strip operations.
+        
+        Args:
+            add_frame_callback: Function that takes (frame_index, animation_name, frame_data) and adds a frame
+            delete_frame_callback: Function that takes (frame_index, animation_name) and deletes a frame
+            reorder_frame_callback: Function that takes (old_index, new_index, animation_name) and reorders frames
+            add_animation_callback: Function that takes (animation_name, animation_data) and adds an animation
+            delete_animation_callback: Function that takes (animation_name) and deletes an animation
+        """
+        self.add_frame_callback = add_frame_callback
+        self.delete_frame_callback = delete_frame_callback
+        self.reorder_frame_callback = reorder_frame_callback
+        self.add_animation_callback = add_animation_callback
+        self.delete_animation_callback = delete_animation_callback
+        LOG.debug("Film strip operation callbacks set")
+    
     def _apply_pixel_change(self, x: int, y: int, color: tuple[int, int, int]) -> bool:
         """Apply a pixel change to the canvas.
         
@@ -559,9 +610,11 @@ class UndoRedoManager:
         Returns:
             True if the frame was added successfully, False otherwise
         """
-        # This will be implemented by the scene when it sets up the callback
-        LOG.debug(f"Adding frame {frame_index} to animation '{animation_name}'")
-        return True
+        if self.add_frame_callback:
+            return self.add_frame_callback(frame_index, animation_name, frame_data)
+        else:
+            LOG.warning("Add frame callback not set")
+            return False
     
     def _delete_frame(self, frame_index: int, animation_name: str) -> bool:
         """Delete a frame from an animation.
@@ -573,9 +626,11 @@ class UndoRedoManager:
         Returns:
             True if the frame was deleted successfully, False otherwise
         """
-        # This will be implemented by the scene when it sets up the callback
-        LOG.debug(f"Deleting frame {frame_index} from animation '{animation_name}'")
-        return True
+        if self.delete_frame_callback:
+            return self.delete_frame_callback(frame_index, animation_name)
+        else:
+            LOG.warning("Delete frame callback not set")
+            return False
     
     def _reorder_frame(self, old_index: int, new_index: int, animation_name: str) -> bool:
         """Reorder frames in an animation.
@@ -588,6 +643,39 @@ class UndoRedoManager:
         Returns:
             True if the frame was reordered successfully, False otherwise
         """
-        # This will be implemented by the scene when it sets up the callback
-        LOG.debug(f"Reordering frame {old_index} to {new_index} in animation '{animation_name}'")
-        return True
+        if self.reorder_frame_callback:
+            return self.reorder_frame_callback(old_index, new_index, animation_name)
+        else:
+            LOG.warning("Reorder frame callback not set")
+            return False
+    
+    def _delete_animation(self, animation_name: str) -> bool:
+        """Delete an animation.
+        
+        Args:
+            animation_name: Name of the animation to delete
+            
+        Returns:
+            True if the animation was deleted successfully, False otherwise
+        """
+        if self.delete_animation_callback:
+            return self.delete_animation_callback(animation_name)
+        else:
+            LOG.warning("Delete animation callback not set")
+            return False
+    
+    def _add_animation(self, animation_name: str, animation_data: dict) -> bool:
+        """Add an animation.
+        
+        Args:
+            animation_name: Name of the animation to add
+            animation_data: Data about the animation to add
+            
+        Returns:
+            True if the animation was added successfully, False otherwise
+        """
+        if self.add_animation_callback:
+            return self.add_animation_callback(animation_name, animation_data)
+        else:
+            LOG.warning("Add animation callback not set")
+            return False

@@ -2137,9 +2137,9 @@ class FilmStripWidget:
             
             # Create frame data for undo/redo tracking
             frame_data = {
-                "width": frame_width,
-                "height": frame_height,
-                "pixels": new_frame.pixels.copy(),
+                "width": new_frame.image.get_width(),
+                "height": new_frame.image.get_height(),
+                "pixels": new_frame.pixels.copy() if hasattr(new_frame, 'pixels') else [],
                 "duration": new_frame.duration
             }
             
@@ -2221,6 +2221,23 @@ class FilmStripWidget:
 
         LOG.debug(f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'")
 
+        # CRITICAL: Stop animation and reset frame index before deletion to prevent race conditions
+        if (self.animated_sprite and
+            hasattr(self.animated_sprite, "frame_manager") and
+            self.animated_sprite.frame_manager.current_animation == animation_name):
+            
+            # Stop the animation to prevent it from accessing frames during deletion
+            self.animated_sprite._is_playing = False
+            
+            # Adjust the current frame index before deletion
+            if self.animated_sprite.frame_manager.current_frame >= frame_index:
+                if self.animated_sprite.frame_manager.current_frame > 0:
+                    self.animated_sprite.frame_manager.current_frame -= 1
+                else:
+                    self.animated_sprite.frame_manager.current_frame = 0
+            
+            LOG.debug(f"FilmStripWidget: Stopped animation and adjusted frame index to {self.animated_sprite.frame_manager.current_frame}")
+
         # Capture frame data for undo/redo before removing
         frame_data = None
         if (hasattr(self, "parent_scene") and 
@@ -2230,8 +2247,8 @@ class FilmStripWidget:
             # Get the frame data before deletion
             frame_to_remove = frames[frame_index]
             frame_data = {
-                "width": frame_to_remove.surface.get_width(),
-                "height": frame_to_remove.surface.get_height(),
+                "width": frame_to_remove.image.get_width(),
+                "height": frame_to_remove.image.get_height(),
                 "pixels": frame_to_remove.pixels.copy() if hasattr(frame_to_remove, 'pixels') else [],
                 "duration": frame_to_remove.duration
             }
@@ -2254,32 +2271,17 @@ class FilmStripWidget:
                 # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
                 self.current_frame = 0
 
-        # CRITICAL: Also update the animated sprite's frame manager
+        # Ensure the current frame is within bounds after deletion
         if (self.animated_sprite and
             hasattr(self.animated_sprite, "frame_manager") and
             self.animated_sprite.frame_manager.current_animation == animation_name):
-
-            LOG.debug(f"FilmStripWidget: Before removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frame_index: {frame_index}")
-
-            # Adjust the animated sprite's current frame
-            if self.animated_sprite.frame_manager.current_frame >= frame_index:
-                if self.animated_sprite.frame_manager.current_frame > 0:
-                    self.animated_sprite.frame_manager.current_frame -= 1
-                else:
-                    self.animated_sprite.frame_manager.current_frame = 0
-
-            # Ensure the current frame is within bounds
-            if self.animated_sprite.frame_manager.current_frame >= len(frames):
-                self.animated_sprite.frame_manager.current_frame = max(0, len(frames) - 1)
-
+            
+            remaining_frames = len(frames)
+            if remaining_frames > 0:
+                if self.animated_sprite.frame_manager.current_frame >= remaining_frames:
+                    self.animated_sprite.frame_manager.current_frame = max(0, remaining_frames - 1)
+            
             LOG.debug(f"FilmStripWidget: After removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frames count: {len(frames)}")
-
-            # CRITICAL: Force the animated sprite to stop if it's trying to access an invalid frame
-            if (self.animated_sprite.frame_manager.current_frame >= len(frames) or
-                self.animated_sprite.frame_manager.current_frame < 0):
-                LOG.error(f"FilmStripWidget: CRITICAL - Invalid frame index {self.animated_sprite.frame_manager.current_frame}, stopping animation")
-                self.animated_sprite.stop()
-                self.animated_sprite.frame_manager.current_frame = 0
 
             # Mark the animated sprite as dirty to ensure it updates properly
             self.animated_sprite.dirty = 2

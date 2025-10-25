@@ -3204,6 +3204,24 @@ class BitmapEditorScene(Scene):
                 # Add at the end (original behavior)
                 self.canvas.animated_sprite._animations[new_animation_name] = [animated_frame]
 
+            # Track animation creation for undo/redo
+            if hasattr(self, "film_strip_operation_tracker"):
+                # Create animation data for undo/redo
+                animation_data = {
+                    "frames": [{
+                        "width": animated_frame.image.get_width(),
+                        "height": animated_frame.image.get_height(),
+                        "pixels": animated_frame.pixels.copy() if hasattr(animated_frame, 'pixels') else [],
+                        "duration": animated_frame.duration
+                    }],
+                    "frame_count": 1
+                }
+
+                # Track animation addition for undo/redo
+                self.film_strip_operation_tracker.add_animation_added(
+                    new_animation_name, animation_data
+                )
+
             # Recreate film strips to include the new animation
             self._on_sprite_loaded(self.canvas.animated_sprite)
 
@@ -3259,6 +3277,31 @@ class BitmapEditorScene(Scene):
             all_animations = list(self.canvas.animated_sprite._animations.keys())
             deleted_index = all_animations.index(animation_name)
 
+            # Capture animation data for undo/redo before deletion
+            animation_data = None
+            if hasattr(self, "film_strip_operation_tracker"):
+                # Get the animation data before deletion
+                animation = self.canvas.animated_sprite._animations[animation_name]
+                animation_data = {
+                    "frames": [],
+                    "frame_count": len(animation)
+                }
+
+                # Capture frame data for each frame in the animation
+                for i, frame in enumerate(animation):
+                    frame_data = {
+                        "width": frame.image.get_width(),
+                        "height": frame.image.get_height(),
+                        "pixels": frame.pixels.copy() if hasattr(frame, 'pixels') else [],
+                        "duration": frame.duration
+                    }
+                    animation_data["frames"].append(frame_data)
+
+                # Track animation deletion for undo/redo
+                self.film_strip_operation_tracker.add_animation_deleted(
+                    animation_name, animation_data
+                )
+
             del self.canvas.animated_sprite._animations[animation_name]
             self.log.info(f"Deleted animation: {animation_name} at index {deleted_index}")
 
@@ -3273,7 +3316,18 @@ class BitmapEditorScene(Scene):
                 self.selected_frame = 0
 
                 # Recreate film strips to reflect the deletion
+                self.log.debug(f"Recreating film strips after animation deletion. Remaining animations: {remaining_animations}")
                 self._on_sprite_loaded(self.canvas.animated_sprite)
+
+                # Force update of all film strip widgets to ensure they reflect the deletion
+                if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+                    for film_strip_sprite in self.film_strip_sprites.values():
+                        if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                            # Force the film strip widget to update its layout
+                            film_strip_sprite.film_strip_widget.update_layout()
+                            film_strip_sprite.film_strip_widget._create_film_tabs()
+                            film_strip_sprite.film_strip_widget.mark_dirty()
+                            film_strip_sprite.dirty = 1
 
                 # Ensure we show up to 2 strips after deletion
                 if len(remaining_animations) <= 2:
@@ -4415,6 +4469,15 @@ class BitmapEditorScene(Scene):
 
         # Set up pixel change callback for undo/redo
         self.undo_redo_manager.set_pixel_change_callback(self._apply_pixel_change_for_undo_redo)
+
+        # Set up film strip operation callbacks for undo/redo
+        self.undo_redo_manager.set_film_strip_callbacks(
+            add_frame_callback=self._add_frame_for_undo_redo,
+            delete_frame_callback=self._delete_frame_for_undo_redo,
+            reorder_frame_callback=self._reorder_frame_for_undo_redo,
+            add_animation_callback=self._add_animation_for_undo_redo,
+            delete_animation_callback=self._delete_animation_for_undo_redo
+        )
 
         # Initialize pixel change tracking
         self._current_pixel_changes = []
@@ -6462,7 +6525,7 @@ pixels = \"\"\"
 
     def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Apply a pixel change for undo/redo operations.
-        
+
         Args:
             x: X coordinate of the pixel
             y: Y coordinate of the pixel
@@ -6480,6 +6543,283 @@ pixels = \"\"\"
                 self._applying_undo_redo = False
         else:
             self.log.warning("Canvas or canvas interface not available for undo/redo")
+
+    def _add_frame_for_undo_redo(self, frame_index: int, animation_name: str, frame_data: dict) -> bool:
+        """Add a frame for undo/redo operations.
+
+        Args:
+            frame_index: Index where the frame should be added
+            animation_name: Name of the animation
+            frame_data: Data about the frame to add
+
+        Returns:
+            True if the frame was added successfully, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for frame addition")
+                return False
+
+            # Create a new frame from the frame data
+            from glitchygames.sprites.animated import SpriteFrame
+            import pygame
+
+            # Create surface from frame data
+            surface = pygame.Surface((frame_data["width"], frame_data["height"]))
+            if "pixels" in frame_data and frame_data["pixels"]:
+                # Convert pixel data to surface
+                pixel_array = pygame.PixelArray(surface)
+                for i, pixel in enumerate(frame_data["pixels"]):
+                    if i < len(pixel_array.flat):
+                        pixel_array.flat[i] = pixel
+                del pixel_array  # Release the pixel array
+
+            # Create the frame object
+            new_frame = SpriteFrame(
+                surface=surface,
+                duration=frame_data.get("duration", 1.0)
+            )
+
+            # Add the frame to the animation
+            self.canvas.animated_sprite.add_frame(animation_name, new_frame, frame_index)
+
+            # Update the film strip if it exists
+            if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+                self.film_strip_widget._initialize_preview_animations()
+                self.film_strip_widget.update_layout()
+                self.film_strip_widget._create_film_tabs()
+                self.film_strip_widget.mark_dirty()
+
+            # Force update of all film strip widgets to ensure they reflect the change
+            if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+                for film_strip_sprite in self.film_strip_sprites.values():
+                    if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                        film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                        film_strip_sprite.film_strip_widget.update_layout()
+                        film_strip_sprite.film_strip_widget._create_film_tabs()
+                        film_strip_sprite.film_strip_widget.mark_dirty()
+                        film_strip_sprite.dirty = 1
+
+            self.log.debug(f"Added frame {frame_index} to animation '{animation_name}' for undo/redo")
+            return True
+
+        except Exception as e:
+            self.log.error(f"Error adding frame for undo/redo: {e}")
+            return False
+
+    def _delete_frame_for_undo_redo(self, frame_index: int, animation_name: str) -> bool:
+        """Delete a frame for undo/redo operations.
+
+        Args:
+            frame_index: Index of the frame to delete
+            animation_name: Name of the animation
+
+        Returns:
+            True if the frame was deleted successfully, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for frame deletion")
+                return False
+
+            # Remove the frame from the animation
+            if animation_name in self.canvas.animated_sprite._animations:
+                frames = self.canvas.animated_sprite._animations[animation_name]
+                if 0 <= frame_index < len(frames):
+                    # Stop animation to prevent race conditions during frame deletion
+                    if (hasattr(self.canvas.animated_sprite, "frame_manager") and
+                        self.canvas.animated_sprite.frame_manager.current_animation == animation_name):
+                        self.canvas.animated_sprite._is_playing = False
+
+                        # Adjust current frame index if necessary
+                        if self.canvas.animated_sprite.frame_manager.current_frame >= frame_index:
+                            if self.canvas.animated_sprite.frame_manager.current_frame > 0:
+                                self.canvas.animated_sprite.frame_manager.current_frame -= 1
+                            else:
+                                self.canvas.animated_sprite.frame_manager.current_frame = 0
+
+                    frames.pop(frame_index)
+
+                    # Update the film strip if it exists
+                    if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+                        self.film_strip_widget._initialize_preview_animations()
+                        self.film_strip_widget.update_layout()
+                        self.film_strip_widget._create_film_tabs()
+                        self.film_strip_widget.mark_dirty()
+                    
+                    # Force update of all film strip widgets to ensure they reflect the change
+                    if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+                        for film_strip_sprite in self.film_strip_sprites.values():
+                            if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                                film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                                film_strip_sprite.film_strip_widget.update_layout()
+                                film_strip_sprite.film_strip_widget._create_film_tabs()
+                                film_strip_sprite.film_strip_widget.mark_dirty()
+                                film_strip_sprite.dirty = 1
+
+                    self.log.debug(f"Deleted frame {frame_index} from animation '{animation_name}' for undo/redo")
+                    return True
+                else:
+                    self.log.warning(f"Frame index {frame_index} out of range for animation '{animation_name}'")
+                    return False
+            else:
+                self.log.warning(f"Animation '{animation_name}' not found")
+                return False
+
+        except Exception as e:
+            self.log.error(f"Error deleting frame for undo/redo: {e}")
+            return False
+
+    def _reorder_frame_for_undo_redo(self, old_index: int, new_index: int, animation_name: str) -> bool:
+        """Reorder frames for undo/redo operations.
+
+        Args:
+            old_index: Original index of the frame
+            new_index: New index of the frame
+            animation_name: Name of the animation
+
+        Returns:
+            True if the frame was reordered successfully, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for frame reordering")
+                return False
+
+            # Reorder frames in the animation
+            if animation_name in self.canvas.animated_sprite._animations:
+                frames = self.canvas.animated_sprite._animations[animation_name]
+                if 0 <= old_index < len(frames) and 0 <= new_index < len(frames):
+                    # Move the frame from old_index to new_index
+                    frame = frames.pop(old_index)
+                    frames.insert(new_index, frame)
+
+                    # Update the film strip if it exists
+                    if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+                        self.film_strip_widget._initialize_preview_animations()
+                        self.film_strip_widget.update_layout()
+                        self.film_strip_widget._create_film_tabs()
+                        self.film_strip_widget.mark_dirty()
+
+                    self.log.debug(f"Reordered frame from {old_index} to {new_index} in animation '{animation_name}' for undo/redo")
+                    return True
+                else:
+                    self.log.warning(f"Frame indices out of range for animation '{animation_name}'")
+                    return False
+            else:
+                self.log.warning(f"Animation '{animation_name}' not found")
+                return False
+
+        except Exception as e:
+            self.log.error(f"Error reordering frame for undo/redo: {e}")
+            return False
+
+    def _add_animation_for_undo_redo(self, animation_name: str, animation_data: dict) -> bool:
+        """Add an animation for undo/redo operations.
+
+        Args:
+            animation_name: Name of the animation to add
+            animation_data: Data about the animation to add
+
+        Returns:
+            True if the animation was added successfully, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for animation addition")
+                return False
+
+            # Create the animation with its frames
+            for frame_data in animation_data.get("frames", []):
+                from glitchygames.sprites.animated import SpriteFrame
+                import pygame
+
+                # Create surface from frame data
+                surface = pygame.Surface((frame_data["width"], frame_data["height"]))
+                if "pixels" in frame_data and frame_data["pixels"]:
+                    # Convert pixel data to surface
+                    pixel_array = pygame.PixelArray(surface)
+                    for i, pixel in enumerate(frame_data["pixels"]):
+                        if i < len(pixel_array.flat):
+                            pixel_array.flat[i] = pixel
+                    del pixel_array  # Release the pixel array
+
+                # Create the frame object
+                new_frame = SpriteFrame(
+                    surface=surface,
+                    duration=frame_data.get("duration", 1.0)
+                )
+
+                # Add the frame to the animation
+                self.canvas.animated_sprite._animations[animation_name] = self.canvas.animated_sprite._animations.get(animation_name, [])
+                self.canvas.animated_sprite._animations[animation_name].append(new_frame)
+
+            # Update the film strip if it exists
+            if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+                self.film_strip_widget._initialize_preview_animations()
+                self.film_strip_widget.update_layout()
+                self.film_strip_widget._create_film_tabs()
+                self.film_strip_widget.mark_dirty()
+
+            # Force update of all film strip widgets
+            if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+                for film_strip_sprite in self.film_strip_sprites.values():
+                    if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                        film_strip_sprite.film_strip_widget.update_layout()
+                        film_strip_sprite.film_strip_widget._create_film_tabs()
+                        film_strip_sprite.film_strip_widget.mark_dirty()
+                        film_strip_sprite.dirty = 1
+
+            self.log.debug(f"Added animation '{animation_name}' for undo/redo")
+            return True
+
+        except Exception as e:
+            self.log.error(f"Error adding animation for undo/redo: {e}")
+            return False
+
+    def _delete_animation_for_undo_redo(self, animation_name: str) -> bool:
+        """Delete an animation for undo/redo operations.
+
+        Args:
+            animation_name: Name of the animation to delete
+
+        Returns:
+            True if the animation was deleted successfully, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for animation deletion")
+                return False
+
+            # Remove the animation
+            if animation_name in self.canvas.animated_sprite._animations:
+                del self.canvas.animated_sprite._animations[animation_name]
+
+                # Update the film strip if it exists
+                if hasattr(self, "film_strip_widget") and self.film_strip_widget:
+                    self.film_strip_widget._initialize_preview_animations()
+                    self.film_strip_widget.update_layout()
+                    self.film_strip_widget._create_film_tabs()
+                    self.film_strip_widget.mark_dirty()
+
+                # Force update of all film strip widgets
+                if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+                    for film_strip_sprite in self.film_strip_sprites.values():
+                        if hasattr(film_strip_sprite, "film_strip_widget") and film_strip_sprite.film_strip_widget:
+                            film_strip_sprite.film_strip_widget.update_layout()
+                            film_strip_sprite.film_strip_widget._create_film_tabs()
+                            film_strip_sprite.film_strip_widget.mark_dirty()
+                            film_strip_sprite.dirty = 1
+
+                self.log.debug(f"Deleted animation '{animation_name}' for undo/redo")
+                return True
+            else:
+                self.log.warning(f"Animation '{animation_name}' not found")
+                return False
+
+        except Exception as e:
+            self.log.error(f"Error deleting animation for undo/redo: {e}")
+            return False
 
     def _submit_pixel_changes_if_ready(self) -> None:
         """Submit collected pixel changes if they're ready (single click or drag ended)."""
