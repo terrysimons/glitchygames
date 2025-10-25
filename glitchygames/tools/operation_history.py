@@ -161,6 +161,43 @@ class CanvasOperationTracker:
         self.current_stroke = None
         self.stroke_pixels = []
     
+    def add_pixel_changes(self, pixel_changes: List[Tuple[int, int, Tuple[int, int, int], Tuple[int, int, int]]]) -> None:
+        """Add a list of pixel changes as a single operation.
+        
+        Args:
+            pixel_changes: List of (x, y, old_color, new_color) tuples
+        """
+        if not pixel_changes:
+            return
+            
+        # Create undo/redo data
+        undo_pixels = [(x, y, old_color) for x, y, old_color, new_color in pixel_changes]
+        redo_pixels = [(x, y, new_color) for x, y, old_color, new_color in pixel_changes]
+        
+        # Use consistent format for both single and multiple pixel changes
+        undo_data = {
+            "pixels": undo_pixels
+        }
+        redo_data = {
+            "pixels": redo_pixels
+        }
+        
+        if len(pixel_changes) == 1:
+            description = f"Pixel change at ({pixel_changes[0][0]}, {pixel_changes[0][1]})"
+            operation_type = OperationType.CANVAS_BRUSH_STROKE  # Use same type for consistency
+        else:
+            description = f"Pixel changes ({len(pixel_changes)} pixels)"
+            operation_type = OperationType.CANVAS_BRUSH_STROKE
+            
+        self.undo_redo_manager.add_operation(
+            operation_type=operation_type,
+            description=description,
+            undo_data=undo_data,
+            redo_data=redo_data
+        )
+        
+        LOG.debug(f"Tracked pixel changes: {description}")
+    
     def add_single_pixel_change(self, x: int, y: int, old_color: Tuple[int, int, int], 
                                new_color: Tuple[int, int, int]) -> None:
         """Add a single pixel change operation.
@@ -171,23 +208,8 @@ class CanvasOperationTracker:
             old_color: Previous color of the pixel
             new_color: New color of the pixel
         """
-        undo_data = {
-            "pixel": (x, y, old_color)
-        }
-        
-        redo_data = {
-            "pixel": (x, y, new_color)
-        }
-        
-        description = f"Pixel change at ({x}, {y})"
-        self.undo_redo_manager.add_operation(
-            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            description=description,
-            undo_data=undo_data,
-            redo_data=redo_data
-        )
-        
-        LOG.debug(f"Added single pixel change: {description}")
+        # Use the new method for consistency
+        self.add_pixel_changes([(x, y, old_color, new_color)])
     
     def add_flood_fill(self, x: int, y: int, old_color: Tuple[int, int, int], 
                       new_color: Tuple[int, int, int], affected_pixels: List[Tuple[int, int]]) -> None:

@@ -74,6 +74,7 @@ class UndoRedoManager:
         self.is_undoing = False
         self.is_redoing = False
         self.pixel_change_callback: Optional[callable] = None
+        self.at_head_of_history = True  # Track if we're at the head of undo history
         
         LOG.debug(f"UndoRedoManager initialized with max_history={max_history}")
     
@@ -129,8 +130,9 @@ class UndoRedoManager:
             LOG.debug("Skipping operation addition during undo/redo")
             return
         
-        # Clear redo stack when new operation is added
-        if self.redo_stack:
+        # Clear redo stack when new operation is added (only if we're at the head of undo history)
+        # This prevents clearing redo stack when we're in the middle of an undo/redo sequence
+        if self.redo_stack and self.at_head_of_history:
             LOG.debug(f"Clearing {len(self.redo_stack)} redo operations")
             self.redo_stack.clear()
         
@@ -149,6 +151,9 @@ class UndoRedoManager:
         if len(self.undo_stack) > self.max_history:
             removed = self.undo_stack.pop(0)
             LOG.debug(f"Removed oldest operation: {removed.description}")
+        
+        # We're now at the head of history
+        self.at_head_of_history = True
         
         LOG.debug(f"Added operation: {description} (undo stack size: {len(self.undo_stack)})")
     
@@ -174,6 +179,8 @@ class UndoRedoManager:
             
             if success:
                 LOG.debug(f"Successfully undone: {operation.description}")
+                # We're no longer at the head of history after undoing
+                self.at_head_of_history = False
             else:
                 LOG.warning(f"Failed to undo: {operation.description}")
                 # Put operation back on undo stack if it failed
@@ -207,6 +214,9 @@ class UndoRedoManager:
             
             if success:
                 LOG.debug(f"Successfully redone: {operation.description}")
+                # Check if we're back at the head of history (no more redo operations)
+                if not self.redo_stack:
+                    self.at_head_of_history = True
             else:
                 LOG.warning(f"Failed to redo: {operation.description}")
                 # Put operation back on redo stack if it failed

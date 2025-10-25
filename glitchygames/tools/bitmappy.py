@@ -4415,6 +4415,13 @@ class BitmapEditorScene(Scene):
 
         # Set up pixel change callback for undo/redo
         self.undo_redo_manager.set_pixel_change_callback(self._apply_pixel_change_for_undo_redo)
+
+        # Initialize pixel change tracking
+        self._current_pixel_changes = []
+        self._is_drag_operation = False
+        self._pixel_change_timer = None
+        self._applying_undo_redo = False
+
         self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
 
@@ -5109,6 +5116,8 @@ class BitmapEditorScene(Scene):
             self._handle_film_strip_drag_scroll(event.pos[1])
             return  # Don't process other drag events when dragging film strips
 
+        # Don't set drag flag here - let the pixel collection logic handle it
+
         self.canvas.on_left_mouse_drag_event(event, trigger)
 
         try:
@@ -5126,12 +5135,11 @@ class BitmapEditorScene(Scene):
             self.debug_text.on_mouse_up_event(event)
             return
 
-        # End brush stroke for undo/redo tracking
-        if hasattr(self, "_current_brush_stroke") and self._current_brush_stroke:
-            if hasattr(self, "canvas_operation_tracker"):
-                self.canvas_operation_tracker.end_brush_stroke()
-                self._current_brush_stroke = False
-                self.log.debug("Ended brush stroke for undo/redo tracking")
+        # Submit collected pixel changes for undo/redo tracking
+        self._submit_pixel_changes_if_ready()
+
+        # Reset drag operation flag
+        self._is_drag_operation = False
 
         # Always release all sliders on mouse up to prevent stickiness
         if hasattr(self, "red_slider") and hasattr(self.red_slider, "dragging"):
@@ -6105,6 +6113,9 @@ pixels = \"\"\"
         # Update continuous canvas movements
         self._update_canvas_continuous_movements()
 
+        # Check for single click timer
+        self._check_single_click_timer()
+
         # Update the animated canvas with delta time
         if (
             hasattr(self, "canvas")
@@ -6451,18 +6462,47 @@ pixels = \"\"\"
 
     def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Apply a pixel change for undo/redo operations.
-
+        
         Args:
             x: X coordinate of the pixel
             y: Y coordinate of the pixel
             color: Color to set the pixel to
         """
         if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "canvas_interface"):
-            # Use the canvas interface to set the pixel
-            self.canvas.canvas_interface.set_pixel_at(x, y, color)
-            self.log.debug(f"Applied undo/redo pixel change at ({x}, {y}) to color {color}")
+            # Set flag to prevent undo tracking during undo/redo operations
+            self._applying_undo_redo = True
+            try:
+                # Use the canvas interface to set the pixel
+                self.canvas.canvas_interface.set_pixel_at(x, y, color)
+                self.log.debug(f"Applied undo/redo pixel change at ({x}, {y}) to color {color}")
+            finally:
+                # Always reset the flag
+                self._applying_undo_redo = False
         else:
             self.log.warning("Canvas or canvas interface not available for undo/redo")
+
+    def _submit_pixel_changes_if_ready(self) -> None:
+        """Submit collected pixel changes if they're ready (single click or drag ended)."""
+        if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
+            if hasattr(self, "canvas_operation_tracker"):
+                pixel_count = len(self._current_pixel_changes)
+                self.canvas_operation_tracker.add_pixel_changes(self._current_pixel_changes)
+                self._current_pixel_changes = []  # Clear the collection
+                self.log.debug(f"Submitted {pixel_count} pixel changes for undo/redo tracking")
+
+    def _check_single_click_timer(self) -> None:
+        """Check if we should submit a single click based on timer."""
+        if (hasattr(self, "_current_pixel_changes") and self._current_pixel_changes and
+            hasattr(self, "_pixel_change_timer") and self._pixel_change_timer and
+            len(self._current_pixel_changes) == 1):  # Only for single pixels
+
+            import time
+            current_time = time.time()
+            # If more than 0.1 seconds have passed since the first pixel change, submit it
+            if current_time - self._pixel_change_timer > 0.1:
+                self._submit_pixel_changes_if_ready()
+                self._pixel_change_timer = None
+
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:

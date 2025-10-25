@@ -389,20 +389,24 @@ class AnimatedCanvasInterface:
                 old_color = self.canvas_sprite.pixels[pixel_num]
             
             # Track the pixel change for undo/redo if we have a parent scene with operation tracker
+            # Skip tracking if we're currently applying undo/redo to prevent feedback loops
             if (hasattr(self.canvas_sprite, "parent_scene") and 
                 self.canvas_sprite.parent_scene and 
                 hasattr(self.canvas_sprite.parent_scene, "canvas_operation_tracker") and
+                not getattr(self.canvas_sprite.parent_scene, "_applying_undo_redo", False) and
                 old_color != color):  # Only track if color actually changed
                 
-                # Start a brush stroke if not already started
-                if not hasattr(self.canvas_sprite.parent_scene, "_current_brush_stroke"):
-                    self.canvas_sprite.parent_scene.canvas_operation_tracker.start_brush_stroke(1, "single_pixel")
-                    self.canvas_sprite.parent_scene._current_brush_stroke = True
+                # Collect pixel changes during drag operations
+                if not hasattr(self.canvas_sprite.parent_scene, "_current_pixel_changes"):
+                    self.canvas_sprite.parent_scene._current_pixel_changes = []
                 
-                # Add the pixel change to the current stroke
-                self.canvas_sprite.parent_scene.canvas_operation_tracker.add_pixel_change(
-                    x, y, old_color, color
-                )
+                # Add this pixel change to the current collection
+                self.canvas_sprite.parent_scene._current_pixel_changes.append((x, y, old_color, color))
+                
+                # Start a timer for single clicks (if this is the first pixel)
+                if len(self.canvas_sprite.parent_scene._current_pixel_changes) == 1:
+                    import time
+                    self.canvas_sprite.parent_scene._pixel_change_timer = time.time()
             
             if hasattr(self.canvas_sprite, "animated_sprite"):
                 # Get the current frame from the canvas (not the animated sprite)
