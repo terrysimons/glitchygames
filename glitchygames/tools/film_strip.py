@@ -2130,6 +2130,23 @@ class FilmStripWidget:
         # Insert the frame into the animated sprite
         self.animated_sprite.add_frame(current_animation, new_frame, insert_index)
 
+        # Track frame addition for undo/redo
+        if (hasattr(self, "parent_scene") and 
+            self.parent_scene and 
+            hasattr(self.parent_scene, "film_strip_operation_tracker")):
+            
+            # Create frame data for undo/redo tracking
+            frame_data = {
+                "width": frame_width,
+                "height": frame_height,
+                "pixels": new_frame.pixels.copy(),
+                "duration": new_frame.duration
+            }
+            
+            self.parent_scene.film_strip_operation_tracker.add_frame_added(
+                insert_index, current_animation, frame_data
+            )
+
         # CRITICAL: Reinitialize preview animations after adding a frame
         # This ensures the film strip picks up the new frame count and starts animating
         # if it was previously a single-frame animation
@@ -2203,6 +2220,26 @@ class FilmStripWidget:
             return
 
         LOG.debug(f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'")
+
+        # Capture frame data for undo/redo before removing
+        frame_data = None
+        if (hasattr(self, "parent_scene") and 
+            self.parent_scene and 
+            hasattr(self.parent_scene, "film_strip_operation_tracker")):
+            
+            # Get the frame data before deletion
+            frame_to_remove = frames[frame_index]
+            frame_data = {
+                "width": frame_to_remove.surface.get_width(),
+                "height": frame_to_remove.surface.get_height(),
+                "pixels": frame_to_remove.pixels.copy() if hasattr(frame_to_remove, 'pixels') else [],
+                "duration": frame_to_remove.duration
+            }
+            
+            # Track frame deletion for undo/redo
+            self.parent_scene.film_strip_operation_tracker.add_frame_deleted(
+                frame_index, animation_name, frame_data
+            )
 
         # Remove the frame
         frames.pop(frame_index)

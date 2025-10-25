@@ -71,6 +71,12 @@ from .multi_controller_manager import MultiControllerManager
 from .controller_selection import ControllerSelection
 from .visual_collision_manager import VisualCollisionManager
 from .controller_mode_system import ControllerMode
+from .undo_redo_manager import UndoRedoManager
+from .operation_history import (
+    CanvasOperationTracker,
+    FilmStripOperationTracker,
+    CrossAreaOperationTracker,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -4400,18 +4406,17 @@ class BitmapEditorScene(Scene):
 
         # Initialize mode switching system
         from glitchygames.tools.controller_mode_system import ModeSwitcher
-        self.mode_switcher = ModeSwitcher()
-        self.visual_collision_manager = VisualCollisionManager()
 
         # Initialize undo/redo system
-        from glitchygames.tools.undo_redo_manager import UndoRedoManager
-        from glitchygames.tools.operation_history import (
-            CanvasOperationTracker, FilmStripOperationTracker, CrossAreaOperationTracker
-        )
         self.undo_redo_manager = UndoRedoManager(max_history=50)
         self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager)
         self.film_strip_operation_tracker = FilmStripOperationTracker(self.undo_redo_manager)
         self.cross_area_operation_tracker = CrossAreaOperationTracker(self.undo_redo_manager)
+
+        # Set up pixel change callback for undo/redo
+        self.undo_redo_manager.set_pixel_change_callback(self._apply_pixel_change_for_undo_redo)
+        self.mode_switcher = ModeSwitcher()
+        self.visual_collision_manager = VisualCollisionManager()
 
         # Selected frame visibility toggle for canvas comparison
         self.selected_frame_visible = True
@@ -4532,7 +4537,7 @@ class BitmapEditorScene(Scene):
 
         # These are set up in the GameEngine class.
         if not hasattr(self, "_initialized"):
-            self.log.info(f"Game Options: {options}")
+            self.log.info(f"Game Options: {self.options}")
 
             # Override font to use a cleaner system font
             self.options["font_name"] = "arial"
@@ -5120,6 +5125,13 @@ class BitmapEditorScene(Scene):
         if hasattr(self, "debug_text") and self.debug_text.rect.collidepoint(event.pos):
             self.debug_text.on_mouse_up_event(event)
             return
+
+        # End brush stroke for undo/redo tracking
+        if hasattr(self, "_current_brush_stroke") and self._current_brush_stroke:
+            if hasattr(self, "canvas_operation_tracker"):
+                self.canvas_operation_tracker.end_brush_stroke()
+                self._current_brush_stroke = False
+                self.log.debug("Ended brush stroke for undo/redo tracking")
 
         # Always release all sliders on mouse up to prevent stickiness
         if hasattr(self, "red_slider") and hasattr(self.red_slider, "dragging"):
@@ -6315,8 +6327,11 @@ pixels = \"\"\"
             return
 
         # Handle undo/redo keyboard shortcuts
-        if event.key == pygame.K_z and pygame.key.get_pressed()[pygame.K_LCTRL]:
-            if pygame.key.get_pressed()[pygame.K_LSHIFT]:
+        # Get modifier keys from HashableEvent (which wraps pygame events)
+        mod = getattr(event, 'mod', 0)
+
+        if event.key == pygame.K_z and (mod & pygame.KMOD_CTRL):
+            if mod & pygame.KMOD_SHIFT:
                 # Ctrl+Shift+Z: Redo
                 self.log.debug("Ctrl+Shift+Z pressed - redo")
                 print("DEBUG: Ctrl+Shift+Z pressed - REDO")
@@ -6326,6 +6341,13 @@ pixels = \"\"\"
                 self.log.debug("Ctrl+Z pressed - undo")
                 print("DEBUG: Ctrl+Z pressed - UNDO")
                 self._handle_undo()
+            return
+
+        # Handle Ctrl+Y for redo (alternative shortcut)
+        if event.key == pygame.K_y and (mod & pygame.KMOD_CTRL):
+            self.log.debug("Ctrl+Y pressed - redo")
+            print("DEBUG: Ctrl+Y pressed - REDO")
+            self._handle_redo()
             return
 
         # Check if any controller is in slider mode for arrow key navigation
@@ -6382,6 +6404,65 @@ pixels = \"\"\"
                 # Fall back to parent class handling
                 self.log.debug("No canvas found, using parent class handling")
                 super().on_key_down_event(event)
+
+    def _handle_undo(self) -> None:
+        """Handle undo operation."""
+        if not hasattr(self, 'undo_redo_manager'):
+            self.log.warning("Undo/redo manager not initialized")
+            return
+
+        if not self.undo_redo_manager.can_undo():
+            self.log.debug("No operations available to undo")
+            print("DEBUG: No operations available to undo")
+            return
+
+        success = self.undo_redo_manager.undo()
+        if success:
+            self.log.info("Undo successful")
+            print("DEBUG: Undo successful")
+            # Force canvas redraw to show the undone changes
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.force_redraw()
+        else:
+            self.log.warning("Undo failed")
+            print("DEBUG: Undo failed")
+
+    def _handle_redo(self) -> None:
+        """Handle redo operation."""
+        if not hasattr(self, 'undo_redo_manager'):
+            self.log.warning("Undo/redo manager not initialized")
+            return
+
+        if not self.undo_redo_manager.can_redo():
+            self.log.debug("No operations available to redo")
+            print("DEBUG: No operations available to redo")
+            return
+
+        success = self.undo_redo_manager.redo()
+        if success:
+            self.log.info("Redo successful")
+            print("DEBUG: Redo successful")
+            # Force canvas redraw to show the redone changes
+            if hasattr(self, "canvas") and self.canvas:
+                self.canvas.force_redraw()
+        else:
+            self.log.warning("Redo failed")
+            print("DEBUG: Redo failed")
+
+    def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
+        """Apply a pixel change for undo/redo operations.
+
+        Args:
+            x: X coordinate of the pixel
+            y: Y coordinate of the pixel
+            color: Color to set the pixel to
+        """
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "canvas_interface"):
+            # Use the canvas interface to set the pixel
+            self.canvas.canvas_interface.set_pixel_at(x, y, color)
+            self.log.debug(f"Applied undo/redo pixel change at ({x}, {y}) to color {color}")
+        else:
+            self.log.warning("Canvas or canvas interface not available for undo/redo")
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:

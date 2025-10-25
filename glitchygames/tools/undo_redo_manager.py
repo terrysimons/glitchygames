@@ -73,6 +73,7 @@ class UndoRedoManager:
         self.current_operation: Optional[Operation] = None
         self.is_undoing = False
         self.is_redoing = False
+        self.pixel_change_callback: Optional[callable] = None
         
         LOG.debug(f"UndoRedoManager initialized with max_history={max_history}")
     
@@ -306,9 +307,39 @@ class UndoRedoManager:
         Returns:
             True if undo was successful, False otherwise
         """
-        # This will be implemented when we integrate with the canvas system
-        LOG.debug(f"Undoing canvas operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
+                # Undo single pixel change
+                pixel_data = operation.undo_data.get("pixel")
+                if pixel_data:
+                    x, y, old_color = pixel_data
+                    # Apply the old color to the pixel
+                    # This will be handled by the canvas interface
+                    return self._apply_pixel_change(x, y, old_color)
+                    
+            elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
+                # Undo brush stroke
+                pixels = operation.undo_data.get("pixels", [])
+                for pixel_data in pixels:
+                    x, y, old_color = pixel_data
+                    self._apply_pixel_change(x, y, old_color)
+                return True
+                
+            elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
+                # Undo flood fill
+                affected_pixels = operation.undo_data.get("affected_pixels", [])
+                old_color = operation.undo_data.get("old_color")
+                for x, y in affected_pixels:
+                    self._apply_pixel_change(x, y, old_color)
+                return True
+                
+            else:
+                LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing canvas operation: {e}")
+            return False
     
     def _undo_film_strip_operation(self, operation: Operation) -> bool:
         """Undo a film strip operation.
@@ -319,9 +350,34 @@ class UndoRedoManager:
         Returns:
             True if undo was successful, False otherwise
         """
-        # This will be implemented when we integrate with the film strip system
-        LOG.debug(f"Undoing film strip operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
+                # Undo frame addition by deleting the frame
+                frame_index = operation.undo_data.get("frame_index")
+                animation_name = operation.undo_data.get("animation_name")
+                return self._delete_frame(frame_index, animation_name)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_FRAME_DELETE:
+                # Undo frame deletion by adding the frame back
+                frame_index = operation.undo_data.get("frame_index")
+                animation_name = operation.undo_data.get("animation_name")
+                frame_data = operation.undo_data.get("frame_data")
+                return self._add_frame(frame_index, animation_name, frame_data)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_FRAME_REORDER:
+                # Undo frame reordering by reversing the operation
+                old_index = operation.undo_data.get("old_index")
+                new_index = operation.undo_data.get("new_index")
+                animation_name = operation.undo_data.get("animation_name")
+                return self._reorder_frame(new_index, old_index, animation_name)
+                
+            else:
+                LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error undoing film strip operation: {e}")
+            return False
     
     def _undo_cross_area_operation(self, operation: Operation) -> bool:
         """Undo a cross-area operation.
@@ -345,9 +401,37 @@ class UndoRedoManager:
         Returns:
             True if redo was successful, False otherwise
         """
-        # This will be implemented when we integrate with the canvas system
-        LOG.debug(f"Redoing canvas operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
+                # Redo single pixel change
+                pixel_data = operation.redo_data.get("pixel")
+                if pixel_data:
+                    x, y, new_color = pixel_data
+                    return self._apply_pixel_change(x, y, new_color)
+                    
+            elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
+                # Redo brush stroke
+                pixels = operation.redo_data.get("pixels", [])
+                for pixel_data in pixels:
+                    x, y, new_color = pixel_data
+                    self._apply_pixel_change(x, y, new_color)
+                return True
+                
+            elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
+                # Redo flood fill
+                affected_pixels = operation.redo_data.get("affected_pixels", [])
+                new_color = operation.redo_data.get("new_color")
+                for x, y in affected_pixels:
+                    self._apply_pixel_change(x, y, new_color)
+                return True
+                
+            else:
+                LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing canvas operation: {e}")
+            return False
     
     def _redo_film_strip_operation(self, operation: Operation) -> bool:
         """Redo a film strip operation.
@@ -358,9 +442,34 @@ class UndoRedoManager:
         Returns:
             True if redo was successful, False otherwise
         """
-        # This will be implemented when we integrate with the film strip system
-        LOG.debug(f"Redoing film strip operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
+                # Redo frame addition by adding the frame
+                frame_index = operation.redo_data.get("frame_index")
+                animation_name = operation.redo_data.get("animation_name")
+                frame_data = operation.redo_data.get("frame_data")
+                return self._add_frame(frame_index, animation_name, frame_data)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_FRAME_DELETE:
+                # Redo frame deletion by deleting the frame
+                frame_index = operation.redo_data.get("frame_index")
+                animation_name = operation.redo_data.get("animation_name")
+                return self._delete_frame(frame_index, animation_name)
+                
+            elif operation.operation_type == OperationType.FILM_STRIP_FRAME_REORDER:
+                # Redo frame reordering
+                old_index = operation.redo_data.get("old_index")
+                new_index = operation.redo_data.get("new_index")
+                animation_name = operation.redo_data.get("animation_name")
+                return self._reorder_frame(old_index, new_index, animation_name)
+                
+            else:
+                LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
+                return False
+                
+        except Exception as e:
+            LOG.error(f"Error redoing film strip operation: {e}")
+            return False
     
     def _redo_cross_area_operation(self, operation: Operation) -> bool:
         """Redo a cross-area operation.
@@ -396,3 +505,79 @@ class UndoRedoManager:
             "next_redo": self.get_redo_description(),
             "max_history": self.max_history
         }
+    
+    def set_pixel_change_callback(self, callback: callable) -> None:
+        """Set the callback function for applying pixel changes.
+        
+        Args:
+            callback: Function that takes (x, y, color) and applies the pixel change
+        """
+        self.pixel_change_callback = callback
+        LOG.debug("Pixel change callback set")
+    
+    def _apply_pixel_change(self, x: int, y: int, color: tuple[int, int, int]) -> bool:
+        """Apply a pixel change to the canvas.
+        
+        Args:
+            x: X coordinate of the pixel
+            y: Y coordinate of the pixel
+            color: Color to set the pixel to
+            
+        Returns:
+            True if the change was applied successfully, False otherwise
+        """
+        if self.pixel_change_callback:
+            try:
+                self.pixel_change_callback(x, y, color)
+                LOG.debug(f"Applied pixel change at ({x}, {y}) to color {color}")
+                return True
+            except Exception as e:
+                LOG.error(f"Error applying pixel change: {e}")
+                return False
+        else:
+            LOG.warning("No pixel change callback set")
+            return False
+    
+    def _add_frame(self, frame_index: int, animation_name: str, frame_data: dict) -> bool:
+        """Add a frame to an animation.
+        
+        Args:
+            frame_index: Index where to add the frame
+            animation_name: Name of the animation
+            frame_data: Data about the frame to add
+            
+        Returns:
+            True if the frame was added successfully, False otherwise
+        """
+        # This will be implemented by the scene when it sets up the callback
+        LOG.debug(f"Adding frame {frame_index} to animation '{animation_name}'")
+        return True
+    
+    def _delete_frame(self, frame_index: int, animation_name: str) -> bool:
+        """Delete a frame from an animation.
+        
+        Args:
+            frame_index: Index of the frame to delete
+            animation_name: Name of the animation
+            
+        Returns:
+            True if the frame was deleted successfully, False otherwise
+        """
+        # This will be implemented by the scene when it sets up the callback
+        LOG.debug(f"Deleting frame {frame_index} from animation '{animation_name}'")
+        return True
+    
+    def _reorder_frame(self, old_index: int, new_index: int, animation_name: str) -> bool:
+        """Reorder frames in an animation.
+        
+        Args:
+            old_index: Original index of the frame
+            new_index: New index of the frame
+            animation_name: Name of the animation
+            
+        Returns:
+            True if the frame was reordered successfully, False otherwise
+        """
+        # This will be implemented by the scene when it sets up the callback
+        LOG.debug(f"Reordering frame {old_index} to {new_index} in animation '{animation_name}'")
+        return True
