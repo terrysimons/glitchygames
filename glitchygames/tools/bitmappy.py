@@ -7794,19 +7794,6 @@ pixels = \"\"\"
             # Default to film strip mode handling
             self._handle_film_strip_button_press(controller_id, event.button)
 
-    def on_controller_button_up_event(self, event: pygame.event.Event) -> None:
-        """Handle controller button up events."""
-        instance_id = event.instance_id
-
-        # Get controller ID for this instance
-        controller_id = self.multi_controller_manager.get_controller_id(instance_id)
-        if controller_id is None:
-            return
-
-        # Handle button releases for continuous slider adjustment
-        if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
-                           pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
-            self._stop_slider_continuous_adjustment(controller_id)
 
     def _handle_film_strip_button_press(self, controller_id: int, button: int) -> None:
         """Handle button presses for film strip mode."""
@@ -8055,8 +8042,9 @@ pixels = \"\"\"
         if controller_id is None:
             return
 
-        # Handle button releases for continuous slider adjustment
-        if event.button in [pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
+        # Handle button releases for continuous slider adjustment (D-pad and shoulder buttons)
+        if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+                           pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER]:
             self._stop_slider_continuous_adjustment(controller_id)
 
             # Update color well when slider adjustment is finished (only if controller is in slider mode)
@@ -8064,7 +8052,7 @@ pixels = \"\"\"
             if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
                 self._update_color_well_from_sliders()
 
-        # Handle button releases for continuous canvas movement
+        # Handle button releases for continuous canvas movement (D-pad buttons)
         if event.button in [pygame.CONTROLLER_BUTTON_DPAD_LEFT, pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
                            pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN]:
             self._stop_canvas_continuous_movement(controller_id)
@@ -8271,8 +8259,10 @@ pixels = \"\"\"
                 max(0, min(canvas_height - 1, new_position[1]))
             )
 
-        # Track controller position change for undo/redo (only if position actually changed)
-        if old_position != new_position and not getattr(self, '_applying_undo_redo', False):
+        # Track controller position change for undo/redo (only if position actually changed and not in continuous movement)
+        if (old_position != new_position and
+            not getattr(self, '_applying_undo_redo', False) and
+            not self._is_controller_in_continuous_movement(controller_id)):
             if hasattr(self, 'controller_position_operation_tracker'):
                 # Get current mode for context
                 current_mode = self.mode_switcher.get_controller_mode(controller_id)
@@ -8297,6 +8287,18 @@ pixels = \"\"\"
         self._update_controller_canvas_visual_indicator(controller_id)
 
         print(f"DEBUG: Controller {controller_id} canvas cursor moved to {new_position}")
+
+    def _is_controller_in_continuous_movement(self, controller_id: int) -> bool:
+        """Check if a controller is currently in continuous movement mode."""
+        # Check for canvas continuous movement
+        if hasattr(self, 'canvas_continuous_movements') and controller_id in self.canvas_continuous_movements:
+            return True
+
+        # Check for slider continuous adjustment
+        if hasattr(self, 'slider_continuous_adjustments') and controller_id in self.slider_continuous_adjustments:
+            return True
+
+        return False
 
     def _update_controller_canvas_visual_indicator(self, controller_id: int) -> None:
         """Update the visual indicator for a controller's canvas position."""
@@ -8558,6 +8560,10 @@ pixels = \"\"\"
         # Do the first movement immediately for responsive feel
         self._canvas_move_cursor(controller_id, dx, dy)
 
+        # Get starting position for undo/redo tracking
+        start_position = self.mode_switcher.get_controller_position(controller_id)
+        start_x, start_y = start_position.position if start_position else (0, 0)
+
         # Initialize continuous movement for this controller
         current_time = time.time()
         self.canvas_continuous_movements[controller_id] = {
@@ -8565,13 +8571,37 @@ pixels = \"\"\"
             'dy': dy,
             'start_time': current_time,
             'last_movement': current_time,
-            'acceleration_level': 0
+            'acceleration_level': 0,
+            'start_x': start_x,
+            'start_y': start_y
         }
         print(f"DEBUG: Started continuous canvas movement for controller {controller_id}, direction ({dx}, {dy}) (immediate first movement)")
 
     def _stop_canvas_continuous_movement(self, controller_id: int) -> None:
         """Stop continuous canvas movement."""
         if hasattr(self, 'canvas_continuous_movements') and controller_id in self.canvas_continuous_movements:
+            # Track the final position change for undo/redo
+            if hasattr(self, 'controller_position_operation_tracker'):
+                # Get the starting position from the movement data
+                movement_data = self.canvas_continuous_movements[controller_id]
+                start_position = (movement_data.get('start_x', 0), movement_data.get('start_y', 0))
+
+                # Get current position
+                current_position = self.mode_switcher.get_controller_position(controller_id)
+                if current_position:
+                    current_pos = current_position.position
+                else:
+                    current_pos = (0, 0)
+
+                # Only track if position actually changed
+                if start_position != current_pos:
+                    current_mode = self.mode_switcher.get_controller_mode(controller_id)
+                    mode_str = current_mode.value if current_mode else None
+
+                    self.controller_position_operation_tracker.add_controller_position_change(
+                        controller_id, start_position, current_pos, mode_str, mode_str
+                    )
+
             del self.canvas_continuous_movements[controller_id]
             print(f"DEBUG: Stopped continuous canvas movement for controller {controller_id}")
 
