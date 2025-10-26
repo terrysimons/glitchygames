@@ -722,6 +722,22 @@ class MockFactory:
         return mock_event
 
     @staticmethod
+    def create_pygame_key_mock(shift_pressed=False):
+        """Create a mock pygame key state for testing.
+        
+        Args:
+            shift_pressed (bool): Whether shift keys should be pressed
+            
+        Returns:
+            Mock: A mock that returns a list of key states
+        """
+        mock_key_state = [False] * 512
+        if shift_pressed:
+            mock_key_state[304] = True  # pygame.K_LSHIFT
+            mock_key_state[303] = True  # pygame.K_RSHIFT
+        return mock_key_state
+
+    @staticmethod
     def create_pygame_joystick_mock():
         """Create a mock pygame joystick for testing."""
         mock_joystick = Mock()
@@ -1131,6 +1147,7 @@ class MockFactory:
         key_mock = Mock()
         key_mock.set_repeat.return_value = None
         key_mock.get_mods.return_value = 0  # No modifier keys pressed by default
+        key_mock.get_pressed.return_value = [False] * 512  # All keys not pressed by default
         key_patcher = patch("pygame.key", key_mock)
 
         # Transform mocking - create a mock that returns a real surface
@@ -1245,6 +1262,8 @@ class MockFactory:
         # Key constants mocking
         key_constants_patcher = patch("pygame.K_q", 113)
         key_escape_patcher = patch("pygame.K_ESCAPE", 27)
+        key_lshift_patcher = patch("pygame.K_LSHIFT", 304)
+        key_rshift_patcher = patch("pygame.K_RSHIFT", 303)
         key_down_patcher = patch("pygame.KEYDOWN", pygame.KEYDOWN)
         key_up_patcher = patch("pygame.KEYUP", pygame.KEYUP)
         mouse_button_down_patcher = patch("pygame.MOUSEBUTTONDOWN", pygame.MOUSEBUTTONDOWN)
@@ -1298,7 +1317,7 @@ class MockFactory:
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
                 draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-                sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
+                sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
                 touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,  # noqa: E501
@@ -1322,7 +1341,7 @@ class MockFactory:
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
          draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher,  # noqa: E501
          transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-         sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
+         sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
          touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
@@ -1359,6 +1378,8 @@ class MockFactory:
         # Stop all constant patches
         key_constants_patcher.stop()
         key_escape_patcher.stop()
+        key_lshift_patcher.stop()
+        key_rshift_patcher.stop()
         key_down_patcher.stop()
         key_up_patcher.stop()
         mouse_button_down_patcher.stop()

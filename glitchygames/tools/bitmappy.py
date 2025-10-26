@@ -1053,14 +1053,23 @@ class FilmStripSprite(BitmappySprite):
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
 
+            # Check for shift-right-click (screen sampling)
+            is_shift_click = pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+
             # First check if we clicked on a frame for color sampling
             clicked_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
             if clicked_frame:
                 animation, frame_idx = clicked_frame
                 LOG.info(f"FilmStripSprite: Right-clicked frame {animation}[{frame_idx}] for color sampling")
 
-                # Sample color from the sprite frame pixel data
-                self._sample_color_from_frame(animation, frame_idx, film_x, film_y)
+                if is_shift_click:
+                    # Shift-right-click: sample screen directly (RGB only)
+                    LOG.info("FilmStripSprite: Shift-right-click detected - sampling screen directly")
+                    if hasattr(self, 'parent_scene') and self.parent_scene:
+                        self.parent_scene._sample_color_from_screen(event.pos)
+                else:
+                    # Regular right-click: sample from sprite frame pixel data (RGBA)
+                    self._sample_color_from_frame(animation, frame_idx, film_x, film_y)
                 LOG.info("FilmStripSprite: Color sampling completed, returning early")
                 return True  # Event was handled
 
@@ -1187,7 +1196,6 @@ class FilmStripSprite(BitmappySprite):
         except Exception as e:
             LOG.error(f"FilmStripSprite: Error sampling color from frame: {e}")
             LOG.exception("Full traceback:")
-
 
     def on_key_down_event(self, event):
         """Handle keyboard events for copy/paste functionality."""
@@ -6088,6 +6096,44 @@ class BitmapEditorScene(Scene):
         """
         self.log.info("COLOR WELL EVENT")
 
+    def _sample_color_from_screen(self, screen_pos):
+        """Sample color directly from the screen (RGB only, ignores alpha).
+
+        Args:
+            screen_pos: Screen coordinates (x, y) to sample from
+        """
+        try:
+            # Sample directly from the screen
+            color = self.screen.get_at(screen_pos)
+
+            # Handle both RGB and RGBA screen formats
+            if len(color) == 4:
+                red, green, blue, _ = color  # Ignore alpha from screen
+            else:
+                red, green, blue = color
+            alpha = 255  # Screen has no meaningful alpha, default to opaque
+
+            self.log.info(f"Screen pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha} (default)")
+
+            # Update all sliders with the sampled RGB values and default alpha
+            trigger = pygame.event.Event(0, {"name": "R", "value": red})
+            self.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
+
+            trigger = pygame.event.Event(0, {"name": "G", "value": green})
+            self.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
+
+            trigger = pygame.event.Event(0, {"name": "B", "value": blue})
+            self.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
+
+            trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
+            self.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
+
+            self.log.info(f"Updated sliders with screen color R:{red}, G:{green}, B:{blue}, A:{alpha}")
+
+        except Exception as e:
+            self.log.error(f"Error sampling color from screen: {e}")
+            self.log.exception("Full traceback:")
+
     def on_slider_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle the slider event.
 
@@ -6162,6 +6208,9 @@ class BitmapEditorScene(Scene):
             None
 
         """
+        # Check for shift-right-click (screen sampling)
+        is_shift_click = pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+
         # First, check if any sprites have handled the event
         collided_sprites = self.sprites_at_position(pos=event.pos)
         for sprite in collided_sprites:
@@ -6173,39 +6222,45 @@ class BitmapEditorScene(Scene):
         # If no sprite handled the event, proceed with scene-level handling
         # Check if the click is on the canvas to sample canvas pixel data
         if hasattr(self, "canvas") and self.canvas and self.canvas.rect.collidepoint(event.pos):
-            # Sample from canvas pixel data (which has RGBA)
-            canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
-            canvas_y = (event.pos[1] - self.canvas.rect.y) // self.canvas.pixel_height
+            if is_shift_click:
+                # Shift-right-click: sample screen directly (RGB only)
+                self.log.info("Shift-right-click detected on canvas - sampling screen directly")
+                self._sample_color_from_screen(event.pos)
+                return
+            else:
+                # Regular right-click: sample from canvas pixel data (RGBA)
+                canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
+                canvas_y = (event.pos[1] - self.canvas.rect.y) // self.canvas.pixel_height
 
-            # Check bounds
-            if (0 <= canvas_x < self.canvas.pixels_across and
-                0 <= canvas_y < self.canvas.pixels_tall):
-                pixel_num = canvas_y * self.canvas.pixels_across + canvas_x
-                if pixel_num < len(self.canvas.pixels):
-                    color = self.canvas.pixels[pixel_num]
+                # Check bounds
+                if (0 <= canvas_x < self.canvas.pixels_across and
+                    0 <= canvas_y < self.canvas.pixels_tall):
+                    pixel_num = canvas_y * self.canvas.pixels_across + canvas_x
+                    if pixel_num < len(self.canvas.pixels):
+                        color = self.canvas.pixels[pixel_num]
 
-                    # Handle both RGB and RGBA pixel formats
-                    if len(color) == 4:
-                        red, green, blue, alpha = color
-                    else:
-                        red, green, blue = color
-                        alpha = 255  # Default to opaque for RGB pixels
+                        # Handle both RGB and RGBA pixel formats
+                        if len(color) == 4:
+                            red, green, blue, alpha = color
+                        else:
+                            red, green, blue = color
+                            alpha = 255  # Default to opaque for RGB pixels
 
-                    self.log.info(f"Canvas pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}")
+                        self.log.info(f"Canvas pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}")
 
-                    # Update all sliders with the sampled RGBA values
-                    trigger = pygame.event.Event(0, {"name": "R", "value": red})
-                    self.on_slider_event(event=event, trigger=trigger)
+                        # Update all sliders with the sampled RGBA values
+                        trigger = pygame.event.Event(0, {"name": "R", "value": red})
+                        self.on_slider_event(event=event, trigger=trigger)
 
-                    trigger = pygame.event.Event(0, {"name": "G", "value": green})
-                    self.on_slider_event(event=event, trigger=trigger)
+                        trigger = pygame.event.Event(0, {"name": "G", "value": green})
+                        self.on_slider_event(event=event, trigger=trigger)
 
-                    trigger = pygame.event.Event(0, {"name": "B", "value": blue})
-                    self.on_slider_event(event=event, trigger=trigger)
+                        trigger = pygame.event.Event(0, {"name": "B", "value": blue})
+                        self.on_slider_event(event=event, trigger=trigger)
 
-                    trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
-                    self.on_slider_event(event=event, trigger=trigger)
-                    return
+                        trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
+                        self.on_slider_event(event=event, trigger=trigger)
+                        return
 
         # Fallback to screen sampling (RGB only)
         try:

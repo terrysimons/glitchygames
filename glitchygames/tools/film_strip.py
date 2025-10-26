@@ -1270,14 +1270,28 @@ class FilmStripWidget:
         x_offset = (self.frame_width - new_width) // 2 + 1
         y_offset = (self.frame_height - new_height) // 2
 
-        # Handle transparency properly for RGBA surfaces
-        if scaled_image.get_flags() & pygame.SRCALPHA:
-            # Surface has alpha channel - blit directly (alpha blending will handle transparency)
-            frame_surface.blit(scaled_image, (x_offset, y_offset))
-        else:
-            # Surface doesn't have alpha - use colorkey for magenta transparency
-            scaled_image.set_colorkey((255, 0, 255))
-            frame_surface.blit(scaled_image, (x_offset, y_offset))
+        # Always convert magenta pixels to transparent, regardless of surface type
+        # Create a new surface with alpha support
+        rgba_surface = pygame.Surface(scaled_image.get_size(), pygame.SRCALPHA)
+        
+        # Copy pixels, converting magenta (255, 0, 255) to transparent (alpha = 0)
+        for y in range(scaled_image.get_height()):
+            for x in range(scaled_image.get_width()):
+                color = scaled_image.get_at((x, y))
+                if len(color) == 3:  # RGB
+                    r, g, b = color
+                    if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
+                        rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
+                    else:
+                        rgba_surface.set_at((x, y), (r, g, b, 255))  # Full opacity other colors
+                else:  # Already RGBA
+                    r, g, b, a = color
+                    if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
+                        rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
+                    else:
+                        rgba_surface.set_at((x, y), color)  # Keep original color and alpha
+        
+        frame_surface.blit(rgba_surface, (x_offset, y_offset))
 
     def _draw_placeholder(self, frame_surface: pygame.Surface) -> None:
         """Draw a placeholder when no frame data is available."""
