@@ -434,7 +434,7 @@ class BitmapPixelSprite(BitmappySprite):
         self.pixel_height = height
         self.border_thickness = border_thickness
         self.color = (96, 96, 96)
-        self.pixel_color = (0, 0, 0)
+        self.pixel_color = (0, 0, 0, 255)
         self.x = x
         self.y = y
 
@@ -443,14 +443,14 @@ class BitmapPixelSprite(BitmappySprite):
         )
 
     @property
-    def pixel_color(self: Self) -> tuple[int, int, int]:
+    def pixel_color(self: Self) -> tuple[int, int, int, int]:
         """Get the pixel color.
 
         Args:
             None
 
         Returns:
-            tuple[int, int, int]: The pixel color.
+            tuple[int, int, int, int]: The pixel color with alpha.
 
         Raises:
             None
@@ -459,11 +459,11 @@ class BitmapPixelSprite(BitmappySprite):
         return self._pixel_color
 
     @pixel_color.setter
-    def pixel_color(self: Self, new_pixel_color: tuple[int, int, int]) -> None:
+    def pixel_color(self: Self, new_pixel_color: tuple[int, int, int] | tuple[int, int, int, int]) -> None:
         """Set the pixel color.
 
         Args:
-            new_pixel_color (tuple): The new pixel color.
+            new_pixel_color (tuple): The new pixel color (RGB or RGBA).
 
         Returns:
             None
@@ -472,7 +472,11 @@ class BitmapPixelSprite(BitmappySprite):
             None
 
         """
-        self._pixel_color = new_pixel_color
+        # Convert RGB to RGBA if needed
+        if len(new_pixel_color) == 3:
+            self._pixel_color = (new_pixel_color[0], new_pixel_color[1], new_pixel_color[2], 255)
+        else:
+            self._pixel_color = new_pixel_color
         self.dirty = 1
 
     def update(self: Self) -> None:
@@ -925,8 +929,8 @@ class FilmStripSprite(BitmappySprite):
         self.film_strip_widget = film_strip_widget
         self.name = "Film Strip"
 
-        # Create initial surface
-        self.image = pygame.Surface((width, height))
+        # Create initial surface with alpha support
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
         self.rect = self.image.get_rect(x=x, y=y)
 
         # Force initial render
@@ -1040,21 +1044,149 @@ class FilmStripSprite(BitmappySprite):
         else:
             LOG.debug("FilmStripSprite: Click is outside bounds or no widget")
 
-    def on_right_mouse_button_down_event(self, event):
-        """Handle right mouse clicks on the film strip for onion skinning."""
-        LOG.debug(f"FilmStripSprite: Right mouse click at {event.pos}, rect: {self.rect}")
+    def on_right_mouse_button_up_event(self, event):
+        """Handle right mouse clicks on the film strip for onion skinning and color sampling."""
+        LOG.info(f"FilmStripSprite: Right mouse UP at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
-            LOG.debug("FilmStripSprite: Right click is within bounds and sprite is visible, converting coordinates")
+            LOG.info("FilmStripSprite: Right click UP is within bounds and sprite is visible, converting coordinates")
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
+
+            # First check if we clicked on a frame for color sampling
+            clicked_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
+            if clicked_frame:
+                animation, frame_idx = clicked_frame
+                LOG.info(f"FilmStripSprite: Right-clicked frame {animation}[{frame_idx}] for color sampling")
+
+                # Sample color from the sprite frame pixel data
+                self._sample_color_from_frame(animation, frame_idx, film_x, film_y)
+                LOG.info("FilmStripSprite: Color sampling completed, returning early")
+                return True  # Event was handled
 
             # Handle right-click in the film strip widget for onion skinning
             LOG.debug(f"FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}), right_click=True")
             clicked_frame = self.film_strip_widget.handle_click((film_x, film_y), is_right_click=True)
             LOG.debug(f"FilmStripSprite: Right-clicked frame: {clicked_frame}")
+            return True  # Event was handled
         else:
-            LOG.debug("FilmStripSprite: Right click is outside bounds or no widget")
+            LOG.debug("FilmStripSprite: Right click UP is outside bounds or no widget")
+            return False  # Event not handled
+
+    def _sample_color_from_frame(self, animation: str, frame_idx: int, film_x: int, film_y: int) -> None:
+        """Sample color from a sprite frame pixel data.
+
+        Args:
+            animation: Animation name
+            frame_idx: Frame index
+            film_x: X coordinate within the film strip
+            film_y: Y coordinate within the film strip
+        """
+        try:
+            # Get the frame from the animated sprite
+            if not self.film_strip_widget.animated_sprite:
+                LOG.debug("FilmStripSprite: No animated sprite available for color sampling")
+                return
+
+            frames = self.film_strip_widget.animated_sprite._animations.get(animation, [])
+            if frame_idx >= len(frames):
+                LOG.debug(f"FilmStripSprite: Frame index {frame_idx} out of range")
+                return
+
+            frame = frames[frame_idx]
+
+            # Get the frame's pixel data directly
+            if hasattr(frame, 'get_pixel_data'):
+                pixel_data = frame.get_pixel_data()
+            elif hasattr(frame, 'pixels'):
+                pixel_data = frame.pixels
+            else:
+                LOG.debug("FilmStripSprite: Frame has no pixel data available")
+                return
+
+            if not pixel_data:
+                LOG.debug("FilmStripSprite: Frame pixel data is empty")
+                return
+
+            # Get frame dimensions from the pixel data length
+            # We need to determine the frame dimensions to calculate the pixel index
+            if hasattr(frame, 'image') and frame.image:
+                actual_width, actual_height = frame.image.get_size()
+            else:
+                # Fallback to canvas dimensions
+                actual_width = self.film_strip_widget.parent_canvas.pixels_across if self.film_strip_widget.parent_canvas else 32
+                actual_height = self.film_strip_widget.parent_canvas.pixels_tall if self.film_strip_widget.parent_canvas else 32
+
+            # Find the frame layout to get the click position within the frame
+            frame_layout = None
+            for (anim_name, frame_idx_check), frame_rect in self.film_strip_widget.frame_layouts.items():
+                if anim_name == animation and frame_idx_check == frame_idx:
+                    frame_layout = frame_rect
+                    break
+
+            if not frame_layout:
+                LOG.debug(f"FilmStripSprite: Could not find frame layout for {animation}[{frame_idx}]")
+                return
+
+            # Calculate relative position within the frame
+            relative_x = film_x - frame_layout.x
+            relative_y = film_y - frame_layout.y
+
+            # Check if click is within frame bounds
+            if not (0 <= relative_x < frame_layout.width and 0 <= relative_y < frame_layout.height):
+                LOG.debug(f"FilmStripSprite: Click outside frame bounds")
+                return
+
+            # Calculate which pixel was clicked based on the frame's actual dimensions
+            # Account for frame border (4px on each side)
+            frame_content_width = frame_layout.width - 8
+            frame_content_height = frame_layout.height - 8
+
+            # Calculate pixel coordinates within the frame content area
+            pixel_x = int((relative_x - 4) * actual_width / frame_content_width)
+            pixel_y = int((relative_y - 4) * actual_height / frame_content_height)
+
+            # Clamp to valid range
+            pixel_x = max(0, min(pixel_x, actual_width - 1))
+            pixel_y = max(0, min(pixel_y, actual_height - 1))
+
+            # Get pixel index
+            pixel_num = pixel_y * actual_width + pixel_x
+
+            if pixel_num < len(pixel_data):
+                color = pixel_data[pixel_num]
+
+                # Handle both RGB and RGBA pixel formats
+                if len(color) == 4:
+                    red, green, blue, alpha = color
+                else:
+                    red, green, blue = color
+                    alpha = 255  # Default to opaque for RGB pixels
+
+                LOG.debug(f"FilmStripSprite: Sampled color from frame {animation}[{frame_idx}] pixel ({pixel_x}, {pixel_y}) - R:{red}, G:{green}, B:{blue}, A:{alpha}")
+
+                # Update sliders in the parent scene
+                if hasattr(self, 'parent_scene') and self.parent_scene:
+                    # Create trigger events for each slider
+                    trigger_r = pygame.event.Event(0, {"name": "R", "value": red})
+                    self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger_r)
+
+                    trigger_g = pygame.event.Event(0, {"name": "G", "value": green})
+                    self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger_g)
+
+                    trigger_b = pygame.event.Event(0, {"name": "B", "value": blue})
+                    self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger_b)
+
+                    trigger_a = pygame.event.Event(0, {"name": "A", "value": alpha})
+                    self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger_a)
+
+                    LOG.info(f"FilmStripSprite: Updated sliders with sampled color R:{red}, G:{green}, B:{blue}, A:{alpha}")
+            else:
+                LOG.debug(f"FilmStripSprite: Pixel index {pixel_num} out of range for pixel data length {len(pixel_data)}")
+
+        except Exception as e:
+            LOG.error(f"FilmStripSprite: Error sampling color from frame: {e}")
+            LOG.exception("Full traceback:")
 
 
     def on_key_down_event(self, event):
@@ -1257,22 +1389,33 @@ class FilmStripSprite(BitmappySprite):
             if image.get_size() != (canvas_width, canvas_height):
                 image = pygame.transform.scale(image, (canvas_width, canvas_height))
 
-            # Convert to RGB if needed, handling transparency
+            # Convert to RGBA if needed, preserving transparency
             if image.get_flags() & pygame.SRCALPHA:
-                rgb_image = pygame.Surface((canvas_width, canvas_height))
-                rgb_image.fill((255, 255, 255))  # White background
-                rgb_image.blit(image, (0, 0))
-                image = rgb_image
+                # Image already has alpha - keep it
+                pass
+            else:
+                # Convert RGB to RGBA by adding alpha channel
+                rgba_image = pygame.Surface((canvas_width, canvas_height), pygame.SRCALPHA)
+                rgba_image.blit(image, (0, 0))
+                image = rgba_image
 
-            # Get pixel data
-            pixel_array = pygame.surfarray.array3d(image)
-
-            # Convert to the format expected by SpriteFrame
-            pixels = []
-            for y in range(canvas_height):
-                for x in range(canvas_width):
-                    r, g, b = pixel_array[x, y]
-                    pixels.append((int(r), int(g), int(b)))
+            # Get pixel data with alpha support
+            if image.get_flags() & pygame.SRCALPHA:
+                # Image has alpha channel - use array4d to preserve alpha
+                pixel_array = pygame.surfarray.array4d(image)
+                pixels = []
+                for y in range(canvas_height):
+                    for x in range(canvas_width):
+                        r, g, b, a = pixel_array[x, y]
+                        pixels.append((int(r), int(g), int(b), int(a)))
+            else:
+                # Image has no alpha channel - use array3d and add alpha
+                pixel_array = pygame.surfarray.array3d(image)
+                pixels = []
+                for y in range(canvas_height):
+                    for x in range(canvas_width):
+                        r, g, b = pixel_array[x, y]
+                        pixels.append((int(r), int(g), int(b), 255))  # Add full alpha
 
             # Create a new SpriteFrame with the surface
             from glitchygames.sprites import SpriteFrame
@@ -1488,11 +1631,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def _initialize_pixel_arrays(self) -> None:
         """Initialize pixel arrays and color settings."""
-        # Initialize pixels with magenta as the transparent/background color
-        self.pixels = [(255, 0, 255) for _ in range(self.pixels_across * self.pixels_tall)]
+        # Initialize pixels with magenta as the transparent/background color (RGBA)
+        self.pixels = [(255, 0, 255, 255) for _ in range(self.pixels_across * self.pixels_tall)]
         self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
-        self.active_color = (0, 0, 0)
+        self.active_color = (0, 0, 0, 255)
         # Set border thickness using the internal method
         self._update_border_thickness()
 
@@ -2297,7 +2440,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Create new frame with viewport dimensions
         new_frame = SpriteFrame(
-            surface=pygame.Surface((self.pixels_across, self.pixels_tall)),
+            surface=pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA),
             duration=original_frame.duration
         )
 
@@ -2821,7 +2964,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.pixel_height = pixel_size
 
         # Create new pixel arrays
-        self.pixels = [(255, 0, 255)] * (sprite_width * sprite_height)  # Initialize with magenta
+        self.pixels = [(255, 0, 255, 255)] * (sprite_width * sprite_height)  # Initialize with magenta
         self.dirty_pixels = [True] * (sprite_width * sprite_height)
 
         # Update surface dimensions
@@ -3022,7 +3165,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.mini_view.pixels = self.pixels.copy()
             else:
                 # Fallback to magenta if dimensions don't match
-                self.mini_view.pixels = [(255, 0, 255)] * (width * height)
+                self.mini_view.pixels = [(255, 0, 255, 255)] * (width * height)
             self.mini_view.dirty_pixels = [True] * (width * height)
 
             # Don't update mini view pixels here - it will be updated later after animation is set
@@ -3063,8 +3206,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                 frames = self.animated_sprite._animations[current_anim]
                 # Update the frame's image with current canvas data
                 frame = frames[current_frame]
-                # Create a new surface from the canvas pixels
-                surface = pygame.Surface((self.pixels_across, self.pixels_tall))
+                # Create a new surface from the canvas pixels with alpha support
+                surface = pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA)
                 for y in range(self.pixels_tall):
                     for x in range(self.pixels_across):
                         pixel_num = y * self.pixels_across + x
@@ -3081,8 +3224,8 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def get_canvas_surface(self):
         """Get the current canvas surface for the film strip."""
-        # Create a surface from the current canvas pixels
-        surface = pygame.Surface((self.pixels_across, self.pixels_tall))
+        # Create a surface from the current canvas pixels with alpha support
+        surface = pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA)
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 pixel_num = y * self.pixels_across + x
@@ -3156,7 +3299,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         self._panning_active = False
 
         # Initialize buffer with transparent pixels
-        self._buffer_pixels = [(255, 0, 255) for _ in range(self.buffer_width * self.buffer_height)]
+        self._buffer_pixels = [(255, 0, 255, 255) for _ in range(self.buffer_width * self.buffer_height)]
 
         # Copy current canvas pixels to center of buffer
         if hasattr(self, 'pixels') and self.pixels:
@@ -3359,7 +3502,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Create new frame with viewport dimensions
         new_frame = SpriteFrame(
-            surface=pygame.Surface((self.pixels_across, self.pixels_tall)),
+            surface=pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA),
             duration=original_frame.duration
         )
 
@@ -3731,7 +3874,7 @@ class BitmapEditorScene(Scene):
         surface1 = pygame.Surface((pixels_across, pixels_tall))
         surface1.fill((255, 0, 255))  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
-        frame1.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
+        frame1.pixels = [(255, 0, 255, 255)] * (pixels_across * pixels_tall)
 
         # Create animated sprite using proper initialization - single frame
         animated_sprite = AnimatedSprite()
@@ -4115,7 +4258,7 @@ class BitmapEditorScene(Scene):
             )
 
             # Initialize the pixel data for the new frame
-            animated_frame.pixels = [(255, 0, 255)] * (pixels_across * pixels_tall)
+            animated_frame.pixels = [(255, 0, 255, 255)] * (pixels_across * pixels_tall)
 
             # Insert the new animation at the specified position
             if insert_after_index is not None:
@@ -4357,11 +4500,29 @@ class BitmapEditorScene(Scene):
         blue_slider_y = self.screen_height - slider_height - 2  # Bottom edge at screen_height - 2
         green_slider_y = blue_slider_y - bbox_height  # Use bounding box height for spacing
         red_slider_y = green_slider_y - bbox_height   # Use bounding box height for spacing
+        alpha_slider_y = red_slider_y - bbox_height   # Alpha slider above red slider
 
         # Create text labels for each slider
         label_x = slider_x - 13  # Position labels to the left of sliders (moved 7 pixels right total)
         label_width = 16  # Width for text labels
         label_height = 16  # Height for text labels
+
+        # Alpha slider label
+        self.alpha_label = TextSprite(
+            text="A",
+            x=label_x - 2,  # Move A label 2 pixels left (same as R and G)
+            y=alpha_slider_y + (slider_height - label_height) // 2,  # Center vertically with slider
+            width=label_width,
+            height=label_height,
+            background_color=(0, 0, 0, 0),  # Transparent background
+            text_color=(255, 255, 255),  # White text
+            alpha=0,  # Transparent
+            groups=self.all_sprites,
+        )
+        # Set monospaced font for the label
+        from glitchygames.fonts import FontManager
+        monospace_config = {"font_name": "Courier", "font_size": 14}
+        self.alpha_label.font = FontManager.get_font(font_config=monospace_config)
 
         # Red slider label
         self.red_label = TextSprite(
@@ -4410,6 +4571,16 @@ class BitmapEditorScene(Scene):
         # Set monospaced font for the label
         self.blue_label.font = FontManager.get_font(font_config=monospace_config)
 
+        self.alpha_slider = SliderSprite(
+            name="A",
+            x=slider_x,
+            y=alpha_slider_y,
+            width=slider_width,
+            height=slider_height,
+            parent=self,
+            groups=self.all_sprites,
+        )
+
         self.red_slider = SliderSprite(
             name="R",
             x=slider_x,
@@ -4441,6 +4612,18 @@ class BitmapEditorScene(Scene):
         )
 
         # Create bounding boxes around the sliders for hover effects (initially hidden)
+        self.alpha_slider_bbox = BitmappySprite(
+            x=slider_x - 2,
+            y=alpha_slider_y - 2,
+            width=slider_width + 4,
+            height=slider_height + 4,
+            name="Alpha Slider BBox",
+            groups=self.all_sprites,
+        )
+        # Create transparent surface (no border initially)
+        self.alpha_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
+        self.alpha_slider_bbox.visible = False  # Start hidden
+
         self.red_slider_bbox = BitmappySprite(
             x=slider_x - 2,
             y=red_slider_y - 2,
@@ -4478,6 +4661,7 @@ class BitmapEditorScene(Scene):
         self.blue_slider_bbox.visible = False  # Start hidden
 
         # Update bounding box positions to match new slider positions
+        self.alpha_slider_bbox.rect.y = alpha_slider_y - 2
         self.red_slider_bbox.rect.y = red_slider_y - 2
         self.green_slider_bbox.rect.y = green_slider_y - 2
         self.blue_slider_bbox.rect.y = blue_slider_y - 2
@@ -4541,6 +4725,8 @@ class BitmapEditorScene(Scene):
         text_box_width = color_well_x - text_label_x + 4  # Make 4 pixels wider
         # Shrink text boxes vertically by 4 pixels
         text_box_height = 16  # Original was 20, now 16 (4 pixels smaller)
+        self.alpha_slider.text_sprite.width = text_box_width
+        self.alpha_slider.text_sprite.height = text_box_height
         self.red_slider.text_sprite.width = text_box_width
         self.red_slider.text_sprite.height = text_box_height
         self.green_slider.text_sprite.width = text_box_width
@@ -4548,11 +4734,13 @@ class BitmapEditorScene(Scene):
         self.blue_slider.text_sprite.width = text_box_width
         self.blue_slider.text_sprite.height = text_box_height
         # Force text sprites to update with new dimensions
+        self.alpha_slider.text_sprite.update_text(self.alpha_slider.text_sprite.text)
         self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
         self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
         self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
 
 
+        self.alpha_slider.value = 255
         self.red_slider.value = 0
         self.blue_slider.value = 0
         self.green_slider.value = 0
@@ -4561,6 +4749,7 @@ class BitmapEditorScene(Scene):
             self.red_slider.value,
             self.green_slider.value,
             self.blue_slider.value,
+            self.alpha_slider.value,
         )
 
         if hasattr(self, "canvas") and self.canvas:
@@ -4888,7 +5077,7 @@ class BitmapEditorScene(Scene):
                     self.log.debug("Initializing canvas pixels")
                     # Create a blank pixel array
                     pixel_count = self.canvas.pixels_across * self.canvas.pixels_tall
-                    self.canvas.pixels = [(255, 0, 255)] * pixel_count  # Magenta background
+                    self.canvas.pixels = [(255, 0, 255, 255)] * pixel_count  # Magenta background
                     self.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(f"Canvas pixels initialized: len={len(self.canvas.pixels)}")
 
@@ -5718,7 +5907,7 @@ class BitmapEditorScene(Scene):
             self.canvas.pixel_height = new_pixel_size
 
             # Clear and resize the canvas
-            self.canvas.pixels = [(255, 0, 255)] * (width * height)  # Use magenta as background
+            self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)  # Use magenta as background
             self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
             # Reset viewport/panning system for new canvas
@@ -5933,6 +6122,9 @@ class BitmapEditorScene(Scene):
         elif trigger.name == "B":
             self.blue_slider.value = value
             self.log.debug(f"Updated blue slider to: {value}")
+        elif trigger.name == "A":
+            self.alpha_slider.value = value
+            self.log.debug(f"Updated alpha slider to: {value}")
 
         # Update slider text to reflect current tab format
         # This handles slider clicks - text input is handled by SliderSprite itself
@@ -5941,18 +6133,20 @@ class BitmapEditorScene(Scene):
         # Debug: Log current slider values
         self.log.debug(
             f"Current slider values - R: {self.red_slider.value}, "
-            f"G: {self.green_slider.value}, B: {self.blue_slider.value}"
+            f"G: {self.green_slider.value}, B: {self.blue_slider.value}, A: {self.alpha_slider.value}"
         )
 
         self.color_well.active_color = (
             self.red_slider.value,
             self.green_slider.value,
             self.blue_slider.value,
+            self.alpha_slider.value,
         )
         self.canvas.active_color = (
             self.red_slider.value,
             self.green_slider.value,
             self.blue_slider.value,
+            self.alpha_slider.value,
         )
 
     def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -5968,13 +6162,62 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        # If we're on the edge of an outside pixel, ignore
-        # the right click so we don't crash.
-        try:
-            red, green, blue, alpha = self.screen.get_at(event.pos)
-            self.log.info(f"Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}")
+        # First, check if any sprites have handled the event
+        collided_sprites = self.sprites_at_position(pos=event.pos)
+        for sprite in collided_sprites:
+            if hasattr(sprite, "on_right_mouse_button_up_event"):
+                result = sprite.on_right_mouse_button_up_event(event)
+                if result:  # Event was handled by sprite
+                    return
 
-            # TODO: Make this a proper type.
+        # If no sprite handled the event, proceed with scene-level handling
+        # Check if the click is on the canvas to sample canvas pixel data
+        if hasattr(self, "canvas") and self.canvas and self.canvas.rect.collidepoint(event.pos):
+            # Sample from canvas pixel data (which has RGBA)
+            canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
+            canvas_y = (event.pos[1] - self.canvas.rect.y) // self.canvas.pixel_height
+
+            # Check bounds
+            if (0 <= canvas_x < self.canvas.pixels_across and
+                0 <= canvas_y < self.canvas.pixels_tall):
+                pixel_num = canvas_y * self.canvas.pixels_across + canvas_x
+                if pixel_num < len(self.canvas.pixels):
+                    color = self.canvas.pixels[pixel_num]
+
+                    # Handle both RGB and RGBA pixel formats
+                    if len(color) == 4:
+                        red, green, blue, alpha = color
+                    else:
+                        red, green, blue = color
+                        alpha = 255  # Default to opaque for RGB pixels
+
+                    self.log.info(f"Canvas pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}")
+
+                    # Update all sliders with the sampled RGBA values
+                    trigger = pygame.event.Event(0, {"name": "R", "value": red})
+                    self.on_slider_event(event=event, trigger=trigger)
+
+                    trigger = pygame.event.Event(0, {"name": "G", "value": green})
+                    self.on_slider_event(event=event, trigger=trigger)
+
+                    trigger = pygame.event.Event(0, {"name": "B", "value": blue})
+                    self.on_slider_event(event=event, trigger=trigger)
+
+                    trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
+                    self.on_slider_event(event=event, trigger=trigger)
+                    return
+
+        # Fallback to screen sampling (RGB only)
+        try:
+            color = self.screen.get_at(event.pos)
+            if len(color) == 4:
+                red, green, blue, _ = color  # Ignore alpha from screen
+            else:
+                red, green, blue = color
+            alpha = 255  # Screen has no alpha, default to opaque
+            self.log.info(f"Screen pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha} (default)")
+
+            # Update sliders with RGB values and default alpha
             trigger = pygame.event.Event(0, {"name": "R", "value": red})
             self.on_slider_event(event=event, trigger=trigger)
 
@@ -5982,6 +6225,9 @@ class BitmapEditorScene(Scene):
             self.on_slider_event(event=event, trigger=trigger)
 
             trigger = pygame.event.Event(0, {"name": "B", "value": blue})
+            self.on_slider_event(event=event, trigger=trigger)
+
+            trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
             self.on_slider_event(event=event, trigger=trigger)
         except IndexError:
             pass
@@ -6342,6 +6588,8 @@ class BitmapEditorScene(Scene):
             mouse_pos: The current mouse position (x, y)
         """
         # Check if mouse is hovering over any slider
+        alpha_hover = (hasattr(self, 'alpha_slider') and
+                      self.alpha_slider.rect.collidepoint(mouse_pos))
         red_hover = (hasattr(self, 'red_slider') and
                     self.red_slider.rect.collidepoint(mouse_pos))
         green_hover = (hasattr(self, 'green_slider') and
@@ -6351,6 +6599,8 @@ class BitmapEditorScene(Scene):
 
         # Check if mouse is hovering over any slider text boxes
         # Use absolute coordinates for text sprites
+        alpha_text_hover = (hasattr(self, 'alpha_slider') and hasattr(self.alpha_slider, 'text_sprite') and
+                           self.alpha_slider.text_sprite.rect.collidepoint(mouse_pos))
         red_text_hover = (hasattr(self, 'red_slider') and hasattr(self.red_slider, 'text_sprite') and
                          self.red_slider.text_sprite.rect.collidepoint(mouse_pos))
         green_text_hover = (hasattr(self, 'green_slider') and hasattr(self.green_slider, 'text_sprite') and
@@ -6359,6 +6609,23 @@ class BitmapEditorScene(Scene):
                           self.blue_slider.text_sprite.rect.collidepoint(mouse_pos))
 
 
+
+        # Update alpha slider border
+        if hasattr(self, 'alpha_slider_bbox'):
+            if alpha_hover and not self.alpha_slider_bbox.visible:
+                # Show alpha border (magenta color based on slider value)
+                alpha_value = self.alpha_slider.value if hasattr(self, 'alpha_slider') else 0
+                alpha_color = (alpha_value, 0, alpha_value)  # Equal parts red and blue
+                self.alpha_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                pygame.draw.rect(self.alpha_slider_bbox.image, alpha_color,
+                               (0, 0, self.alpha_slider_bbox.rect.width, self.alpha_slider_bbox.rect.height), 2)
+                self.alpha_slider_bbox.visible = True
+                self.alpha_slider_bbox.dirty = 1
+            elif not alpha_hover and self.alpha_slider_bbox.visible:
+                # Hide alpha border
+                self.alpha_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                self.alpha_slider_bbox.visible = False
+                self.alpha_slider_bbox.dirty = 1
 
         # Update red slider border
         if hasattr(self, 'red_slider_bbox'):
@@ -6406,6 +6673,24 @@ class BitmapEditorScene(Scene):
                 self.blue_slider_bbox.dirty = 1
 
         # Update text box hover effects (white borders)
+        # Alpha slider text box
+        if hasattr(self, 'alpha_slider') and hasattr(self.alpha_slider, 'text_sprite'):
+            if alpha_text_hover:
+                # Add white border to text sprite
+                if not hasattr(self.alpha_slider.text_sprite, 'hover_border_added'):
+                    # Create a white border by drawing on the text sprite's image
+                    pygame.draw.rect(self.alpha_slider.text_sprite.image, (255, 255, 255),
+                                   (0, 0, self.alpha_slider.text_sprite.rect.width, self.alpha_slider.text_sprite.rect.height), 2)
+                    self.alpha_slider.text_sprite.hover_border_added = True
+                    self.alpha_slider.text_sprite.dirty = 1
+            else:
+                # Remove white border
+                if hasattr(self.alpha_slider.text_sprite, 'hover_border_added') and self.alpha_slider.text_sprite.hover_border_added:
+                    # Force text sprite to redraw without border
+                    self.alpha_slider.text_sprite.update_text(self.alpha_slider.text_sprite.text)
+                    self.alpha_slider.text_sprite.hover_border_added = False
+                    self.alpha_slider.text_sprite.dirty = 1
+
         # Red slider text box
         if hasattr(self, 'red_slider') and hasattr(self.red_slider, 'text_sprite'):
             if red_text_hover:
@@ -7617,8 +7902,8 @@ pixels = \"\"\"
                     # The current self.canvas.pixels already has the panned view
                     frame.pixels = list(self.canvas.pixels)
 
-                    # Also update the frame.image surface for film strip thumbnails
-                    surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
+                    # Also update the frame.image surface for film strip thumbnails with alpha support
+                    surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall), pygame.SRCALPHA)
                     for y in range(self.canvas.pixels_tall):
                         for x in range(self.canvas.pixels_across):
                             pixel_num = y * self.canvas.pixels_across + x
@@ -7642,8 +7927,8 @@ pixels = \"\"\"
                                 if hasattr(film_strip_frame, 'pixels'):
                                     film_strip_frame.pixels = list(self.canvas.pixels)
 
-                                    # Also update the film strip frame's image surface
-                                    film_strip_surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
+                                    # Also update the film strip frame's image surface with alpha support
+                                    film_strip_surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall), pygame.SRCALPHA)
                                     for y in range(self.canvas.pixels_tall):
                                         for x in range(self.canvas.pixels_across):
                                             pixel_num = y * self.canvas.pixels_across + x
@@ -9858,12 +10143,13 @@ pixels = \"\"\"
             red_value = self.red_slider.value if hasattr(self, 'red_slider') else 0
             green_value = self.green_slider.value if hasattr(self, 'green_slider') else 0
             blue_value = self.blue_slider.value if hasattr(self, 'blue_slider') else 0
+            alpha_value = self.alpha_slider.value if hasattr(self, 'alpha_slider') else 0
 
-            print(f"DEBUG: Slider values - R:{red_value}, G:{green_value}, B:{blue_value}")
+            print(f"DEBUG: Slider values - R:{red_value}, G:{green_value}, B:{blue_value}, A:{alpha_value}")
             print(f"DEBUG: Color well before update: {self.color_well.active_color}")
 
             # Update color well
-            self.color_well.active_color = (red_value, green_value, blue_value)
+            self.color_well.active_color = (red_value, green_value, blue_value, alpha_value)
 
             # Force color well to redraw
             if hasattr(self.color_well, 'dirty'):

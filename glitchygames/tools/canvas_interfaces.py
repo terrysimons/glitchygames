@@ -120,12 +120,12 @@ class StaticCanvasInterface:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
 
-    def get_pixel_data(self) -> list[tuple[int, int, int]]:
-        """Get the current pixel data as a list of RGB tuples."""
+    def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
+        """Get the current pixel data as a list of RGBA tuples."""
         return self.canvas_sprite.pixels.copy()
 
-    def set_pixel_data(self, pixels: list[tuple[int, int, int]]) -> None:
-        """Set the pixel data from a list of RGB tuples."""
+    def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
+        """Set the pixel data from a list of RGBA tuples."""
         self.canvas_sprite.pixels = pixels.copy()
         # Mark all pixels as dirty
         self.canvas_sprite.dirty_pixels = [True] * len(pixels)
@@ -581,7 +581,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             # NOTE: Onion layers should NOT be panned - they stay in original position
                             for i, pixel in enumerate(frame_pixels):
                                 # Skip transparent pixels (magenta) - 100% transparent
-                                if pixel == (255, 0, 255):
+                                if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
                                     continue
                                     
                                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
@@ -591,7 +591,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 
                                 # Draw pixel with onion transparency
                                 alpha = int(255 * onion_manager.onion_transparency)
-                                transparent_pixel = (*pixel, alpha)
+                                
+                                # Handle both RGB and RGBA pixels
+                                if len(pixel) == 4:
+                                    # Already RGBA - combine with onion transparency
+                                    r, g, b, pixel_alpha = pixel
+                                    combined_alpha = int((pixel_alpha * alpha) / 255)
+                                    transparent_pixel = (r, g, b, combined_alpha)
+                                else:
+                                    # RGB pixel - add onion transparency
+                                    transparent_pixel = (*pixel, alpha)
                                 
                                 pygame.draw.rect(
                                     frame_surface,
@@ -647,7 +656,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
                         # Skip transparent pixels (magenta) - 100% transparent, but still check for controller indicators
-                        if pixel == (255, 0, 255):
+                        if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
                             # Only draw controller indicator for transparent pixels
                             if controller_indicator_color:
                                 self._draw_plus_indicator(
@@ -660,12 +669,21 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             continue
                         
                         if controller_indicator_color:
-                            # Draw normal pixel first
-                            pygame.draw.rect(
-                                self.canvas_sprite.image,
-                                pixel,
-                                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                            )
+                            # Draw normal pixel first with alpha blending if RGBA
+                            if len(pixel) == 4:
+                                # RGBA pixel - use alpha blending
+                                pygame.draw.rect(
+                                    self.canvas_sprite.image,
+                                    pixel,
+                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                )
+                            else:
+                                # RGB pixel - draw normally
+                                pygame.draw.rect(
+                                    self.canvas_sprite.image,
+                                    pixel,
+                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                )
                             # Draw plus sign indicator on top
                             self._draw_plus_indicator(
                                 self.canvas_sprite.image,
@@ -675,12 +693,21 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 self.canvas_sprite.pixel_height
                             )
                         else:
-                            # Draw normal pixel at 100% opacity (0% transparent)
-                            pygame.draw.rect(
-                                self.canvas_sprite.image,
-                                pixel,
-                                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                            )
+                            # Draw normal pixel with alpha blending if RGBA
+                            if len(pixel) == 4:
+                                # RGBA pixel - use alpha blending
+                                pygame.draw.rect(
+                                    self.canvas_sprite.image,
+                                    pixel,
+                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                )
+                            else:
+                                # RGB pixel - draw normally
+                                pygame.draw.rect(
+                                    self.canvas_sprite.image,
+                                    pixel,
+                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                )
                 else:
                     # Selected frame is hidden, but still draw controller indicators
                     for i, pixel in enumerate(frame_pixels):
