@@ -1890,8 +1890,10 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.dirty = 1
         self.force_redraw()
 
-    def _get_current_frame_pixels(self) -> list[tuple[int, int, int]]:
-        """Get pixel data from the current frame of the animated sprite."""
+    def _get_current_frame_pixels(self) -> list[tuple[int, int, int, int]]:
+        """Get pixel data from the current frame of the animated sprite as RGBA."""
+        pixels = []
+        
         if hasattr(self, "animated_sprite") and self.animated_sprite:
             # Check if this is a static sprite (no frames)
             if (
@@ -1905,14 +1907,12 @@ class AnimatedCanvasSprite(BitmappySprite):
                         f"Got pixels from animated_sprite.get_pixel_data(): {len(pixels)} pixels, "
                         f"first few: {pixels[:5]}"
                     )
-                    return pixels
-                if hasattr(self.animated_sprite, "pixels"):
+                elif hasattr(self.animated_sprite, "pixels"):
                     pixels = self.animated_sprite.pixels.copy()
                     self.log.debug(
                         f"Got pixels from animated_sprite.pixels: {len(pixels)} pixels, "
                         f"first few: {pixels[:5]}"
                     )
-                    return pixels
 
             # Animated sprite with frames
             current_animation = self.current_animation
@@ -1931,19 +1931,30 @@ class AnimatedCanvasSprite(BitmappySprite):
                         f"Got pixels from frame.get_pixel_data(): {len(pixels)} pixels, "
                         f"first few: {pixels[:5]}"
                     )
-                    return pixels
-                self.log.warning("Frame has no get_pixel_data method")
+                else:
+                    self.log.warning("Frame has no get_pixel_data method")
             else:
                 self.log.warning(
                     f"Animation '{current_animation}' or frame {current_frame} not found"
                 )
 
         # Fallback to static pixels
-        pixels = self.pixels.copy()
-        self.log.debug(
-            f"Using fallback canvas pixels: {len(pixels)} pixels, first few: {pixels[:5]}"
-        )
-        return pixels
+        if not pixels:
+            pixels = self.pixels.copy()
+            self.log.debug(
+                f"Using fallback canvas pixels: {len(pixels)} pixels, first few: {pixels[:5]}"
+            )
+        
+        # Ensure all pixels are RGBA format
+        rgba_pixels = []
+        for pixel in pixels:
+            if len(pixel) == 4:
+                rgba_pixels.append(pixel)
+            else:
+                # Convert RGB to RGBA with full opacity
+                rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))
+        
+        return rgba_pixels
 
     def _update_canvas_from_current_frame(self) -> None:
         """Update the canvas pixels with the current frame data."""
@@ -2294,28 +2305,6 @@ class AnimatedCanvasSprite(BitmappySprite):
             groups=groups,
         )
 
-    def update(self):
-        """Update the canvas display."""
-        # Check if mouse is outside canvas
-        mouse_pos = pygame.mouse.get_pos()
-
-        # Get window size
-        screen_info = pygame.display.Info()
-        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
-
-        # If mouse is outside window or canvas, clear cursor
-        if (
-            not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
-        ) and hasattr(self, "mini_view") and self.mini_view is not None:
-            self.log.info("Mouse outside canvas/window, clearing miniview cursor")
-            self.mini_view.clear_cursor()
-
-        # Animation timing is handled by the scene's update_animation method
-
-        if self.dirty:
-            self.force_redraw()
-            self.dirty = 0
-
     def pan_canvas(self, delta_x: int, delta_y: int) -> None:
         """Pan the canvas by the given delta values.
 
@@ -2457,7 +2446,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         return new_frame
 
-    def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int]]:
+    def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int, int]]:
         """Get viewport pixels from a frame based on current panning offset."""
         # Get the frame's pixel data
         frame_pixels = frame.get_pixel_data()
@@ -2495,6 +2484,30 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Update the animated sprite with delta time."""
         if hasattr(self, "animated_sprite") and self.animated_sprite:
             self.animated_sprite.update(dt)
+
+    def update(self):
+        """Update the canvas sprite."""
+        # Check if mouse is outside canvas
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Get window size
+        screen_info = pygame.display.Info()
+        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
+
+        # If mouse is outside window or canvas, clear cursor
+        if (
+            not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
+        ) and hasattr(self, "mini_view") and self.mini_view is not None:
+            self.log.info("Mouse outside canvas/window, clearing miniview cursor")
+            self.mini_view.clear_cursor()
+
+        # Animation timing is handled by the scene's update_animation method
+
+        # Force redraw if dirty
+        if self.dirty:
+            self.log.debug("DEBUG: AnimatedCanvasSprite.update - calling force_redraw")
+            self.force_redraw()
+            self.dirty = 0
 
     def force_redraw(self):
         """Force a complete redraw of the canvas."""
@@ -3127,6 +3140,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Copy the pixels to the canvas
             self.pixels = current_frame_pixels.copy()
             self.dirty_pixels = [True] * len(self.pixels)
+            self.dirty = 1  # Mark canvas as dirty for redraw
             self.log.debug(f"Copied {len(current_frame_pixels)} pixels to canvas")
             self.log.debug(
                 f"Canvas pixels after copy: {self.pixels[:5] if self.pixels else 'None'}"
@@ -3519,7 +3533,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         return new_frame
 
-    def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int]]:
+    def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int, int]]:
         """Get viewport pixels from a frame based on current panning offset."""
         # Get the frame's pixel data
         frame_pixels = frame.get_pixel_data()
@@ -3558,17 +3572,17 @@ class MiniView(BitmappySprite):
     """Mini View."""
 
     log = LOG
-    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int]]] = [
-        (0, 255, 255),  # Cyan
-        (0, 0, 0),  # Black
-        (128, 128, 128),  # Gray
-        (255, 255, 255),  # White
-        (255, 0, 255),  # Magenta
-        (0, 255, 0),  # Green
-        (0, 0, 255),  # Blue
-        (255, 255, 0),  # Yellow
-        (64, 64, 64),  # Dark Gray
-        (192, 192, 192),  # Light Gray
+    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int, int]]] = [
+        (0, 255, 255, 255),  # Cyan
+        (0, 0, 0, 255),  # Black
+        (128, 128, 128, 255),  # Gray
+        (255, 255, 255, 255),  # White
+        (255, 0, 255, 255),  # Magenta
+        (0, 255, 0, 255),  # Green
+        (0, 0, 255, 255),  # Blue
+        (255, 255, 0, 255),  # Yellow
+        (64, 64, 64, 255),  # Dark Gray
+        (192, 192, 192, 255),  # Light Gray
     ]
 
     def __init__(self, pixels, x, y, width, height, name="Mini View", groups=None):
@@ -3943,7 +3957,8 @@ class BitmapEditorScene(Scene):
             f"AnimatedCanvasSprite created at position "
             f"({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}"
         )
-        self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups()}")
+        self.log.info(f"AnimatedCanvasSprite groups: {self.canvas.groups}")
+        self.log.info(f"AnimatedCanvasSprite dirty: {self.canvas.dirty}")
 
     def _create_film_strips(self, groups) -> None:
         """Create film strips for the current animated sprite - handles all loading scenarios."""
@@ -9550,8 +9565,11 @@ pixels = \"\"\"
                                     for y in range(frame_height):
                                         for x in range(frame_width):
                                             color = frame_surface.get_at((x, y))
-                                            # Convert to RGB (ignore alpha)
-                                            pixel_data.append((color.r, color.g, color.b))
+                                            # Preserve alpha information for proper rendering
+                                            if len(color) == 4:
+                                                pixel_data.append((color.r, color.g, color.b, color.a))
+                                            else:
+                                                pixel_data.append((color.r, color.g, color.b, 255))
 
                                     # Update canvas pixels
                                     canvas_sprite.pixels = pixel_data

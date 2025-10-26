@@ -20,19 +20,19 @@ LOG.addHandler(logging.NullHandler())
 class CanvasInterface(Protocol):
     """Interface for canvas operations that work with any sprite type."""
 
-    def get_pixel_data(self) -> list[tuple[int, int, int]]:
-        """Get the current pixel data as a list of RGB tuples."""
+    def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
+        """Get the current pixel data as a list of RGBA tuples."""
         ...
 
-    def set_pixel_data(self, pixels: list[tuple[int, int, int]]) -> None:
-        """Set the pixel data from a list of RGB tuples."""
+    def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
+        """Set the pixel data from a list of RGBA tuples."""
         ...
 
     def get_dimensions(self) -> tuple[int, int]:
         """Get the canvas dimensions as (width, height) in pixels."""
         ...
 
-    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int]:
+    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int, int]:
         """Get the color of a pixel at the given coordinates."""
         ...
 
@@ -135,12 +135,16 @@ class StaticCanvasInterface:
         """Get the canvas dimensions as (width, height) in pixels."""
         return (self.canvas_sprite.pixels_across, self.canvas_sprite.pixels_tall)
 
-    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int]:
+    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int, int]:
         """Get the color of a pixel at the given coordinates."""
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
-            return self.canvas_sprite.pixels[pixel_num]
-        return (255, 0, 255)  # Return magenta for out-of-bounds
+            pixel = self.canvas_sprite.pixels[pixel_num]
+            if len(pixel) == 4:
+                return pixel
+            else:
+                return (pixel[0], pixel[1], pixel[2], 255)
+        return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Set the color of a pixel at the given coordinates."""
@@ -324,17 +328,29 @@ class AnimatedCanvasInterface:
             self.current_animation = ""
         self.current_frame = 0
 
-    def get_pixel_data(self) -> list[tuple[int, int, int]]:
-        """Get the current pixel data as a list of RGB tuples."""
+    def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
+        """Get the current pixel data as a list of RGBA tuples."""
         if hasattr(self.canvas_sprite, "animated_sprite"):
             frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
             ]
-            return frame.get_pixel_data()
-        return self.canvas_sprite.pixels.copy()
+            pixels = frame.get_pixel_data()
+        else:
+            pixels = self.canvas_sprite.pixels.copy()
+        
+        # Ensure all pixels are RGBA format
+        rgba_pixels = []
+        for pixel in pixels:
+            if len(pixel) == 4:
+                rgba_pixels.append(pixel)
+            else:
+                # Convert RGB to RGBA with full opacity
+                rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))
+        
+        return rgba_pixels
 
-    def set_pixel_data(self, pixels: list[tuple[int, int, int]]) -> None:
-        """Set the pixel data from a list of RGB tuples."""
+    def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
+        """Set the pixel data from a list of RGBA tuples."""
         if hasattr(self.canvas_sprite, "animated_sprite"):
             frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
@@ -350,7 +366,7 @@ class AnimatedCanvasInterface:
         """Get the canvas dimensions as (width, height) in pixels."""
         return (self.canvas_sprite.pixels_across, self.canvas_sprite.pixels_tall)
 
-    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int]:
+    def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int, int]:
         """Get the color of a pixel at the given coordinates."""
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
@@ -364,9 +380,17 @@ class AnimatedCanvasInterface:
                     frame = self.canvas_sprite.animated_sprite._animations[current_animation][
                         current_frame_index
                     ]
-                    return frame.get_pixel_data()[pixel_num]
-            return self.canvas_sprite.pixels[pixel_num]
-        return (255, 0, 255)  # Return magenta for out-of-bounds
+                    pixel = frame.get_pixel_data()[pixel_num]
+                    if len(pixel) == 4:
+                        return pixel
+                    else:
+                        return (pixel[0], pixel[1], pixel[2], 255)
+            pixel = self.canvas_sprite.pixels[pixel_num]
+            if len(pixel) == 4:
+                return pixel
+            else:
+                return (pixel[0], pixel[1], pixel[2], 255)
+        return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Set the color of a pixel at the given coordinates."""
@@ -520,11 +544,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
     def force_redraw(self, sprite: Any) -> pygame.Surface:
         """Force a complete redraw of the animated sprite."""
+        LOG.debug("DEBUG: AnimatedCanvasRenderer.force_redraw called")
         if hasattr(self.canvas_sprite, "animated_sprite"):
             # Get the current frame from the canvas (not the animated sprite)
             current_animation = self.canvas_sprite.current_animation
             current_frame = self.canvas_sprite.current_frame
             frames = self.canvas_sprite.animated_sprite.frames
+            
+            LOG.debug(f"DEBUG: current_animation={current_animation}, current_frame={current_frame}")
+            LOG.debug(f"DEBUG: frames keys={list(frames.keys()) if frames else 'None'}")
+            LOG.debug(f"DEBUG: frames[current_animation] length={len(frames[current_animation]) if current_animation in frames else 'N/A'}")
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
                 # Create a single transparent buffer for all frames (hardware accelerated)
@@ -628,9 +657,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite._panning_active and 
                     hasattr(self.canvas_sprite, 'pixels')):
                     frame_pixels = self.canvas_sprite.pixels
+                    LOG.debug(f"DEBUG: Using panned canvas pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
                 else:
                     if hasattr(frame, "get_pixel_data"):
                         frame_pixels = frame.get_pixel_data()
+                        LOG.debug(f"DEBUG: Using frame.get_pixel_data(): {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
                     else:
                         frame_pixels = getattr(
                             frame,
@@ -638,6 +669,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             [(255, 0, 255)]
                             * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
                         )
+                        LOG.debug(f"DEBUG: Using fallback frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
 
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
@@ -655,33 +687,31 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         # Check if any controller is active on this pixel (even for transparent pixels)
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
-                        # Skip transparent pixels (magenta) - 100% transparent, but still check for controller indicators
-                        if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
-                            # Only draw controller indicator for transparent pixels
-                            if controller_indicator_color:
-                                self._draw_plus_indicator(
-                                    self.canvas_sprite.image,
-                                    controller_indicator_color,
-                                    x, y,
-                                    self.canvas_sprite.pixel_width,
-                                    self.canvas_sprite.pixel_height
-                                )
-                            continue
+                        # Draw magenta pixels on main canvas for contrast and user clarity
+                        # (Only skip them in onion skinning layers, not the main canvas)
                         
                         if controller_indicator_color:
                             # Draw normal pixel first with alpha blending if RGBA
                             if len(pixel) == 4:
                                 # RGBA pixel - use alpha blending
+                                if pixel == (255, 0, 255, 255):
+                                    LOG.debug(f"DEBUG: Drawing magenta RGBA pixel: {pixel}")
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     pixel,
                                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                                 )
                             else:
-                                # RGB pixel - draw normally
+                                # RGB pixel - convert to RGBA for alpha surface
+                                if pixel == (255, 0, 255):
+                                    # Magenta should be fully opaque on main canvas
+                                    rgba_pixel = (255, 0, 255, 255)
+                                    LOG.debug(f"DEBUG: Converting RGB magenta to RGBA: {pixel} -> {rgba_pixel}")
+                                else:
+                                    rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
-                                    pixel,
+                                    rgba_pixel,
                                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                                 )
                             # Draw plus sign indicator on top
@@ -696,16 +726,24 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             # Draw normal pixel with alpha blending if RGBA
                             if len(pixel) == 4:
                                 # RGBA pixel - use alpha blending
+                                if pixel == (255, 0, 255, 255):
+                                    LOG.debug(f"DEBUG: Drawing magenta RGBA pixel (no controller): {pixel}")
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     pixel,
                                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                                 )
                             else:
-                                # RGB pixel - draw normally
+                                # RGB pixel - convert to RGBA for alpha surface
+                                if pixel == (255, 0, 255):
+                                    # Magenta should be fully opaque on main canvas
+                                    rgba_pixel = (255, 0, 255, 255)
+                                    LOG.debug(f"DEBUG: Converting RGB magenta to RGBA (no controller): {pixel} -> {rgba_pixel}")
+                                else:
+                                    rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
-                                    pixel,
+                                    rgba_pixel,
                                     (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
                                 )
                 else:

@@ -383,8 +383,8 @@ class SpriteFrame:
         """Return the colorkey of the surface."""
         return self._image.get_colorkey()
 
-    def get_pixel_data(self) -> list[tuple[int, int, int]]:
-        """Get pixel data as a list of RGB tuples."""
+    def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
+        """Get pixel data as a list of RGBA tuples."""
         if hasattr(self, "pixels"):
             return self.pixels.copy()
         # Extract pixels from the surface
@@ -393,7 +393,10 @@ class SpriteFrame:
         for y in range(height):
             for x in range(width):
                 color = self._image.get_at((x, y))
-                pixels.append((color.r, color.g, color.b))
+                if len(color) == 4:
+                    pixels.append((color.r, color.g, color.b, color.a))
+                else:
+                    pixels.append((color.r, color.g, color.b, 255))
         return pixels
 
     def set_pixel_data(self, pixels: list[tuple[int, int, int] | tuple[int, int, int, int]]) -> None:
@@ -1079,20 +1082,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         width: int, height: int, pixel_lines: list, color_map: dict
     ) -> pygame.Surface:
         """Create pygame surface from TOML pixel data."""
-        surface = pygame.Surface((width, height))
-        surface.fill((255, 0, 255))  # Magenta background
-
-        for y, row in enumerate(pixel_lines):
-            for x, char in enumerate(row):
-                if x < width and y < height:
-                    color = color_map.get(char, (255, 0, 255))  # Default to magenta
-                    surface.set_at((x, y), color)
-
-        return surface
-
-    @staticmethod
-    def _extract_toml_pixels(pixel_lines: list, width: int, height: int, color_map: dict) -> list:
-        """Extract pixel data as RGB tuples."""
+        # First, extract all pixels to determine if we need alpha support
         pixels = []
         for y, row in enumerate(pixel_lines):
             for x, char in enumerate(row):
@@ -1101,7 +1091,67 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     pixels.append(color)
                 else:
                     pixels.append((255, 0, 255))
-        return pixels
+        
+        # Check if we need alpha support
+        needs_alpha = _needs_alpha_channel(pixels)
+        
+        if needs_alpha:
+            # Use per-pixel alpha surface
+            surface = pygame.Surface((width, height), pygame.SRCALPHA)
+            surface.fill((255, 0, 255, 0))  # Transparent background
+            
+            for y, row in enumerate(pixel_lines):
+                for x, char in enumerate(row):
+                    if x < width and y < height:
+                        color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                        # Ensure color is RGBA for alpha surface
+                        if len(color) == 3:
+                            color = (color[0], color[1], color[2], 255)  # Add full alpha
+                        elif len(color) == 4 and color == (255, 0, 255, 255):
+                            color = (255, 0, 255, 0)  # Make magenta transparent
+                        surface.set_at((x, y), color)
+        else:
+            # Use RGB indexed transparency (more efficient)
+            surface = pygame.Surface((width, height))
+            surface.fill((255, 0, 255))  # Magenta background for transparency
+            
+            for y, row in enumerate(pixel_lines):
+                for x, char in enumerate(row):
+                    if x < width and y < height:
+                        color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                        # Convert to RGB for indexed transparency
+                        if len(color) == 4:
+                            r, g, b, a = color
+                            if a == 255:  # Only keep fully opaque pixels
+                                surface.set_at((x, y), (r, g, b))
+                            else:
+                                surface.set_at((x, y), (255, 0, 255))  # Transparent
+                        else:
+                            surface.set_at((x, y), color)
+
+        return surface
+
+    @staticmethod
+    def _extract_toml_pixels(pixel_lines: list, width: int, height: int, color_map: dict) -> list:
+        """Extract pixel data as RGB or RGBA tuples based on alpha needs."""
+        pixels = []
+        for y, row in enumerate(pixel_lines):
+            for x, char in enumerate(row):
+                if x < width and y < height:
+                    color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                    pixels.append(color)
+                else:
+                    pixels.append((255, 0, 255))
+        
+        # Check if we need alpha support
+        needs_alpha = _needs_alpha_channel(pixels)
+        
+        if needs_alpha:
+            # Convert to RGBA
+            return _convert_pixels_to_rgba_if_needed(pixels)
+        else:
+            # Convert to RGB (more efficient)
+            return _convert_pixels_to_rgb_if_possible(pixels)
 
     def _log_frame_debug_info(
         self: Self, frame_index: int, pixel_lines: list, frame_data: dict

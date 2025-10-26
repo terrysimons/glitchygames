@@ -50,18 +50,18 @@ class FilmStripWidget:
     - If film strips don't redraw: Check dirty flag propagation
     """
 
-    # Color cycling background colors (refactored from MiniView)
-    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int]]] = [
-        (0, 255, 255),  # Cyan
-        (0, 0, 0),  # Black
-        (128, 128, 128),  # Gray
-        (255, 255, 255),  # White
-        (255, 0, 255),  # Magenta
-        (0, 255, 0),  # Green
-        (0, 0, 255),  # Blue
-        (255, 255, 0),  # Yellow
-        (64, 64, 64),  # Dark Gray
-        (192, 192, 192),  # Light Gray
+    # Color cycling background colors (RGBA for transparency support)
+    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int, int]]] = [
+        (0, 255, 255, 255),  # Cyan
+        (0, 0, 0, 255),  # Black
+        (128, 128, 128, 255),  # Gray
+        (255, 255, 255, 255),  # White
+        (255, 0, 255, 255),  # Magenta
+        (0, 255, 0, 255),  # Green
+        (0, 0, 255, 255),  # Blue
+        (255, 255, 0, 255),  # Yellow
+        (64, 64, 64, 255),  # Dark Gray
+        (192, 192, 192, 255),  # Light Gray
     ]
 
     # Debug dump interval in seconds
@@ -421,11 +421,14 @@ class FilmStripWidget:
         if hasattr(frame, "get_pixel_data"):
             pixel_data = frame.get_pixel_data()
             if pixel_data:
-                # Create a surface from the pixel data
-                frame_surface = pygame.Surface((8, 8), pygame.SRCALPHA)  # Assuming 8x8 sprites
+                # Get the actual frame dimensions
+                width, height = frame.get_size()
+                
+                # Create a surface with alpha support from the pixel data
+                frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
                 for i, color in enumerate(pixel_data):
-                    x = i % 8
-                    y = i // 8
+                    x = i % width
+                    y = i // width
                     frame_surface.set_at((x, y), color)
                 return frame_surface
 
@@ -1093,7 +1096,7 @@ class FilmStripWidget:
         """Render a single frame thumbnail with 3D beveled border."""
         frame_surface = self._create_frame_surface()
 
-        # Fill with cycling background color
+        # Fill with cycling background color (with alpha support)
         frame_surface.fill(self.background_color)
 
         frame_img = self._get_frame_image_for_rendering(frame, is_selected=is_selected)
@@ -1243,10 +1246,10 @@ class FilmStripWidget:
             # Use stored frame data for all frames
             frame_img = frame.image
         else:
-            frame_img = None
-            LOG.debug("Film strip: No frame data available")
-
-        # Always use animation frame data, never canvas content
+            # Fall back to creating image from pixel data (same as _get_frame_image)
+            frame_img = self._get_frame_image(frame)
+            if not frame_img:
+                LOG.debug("Film strip: No frame data available")
 
         return frame_img
 
@@ -1373,7 +1376,7 @@ class FilmStripWidget:
 
         # Render preview for each animation
         for anim_name, preview_rect in self.preview_rects.items():
-            # Clear the preview area with cycling background color
+            # Fill with cycling background color (with alpha support)
             surface.fill(self.background_color, preview_rect)
 
             # Draw preview border (animation frame only - use darker border)

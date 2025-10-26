@@ -10,7 +10,7 @@ from glitchygames.tools.undo_redo_manager import (
 )
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker, FilmStripOperationTracker, CrossAreaOperationTracker,
-    PixelChange, BrushStroke, FrameOperation
+    PixelChange
 )
 
 
