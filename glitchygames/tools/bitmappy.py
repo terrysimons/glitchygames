@@ -1090,36 +1090,36 @@ class FilmStripSprite(BitmappySprite):
 
     def on_drop_file_event(self, event):
         """Handle drop file event on film strip.
-        
+
         Args:
             event: The pygame event containing the dropped file information.
-            
+
         Returns:
             True if the drop was handled, False otherwise.
         """
         # Get current mouse position since drop events don't include position
         mouse_pos = pygame.mouse.get_pos()
-        
+
         # Check if the drop is within the film strip bounds
         if not self.rect.collidepoint(mouse_pos):
             return False
-            
+
         # Get the file path from the event
         file_path = event.file
         LOG.debug(f"FilmStripSprite: File dropped on film strip: {file_path}")
-        
+
         # Check if it's an image file we can handle
         if not file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
             LOG.debug(f"FilmStripSprite: Unsupported file type: {file_path}")
             return False
-            
+
         # Convert screen coordinates to film strip coordinates
         film_x = mouse_pos[0] - self.rect.x
         film_y = mouse_pos[1] - self.rect.y
-        
+
         # Check if drop is on a specific frame
         clicked_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
-        
+
         if clicked_frame:
             # Drop on existing frame - replace its contents
             animation, frame_idx = clicked_frame
@@ -1132,7 +1132,7 @@ class FilmStripSprite(BitmappySprite):
 
     def on_mouse_motion_event(self, event):
         """Handle mouse motion events for drag hover effects.
-        
+
         Args:
             event: The pygame mouse motion event.
         """
@@ -1142,13 +1142,13 @@ class FilmStripSprite(BitmappySprite):
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
-            
+
             # Handle all hover effects (frames, previews, removal buttons)
             self.film_strip_widget.handle_hover((film_x, film_y))
-            
+
             # Check if hovering over a specific frame
             hovered_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
-            
+
             if hovered_frame:
                 # Hovering over a frame - show frame hover effect
                 self._show_frame_hover_effect(hovered_frame)
@@ -1166,7 +1166,7 @@ class FilmStripSprite(BitmappySprite):
                         self.dirty = 1
                     # Hovering over film strip area - show strip hover effect
                     self._show_strip_hover_effect()
-            
+
             # Mark as dirty if any hover state changed
             self.dirty = 1
         else:
@@ -1175,76 +1175,76 @@ class FilmStripSprite(BitmappySprite):
 
     def _show_frame_hover_effect(self, frame_info):
         """Show visual feedback for hovering over a frame.
-        
+
         Args:
             frame_info: Tuple of (animation, frame_idx) for the hovered frame.
         """
         animation, frame_idx = frame_info
         LOG.debug(f"FilmStripSprite: Hovering over frame {animation}[{frame_idx}]")
-        
+
         # Set hover state in the film strip widget
         self.film_strip_widget.hovered_frame = frame_info
         # Keep strip hover active even when hovering over frame
         self.film_strip_widget.mark_dirty()
-        
+
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
     def _show_preview_hover_effect(self, animation_name: str):
         """Show visual feedback for hovering over a preview area.
-        
+
         Args:
             animation_name: Name of the animation being previewed.
         """
         LOG.debug(f"FilmStripSprite: Hovering over preview {animation_name}")
-        
+
         # Set hover state in the film strip widget
         self.film_strip_widget.hovered_preview = animation_name
         # Keep strip hover active even when hovering over preview
         self.film_strip_widget.mark_dirty()
-        
+
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
     def _show_strip_hover_effect(self):
         """Show visual feedback for hovering over the film strip area."""
         LOG.debug("FilmStripSprite: Hovering over film strip area")
-        
+
         # Set hover state in the film strip widget
         self.film_strip_widget.hovered_frame = None
         self.film_strip_widget.is_hovering_strip = True
         self.film_strip_widget.mark_dirty()
-        
+
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
     def _clear_hover_effects(self):
         """Clear all hover effects."""
         LOG.debug("FilmStripSprite: Clearing hover effects")
-        
+
         # Clear hover state in the film strip widget
         self.film_strip_widget.hovered_frame = None
         self.film_strip_widget.hovered_preview = None
         self.film_strip_widget.is_hovering_strip = False
         self.film_strip_widget.hovered_removal_button = None
         self.film_strip_widget.mark_dirty()
-        
+
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
     def _convert_image_to_sprite_frame(self, file_path: str):
         """Convert an image file to a SpriteFrame.
-        
+
         Args:
             file_path: Path to the image file to convert.
-            
+
         Returns:
             SpriteFrame object or None if conversion failed.
         """
         try:
             # Load the image
             image = pygame.image.load(file_path)
-            
+
             # Get current canvas size for resizing
             canvas_width, canvas_height = 32, 32  # Default fallback
             if hasattr(self, "parent_canvas") and self.parent_canvas:
@@ -1253,130 +1253,130 @@ class FilmStripSprite(BitmappySprite):
             elif hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas"):
                 canvas_width = self.parent_scene.canvas.pixels_across
                 canvas_height = self.parent_scene.canvas.pixels_tall
-            
+
             # Resize image to match canvas size
             if image.get_size() != (canvas_width, canvas_height):
                 image = pygame.transform.scale(image, (canvas_width, canvas_height))
-            
+
             # Convert to RGB if needed, handling transparency
             if image.get_flags() & pygame.SRCALPHA:
                 rgb_image = pygame.Surface((canvas_width, canvas_height))
                 rgb_image.fill((255, 255, 255))  # White background
                 rgb_image.blit(image, (0, 0))
                 image = rgb_image
-            
+
             # Get pixel data
             pixel_array = pygame.surfarray.array3d(image)
-            
+
             # Convert to the format expected by SpriteFrame
             pixels = []
             for y in range(canvas_height):
                 for x in range(canvas_width):
                     r, g, b = pixel_array[x, y]
                     pixels.append((int(r), int(g), int(b)))
-            
+
             # Create a new SpriteFrame with the surface
             from glitchygames.sprites import SpriteFrame
             frame = SpriteFrame(image, duration=0.1)  # 0.1 second duration
             frame.set_pixel_data(pixels)
-            
+
             LOG.debug(f"FilmStripSprite: Successfully converted image to sprite frame")
             return frame
-            
+
         except Exception as e:
             LOG.error(f"FilmStripSprite: Failed to convert image {file_path}: {e}")
             return None
 
     def _replace_frame_with_image(self, file_path: str, animation: str, frame_idx: int) -> bool:
         """Replace an existing frame with image content.
-        
+
         Args:
             file_path: Path to the image file.
             animation: Animation name.
             frame_idx: Frame index to replace.
-            
+
         Returns:
             True if successful, False otherwise.
         """
         LOG.debug(f"FilmStripSprite: Replacing frame {animation}[{frame_idx}] with image")
-        
+
         # Convert image to sprite frame
         new_frame = self._convert_image_to_sprite_frame(file_path)
         if not new_frame:
             return False
-        
+
         # Get the current frame and replace it
         if not self.film_strip_widget.animated_sprite:
             LOG.error("FilmStripSprite: No animated sprite available")
             return False
-            
+
         frames = self.film_strip_widget.animated_sprite._animations.get(animation, [])
         if frame_idx >= len(frames):
             LOG.error(f"FilmStripSprite: Frame index {frame_idx} out of range")
             return False
-        
+
         # Replace the frame
         frames[frame_idx] = new_frame
-        
+
         # Mark as dirty for redraw
         self.film_strip_widget.mark_dirty()
-        
+
         # Update canvas if this is the current frame
-        if (hasattr(self, "parent_scene") and self.parent_scene and 
-            hasattr(self.parent_scene, "selected_animation") and 
+        if (hasattr(self, "parent_scene") and self.parent_scene and
+            hasattr(self.parent_scene, "selected_animation") and
             hasattr(self.parent_scene, "selected_frame") and
-            self.parent_scene.selected_animation == animation and 
+            self.parent_scene.selected_animation == animation and
             self.parent_scene.selected_frame == frame_idx):
-            
+
             if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
                 self.parent_scene.canvas.show_frame(animation, frame_idx)
-        
+
         LOG.debug(f"FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]")
         return True
 
     def _insert_image_as_new_frame(self, file_path: str, film_x: int, film_y: int) -> bool:
         """Insert image as a new frame in the film strip.
-        
+
         Args:
             file_path: Path to the image file.
             film_x: X coordinate of drop position.
             film_y: Y coordinate of drop position.
-            
+
         Returns:
             True if successful, False otherwise.
         """
         LOG.debug(f"FilmStripSprite: Inserting new frame from image")
-        
+
         # Convert image to sprite frame
         new_frame = self._convert_image_to_sprite_frame(file_path)
         if not new_frame:
             return False
-        
+
         # Determine which animation to add to
         current_animation = self.film_strip_widget.current_animation
         if not current_animation:
             LOG.error("FilmStripSprite: No current animation selected")
             return False
-        
+
         # Determine insertion position based on drop location
         # For now, insert at the end of the animation
         # TODO: Could be enhanced to insert at specific position based on drop location
         insert_index = len(self.film_strip_widget.animated_sprite._animations[current_animation])
-        
+
         # Insert the frame
         self.film_strip_widget.animated_sprite.add_frame(current_animation, new_frame, insert_index)
-        
+
         # Mark as dirty for redraw
         self.film_strip_widget.mark_dirty()
-        
+
         # Notify the parent scene about the frame insertion
         if hasattr(self, "parent_scene") and self.parent_scene:
             if hasattr(self.parent_scene, "_on_frame_inserted"):
                 self.parent_scene._on_frame_inserted(current_animation, insert_index)
-        
+
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)
-        
+
         LOG.debug(f"FilmStripSprite: Successfully inserted new frame at {current_animation}[{insert_index}]")
         return True
 
@@ -1434,10 +1434,10 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Initialize backward compatibility properties for tests
         self.film_strip = None
         self.film_strip_sprite = None
-        
+
         # Initialize hover tracking for pixel hover effects
         self.hovered_pixel = None
-        
+
         # Initialize hover tracking for canvas border effect
         self.is_hovered = False
 
@@ -1526,30 +1526,30 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Pan the frame data directly by shifting pixels within the frame."""
         if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
             return
-            
+
         current_animation = self.current_animation
         current_frame = self.current_frame
-        
+
         if current_animation in self.animated_sprite.frames and current_frame < len(self.animated_sprite.frames[current_animation]):
             frame = self.animated_sprite._animations[current_animation][current_frame]
             if hasattr(frame, "get_pixel_data") and hasattr(frame, "set_pixel_data"):
                 # Get current frame pixels
                 frame_pixels = frame.get_pixel_data()
-                
+
                 # Create a new pixel array with panned data
                 panned_pixels = []
-                
+
                 for y in range(self.pixels_tall):
                     for x in range(self.pixels_across):
                         # Calculate source coordinates (where to read from)
                         source_x = x - self.pan_offset_x
                         source_y = y - self.pan_offset_y
-                        
+
                         # Check if source is within bounds of the frame data
                         frame_width = len(frame_pixels) // self.pixels_tall if self.pixels_tall > 0 else 0
                         frame_height = self.pixels_tall
-                        
-                        if (0 <= source_x < frame_width and 
+
+                        if (0 <= source_x < frame_width and
                             0 <= source_y < frame_height):
                             source_index = source_y * frame_width + source_x
                             if source_index < len(frame_pixels):
@@ -1559,56 +1559,56 @@ class AnimatedCanvasSprite(BitmappySprite):
                         else:
                             # Outside bounds - use transparent
                             panned_pixels.append((255, 0, 255))
-                
+
                 # Update the frame with panned pixels
                 frame.set_pixel_data(panned_pixels)
-                
+
                 # Update canvas pixels to match
                 self.pixels = panned_pixels.copy()
                 self.dirty_pixels = [True] * len(self.pixels)
-                
+
                 # Clear surface cache
                 if hasattr(self.animated_sprite, "_surface_cache"):
                     cache_key = f"{current_animation}_{current_frame}"
                     if cache_key in self.animated_sprite._surface_cache:
                         del self.animated_sprite._surface_cache[cache_key]
-                
+
                 self.log.debug(f"Frame data panned: offset=({self.pan_offset_x}, {self.pan_offset_y})")
-    
+
     def _initialize_simple_panning(self) -> None:
         """Initialize the simple panning system for the canvas."""
         # Frame-specific panning state - each frame has its own panning
         self._frame_panning = {}  # {frame_key: {'pan_x': int, 'pan_y': int, 'original_pixels': list, 'active': bool}}
-        
+
         self.log.debug("Simple panning system initialized with frame-specific state")
-    
+
     def _get_current_frame_key(self) -> str:
         """Get a unique key for the current frame."""
         return f"{self.current_animation}_{self.current_frame}"
-    
+
     def _store_original_frame_data_for_frame(self, frame_key: str) -> None:
         """Store the original frame data for a specific frame."""
         if hasattr(self, 'pixels') and self.pixels:
             self._frame_panning[frame_key]['original_pixels'] = list(self.pixels)
             self.log.debug(f"Stored original frame data for {frame_key}")
-    
+
     def _apply_panning_view_for_frame(self, frame_key: str) -> None:
         """Apply panning transformation for a specific frame."""
         frame_state = self._frame_panning[frame_key]
         if frame_state['original_pixels'] is None:
             return
-            
+
         # Create panned view by shifting pixels
         panned_pixels = []
-        
+
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 # Calculate source coordinates (where to read from in original)
                 source_x = x - frame_state['pan_x']
                 source_y = y - frame_state['pan_y']
-                
+
                 # Check if source is within bounds
-                if (0 <= source_x < self.pixels_across and 
+                if (0 <= source_x < self.pixels_across and
                      0 <= source_y < self.pixels_tall):
                     source_index = source_y * self.pixels_across + source_x
                     if source_index < len(frame_state['original_pixels']):
@@ -1617,17 +1617,17 @@ class AnimatedCanvasSprite(BitmappySprite):
                         panned_pixels.append((255, 0, 255))  # Transparent
                 else:
                     panned_pixels.append((255, 0, 255))  # Transparent
-        
+
         # Update canvas pixels with panned view
         self.pixels = panned_pixels
         self.dirty_pixels = [True] * len(self.pixels)
-        
+
         self.log.debug(f"Applied panning view for {frame_key}: offset=({frame_state['pan_x']}, {frame_state['pan_y']})")
-    
+
     def reset_panning(self) -> None:
         """Reset panning for the current frame."""
         frame_key = self._get_current_frame_key()
-        
+
         # Clear panning state for current frame
         if frame_key in self._frame_panning:
             self._frame_panning[frame_key] = {
@@ -1636,21 +1636,21 @@ class AnimatedCanvasSprite(BitmappySprite):
                 'original_pixels': None,
                 'active': False
             }
-        
+
         # Reload the original frame data
         if hasattr(self, 'animated_sprite') and self.animated_sprite:
             current_animation = self.current_animation
             current_frame = self.current_frame
-            
+
             if current_animation in self.animated_sprite.frames and current_frame < len(self.animated_sprite.frames[current_animation]):
                 frame = self.animated_sprite._animations[current_animation][current_frame]
                 if hasattr(frame, "get_pixel_data"):
                     self.pixels = frame.get_pixel_data().copy()
                     self.dirty_pixels = [True] * len(self.pixels)
                     self.dirty = 1
-        
+
         self.log.debug(f"Panning reset for frame {frame_key}")
-    
+
     def is_panning_active(self) -> bool:
         """Check if panning is active for the current frame."""
         frame_key = self._get_current_frame_key()
@@ -2168,7 +2168,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def pan_canvas(self, delta_x: int, delta_y: int) -> None:
         """Pan the canvas by the given delta values.
-        
+
         Args:
             delta_x: Horizontal panning delta (-1, 0, or 1)
             delta_y: Vertical panning delta (-1, 0, or 1)
@@ -2176,30 +2176,30 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Calculate new pan offset
         new_pan_x = self.pan_offset_x + delta_x
         new_pan_y = self.pan_offset_y + delta_y
-        
+
         # Check if panning is within bounds
         if self._can_pan(new_pan_x, new_pan_y):
             self.pan_offset_x = new_pan_x
             self.pan_offset_y = new_pan_y
             self._panning_active = True
-            
+
             # Update the frame data directly with panned pixels
             self._pan_frame_data()
-            
+
             # Mark canvas as dirty for redraw
             self.dirty = 1
-            
+
             self.log.debug(f"Canvas panned: offset=({self.pan_offset_x}, {self.pan_offset_y})")
         else:
             self.log.debug(f"Panning blocked: would exceed bounds at ({new_pan_x}, {new_pan_y})")
 
     def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
         """Check if panning to the new coordinates is allowed.
-        
+
         Args:
             new_pan_x: New horizontal pan offset
             new_pan_y: New vertical pan offset
-            
+
         Returns:
             True if panning is allowed, False otherwise
         """
@@ -2212,22 +2212,22 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Update the viewport pixels based on current panning offset."""
         if not self._panning_active:
             return
-            
+
         # Clear viewport pixels
         viewport_pixels = []
-        
+
         # Calculate buffer center offset
         buffer_center_x = (self.buffer_width - self.pixels_across) // 2
         buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-        
+
         # Fill viewport with pixels from buffer at pan offset
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 buffer_x = buffer_center_x + x + self.pan_offset_x
                 buffer_y = buffer_center_y + y + self.pan_offset_y
-                
+
                 # Check if buffer coordinates are within bounds
-                if (0 <= buffer_x < self.buffer_width and 
+                if (0 <= buffer_x < self.buffer_width and
                     0 <= buffer_y < self.buffer_height):
                     pixel_index = buffer_y * self.buffer_width + buffer_x
                     if pixel_index < len(self._buffer_pixels):
@@ -2236,11 +2236,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                         viewport_pixels.append((255, 0, 255))  # Transparent
                 else:
                     viewport_pixels.append((255, 0, 255))  # Transparent
-        
+
         # Update canvas pixels with viewport data
         self.pixels = viewport_pixels
         self.dirty_pixels = [True] * len(self.pixels)
-        
+
         # Force redraw to update the visual display including borders
         self.force_redraw()
 
@@ -2249,16 +2249,16 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.pan_offset_x = 0
         self.pan_offset_y = 0
         self._panning_active = False
-        
+
         # Restore original viewport (center of buffer)
         self._update_viewport_pixels()
         self.dirty = 1
-        
+
         self.log.debug("Panning reset to original position")
 
     def is_panning_active(self) -> bool:
         """Check if panning is currently active.
-        
+
         Returns:
             True if panning is active, False otherwise
         """
@@ -2267,12 +2267,12 @@ class AnimatedCanvasSprite(BitmappySprite):
     def _save_viewport_sprite(self, filename: str) -> None:
         """Save only the viewport area when panning is active."""
         from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-        
+
         # Create a new animated sprite with viewport data
         viewport_sprite = AnimatedSprite()
         viewport_sprite.name = self.animated_sprite.name + "_viewport"
         viewport_sprite.description = f"Viewport of {self.animated_sprite.name} (panned)"
-        
+
         # Copy viewport data for each animation
         for anim_name, frames in self.animated_sprite._animations.items():
             viewport_frames = []
@@ -2280,11 +2280,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                 viewport_frame = self._create_viewport_frame(frame)
                 viewport_frames.append(viewport_frame)
             viewport_sprite._animations[anim_name] = viewport_frames
-        
+
         # Set current animation and frame
         viewport_sprite.current_animation = self.current_animation
         viewport_sprite.current_frame = self.current_frame
-        
+
         # Save the viewport sprite
         viewport_sprite.save(filename, DEFAULT_FILE_FORMAT)
         self.log.info(f"Saved viewport sprite to {filename}")
@@ -2292,19 +2292,19 @@ class AnimatedCanvasSprite(BitmappySprite):
     def _create_viewport_frame(self, original_frame) -> 'SpriteFrame':
         """Create a frame containing only the viewport data."""
         from glitchygames.sprites.animated import SpriteFrame
-        
+
         # Get viewport pixel data
         viewport_pixels = self._get_viewport_pixels_from_frame(original_frame)
-        
+
         # Create new frame with viewport dimensions
         new_frame = SpriteFrame(
             surface=pygame.Surface((self.pixels_across, self.pixels_tall)),
             duration=original_frame.duration
         )
-        
+
         # Set viewport pixel data
         new_frame.set_pixel_data(viewport_pixels)
-        
+
         return new_frame
 
     def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int]]:
@@ -2312,7 +2312,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Get the frame's pixel data
         frame_pixels = frame.get_pixel_data()
         frame_width, frame_height = frame.get_size()
-        
+
         # Get current frame panning offset
         frame_key = self._get_current_frame_key()
         if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
@@ -2321,14 +2321,14 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             pan_offset_x = 0
             pan_offset_y = 0
-        
+
         # Create viewport pixels
         viewport_pixels = []
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 buffer_x = x + pan_offset_x
                 buffer_y = y + pan_offset_y
-                
+
                 # Check if buffer coordinates are within frame bounds
                 if (0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height):
                     pixel_index = buffer_y * frame_width + buffer_x
@@ -2338,7 +2338,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         viewport_pixels.append((255, 0, 255))  # Transparent
                 else:
                     viewport_pixels.append((255, 0, 255))  # Transparent
-        
+
         return viewport_pixels
 
     def update_animation(self, dt: float) -> None:
@@ -2406,7 +2406,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             if not self.is_hovered:
                 self.is_hovered = True
                 self.dirty = 1  # Mark for redraw to show canvas border
-            
+
             # Convert mouse position to pixel coordinates
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
@@ -2416,7 +2416,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Update hovered pixel for white border effect
                 self.hovered_pixel = (x, y)
                 self.dirty = 1  # Mark for redraw to show hover effect
-                
+
                 if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.update_canvas_cursor(x, y, self.active_color)
             else:
@@ -2424,7 +2424,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                     self.hovered_pixel = None
                     self.dirty = 1  # Mark for redraw to remove pixel hover effect
-                    
+
                 if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.clear_cursor()
         else:
@@ -2432,11 +2432,11 @@ class AnimatedCanvasSprite(BitmappySprite):
             if self.is_hovered:
                 self.is_hovered = False
                 self.dirty = 1  # Mark for redraw to remove canvas border
-                
+
             if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                 self.hovered_pixel = None
                 self.dirty = 1  # Mark for redraw to remove pixel hover effect
-                
+
             if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.clear_cursor()
 
@@ -3139,37 +3139,37 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Panning state
         self.pan_offset_x = 0  # Horizontal pan offset in pixels
         self.pan_offset_y = 0  # Vertical pan offset in pixels
-        
+
         # Buffer dimensions (larger than canvas to allow panning)
         # Add extra space around the canvas for panning
         self.buffer_width = self.pixels_across + 20  # Extra 10 pixels on each side
         self.buffer_height = self.pixels_tall + 20   # Extra 10 pixels on each side
-        
+
         # Viewport dimensions (same as canvas dimensions)
         self.viewport_width = self.pixels_across
         self.viewport_height = self.pixels_tall
-        
+
         # Panning state flag
         self._panning_active = False
-        
+
         # Initialize buffer with transparent pixels
         self._buffer_pixels = [(255, 0, 255) for _ in range(self.buffer_width * self.buffer_height)]
-        
+
         # Copy current canvas pixels to center of buffer
         if hasattr(self, 'pixels') and self.pixels:
             buffer_center_x = (self.buffer_width - self.pixels_across) // 2
             buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-            
+
             for y in range(self.pixels_tall):
                 for x in range(self.pixels_across):
                     buffer_x = buffer_center_x + x
                     buffer_y = buffer_center_y + y
                     buffer_index = buffer_y * self.buffer_width + buffer_x
                     canvas_index = y * self.pixels_across + x
-                    
+
                     if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
                         self._buffer_pixels[buffer_index] = self.pixels[canvas_index]
-        
+
         self.log.debug(f"Panning system initialized: buffer={self.buffer_width}x{self.buffer_height}, viewport={self.viewport_width}x{self.viewport_height}")
 
     def pan_canvas(self, delta_x: int, delta_y: int) -> None:
@@ -3181,7 +3181,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         # Get current frame key
         frame_key = self._get_current_frame_key()
-        
+
         # Get current pan offset from frame state (or default to 0, 0)
         if frame_key in self._frame_panning:
             current_pan_x = self._frame_panning[frame_key]['pan_x']
@@ -3189,7 +3189,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             current_pan_x = 0
             current_pan_y = 0
-        
+
         # Calculate new pan offset
         new_pan_x = current_pan_x + delta_x
         new_pan_y = current_pan_y + delta_y
@@ -3204,44 +3204,44 @@ class AnimatedCanvasSprite(BitmappySprite):
                     'original_pixels': None,
                     'active': False
                 }
-            
+
             frame_state = self._frame_panning[frame_key]
             frame_state['pan_x'] = new_pan_x
             frame_state['pan_y'] = new_pan_y
             frame_state['active'] = True
-            
+
             # Store original frame data if this is the first pan for this frame
             if frame_state['original_pixels'] is None:
                 self._store_original_frame_data_for_frame(frame_key)
-            
+
             # Apply panning transformation to show panned view
             self._apply_panning_view_for_frame(frame_key)
             self.dirty = 1
         else:
             self.log.debug(f"Cannot pan to ({new_pan_x}, {new_pan_y}) - out of bounds.")
-    
+
     def _store_original_frame_data(self) -> None:
         """Store the original frame data before any panning."""
         if hasattr(self, 'pixels') and self.pixels:
             self._original_frame_pixels = list(self.pixels)
             self.log.debug("Stored original frame data for panning")
-    
+
     def _apply_panning_view(self) -> None:
         """Apply panning transformation to show the panned view."""
         if not hasattr(self, '_original_frame_pixels'):
             return
-            
+
         # Create panned view by shifting pixels
         panned_pixels = []
-        
+
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 # Calculate source coordinates (where to read from in original)
                 source_x = x - self.pan_offset_x
                 source_y = y - self.pan_offset_y
-                
+
                 # Check if source is within bounds
-                if (0 <= source_x < self.pixels_across and 
+                if (0 <= source_x < self.pixels_across and
                     0 <= source_y < self.pixels_tall):
                     source_index = source_y * self.pixels_across + source_x
                     if source_index < len(self._original_frame_pixels):
@@ -3250,26 +3250,26 @@ class AnimatedCanvasSprite(BitmappySprite):
                         panned_pixels.append((255, 0, 255))  # Transparent
                 else:
                     panned_pixels.append((255, 0, 255))  # Transparent
-        
+
         # Update canvas pixels with panned view
         self.pixels = panned_pixels
         self.dirty_pixels = [True] * len(self.pixels)
-        
+
         self.log.debug(f"Applied panning view: offset=({self.pan_offset_x}, {self.pan_offset_y})")
-    
+
     def reset_panning(self) -> None:
         """Reset panning to center position."""
         self.pan_offset_x = 0
         self.pan_offset_y = 0
         self._panning_active = False
-        
+
         # Restore original frame data if it exists
         if hasattr(self, '_original_frame_pixels'):
             self.pixels = list(self._original_frame_pixels)
             self.dirty_pixels = [True] * len(self.pixels)
             delattr(self, '_original_frame_pixels')
             self.log.debug("Restored original frame data")
-        
+
         self.dirty = 1
         self.log.debug("Panning reset to center")
 
@@ -3284,22 +3284,22 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Update the viewport pixels based on current panning offset."""
         if not self._panning_active:
             return
-            
+
         # Clear viewport pixels
         viewport_pixels = []
-        
+
         # Calculate buffer center offset
         buffer_center_x = (self.buffer_width - self.pixels_across) // 2
         buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-        
+
         # Fill viewport with pixels from buffer at pan offset
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 buffer_x = buffer_center_x + x + self.pan_offset_x
                 buffer_y = buffer_center_y + y + self.pan_offset_y
-                
+
                 # Check if buffer coordinates are within bounds
-                if (0 <= buffer_x < self.buffer_width and 
+                if (0 <= buffer_x < self.buffer_width and
                     0 <= buffer_y < self.buffer_height):
                     pixel_index = buffer_y * self.buffer_width + buffer_x
                     if pixel_index < len(self._buffer_pixels):
@@ -3308,11 +3308,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                         viewport_pixels.append((255, 0, 255))  # Transparent
                 else:
                     viewport_pixels.append((255, 0, 255))  # Transparent
-        
+
         # Update canvas pixels with viewport data
         self.pixels = viewport_pixels
         self.dirty_pixels = [True] * len(self.pixels)
-        
+
         # Force redraw to update the visual display including borders
         self.force_redraw()
 
@@ -3350,19 +3350,19 @@ class AnimatedCanvasSprite(BitmappySprite):
     def _create_viewport_frame(self, original_frame) -> 'SpriteFrame':
         """Create a frame containing only the viewport data."""
         from glitchygames.sprites.animated import SpriteFrame
-        
+
         # Get viewport pixel data
         viewport_pixels = self._get_viewport_pixels_from_frame(original_frame)
-        
+
         # Create new frame with viewport dimensions
         new_frame = SpriteFrame(
             surface=pygame.Surface((self.pixels_across, self.pixels_tall)),
             duration=original_frame.duration
         )
-        
+
         # Set viewport pixel data
         new_frame.set_pixel_data(viewport_pixels)
-        
+
         return new_frame
 
     def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int]]:
@@ -3370,7 +3370,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Get the frame's pixel data
         frame_pixels = frame.get_pixel_data()
         frame_width, frame_height = frame.get_size()
-        
+
         # Get current frame panning offset
         frame_key = self._get_current_frame_key()
         if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
@@ -3379,14 +3379,14 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             pan_offset_x = 0
             pan_offset_y = 0
-        
+
         # Create viewport pixels
         viewport_pixels = []
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
                 buffer_x = x + pan_offset_x
                 buffer_y = y + pan_offset_y
-                
+
                 # Check if buffer coordinates are within frame bounds
                 if (0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height):
                     pixel_index = buffer_y * frame_width + buffer_x
@@ -3396,7 +3396,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         viewport_pixels.append((255, 0, 255))  # Transparent
                 else:
                     viewport_pixels.append((255, 0, 255))  # Transparent
-        
+
         return viewport_pixels
 
 
@@ -3686,6 +3686,7 @@ class BitmapEditorScene(Scene):
         LOG.debug(f"Available height: {available_height}")
         LOG.debug(f"Height constraint: {available_height // pixels_tall}")
         LOG.debug(f"Width constraint: {(self.screen_width * 1 // 2) // pixels_across}")
+        LOG.debug(f"350px width constraint: {350 // pixels_across}")
         LOG.debug(f"320x320 constraint: {320 // max(pixels_across, pixels_tall)}")
 
         # Calculate pixel size based on available space
@@ -3693,6 +3694,8 @@ class BitmapEditorScene(Scene):
             available_height // pixels_tall,  # Height-based size
             # Width-based size (use 1/2 of screen width)
             (self.screen_width * 1 // 2) // pixels_across,
+            # Maximum width constraint: 350px
+            350 // pixels_across,
         )
         LOG.debug(f"Calculated pixel_size: {pixel_size}")
 
@@ -3811,8 +3814,13 @@ class BitmapEditorScene(Scene):
         LOG.debug(f"DEBUG: _create_film_strips proceeding with animated_sprite: {animated_sprite}")
 
         # Calculate film strip dimensions
-        # Position to the right of the canvas
-        film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
+        # Position film strip so its left x is 2 pixels to the right of color well's right edge
+        if hasattr(self, "color_well") and self.color_well:
+            film_strip_x = self.color_well.rect.right + 1  # Film strip left x = color well right x + 1
+        else:
+            # Fallback: position to the right of the canvas
+            film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
+
         film_strip_y_start = self.canvas.rect.y  # Start at same vertical position as canvas
 
         screen_width = pygame.display.get_surface().get_width()
@@ -3869,6 +3877,7 @@ class BitmapEditorScene(Scene):
                 height=strip_height
             )
             film_strip.set_animated_sprite(single_anim_sprite)
+            film_strip.strip_index = strip_index  # Track which strip this is
 
             # Update the layout to calculate frame positions
             LOG.debug(f"Updating layout for film strip {strip_index} ({anim_name})")
@@ -4035,7 +4044,12 @@ class BitmapEditorScene(Scene):
             return
 
         # Get canvas position for reference
-        film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
+        # Position film strip so its left x is 2 pixels to the right of color well's right edge
+        if hasattr(self, "color_well") and self.color_well:
+            film_strip_x = self.color_well.rect.right + 1  # Film strip left x = color well right x + 1
+        else:
+            # Fallback: position to the right of the canvas
+            film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
         film_strip_y_start = self.canvas.rect.y if hasattr(self, "canvas") and self.canvas else 0
         strip_height = 145
         strip_spacing = -19
@@ -4328,15 +4342,75 @@ class BitmapEditorScene(Scene):
         # First create the sliders
         slider_height = 9
         slider_width = 256
-        slider_x = 10
+        slider_x = 13  # Moved 3 pixels to the right
         label_width = 32  # Width of the text sprite
         label_padding = 10  # Padding between slider and label
         well_padding = 20  # Padding between labels and color well
 
+        # Create the sliders - positioned so blue slider bottom touches screen bottom
+        # Account for bounding box height (slider_height + 4) in positioning
+        # Blue slider bottom should be at screen_height - 2 (one pixel up from last visible row)
+        bbox_height = slider_height + 4
+        blue_slider_y = self.screen_height - slider_height - 2  # Bottom edge at screen_height - 2
+        green_slider_y = blue_slider_y - bbox_height  # Use bounding box height for spacing
+        red_slider_y = green_slider_y - bbox_height   # Use bounding box height for spacing
+
+        # Create text labels for each slider
+        label_x = slider_x - 13  # Position labels to the left of sliders (moved 7 pixels right total)
+        label_width = 16  # Width for text labels
+        label_height = 16  # Height for text labels
+
+        # Red slider label
+        self.red_label = TextSprite(
+            text="R",
+            x=label_x - 2,  # Move R label 2 pixels left
+            y=red_slider_y + (slider_height - label_height) // 2,  # Center vertically with slider
+            width=label_width,
+            height=label_height,
+            background_color=(0, 0, 0, 0),  # Transparent background
+            text_color=(255, 255, 255),  # White text
+            alpha=0,  # Transparent
+            groups=self.all_sprites,
+        )
+        # Set monospaced font for the label
+        from glitchygames.fonts import FontManager
+        monospace_config = {"font_name": "Courier", "font_size": 14}
+        self.red_label.font = FontManager.get_font(font_config=monospace_config)
+
+        # Green slider label
+        self.green_label = TextSprite(
+            text="G",
+            x=label_x - 2,  # Move G label 2 pixels left
+            y=green_slider_y + (slider_height - label_height) // 2,  # Center vertically with slider
+            width=label_width,
+            height=label_height,
+            background_color=(0, 0, 0, 0),  # Transparent background
+            text_color=(255, 255, 255),  # White text
+            alpha=0,  # Transparent
+            groups=self.all_sprites,
+        )
+        # Set monospaced font for the label
+        self.green_label.font = FontManager.get_font(font_config=monospace_config)
+
+        # Blue slider label
+        self.blue_label = TextSprite(
+            text="B",
+            x=label_x - 1,  # Adjust B label 1 pixel left to align with R and G
+            y=blue_slider_y + (slider_height - label_height) // 2,  # Center vertically with slider
+            width=label_width,
+            height=label_height,
+            background_color=(0, 0, 0, 0),  # Transparent background
+            text_color=(255, 255, 255),  # White text
+            alpha=0,  # Transparent
+            groups=self.all_sprites,
+        )
+        # Set monospaced font for the label
+        self.blue_label.font = FontManager.get_font(font_config=monospace_config)
+
         self.red_slider = SliderSprite(
             name="R",
             x=slider_x,
-            y=self.screen_height - 70,
+            y=red_slider_y,
             width=slider_width,
             height=slider_height,
             parent=self,
@@ -4346,7 +4420,7 @@ class BitmapEditorScene(Scene):
         self.green_slider = SliderSprite(
             name="G",
             x=slider_x,
-            y=self.screen_height - 50,
+            y=green_slider_y,
             width=slider_width,
             height=slider_height,
             parent=self,
@@ -4356,7 +4430,7 @@ class BitmapEditorScene(Scene):
         self.blue_slider = SliderSprite(
             name="B",
             x=slider_x,
-            y=self.screen_height - 30,
+            y=blue_slider_y,
             width=slider_width,
             height=slider_height,
             parent=self,
@@ -4366,7 +4440,7 @@ class BitmapEditorScene(Scene):
         # Create bounding boxes around the sliders for hover effects (initially hidden)
         self.red_slider_bbox = BitmappySprite(
             x=slider_x - 2,
-            y=self.screen_height - 70 - 2,
+            y=red_slider_y - 2,
             width=slider_width + 4,
             height=slider_height + 4,
             name="Red Slider BBox",
@@ -4378,7 +4452,7 @@ class BitmapEditorScene(Scene):
 
         self.green_slider_bbox = BitmappySprite(
             x=slider_x - 2,
-            y=self.screen_height - 50 - 2,
+            y=green_slider_y - 2,
             width=slider_width + 4,
             height=slider_height + 4,
             name="Green Slider BBox",
@@ -4390,7 +4464,7 @@ class BitmapEditorScene(Scene):
 
         self.blue_slider_bbox = BitmappySprite(
             x=slider_x - 2,
-            y=self.screen_height - 30 - 2,
+            y=blue_slider_y - 2,
             width=slider_width + 4,
             height=slider_height + 4,
             name="Blue Slider BBox",
@@ -4400,6 +4474,11 @@ class BitmapEditorScene(Scene):
         self.blue_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
         self.blue_slider_bbox.visible = False  # Start hidden
 
+        # Update bounding box positions to match new slider positions
+        self.red_slider_bbox.rect.y = red_slider_y - 2
+        self.green_slider_bbox.rect.y = green_slider_y - 2
+        self.blue_slider_bbox.rect.y = blue_slider_y - 2
+
         # Create the color well positioned to the right of the text labels
         # Calculate x position to the right of the text labels
         # Text labels are at: slider_x + slider_width + label_padding
@@ -4407,11 +4486,11 @@ class BitmapEditorScene(Scene):
         color_well_x = text_label_x + well_padding  # Add padding after text labels
 
         # Position colorwell so its top y matches R slider's top y
-        # and its bottom y matches blue slider's bottom y
-        red_slider_top_y = self.screen_height - 70
-        blue_slider_bottom_y = self.screen_height - 30 + slider_height
+        # and its bottom y is shorter than blue slider's bottom y
+        red_slider_top_y = red_slider_y
+        blue_slider_bottom_y = blue_slider_y + slider_height
         color_well_y = red_slider_top_y - 5  # Add some padding above
-        color_well_height = (blue_slider_bottom_y + 5) - color_well_y  # Add padding below
+        color_well_height = (blue_slider_bottom_y - color_well_y) + 2  # 2 pixels taller than B slider's bottom y
 
         # Calculate canvas right edge position
         if hasattr(self, "canvas") and self.canvas:
@@ -4423,8 +4502,8 @@ class BitmapEditorScene(Scene):
         color_well_width = canvas_right_x - color_well_x
         # Ensure minimum width to prevent invalid surface creation
         color_well_width = max(color_well_width, 50)
-        # Ensure minimum height to prevent invalid surface creation
-        color_well_height = max(color_well_height, 50)
+        # Ensure minimum height to prevent invalid surface creation (reduced from 50)
+        color_well_height = max(color_well_height, 20)
 
         self.color_well = ColorWellSprite(
             name="Color Well",
@@ -4437,7 +4516,7 @@ class BitmapEditorScene(Scene):
         )
 
         # Create tab control positioned above the color well
-        tab_control_width = min(80, color_well_width)  # Limit width to 80px or color well width
+        tab_control_width = min(80, color_well_width) + 1  # Limit width to 80px or color well width, plus 1 pixel
         tab_control_height = 20
         tab_control_x = color_well_x + (color_well_width - tab_control_width) // 2  # Center horizontally
         tab_control_y = color_well_y - tab_control_height  # Position so bottom touches top of color well
@@ -4489,18 +4568,17 @@ class BitmapEditorScene(Scene):
         # Calculate debug text box position and size - align to bottom right corner
         debug_height = 186  # Fixed height for AI chat box
 
-        # Calculate AI sprite box position dynamically
-        # Position to the right of the color well
+        # Calculate film strip left x position (should be less than color well's right x - 1)
         if hasattr(self, "color_well") and self.color_well:
-            color_well_right_x = self.color_well.rect.right
-            debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
+            film_strip_left_x = self.color_well.rect.right + 1  # Film strip left x = color well right x + 1
         else:
-            # Fallback: position to the right of canvas
-            if hasattr(self, "canvas") and self.canvas:
-                canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
-                debug_x = canvas_right_x + 4
-            else:
-                debug_x = self.screen_width - 20
+            # Fallback if color well not available
+            film_strip_left_x = self.screen_width - 200
+
+        # AI sprite box should be clamped to right side of screen and grow left
+        # but not grow left more than the film strip left x
+        debug_x = film_strip_left_x  # Start from film strip left x
+        debug_width = self.screen_width - debug_x  # Extend to right edge of screen
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
         if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
@@ -4521,9 +4599,6 @@ class BitmapEditorScene(Scene):
         else:
             # Fallback: clamp to bottom of screen
             debug_y = self.screen_height - debug_height
-
-        # Calculate width to extend to end of screen
-        debug_width = self.screen_width - debug_x
 
         # Create the AI label
         label_height = 20
@@ -4558,17 +4633,17 @@ class BitmapEditorScene(Scene):
         # Calculate new position using same logic as _setup_debug_text_box
         debug_height = 186  # Fixed height for AI chat box
 
-        # Position to the right of the color well
+        # Calculate film strip left x position (should be less than color well's right x - 1)
         if hasattr(self, "color_well") and self.color_well:
-            color_well_right_x = self.color_well.rect.right
-            debug_x = color_well_right_x + 4  # 4 pixels to the right of color well
+            film_strip_left_x = self.color_well.rect.right + 1  # Film strip left x = color well right x + 1
         else:
-            # Fallback: position to the right of canvas
-            if hasattr(self, "canvas") and self.canvas:
-                canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
-                debug_x = canvas_right_x + 4
-            else:
-                debug_x = self.screen_width - 20
+            # Fallback if color well not available
+            film_strip_left_x = self.screen_width - 200
+
+        # AI sprite box should be clamped to right side of screen and grow left
+        # but not grow left more than the film strip left x
+        debug_x = film_strip_left_x  # Start from film strip left x
+        debug_width = self.screen_width - debug_x  # Extend to right edge of screen
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
         if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
@@ -4589,9 +4664,6 @@ class BitmapEditorScene(Scene):
         else:
             # Fallback: clamp to bottom of screen
             debug_y = self.screen_height - debug_height
-
-        # Calculate width to extend to end of screen
-        debug_width = self.screen_width - debug_x
 
         # Update AI label position
         self.ai_label.rect.x = debug_x
@@ -5433,7 +5505,7 @@ class BitmapEditorScene(Scene):
         # Set up controller position callbacks for undo/redo
         self.undo_redo_manager.set_controller_position_callback(self._apply_controller_position_for_undo_redo)
         self.undo_redo_manager.set_controller_mode_callback(self._apply_controller_mode_for_undo_redo)
-        
+
         # Set up frame paste callback for undo/redo
         self.undo_redo_manager.set_frame_paste_callback(self._apply_frame_paste_for_undo_redo)
 
@@ -5631,7 +5703,8 @@ class BitmapEditorScene(Scene):
             available_height = self.screen_height - 80 - 24
             new_pixel_size = min(
                 available_height // height,  # Height-based size
-                (self.screen_width * 2 // 3) // width,  # Width-based size (use 2/3 of screen width)
+                (self.screen_width * 1 // 2) // width,  # Width-based size (use 1/2 of screen width)
+                350 // width,  # Maximum width constraint: 350px
             )
             self.log.info(f"Calculated new pixel size: {new_pixel_size}")
 
@@ -5645,6 +5718,38 @@ class BitmapEditorScene(Scene):
             self.canvas.pixels = [(255, 0, 255)] * (width * height)  # Use magenta as background
             self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
+            # Reset viewport/panning system for new canvas
+            if hasattr(self.canvas, 'reset_panning'):
+                self.canvas.reset_panning()
+            if hasattr(self.canvas, '_panning_active'):
+                self.canvas._panning_active = False
+            if hasattr(self.canvas, 'pan_offset_x'):
+                self.canvas.pan_offset_x = 0
+            if hasattr(self.canvas, 'pan_offset_y'):
+                self.canvas.pan_offset_y = 0
+
+            # Create a fresh animated sprite for the new canvas
+            from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+            fresh_animated_sprite = AnimatedSprite()
+            fresh_animated_sprite.name = "new_canvas"
+            fresh_animated_sprite.description = "New canvas sprite"
+
+            # Create a single frame with the new dimensions
+            fresh_frame = SpriteFrame(
+                surface=pygame.Surface((width, height))
+            )
+
+            # Set the frame to match the cleared canvas pixels
+            fresh_frame.set_pixel_data([(255, 0, 255)] * (width * height))
+
+            # Add the frame to the default animation
+            fresh_animated_sprite._animations["default"] = [fresh_frame]
+            fresh_animated_sprite.frame_manager.current_animation = "default"
+            fresh_animated_sprite.frame_manager.current_frame = 0
+
+            # Replace the canvas's animated sprite with the fresh one
+            self.canvas.animated_sprite = fresh_animated_sprite
+
             # Update canvas image size
             self.canvas.image = pygame.Surface((width * new_pixel_size, height * new_pixel_size))
             self.canvas.rect = self.canvas.image.get_rect(x=0, y=24)  # Position below menu bar
@@ -5654,6 +5759,29 @@ class BitmapEditorScene(Scene):
 
             # Force the canvas to redraw with the new dimensions and cleared pixels
             self.canvas.force_redraw()
+
+            # Clear existing film strips for new canvas
+            if hasattr(self, "film_strips") and self.film_strips:
+                self.log.info("Clearing existing film strips for new canvas")
+                # Remove film strip sprites from groups
+                for film_strip_sprite in self.film_strip_sprites.values():
+                    if hasattr(film_strip_sprite, "groups") and film_strip_sprite.groups():
+                        for group in film_strip_sprite.groups():
+                            group.remove(film_strip_sprite)
+                # Clear film strip collections
+                self.film_strips.clear()
+                self.film_strip_sprites.clear()
+
+            # Create a new film strip with a single frame for the new canvas
+            self.log.info("Creating new film strip for new canvas")
+            # Use existing film strip creation method
+            self._create_film_strips(self.all_sprites)
+
+            # Clear the AI sprite dialog for new canvas
+            self._clear_ai_sprite_box()
+
+            # Update AI sprite positioning for new canvas size
+            self._update_ai_sprite_position()
 
             # Update mini map position for new size
             screen_info = pygame.display.Info()
@@ -6199,25 +6327,60 @@ class BitmapEditorScene(Scene):
         """
         # Handle slider hover effects
         self._update_slider_hover_effects(event.pos)
-        
+
         for sprite in self.all_sprites:
             if hasattr(sprite, "on_mouse_motion_event"):
                 sprite.on_mouse_motion_event(event)
 
     def _update_slider_hover_effects(self, mouse_pos: tuple[int, int]) -> None:
         """Update slider hover effects based on mouse position.
-        
+
         Args:
             mouse_pos: The current mouse position (x, y)
         """
+        # Debug: Log that the method is being called
+        self.log.debug(f"_update_slider_hover_effects called with mouse_pos: {mouse_pos}")
         # Check if mouse is hovering over any slider
-        red_hover = (hasattr(self, 'red_slider') and 
+        red_hover = (hasattr(self, 'red_slider') and
                     self.red_slider.rect.collidepoint(mouse_pos))
-        green_hover = (hasattr(self, 'green_slider') and 
+        green_hover = (hasattr(self, 'green_slider') and
                       self.green_slider.rect.collidepoint(mouse_pos))
-        blue_hover = (hasattr(self, 'blue_slider') and 
+        blue_hover = (hasattr(self, 'blue_slider') and
                      self.blue_slider.rect.collidepoint(mouse_pos))
-        
+
+        # Check if mouse is hovering over any slider text boxes
+        # Use absolute coordinates for text sprites
+        red_text_hover = (hasattr(self, 'red_slider') and hasattr(self.red_slider, 'text_sprite') and
+                         self.red_slider.text_sprite.rect.collidepoint(mouse_pos))
+        green_text_hover = (hasattr(self, 'green_slider') and hasattr(self.green_slider, 'text_sprite') and
+                           self.green_slider.text_sprite.rect.collidepoint(mouse_pos))
+        blue_text_hover = (hasattr(self, 'blue_slider') and hasattr(self.blue_slider, 'text_sprite') and
+                          self.blue_slider.text_sprite.rect.collidepoint(mouse_pos))
+
+        # Debug logging - check if text sprites exist
+        if hasattr(self, 'red_slider'):
+            self.log.debug(f"Red slider exists: {hasattr(self.red_slider, 'text_sprite')}")
+            if hasattr(self.red_slider, 'text_sprite'):
+                self.log.debug(f"Red text sprite rect: {self.red_slider.text_sprite.rect}")
+        if hasattr(self, 'green_slider'):
+            self.log.debug(f"Green slider exists: {hasattr(self.green_slider, 'text_sprite')}")
+            if hasattr(self.green_slider, 'text_sprite'):
+                self.log.debug(f"Green text sprite rect: {self.green_slider.text_sprite.rect}")
+        if hasattr(self, 'blue_slider'):
+            self.log.debug(f"Blue slider exists: {hasattr(self.blue_slider, 'text_sprite')}")
+            if hasattr(self.blue_slider, 'text_sprite'):
+                self.log.debug(f"Blue text sprite rect: {self.blue_slider.text_sprite.rect}")
+
+        # Debug logging
+        if red_text_hover or green_text_hover or blue_text_hover:
+            self.log.debug(f"Text hover detected - Red: {red_text_hover}, Green: {green_text_hover}, Blue: {blue_text_hover}")
+            if red_text_hover:
+                self.log.debug(f"Red text sprite rect: {self.red_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
+            if green_text_hover:
+                self.log.debug(f"Green text sprite rect: {self.green_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
+            if blue_text_hover:
+                self.log.debug(f"Blue text sprite rect: {self.blue_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
+
         # Update red slider border
         if hasattr(self, 'red_slider_bbox'):
             if red_hover and not self.red_slider_bbox.visible:
@@ -6232,7 +6395,7 @@ class BitmapEditorScene(Scene):
                 self.red_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
                 self.red_slider_bbox.visible = False
                 self.red_slider_bbox.dirty = 1
-        
+
         # Update green slider border
         if hasattr(self, 'green_slider_bbox'):
             if green_hover and not self.green_slider_bbox.visible:
@@ -6247,7 +6410,7 @@ class BitmapEditorScene(Scene):
                 self.green_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
                 self.green_slider_bbox.visible = False
                 self.green_slider_bbox.dirty = 1
-        
+
         # Update blue slider border
         if hasattr(self, 'blue_slider_bbox'):
             if blue_hover and not self.blue_slider_bbox.visible:
@@ -6262,6 +6425,61 @@ class BitmapEditorScene(Scene):
                 self.blue_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
                 self.blue_slider_bbox.visible = False
                 self.blue_slider_bbox.dirty = 1
+
+        # Update text box hover effects (white borders)
+        # Red slider text box
+        if hasattr(self, 'red_slider') and hasattr(self.red_slider, 'text_sprite'):
+            if red_text_hover:
+                # Add white border to text sprite
+                if not hasattr(self.red_slider.text_sprite, 'hover_border_added'):
+                    # Create a white border by drawing on the text sprite's image
+                    pygame.draw.rect(self.red_slider.text_sprite.image, (255, 255, 255),
+                                   (0, 0, self.red_slider.text_sprite.rect.width, self.red_slider.text_sprite.rect.height), 2)
+                    self.red_slider.text_sprite.hover_border_added = True
+                    self.red_slider.text_sprite.dirty = 1
+            else:
+                # Remove white border
+                if hasattr(self.red_slider.text_sprite, 'hover_border_added') and self.red_slider.text_sprite.hover_border_added:
+                    # Force text sprite to redraw without border
+                    self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+                    self.red_slider.text_sprite.hover_border_added = False
+                    self.red_slider.text_sprite.dirty = 1
+
+        # Green slider text box
+        if hasattr(self, 'green_slider') and hasattr(self.green_slider, 'text_sprite'):
+            if green_text_hover:
+                # Add white border to text sprite
+                if not hasattr(self.green_slider.text_sprite, 'hover_border_added'):
+                    # Create a white border by drawing on the text sprite's image
+                    pygame.draw.rect(self.green_slider.text_sprite.image, (255, 255, 255),
+                                   (0, 0, self.green_slider.text_sprite.rect.width, self.green_slider.text_sprite.rect.height), 2)
+                    self.green_slider.text_sprite.hover_border_added = True
+                    self.green_slider.text_sprite.dirty = 1
+            else:
+                # Remove white border
+                if hasattr(self.green_slider.text_sprite, 'hover_border_added') and self.green_slider.text_sprite.hover_border_added:
+                    # Force text sprite to redraw without border
+                    self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+                    self.green_slider.text_sprite.hover_border_added = False
+                    self.green_slider.text_sprite.dirty = 1
+
+        # Blue slider text box
+        if hasattr(self, 'blue_slider') and hasattr(self.blue_slider, 'text_sprite'):
+            if blue_text_hover:
+                # Add white border to text sprite
+                if not hasattr(self.blue_slider.text_sprite, 'hover_border_added'):
+                    # Create a white border by drawing on the text sprite's image
+                    pygame.draw.rect(self.blue_slider.text_sprite.image, (255, 255, 255),
+                                   (0, 0, self.blue_slider.text_sprite.rect.width, self.blue_slider.text_sprite.rect.height), 2)
+                    self.blue_slider.text_sprite.hover_border_added = True
+                    self.blue_slider.text_sprite.dirty = 1
+            else:
+                # Remove white border
+                if hasattr(self.blue_slider.text_sprite, 'hover_border_added') and self.blue_slider.text_sprite.hover_border_added:
+                    # Force text sprite to redraw without border
+                    self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+                    self.blue_slider.text_sprite.hover_border_added = False
+                    self.blue_slider.text_sprite.dirty = 1
 
     def _update_sprite_description(self, description: str) -> None:
         """Update the sprite description when the AI text box content changes.
@@ -7379,47 +7597,47 @@ pixels = \"\"\"
         """Handle key release events."""
         # Get modifier keys
         mod = event.mod if hasattr(event, 'mod') else 0
-        
+
         # Check if this is a Ctrl+Shift+Arrow key release
         if (mod & pygame.KMOD_CTRL) and (mod & pygame.KMOD_SHIFT) and hasattr(self, "canvas") and self.canvas:
             if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
                 self.log.debug(f"Ctrl+Shift+Arrow key released - committing panned buffer")
                 self._commit_panned_buffer()
                 return
-        
+
         # Call parent class handler
         super().on_key_up_event(event)
-    
+
     def _commit_panned_buffer(self) -> None:
         """Commit the panned buffer back to the real frame data."""
         if not hasattr(self, "canvas") or not self.canvas:
             return
-        
+
         # Get current frame key
         frame_key = self.canvas._get_current_frame_key()
-        
+
         # Check if this frame has active panning
         if frame_key not in self.canvas._frame_panning:
             self.log.debug("No panning state for current frame")
             return
-            
+
         frame_state = self.canvas._frame_panning[frame_key]
         if not frame_state['active']:
             self.log.debug("No active panning to commit")
             return
-            
+
         # Commit the current panned pixels back to the frame
         if hasattr(self.canvas, 'animated_sprite') and self.canvas.animated_sprite:
             current_animation = self.canvas.current_animation
             current_frame = self.canvas.current_frame
-            
-            
+
+
             if current_animation in self.canvas.animated_sprite._animations and current_frame < len(self.canvas.animated_sprite._animations[current_animation]):
                 frame = self.canvas.animated_sprite._animations[current_animation][current_frame]
                 if hasattr(frame, 'pixels'):
                     # The current self.canvas.pixels already has the panned view
                     frame.pixels = list(self.canvas.pixels)
-                    
+
                     # Also update the frame.image surface for film strip thumbnails
                     surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
                     for y in range(self.canvas.pixels_tall):
@@ -7428,23 +7646,23 @@ pixels = \"\"\"
                             if pixel_num < len(self.canvas.pixels):
                                 color = self.canvas.pixels[pixel_num]
                                 surface.set_at((x, y), color)
-                    
+
                     # Update the frame's image
                     frame.image = surface
                     self.log.debug(f"Committed panned pixels and image to frame {current_animation}[{current_frame}]")
-                    
+
                 # Update the film strip's animated sprite frame data as well
                 if hasattr(self, "film_strips") and self.film_strips:
                     if current_animation in self.film_strips:
                         film_strip = self.film_strips[current_animation]
                         if hasattr(film_strip, "animated_sprite") and film_strip.animated_sprite:
                             # Update the film strip's animated sprite frame data
-                            if (current_animation in film_strip.animated_sprite._animations and 
+                            if (current_animation in film_strip.animated_sprite._animations and
                                 current_frame < len(film_strip.animated_sprite._animations[current_animation])):
                                 film_strip_frame = film_strip.animated_sprite._animations[current_animation][current_frame]
                                 if hasattr(film_strip_frame, 'pixels'):
                                     film_strip_frame.pixels = list(self.canvas.pixels)
-                                    
+
                                     # Also update the film strip frame's image surface
                                     film_strip_surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
                                     for y in range(self.canvas.pixels_tall):
@@ -7453,19 +7671,19 @@ pixels = \"\"\"
                                             if pixel_num < len(self.canvas.pixels):
                                                 color = self.canvas.pixels[pixel_num]
                                                 film_strip_surface.set_at((x, y), color)
-                                    
+
                                     # Update the film strip frame's image
                                     film_strip_frame.image = film_strip_surface
                                     self.log.debug(f"Updated film strip animated sprite frame {current_animation}[{current_frame}] with pixels and image")
-                
+
                 # Update the film strip to reflect the pixel data changes
                 self._update_film_strips_for_animated_sprite_update()
                 self.log.debug(f"Updated film strip for frame {current_animation}[{current_frame}]")
-        
+
         # Keep the panning state active so user can continue panning
         # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
         # The viewport will continue to show the panned view
-        
+
         self.log.debug("Panned buffer committed, panning state preserved for continued panning")
 
     def on_key_down_event(self, event: pygame.event.Event) -> None:
@@ -7758,7 +7976,7 @@ pixels = \"\"\"
 
     def _handle_canvas_panning(self, delta_x: int, delta_y: int) -> None:
         """Handle canvas panning with the given delta values.
-        
+
         Args:
             delta_x: Horizontal panning delta (-1, 0, or 1)
             delta_y: Vertical panning delta (-1, 0, or 1)
@@ -7766,7 +7984,7 @@ pixels = \"\"\"
         if not hasattr(self, "canvas") or not self.canvas:
             self.log.warning("No canvas available for panning")
             return
-        
+
         # Delegate to canvas panning method
         if hasattr(self.canvas, "pan_canvas"):
             self.canvas.pan_canvas(delta_x, delta_y)
@@ -7778,43 +7996,43 @@ pixels = \"\"\"
         if not hasattr(self, "canvas") or not self.canvas:
             self.log.warning("No canvas available for frame copying")
             return
-        
+
         if not hasattr(self, "selected_animation") or not hasattr(self, "selected_frame"):
             self.log.warning("No frame selected for copying")
             return
-        
+
         animation = self.selected_animation
         frame = self.selected_frame
-        
+
         if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
             self.log.warning("No animated sprite available for frame copying")
             return
-        
+
         # Get the frame data
         if animation not in self.canvas.animated_sprite._animations:
             self.log.warning(f"Animation '{animation}' not found for copying")
             return
-        
+
         frames = self.canvas.animated_sprite._animations[animation]
         if frame >= len(frames):
             self.log.warning(f"Frame {frame} not found in animation '{animation}'")
             return
-        
+
         frame_obj = frames[frame]
-        
+
         # Create a deep copy of the frame data for the clipboard
         from copy import deepcopy
         import pygame
-        
+
         # Get pixel data
         pixels = frame_obj.get_pixel_data()
-        
+
         # Get frame dimensions
         width, height = frame_obj.get_size()
-        
+
         # Get frame duration
         duration = frame_obj.duration
-        
+
         # Store frame data in clipboard
         self._frame_clipboard = {
             "pixels": pixels.copy(),
@@ -7824,7 +8042,7 @@ pixels = \"\"\"
             "animation": animation,
             "frame": frame
         }
-        
+
         self.log.debug(f"Copied frame {frame} from animation '{animation}' to clipboard")
 
     def _handle_paste_frame(self) -> None:
@@ -7832,57 +8050,57 @@ pixels = \"\"\"
         if not hasattr(self, "canvas") or not self.canvas:
             self.log.warning("No canvas available for frame pasting")
             return
-        
+
         if not hasattr(self, "selected_animation") or not hasattr(self, "selected_frame"):
             self.log.warning("No frame selected for pasting")
             return
-        
+
         if not self._frame_clipboard:
             self.log.warning("No frame data in clipboard to paste")
             return
-        
+
         animation = self.selected_animation
         frame = self.selected_frame
-        
+
         if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
             self.log.warning("No animated sprite available for frame pasting")
             return
-        
+
         # Get the target frame
         if animation not in self.canvas.animated_sprite._animations:
             self.log.warning(f"Animation '{animation}' not found for pasting")
             return
-        
+
         frames = self.canvas.animated_sprite._animations[animation]
         if frame >= len(frames):
             self.log.warning(f"Frame {frame} not found in animation '{animation}'")
             return
-        
+
         target_frame = frames[frame]
-        
+
         # Check if dimensions match
         clipboard_width = self._frame_clipboard["width"]
         clipboard_height = self._frame_clipboard["height"]
         target_width, target_height = target_frame.get_size()
-        
+
         if clipboard_width != target_width or clipboard_height != target_height:
             self.log.warning(f"Cannot paste frame: dimension mismatch (clipboard: {clipboard_width}x{clipboard_height}, target: {target_width}x{target_height})")
             return
-        
+
         # Create undo/redo operation for the paste
         from glitchygames.tools.undo_redo_manager import OperationType
-        
+
         # Store original frame data for undo
         original_pixels = target_frame.get_pixel_data()
         original_duration = target_frame.duration
-        
+
         # Apply the paste operation
         self._apply_frame_paste_for_undo_redo(
-            animation, frame, 
-            self._frame_clipboard["pixels"], 
+            animation, frame,
+            self._frame_clipboard["pixels"],
             self._frame_clipboard["duration"]
         )
-        
+
         # Add to undo stack
         self.undo_redo_manager.add_operation(
             operation_type=OperationType.FRAME_PASTE,
@@ -7900,22 +8118,22 @@ pixels = \"\"\"
                 "duration": self._frame_clipboard["duration"]
             }
         )
-        
+
         # Update canvas display
         if hasattr(self.canvas, "force_redraw"):
             self.canvas.force_redraw()
-        
+
         self.log.debug(f"Pasted frame from clipboard to {animation}[{frame}]")
 
     def _apply_frame_paste_for_undo_redo(self, animation: str, frame: int, pixels: list, duration: float) -> bool:
         """Apply frame paste for undo/redo operations.
-        
+
         Args:
             animation: Name of the animation
             frame: Frame index
             pixels: Pixel data to apply
             duration: Frame duration
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -7923,23 +8141,23 @@ pixels = \"\"\"
             if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
                 self.log.warning("Canvas or animated sprite not available for frame paste")
                 return False
-            
+
             # Get the target frame
             if animation not in self.canvas.animated_sprite._animations:
                 self.log.warning(f"Animation '{animation}' not found for frame paste")
                 return False
-            
+
             frames = self.canvas.animated_sprite._animations[animation]
             if frame >= len(frames):
                 self.log.warning(f"Frame {frame} not found in animation '{animation}'")
                 return False
-            
+
             target_frame = frames[frame]
-            
+
             # Apply the pixel data and duration
             target_frame.set_pixel_data(pixels)
             target_frame.duration = duration
-            
+
             # Update the canvas pixels if this is the currently displayed frame
             if (hasattr(self, "selected_animation") and hasattr(self, "selected_frame") and
                 self.selected_animation == animation and self.selected_frame == frame):
@@ -7949,10 +8167,10 @@ pixels = \"\"\"
                         self.canvas.dirty_pixels = [True] * len(pixels)
                     if hasattr(self.canvas, "dirty"):
                         self.canvas.dirty = 1
-            
+
             self.log.debug(f"Applied frame paste to {animation}[{frame}]")
             return True
-            
+
         except Exception as e:
             self.log.error(f"Error applying frame paste: {e}")
             return False
@@ -10958,6 +11176,26 @@ pixels = \"\"\"
         """Render the scene with visual indicators."""
         # Call the parent render method first
         super().render(screen)
+
+        # Draw 320x320 guide lines
+        pygame.draw.line(screen, (255, 0, 0), (320, 0), (320, screen.get_height()), 2)  # Vertical line at x=320
+        pygame.draw.line(screen, (255, 0, 0), (0, 320), (screen.get_width(), 320), 2)  # Horizontal line at y=320
+
+        # Draw 400x400 guide lines
+        pygame.draw.line(screen, (0, 0, 255), (400, 0), (400, screen.get_height()), 2)  # Vertical line at x=400
+        pygame.draw.line(screen, (0, 0, 255), (0, 400), (screen.get_width(), 400), 2)  # Horizontal line at y=400
+
+        # Draw 360x360 guide lines
+        pygame.draw.line(screen, (255, 255, 0), (360, 0), (360, screen.get_height()), 2)  # Vertical line at x=360
+        pygame.draw.line(screen, (255, 255, 0), (0, 360), (screen.get_width(), 360), 2)  # Horizontal line at y=360
+
+        # Draw 340x340 guide lines
+        pygame.draw.line(screen, (0, 255, 0), (340, 0), (340, screen.get_height()), 2)  # Vertical line at x=340
+        pygame.draw.line(screen, (0, 255, 0), (0, 340), (screen.get_width(), 340), 2)  # Horizontal line at y=340
+
+        # Draw 350x350 guide lines
+        pygame.draw.line(screen, (255, 165, 0), (350, 0), (350, screen.get_height()), 2)  # Vertical line at x=350
+        pygame.draw.line(screen, (255, 165, 0), (0, 350), (screen.get_width(), 350), 2)  # Horizontal line at y=350
 
         # Then render visual indicators on top
         self._render_visual_indicators()

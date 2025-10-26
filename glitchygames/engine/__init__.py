@@ -761,7 +761,7 @@ class GameEngine(events.EventManager):
                 # If current scene is None, try to get the previous scene
                 previous_scene = getattr(self.scene_manager, 'previous_scene', None)
                 if previous_scene:
-                    scene_name = f"{getattr(previous_scene, 'NAME', 'Unknown')} (previous)"
+                    scene_name = getattr(previous_scene, 'NAME', 'Unknown')
                 else:
                     scene_name = 'None'
             self.log.exception(f"Runtime error during game execution @ scene '{scene_name}'")
