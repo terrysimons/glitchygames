@@ -965,6 +965,10 @@ class TextSprite(BitmappySprite):
         # Initialize cursor state for blinking
         self._cursor_timer = 0
         self._cursor_visible = True
+        
+        # Initialize hover tracking (disabled)
+        # self.is_hovered = False
+        # self.base_text_color = text_color  # Store original text color
 
         self.update_text(text)
 
@@ -1049,6 +1053,15 @@ class TextSprite(BitmappySprite):
 
         # Create text surface using FontManager for consistent font handling
         font = FontManager.get_font()
+        
+        # Set text color (hover disabled)
+        # if self.is_hovered:
+        #     # Hover state - bright blue text
+        #     current_text_color = (150, 200, 255)
+        # else:
+        #     # Normal state - use base color
+        #     current_text_color = self.base_text_color
+        current_text_color = self.text_color  # Use original text color
 
         # Handle different font system render methods
         text_rect = None  # Initialize text_rect
@@ -1063,32 +1076,32 @@ class TextSprite(BitmappySprite):
                     text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
                     text_surface.fill((0, 0, 0, 0))
                     # Render text directly to the transparent surface
-                    text_rect = font.render_to(text_surface, (0, 0), str(text), self.text_color)
+                    text_rect = font.render_to(text_surface, (0, 0), str(text), current_text_color)
                 else:
                     # For solid backgrounds, pass the background color
                     text_surface, text_rect = font.render(
-                        str(text), self.text_color, self.background_color
+                        str(text), current_text_color, self.background_color
                     )
             except (TypeError, ValueError):
                 # Fall back to pygame.font style (returns surface)
                 if is_transparent:
                     # For transparent backgrounds, don't pass background color to pygame.font
-                    text_surface = font.render(str(text), True, self.text_color)
+                    text_surface = font.render(str(text), True, current_text_color)
                 else:
                     # For solid backgrounds, pass the background color
                     text_surface = font.render(
                         str(text),
                         True,
-                        self.text_color,
+                        current_text_color,
                         self.background_color,
                     )
         elif is_transparent:
             # This is a pygame.font.Font with transparent background
             # For transparent backgrounds, don't pass background color to pygame.font
-            text_surface = font.render(str(text), True, self.text_color)
+            text_surface = font.render(str(text), True, current_text_color)
         else:
             # For solid backgrounds, render without background parameter for pygame.font
-            text_surface = font.render(str(text), True, self.text_color)
+            text_surface = font.render(str(text), True, current_text_color)
 
         # Position the text in the center of our surface
         if text_rect is None:
@@ -1115,10 +1128,13 @@ class TextSprite(BitmappySprite):
 
                 # Ensure cursor is within bounds
                 if cursor_x < self.width and cursor_y < self.height:
+                    # Set cursor color (hover disabled)
+                    cursor_color = self.text_color  # Use original text color
+                    
                     # Draw a vertical line for the cursor
                     pygame.draw.line(
                         self.image,
-                        self.text_color,
+                        cursor_color,
                         (cursor_x, cursor_y),
                         (cursor_x, cursor_y + cursor_height),
                         2  # 2 pixel wide cursor
@@ -1126,6 +1142,11 @@ class TextSprite(BitmappySprite):
             except (TypeError, AttributeError):
                 # Handle mock objects in tests - just skip cursor drawing
                 pass
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events for hover effects (disabled)."""
+        # Hover effects disabled for TextSprite
+        pass
 
 
 class ButtonSprite(BitmappySprite):
@@ -2815,6 +2836,9 @@ class MultiLineTextBox(BitmappySprite):
         # Initialize selection attributes
         self.selection_start = None
         self.selection_end = None
+        
+        # Initialize hover tracking
+        self.is_hovered = False
 
         # Force continuous updates
         self.dirty = 2
@@ -2826,6 +2850,7 @@ class MultiLineTextBox(BitmappySprite):
         self.font = FontManager.get_font()
         self.text_color = WHITE
         self.cursor_color = WHITE
+        self.base_text_color = WHITE  # Store base color for hover effects
 
         # Add scroll tracking
         self.scroll_offset = 0
@@ -3037,8 +3062,19 @@ class MultiLineTextBox(BitmappySprite):
         # Draw border
         if self.active:
             pygame.draw.rect(self.image, (64, 64, 255), (0, 0, self.width, self.height), 1)
+        elif self.is_hovered:
+            # Hover state - bright blue border
+            pygame.draw.rect(self.image, (100, 150, 255), (0, 0, self.width, self.height), 1)
         else:
             pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
+
+        # Set text color based on hover state
+        if self.is_hovered and not self.active:
+            # Hover state - bright blue text
+            current_text_color = (150, 200, 255)
+        else:
+            # Normal or active state - use base color
+            current_text_color = self.base_text_color
 
         # Render text with line breaks and scrolling
         if self._text:
@@ -3061,10 +3097,10 @@ class MultiLineTextBox(BitmappySprite):
                 if line:  # Only render non-empty lines
                     if hasattr(self.font, "get_rect"):
                         # pygame.freetype.Font - render returns (surface, rect)
-                        text_surface, _ = self.font.render(line, self.text_color)
+                        text_surface, _ = self.font.render(line, current_text_color)
                     else:
                         # pygame.font.Font - render returns surface
-                        text_surface = self.font.render(line, True, self.text_color)
+                        text_surface = self.font.render(line, True, current_text_color)
                     self.image.blit(text_surface, (5, y_offset))
                 y_offset += line_height
 
@@ -3347,3 +3383,16 @@ class MultiLineTextBox(BitmappySprite):
         pygame.key.stop_text_input()
         pygame.key.set_repeat()  # Disable key repeat
         self.log.debug("MultiLineTextBox deactivated")
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse motion events for hover effects."""
+        if self.rect.collidepoint(event.pos):
+            # Mouse is over the textbox - set hover state
+            if not self.is_hovered:
+                self.is_hovered = True
+                self.dirty = 1  # Mark for redraw to show hover effects
+        else:
+            # Mouse is outside the textbox - clear hover state
+            if self.is_hovered:
+                self.is_hovered = False
+                self.dirty = 1  # Mark for redraw to remove hover effects

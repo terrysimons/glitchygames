@@ -82,6 +82,7 @@ class FilmStripWidget:
         self.hovered_animation: str | None = None
         self.hovered_preview: str | None = None
         self.is_hovering_strip: bool = False
+        self.hovered_removal_button: tuple[str, int] | None = None  # Track which removal button is hovered
 
         # Color cycling state
         self.background_color_index = 2  # Start with gray instead of cyan
@@ -1045,6 +1046,29 @@ class FilmStripWidget:
         """Handle mouse hover over the film strip."""
         self.hovered_frame = self.get_frame_at_position(pos)
         self.hovered_animation = self.get_animation_at_position(pos)
+        
+        # Check for removal button hover
+        self.hovered_removal_button = self.get_removal_button_at_position(pos)
+        
+        # Handle tab hover effects
+        self._handle_tab_hover(pos)
+
+    def get_removal_button_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
+        """Get the removal button at the given position.
+        
+        Args:
+            pos: The position to check (x, y)
+            
+        Returns:
+            Tuple of (animation_name, frame_idx) if a removal button is found, None otherwise
+        """
+        if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
+            return None
+            
+        for (anim_name, frame_idx), button_rect in self.removal_button_layouts.items():
+            if button_rect.collidepoint(pos):
+                return (anim_name, frame_idx)
+        return None
 
     def handle_preview_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
         """Handle mouse click on the preview area (right side). Returns (animation, frame_idx) if click was handled."""
@@ -1452,7 +1476,7 @@ class FilmStripWidget:
             LOG.debug(f"FilmStripWidget: Render #{self._render_count}, current_frame={self.current_frame}")
 
         # Clear the film strip area
-        surface.fill(self.film_background, self.rect)
+        surface.fill(self.film_background)
         
 
         # Check if we need to force a complete redraw
@@ -1541,8 +1565,8 @@ class FilmStripWidget:
         # This must be drawn after all other content to appear on top
         if self.is_hovering_strip:
             # Draw a subtle hover effect around the entire film strip
-            # Use (0, 0) as the top-left corner since we're drawing on the widget's surface
-            hover_rect = pygame.Rect(0, 0, self.rect.width, self.rect.height)
+            # Use the surface dimensions, not the rect dimensions
+            hover_rect = pygame.Rect(0, 0, surface.get_width(), surface.get_height())
             pygame.draw.rect(surface, (100, 100, 255), hover_rect, 2)
 
         # Draw multi-controller indicators using new unified system
@@ -2404,21 +2428,28 @@ class FilmStripWidget:
 
         LOG.debug(f"FilmStripWidget: Rendering removal button for {anim_name}[{frame_idx}] at {button_rect}")
 
-        # Use the same styling as FilmTabWidget
-        tab_color = (200, 200, 200)  # Light gray - same as insertion tabs
-        border_color = (0, 0, 0)  # Black border - same as insertion tabs
+        # Check if this removal button is being hovered
+        is_hovered = (self.hovered_removal_button == (anim_name, frame_idx))
+        
+        # Use inverted colors when hovered (black to white, white to black)
+        if is_hovered:
+            tab_color = (0, 0, 0)  # Black background when hovered
+            border_color = (255, 255, 255)  # White border when hovered
+        else:
+            tab_color = (200, 200, 200)  # Light gray - same as insertion tabs
+            border_color = (0, 0, 0)  # Black border - same as insertion tabs
 
-        # Draw button background (same as insertion tabs)
+        # Draw button background
         pygame.draw.rect(surface, tab_color, button_rect)
 
-        # Draw border (same as insertion tabs)
+        # Draw border
         pygame.draw.rect(surface, border_color, button_rect, 2)
 
         # Draw minus sign in the center (similar to how insertion tabs draw plus)
         center_x = button_rect.centerx
         center_y = button_rect.centery
 
-        # Draw horizontal bar (3 pixels wide, 1 pixel tall)
+        # Draw horizontal bar (3 pixels wide, 1 pixel tall) - use border color for consistency
         pygame.draw.rect(surface, border_color,
                         (center_x - 1, center_y, 3, 1))
 
@@ -2485,29 +2516,33 @@ class FilmTabWidget:
             surface: The pygame surface to render to
 
         """
-        # Determine color based on state
+        # Determine color based on state - invert colors on hover
         if self.is_clicked:
             color = self.click_color
+            border_color = self.border_color
         elif self.is_hovered:
-            color = self.hover_color
+            # Invert colors on hover: black background, white border
+            color = (0, 0, 0)  # Black background
+            border_color = (255, 255, 255)  # White border
         else:
             color = self.tab_color
+            border_color = self.border_color
 
         # Draw tab background
         pygame.draw.rect(surface, color, self.rect)
 
         # Draw border
-        pygame.draw.rect(surface, self.border_color, self.rect, 2)
+        pygame.draw.rect(surface, border_color, self.rect, 2)
 
         # Draw plus sign in the center
         center_x = self.rect.centerx
         center_y = self.rect.centery
 
         # Draw horizontal bar (3 pixels wide, 1 pixel tall)
-        pygame.draw.rect(surface, self.border_color,
+        pygame.draw.rect(surface, border_color,
                         (center_x - 1, center_y, 3, 1))
         # Draw vertical bar (1 pixel wide, 3 pixels tall)
-        pygame.draw.rect(surface, self.border_color,
+        pygame.draw.rect(surface, border_color,
                         (center_x, center_y - 1, 1, 3))
 
     def handle_click(self, pos: tuple[int, int]) -> bool:
@@ -2610,26 +2645,30 @@ class FilmStripDeleteTab:
             surface: The pygame surface to render to
 
         """
-        # Determine color based on state
+        # Determine color based on state - invert colors on hover
         if self.is_clicked:
             color = self.click_color
+            border_color = self.border_color
         elif self.is_hovered:
-            color = self.hover_color
+            # Invert colors on hover: black background, white border
+            color = (0, 0, 0)  # Black background
+            border_color = (255, 255, 255)  # White border
         else:
             color = self.tab_color
+            border_color = self.border_color
 
         # Draw tab background
         pygame.draw.rect(surface, color, self.rect)
 
         # Draw border
-        pygame.draw.rect(surface, self.border_color, self.rect, 2)
+        pygame.draw.rect(surface, border_color, self.rect, 2)
 
         # Draw minus sign in the center (matching vertical tabs)
         center_x = self.rect.centerx
         center_y = self.rect.centery
 
         # Draw horizontal bar (3 pixels wide, 1 pixel tall) - same as vertical tabs
-        pygame.draw.rect(surface, self.border_color,
+        pygame.draw.rect(surface, border_color,
                         (center_x - 1, center_y, 3, 1))
 
     def handle_click(self, pos: tuple[int, int]) -> bool:
@@ -2732,29 +2771,33 @@ class FilmStripTab:
             surface: The pygame surface to render to
 
         """
-        # Determine color based on state
+        # Determine color based on state - invert colors on hover
         if self.is_clicked:
             color = self.click_color
+            border_color = self.border_color
         elif self.is_hovered:
-            color = self.hover_color
+            # Invert colors on hover: black background, white border
+            color = (0, 0, 0)  # Black background
+            border_color = (255, 255, 255)  # White border
         else:
             color = self.tab_color
+            border_color = self.border_color
 
         # Draw tab background
         pygame.draw.rect(surface, color, self.rect)
 
         # Draw border
-        pygame.draw.rect(surface, self.border_color, self.rect, 2)
+        pygame.draw.rect(surface, border_color, self.rect, 2)
 
         # Draw plus sign in the center (matching vertical tabs)
         center_x = self.rect.centerx
         center_y = self.rect.centery
 
         # Draw horizontal bar (3 pixels wide, 1 pixel tall) - same as vertical tabs
-        pygame.draw.rect(surface, self.border_color,
+        pygame.draw.rect(surface, border_color,
                         (center_x - 1, center_y, 3, 1))
         # Draw vertical bar (1 pixel wide, 3 pixels tall) - same as vertical tabs
-        pygame.draw.rect(surface, self.border_color,
+        pygame.draw.rect(surface, border_color,
                         (center_x, center_y - 1, 1, 3))
 
     def handle_click(self, pos: tuple[int, int]) -> bool:

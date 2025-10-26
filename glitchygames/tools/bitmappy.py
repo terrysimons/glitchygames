@@ -1143,6 +1143,9 @@ class FilmStripSprite(BitmappySprite):
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
             
+            # Handle all hover effects (frames, previews, removal buttons)
+            self.film_strip_widget.handle_hover((film_x, film_y))
+            
             # Check if hovering over a specific frame
             hovered_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
             
@@ -1163,6 +1166,9 @@ class FilmStripSprite(BitmappySprite):
                         self.dirty = 1
                     # Hovering over film strip area - show strip hover effect
                     self._show_strip_hover_effect()
+            
+            # Mark as dirty if any hover state changed
+            self.dirty = 1
         else:
             # Not hovering over film strip - clear hover effects
             self._clear_hover_effects()
@@ -1220,6 +1226,7 @@ class FilmStripSprite(BitmappySprite):
         self.film_strip_widget.hovered_frame = None
         self.film_strip_widget.hovered_preview = None
         self.film_strip_widget.is_hovering_strip = False
+        self.film_strip_widget.hovered_removal_button = None
         self.film_strip_widget.mark_dirty()
         
         # Mark this sprite as dirty to trigger redraw
@@ -1430,6 +1437,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         
         # Initialize hover tracking for pixel hover effects
         self.hovered_pixel = None
+        
+        # Initialize hover tracking for canvas border effect
+        self.is_hovered = False
 
     def _initialize_dimensions(
         self, pixels_across: int, pixels_tall: int, pixel_width: int, pixel_height: int
@@ -2392,6 +2402,11 @@ class AnimatedCanvasSprite(BitmappySprite):
     def on_mouse_motion_event(self, event):
         """Handle mouse motion events."""
         if self.rect.collidepoint(event.pos):
+            # Mouse is over canvas - set hover state
+            if not self.is_hovered:
+                self.is_hovered = True
+                self.dirty = 1  # Mark for redraw to show canvas border
+            
             # Convert mouse position to pixel coordinates
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
@@ -2405,18 +2420,22 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.update_canvas_cursor(x, y, self.active_color)
             else:
-                # Mouse is over canvas but outside pixel grid - clear hover
+                # Mouse is over canvas but outside pixel grid - clear pixel hover
                 if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                     self.hovered_pixel = None
-                    self.dirty = 1  # Mark for redraw to remove hover effect
+                    self.dirty = 1  # Mark for redraw to remove pixel hover effect
                     
                 if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.clear_cursor()
         else:
-            # Mouse is outside canvas - clear hover
+            # Mouse is outside canvas - clear all hover effects
+            if self.is_hovered:
+                self.is_hovered = False
+                self.dirty = 1  # Mark for redraw to remove canvas border
+                
             if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                 self.hovered_pixel = None
-                self.dirty = 1  # Mark for redraw to remove hover effect
+                self.dirty = 1  # Mark for redraw to remove pixel hover effect
                 
             if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.clear_cursor()
@@ -3866,7 +3885,7 @@ class BitmapEditorScene(Scene):
             film_strip_sprite = FilmStripSprite(
                 film_strip_widget=film_strip,
                 x=film_strip_x,
-                y=current_y,
+                y=scroll_y,
                 width=film_strip_width,
                 height=film_strip.rect.height,
                 groups=groups,

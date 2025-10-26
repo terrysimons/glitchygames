@@ -814,6 +814,17 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 2  # 2px border thickness
             )
 
+        # Draw canvas hover border (1px white border around entire canvas perimeter)
+        if (hasattr(self.canvas_sprite, 'is_hovered') and 
+            self.canvas_sprite.is_hovered):
+            # Draw white border around the entire canvas perimeter
+            pygame.draw.rect(
+                self.canvas_sprite.image,
+                (255, 255, 255),  # White color
+                (0, 0, self.canvas_sprite.image.get_width(), self.canvas_sprite.image.get_height()),
+                1  # 1px border thickness
+            )
+
         return self.canvas_sprite.image
 
     def get_pixel_size(self) -> tuple[int, int]:
