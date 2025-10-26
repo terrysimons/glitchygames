@@ -46,20 +46,11 @@ class TestCanvasPanning:
         """Test that panning system is properly initialized."""
         assert hasattr(self.canvas, 'pan_offset_x')
         assert hasattr(self.canvas, 'pan_offset_y')
-        assert hasattr(self.canvas, 'buffer_width')
-        assert hasattr(self.canvas, 'buffer_height')
-        assert hasattr(self.canvas, 'viewport_width')
-        assert hasattr(self.canvas, 'viewport_height')
         assert hasattr(self.canvas, '_panning_active')
-        assert hasattr(self.canvas, '_buffer_pixels')
         
         # Check initial values
         assert self.canvas.pan_offset_x == 0
         assert self.canvas.pan_offset_y == 0
-        assert self.canvas.buffer_width == 28  # 8 + 20 (extra space for panning)
-        assert self.canvas.buffer_height == 28  # 8 + 20 (extra space for panning)
-        assert self.canvas.viewport_width == 8
-        assert self.canvas.viewport_height == 8
         assert self.canvas._panning_active is False
 
     def test_pan_canvas_basic(self):

@@ -1134,7 +1134,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         self._initialize_pixel_arrays()
 
         # Initialize panning system
-        self._initialize_panning_system()
+        self._initialize_simple_panning()
 
         # Initialize canvas surface and UI components
         self._initialize_canvas_surface(x, y, width, height, groups)
@@ -1224,63 +1224,89 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         self.log.info(f"Border thickness set to {self.border_thickness} (pixel size: {self.pixel_width}x{self.pixel_height}, sprite size: {self.pixels_across}x{self.pixels_tall})")
 
-    def _initialize_panning_system(self) -> None:
-        """Initialize the panning system for the canvas."""
+    def _pan_frame_data(self) -> None:
+        """Pan the frame data directly by shifting pixels within the frame."""
+        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
+            return
+            
+        current_animation = self.current_animation
+        current_frame = self.current_frame
+        
+        if current_animation in self.animated_sprite.frames and current_frame < len(self.animated_sprite.frames[current_animation]):
+            frame = self.animated_sprite._animations[current_animation][current_frame]
+            if hasattr(frame, "get_pixel_data") and hasattr(frame, "set_pixel_data"):
+                # Get current frame pixels
+                frame_pixels = frame.get_pixel_data()
+                
+                # Create a new pixel array with panned data
+                panned_pixels = []
+                
+                for y in range(self.pixels_tall):
+                    for x in range(self.pixels_across):
+                        # Calculate source coordinates (where to read from)
+                        source_x = x - self.pan_offset_x
+                        source_y = y - self.pan_offset_y
+                        
+                        # Check if source is within bounds of the frame data
+                        frame_width = len(frame_pixels) // self.pixels_tall if self.pixels_tall > 0 else 0
+                        frame_height = self.pixels_tall
+                        
+                        if (0 <= source_x < frame_width and 
+                            0 <= source_y < frame_height):
+                            source_index = source_y * frame_width + source_x
+                            if source_index < len(frame_pixels):
+                                panned_pixels.append(frame_pixels[source_index])
+                            else:
+                                panned_pixels.append((255, 0, 255))  # Transparent
+                        else:
+                            # Outside bounds - use transparent
+                            panned_pixels.append((255, 0, 255))
+                
+                # Update the frame with panned pixels
+                frame.set_pixel_data(panned_pixels)
+                
+                # Update canvas pixels to match
+                self.pixels = panned_pixels.copy()
+                self.dirty_pixels = [True] * len(self.pixels)
+                
+                # Clear surface cache
+                if hasattr(self.animated_sprite, "_surface_cache"):
+                    cache_key = f"{current_animation}_{current_frame}"
+                    if cache_key in self.animated_sprite._surface_cache:
+                        del self.animated_sprite._surface_cache[cache_key]
+                
+                self.log.debug(f"Frame data panned: offset=({self.pan_offset_x}, {self.pan_offset_y})")
+    
+    def _initialize_simple_panning(self) -> None:
+        """Initialize the simple panning system for the canvas."""
         # Panning state
         self.pan_offset_x = 0  # Horizontal pan offset in pixels
         self.pan_offset_y = 0  # Vertical pan offset in pixels
         
-        # Buffer dimensions (larger than canvas to allow panning)
-        # Add extra space around the canvas for panning
-        self.buffer_width = self.pixels_across + 20  # Extra 10 pixels on each side
-        self.buffer_height = self.pixels_tall + 20   # Extra 10 pixels on each side
-        
-        # Viewport dimensions (same as canvas dimensions)
-        self.viewport_width = self.pixels_across
-        self.viewport_height = self.pixels_tall
-        
         # Panning state flag
         self._panning_active = False
         
-        # Initialize buffer with transparent pixels
-        self._buffer_pixels = [(255, 0, 255) for _ in range(self.buffer_width * self.buffer_height)]
-        
-        # Copy current canvas pixels to center of buffer
-        if hasattr(self, 'pixels') and self.pixels:
-            buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-            buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-            
-            for y in range(self.pixels_tall):
-                for x in range(self.pixels_across):
-                    buffer_x = buffer_center_x + x
-                    buffer_y = buffer_center_y + y
-                    buffer_index = buffer_y * self.buffer_width + buffer_x
-                    canvas_index = y * self.pixels_across + x
-                    
-                    if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
-                        self._buffer_pixels[buffer_index] = self.pixels[canvas_index]
-        
-        self.log.debug(f"Panning system initialized: buffer={self.buffer_width}x{self.buffer_height}, viewport={self.viewport_width}x{self.viewport_height}")
+        self.log.debug("Simple panning system initialized")
     
-    def _sync_buffer_with_canvas(self) -> None:
-        """Copy current canvas pixels to the buffer center."""
-        if not hasattr(self, '_buffer_pixels') or not hasattr(self, 'pixels'):
-            return
+    def reset_panning(self) -> None:
+        """Reset panning to center position."""
+        self.pan_offset_x = 0
+        self.pan_offset_y = 0
+        self._panning_active = False
+        
+        # Reload the original frame data
+        if hasattr(self, 'animated_sprite') and self.animated_sprite:
+            current_animation = self.current_animation
+            current_frame = self.current_frame
             
-        buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-        buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
+            if current_animation in self.animated_sprite.frames and current_frame < len(self.animated_sprite.frames[current_animation]):
+                frame = self.animated_sprite._animations[current_animation][current_frame]
+                if hasattr(frame, "get_pixel_data"):
+                    self.pixels = frame.get_pixel_data().copy()
+                    self.dirty_pixels = [True] * len(self.pixels)
+                    self.dirty = 1
         
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = buffer_center_x + x
-                buffer_y = buffer_center_y + y
-                buffer_index = buffer_y * self.buffer_width + buffer_x
-                canvas_index = y * self.pixels_across + x
-                
-                if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
-                    self._buffer_pixels[buffer_index] = self.pixels[canvas_index]
-        
-        self.log.debug(f"Buffer synced with canvas: {len(self.pixels)} pixels copied to center of buffer")
+        self.log.debug("Panning reset to center")
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -1543,10 +1569,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
-            
-            # Sync the buffer with the canvas pixels after frame is loaded
-            if hasattr(self, '_sync_buffer_with_canvas'):
-                self._sync_buffer_with_canvas()
 
             # Notify the parent scene about the frame change
             if hasattr(self, "parent_scene") and self.parent_scene:
@@ -1811,8 +1833,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.pan_offset_y = new_pan_y
             self._panning_active = True
             
-            # Update viewport pixels based on panning
-            self._update_viewport_pixels()
+            # Update the frame data directly with panned pixels
+            self._pan_frame_data()
             
             # Mark canvas as dirty for redraw
             self.dirty = 1
@@ -2782,7 +2804,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.pan_offset_x = new_pan_x
             self.pan_offset_y = new_pan_y
             self._panning_active = True
-            self._update_viewport_pixels()  # Update visible pixels
+            # Update the frame data directly with panned pixels
+            self._pan_frame_data()
             self.dirty = 1
         else:
             self.log.debug(f"Cannot pan to ({new_pan_x}, {new_pan_y}) - out of bounds.")
