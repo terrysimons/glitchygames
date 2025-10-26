@@ -4711,7 +4711,7 @@ class BitmapEditorScene(Scene):
         )
 
         # Create tab control positioned above the color well
-        tab_control_width = min(80, color_well_width) + 1  # Limit width to 80px or color well width, plus 1 pixel
+        tab_control_width = color_well_width  # Match the color well width
         tab_control_height = 20
         tab_control_x = color_well_x + (color_well_width - tab_control_width) // 2  # Center horizontally
         tab_control_y = color_well_y - tab_control_height  # Position so bottom touches top of color well
