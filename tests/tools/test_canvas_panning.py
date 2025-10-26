@@ -44,63 +44,68 @@ class TestCanvasPanning:
 
     def test_panning_initialization(self):
         """Test that panning system is properly initialized."""
-        assert hasattr(self.canvas, 'pan_offset_x')
-        assert hasattr(self.canvas, 'pan_offset_y')
-        assert hasattr(self.canvas, '_panning_active')
-        
-        # Check initial values
-        assert self.canvas.pan_offset_x == 0
-        assert self.canvas.pan_offset_y == 0
-        assert self.canvas._panning_active is False
+        # Check that frame-specific panning attributes exist
+        assert hasattr(self.canvas, '_frame_panning')
+        assert isinstance(self.canvas._frame_panning, dict)
+        assert len(self.canvas._frame_panning) == 0  # No frames panned yet
 
     def test_pan_canvas_basic(self):
         """Test basic canvas panning functionality."""
+        frame_key = self.canvas._get_current_frame_key()
+        
         # Test panning right
         self.canvas.pan_canvas(1, 0)
-        assert self.canvas.pan_offset_x == 1
-        assert self.canvas.pan_offset_y == 0
-        assert self.canvas._panning_active is True
+        assert frame_key in self.canvas._frame_panning
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
+        assert self.canvas._frame_panning[frame_key]['active'] is True
         
         # Test panning down
         self.canvas.pan_canvas(0, 1)
-        assert self.canvas.pan_offset_x == 1
-        assert self.canvas.pan_offset_y == 1
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 1
         
         # Test panning left
         self.canvas.pan_canvas(-1, 0)
-        assert self.canvas.pan_offset_x == 0
-        assert self.canvas.pan_offset_y == 1
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 1
         
         # Test panning up
         self.canvas.pan_canvas(0, -1)
-        assert self.canvas.pan_offset_x == 0
-        assert self.canvas.pan_offset_y == 0
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_pan_canvas_bounds_checking(self):
         """Test that panning respects bounds."""
+        frame_key = self.canvas._get_current_frame_key()
+        
         # Test panning beyond maximum bounds
         self.canvas.pan_canvas(15, 0)  # Beyond max_pan (10)
-        assert self.canvas.pan_offset_x == 0  # Should not change
-        assert self.canvas.pan_offset_y == 0
+        assert frame_key not in self.canvas._frame_panning  # Should not create entry
         
         # Test panning within bounds
         self.canvas.pan_canvas(5, 0)
-        assert self.canvas.pan_offset_x == 5
-        assert self.canvas.pan_offset_y == 0
+        assert frame_key in self.canvas._frame_panning
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 5
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_reset_panning(self):
         """Test resetting panning to original position."""
+        frame_key = self.canvas._get_current_frame_key()
+        
         # Pan the canvas
         self.canvas.pan_canvas(3, 2)
-        assert self.canvas._panning_active is True
-        assert self.canvas.pan_offset_x == 3
-        assert self.canvas.pan_offset_y == 2
+        assert self.canvas._frame_panning[frame_key]['active'] is True
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 3
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 2
         
         # Reset panning
         self.canvas.reset_panning()
-        assert self.canvas._panning_active is False
-        assert self.canvas.pan_offset_x == 0
-        assert self.canvas.pan_offset_y == 0
+        # Reset should clear the frame's panning state
+        if frame_key in self.canvas._frame_panning:
+            assert self.canvas._frame_panning[frame_key]['active'] is False
+            assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+            assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_is_panning_active(self):
         """Test panning active state detection."""
@@ -114,14 +119,14 @@ class TestCanvasPanning:
 
     def test_viewport_pixel_update(self):
         """Test that viewport pixels are updated correctly during panning."""
-        # Set up buffer pixels with test data
-        test_pixels = [(255, 0, 0) for _ in range(64)]  # 8x8 red pixels
-        self.canvas._buffer_pixels = test_pixels
+        frame_key = self.canvas._get_current_frame_key()
         
         # Pan the canvas
         self.canvas.pan_canvas(2, 1)
         
-        # Check that viewport pixels are updated
+        # Check that frame panning state is created and pixels are updated
+        assert frame_key in self.canvas._frame_panning
+        assert self.canvas._frame_panning[frame_key]['original_pixels'] is not None
         assert len(self.canvas.pixels) == 64  # 8x8 viewport
         assert self.canvas.dirty_pixels == [True] * 64
 
@@ -379,11 +384,14 @@ class TestPanningKeyboardHandling:
         
         self.real_scene.on_key_up_event(event_up)
         
-        # Verify that panning state was cleared
-        assert self.canvas._panning_active is False
-        assert self.canvas.pan_offset_x == 0
-        assert self.canvas.pan_offset_y == 0
-        assert not hasattr(self.canvas, '_original_frame_pixels')
+        # Verify that panning state was preserved (not cleared)
+        frame_key = self.canvas._get_current_frame_key()
+        assert frame_key in self.canvas._frame_panning
+        frame_state = self.canvas._frame_panning[frame_key]
+        assert frame_state['active'] is True
+        assert frame_state['pan_x'] == -1
+        assert frame_state['pan_y'] == 0
+        assert frame_state['original_pixels'] is not None
     
     def test_key_release_updates_film_strip(self):
         """Test that releasing Ctrl+Shift+Arrow updates the film strip."""

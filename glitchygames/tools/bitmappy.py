@@ -1279,20 +1279,65 @@ class AnimatedCanvasSprite(BitmappySprite):
     
     def _initialize_simple_panning(self) -> None:
         """Initialize the simple panning system for the canvas."""
-        # Panning state
-        self.pan_offset_x = 0  # Horizontal pan offset in pixels
-        self.pan_offset_y = 0  # Vertical pan offset in pixels
+        # Frame-specific panning state - each frame has its own panning
+        self._frame_panning = {}  # {frame_key: {'pan_x': int, 'pan_y': int, 'original_pixels': list, 'active': bool}}
         
-        # Panning state flag
-        self._panning_active = False
+        self.log.debug("Simple panning system initialized with frame-specific state")
+    
+    def _get_current_frame_key(self) -> str:
+        """Get a unique key for the current frame."""
+        return f"{self.current_animation}_{self.current_frame}"
+    
+    def _store_original_frame_data_for_frame(self, frame_key: str) -> None:
+        """Store the original frame data for a specific frame."""
+        if hasattr(self, 'pixels') and self.pixels:
+            self._frame_panning[frame_key]['original_pixels'] = list(self.pixels)
+            self.log.debug(f"Stored original frame data for {frame_key}")
+    
+    def _apply_panning_view_for_frame(self, frame_key: str) -> None:
+        """Apply panning transformation for a specific frame."""
+        frame_state = self._frame_panning[frame_key]
+        if frame_state['original_pixels'] is None:
+            return
+            
+        # Create panned view by shifting pixels
+        panned_pixels = []
         
-        self.log.debug("Simple panning system initialized")
+        for y in range(self.pixels_tall):
+            for x in range(self.pixels_across):
+                # Calculate source coordinates (where to read from in original)
+                source_x = x - frame_state['pan_x']
+                source_y = y - frame_state['pan_y']
+                
+                # Check if source is within bounds
+                if (0 <= source_x < self.pixels_across and 
+                     0 <= source_y < self.pixels_tall):
+                    source_index = source_y * self.pixels_across + source_x
+                    if source_index < len(frame_state['original_pixels']):
+                        panned_pixels.append(frame_state['original_pixels'][source_index])
+                    else:
+                        panned_pixels.append((255, 0, 255))  # Transparent
+                else:
+                    panned_pixels.append((255, 0, 255))  # Transparent
+        
+        # Update canvas pixels with panned view
+        self.pixels = panned_pixels
+        self.dirty_pixels = [True] * len(self.pixels)
+        
+        self.log.debug(f"Applied panning view for {frame_key}: offset=({frame_state['pan_x']}, {frame_state['pan_y']})")
     
     def reset_panning(self) -> None:
-        """Reset panning to center position."""
-        self.pan_offset_x = 0
-        self.pan_offset_y = 0
-        self._panning_active = False
+        """Reset panning for the current frame."""
+        frame_key = self._get_current_frame_key()
+        
+        # Clear panning state for current frame
+        if frame_key in self._frame_panning:
+            self._frame_panning[frame_key] = {
+                'pan_x': 0,
+                'pan_y': 0,
+                'original_pixels': None,
+                'active': False
+            }
         
         # Reload the original frame data
         if hasattr(self, 'animated_sprite') and self.animated_sprite:
@@ -1306,7 +1351,14 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self.dirty_pixels = [True] * len(self.pixels)
                     self.dirty = 1
         
-        self.log.debug("Panning reset to center")
+        self.log.debug(f"Panning reset for frame {frame_key}")
+    
+    def is_panning_active(self) -> bool:
+        """Check if panning is active for the current frame."""
+        frame_key = self._get_current_frame_key()
+        if frame_key in self._frame_panning:
+            return self._frame_panning[frame_key]['active']
+        return False
 
     def _initialize_canvas_surface(self, x: int, y: int, width: int, height: int, groups) -> None:
         """Initialize canvas surface and interface components.
@@ -2795,22 +2847,43 @@ class AnimatedCanvasSprite(BitmappySprite):
             delta_x: Horizontal panning delta (-1, 0, or 1)
             delta_y: Vertical panning delta (-1, 0, or 1)
         """
+        # Get current frame key
+        frame_key = self._get_current_frame_key()
+        
+        # Get current pan offset from frame state (or default to 0, 0)
+        if frame_key in self._frame_panning:
+            current_pan_x = self._frame_panning[frame_key]['pan_x']
+            current_pan_y = self._frame_panning[frame_key]['pan_y']
+        else:
+            current_pan_x = 0
+            current_pan_y = 0
+        
         # Calculate new pan offset
-        new_pan_x = self.pan_offset_x + delta_x
-        new_pan_y = self.pan_offset_y + delta_y
+        new_pan_x = current_pan_x + delta_x
+        new_pan_y = current_pan_y + delta_y
 
         # Check if panning is within bounds
         if self._can_pan(new_pan_x, new_pan_y):
-            self.pan_offset_x = new_pan_x
-            self.pan_offset_y = new_pan_y
-            self._panning_active = True
+            # Initialize frame panning state if needed
+            if frame_key not in self._frame_panning:
+                self._frame_panning[frame_key] = {
+                    'pan_x': 0,
+                    'pan_y': 0,
+                    'original_pixels': None,
+                    'active': False
+                }
             
-            # Store original frame data if this is the first pan
-            if not hasattr(self, '_original_frame_pixels'):
-                self._store_original_frame_data()
+            frame_state = self._frame_panning[frame_key]
+            frame_state['pan_x'] = new_pan_x
+            frame_state['pan_y'] = new_pan_y
+            frame_state['active'] = True
+            
+            # Store original frame data if this is the first pan for this frame
+            if frame_state['original_pixels'] is None:
+                self._store_original_frame_data_for_frame(frame_key)
             
             # Apply panning transformation to show panned view
-            self._apply_panning_view()
+            self._apply_panning_view_for_frame(frame_key)
             self.dirty = 1
         else:
             self.log.debug(f"Cannot pan to ({new_pan_x}, {new_pan_y}) - out of bounds.")
@@ -2910,22 +2983,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         
         # Force redraw to update the visual display including borders
         self.force_redraw()
-
-    def reset_panning(self) -> None:
-        """Reset panning to original position."""
-        self.pan_offset_x = 0
-        self.pan_offset_y = 0
-        self._panning_active = False
-        
-        # Restore original viewport (center of buffer)
-        self._update_viewport_pixels()
-        self.dirty = 1
-        
-        self.log.debug("Panning reset to original position")
-
-    def is_panning_active(self) -> bool:
-        """Return True if panning is currently active (canvas is offset)."""
-        return self._panning_active
 
     def save_animated_sprite(self, filename: str) -> None:
         """Save the animated sprite to a file."""
@@ -6934,8 +6991,17 @@ pixels = \"\"\"
         """Commit the panned buffer back to the real frame data."""
         if not hasattr(self, "canvas") or not self.canvas:
             return
+        
+        # Get current frame key
+        frame_key = self.canvas._get_current_frame_key()
+        
+        # Check if this frame has active panning
+        if frame_key not in self.canvas._frame_panning:
+            self.log.debug("No panning state for current frame")
+            return
             
-        if not self.canvas._panning_active:
+        frame_state = self.canvas._frame_panning[frame_key]
+        if not frame_state['active']:
             self.log.debug("No active panning to commit")
             return
             
@@ -6950,7 +7016,19 @@ pixels = \"\"\"
                 if hasattr(frame, 'pixels'):
                     # The current self.canvas.pixels already has the panned view
                     frame.pixels = list(self.canvas.pixels)
-                    self.log.debug(f"Committed panned pixels to frame {current_animation}[{current_frame}]")
+                    
+                    # Also update the frame.image surface for film strip thumbnails
+                    surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
+                    for y in range(self.canvas.pixels_tall):
+                        for x in range(self.canvas.pixels_across):
+                            pixel_num = y * self.canvas.pixels_across + x
+                            if pixel_num < len(self.canvas.pixels):
+                                color = self.canvas.pixels[pixel_num]
+                                surface.set_at((x, y), color)
+                    
+                    # Update the frame's image
+                    frame.image = surface
+                    self.log.debug(f"Committed panned pixels and image to frame {current_animation}[{current_frame}]")
                     
                 # Update the film strip's animated sprite frame data as well
                 if hasattr(self, "film_strips") and self.film_strips:
@@ -6963,21 +7041,29 @@ pixels = \"\"\"
                                 film_strip_frame = film_strip.animated_sprite._animations[current_animation][current_frame]
                                 if hasattr(film_strip_frame, 'pixels'):
                                     film_strip_frame.pixels = list(self.canvas.pixels)
-                                    self.log.debug(f"Updated film strip animated sprite frame {current_animation}[{current_frame}]")
+                                    
+                                    # Also update the film strip frame's image surface
+                                    film_strip_surface = pygame.Surface((self.canvas.pixels_across, self.canvas.pixels_tall))
+                                    for y in range(self.canvas.pixels_tall):
+                                        for x in range(self.canvas.pixels_across):
+                                            pixel_num = y * self.canvas.pixels_across + x
+                                            if pixel_num < len(self.canvas.pixels):
+                                                color = self.canvas.pixels[pixel_num]
+                                                film_strip_surface.set_at((x, y), color)
+                                    
+                                    # Update the film strip frame's image
+                                    film_strip_frame.image = film_strip_surface
+                                    self.log.debug(f"Updated film strip animated sprite frame {current_animation}[{current_frame}] with pixels and image")
                 
                 # Update the film strip to reflect the pixel data changes
                 self._update_film_strips_for_animated_sprite_update()
                 self.log.debug(f"Updated film strip for frame {current_animation}[{current_frame}]")
         
-        # Clear the panning state and original frame data
-        if hasattr(self.canvas, '_original_frame_pixels'):
-            delattr(self.canvas, '_original_frame_pixels')
+        # Keep the panning state active so user can continue panning
+        # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
+        # The viewport will continue to show the panned view
         
-        self.canvas._panning_active = False
-        self.canvas.pan_offset_x = 0
-        self.canvas.pan_offset_y = 0
-        
-        self.log.debug("Panning state cleared after commit")
+        self.log.debug("Panned buffer committed, panning state preserved for continued panning")
 
     def on_key_down_event(self, event: pygame.event.Event) -> None:
         """Handle keyboard events for frame navigation and text input."""
