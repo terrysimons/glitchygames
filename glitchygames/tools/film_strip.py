@@ -80,6 +80,8 @@ class FilmStripWidget:
         self.is_selected = False  # Track if this film strip is currently selected
         self.hovered_frame: tuple[str, int] | None = None
         self.hovered_animation: str | None = None
+        self.hovered_preview: str | None = None
+        self.is_hovering_strip: bool = False
 
         # Color cycling state
         self.background_color_index = 2  # Start with gray instead of cyan
@@ -945,6 +947,13 @@ class FilmStripWidget:
                 return anim_name
         return None
 
+    def get_preview_at_position(self, pos: tuple[int, int]) -> str | None:
+        """Get the preview animation at the given position."""
+        for anim_name, preview_rect in self.preview_rects.items():
+            if preview_rect.collidepoint(pos):
+                return anim_name
+        return None
+
     def set_current_frame(self, animation: str, frame: int) -> None:
         """Set the current animation and selected frame."""
         if (
@@ -1103,6 +1112,11 @@ class FilmStripWidget:
         # Draw selection border with the appropriate color
         if selection_color:
             pygame.draw.rect(frame_surface, selection_color, (0, 0, self.frame_width, self.frame_height), 3)
+
+        # Draw hover effect
+        if is_hovered:
+            # Draw a bright blue border for hover effect
+            pygame.draw.rect(frame_surface, (0, 255, 255), (0, 0, self.frame_width, self.frame_height), 2)
 
         # Draw frame number at the bottom center
         self._draw_frame_number(frame_surface, frame_index)
@@ -1320,6 +1334,11 @@ class FilmStripWidget:
 
             # Draw preview border (animation frame only - use darker border)
             pygame.draw.rect(surface, self.animation_border, preview_rect, 2)
+            
+            # Draw preview hover effect (different color to distinguish from static frames)
+            if self.hovered_preview == anim_name:
+                # Draw a distinct hover effect for preview area (orange/yellow to distinguish from cyan frames)
+                pygame.draw.rect(surface, (255, 165, 0), preview_rect, 3)  # Orange border for preview hover
 
             # Get the current animated frame for this animation's preview
             if (
@@ -1434,6 +1453,7 @@ class FilmStripWidget:
 
         # Clear the film strip area
         surface.fill(self.film_background, self.rect)
+        
 
         # Check if we need to force a complete redraw
         force_redraw = getattr(self, "_force_redraw", False)
@@ -1516,6 +1536,14 @@ class FilmStripWidget:
 
         # Draw white border around the entire film strip as the very last thing
         # pygame.draw.rect(surface, (255, 255, 255), self.rect, 2)
+
+        # Draw hover effect for film strip area (when actively hovering over strip)
+        # This must be drawn after all other content to appear on top
+        if self.is_hovering_strip:
+            # Draw a subtle hover effect around the entire film strip
+            # Use (0, 0) as the top-left corner since we're drawing on the widget's surface
+            hover_rect = pygame.Rect(0, 0, self.rect.width, self.rect.height)
+            pygame.draw.rect(surface, (100, 100, 255), hover_rect, 2)
 
         # Draw multi-controller indicators using new unified system
         self._draw_multi_controller_indicators_new(surface)

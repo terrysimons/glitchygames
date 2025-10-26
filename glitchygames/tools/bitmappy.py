@@ -1088,6 +1088,291 @@ class FilmStripSprite(BitmappySprite):
         """Set the parent canvas for frame changes."""
         self.parent_canvas = canvas
 
+    def on_drop_file_event(self, event):
+        """Handle drop file event on film strip.
+        
+        Args:
+            event: The pygame event containing the dropped file information.
+            
+        Returns:
+            True if the drop was handled, False otherwise.
+        """
+        # Get current mouse position since drop events don't include position
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Check if the drop is within the film strip bounds
+        if not self.rect.collidepoint(mouse_pos):
+            return False
+            
+        # Get the file path from the event
+        file_path = event.file
+        LOG.debug(f"FilmStripSprite: File dropped on film strip: {file_path}")
+        
+        # Check if it's an image file we can handle
+        if not file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+            LOG.debug(f"FilmStripSprite: Unsupported file type: {file_path}")
+            return False
+            
+        # Convert screen coordinates to film strip coordinates
+        film_x = mouse_pos[0] - self.rect.x
+        film_y = mouse_pos[1] - self.rect.y
+        
+        # Check if drop is on a specific frame
+        clicked_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
+        
+        if clicked_frame:
+            # Drop on existing frame - replace its contents
+            animation, frame_idx = clicked_frame
+            LOG.debug(f"FilmStripSprite: Dropping on frame {animation}[{frame_idx}]")
+            return self._replace_frame_with_image(file_path, animation, frame_idx)
+        else:
+            # Drop on film strip but not on a frame - insert new frame
+            LOG.debug(f"FilmStripSprite: Dropping on film strip area, inserting new frame")
+            return self._insert_image_as_new_frame(file_path, film_x, film_y)
+
+    def on_mouse_motion_event(self, event):
+        """Handle mouse motion events for drag hover effects.
+        
+        Args:
+            event: The pygame mouse motion event.
+        """
+        # Check if we're currently dragging a file (this would need to be tracked by the scene)
+        # For now, we'll implement basic hover detection
+        if self.rect.collidepoint(event.pos):
+            # Convert screen coordinates to film strip coordinates
+            film_x = event.pos[0] - self.rect.x
+            film_y = event.pos[1] - self.rect.y
+            
+            # Check if hovering over a specific frame
+            hovered_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
+            
+            if hovered_frame:
+                # Hovering over a frame - show frame hover effect
+                self._show_frame_hover_effect(hovered_frame)
+            else:
+                # Check if hovering over preview area
+                hovered_preview = self.film_strip_widget.get_preview_at_position((film_x, film_y))
+                if hovered_preview:
+                    # Hovering over preview - show preview hover effect
+                    self._show_preview_hover_effect(hovered_preview)
+                else:
+                    # Not hovering over preview - clear preview hover if it was set
+                    if self.film_strip_widget.hovered_preview is not None:
+                        self.film_strip_widget.hovered_preview = None
+                        self.film_strip_widget.mark_dirty()
+                        self.dirty = 1
+                    # Hovering over film strip area - show strip hover effect
+                    self._show_strip_hover_effect()
+        else:
+            # Not hovering over film strip - clear hover effects
+            self._clear_hover_effects()
+
+    def _show_frame_hover_effect(self, frame_info):
+        """Show visual feedback for hovering over a frame.
+        
+        Args:
+            frame_info: Tuple of (animation, frame_idx) for the hovered frame.
+        """
+        animation, frame_idx = frame_info
+        LOG.debug(f"FilmStripSprite: Hovering over frame {animation}[{frame_idx}]")
+        
+        # Set hover state in the film strip widget
+        self.film_strip_widget.hovered_frame = frame_info
+        # Keep strip hover active even when hovering over frame
+        self.film_strip_widget.mark_dirty()
+        
+        # Mark this sprite as dirty to trigger redraw
+        self.dirty = 1
+
+    def _show_preview_hover_effect(self, animation_name: str):
+        """Show visual feedback for hovering over a preview area.
+        
+        Args:
+            animation_name: Name of the animation being previewed.
+        """
+        LOG.debug(f"FilmStripSprite: Hovering over preview {animation_name}")
+        
+        # Set hover state in the film strip widget
+        self.film_strip_widget.hovered_preview = animation_name
+        # Keep strip hover active even when hovering over preview
+        self.film_strip_widget.mark_dirty()
+        
+        # Mark this sprite as dirty to trigger redraw
+        self.dirty = 1
+
+    def _show_strip_hover_effect(self):
+        """Show visual feedback for hovering over the film strip area."""
+        LOG.debug("FilmStripSprite: Hovering over film strip area")
+        
+        # Set hover state in the film strip widget
+        self.film_strip_widget.hovered_frame = None
+        self.film_strip_widget.is_hovering_strip = True
+        self.film_strip_widget.mark_dirty()
+        
+        # Mark this sprite as dirty to trigger redraw
+        self.dirty = 1
+
+    def _clear_hover_effects(self):
+        """Clear all hover effects."""
+        LOG.debug("FilmStripSprite: Clearing hover effects")
+        
+        # Clear hover state in the film strip widget
+        self.film_strip_widget.hovered_frame = None
+        self.film_strip_widget.hovered_preview = None
+        self.film_strip_widget.is_hovering_strip = False
+        self.film_strip_widget.mark_dirty()
+        
+        # Mark this sprite as dirty to trigger redraw
+        self.dirty = 1
+
+    def _convert_image_to_sprite_frame(self, file_path: str):
+        """Convert an image file to a SpriteFrame.
+        
+        Args:
+            file_path: Path to the image file to convert.
+            
+        Returns:
+            SpriteFrame object or None if conversion failed.
+        """
+        try:
+            # Load the image
+            image = pygame.image.load(file_path)
+            
+            # Get current canvas size for resizing
+            canvas_width, canvas_height = 32, 32  # Default fallback
+            if hasattr(self, "parent_canvas") and self.parent_canvas:
+                canvas_width = self.parent_canvas.pixels_across
+                canvas_height = self.parent_canvas.pixels_tall
+            elif hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "canvas"):
+                canvas_width = self.parent_scene.canvas.pixels_across
+                canvas_height = self.parent_scene.canvas.pixels_tall
+            
+            # Resize image to match canvas size
+            if image.get_size() != (canvas_width, canvas_height):
+                image = pygame.transform.scale(image, (canvas_width, canvas_height))
+            
+            # Convert to RGB if needed, handling transparency
+            if image.get_flags() & pygame.SRCALPHA:
+                rgb_image = pygame.Surface((canvas_width, canvas_height))
+                rgb_image.fill((255, 255, 255))  # White background
+                rgb_image.blit(image, (0, 0))
+                image = rgb_image
+            
+            # Get pixel data
+            pixel_array = pygame.surfarray.array3d(image)
+            
+            # Convert to the format expected by SpriteFrame
+            pixels = []
+            for y in range(canvas_height):
+                for x in range(canvas_width):
+                    r, g, b = pixel_array[x, y]
+                    pixels.append((int(r), int(g), int(b)))
+            
+            # Create a new SpriteFrame with the surface
+            from glitchygames.sprites import SpriteFrame
+            frame = SpriteFrame(image, duration=0.1)  # 0.1 second duration
+            frame.set_pixel_data(pixels)
+            
+            LOG.debug(f"FilmStripSprite: Successfully converted image to sprite frame")
+            return frame
+            
+        except Exception as e:
+            LOG.error(f"FilmStripSprite: Failed to convert image {file_path}: {e}")
+            return None
+
+    def _replace_frame_with_image(self, file_path: str, animation: str, frame_idx: int) -> bool:
+        """Replace an existing frame with image content.
+        
+        Args:
+            file_path: Path to the image file.
+            animation: Animation name.
+            frame_idx: Frame index to replace.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        LOG.debug(f"FilmStripSprite: Replacing frame {animation}[{frame_idx}] with image")
+        
+        # Convert image to sprite frame
+        new_frame = self._convert_image_to_sprite_frame(file_path)
+        if not new_frame:
+            return False
+        
+        # Get the current frame and replace it
+        if not self.film_strip_widget.animated_sprite:
+            LOG.error("FilmStripSprite: No animated sprite available")
+            return False
+            
+        frames = self.film_strip_widget.animated_sprite._animations.get(animation, [])
+        if frame_idx >= len(frames):
+            LOG.error(f"FilmStripSprite: Frame index {frame_idx} out of range")
+            return False
+        
+        # Replace the frame
+        frames[frame_idx] = new_frame
+        
+        # Mark as dirty for redraw
+        self.film_strip_widget.mark_dirty()
+        
+        # Update canvas if this is the current frame
+        if (hasattr(self, "parent_scene") and self.parent_scene and 
+            hasattr(self.parent_scene, "selected_animation") and 
+            hasattr(self.parent_scene, "selected_frame") and
+            self.parent_scene.selected_animation == animation and 
+            self.parent_scene.selected_frame == frame_idx):
+            
+            if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
+                self.parent_scene.canvas.show_frame(animation, frame_idx)
+        
+        LOG.debug(f"FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]")
+        return True
+
+    def _insert_image_as_new_frame(self, file_path: str, film_x: int, film_y: int) -> bool:
+        """Insert image as a new frame in the film strip.
+        
+        Args:
+            file_path: Path to the image file.
+            film_x: X coordinate of drop position.
+            film_y: Y coordinate of drop position.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        LOG.debug(f"FilmStripSprite: Inserting new frame from image")
+        
+        # Convert image to sprite frame
+        new_frame = self._convert_image_to_sprite_frame(file_path)
+        if not new_frame:
+            return False
+        
+        # Determine which animation to add to
+        current_animation = self.film_strip_widget.current_animation
+        if not current_animation:
+            LOG.error("FilmStripSprite: No current animation selected")
+            return False
+        
+        # Determine insertion position based on drop location
+        # For now, insert at the end of the animation
+        # TODO: Could be enhanced to insert at specific position based on drop location
+        insert_index = len(self.film_strip_widget.animated_sprite._animations[current_animation])
+        
+        # Insert the frame
+        self.film_strip_widget.animated_sprite.add_frame(current_animation, new_frame, insert_index)
+        
+        # Mark as dirty for redraw
+        self.film_strip_widget.mark_dirty()
+        
+        # Notify the parent scene about the frame insertion
+        if hasattr(self, "parent_scene") and self.parent_scene:
+            if hasattr(self.parent_scene, "_on_frame_inserted"):
+                self.parent_scene._on_frame_inserted(current_animation, insert_index)
+        
+        # Select the newly created frame
+        self.film_strip_widget.set_current_frame(current_animation, insert_index)
+        
+        LOG.debug(f"FilmStripSprite: Successfully inserted new frame at {current_animation}[{insert_index}]")
+        return True
+
 
 class AnimatedCanvasSprite(BitmappySprite):
     """Animated Canvas Sprite for editing animated sprites."""
@@ -1142,6 +1427,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Initialize backward compatibility properties for tests
         self.film_strip = None
         self.film_strip_sprite = None
+        
+        # Initialize hover tracking for pixel hover effects
+        self.hovered_pixel = None
 
     def _initialize_dimensions(
         self, pixels_across: int, pixels_tall: int, pixel_width: int, pixel_height: int
@@ -2110,12 +2398,28 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Check if the coordinates are within valid range
             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
+                # Update hovered pixel for white border effect
+                self.hovered_pixel = (x, y)
+                self.dirty = 1  # Mark for redraw to show hover effect
+                
                 if hasattr(self, "mini_view") and self.mini_view is not None:
                     self.mini_view.update_canvas_cursor(x, y, self.active_color)
-            elif hasattr(self, "mini_view") and self.mini_view is not None:
+            else:
+                # Mouse is over canvas but outside pixel grid - clear hover
+                if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
+                    self.hovered_pixel = None
+                    self.dirty = 1  # Mark for redraw to remove hover effect
+                    
+                if hasattr(self, "mini_view") and self.mini_view is not None:
+                    self.mini_view.clear_cursor()
+        else:
+            # Mouse is outside canvas - clear hover
+            if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
+                self.hovered_pixel = None
+                self.dirty = 1  # Mark for redraw to remove hover effect
+                
+            if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.clear_cursor()
-        elif hasattr(self, "mini_view") and self.mini_view is not None:
-            self.mini_view.clear_cursor()
 
     def on_pixel_update_event(self, event, trigger):
         """Handle pixel update events."""
@@ -8147,22 +8451,42 @@ pixels = \"\"\"
             self.log.error("Could not get file size")
             return
 
-        # Check if it's a PNG file
-        if file_path.lower().endswith(".png"):
-            self.log.info("PNG file detected - converting to bitmappy format")
-            converted_toml_path = self._convert_png_to_bitmappy(file_path)
-            if converted_toml_path:
-                # Auto-load the converted TOML file
-                self._load_converted_sprite(converted_toml_path)
+        # First, check if any film strip sprites can handle the drop
+        if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+            for strip_name, film_strip_sprite in self.film_strip_sprites.items():
+                if hasattr(film_strip_sprite, "on_drop_file_event"):
+                    try:
+                        # Check if the film strip can handle this drop
+                        if film_strip_sprite.on_drop_file_event(event):
+                            self.log.info(f"Film strip '{strip_name}' handled the drop")
+                            return
+                    except Exception as e:
+                        self.log.error(f"Error in film strip drop handler: {e}")
+                        continue
+
+        # If no film strip handled it, check if drop is on the canvas
+        # Get current mouse position since drop events don't include position
+        mouse_pos = pygame.mouse.get_pos()
+        if hasattr(self, "canvas") and self.canvas and self.canvas.rect.collidepoint(mouse_pos):
+            self.log.info(f"Drop detected on canvas at {mouse_pos}")
+            # Check if it's a PNG file
+            if file_path.lower().endswith(".png"):
+                self.log.info("PNG file detected - converting to bitmappy format")
+                converted_toml_path = self._convert_png_to_bitmappy(file_path)
+                if converted_toml_path:
+                    # Auto-load the converted TOML file
+                    self._load_converted_sprite(converted_toml_path)
+                else:
+                    self.log.error("Failed to convert PNG to bitmappy format")
+            elif file_path.lower().endswith(".toml"):
+                self.log.info("TOML file detected - loading directly")
+                # Load the TOML file directly
+                self._load_converted_sprite(file_path)
             else:
-                self.log.error("Failed to convert PNG to bitmappy format")
-        elif file_path.lower().endswith(".toml"):
-            self.log.info("TOML file detected - loading directly")
-            # Load the TOML file directly
-            self._load_converted_sprite(file_path)
+                self.log.info(f"Unsupported file type dropped on canvas: {file_path}")
         else:
-            self.log.info(f"File type not supported: {file_path}")
-            self.log.info("Currently only PNG and TOML files are supported for drag and drop")
+            self.log.info(f"Drop not on canvas or film strip - ignoring drop at {mouse_pos}")
+            return
 
     def _convert_png_to_bitmappy(self, file_path: str) -> str | None:
         """Convert a PNG file to bitmappy TOML format.
