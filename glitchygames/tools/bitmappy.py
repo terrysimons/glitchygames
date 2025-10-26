@@ -6668,12 +6668,32 @@ class BitmapEditorScene(Scene):
         # Update alpha slider border
         if hasattr(self, 'alpha_slider_bbox'):
             if alpha_hover and not self.alpha_slider_bbox.visible:
-                # Show alpha border (magenta color based on slider value)
-                alpha_value = self.alpha_slider.value if hasattr(self, 'alpha_slider') else 0
-                alpha_color = (alpha_value, 0, alpha_value)  # Equal parts red and blue
+                # Show alpha border with fixed gradient from right (opaque) to left (transparent)
                 self.alpha_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
-                pygame.draw.rect(self.alpha_slider_bbox.image, alpha_color,
-                               (0, 0, self.alpha_slider_bbox.rect.width, self.alpha_slider_bbox.rect.height), 2)
+
+                # Draw individual pixels to create gradient effect
+                width = self.alpha_slider_bbox.rect.width
+                height = self.alpha_slider_bbox.rect.height
+
+                # Draw border pixels with fixed gradient from right (255) to left (0)
+                for x in range(width):
+                    # Calculate opacity based on position: right side = 255, left side = 0
+                    pixel_alpha = int((255 * x) / width) if width > 0 else 0
+                    pixel_color = (pixel_alpha, 0, pixel_alpha, pixel_alpha)  # RGBA
+
+                    # Draw top and bottom border lines
+                    if x < width - 1:  # Don't draw the last pixel to avoid overlap
+                        self.alpha_slider_bbox.image.set_at((x, 0), pixel_color)  # Top border
+                        self.alpha_slider_bbox.image.set_at((x, height - 1), pixel_color)  # Bottom border
+
+                # Draw left and right border lines
+                for y in range(height):
+                    # Left border (transparent)
+                    self.alpha_slider_bbox.image.set_at((0, y), (0, 0, 0, 0))  # Transparent
+                    # Right border (opaque magenta)
+                    right_color = (255, 0, 255, 255)
+                    self.alpha_slider_bbox.image.set_at((width - 1, y), right_color)
+
                 self.alpha_slider_bbox.visible = True
                 self.alpha_slider_bbox.dirty = 1
             elif not alpha_hover and self.alpha_slider_bbox.visible:
