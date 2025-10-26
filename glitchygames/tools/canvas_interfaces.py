@@ -578,6 +578,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             frame_surface.fill((0, 0, 0, 0))  # Transparent background
                             
                             # Draw each pixel with onion transparency (skip 255,0,255 pixels)
+                            # NOTE: Onion layers should NOT be panned - they stay in original position
                             for i, pixel in enumerate(frame_pixels):
                                 # Skip transparent pixels (magenta) - 100% transparent
                                 if pixel == (255, 0, 255):
@@ -585,6 +586,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                     
                                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                                
+                                # Do NOT apply panning offset to onion layers - they stay in original position
                                 
                                 # Draw pixel with onion transparency
                                 alpha = int(255 * onion_manager.onion_transparency)
@@ -610,15 +613,22 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 
                 # Always get frame data for controller indicators, even if frame is hidden
                 frame = frames[current_animation][current_frame]
-                if hasattr(frame, "get_pixel_data"):
-                    frame_pixels = frame.get_pixel_data()
+                
+                # Use panned pixel data if panning is active, otherwise use original frame data
+                if (hasattr(self.canvas_sprite, '_panning_active') and 
+                    self.canvas_sprite._panning_active and 
+                    hasattr(self.canvas_sprite, 'pixels')):
+                    frame_pixels = self.canvas_sprite.pixels
                 else:
-                    frame_pixels = getattr(
-                        frame,
-                        "pixels",
-                        [(255, 0, 255)]
-                        * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
-                    )
+                    if hasattr(frame, "get_pixel_data"):
+                        frame_pixels = frame.get_pixel_data()
+                    else:
+                        frame_pixels = getattr(
+                            frame,
+                            "pixels",
+                            [(255, 0, 255)]
+                            * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
+                        )
 
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
@@ -629,6 +639,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        
+                        # Do NOT apply panning offset to drawing coordinates - grid stays fixed
+                        # Panning is handled by extracting different pixel data, not moving the grid
                         
                         # Check if any controller is active on this pixel (even for transparent pixels)
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
@@ -674,6 +687,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
                         
+                        # Do NOT apply panning offset to drawing coordinates - grid stays fixed
+                        
                         # Check if any controller is active on this pixel
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
@@ -692,6 +707,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        
+                        # Do NOT apply panning offset to drawing coordinates - grid stays fixed
+                        
                         pygame.draw.rect(
                             self.canvas_sprite.image,
                             (64, 64, 64),
@@ -707,6 +725,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 for i, pixel in enumerate(self.canvas_sprite.pixels):
                     x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                     y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                    
+                    # Do NOT apply panning offset to drawing coordinates - grid stays fixed
                     
                     # Check if any controller is active on this pixel
                     controller_indicator_color = self._get_controller_indicator_for_pixel(i)
@@ -750,6 +770,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             for i, pixel in enumerate(self.canvas_sprite.pixels):
                 x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                 y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                
+                # Do NOT apply panning offset to drawing coordinates - grid stays fixed
                 
                 # Check if any controller is active on this pixel
                 controller_indicator_color = self._get_controller_indicator_for_pixel(i)
