@@ -3983,12 +3983,33 @@ class BitmapEditorScene(Scene):
                         if hasattr(self.canvas.animated_sprite, "_animations"):
                             LOG.debug(f"DEBUG: self.canvas.animated_sprite._animations: {self.canvas.animated_sprite._animations}")
 
-        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite or not self.canvas.animated_sprite._animations:
+        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
             LOG.debug(f"DEBUG: _create_film_strips returning early - conditions not met")
             return
 
         animated_sprite = self.canvas.animated_sprite
         LOG.debug(f"DEBUG: _create_film_strips proceeding with animated_sprite: {animated_sprite}")
+
+        # Ensure there's always at least one animation with one frame for film strip creation
+        if not hasattr(animated_sprite, "_animations") or not animated_sprite._animations:
+            LOG.debug(f"DEBUG: No animations found, creating default animation with one frame")
+            from glitchygames.sprites.animated import SpriteFrame
+            
+            # Create a single frame with the canvas dimensions
+            frame_width = self.canvas.pixels_across
+            frame_height = self.canvas.pixels_tall
+            frame_surface = pygame.Surface((frame_width, frame_height))
+            frame_surface.fill((255, 0, 255))  # Magenta background
+            
+            # Create the frame
+            default_frame = SpriteFrame(frame_surface)
+            default_frame.set_pixel_data([(255, 0, 255)] * (frame_width * frame_height))
+            
+            # Add the frame to the default animation
+            animated_sprite._animations = {"default": [default_frame]}
+            animated_sprite._animation_order = ["default"]
+            animated_sprite.frame_manager.current_animation = "default"
+            animated_sprite.frame_manager.current_frame = 0
 
         # Calculate film strip dimensions
         # Position film strip so its left x is 2 pixels to the right of color well's right edge
