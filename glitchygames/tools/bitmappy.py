@@ -4344,7 +4344,7 @@ class BitmapEditorScene(Scene):
             groups=self.all_sprites,
         )
 
-        # Create bounding boxes around the sliders for visual debugging
+        # Create bounding boxes around the sliders for hover effects (initially hidden)
         self.red_slider_bbox = BitmappySprite(
             x=slider_x - 2,
             y=self.screen_height - 70 - 2,
@@ -4353,11 +4353,9 @@ class BitmapEditorScene(Scene):
             name="Red Slider BBox",
             groups=self.all_sprites,
         )
-        # Create transparent surface
+        # Create transparent surface (no border initially)
         self.red_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
-        # Draw red border
-        pygame.draw.rect(self.red_slider_bbox.image, (255, 0, 0),
-                       (0, 0, slider_width + 4, slider_height + 4), 2)
+        self.red_slider_bbox.visible = False  # Start hidden
 
         self.green_slider_bbox = BitmappySprite(
             x=slider_x - 2,
@@ -4367,11 +4365,9 @@ class BitmapEditorScene(Scene):
             name="Green Slider BBox",
             groups=self.all_sprites,
         )
-        # Create transparent surface
+        # Create transparent surface (no border initially)
         self.green_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
-        # Draw green border
-        pygame.draw.rect(self.green_slider_bbox.image, (0, 255, 0),
-                       (0, 0, slider_width + 4, slider_height + 4), 2)
+        self.green_slider_bbox.visible = False  # Start hidden
 
         self.blue_slider_bbox = BitmappySprite(
             x=slider_x - 2,
@@ -4381,11 +4377,9 @@ class BitmapEditorScene(Scene):
             name="Blue Slider BBox",
             groups=self.all_sprites,
         )
-        # Create transparent surface
+        # Create transparent surface (no border initially)
         self.blue_slider_bbox.image = pygame.Surface((slider_width + 4, slider_height + 4), pygame.SRCALPHA)
-        # Draw blue border
-        pygame.draw.rect(self.blue_slider_bbox.image, (0, 0, 255),
-                       (0, 0, slider_width + 4, slider_height + 4), 2)
+        self.blue_slider_bbox.visible = False  # Start hidden
 
         # Create the color well positioned to the right of the text labels
         # Calculate x position to the right of the text labels
@@ -6184,9 +6178,71 @@ class BitmapEditorScene(Scene):
             event (pygame.event.Event): The event to handle
 
         """
+        # Handle slider hover effects
+        self._update_slider_hover_effects(event.pos)
+        
         for sprite in self.all_sprites:
             if hasattr(sprite, "on_mouse_motion_event"):
                 sprite.on_mouse_motion_event(event)
+
+    def _update_slider_hover_effects(self, mouse_pos: tuple[int, int]) -> None:
+        """Update slider hover effects based on mouse position.
+        
+        Args:
+            mouse_pos: The current mouse position (x, y)
+        """
+        # Check if mouse is hovering over any slider
+        red_hover = (hasattr(self, 'red_slider') and 
+                    self.red_slider.rect.collidepoint(mouse_pos))
+        green_hover = (hasattr(self, 'green_slider') and 
+                      self.green_slider.rect.collidepoint(mouse_pos))
+        blue_hover = (hasattr(self, 'blue_slider') and 
+                     self.blue_slider.rect.collidepoint(mouse_pos))
+        
+        # Update red slider border
+        if hasattr(self, 'red_slider_bbox'):
+            if red_hover and not self.red_slider_bbox.visible:
+                # Show red border
+                self.red_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                pygame.draw.rect(self.red_slider_bbox.image, (255, 0, 0),
+                               (0, 0, self.red_slider_bbox.rect.width, self.red_slider_bbox.rect.height), 2)
+                self.red_slider_bbox.visible = True
+                self.red_slider_bbox.dirty = 1
+            elif not red_hover and self.red_slider_bbox.visible:
+                # Hide red border
+                self.red_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                self.red_slider_bbox.visible = False
+                self.red_slider_bbox.dirty = 1
+        
+        # Update green slider border
+        if hasattr(self, 'green_slider_bbox'):
+            if green_hover and not self.green_slider_bbox.visible:
+                # Show green border
+                self.green_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                pygame.draw.rect(self.green_slider_bbox.image, (0, 255, 0),
+                               (0, 0, self.green_slider_bbox.rect.width, self.green_slider_bbox.rect.height), 2)
+                self.green_slider_bbox.visible = True
+                self.green_slider_bbox.dirty = 1
+            elif not green_hover and self.green_slider_bbox.visible:
+                # Hide green border
+                self.green_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                self.green_slider_bbox.visible = False
+                self.green_slider_bbox.dirty = 1
+        
+        # Update blue slider border
+        if hasattr(self, 'blue_slider_bbox'):
+            if blue_hover and not self.blue_slider_bbox.visible:
+                # Show blue border
+                self.blue_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                pygame.draw.rect(self.blue_slider_bbox.image, (0, 0, 255),
+                               (0, 0, self.blue_slider_bbox.rect.width, self.blue_slider_bbox.rect.height), 2)
+                self.blue_slider_bbox.visible = True
+                self.blue_slider_bbox.dirty = 1
+            elif not blue_hover and self.blue_slider_bbox.visible:
+                # Hide blue border
+                self.blue_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
+                self.blue_slider_bbox.visible = False
+                self.blue_slider_bbox.dirty = 1
 
     def _update_sprite_description(self, description: str) -> None:
         """Update the sprite description when the AI text box content changes.
