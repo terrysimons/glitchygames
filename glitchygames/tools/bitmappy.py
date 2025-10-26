@@ -1220,7 +1220,6 @@ class FilmStripSprite(BitmappySprite):
 
     def _clear_hover_effects(self):
         """Clear all hover effects."""
-        LOG.debug("FilmStripSprite: Clearing hover effects")
 
         # Clear hover state in the film strip widget
         self.film_strip_widget.hovered_frame = None
@@ -2406,6 +2405,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             if not self.is_hovered:
                 self.is_hovered = True
                 self.dirty = 1  # Mark for redraw to show canvas border
+                # Hide mouse cursor when entering canvas
+                pygame.mouse.set_visible(False)
 
             # Convert mouse position to pixel coordinates
             x = (event.pos[0] - self.rect.x) // self.pixel_width
@@ -2432,6 +2433,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             if self.is_hovered:
                 self.is_hovered = False
                 self.dirty = 1  # Mark for redraw to remove canvas border
+                # Show mouse cursor when leaving canvas
+                pygame.mouse.set_visible(True)
 
             if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                 self.hovered_pixel = None
@@ -6338,8 +6341,6 @@ class BitmapEditorScene(Scene):
         Args:
             mouse_pos: The current mouse position (x, y)
         """
-        # Debug: Log that the method is being called
-        self.log.debug(f"_update_slider_hover_effects called with mouse_pos: {mouse_pos}")
         # Check if mouse is hovering over any slider
         red_hover = (hasattr(self, 'red_slider') and
                     self.red_slider.rect.collidepoint(mouse_pos))
@@ -6357,29 +6358,7 @@ class BitmapEditorScene(Scene):
         blue_text_hover = (hasattr(self, 'blue_slider') and hasattr(self.blue_slider, 'text_sprite') and
                           self.blue_slider.text_sprite.rect.collidepoint(mouse_pos))
 
-        # Debug logging - check if text sprites exist
-        if hasattr(self, 'red_slider'):
-            self.log.debug(f"Red slider exists: {hasattr(self.red_slider, 'text_sprite')}")
-            if hasattr(self.red_slider, 'text_sprite'):
-                self.log.debug(f"Red text sprite rect: {self.red_slider.text_sprite.rect}")
-        if hasattr(self, 'green_slider'):
-            self.log.debug(f"Green slider exists: {hasattr(self.green_slider, 'text_sprite')}")
-            if hasattr(self.green_slider, 'text_sprite'):
-                self.log.debug(f"Green text sprite rect: {self.green_slider.text_sprite.rect}")
-        if hasattr(self, 'blue_slider'):
-            self.log.debug(f"Blue slider exists: {hasattr(self.blue_slider, 'text_sprite')}")
-            if hasattr(self.blue_slider, 'text_sprite'):
-                self.log.debug(f"Blue text sprite rect: {self.blue_slider.text_sprite.rect}")
 
-        # Debug logging
-        if red_text_hover or green_text_hover or blue_text_hover:
-            self.log.debug(f"Text hover detected - Red: {red_text_hover}, Green: {green_text_hover}, Blue: {blue_text_hover}")
-            if red_text_hover:
-                self.log.debug(f"Red text sprite rect: {self.red_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
-            if green_text_hover:
-                self.log.debug(f"Green text sprite rect: {self.green_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
-            if blue_text_hover:
-                self.log.debug(f"Blue text sprite rect: {self.blue_slider.text_sprite.rect}, mouse_pos: {mouse_pos}")
 
         # Update red slider border
         if hasattr(self, 'red_slider_bbox'):
@@ -11177,25 +11156,6 @@ pixels = \"\"\"
         # Call the parent render method first
         super().render(screen)
 
-        # Draw 320x320 guide lines
-        pygame.draw.line(screen, (255, 0, 0), (320, 0), (320, screen.get_height()), 2)  # Vertical line at x=320
-        pygame.draw.line(screen, (255, 0, 0), (0, 320), (screen.get_width(), 320), 2)  # Horizontal line at y=320
-
-        # Draw 400x400 guide lines
-        pygame.draw.line(screen, (0, 0, 255), (400, 0), (400, screen.get_height()), 2)  # Vertical line at x=400
-        pygame.draw.line(screen, (0, 0, 255), (0, 400), (screen.get_width(), 400), 2)  # Horizontal line at y=400
-
-        # Draw 360x360 guide lines
-        pygame.draw.line(screen, (255, 255, 0), (360, 0), (360, screen.get_height()), 2)  # Vertical line at x=360
-        pygame.draw.line(screen, (255, 255, 0), (0, 360), (screen.get_width(), 360), 2)  # Horizontal line at y=360
-
-        # Draw 340x340 guide lines
-        pygame.draw.line(screen, (0, 255, 0), (340, 0), (340, screen.get_height()), 2)  # Vertical line at x=340
-        pygame.draw.line(screen, (0, 255, 0), (0, 340), (screen.get_width(), 340), 2)  # Horizontal line at y=340
-
-        # Draw 350x350 guide lines
-        pygame.draw.line(screen, (255, 165, 0), (350, 0), (350, screen.get_height()), 2)  # Vertical line at x=350
-        pygame.draw.line(screen, (255, 165, 0), (0, 350), (screen.get_width(), 350), 2)  # Horizontal line at y=350
 
         # Then render visual indicators on top
         self._render_visual_indicators()

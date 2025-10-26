@@ -837,9 +837,8 @@ class FilmStripWidget:
 
                 # Add removal button rectangle to the left of each frame (only if not single-frame)
                 # Don't create removal buttons for single-frame animations
-                # Don't create removal buttons for the first strip (strip_index = 0)
-                # Frame 0 can have a removal button if there are multiple frames and it's not the first strip
-                if len(frames) > 1 and getattr(self, 'strip_index', 0) > 0:
+                # Allow removal buttons for all strips if there are multiple frames
+                if len(frames) > 1:
                     # Make removal buttons narrower than insertion tabs
                     removal_button_width = 11  # Narrower than insertion tabs, reduced by 4
                     removal_button_height = 30  # Same as tab_height
@@ -2062,7 +2061,8 @@ class FilmStripWidget:
                 continue
 
         # Add a horizontal top tab (delete) at the center of the film strip
-        if frames:  # Only add top tab if there are frames
+        # Don't create delete button for the first strip (strip_index = 0)
+        if frames and getattr(self, 'strip_index', 0) > 0:  # Only add top tab if there are frames and not the first strip
             # Calculate center x position of the film strip
             center_x = self.rect.width // 2
             top_tab = FilmStripDeleteTab(
