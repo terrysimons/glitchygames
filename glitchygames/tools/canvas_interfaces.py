@@ -799,6 +799,32 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         border_thickness,
                     )
 
+        # Draw hover effect for the hovered pixel (white border to match keyboard selector)
+        if (hasattr(self.canvas_sprite, 'hovered_pixel') and 
+            self.canvas_sprite.hovered_pixel is not None):
+            hover_x, hover_y = self.canvas_sprite.hovered_pixel
+            pixel_x = hover_x * self.canvas_sprite.pixel_width
+            pixel_y = hover_y * self.canvas_sprite.pixel_height
+            
+            # Draw white border around the hovered pixel (2px thick to match keyboard selector style)
+            pygame.draw.rect(
+                self.canvas_sprite.image,
+                (255, 255, 255),  # White color
+                (pixel_x, pixel_y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                2  # 2px border thickness
+            )
+
+        # Draw canvas hover border (1px white border around entire canvas perimeter)
+        if (hasattr(self.canvas_sprite, 'is_hovered') and 
+            self.canvas_sprite.is_hovered):
+            # Draw white border around the entire canvas perimeter
+            pygame.draw.rect(
+                self.canvas_sprite.image,
+                (255, 255, 255),  # White color
+                (0, 0, self.canvas_sprite.image.get_width(), self.canvas_sprite.image.get_height()),
+                1  # 1px border thickness
+            )
+
         return self.canvas_sprite.image
 
     def get_pixel_size(self) -> tuple[int, int]:
