@@ -5116,12 +5116,18 @@ class BitmapEditorScene(Scene):
         # Set up controller position callbacks for undo/redo
         self.undo_redo_manager.set_controller_position_callback(self._apply_controller_position_for_undo_redo)
         self.undo_redo_manager.set_controller_mode_callback(self._apply_controller_mode_for_undo_redo)
+        
+        # Set up frame paste callback for undo/redo
+        self.undo_redo_manager.set_frame_paste_callback(self._apply_frame_paste_for_undo_redo)
 
         # Initialize pixel change tracking
         self._current_pixel_changes = []
         self._is_drag_operation = False
         self._pixel_change_timer = None
         self._applying_undo_redo = False
+
+        # Initialize frame clipboard for copy/paste operations
+        self._frame_clipboard = None
 
         self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
@@ -7145,6 +7151,16 @@ pixels = \"\"\"
             self._handle_redo()
             return
 
+        # Handle copy/paste keyboard shortcuts
+        if event.key == pygame.K_c and (mod & pygame.KMOD_CTRL):
+            self.log.debug("Ctrl+C pressed - copying frame")
+            self._handle_copy_frame()
+            return
+        elif event.key == pygame.K_v and (mod & pygame.KMOD_CTRL):
+            self.log.debug("Ctrl+V pressed - pasting frame")
+            self._handle_paste_frame()
+            return
+
         # Handle panning with Ctrl+Shift+Arrow keys
         if (mod & pygame.KMOD_CTRL) and (mod & pygame.KMOD_SHIFT) and hasattr(self, "canvas") and self.canvas:
             if event.key == pygame.K_LEFT:
@@ -7377,6 +7393,190 @@ pixels = \"\"\"
             self.canvas.pan_canvas(delta_x, delta_y)
         else:
             self.log.warning("Canvas does not support panning")
+
+    def _handle_copy_frame(self) -> None:
+        """Handle copying the current frame to clipboard."""
+        if not hasattr(self, "canvas") or not self.canvas:
+            self.log.warning("No canvas available for frame copying")
+            return
+        
+        if not hasattr(self, "selected_animation") or not hasattr(self, "selected_frame"):
+            self.log.warning("No frame selected for copying")
+            return
+        
+        animation = self.selected_animation
+        frame = self.selected_frame
+        
+        if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
+            self.log.warning("No animated sprite available for frame copying")
+            return
+        
+        # Get the frame data
+        if animation not in self.canvas.animated_sprite._animations:
+            self.log.warning(f"Animation '{animation}' not found for copying")
+            return
+        
+        frames = self.canvas.animated_sprite._animations[animation]
+        if frame >= len(frames):
+            self.log.warning(f"Frame {frame} not found in animation '{animation}'")
+            return
+        
+        frame_obj = frames[frame]
+        
+        # Create a deep copy of the frame data for the clipboard
+        from copy import deepcopy
+        import pygame
+        
+        # Get pixel data
+        pixels = frame_obj.get_pixel_data()
+        
+        # Get frame dimensions
+        width, height = frame_obj.get_size()
+        
+        # Get frame duration
+        duration = frame_obj.duration
+        
+        # Store frame data in clipboard
+        self._frame_clipboard = {
+            "pixels": pixels.copy(),
+            "width": width,
+            "height": height,
+            "duration": duration,
+            "animation": animation,
+            "frame": frame
+        }
+        
+        self.log.debug(f"Copied frame {frame} from animation '{animation}' to clipboard")
+
+    def _handle_paste_frame(self) -> None:
+        """Handle pasting a frame from clipboard to the current frame."""
+        if not hasattr(self, "canvas") or not self.canvas:
+            self.log.warning("No canvas available for frame pasting")
+            return
+        
+        if not hasattr(self, "selected_animation") or not hasattr(self, "selected_frame"):
+            self.log.warning("No frame selected for pasting")
+            return
+        
+        if not self._frame_clipboard:
+            self.log.warning("No frame data in clipboard to paste")
+            return
+        
+        animation = self.selected_animation
+        frame = self.selected_frame
+        
+        if not hasattr(self.canvas, "animated_sprite") or not self.canvas.animated_sprite:
+            self.log.warning("No animated sprite available for frame pasting")
+            return
+        
+        # Get the target frame
+        if animation not in self.canvas.animated_sprite._animations:
+            self.log.warning(f"Animation '{animation}' not found for pasting")
+            return
+        
+        frames = self.canvas.animated_sprite._animations[animation]
+        if frame >= len(frames):
+            self.log.warning(f"Frame {frame} not found in animation '{animation}'")
+            return
+        
+        target_frame = frames[frame]
+        
+        # Check if dimensions match
+        clipboard_width = self._frame_clipboard["width"]
+        clipboard_height = self._frame_clipboard["height"]
+        target_width, target_height = target_frame.get_size()
+        
+        if clipboard_width != target_width or clipboard_height != target_height:
+            self.log.warning(f"Cannot paste frame: dimension mismatch (clipboard: {clipboard_width}x{clipboard_height}, target: {target_width}x{target_height})")
+            return
+        
+        # Create undo/redo operation for the paste
+        from glitchygames.tools.undo_redo_manager import OperationType
+        
+        # Store original frame data for undo
+        original_pixels = target_frame.get_pixel_data()
+        original_duration = target_frame.duration
+        
+        # Apply the paste operation
+        self._apply_frame_paste_for_undo_redo(
+            animation, frame, 
+            self._frame_clipboard["pixels"], 
+            self._frame_clipboard["duration"]
+        )
+        
+        # Add to undo stack
+        self.undo_redo_manager.add_operation(
+            operation_type=OperationType.FRAME_PASTE,
+            description=f"Paste frame from {self._frame_clipboard['animation']}[{self._frame_clipboard['frame']}] to {animation}[{frame}]",
+            undo_data={
+                "animation": animation,
+                "frame": frame,
+                "pixels": original_pixels,
+                "duration": original_duration
+            },
+            redo_data={
+                "animation": animation,
+                "frame": frame,
+                "pixels": self._frame_clipboard["pixels"],
+                "duration": self._frame_clipboard["duration"]
+            }
+        )
+        
+        # Update canvas display
+        if hasattr(self.canvas, "force_redraw"):
+            self.canvas.force_redraw()
+        
+        self.log.debug(f"Pasted frame from clipboard to {animation}[{frame}]")
+
+    def _apply_frame_paste_for_undo_redo(self, animation: str, frame: int, pixels: list, duration: float) -> bool:
+        """Apply frame paste for undo/redo operations.
+        
+        Args:
+            animation: Name of the animation
+            frame: Frame index
+            pixels: Pixel data to apply
+            duration: Frame duration
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+                self.log.warning("Canvas or animated sprite not available for frame paste")
+                return False
+            
+            # Get the target frame
+            if animation not in self.canvas.animated_sprite._animations:
+                self.log.warning(f"Animation '{animation}' not found for frame paste")
+                return False
+            
+            frames = self.canvas.animated_sprite._animations[animation]
+            if frame >= len(frames):
+                self.log.warning(f"Frame {frame} not found in animation '{animation}'")
+                return False
+            
+            target_frame = frames[frame]
+            
+            # Apply the pixel data and duration
+            target_frame.set_pixel_data(pixels)
+            target_frame.duration = duration
+            
+            # Update the canvas pixels if this is the currently displayed frame
+            if (hasattr(self, "selected_animation") and hasattr(self, "selected_frame") and
+                self.selected_animation == animation and self.selected_frame == frame):
+                if hasattr(self.canvas, "pixels"):
+                    self.canvas.pixels = pixels.copy()
+                    if hasattr(self.canvas, "dirty_pixels"):
+                        self.canvas.dirty_pixels = [True] * len(pixels)
+                    if hasattr(self.canvas, "dirty"):
+                        self.canvas.dirty = 1
+            
+            self.log.debug(f"Applied frame paste to {animation}[{frame}]")
+            return True
+            
+        except Exception as e:
+            self.log.error(f"Error applying frame paste: {e}")
+            return False
 
     def _apply_pixel_change_for_undo_redo(self, x: int, y: int, color: tuple[int, int, int]) -> None:
         """Apply a pixel change for undo/redo operations.

@@ -93,6 +93,9 @@ class UndoRedoManager:
         self.reorder_frame_callback: Optional[callable] = None
         self.add_animation_callback: Optional[callable] = None
         self.delete_animation_callback: Optional[callable] = None
+        
+        # Cross-area operation callbacks
+        self.frame_paste_callback: Optional[callable] = None
         self.at_head_of_history = True  # Track if we're at the head of undo history
         
         # Frame-specific undo/redo stacks for canvas operations
@@ -181,6 +184,15 @@ class UndoRedoManager:
         """
         self.controller_mode_callback = callback
         LOG.debug("Controller mode callback set")
+    
+    def set_frame_paste_callback(self, callback: callable) -> None:
+        """Set the frame paste callback.
+        
+        Args:
+            callback: Function to call for frame paste operations
+        """
+        self.frame_paste_callback = callback
+        LOG.debug("Frame paste callback set")
     
     def can_undo_frame(self, animation: str, frame: int) -> bool:
         """Check if undo is available for a specific frame.
@@ -721,9 +733,25 @@ class UndoRedoManager:
         Returns:
             True if undo was successful, False otherwise
         """
-        # This will be implemented when we integrate with both systems
-        LOG.debug(f"Undoing cross-area operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.FRAME_PASTE:
+                # For frame paste, undo means restoring the original frame data
+                if self.frame_paste_callback:
+                    return self.frame_paste_callback(
+                        operation.undo_data["animation"],
+                        operation.undo_data["frame"],
+                        operation.undo_data["pixels"],
+                        operation.undo_data["duration"]
+                    )
+                else:
+                    LOG.warning("No frame paste callback available for undo")
+                    return False
+            else:
+                LOG.warning(f"Unknown cross-area operation type: {operation.operation_type}")
+                return False
+        except Exception as e:
+            LOG.error(f"Error undoing cross-area operation: {e}")
+            return False
     
     def _redo_canvas_operation(self, operation: Operation) -> bool:
         """Redo a canvas operation.
@@ -828,9 +856,25 @@ class UndoRedoManager:
         Returns:
             True if redo was successful, False otherwise
         """
-        # This will be implemented when we integrate with both systems
-        LOG.debug(f"Redoing cross-area operation: {operation.description}")
-        return True
+        try:
+            if operation.operation_type == OperationType.FRAME_PASTE:
+                # For frame paste, redo means applying the pasted frame data again
+                if self.frame_paste_callback:
+                    return self.frame_paste_callback(
+                        operation.redo_data["animation"],
+                        operation.redo_data["frame"],
+                        operation.redo_data["pixels"],
+                        operation.redo_data["duration"]
+                    )
+                else:
+                    LOG.warning("No frame paste callback available for redo")
+                    return False
+            else:
+                LOG.warning(f"Unknown cross-area operation type: {operation.operation_type}")
+                return False
+        except Exception as e:
+            LOG.error(f"Error redoing cross-area operation: {e}")
+            return False
     
     def _undo_frame_selection_operation(self, operation: Operation) -> bool:
         """Undo a frame selection operation.

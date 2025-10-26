@@ -295,3 +295,179 @@ class TestEngineLifecycle:
 
                 # Verify game was initialized
                 mock_game_class.assert_called_once()
+
+    def test_start_method_error_message_with_previous_scene(self, mock_pygame_patches, mock_game_args):
+        """Test GameEngine.start method error message shows previous scene when current is None."""
+        # Create a mock game class
+        class MockGame:
+            NAME = "MockGame"
+            VERSION = "1.0"
+
+            @classmethod
+            def args(cls, parser):
+                return parser
+
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
+            mock_parse_args.return_value = mock_game_args
+
+            # Create engine with mock game
+            engine = GameEngine(game=MockGame)
+
+            # Use centralized mock factory for joystick manager
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
+
+            # Mock all the manager classes
+            with patch.multiple(
+                "glitchygames.engine",
+                AudioManager=Mock,
+                DropManager=Mock,
+                ControllerManager=Mock,
+                TouchManager=Mock,
+                FontManager=Mock,
+                GameManager=Mock,
+                JoystickManager=mock_joystick_manager_class,
+                KeyboardManager=Mock,
+                MidiManager=Mock,
+                MouseManager=Mock,
+                WindowManager=Mock
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
+
+                # Mock scene manager with current_scene=None and previous_scene set
+                engine.scene_manager = Mock()
+                engine.scene_manager.current_scene = None
+                engine.scene_manager.previous_scene = Mock()
+                engine.scene_manager.previous_scene.NAME = "PreviousScene"
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock(side_effect=RuntimeError("Test exception"))
+
+                # Set up joysticks list properly
+                engine.joysticks = []
+                engine.joystick_count = 0
+
+                # Test start method with exception handling
+                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                    engine.start()
+                    # Verify the exception was logged with previous scene info
+                    mock_log.assert_called_once()
+                    call_args = mock_log.call_args[0][0]
+                    assert "PreviousScene (previous)" in call_args
+
+    def test_start_method_error_message_with_current_scene(self, mock_pygame_patches, mock_game_args):
+        """Test GameEngine.start method error message shows current scene when available."""
+        # Create a mock game class
+        class MockGame:
+            NAME = "MockGame"
+            VERSION = "1.0"
+
+            @classmethod
+            def args(cls, parser):
+                return parser
+
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
+            mock_parse_args.return_value = mock_game_args
+
+            # Create engine with mock game
+            engine = GameEngine(game=MockGame)
+
+            # Use centralized mock factory for joystick manager
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
+
+            # Mock all the manager classes
+            with patch.multiple(
+                "glitchygames.engine",
+                AudioManager=Mock,
+                DropManager=Mock,
+                ControllerManager=Mock,
+                TouchManager=Mock,
+                FontManager=Mock,
+                GameManager=Mock,
+                JoystickManager=mock_joystick_manager_class,
+                KeyboardManager=Mock,
+                MidiManager=Mock,
+                MouseManager=Mock,
+                WindowManager=Mock
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
+
+                # Mock scene manager with current_scene set
+                engine.scene_manager = Mock()
+                engine.scene_manager.current_scene = Mock()
+                engine.scene_manager.current_scene.NAME = "CurrentScene"
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock(side_effect=RuntimeError("Test exception"))
+
+                # Set up joysticks list properly
+                engine.joysticks = []
+                engine.joystick_count = 0
+
+                # Test start method with exception handling
+                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                    engine.start()
+                    # Verify the exception was logged with current scene info
+                    mock_log.assert_called_once()
+                    call_args = mock_log.call_args[0][0]
+                    assert "CurrentScene" in call_args
+                    assert "(previous)" not in call_args
+
+    def test_start_method_error_message_with_no_scenes(self, mock_pygame_patches, mock_game_args):
+        """Test GameEngine.start method error message shows None when both scenes are None."""
+        # Create a mock game class
+        class MockGame:
+            NAME = "MockGame"
+            VERSION = "1.0"
+
+            @classmethod
+            def args(cls, parser):
+                return parser
+
+        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
+            mock_parse_args.return_value = mock_game_args
+
+            # Create engine with mock game
+            engine = GameEngine(game=MockGame)
+
+            # Use centralized mock factory for joystick manager
+            mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
+            mock_joystick_manager_class = Mock(return_value=mock_joystick_manager_instance)
+
+            # Mock all the manager classes
+            with patch.multiple(
+                "glitchygames.engine",
+                AudioManager=Mock,
+                DropManager=Mock,
+                ControllerManager=Mock,
+                TouchManager=Mock,
+                FontManager=Mock,
+                GameManager=Mock,
+                JoystickManager=mock_joystick_manager_class,
+                KeyboardManager=Mock,
+                MidiManager=Mock,
+                MouseManager=Mock,
+                WindowManager=Mock
+            ), patch.object(engine, "game") as mock_game_class:
+                mock_game_instance = Mock()
+                mock_game_class.return_value = mock_game_instance
+
+                # Mock scene manager with both scenes None
+                engine.scene_manager = Mock()
+                engine.scene_manager.current_scene = None
+                engine.scene_manager.previous_scene = None
+                engine.scene_manager.switch_to_scene = Mock()
+                engine.scene_manager.start = Mock(side_effect=RuntimeError("Test exception"))
+
+                # Set up joysticks list properly
+                engine.joysticks = []
+                engine.joystick_count = 0
+
+                # Test start method with exception handling
+                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                    engine.start()
+                    # Verify the exception was logged with None
+                    mock_log.assert_called_once()
+                    call_args = mock_log.call_args[0][0]
+                    assert "scene 'None'" in call_args

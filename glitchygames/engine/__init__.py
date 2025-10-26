@@ -755,7 +755,15 @@ class GameEngine(events.EventManager):
             self.scene_manager.start()
         except Exception:
             current_scene = getattr(self.scene_manager, 'current_scene', None)
-            scene_name = getattr(current_scene, 'NAME', 'Unknown') if current_scene else 'None'
+            if current_scene:
+                scene_name = getattr(current_scene, 'NAME', 'Unknown')
+            else:
+                # If current scene is None, try to get the previous scene
+                previous_scene = getattr(self.scene_manager, 'previous_scene', None)
+                if previous_scene:
+                    scene_name = f"{getattr(previous_scene, 'NAME', 'Unknown')} (previous)"
+                else:
+                    scene_name = 'None'
             self.log.exception(f"Runtime error during game execution @ scene '{scene_name}'")
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed
