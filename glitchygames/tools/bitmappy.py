@@ -3235,7 +3235,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                         pixel_num = y * self.pixels_across + x
                         if pixel_num < len(self.pixels):
                             color = self.pixels[pixel_num]
-                            surface.set_at((x, y), color)
+                            # Handle transparency key specially - keep it opaque
+                            if color == (255, 0, 255) or color == (255, 0, 255, 255):
+                                surface.set_at((x, y), (255, 0, 255, 255))  # Opaque magenta
+                            else:
+                                surface.set_at((x, y), color)
 
                 # Update the frame's image
                 frame.image = surface
@@ -3253,7 +3257,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                 pixel_num = y * self.pixels_across + x
                 if pixel_num < len(self.pixels):
                     color = self.pixels[pixel_num]
-                    surface.set_at((x, y), color)
+                    # Handle transparency key specially - make it transparent for film strip
+                    if color == (255, 0, 255) or color == (255, 0, 255, 255):
+                        surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
+                    else:
+                        surface.set_at((x, y), color)
         return surface
 
     def _flood_fill(self, start_x: int, start_y: int, fill_color: tuple[int, int, int]) -> None:
@@ -9565,9 +9573,14 @@ pixels = \"\"\"
                                     for y in range(frame_height):
                                         for x in range(frame_width):
                                             color = frame_surface.get_at((x, y))
-                                            # Preserve alpha information for proper rendering
+                                            # Handle transparency key specially - keep it opaque for canvas
                                             if len(color) == 4:
-                                                pixel_data.append((color.r, color.g, color.b, color.a))
+                                                r, g, b, a = color
+                                                if (r, g, b) == (255, 0, 255) and a == 0:
+                                                    # Transparent magenta should be opaque magenta for canvas
+                                                    pixel_data.append((255, 0, 255, 255))
+                                                else:
+                                                    pixel_data.append((r, g, b, a))
                                             else:
                                                 pixel_data.append((color.r, color.g, color.b, 255))
 

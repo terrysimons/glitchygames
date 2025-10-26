@@ -83,7 +83,7 @@ class TestAlphaDetectionHelpers:
         """Test converting RGB pixels to RGBA."""
         pixels = [(255, 0, 0), (255, 0, 255), (0, 0, 255)]
         result = _convert_pixels_to_rgba_if_needed(pixels)
-        expected = [(255, 0, 0, 255), (255, 0, 255, 0), (0, 0, 255, 255)]
+        expected = [(255, 0, 0, 255), (255, 0, 255, 255), (0, 0, 255, 255)]
         assert result == expected
 
     def test_convert_pixels_to_rgba_if_needed_rgba_input(self):

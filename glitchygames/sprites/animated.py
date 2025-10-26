@@ -121,8 +121,8 @@ def _convert_pixels_to_rgba_if_needed(pixels: list[tuple[int, int, int] | tuple[
         if len(pixel) == 3:
             r, g, b = pixel
             if pixel == (255, 0, 255):
-                # Transparent color - set alpha to 0
-                rgba_pixels.append((r, g, b, 0))
+                # Transparency key - keep it opaque for proper handling
+                rgba_pixels.append((r, g, b, 255))
             else:
                 # Opaque color - set alpha to 255
                 rgba_pixels.append((r, g, b, 255))
@@ -1108,7 +1108,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                         if len(color) == 3:
                             color = (color[0], color[1], color[2], 255)  # Add full alpha
                         elif len(color) == 4 and color == (255, 0, 255, 255):
-                            color = (255, 0, 255, 0)  # Make magenta transparent
+                            color = (255, 0, 255, 255)  # Keep magenta opaque for transparency key
                         surface.set_at((x, y), color)
         else:
             # Use RGB indexed transparency (more efficient)
