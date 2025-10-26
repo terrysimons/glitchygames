@@ -2804,11 +2804,69 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.pan_offset_x = new_pan_x
             self.pan_offset_y = new_pan_y
             self._panning_active = True
-            # Update the frame data directly with panned pixels
-            self._pan_frame_data()
+            
+            # Store original frame data if this is the first pan
+            if not hasattr(self, '_original_frame_pixels'):
+                self._store_original_frame_data()
+            
+            # Apply panning transformation to show panned view
+            self._apply_panning_view()
             self.dirty = 1
         else:
             self.log.debug(f"Cannot pan to ({new_pan_x}, {new_pan_y}) - out of bounds.")
+    
+    def _store_original_frame_data(self) -> None:
+        """Store the original frame data before any panning."""
+        if hasattr(self, 'pixels') and self.pixels:
+            self._original_frame_pixels = list(self.pixels)
+            self.log.debug("Stored original frame data for panning")
+    
+    def _apply_panning_view(self) -> None:
+        """Apply panning transformation to show the panned view."""
+        if not hasattr(self, '_original_frame_pixels'):
+            return
+            
+        # Create panned view by shifting pixels
+        panned_pixels = []
+        
+        for y in range(self.pixels_tall):
+            for x in range(self.pixels_across):
+                # Calculate source coordinates (where to read from in original)
+                source_x = x - self.pan_offset_x
+                source_y = y - self.pan_offset_y
+                
+                # Check if source is within bounds
+                if (0 <= source_x < self.pixels_across and 
+                    0 <= source_y < self.pixels_tall):
+                    source_index = source_y * self.pixels_across + source_x
+                    if source_index < len(self._original_frame_pixels):
+                        panned_pixels.append(self._original_frame_pixels[source_index])
+                    else:
+                        panned_pixels.append((255, 0, 255))  # Transparent
+                else:
+                    panned_pixels.append((255, 0, 255))  # Transparent
+        
+        # Update canvas pixels with panned view
+        self.pixels = panned_pixels
+        self.dirty_pixels = [True] * len(self.pixels)
+        
+        self.log.debug(f"Applied panning view: offset=({self.pan_offset_x}, {self.pan_offset_y})")
+    
+    def reset_panning(self) -> None:
+        """Reset panning to center position."""
+        self.pan_offset_x = 0
+        self.pan_offset_y = 0
+        self._panning_active = False
+        
+        # Restore original frame data if it exists
+        if hasattr(self, '_original_frame_pixels'):
+            self.pixels = list(self._original_frame_pixels)
+            self.dirty_pixels = [True] * len(self.pixels)
+            delattr(self, '_original_frame_pixels')
+            self.log.debug("Restored original frame data")
+        
+        self.dirty = 1
+        self.log.debug("Panning reset to center")
 
     def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
         """Check if the new pan offset is within the allowed bounds."""
@@ -6857,6 +6915,70 @@ pixels = \"\"\"
 
         super().cleanup()
 
+    def on_key_up_event(self, event: pygame.event.Event) -> None:
+        """Handle key release events."""
+        # Get modifier keys
+        mod = event.mod if hasattr(event, 'mod') else 0
+        
+        # Check if this is a Ctrl+Shift+Arrow key release
+        if (mod & pygame.KMOD_CTRL) and (mod & pygame.KMOD_SHIFT) and hasattr(self, "canvas") and self.canvas:
+            if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
+                self.log.debug(f"Ctrl+Shift+Arrow key released - committing panned buffer")
+                self._commit_panned_buffer()
+                return
+        
+        # Call parent class handler
+        super().on_key_up_event(event)
+    
+    def _commit_panned_buffer(self) -> None:
+        """Commit the panned buffer back to the real frame data."""
+        if not hasattr(self, "canvas") or not self.canvas:
+            return
+            
+        if not self.canvas._panning_active:
+            self.log.debug("No active panning to commit")
+            return
+            
+        # Commit the current panned pixels back to the frame
+        if hasattr(self.canvas, 'animated_sprite') and self.canvas.animated_sprite:
+            current_animation = self.canvas.current_animation
+            current_frame = self.canvas.current_frame
+            
+            
+            if current_animation in self.canvas.animated_sprite._animations and current_frame < len(self.canvas.animated_sprite._animations[current_animation]):
+                frame = self.canvas.animated_sprite._animations[current_animation][current_frame]
+                if hasattr(frame, 'pixels'):
+                    # The current self.canvas.pixels already has the panned view
+                    frame.pixels = list(self.canvas.pixels)
+                    self.log.debug(f"Committed panned pixels to frame {current_animation}[{current_frame}]")
+                    
+                # Update the film strip's animated sprite frame data as well
+                if hasattr(self, "film_strips") and self.film_strips:
+                    if current_animation in self.film_strips:
+                        film_strip = self.film_strips[current_animation]
+                        if hasattr(film_strip, "animated_sprite") and film_strip.animated_sprite:
+                            # Update the film strip's animated sprite frame data
+                            if (current_animation in film_strip.animated_sprite._animations and 
+                                current_frame < len(film_strip.animated_sprite._animations[current_animation])):
+                                film_strip_frame = film_strip.animated_sprite._animations[current_animation][current_frame]
+                                if hasattr(film_strip_frame, 'pixels'):
+                                    film_strip_frame.pixels = list(self.canvas.pixels)
+                                    self.log.debug(f"Updated film strip animated sprite frame {current_animation}[{current_frame}]")
+                
+                # Update the film strip to reflect the pixel data changes
+                self._update_film_strips_for_animated_sprite_update()
+                self.log.debug(f"Updated film strip for frame {current_animation}[{current_frame}]")
+        
+        # Clear the panning state and original frame data
+        if hasattr(self.canvas, '_original_frame_pixels'):
+            delattr(self.canvas, '_original_frame_pixels')
+        
+        self.canvas._panning_active = False
+        self.canvas.pan_offset_x = 0
+        self.canvas.pan_offset_y = 0
+        
+        self.log.debug("Panning state cleared after commit")
+
     def on_key_down_event(self, event: pygame.event.Event) -> None:
         """Handle keyboard events for frame navigation and text input."""
         self.log.debug(f"Key down event received: key={event.key}")
@@ -6922,20 +7044,20 @@ pixels = \"\"\"
         # Handle panning with Ctrl+Shift+Arrow keys
         if (mod & pygame.KMOD_CTRL) and (mod & pygame.KMOD_SHIFT) and hasattr(self, "canvas") and self.canvas:
             if event.key == pygame.K_LEFT:
-                self.log.debug("Ctrl+Shift+LEFT arrow pressed - panning right (inverted for user perception)")
-                self._handle_canvas_panning(1, 0)
-                return
-            elif event.key == pygame.K_RIGHT:
-                self.log.debug("Ctrl+Shift+RIGHT arrow pressed - panning left (inverted for user perception)")
+                self.log.debug("Ctrl+Shift+LEFT arrow pressed - panning left")
                 self._handle_canvas_panning(-1, 0)
                 return
+            elif event.key == pygame.K_RIGHT:
+                self.log.debug("Ctrl+Shift+RIGHT arrow pressed - panning right")
+                self._handle_canvas_panning(1, 0)
+                return
             elif event.key == pygame.K_UP:
-                self.log.debug("Ctrl+Shift+UP arrow pressed - panning down (inverted for user perception)")
-                self._handle_canvas_panning(0, 1)
+                self.log.debug("Ctrl+Shift+UP arrow pressed - panning up")
+                self._handle_canvas_panning(0, -1)
                 return
             elif event.key == pygame.K_DOWN:
-                self.log.debug("Ctrl+Shift+DOWN arrow pressed - panning up (inverted for user perception)")
-                self._handle_canvas_panning(0, -1)
+                self.log.debug("Ctrl+Shift+DOWN arrow pressed - panning down")
+                self._handle_canvas_panning(0, 1)
                 return
 
         # Check if any controller is in slider mode for arrow key navigation

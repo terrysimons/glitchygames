@@ -256,6 +256,14 @@ class TestPanningKeyboardHandling:
         self.canvas = MockFactory().create_canvas_mock(pixels_across=8, pixels_tall=8)
         self.canvas.pan_canvas = Mock()
         
+        # Add necessary attributes for the commit test
+        self.canvas.animated_sprite = Mock()
+        self.canvas.animated_sprite._animations = {'strip_1': [Mock()]}
+        self.canvas.animated_sprite._animations['strip_1'][0].pixels = [(255, 0, 0)] * 64
+        self.canvas.current_animation = 'strip_1'
+        self.canvas.current_frame = 0
+        self.canvas.pixels = [(255, 0, 0)] * 64
+        
         # Create a mock scene with canvas
         self.scene = Mock(spec=BitmapEditorScene)
         self.scene.canvas = self.canvas
@@ -279,30 +287,30 @@ class TestPanningKeyboardHandling:
         event.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
         
         # Test the actual keyboard handling through the scene
-        # LEFT arrow should now pan right (inverted for user perception)
+        # LEFT arrow should pan left
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(1, 0)
+        self.canvas.pan_canvas.assert_called_with(-1, 0)
         
         # Test Ctrl+Shift+Right
         event.key = pygame.K_RIGHT
         self.canvas.pan_canvas.reset_mock()  # Reset the mock call history
-        # RIGHT arrow should now pan left (inverted for user perception)
+        # RIGHT arrow should pan right
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(-1, 0)
+        self.canvas.pan_canvas.assert_called_with(1, 0)
         
         # Test Ctrl+Shift+Up
         event.key = pygame.K_UP
         self.canvas.pan_canvas.reset_mock()
-        # UP arrow should now pan down (inverted for user perception)
+        # UP arrow should pan up
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(0, 1)
+        self.canvas.pan_canvas.assert_called_with(0, -1)
         
         # Test Ctrl+Shift+Down
         event.key = pygame.K_DOWN
         self.canvas.pan_canvas.reset_mock()
-        # DOWN arrow should now pan up (inverted for user perception)
+        # DOWN arrow should pan down
         self.real_scene.on_key_down_event(event)
-        self.canvas.pan_canvas.assert_called_with(0, -1)
+        self.canvas.pan_canvas.assert_called_with(0, 1)
 
     def test_arrow_keys_without_ctrl_shift(self):
         """Test that arrow keys without Ctrl+Shift don't trigger panning."""
@@ -347,6 +355,63 @@ class TestPanningKeyboardHandling:
         
         # Should not raise an error
         self.real_scene._handle_canvas_panning(1, 0)
+    
+    def test_key_release_commits_panned_buffer(self):
+        """Test that releasing Ctrl+Shift+Arrow commits the panned buffer."""
+        # First, pan the canvas
+        event_down = Mock()
+        event_down.key = pygame.K_LEFT
+        event_down.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+        
+        self.real_scene.on_key_down_event(event_down)
+        self.canvas.pan_canvas.assert_called_with(-1, 0)
+        
+        # Simulate that panning is active
+        self.canvas._panning_active = True
+        self.canvas.pan_offset_x = -1
+        self.canvas.pan_offset_y = 0
+        self.canvas._original_frame_pixels = [(255, 0, 0)] * 64
+        
+        # Now release the key
+        event_up = Mock()
+        event_up.key = pygame.K_LEFT
+        event_up.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+        
+        self.real_scene.on_key_up_event(event_up)
+        
+        # Verify that panning state was cleared
+        assert self.canvas._panning_active is False
+        assert self.canvas.pan_offset_x == 0
+        assert self.canvas.pan_offset_y == 0
+        assert not hasattr(self.canvas, '_original_frame_pixels')
+    
+    def test_key_release_updates_film_strip(self):
+        """Test that releasing Ctrl+Shift+Arrow updates the film strip."""
+        # First, pan the canvas
+        event_down = Mock()
+        event_down.key = pygame.K_LEFT
+        event_down.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+        
+        self.real_scene.on_key_down_event(event_down)
+        self.canvas.pan_canvas.assert_called_with(-1, 0)
+        
+        # Simulate that panning is active
+        self.canvas._panning_active = True
+        self.canvas.pan_offset_x = -1
+        self.canvas.pan_offset_y = 0
+        self.canvas._original_frame_pixels = [(255, 0, 0)] * 64
+        
+        # Mock the _update_film_strips_for_animated_sprite_update method
+        with patch.object(self.real_scene, '_update_film_strips_for_animated_sprite_update') as mock_update_film:
+            # Now release the key
+            event_up = Mock()
+            event_up.key = pygame.K_LEFT
+            event_up.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+            
+            self.real_scene.on_key_up_event(event_up)
+            
+            # Verify that film strip was updated
+            mock_update_film.assert_called_once()
 
 
 if __name__ == "__main__":
