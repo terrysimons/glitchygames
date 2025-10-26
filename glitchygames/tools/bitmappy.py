@@ -5261,6 +5261,18 @@ class BitmapEditorScene(Scene):
                 LOG.debug("BitmapEditorScene: [SCENE HANDLER] Failed to paste frame")
             return True
 
+        # Check for + key to go to next frame
+        if event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
+            LOG.debug("BitmapEditorScene: [SCENE HANDLER] + key detected - going to next frame")
+            self._navigate_frame(1)
+            return True
+
+        # Check for - key to go to previous frame
+        if event.key == pygame.K_MINUS:
+            LOG.debug("BitmapEditorScene: [SCENE HANDLER] - key detected - going to previous frame")
+            self._navigate_frame(-1)
+            return True
+
         # Call the parent method for other keyboard events
         return super().on_key_down_event(event)
 
@@ -5489,6 +5501,58 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "film_strips") and self.film_strips:
                 for strip_name, strip_widget in self.film_strips.items():
                     strip_widget.mark_dirty()
+
+    def _navigate_frame(self, direction: int):
+        """Navigate to the next or previous frame in the current animation.
+        
+        Args:
+            direction: 1 for next frame, -1 for previous frame
+        """
+        if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
+            LOG.debug("BitmapEditorScene: No canvas or animated sprite available for frame navigation")
+            return
+
+        current_animation = self.canvas.current_animation
+        if not current_animation:
+            LOG.debug("BitmapEditorScene: No current animation selected for frame navigation")
+            return
+
+        # Get the current frame index
+        current_frame = getattr(self, "selected_frame", 0)
+        
+        # Get all frames for the current animation
+        if current_animation not in self.canvas.animated_sprite._animations:
+            LOG.debug(f"BitmapEditorScene: Animation '{current_animation}' not found in animated sprite")
+            return
+
+        frames = self.canvas.animated_sprite._animations[current_animation]
+        total_frames = len(frames)
+        
+        if total_frames == 0:
+            LOG.debug(f"BitmapEditorScene: Animation '{current_animation}' has no frames")
+            return
+
+        # Calculate new frame index with wrapping
+        new_frame = (current_frame + direction) % total_frames
+        
+        LOG.debug(f"BitmapEditorScene: Navigating from frame {current_frame} to frame {new_frame} in animation '{current_animation}' (total frames: {total_frames})")
+
+        # Update the canvas to show the new frame
+        self.canvas.show_frame(current_animation, new_frame)
+        
+        # Update the film strip widget to show the correct frame selection
+        if hasattr(self, "film_strips") and current_animation in self.film_strips:
+            film_strip_widget = self.film_strips[current_animation]
+            film_strip_widget.set_current_frame(current_animation, new_frame)
+            film_strip_widget.mark_dirty()
+
+        # Update global selection state
+        self.selected_animation = current_animation
+        self.selected_frame = new_frame
+
+        # Mark the film strip sprite as dirty for redraw
+        if hasattr(self, "film_strip_sprites") and current_animation in self.film_strip_sprites:
+            self.film_strip_sprites[current_animation].dirty = 2
 
     def scroll_film_strips_down(self):
         """Scroll film strips down (show later animations)."""
@@ -7478,8 +7542,17 @@ class BitmapEditorScene(Scene):
             color_to_glyph = {}
             available_glyphs = list(SPRITE_GLYPHS[:64])
 
+            # Check if sprite needs alpha blending
+            needs_alpha = any(len(pixel) == 4 and pixel[3] < 255 for pixel in pixels if isinstance(pixel, tuple) and len(pixel) >= 4)
+
             # Sort colors to ensure consistent ordering
             sorted_colors = sorted(unique_colors)
+
+            # Reserve █ for (255, 0, 255) if it exists
+            if (255, 0, 255) in sorted_colors:
+                color_to_glyph[(255, 0, 255)] = "█"
+                sorted_colors.remove((255, 0, 255))
+                available_glyphs = [g for g in available_glyphs if g != "█"]
 
             for i, color in enumerate(sorted_colors):
                 if i < len(available_glyphs):
@@ -7552,6 +7625,10 @@ pixels = \"\"\"
 \"\"\"
 
 {color_definitions}"""
+            
+            # Add alpha blending key if needed
+            if needs_alpha:
+                toml_content += "\n[alpha]\nblending = true\n"
 
             return toml_content
 
@@ -8049,6 +8126,12 @@ pixels = \"\"\"
             return
         if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite") and self.blue_slider.text_sprite.active:
             self.blue_slider.text_sprite.on_key_down_event(event)
+            # If escape was pressed, consume the event to prevent game quit
+            if event.key == pygame.K_ESCAPE:
+                return True
+            return
+        if hasattr(self, "alpha_slider") and hasattr(self.alpha_slider, "text_sprite") and self.alpha_slider.text_sprite.active:
+            self.alpha_slider.text_sprite.on_key_down_event(event)
             # If escape was pressed, consume the event to prevent game quit
             if event.key == pygame.K_ESCAPE:
                 return True
@@ -9272,8 +9355,8 @@ pixels = \"\"\"
 
             # First, ensure magenta (transparency) gets a glyph if we have transparency
             if has_transparency and (255, 0, 255) in unique_colors:
-                color_mapping[(255, 0, 255)] = "@"  # Use @ for transparency
-                self.log.info("Reserved glyph '@' for transparency (magenta)")
+                color_mapping[(255, 0, 255)] = "█"  # Use █ for transparency
+                self.log.info("Reserved glyph '█' for transparency (magenta)")
 
             # Map other colors to available glyphs
             for color in sorted(unique_colors):

@@ -1220,6 +1220,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     r, g, b = color_tuple
                     f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
 
+            # Write alpha section if needed
+            if _needs_alpha_channel(pixels):
+                f.write("\n[alpha]\n")
+                f.write("blending = true\n")
+
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
 
@@ -1237,6 +1242,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             AnimatedSprite._write_toml_sprite_section(f, data)
             AnimatedSprite._write_toml_animations(f, data)
             AnimatedSprite._write_toml_colors(f, data)
+            AnimatedSprite._write_toml_alpha(f, data)
 
     def _build_toml_color_map(self: Self) -> dict:
         """Build color map for TOML format.
@@ -1249,6 +1255,29 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         color_map = {}
         universal_chars = SPRITE_GLYPHS
         char_index = 0
+
+        # Reserve █ for (255, 0, 255) if it exists
+        has_magenta = False
+        for frames in self._animations.values():
+            for frame in frames:
+                pixels = frame.get_pixel_data()
+                for pixel in pixels:
+                    if len(pixel) == 4:
+                        r, g, b, a = pixel
+                        if (r, g, b) == (255, 0, 255):
+                            has_magenta = True
+                            break
+                    elif pixel == (255, 0, 255):
+                        has_magenta = True
+                        break
+                if has_magenta:
+                    break
+            if has_magenta:
+                break
+
+        if has_magenta:
+            color_map[(255, 0, 255)] = "█"
+            universal_chars = [c for c in universal_chars if c != "█"]
 
         for frames in self._animations.values():
             for frame in frames:
@@ -1292,6 +1321,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             "colors": {},
             "animation": [],
         }
+
+        # Check if sprite needs alpha blending
+        needs_alpha = False
+        for frames in self._animations.values():
+            for frame in frames:
+                pixels = frame.get_pixel_data()
+                if _needs_alpha_channel(pixels):
+                    needs_alpha = True
+                    break
+            if needs_alpha:
+                break
+
+        if needs_alpha:
+            data["alpha"] = {"blending": True}
 
         # Add color definitions
         for color_tuple, char in color_map.items():
@@ -1397,6 +1440,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 if "alpha" in color:
                     f.write(f"alpha = {color['alpha']}\n")
                 f.write("\n")
+
+    @staticmethod
+    def _write_toml_alpha(f, data: dict) -> None:
+        """Write TOML alpha section if needed."""
+        if "alpha" in data:
+            f.write("[alpha]\n")
+            f.write(f"blending = {str(data['alpha']['blending']).lower()}\n")
+            f.write("\n")
 
     def update(self: Self, dt: float = 0.016) -> None:
         """Update animation timing."""
