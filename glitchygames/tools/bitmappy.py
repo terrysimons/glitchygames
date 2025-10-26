@@ -2015,12 +2015,21 @@ class AnimatedCanvasSprite(BitmappySprite):
         frame_pixels = frame.get_pixel_data()
         frame_width, frame_height = frame.get_size()
         
+        # Get current frame panning offset
+        frame_key = self._get_current_frame_key()
+        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
+            pan_offset_x = self._frame_panning[frame_key]['pan_x']
+            pan_offset_y = self._frame_panning[frame_key]['pan_y']
+        else:
+            pan_offset_x = 0
+            pan_offset_y = 0
+        
         # Create viewport pixels
         viewport_pixels = []
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
-                buffer_x = x + self.pan_offset_x
-                buffer_y = y + self.pan_offset_y
+                buffer_x = x + pan_offset_x
+                buffer_y = y + pan_offset_y
                 
                 # Check if buffer coordinates are within frame bounds
                 if (0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height):
@@ -3039,12 +3048,21 @@ class AnimatedCanvasSprite(BitmappySprite):
         frame_pixels = frame.get_pixel_data()
         frame_width, frame_height = frame.get_size()
         
+        # Get current frame panning offset
+        frame_key = self._get_current_frame_key()
+        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
+            pan_offset_x = self._frame_panning[frame_key]['pan_x']
+            pan_offset_y = self._frame_panning[frame_key]['pan_y']
+        else:
+            pan_offset_x = 0
+            pan_offset_y = 0
+        
         # Create viewport pixels
         viewport_pixels = []
         for y in range(self.pixels_tall):
             for x in range(self.pixels_across):
-                buffer_x = x + self.pan_offset_x
-                buffer_y = y + self.pan_offset_y
+                buffer_x = x + pan_offset_x
+                buffer_y = y + pan_offset_y
                 
                 # Check if buffer coordinates are within frame bounds
                 if (0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height):
