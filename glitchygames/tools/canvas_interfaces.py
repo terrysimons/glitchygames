@@ -200,7 +200,12 @@ class StaticCanvasRenderer(CanvasRenderer):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
             y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
             
-            # Draw normal pixel first
+            # Handle transparency key color specially
+            if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
+                # Skip drawing transparent pixels - they should show the background
+                continue
+            
+            # Draw normal pixel
             pygame.draw.rect(
                 self.canvas_sprite.image,
                 pixel,
@@ -687,15 +692,23 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         # Check if any controller is active on this pixel (even for transparent pixels)
                         controller_indicator_color = self._get_controller_indicator_for_pixel(i)
                         
-                        # Draw magenta pixels on main canvas for contrast and user clarity
-                        # (Only skip them in onion skinning layers, not the main canvas)
+                        # Skip transparent pixels (magenta) - they should show the background
+                        if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
+                            # Still draw controller indicators even for transparent pixels
+                            if controller_indicator_color:
+                                self._draw_plus_indicator(
+                                    self.canvas_sprite.image,
+                                    controller_indicator_color,
+                                    x, y,
+                                    self.canvas_sprite.pixel_width,
+                                    self.canvas_sprite.pixel_height
+                                )
+                            continue
                         
                         if controller_indicator_color:
                             # Draw normal pixel first with alpha blending if RGBA
                             if len(pixel) == 4:
                                 # RGBA pixel - use alpha blending
-                                if pixel == (255, 0, 255, 255):
-                                    LOG.debug(f"DEBUG: Drawing magenta RGBA pixel: {pixel}")
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     pixel,
@@ -703,12 +716,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 )
                             else:
                                 # RGB pixel - convert to RGBA for alpha surface
-                                if pixel == (255, 0, 255):
-                                    # Magenta should be fully opaque on main canvas
-                                    rgba_pixel = (255, 0, 255, 255)
-                                    LOG.debug(f"DEBUG: Converting RGB magenta to RGBA: {pixel} -> {rgba_pixel}")
-                                else:
-                                    rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
+                                rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     rgba_pixel,
@@ -726,8 +734,6 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             # Draw normal pixel with alpha blending if RGBA
                             if len(pixel) == 4:
                                 # RGBA pixel - use alpha blending
-                                if pixel == (255, 0, 255, 255):
-                                    LOG.debug(f"DEBUG: Drawing magenta RGBA pixel (no controller): {pixel}")
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     pixel,
@@ -735,12 +741,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 )
                             else:
                                 # RGB pixel - convert to RGBA for alpha surface
-                                if pixel == (255, 0, 255):
-                                    # Magenta should be fully opaque on main canvas
-                                    rgba_pixel = (255, 0, 255, 255)
-                                    LOG.debug(f"DEBUG: Converting RGB magenta to RGBA (no controller): {pixel} -> {rgba_pixel}")
-                                else:
-                                    rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
+                                rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     rgba_pixel,
