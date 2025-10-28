@@ -22,12 +22,17 @@ import pygame
 import toml
 
 
-
 # Try to import aisuite, but don't fail if it's not available
 try:
     import aisuite as ai
 except ImportError:
     ai = None
+
+# Try to import backoff for retry logic
+try:
+    import backoff
+except ImportError:
+    backoff = None
 
 # Try to import voice recognition, but don't fail if it's not available
 try:
@@ -60,6 +65,11 @@ from glitchygames.ui.dialogs import (
     NewCanvasDialogScene,
     SaveDialogScene,
 )
+
+# Constants
+MAGENTA_TRANSPARENT = (255, 0, 255)  # Magenta color used for transparency
+MAGENTA_TRANSPARENT_RGBA = (255, 0, 255, 255)  # Magenta with alpha channel
+TRANSPARENT_GLYPH = "█"  # Block character used for transparent pixels
 
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
@@ -115,17 +125,36 @@ CRITICAL RULES:
     - CRITICAL: Use triple-quoted block strings for multi-line pixel data, never use single quotes
     - EFFICIENCY: Only define colors that appear in the pixel data (e.g., if pixels only use
       "0", only define [colors."0"])
+
+COLOR FORMAT REQUIREMENTS:
+    - Each color definition MUST use separate red, green, blue fields
+    - NEVER use comma-separated values like "red = 255, 0, 0"
+    - ALWAYS use the format:
+      [colors."X"]
+      red = 255
+      green = 0
+      blue = 0
+    - Each color value must be a single integer from 0-255
+    - Example of CORRECT color format:
+      [colors."#"]
+      red = 255
+      green = 0
+      blue = 0
+    - Example of INCORRECT color format (DO NOT USE):
+      [colors."#"]
+      red = 255, 0, 0
 """
 
 LOG = logging.getLogger("game.tools.bitmappy")
 
-# Set up logging
-if not LOG.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    LOG.addHandler(handler)
-    LOG.setLevel(logging.DEBUG)
+# Don't do this here - it happens in the engine for us.
+# # Set up logging
+# if not LOG.handlers:
+#     handler = logging.StreamHandler()
+#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+#     handler.setFormatter(formatter)
+#     LOG.addHandler(handler)
+#     LOG.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -174,10 +203,21 @@ def resource_path(*path_segments) -> Path:
 
 
 AI_MODEL = "anthropic:claude-sonnet-4-5"
-AI_TIMEOUT = 30  # Seconds to wait for AI response
+#AI_MODEL = "ollama:gpt-oss:20b"
+#AI_MODEL = "ollama:mistral-nemo:12b"
+AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)
 AI_QUEUE_SIZE = 10
-AI_MAX_TOKENS = 64000  # Maximum tokens for response (Claude Sonnet 4.5 limit)
+AI_MAX_CONTEXT_SIZE = 65536
+AI_MAX_INPUT_TOKENS = 8192
 AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
+
+# Retry configuration for AI requests
+AI_MAX_RETRIES = 5  # Maximum number of retry attempts
+AI_BASE_DELAY = 1.0  # Base delay in seconds for exponential backoff
+AI_MAX_DELAY = 60.0  # Maximum delay between retries
+
+# Model download timeout (much longer for initial model download)
+AI_MODEL_DOWNLOAD_TIMEOUT = 1800  # 30 minutes for model download
 # Load sprite files for AI training using SpriteFactory
 AI_TRAINING_DATA = []
 AI_TRAINING_FORMAT = None  # Will be detected from training files
@@ -374,27 +414,89 @@ def load_ai_training_data():
                 AI_TRAINING_DATA.append(converted_sprite_data)
                 LOG.info(f"Successfully loaded sprite config: {config_file.name} (alpha: {converted_sprite_data.get('has_alpha', False)})")
 
-                # Create colorized ASCII output using dimensions from TOML data
+                # Create colorized ASCII output using proper sprite loading
                 try:
                     from glitchygames.tools.ascii_renderer import ASCIIRenderer
+
                     renderer = ASCIIRenderer()
 
-                    # Calculate dimensions from pixel data
-                    if 'sprite' in config_data and 'pixels' in config_data['sprite']:
-                        pixels_str = config_data['sprite']['pixels']
-                        pixel_lines = pixels_str.strip().split('\n')
-                        height = len(pixel_lines)
-                        width = len(pixel_lines[0]) if pixel_lines else 0
+                    # Load the sprite using the proper loading functions
+                    sprite = SpriteFactory.load_sprite(filename=str(config_file))
 
-                        # Add dimensions to config_data for ASCIIRenderer
-                        config_data['sprite']['width'] = width
-                        config_data['sprite']['height'] = height
+                    # Get sprite information from the loaded sprite object
+                    sprite_type = "animated" if isinstance(sprite, AnimatedSprite) else "static"
 
+                    # Count frames
+                    if sprite_type == "static":
+                        frame_count = 1
+                    else:
+                        # Count frames in animated sprite
+                        frame_count = 0
+                        if hasattr(sprite, '_animations'):
+                            for anim_name, frames in sprite._animations.items():
+                                frame_count += len(frames)
+
+                    # Count colors
+                    color_count = 0
+                    if hasattr(sprite, 'color_map'):
+                        color_count = len(sprite.color_map)
+                    elif hasattr(sprite, '_color_map'):
+                        color_count = len(sprite._color_map)
+
+                    # Determine alpha type
+                    alpha_type = "indexed"  # Default
+                    if hasattr(sprite, 'color_map'):
+                        for color_name, color_value in sprite.color_map.items():
+                            if isinstance(color_value, (list, tuple)) and len(color_value) >= 4:
+                                alpha = color_value[3]
+                                if isinstance(alpha, (int, float)) and 0 <= alpha <= 254:
+                                    alpha_type = "per-pixel"
+                                    break
+
+                    # Calculate animation duration and loop status
+                    total_duration = 0.0
+                    is_looped = False
+                    if sprite_type == "animated" and hasattr(sprite, '_animations'):
+                        for anim_name, frames in sprite._animations.items():
+                            # Check if animation is looped
+                            if hasattr(sprite, 'is_looping') and sprite.is_looping:
+                                is_looped = True
+
+                            # Calculate duration from frames
+                            for frame in frames:
+                                if hasattr(frame, 'duration'):
+                                    total_duration += frame.duration
+                                else:
+                                    # Default frame duration
+                                    total_duration += 0.5
+
+                    # Format duration
+                    if sprite_type == "static":
+                        duration_str = "∞"
+                    elif is_looped:
+                        duration_str = f"{total_duration:.1f}s (∞)"
+                    elif total_duration > 0:
+                        duration_str = f"{total_duration:.1f}s (1 time)"
+                    else:
+                        duration_str = "∞"
+
+                    # Generate colorized output using the original TOML data
                     colorized_output = renderer.render_sprite(config_data)
+
+                    # Debug: Check if we got output
+                    LOG.debug(f"Generated colorized output for {config_file.name}: {len(colorized_output)} characters")
+
                     print(f"\n🎨 Colorized ASCII Output for {config_file.name}:")
+                    print(f"   Type: {sprite_type}, Frames: {frame_count}, Colors: {color_count}, Alpha: {alpha_type}, Duration: {duration_str}")
                     print(colorized_output)
+
+                    # Debug: Confirm we reached the print statements
+                    LOG.debug(f"Successfully printed colorized output for {config_file.name}")
+
                 except Exception as e:
-                    LOG.debug(f"Could not create colorized output for {config_file.name}: {e}")
+                    LOG.warning(f"Could not create colorized output for {config_file.name}: {e}")
+                    import traceback
+                    LOG.warning(f"Traceback: {traceback.format_exc()}")
 
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 LOG.warning(f"Error loading sprite config {config_file}: {e}")
@@ -572,7 +674,6 @@ class AIResponse:
 def _setup_ai_worker_logging() -> logging.Logger:
     """Set up logging for AI worker process."""
     log = logging.getLogger("game.ai")
-    log.setLevel(logging.INFO)
 
     if not log.handlers:
         handler = logging.StreamHandler()
@@ -586,6 +687,33 @@ def _setup_ai_worker_logging() -> logging.Logger:
     return log
 
 
+def _create_ollama_config(log: logging.Logger) -> dict:
+    """Create ollama-specific configuration with appropriate timeouts."""
+    if not AI_MODEL.startswith("ollama:"):
+        return {}
+
+    # Check if model is already downloaded to choose appropriate timeout
+    model_status = _check_ollama_model_status(log)
+    if model_status["downloaded"]:
+        timeout_value = AI_TIMEOUT  # Use normal timeout for downloaded models
+        log.info(f"Model already downloaded, using {timeout_value}s timeout")
+    else:
+        timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT  # Use longer timeout for download
+        log.info(f"Model needs download, using {timeout_value}s timeout (30 minutes)")
+
+    # Create ollama-specific configuration
+    config = {
+        "ollama": {
+            "timeout": timeout_value,
+            "request_timeout": timeout_value,
+            "read_timeout": timeout_value,
+        }
+    }
+
+    log.info(f"Created ollama config with {timeout_value}s timeout")
+    return config
+
+
 def _initialize_ai_client(log: logging.Logger):
     """Initialize AI client."""
     if ai is None:
@@ -595,58 +723,202 @@ def _initialize_ai_client(log: logging.Logger):
     log.info("aisuite is available")
     log.debug(f"aisuite version: {getattr(ai, '__version__', 'unknown')}")
 
+    # Set OLLAMA_TIMEOUT environment variable for ollama models
+    import os
+    if AI_MODEL.startswith("ollama:"):
+        # Check if model is already downloaded to choose appropriate timeout
+        model_status = _check_ollama_model_status(log)
+        if model_status["downloaded"]:
+            ollama_timeout = AI_TIMEOUT  # Use normal timeout for downloaded models
+            log.info(f"Model already downloaded, using {ollama_timeout}s timeout")
+        else:
+            ollama_timeout = AI_MODEL_DOWNLOAD_TIMEOUT  # Use longer timeout for download
+            log.info(f"Model needs download, using {ollama_timeout}s timeout (30 minutes)")
+
+        os.environ["OLLAMA_TIMEOUT"] = str(ollama_timeout)
+        log.info(f"Set OLLAMA_TIMEOUT environment variable to {ollama_timeout} seconds")
+
     log.info("Initializing AI client...")
-    client = ai.Client()
+
+    # Create provider-specific configuration
+    provider_config = _create_ollama_config(log)
+
+    # Initialize client with configuration
+    if provider_config:
+        log.info(f"Initializing client with provider config: {provider_config}")
+        client = ai.Client(provider_config)
+    else:
+        client = ai.Client()
+
+    # Additional ollama-specific configuration after client creation
+    if AI_MODEL.startswith("ollama:"):
+        log.info("Applying additional ollama-specific configuration...")
+
+        # Try to access and configure the ollama provider directly
+        if hasattr(client, "_providers"):
+            for provider_name, provider in client._providers.items():
+                if "ollama" in provider_name.lower():
+                    log.info(f"Configuring ollama provider: {provider_name}")
+
+                    # Set timeout on the provider
+                    timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT
+                    if hasattr(provider, "timeout"):
+                        provider.timeout = timeout_value
+                        log.info(f"Set ollama provider timeout to {timeout_value}s")
+
+                    # Configure underlying HTTP client
+                    if hasattr(provider, "client") and hasattr(provider.client, "timeout"):
+                        provider.client.timeout = timeout_value
+                        log.info(f"Set ollama HTTP client timeout to {timeout_value}s")
+
+                    # Try additional timeout configurations
+                    for timeout_attr in ["request_timeout", "read_timeout", "connect_timeout"]:
+                        if hasattr(provider.client, timeout_attr):
+                            setattr(provider.client, timeout_attr, timeout_value)
+                            log.info(f"Set ollama {timeout_attr} to {timeout_value}s")
 
     # Configure timeout for the underlying HTTP client
     try:
+        log.debug(f"Client type: {type(client)}")
+        log.debug(f"Client attributes: {dir(client)}")
+
         # Access the underlying provider clients and set timeout
         if hasattr(client, "_providers"):
+            log.debug(f"Found {len(client._providers)} providers")
             for provider_name, provider in client._providers.items():
-                if hasattr(provider, "client") and hasattr(provider.client, "timeout"):
-                    provider.client.timeout = 300.0  # 5 minutes
-                    log.debug(f"Set 5-minute timeout for {provider_name} provider")
-                elif hasattr(provider, "client") and hasattr(provider.client, "_client"):
-                    # For some providers, the timeout is on the underlying HTTP client
-                    if hasattr(provider.client._client, "timeout"):
-                        provider.client._client.timeout = 300.0
-                        log.debug(f"Set 5-minute timeout for {provider_name} provider HTTP client")
+                log.debug(f"Provider {provider_name}: {type(provider)}")
+                log.debug(f"Provider attributes: {dir(provider)}")
 
-        log.info("AI client initialized successfully with 5-minute timeout")
+                if hasattr(provider, "client"):
+                    log.debug(f"Provider client: {type(provider.client)}")
+                    log.debug(f"Provider client attributes: {dir(provider.client)}")
+
+                    # Use appropriate timeout based on model download status
+                    if AI_MODEL.startswith("ollama:"):
+                        model_status = _check_ollama_model_status(log)
+                        timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT if not model_status["downloaded"] else AI_TIMEOUT
+                    else:
+                        timeout_value = AI_TIMEOUT
+
+                    if hasattr(provider.client, "timeout"):
+                        old_timeout = getattr(provider.client, "timeout", "unknown")
+                        provider.client.timeout = timeout_value
+                        log.info(f"Set {timeout_value}s timeout for {provider_name} provider (was: {old_timeout})")
+                    elif hasattr(provider.client, "_client"):
+                        # For some providers, the timeout is on the underlying HTTP client
+                        log.debug(f"Provider client._client: {type(provider.client._client)}")
+                        if hasattr(provider.client._client, "timeout"):
+                            old_timeout = getattr(provider.client._client, "timeout", "unknown")
+                            provider.client._client.timeout = timeout_value
+                            log.info(f"Set {timeout_value}s timeout for {provider_name} provider HTTP client (was: {old_timeout})")
+
+                # Additional timeout configurations for ollama
+                if AI_MODEL.startswith("ollama:") and hasattr(provider, "client"):
+                    # Try to set additional timeout parameters that might be available
+                    if hasattr(provider.client, "request_timeout"):
+                        old_timeout = getattr(provider.client, "request_timeout", "unknown")
+                        provider.client.request_timeout = AI_TIMEOUT
+                        log.info(f"Set request_timeout for {provider_name} provider (was: {old_timeout})")
+                    if hasattr(provider.client, "read_timeout"):
+                        old_timeout = getattr(provider.client, "read_timeout", "unknown")
+                        provider.client.read_timeout = AI_TIMEOUT
+                        log.info(f"Set read_timeout for {provider_name} provider (was: {old_timeout})")
+        else:
+            log.warning("Client does not have _providers attribute")
+
+        log.info(f"AI client initialized successfully with {AI_TIMEOUT}s timeout")
     except Exception as e:
         log.warning(f"Could not configure timeout: {e}")
+        log.exception("Timeout configuration error details")
         log.info("AI client initialized with default timeout")
 
     log.debug(f"Client type: {type(client)}")
     return client
 
 
+def _check_ollama_model_status(log: logging.Logger) -> dict:
+    """Check if the ollama model is already downloaded and ready."""
+    if not AI_MODEL.startswith("ollama:"):
+        return {"downloaded": True, "reason": "not_ollama"}
+
+    try:
+        import requests
+
+        # Extract model name from ollama:model_name format
+        model_name = AI_MODEL.split(":", 1)[1]
+
+        # Check if model exists locally
+        response = requests.get(f"http://localhost:11434/api/tags", timeout=10)
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            for model in models:
+                if model_name in model.get("name", ""):
+                    log.info(f"Model {model_name} is already downloaded")
+                    return {"downloaded": True, "reason": "already_downloaded"}
+
+            log.info(f"Model {model_name} needs to be downloaded")
+            return {"downloaded": False, "reason": "needs_download"}
+        else:
+            log.warning(f"Could not check model status: HTTP {response.status_code}")
+            return {"downloaded": False, "reason": "api_error"}
+
+    except Exception as e:
+        log.warning(f"Could not check ollama model status: {e}")
+        return {"downloaded": False, "reason": "check_failed"}
+
+
 def _get_model_capabilities(log: logging.Logger) -> dict:
     """Query the model's capabilities including max tokens."""
     try:
+        # Check if model needs to be downloaded first
+        model_status = _check_ollama_model_status(log)
+
+        if not model_status["downloaded"]:
+            log.info(f"Model needs to be downloaded: {model_status['reason']}")
+            print("\n" + "="*60)
+            print("MODEL DOWNLOAD DETECTED")
+            print("="*60)
+            print(f"Model: {AI_MODEL}")
+            print("Status: Model needs to be downloaded")
+            print("This may take several minutes depending on model size...")
+            print("="*60 + "\n")
+
         client = _initialize_ai_client(log)
 
         # Check if AI client is available
         if client is None:
             log.warning("AI client not available, using default capabilities")
-            return {"max_tokens": 4096}  # Default fallback
+            return {"max_tokens": 8192, "num_ctx": 65536}  # Default fallback
 
         # Try to get model info through a simple test request
         test_messages = [
             {
                 "role": "user",
                 "content": (
-                    "What is your maximum token output limit? Please respond with just the number."
+                    "Please tell me your capabilities:\n"
+                    "1. What is your maximum context window size (input tokens)?\n"
+                    "2. What is your maximum output token limit for a single response?\n"
+                    "Please respond with just two numbers separated by a comma, like: context_size,output_limit"
                 ),
             }
         ]
 
         log.info("Querying model capabilities...")
+        log.info(f"This may take a while if the model needs to be downloaded first...")
+
+        # Use longer timeout for capability query (might be downloading model)
+        start_time = time.time()
         response = client.chat.completions.create(
             model=AI_MODEL,
             messages=test_messages,
-            max_tokens=100,  # Small response for capability query
+            max_tokens=256,  # Small response for capability query
         )
+        end_time = time.time()
+        duration = end_time - start_time
+
+        log.info(f"Model capability query completed in {duration:.2f} seconds")
+        if duration > 60:
+            log.info("Model was likely downloaded during this request")
 
         if hasattr(response, "choices") and response.choices:
             content = response.choices[0].message.content
@@ -654,45 +926,194 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
 
             # Try to extract max tokens from response
             try:
+                # Try to parse comma-separated values first
+                if "," in content.strip():
+                    parts = content.strip().split(",")
+                    if len(parts) == 2:
+                        context_size = int(parts[0].strip())
+                        output_limit = int(parts[1].strip())
+                        capabilities = {
+                            "max_tokens": output_limit,
+                            "context_size": context_size,
+                            "output_limit": output_limit
+                        }
+                        log.info(f"Detected context size: {context_size}, output limit: {output_limit}")
+
+                        # Dump capabilities to console
+                        print("\n" + "="*60)
+                        print("MODEL CAPABILITIES DUMP")
+                        print("="*60)
+                        print(f"Model: {AI_MODEL}")
+                        print(f"Context Size: {context_size}")
+                        print(f"Max Output Tokens: {output_limit}")
+                        print(f"Model Response: {content}")
+                        print("="*60 + "\n")
+
+                        return capabilities
+
+                # Fallback to single number parsing
                 max_tokens = int(content.strip())
+                capabilities = {"max_tokens": max_tokens}
                 log.info(f"Detected max tokens: {max_tokens}")
-                return {"max_tokens": max_tokens}
+
+                # Dump capabilities to console
+                print("\n" + "="*60)
+                print("MODEL CAPABILITIES DUMP")
+                print("="*60)
+                print(f"Model: {AI_MODEL}")
+                print(f"Max Output Tokens: {max_tokens}")
+                print(f"Model Response: {content}")
+                print("="*60 + "\n")
+
+                return capabilities
             except ValueError:
                 log.warning(f"Could not parse max tokens from response: {content}")
+                capabilities = {"max_tokens": None, "raw_response": content}
 
-        return {"max_tokens": None}
+                # Dump capabilities to console even if parsing failed
+                print("\n" + "="*60)
+                print("MODEL CAPABILITIES DUMP")
+                print("="*60)
+                print(f"Model: {AI_MODEL}")
+                print(f"Max Output Tokens: Could not parse")
+                print(f"Model Response: {content}")
+                print("="*60 + "\n")
 
-    except (ValueError, ConnectionError, TimeoutError):
+                return capabilities
+
+        capabilities = {"max_tokens": None}
+
+        # Dump capabilities to console for failed query
+        print("\n" + "="*60)
+        print("MODEL CAPABILITIES DUMP")
+        print("="*60)
+        print(f"Model: {AI_MODEL}")
+        print(f"Max Tokens: Unknown (no response)")
+        print("="*60 + "\n")
+
+        return capabilities
+
+    except (ValueError, ConnectionError, TimeoutError) as e:
         log.error("Failed to query model capabilities")
+
+        # Dump capabilities to console for exception case
+        print("\n" + "="*60)
+        print("MODEL CAPABILITIES DUMP")
+        print("="*60)
+        print(f"Model: {AI_MODEL}")
+        print(f"Max Tokens: Unknown (query failed)")
+        print(f"Error: {e}")
+        print("="*60 + "\n")
+
         return {"max_tokens": None}
+
+
+def _create_ai_retry_decorator(log: logging.Logger):
+    """Create a retry decorator for AI requests with exponential backoff."""
+    if backoff is None:
+        # If backoff is not available, return a no-op decorator
+        def no_op_decorator(func):
+            return func
+        return no_op_decorator
+
+    def giveup_handler(details):
+        """Handle final failure after all retries."""
+        log.error(f"AI request failed permanently after {details['tries']} attempts: {details['exception']}")
+
+    def backoff_handler(details):
+        """Handle backoff between retries."""
+        log.warning(f"AI request failed (attempt {details['tries']}), retrying in {details['wait']:.1f}s: {details['exception']}")
+
+    return backoff.on_exception(
+        backoff.expo,
+        (Exception,),  # Catch all exceptions for retry
+        max_tries=AI_MAX_RETRIES,
+        base=AI_BASE_DELAY,
+        max_value=AI_MAX_DELAY,
+        giveup=lambda e: isinstance(e, (ValueError, KeyboardInterrupt, SystemExit)),
+        on_giveup=giveup_handler,
+        on_backoff=backoff_handler,
+    )
+
+
+def _make_ai_api_call(request: AIRequest, client, log: logging.Logger):
+    """Make the actual API call to the AI service."""
+    log.info("Making API call to AI service...")
+    log.debug(f"Using model: {AI_MODEL}")
+    log.debug(f"Request messages count: {len(request.messages)}")
+    log.debug(f"Max input tokens: {AI_MAX_INPUT_TOKENS}")
+    log.debug(f"Max context tokens: {AI_MAX_CONTEXT_SIZE}")
+
+    start_time = time.time()
+
+    try:
+        # Try to pass timeout parameters directly to the API call
+        api_kwargs = {
+            "model": AI_MODEL,
+            "messages": request.messages,
+            "max_tokens": AI_MAX_INPUT_TOKENS
+        }
+
+        # Add timeout parameters if the client supports them
+        if hasattr(client.chat.completions, "create"):
+            # Check if the create method accepts timeout parameters
+            import inspect
+            sig = inspect.signature(client.chat.completions.create)
+
+            # Try multiple timeout parameter names
+            timeout_params = ["timeout", "request_timeout", "client_timeout", "api_timeout"]
+            timeout_added = False
+
+            for param_name in timeout_params:
+                if param_name in sig.parameters:
+                    # Use longer timeout for ollama models
+                    timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT if AI_MODEL.startswith("ollama:") else AI_TIMEOUT
+                    api_kwargs[param_name] = timeout_value
+                    log.debug(f"Added {param_name}={timeout_value} to API call")
+                    timeout_added = True
+                    break
+
+            if not timeout_added:
+                log.warning("No timeout parameter found in API call signature")
+                log.debug(f"Available parameters: {list(sig.parameters.keys())}")
+
+        log.critical(f"API call kwargs: {api_kwargs}")
+        response = client.chat.completions.create(**api_kwargs)
+    except Exception as e:
+        end_time = time.time()
+        duration = end_time - start_time
+        log.error(f"API call failed after {duration:.2f} seconds: {e}")
+        log.error(f"Exception type: {type(e)}")
+        raise
+
+    end_time = time.time()
+    duration = end_time - start_time
+    log.info(f"AI response received from API in {duration:.2f} seconds")
+
+    return response
 
 
 def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIResponse:
-    """Process a single AI request."""
+    """Process a single AI request with retry logic."""
     # Check if AI client is available
     if client is None:
         log.warning("AI client not available, returning empty response")
         return AIResponse(content="AI features not available")
 
-    log.info("Making API call to AI service...")
-    start_time = time.time()
+    # Create retry decorator for this request
+    retry_decorator = _create_ai_retry_decorator(log)
+
+    # Apply retry decorator to the API call function
+    @retry_decorator
+    def _retryable_api_call():
+        return _make_ai_api_call(request, client, log)
 
     try:
-        response = client.chat.completions.create(
-            model=AI_MODEL, messages=request.messages, max_tokens=AI_MAX_TOKENS
-        )
-
-        end_time = time.time()
-        duration = end_time - start_time
-        log.info(f"AI response received from API in {duration:.2f} seconds")
-
+        response = _retryable_api_call()
+        return _extract_response_content(response, log)
     except Exception as e:
-        end_time = time.time()
-        duration = end_time - start_time
-        log.error(f"AI request failed after {duration:.2f} seconds: {e}")
+        log.exception("AI request failed permanently")
         raise
-
-    return _extract_response_content(response, log)
 
 
 def _select_relevant_training_examples(
@@ -742,6 +1163,240 @@ def _select_relevant_training_examples(
 
     return relevant_examples
 
+
+def parse_toml_robustly(content: str, log: logging.Logger = None) -> dict:
+    """Parse TOML content with graceful handling of duplicate keys and malformed content.
+
+    Args:
+        content: TOML content string
+        log: Optional logger for warnings
+
+    Returns:
+        Parsed TOML data with duplicate keys resolved (last value wins)
+    """
+    if log is None:
+        log = LOG
+
+    try:
+        # First try standard TOML parsing
+        data = toml.loads(content)
+        # Fix color format if needed
+        data = _fix_color_format_in_toml_data(data, log)
+        return data
+    except toml.TomlDecodeError as e:
+        # If parsing fails due to duplicate keys, use a more permissive approach
+        log.warning(f"Standard TOML parsing failed: {e}")
+        log.info("Attempting to parse TOML with duplicate key handling...")
+
+        # Use a custom parser that handles duplicates
+        data = _parse_toml_permissively(content, log)
+        # Fix color format if needed
+        data = _fix_color_format_in_toml_data(data, log)
+        return data
+
+def _parse_toml_permissively(content: str, log: logging.Logger) -> dict:
+    """Parse TOML content permissively, handling duplicate keys by taking the last value.
+
+    Args:
+        content: TOML content string
+        log: Logger for warnings
+
+    Returns:
+        Parsed TOML data with duplicate keys resolved
+    """
+    import re
+
+    # Create a custom TOML parser that handles duplicates
+    lines = content.split('\n')
+    processed_lines = []
+    seen_keys = set()
+
+    for line in lines:
+        # Check if this line defines a key-value pair
+        if '=' in line and not line.strip().startswith('#'):
+            # Extract the key part (before the =)
+            key_part = line.split('=')[0].strip()
+
+            # Check if this is a section header like [colors."X"]
+            if key_part.startswith('[') and key_part.endswith(']'):
+                # This is a section header, keep it
+                processed_lines.append(line)
+                continue
+
+            # Check if this is a simple key = value pair
+            if not key_part.startswith('[') and not key_part.startswith('"'):
+                # This might be a simple key, check for duplicates
+                if key_part in seen_keys:
+                    log.warning(f"Duplicate key found: {key_part}, keeping last value")
+                else:
+                    seen_keys.add(key_part)
+                processed_lines.append(line)
+                continue
+
+        # For all other lines, keep them as-is
+        processed_lines.append(line)
+
+    # Now try to parse the cleaned content
+    cleaned_content = '\n'.join(processed_lines)
+
+    try:
+        return toml.loads(cleaned_content)
+    except toml.TomlDecodeError as e:
+        # If it still fails, try a more aggressive approach
+        log.warning(f"Cleaned TOML parsing also failed: {e}")
+        return _parse_toml_with_regex(content, log)
+
+def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict:
+    """Parse TOML content using regex to handle malformed content.
+
+    Args:
+        content: TOML content string
+        log: Logger for warnings
+
+    Returns:
+        Parsed TOML data
+    """
+    import re
+
+    data = {}
+    current_section = None
+
+    lines = content.split('\n')
+    for line_num, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+
+        # Handle section headers
+        if line.startswith('[') and line.endswith(']'):
+            section_name = line[1:-1]
+            if section_name not in data:
+                data[section_name] = {}
+            current_section = section_name
+            continue
+
+        # Handle key-value pairs
+        if '=' in line:
+            try:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+
+                # Remove quotes from key if present
+                if key.startswith('"') and key.endswith('"'):
+                    key = key[1:-1]
+
+                # Parse the value
+                parsed_value = _parse_toml_value(value)
+
+                if current_section:
+                    data[current_section][key] = parsed_value
+                else:
+                    data[key] = parsed_value
+
+            except Exception as e:
+                log.warning(f"Failed to parse line {line_num}: {line} - {e}")
+                continue
+
+    return data
+
+def _parse_toml_value(value: str):
+    """Parse a TOML value string into Python object.
+
+    Args:
+        value: Value string from TOML
+
+    Returns:
+        Parsed Python value
+    """
+    value = value.strip()
+
+    # Handle quoted strings
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+
+    # Handle triple-quoted strings
+    if value.startswith('"""') and value.endswith('"""'):
+        return value[3:-3]
+
+    # Handle boolean values
+    if value.lower() in ('true', 'false'):
+        return value.lower() == 'true'
+
+    # Handle numeric values
+    try:
+        if '.' in value:
+            return float(value)
+        else:
+            return int(value)
+    except ValueError:
+        pass
+
+    # Handle arrays (comma-separated values)
+    if ',' in value:
+        items = [_parse_toml_value(item.strip()) for item in value.split(',')]
+        return items
+
+    # Return as string if nothing else matches
+    return value
+
+def _fix_color_format_in_toml_data(data: dict, log: logging.Logger) -> dict:
+    """Fix incorrect color format in TOML data by converting comma-separated values to separate fields.
+
+    Args:
+        data: Parsed TOML data
+        log: Logger for warnings
+
+    Returns:
+        Fixed TOML data with proper color format
+    """
+    if "colors" not in data:
+        return data
+
+    colors_section = data["colors"]
+    fixed_colors = {}
+
+    for color_key, color_data in colors_section.items():
+        if isinstance(color_data, dict):
+            fixed_color = {}
+
+            # Check each color field for comma-separated values
+            for field_name in ["red", "green", "blue"]:
+                if field_name in color_data:
+                    field_value = color_data[field_name]
+
+                    # If it's a comma-separated string, extract the appropriate value
+                    if isinstance(field_value, str) and ',' in field_value:
+                        try:
+                            # Split by comma and convert to integers
+                            values = [int(x.strip()) for x in field_value.split(',')]
+
+                            # Map the values to red, green, blue
+                            if field_name == "red" and len(values) >= 1:
+                                fixed_color["red"] = values[0]
+                                if len(values) >= 2:
+                                    fixed_color["green"] = values[1]
+                                if len(values) >= 3:
+                                    fixed_color["blue"] = values[2]
+                                log.warning(f"Fixed comma-separated color format for '{color_key}': {field_value} -> separate fields")
+                            elif field_name == "green" and len(values) >= 1:
+                                fixed_color["green"] = values[0]
+                            elif field_name == "blue" and len(values) >= 1:
+                                fixed_color["blue"] = values[0]
+                        except (ValueError, IndexError) as e:
+                            log.warning(f"Failed to parse comma-separated color value '{field_value}' for '{color_key}': {e}")
+                            fixed_color[field_name] = field_value
+                    else:
+                        # Keep the original value if it's not comma-separated
+                        fixed_color[field_name] = field_value
+
+            fixed_colors[color_key] = fixed_color
+        else:
+            # Keep non-dict color data as-is
+            fixed_colors[color_key] = color_data
+
+    data["colors"] = fixed_colors
+    return data
 
 def _normalize_toml_data(config_data: dict) -> dict:
     """Normalize TOML data by converting triple-quoted strings to proper format.
@@ -997,8 +1652,22 @@ class FilmStripSprite(BitmappySprite):
 
     def force_redraw(self):
         """Force a redraw of the film strip."""
+        LOG.debug(f"DEBUG: FilmStripSprite.force_redraw called for sprite at {self.rect}")
+
         # Clear the surface with copper brown to match film strip
         self.image.fill((100, 70, 55))  # Copper brown background
+
+        # DEBUG: Check if film strip widget and animated sprite are valid
+        if not self.film_strip_widget:
+            LOG.error("DEBUG: FilmStripSprite.force_redraw - film_strip_widget is None!")
+            return
+
+        if not hasattr(self.film_strip_widget, 'animated_sprite') or not self.film_strip_widget.animated_sprite:
+            LOG.error("DEBUG: FilmStripSprite.force_redraw - animated_sprite is None or missing!")
+            LOG.error(f"DEBUG: film_strip_widget has animated_sprite: {hasattr(self.film_strip_widget, 'animated_sprite')}")
+            if hasattr(self.film_strip_widget, 'animated_sprite'):
+                LOG.error(f"DEBUG: animated_sprite value: {self.film_strip_widget.animated_sprite}")
+            return
 
         # Render the film strip widget
         self.film_strip_widget.render(self.image)
@@ -1637,6 +2306,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Initialize manual frame selection flag to allow automatic animation updates
         self._manual_frame_selected = False
 
+        # Sync canvas pixels with the current frame
+        self._update_canvas_from_current_frame()
+
     def _initialize_pixel_arrays(self) -> None:
         """Initialize pixel arrays and color settings."""
         # Initialize pixels with magenta as the transparent/background color (RGBA)
@@ -1893,7 +2565,7 @@ class AnimatedCanvasSprite(BitmappySprite):
     def _get_current_frame_pixels(self) -> list[tuple[int, int, int, int]]:
         """Get pixel data from the current frame of the animated sprite as RGBA."""
         pixels = []
-        
+
         if hasattr(self, "animated_sprite") and self.animated_sprite:
             # Check if this is a static sprite (no frames)
             if (
@@ -1944,7 +2616,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.log.debug(
                 f"Using fallback canvas pixels: {len(pixels)} pixels, first few: {pixels[:5]}"
             )
-        
+
         # Ensure all pixels are RGBA format
         rgba_pixels = []
         for pixel in pixels:
@@ -1953,7 +2625,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             else:
                 # Convert RGB to RGBA with full opacity
                 rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))
-        
+
         return rgba_pixels
 
     def _update_canvas_from_current_frame(self) -> None:
@@ -1962,14 +2634,25 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Use the canvas's current animation and frame (not the animated sprite's)
             current_animation = self.current_animation
             current_frame = self.current_frame
+            self.log.info(f"DEBUG: Syncing canvas with frame {current_animation}[{current_frame}]")
             if current_animation in self.animated_sprite._animations and current_frame < len(
                 self.animated_sprite._animations[current_animation]
             ):
                 frame = self.animated_sprite._animations[current_animation][current_frame]
                 if hasattr(frame, "get_pixel_data"):
-                    self.pixels = frame.get_pixel_data()
+                    frame_pixels = frame.get_pixel_data()
+                    self.log.info(f"DEBUG: Frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:5]}")
+                    self.log.info(f"DEBUG: Frame pixel types: {[type(p) for p in frame_pixels[:3]]}")
+                    self.log.info(f"DEBUG: All frame pixels same color: {len(set(frame_pixels)) == 1}")
+                    self.pixels = frame_pixels
                     self.dirty_pixels = [True] * len(self.pixels)
-                    self.log.debug(f"Updated canvas pixels from frame {current_frame}")
+                    self.log.info(f"Updated canvas pixels from frame {current_frame}")
+                else:
+                    self.log.info(f"DEBUG: Frame has no get_pixel_data method")
+            else:
+                self.log.info(f"DEBUG: Animation '{current_animation}' or frame {current_frame} not found")
+        else:
+            self.log.info(f"DEBUG: No animated_sprite available for canvas sync")
 
     def _update_mini_view_from_current_frame(self) -> None:
         """Update the mini view with pixel data from the current frame."""
@@ -2305,181 +2988,6 @@ class AnimatedCanvasSprite(BitmappySprite):
             groups=groups,
         )
 
-    def pan_canvas(self, delta_x: int, delta_y: int) -> None:
-        """Pan the canvas by the given delta values.
-
-        Args:
-            delta_x: Horizontal panning delta (-1, 0, or 1)
-            delta_y: Vertical panning delta (-1, 0, or 1)
-        """
-        # Calculate new pan offset
-        new_pan_x = self.pan_offset_x + delta_x
-        new_pan_y = self.pan_offset_y + delta_y
-
-        # Check if panning is within bounds
-        if self._can_pan(new_pan_x, new_pan_y):
-            self.pan_offset_x = new_pan_x
-            self.pan_offset_y = new_pan_y
-            self._panning_active = True
-
-            # Update the frame data directly with panned pixels
-            self._pan_frame_data()
-
-            # Mark canvas as dirty for redraw
-            self.dirty = 1
-
-            self.log.debug(f"Canvas panned: offset=({self.pan_offset_x}, {self.pan_offset_y})")
-        else:
-            self.log.debug(f"Panning blocked: would exceed bounds at ({new_pan_x}, {new_pan_y})")
-
-    def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
-        """Check if panning to the new coordinates is allowed.
-
-        Args:
-            new_pan_x: New horizontal pan offset
-            new_pan_y: New vertical pan offset
-
-        Returns:
-            True if panning is allowed, False otherwise
-        """
-        # For now, allow panning within reasonable bounds
-        # Later we can add more sophisticated bounds checking
-        max_pan = 10  # Maximum pan distance
-        return (abs(new_pan_x) <= max_pan and abs(new_pan_y) <= max_pan)
-
-    def _update_viewport_pixels(self) -> None:
-        """Update the viewport pixels based on current panning offset."""
-        if not self._panning_active:
-            return
-
-        # Clear viewport pixels
-        viewport_pixels = []
-
-        # Calculate buffer center offset
-        buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-        buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-
-        # Fill viewport with pixels from buffer at pan offset
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = buffer_center_x + x + self.pan_offset_x
-                buffer_y = buffer_center_y + y + self.pan_offset_y
-
-                # Check if buffer coordinates are within bounds
-                if (0 <= buffer_x < self.buffer_width and
-                    0 <= buffer_y < self.buffer_height):
-                    pixel_index = buffer_y * self.buffer_width + buffer_x
-                    if pixel_index < len(self._buffer_pixels):
-                        viewport_pixels.append(self._buffer_pixels[pixel_index])
-                    else:
-                        viewport_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    viewport_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with viewport data
-        self.pixels = viewport_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        # Force redraw to update the visual display including borders
-        self.force_redraw()
-
-    def reset_panning(self) -> None:
-        """Reset panning to original position."""
-        self.pan_offset_x = 0
-        self.pan_offset_y = 0
-        self._panning_active = False
-
-        # Restore original viewport (center of buffer)
-        self._update_viewport_pixels()
-        self.dirty = 1
-
-        self.log.debug("Panning reset to original position")
-
-    def is_panning_active(self) -> bool:
-        """Check if panning is currently active.
-
-        Returns:
-            True if panning is active, False otherwise
-        """
-        return self._panning_active
-
-    def _save_viewport_sprite(self, filename: str) -> None:
-        """Save only the viewport area when panning is active."""
-        from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-
-        # Create a new animated sprite with viewport data
-        viewport_sprite = AnimatedSprite()
-        viewport_sprite.name = self.animated_sprite.name + "_viewport"
-        viewport_sprite.description = f"Viewport of {self.animated_sprite.name} (panned)"
-
-        # Copy viewport data for each animation
-        for anim_name, frames in self.animated_sprite._animations.items():
-            viewport_frames = []
-            for frame in frames:
-                viewport_frame = self._create_viewport_frame(frame)
-                viewport_frames.append(viewport_frame)
-            viewport_sprite._animations[anim_name] = viewport_frames
-
-        # Set current animation and frame
-        viewport_sprite.current_animation = self.current_animation
-        viewport_sprite.current_frame = self.current_frame
-
-        # Save the viewport sprite
-        viewport_sprite.save(filename, DEFAULT_FILE_FORMAT)
-        self.log.info(f"Saved viewport sprite to {filename}")
-
-    def _create_viewport_frame(self, original_frame) -> 'SpriteFrame':
-        """Create a frame containing only the viewport data."""
-        from glitchygames.sprites.animated import SpriteFrame
-
-        # Get viewport pixel data
-        viewport_pixels = self._get_viewport_pixels_from_frame(original_frame)
-
-        # Create new frame with viewport dimensions
-        new_frame = SpriteFrame(
-            surface=pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA),
-            duration=original_frame.duration
-        )
-
-        # Set viewport pixel data
-        new_frame.set_pixel_data(viewport_pixels)
-
-        return new_frame
-
-    def _get_viewport_pixels_from_frame(self, frame) -> list[tuple[int, int, int, int]]:
-        """Get viewport pixels from a frame based on current panning offset."""
-        # Get the frame's pixel data
-        frame_pixels = frame.get_pixel_data()
-        frame_width, frame_height = frame.get_size()
-
-        # Get current frame panning offset
-        frame_key = self._get_current_frame_key()
-        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
-            pan_offset_x = self._frame_panning[frame_key]['pan_x']
-            pan_offset_y = self._frame_panning[frame_key]['pan_y']
-        else:
-            pan_offset_x = 0
-            pan_offset_y = 0
-
-        # Create viewport pixels
-        viewport_pixels = []
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = x + pan_offset_x
-                buffer_y = y + pan_offset_y
-
-                # Check if buffer coordinates are within frame bounds
-                if (0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height):
-                    pixel_index = buffer_y * frame_width + buffer_x
-                    if pixel_index < len(frame_pixels):
-                        viewport_pixels.append(frame_pixels[pixel_index])
-                    else:
-                        viewport_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    viewport_pixels.append((255, 0, 255))  # Transparent
-
-        return viewport_pixels
-
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
         if hasattr(self, "animated_sprite") and self.animated_sprite:
@@ -2505,7 +3013,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Force redraw if dirty
         if self.dirty:
-            self.log.debug("DEBUG: AnimatedCanvasSprite.update - calling force_redraw")
             self.force_redraw()
             self.dirty = 0
 
@@ -3433,22 +3940,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         self.log.debug(f"Applied panning view: offset=({self.pan_offset_x}, {self.pan_offset_y})")
 
-    def reset_panning(self) -> None:
-        """Reset panning to center position."""
-        self.pan_offset_x = 0
-        self.pan_offset_y = 0
-        self._panning_active = False
-
-        # Restore original frame data if it exists
-        if hasattr(self, '_original_frame_pixels'):
-            self.pixels = list(self._original_frame_pixels)
-            self.dirty_pixels = [True] * len(self.pixels)
-            delattr(self, '_original_frame_pixels')
-            self.log.debug("Restored original frame data")
-
-        self.dirty = 1
-        self.log.debug("Panning reset to center")
-
     def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
         """Check if the new pan offset is within the allowed bounds."""
         # For now, allow panning within reasonable bounds
@@ -3491,16 +3982,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Force redraw to update the visual display including borders
         self.force_redraw()
-
-    def save_animated_sprite(self, filename: str) -> None:
-        """Save the animated sprite to a file."""
-        if self.is_panning_active():
-            # Save viewport only when panning is active
-            self.log.info("Saving viewport only due to active panning")
-            self._save_viewport_sprite(filename)
-        else:
-            # Save full sprite when not panning
-            self.sprite_serializer.save(self.animated_sprite, filename, DEFAULT_FILE_FORMAT)
 
     def _save_viewport_sprite(self, filename: str) -> None:
         """Save only the viewport area when panning is active."""
@@ -3829,6 +4310,9 @@ class BitmapEditorScene(Scene):
         # Create animated sprite with single frame
         animated_sprite = self._create_animated_sprite(pixels_across, pixels_tall)
 
+        # Store the animated sprite as the shared instance
+        self.animated_sprite = animated_sprite
+
         # Create the main canvas sprite
         self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
 
@@ -3902,9 +4386,14 @@ class BitmapEditorScene(Scene):
         """
         # Create single test frame
         surface1 = pygame.Surface((pixels_across, pixels_tall))
-        surface1.fill((255, 0, 255))  # Magenta frame (transparent)
+        surface1.fill(MAGENTA_TRANSPARENT)  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
-        frame1.pixels = [(255, 0, 255, 255)] * (pixels_across * pixels_tall)
+        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)
+
+        # DEBUG: Log the first frame's pixel data
+        LOG.info(f"DEBUG: First frame initialized with {len(frame1.pixels)} pixels")
+        LOG.info(f"DEBUG: First few pixels: {frame1.pixels[:5]}")
+        LOG.info(f"DEBUG: All pixels same color: {len(set(frame1.pixels)) == 1}")
 
         # Create animated sprite using proper initialization - single frame
         animated_sprite = AnimatedSprite()
@@ -3971,6 +4460,11 @@ class BitmapEditorScene(Scene):
     def _create_film_strips(self, groups) -> None:
         """Create film strips for the current animated sprite - handles all loading scenarios."""
         LOG.debug(f"DEBUG: _create_film_strips called")
+        LOG.debug(f"DEBUG: groups parameter: {groups}")
+        LOG.debug(f"DEBUG: groups type: {type(groups)}")
+        LOG.debug(f"DEBUG: groups is None: {groups is None}")
+        if groups:
+            LOG.debug(f"DEBUG: groups length: {len(groups)}")
         LOG.debug(f"DEBUG: hasattr(self, 'canvas'): {hasattr(self, 'canvas')}")
         if hasattr(self, "canvas"):
             LOG.debug(f"DEBUG: self.canvas: {self.canvas}")
@@ -3994,17 +4488,17 @@ class BitmapEditorScene(Scene):
         if not hasattr(animated_sprite, "_animations") or not animated_sprite._animations:
             LOG.debug(f"DEBUG: No animations found, creating default animation with one frame")
             from glitchygames.sprites.animated import SpriteFrame
-            
+
             # Create a single frame with the canvas dimensions
             frame_width = self.canvas.pixels_across
             frame_height = self.canvas.pixels_tall
             frame_surface = pygame.Surface((frame_width, frame_height))
             frame_surface.fill((255, 0, 255))  # Magenta background
-            
+
             # Create the frame
             default_frame = SpriteFrame(frame_surface)
             default_frame.set_pixel_data([(255, 0, 255)] * (frame_width * frame_height))
-            
+
             # Add the frame to the default animation
             animated_sprite._animations = {"default": [default_frame]}
             animated_sprite._animation_order = ["default"]
@@ -4035,33 +4529,14 @@ class BitmapEditorScene(Scene):
         for strip_index, (anim_name, frames) in enumerate(animated_sprite._animations.items()):
             LOG.debug(f"DEBUG: Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
             LOG.debug(f"Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
-            # Create a single animated sprite with just this animation
-            # Use the proper constructor to ensure all attributes are initialized
-            single_anim_sprite = AnimatedSprite()
-            single_anim_sprite._animations = {anim_name: frames}
-            single_anim_sprite._animation_order = [anim_name]  # Set animation order
-
-            # Properly initialize the frame manager state
-            single_anim_sprite.frame_manager.current_animation = anim_name
-            single_anim_sprite.frame_manager.current_frame = 0
-
-            # Set up the sprite to be ready for animation
-            single_anim_sprite.set_animation(anim_name)
-            single_anim_sprite.is_looping = True
+            # Use the shared animated sprite instead of creating separate instances
+            # This ensures all film strips reference the same source of truth
+            single_anim_sprite = self.canvas.animated_sprite
             single_anim_sprite.play()
 
             # DEBUG: Log the sprite state
-            LOG.debug(f"Created single_anim_sprite for {anim_name}:")
+            LOG.debug(f"Using shared animated_sprite for {anim_name}:")
             LOG.debug(f"  _animations: {list(single_anim_sprite._animations.keys())}")
-            LOG.debug(f"  _animation_order: {single_anim_sprite._animation_order}")
-            LOG.debug(f"  current_animation: {single_anim_sprite.current_animation}")
-            LOG.debug(f"  is_playing: {single_anim_sprite.is_playing}")
-            LOG.debug(f"  is_looping: {single_anim_sprite.is_looping}")
-
-            # Animation setup will be handled by set_animated_sprite method
-
-            # The animated sprite should use the original animation frames, not canvas content
-            # The canvas content is only used for individual frame thumbnails, not the animated preview
 
             # Calculate Y position with scrolling
             base_y = film_strip_y_start + (strip_index * (strip_height + strip_spacing))
@@ -4077,6 +4552,10 @@ class BitmapEditorScene(Scene):
             film_strip.set_animated_sprite(single_anim_sprite)
             film_strip.strip_index = strip_index  # Track which strip this is
 
+            # CRITICAL FIX: Ensure all frames in the shared animated sprite have proper image data
+            # This fixes the issue where film strips show empty gray squares
+            self._ensure_frames_have_image_data(single_anim_sprite)
+
             # Update the layout to calculate frame positions
             LOG.debug(f"Updating layout for film strip {strip_index} ({anim_name})")
             film_strip.update_layout()
@@ -4089,6 +4568,7 @@ class BitmapEditorScene(Scene):
             self.film_strips[anim_name] = film_strip
 
             # Create film strip sprite for rendering
+            LOG.debug(f"DEBUG: Creating film strip sprite at position ({film_strip_x}, {scroll_y}) with size ({film_strip_width}, {film_strip.rect.height})")
             film_strip_sprite = FilmStripSprite(
                 film_strip_widget=film_strip,
                 x=film_strip_x,
@@ -4097,6 +4577,7 @@ class BitmapEditorScene(Scene):
                 height=film_strip.rect.height,
                 groups=groups,
             )
+            LOG.debug(f"DEBUG: Film strip sprite created with rect: {film_strip_sprite.rect}")
 
             # Debug: Check if film strip sprite was added to groups
             self.log.debug(f"Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}")
@@ -4157,6 +4638,73 @@ class BitmapEditorScene(Scene):
         # Pass preserved controller selections if available
         preserved_selections = getattr(self, '_preserved_controller_selections', None)
         self._reinitialize_multi_controller_system(preserved_selections)
+
+    def _ensure_frames_have_image_data(self, animated_sprite) -> None:
+        """Ensure all frames in the animated sprite have proper image data.
+
+        This fixes the issue where film strips show empty gray squares because
+        frames don't have their image property properly set.
+        """
+        if not hasattr(animated_sprite, "_animations") or not animated_sprite._animations:
+            return
+
+        LOG.debug("DEBUG: Ensuring frames have image data")
+        LOG.debug(f"DEBUG: animated_sprite: {animated_sprite}")
+        LOG.debug(f"DEBUG: animated_sprite._animations: {animated_sprite._animations}")
+
+        for anim_name, frames in animated_sprite._animations.items():
+            LOG.debug(f"DEBUG: Checking animation '{anim_name}' with {len(frames)} frames")
+
+            for frame_idx, frame in enumerate(frames):
+                if not frame:
+                    continue
+
+                # Check if frame has image data
+                has_image = hasattr(frame, "image") and frame.image is not None
+                has_pixel_data = hasattr(frame, "get_pixel_data") and frame.get_pixel_data() is not None
+
+                LOG.debug(f"DEBUG: Frame {frame_idx}: has_image={has_image}, has_pixel_data={has_pixel_data}")
+
+                if not has_image and has_pixel_data:
+                    # Create image from pixel data
+                    try:
+                        pixel_data = frame.get_pixel_data()
+                        if pixel_data:
+                            width, height = frame.get_size()
+
+                            # Create surface with alpha support
+                            surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+                            # Set pixels from pixel data
+                            for i, color in enumerate(pixel_data):
+                                if i < width * height:
+                                    x = i % width
+                                    y = i // width
+                                    surface.set_at((x, y), color)
+
+                            # Set the frame's image
+                            frame.image = surface
+                            LOG.debug(f"DEBUG: Created image for frame {frame_idx} from pixel data")
+
+                    except Exception as e:
+                        LOG.error(f"DEBUG: Failed to create image for frame {frame_idx}: {e}")
+
+                elif not has_image and not has_pixel_data:
+                    # Create a default magenta frame
+                    try:
+                        width, height = frame.get_size()
+                        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                        surface.fill((255, 0, 255, 255))  # Magenta background
+                        frame.image = surface
+
+                        # Also set pixel data
+                        pixel_data = [(255, 0, 255, 255)] * (width * height)
+                        frame.set_pixel_data(pixel_data)
+
+                        LOG.debug(f"DEBUG: Created default magenta frame for frame {frame_idx}")
+
+                    except Exception as e:
+                        LOG.error(f"DEBUG: Failed to create default frame for frame {frame_idx}: {e}")
 
     def _select_initial_film_strip(self):
         """Select the first film strip and set its frame 0 as active on initialization."""
@@ -5048,21 +5596,16 @@ class BitmapEditorScene(Scene):
 
         # Create film strips if we have an animated sprite
         LOG.debug(f"DEBUG: Checking conditions for _create_film_strips")
-        LOG.debug(f"DEBUG: hasattr(canvas): {hasattr(self, 'canvas')}")
-        if hasattr(self, "canvas"):
-            LOG.debug(f"DEBUG: self.canvas: {self.canvas}")
-            if self.canvas:
-                LOG.debug(f"DEBUG: hasattr(animated_sprite): {hasattr(self.canvas, 'animated_sprite')}")
-                if hasattr(self.canvas, "animated_sprite"):
-                    LOG.debug(f"DEBUG: self.canvas.animated_sprite: {self.canvas.animated_sprite}")
-                    if self.canvas.animated_sprite:
-                        LOG.debug(f"DEBUG: hasattr(_animations): {hasattr(self.canvas.animated_sprite, '_animations')}")
-                        if hasattr(self.canvas.animated_sprite, "_animations"):
-                            LOG.debug(f"DEBUG: _animations: {self.canvas.animated_sprite._animations}")
-        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite and self.canvas.animated_sprite._animations:
-            LOG.debug(f"DEBUG: About to call _create_film_strips (first call)")
-            self._create_film_strips(self.all_sprites)
-            LOG.debug(f"DEBUG: Finished calling _create_film_strips (first call)")
+        LOG.debug(f"DEBUG: hasattr(animated_sprite): {hasattr(self, 'animated_sprite')}")
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
+            LOG.debug(f"DEBUG: self.animated_sprite: {self.animated_sprite}")
+            LOG.debug(f"DEBUG: hasattr(_animations): {hasattr(self.animated_sprite, '_animations')}")
+            if hasattr(self.animated_sprite, "_animations"):
+                LOG.debug(f"DEBUG: _animations: {self.animated_sprite._animations}")
+                if self.animated_sprite._animations:
+                    LOG.debug(f"DEBUG: About to call _create_film_strips (first call)")
+                    self._create_film_strips(self.all_sprites)
+                    LOG.debug(f"DEBUG: Finished calling _create_film_strips (first call)")
 
         # Set up parent scene reference for canvas
         if hasattr(self, "canvas") and self.canvas:
@@ -5175,6 +5718,52 @@ class BitmapEditorScene(Scene):
         self.selected_strip = film_strip_widget
 
         # OLD SYSTEM REMOVED - Using new multi-controller system instead
+
+    def on_animation_rename(self, old_name: str, new_name: str) -> None:
+        """Handle animation name changes from film strip editing."""
+        self.log.debug(f"BitmapEditorScene: Animation renamed from '{old_name}' to '{new_name}'")
+
+        # Update the animated sprite's animation names
+        if hasattr(self, "animated_sprite") and self.animated_sprite:
+            if old_name in self.animated_sprite._animations:
+                # Rename the animation in the sprite
+                frames = self.animated_sprite._animations[old_name]
+                del self.animated_sprite._animations[old_name]
+                self.animated_sprite._animations[new_name] = frames
+                # Maintain animation order list if present
+                if hasattr(self.animated_sprite, "_animation_order"):
+                    order = list(getattr(self.animated_sprite, "_animation_order", []))
+                    self.animated_sprite._animation_order = [
+                        (new_name if name == old_name else name) for name in order
+                    ]
+
+                # Update current animation if it was the renamed one
+                if hasattr(self, "selected_animation") and self.selected_animation == old_name:
+                    self.selected_animation = new_name
+
+                # Update film strips dictionary
+                if hasattr(self, "film_strips") and old_name in self.film_strips:
+                    self.film_strips[new_name] = self.film_strips[old_name]
+                    del self.film_strips[old_name]
+
+                    # Update the specific FilmStripWidget's internal state
+                    strip_widget = self.film_strips[new_name]
+                    if getattr(strip_widget, "current_animation", None) == old_name:
+                        strip_widget.current_animation = new_name
+                    try:
+                        strip_widget.update_layout()
+                    except Exception as e:
+                        self.log.warning(f"FilmStripWidget layout update failed after rename: {e}")
+                    # Ensure redraw
+                    if hasattr(strip_widget, "mark_dirty"):
+                        strip_widget.mark_dirty()
+
+                # Force redraw of all film strips
+                self._update_film_strips_for_animated_sprite_update()
+
+                self.log.debug(f"BitmapEditorScene: Successfully renamed animation '{old_name}' to '{new_name}'")
+            else:
+                self.log.warning(f"BitmapEditorScene: Animation '{old_name}' not found for renaming")
 
         # Mark all film strips as dirty so they redraw with correct selection state
         if hasattr(self, "film_strips") and self.film_strips:
@@ -5548,7 +6137,7 @@ class BitmapEditorScene(Scene):
 
     def _navigate_frame(self, direction: int):
         """Navigate to the next or previous frame in the current animation.
-        
+
         Args:
             direction: 1 for next frame, -1 for previous frame
         """
@@ -5563,7 +6152,7 @@ class BitmapEditorScene(Scene):
 
         # Get the current frame index
         current_frame = getattr(self, "selected_frame", 0)
-        
+
         # Get all frames for the current animation
         if current_animation not in self.canvas.animated_sprite._animations:
             LOG.debug(f"BitmapEditorScene: Animation '{current_animation}' not found in animated sprite")
@@ -5571,19 +6160,19 @@ class BitmapEditorScene(Scene):
 
         frames = self.canvas.animated_sprite._animations[current_animation]
         total_frames = len(frames)
-        
+
         if total_frames == 0:
             LOG.debug(f"BitmapEditorScene: Animation '{current_animation}' has no frames")
             return
 
         # Calculate new frame index with wrapping
         new_frame = (current_frame + direction) % total_frames
-        
+
         LOG.debug(f"BitmapEditorScene: Navigating from frame {current_frame} to frame {new_frame} in animation '{current_animation}' (total frames: {total_frames})")
 
         # Update the canvas to show the new frame
         self.canvas.show_frame(current_animation, new_frame)
-        
+
         # Update the film strip widget to show the correct frame selection
         if hasattr(self, "film_strips") and current_animation in self.film_strips:
             film_strip_widget = self.film_strips[current_animation]
@@ -5858,13 +6447,27 @@ class BitmapEditorScene(Scene):
         # Controller selection will be initialized when START button is pressed
 
         # Query model capabilities for optimal token usage
-        try:
-            capabilities = _get_model_capabilities(self.log)
-            if capabilities.get("max_tokens"):
-                self.log.info(f"Model max tokens detected: {capabilities['max_tokens']}")
-                # Could update AI_MAX_TOKENS here if needed
-        except (ValueError, ConnectionError, TimeoutError) as e:
-            self.log.warning(f"Could not query model capabilities: {e}")
+        # try:
+        #     capabilities = {
+        #         "max_tokens": AI_MAX_INPUT_TOKENS,
+        #         "context_size": AI_MAX_CONTEXT_SIZE
+        #     }
+        #     #capabilities = _get_model_capabilities(self.log)
+        #     if capabilities.get("max_tokens"):
+        #         self.log.info(f"Model max tokens detected: {capabilities['max_tokens']}")
+
+        #         # Update AI_MAX_INPUT_TOKENS with detected capabilities
+        #         global AI_MAX_INPUT_TOKENS
+        #         old_max_tokens = AI_MAX_INPUT_TOKENS
+        #         AI_MAX_INPUT_TOKENS = capabilities['max_tokens']
+        #         self.log.info(f"Updated AI_MAX_INPUT_TOKENS from {old_max_tokens} to {AI_MAX_INPUT_TOKENS}")
+
+        #         # Also log context size if available
+        #         if capabilities.get("context_size"):
+        #             self.log.info(f"Model context size: {capabilities['context_size']}")
+
+        # except (ValueError, ConnectionError, TimeoutError) as e:
+        #     self.log.warning(f"Could not query model capabilities: {e}")
 
         # Set up voice recognition
         # TODO: Re-enable voice recognition when ready
@@ -7227,9 +7830,9 @@ class BitmapEditorScene(Scene):
 
         # Add description to the content if we have an original prompt
         if original_prompt and AI_TRAINING_FORMAT == "toml":
-            # Parse the TOML content and add description
+            # Parse the TOML content with robust duplicate key handling
             try:
-                data = toml.loads(cleaned_content)
+                data = parse_toml_robustly(cleaned_content, self.log)
                 # Normalize the TOML data to convert escaped newlines to actual newlines
                 data = _normalize_toml_data(data)
                 if "sprite" not in data:
@@ -7239,7 +7842,7 @@ class BitmapEditorScene(Scene):
                 # Manually construct TOML to preserve formatting instead of using toml.dumps()
                 cleaned_content = self._construct_toml_with_preserved_formatting(data)
                 self.log.debug(f"Added description to TOML content: '{original_prompt}'")
-            except (toml.TomlDecodeError, KeyError, ValueError) as e:
+            except (KeyError, ValueError) as e:
                 self.log.warning(f"Failed to add description to TOML content: {e}")
 
         return cleaned_content
@@ -7291,12 +7894,18 @@ class BitmapEditorScene(Scene):
         # Add colors section
         if "colors" in data:
             lines.append("[colors]")
+            # Remove duplicate color keys by using a set to track seen keys
+            seen_colors = set()
             for color_key, color_data in data["colors"].items():
-                lines.append(f'[colors."{color_key}"]')
-                lines.append(f"red = {color_data['red']}")
-                lines.append(f"green = {color_data['green']}")
-                lines.append(f"blue = {color_data['blue']}")
-                lines.append("")
+                if color_key not in seen_colors:
+                    seen_colors.add(color_key)
+                    lines.append(f'[colors."{color_key}"]')
+                    lines.append(f"red = {color_data['red']}")
+                    lines.append(f"green = {color_data['green']}")
+                    lines.append(f"blue = {color_data['blue']}")
+                    lines.append("")
+                else:
+                    self.log.warning(f"Skipping duplicate color definition for '{color_key}'")
 
         return "\n".join(lines)
 
@@ -7548,16 +8157,28 @@ class BitmapEditorScene(Scene):
 
             # First pass: collect all unique colors
             unique_colors = set()
-            for pixel in pixels:
+            self.log.info(f"DEBUG: Processing {len(pixels)} pixels for TOML generation")
+            self.log.info(f"DEBUG: First few pixels: {pixels[:5]}")
+            self.log.info(f"DEBUG: All pixels same color: {len(set(pixels)) == 1}")
+            self.log.info(f"DEBUG: Unique colors count: {len(set(pixels))}")
+            self.log.info(f"DEBUG: Current animation: {getattr(self.canvas, 'current_animation', 'N/A')}")
+            self.log.info(f"DEBUG: Current frame: {getattr(self.canvas, 'current_frame', 'N/A')}")
+            for i, pixel in enumerate(pixels):
                 if isinstance(pixel, tuple) and len(pixel) >= 3:
                     color = pixel[:3]
+                    if i < 5:  # Debug first few pixels
+                        self.log.debug(f"DEBUG: Pixel {i}: tuple {pixel} -> color {color}")
                 elif isinstance(pixel, int):
                     r = (pixel >> 16) & 0xFF
                     g = (pixel >> 8) & 0xFF
                     b = pixel & 0xFF
                     color = (r, g, b)
+                    if i < 5:  # Debug first few pixels
+                        self.log.debug(f"DEBUG: Pixel {i}: int {pixel} -> color {color}")
                 else:
                     color = (255, 0, 255)  # Default magenta
+                    if i < 5:  # Debug first few pixels
+                        self.log.debug(f"DEBUG: Pixel {i}: unknown type {type(pixel)} value {pixel} -> default magenta")
                 unique_colors.add(color)
 
             # If forcing single-char glyphs and we have too many colors, quantize
@@ -7574,7 +8195,7 @@ class BitmapEditorScene(Scene):
                         b = pixel & 0xFF
                         color = (r, g, b)
                     else:
-                        color = (255, 0, 255)
+                        color = MAGENTA_TRANSPARENT
                     color_counts[color] = color_counts.get(color, 0) + 1
 
                 # Sort by frequency and take top 64
@@ -7586,17 +8207,14 @@ class BitmapEditorScene(Scene):
             color_to_glyph = {}
             available_glyphs = list(SPRITE_GLYPHS[:64])
 
-            # Check if sprite needs alpha blending
-            needs_alpha = any(len(pixel) == 4 and pixel[3] < 255 for pixel in pixels if isinstance(pixel, tuple) and len(pixel) >= 4)
-
             # Sort colors to ensure consistent ordering
             sorted_colors = sorted(unique_colors)
 
-            # Reserve █ for (255, 0, 255) if it exists
-            if (255, 0, 255) in sorted_colors:
-                color_to_glyph[(255, 0, 255)] = "█"
-                sorted_colors.remove((255, 0, 255))
-                available_glyphs = [g for g in available_glyphs if g != "█"]
+            # Reserve block character for magenta transparency if it exists
+            if MAGENTA_TRANSPARENT in sorted_colors:
+                color_to_glyph[MAGENTA_TRANSPARENT] = TRANSPARENT_GLYPH
+                sorted_colors.remove(MAGENTA_TRANSPARENT)
+                available_glyphs = [g for g in available_glyphs if g != TRANSPARENT_GLYPH]
 
             for i, color in enumerate(sorted_colors):
                 if i < len(available_glyphs):
@@ -7624,7 +8242,7 @@ class BitmapEditorScene(Scene):
                             b = pixel & 0xFF
                             color = (r, g, b)
                         else:
-                            color = (255, 0, 255)  # Default magenta
+                            color = MAGENTA_TRANSPARENT  # Default magenta
 
                         # Get glyph for this color
                         if color in color_to_glyph:
@@ -7648,7 +8266,11 @@ class BitmapEditorScene(Scene):
 
                         pixel_string += glyph
                     else:
-                        pixel_string += "."  # Default empty glyph
+                        # Use the same glyph as magenta for out-of-bounds pixels
+                        if MAGENTA_TRANSPARENT in color_to_glyph:
+                            pixel_string += color_to_glyph[MAGENTA_TRANSPARENT]
+                        else:
+                            pixel_string += TRANSPARENT_GLYPH  # Fallback to block character
 
                 if y < height - 1:  # Add newline except for last row
                     pixel_string += "\n"
@@ -7661,6 +8283,10 @@ class BitmapEditorScene(Scene):
                     glyph = color_to_glyph[color]
                     color_definitions += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
 
+            # Always ensure block character is mapped to magenta for transparency
+            if MAGENTA_TRANSPARENT in color_to_glyph:
+                color_definitions += f'[colors."{TRANSPARENT_GLYPH}"]\nred = 255\ngreen = 0\nblue = 255\n\n'
+
             # Build complete TOML
             toml_content = f"""[sprite]
 name = "current_frame"
@@ -7669,10 +8295,6 @@ pixels = \"\"\"
 \"\"\"
 
 {color_definitions}"""
-            
-            # Add alpha blending key if needed
-            if needs_alpha:
-                toml_content += "\n[alpha]\nblending = true\n"
 
             return toml_content
 
@@ -7896,42 +8518,14 @@ pixels = \"\"\"
             # Pass delta time to the canvas for animation updates
             self.canvas.update_animation(self.dt)
 
-            # CRITICAL: Update film strip preview animations for backward compatibility
-            # This handles the legacy single film strip case (canvas.film_strip)
-            # NOTE: The main animation updates now happen in the scene update loop
-            # for better performance and cleaner separation of concerns
-            if (
-                hasattr(self.canvas, "film_strip")
-                and self.canvas.film_strip
-                and hasattr(self.canvas, "film_strip_sprite")
-                and self.canvas.film_strip_sprite
-            ):
-                self.canvas.film_strip.update_animations(self.dt)
-                # Mark film strip sprite as dirty to redraw with new animation frames
-                # Always mark as dirty when animations are present to ensure continuous updates
-                if (
-                    hasattr(self.canvas.film_strip, "animated_sprite")
-                    and self.canvas.film_strip.animated_sprite
-                    and len(self.canvas.film_strip.animated_sprite._animations) > 0
-                ):
-                    self.canvas.film_strip_sprite.dirty = 2
+            # STALE LEGACY CODE REMOVED - The new multi-film-strip system handles
+            # all animation updates through FilmStripSprite.update() method
 
-            # Update multiple film strip animations (new multi-strip system)
-            # This ensures each film strip has its own independent animation timing
-            if hasattr(self, "film_strips") and self.film_strips:
-                for film_strip in self.film_strips.values():
-                    if hasattr(film_strip, "update_animations"):
-                        film_strip.update_animations(self.dt)
+            # STALE LEGACY CODE REMOVED - FilmStripSprite.update() method already
+            # handles animation updates for each film strip widget
 
-            # Mark all film strip sprites as dirty for animation updates (every frame)
-            # This ensures the sprite group redraws film strips when animations advance
-            if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
-                for film_strip_sprite in self.film_strip_sprites.values():
-                    film_strip_sprite.dirty = 1
-
-            # Also mark film strip sprites as dirty for continuous animation updates
-            # This is a backup mechanism to ensure film strips stay dirty when needed
-            self._mark_film_strip_sprites_dirty()
+            # STALE LEGACY CODE REMOVED - FilmStripSprite.update() method already
+            # handles dirty marking when animations are running
 
             # Mark the main scene as dirty every frame to ensure sprite groups are updated
             self.dirty = 1
@@ -8181,6 +8775,16 @@ pixels = \"\"\"
                 return True
             return
 
+        # Check if any film strip is in text editing mode and handle text input
+        if hasattr(self, "film_strips"):
+            for film_strip in self.film_strips.values():
+                if hasattr(film_strip, "editing_animation") and film_strip.editing_animation:
+                    if film_strip.handle_keyboard_input(event):
+                        # If escape was pressed, consume the event to prevent game quit
+                        if event.key == pygame.K_ESCAPE:
+                            return True
+                        return
+
         # Handle onion skinning keyboard shortcuts
         if event.key == pygame.K_o:
             self.log.debug("O key pressed - toggling global onion skinning")
@@ -8286,13 +8890,22 @@ pixels = \"\"\"
 
         # Check if we have an animated canvas (only if not in slider mode)
         if not any_controller_in_slider_mode:
-            if hasattr(self, "canvas") and hasattr(self.canvas, "handle_keyboard_event"):
-                self.log.debug("Routing keyboard event to canvas")
-                self.canvas.handle_keyboard_event(event.key)
-            else:
-                # Fall back to parent class handling
-                self.log.debug("No canvas found, using parent class handling")
-                super().on_key_down_event(event)
+            # Check if any film strip is in text editing mode before routing to canvas
+            film_strip_editing = False
+            if hasattr(self, "film_strips"):
+                for film_strip in self.film_strips.values():
+                    if hasattr(film_strip, "editing_animation") and film_strip.editing_animation:
+                        film_strip_editing = True
+                        break
+
+            if not film_strip_editing:
+                if hasattr(self, "canvas") and hasattr(self.canvas, "handle_keyboard_event"):
+                    self.log.debug("Routing keyboard event to canvas")
+                    self.canvas.handle_keyboard_event(event.key)
+                else:
+                    # Fall back to parent class handling
+                    self.log.debug("No canvas found, using parent class handling")
+                    super().on_key_down_event(event)
 
     def _handle_undo(self) -> None:
         """Handle undo operation."""
@@ -12255,15 +12868,20 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    load_ai_training_data()
-
     # Set multiprocessing start method to avoid macOS issues
     with contextlib.suppress(RuntimeError):
         multiprocessing.set_start_method("spawn", force=True)
 
     icon_path = Path(__file__).parent / "resources" / "bitmappy.png"
 
-    GameEngine(game=BitmapEditorScene, icon=icon_path).start()
+    # Initialize the game engine first to set up display
+    engine = GameEngine(game=BitmapEditorScene, icon=icon_path)
+
+    # Load AI training data after engine initialization
+    load_ai_training_data()
+
+    # Start the engine
+    engine.start()
 
 
 if __name__ == "__main__":
