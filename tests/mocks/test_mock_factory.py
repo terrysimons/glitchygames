@@ -714,6 +714,19 @@ class MockFactory:
         return MockSurface((width, height))
 
     @staticmethod
+    def create_pygame_surface_mock_object(width: int = 8, height: int = 8):
+        """Create a Mock object that can have its methods mocked (for tests that need to set return_value)."""
+        mock_surface = Mock()
+        mock_surface.get_width.return_value = width
+        mock_surface.get_height.return_value = height
+        mock_surface.get_size.return_value = (width, height)
+        mock_surface.get_width.return_value = width
+        mock_surface.get_height.return_value = height
+        mock_surface.get_size.return_value = (width, height)
+        mock_surface.make_surface.return_value = mock_surface
+        return mock_surface
+
+    @staticmethod
     def create_real_pygame_surface(width: int = 8, height: int = 8):
         """Create a real pygame.Surface for tests that need actual pygame functionality."""
         import pygame  # noqa: PLC0415

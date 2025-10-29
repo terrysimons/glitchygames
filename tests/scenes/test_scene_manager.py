@@ -58,7 +58,7 @@ class TestSceneManager:
         # Check basic attributes
         assert scene_manager.screen is not None
         assert scene_manager.update_type == "update"
-        assert scene_manager.fps_refresh_rate == FPS_REFRESH_RATE
+        assert scene_manager.fps_log_interval_ms == FPS_REFRESH_RATE
         # target_fps may be 60 if game_engine was set in previous tests (singleton behavior)
         assert scene_manager.target_fps in {0, 60}
         assert scene_manager.dt == 0
@@ -84,7 +84,7 @@ class TestSceneManager:
         mock_engine = Mock()
         mock_engine.OPTIONS = {
             "update_type": "update",
-            "fps_refresh_rate": FPS_REFRESH_RATE,
+            "fps_log_interval_ms": FPS_REFRESH_RATE,
             "target_fps": 60
         }
         scene_manager.game_engine = mock_engine
@@ -198,7 +198,7 @@ class TestSceneManager:
         mock_engine.registered_events = {"test_event": Mock()}
         mock_engine.OPTIONS = {
             "update_type": "update",
-            "fps_refresh_rate": FPS_REFRESH_RATE,
+            "fps_log_interval_ms": FPS_REFRESH_RATE,
             "target_fps": 60
         }
         scene_manager.game_engine = mock_engine
