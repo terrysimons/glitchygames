@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pygame
 import pytest
@@ -20,6 +21,10 @@ from scripts.sprite_stack import (
 )
 
 from tests.mocks.test_mock_factory import MockFactory
+
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
+original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 
 
 class TestSpriteStackInterface(unittest.TestCase):
@@ -120,15 +125,19 @@ class TestSpriteFactory(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Initialize pygame display for BitmappySprite tests
-        if not pygame.display.get_init():
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
             pygame.init()
-            pygame.display.set_mode((800, 600))
+
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
 
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
         """Clean up test fixtures."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
         shutil.rmtree(self.temp_dir)
 
     def create_static_sprite_file(self, filename: str) -> str:
@@ -309,23 +318,29 @@ name = "TestEmptySprite"
         filename = self.create_animated_sprite_file("animated.toml")
 
         # AnimatedSprite load is now implemented
-        sprite = SpriteFactory.load_sprite(filename=filename)
-        assert isinstance(sprite, AnimatedSprite)
-        assert sprite.name == "TestAnimatedSprite"
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            sprite = SpriteFactory.load_sprite(filename=filename)
+            assert isinstance(sprite, AnimatedSprite)
+            assert sprite.name == "TestAnimatedSprite"
 
     def test_load_mixed_sprite_raises_error(self):
         """Test that loading mixed sprite raises ValueError."""
         filename = self.create_mixed_sprite_file("mixed.toml")
 
-        with pytest.raises(ValueError, match="Invalid sprite file"):
-            SpriteFactory.load_sprite(filename=filename)
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            with pytest.raises(ValueError, match="Invalid sprite file"):
+                SpriteFactory.load_sprite(filename=filename)
 
     def test_load_empty_sprite_raises_error(self):
         """Test that loading empty sprite raises ValueError."""
         filename = self.create_empty_sprite_file("empty.toml")
 
-        with pytest.raises(ValueError, match="Invalid sprite file"):
-            SpriteFactory.load_sprite(filename=filename)
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            with pytest.raises(ValueError, match="Invalid sprite file"):
+                SpriteFactory.load_sprite(filename=filename)
 
     @staticmethod
     def test_load_default_sprite():

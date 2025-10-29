@@ -84,7 +84,8 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         assert '[colors."a"]' in content
         assert '[colors."A"]' in content
         assert '[colors."b"]' in content
-        assert '[colors."B"]' in content
+        # Check for block character (█) used for transparency key (255, 0, 255)
+        assert '[colors."█"]' in content
         assert "red =" in content
         assert "green =" in content
         assert "blue =" in content

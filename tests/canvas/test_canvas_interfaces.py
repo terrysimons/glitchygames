@@ -103,8 +103,8 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
         red_pixel = interface.get_pixel_at(0, 0)
         green_pixel = interface.get_pixel_at(1, 1)
 
-        assert red_pixel == (255, 0, 0)
-        assert green_pixel == (0, 255, 0)
+        assert red_pixel == (255, 0, 0, 255)
+        assert green_pixel == (0, 255, 0, 255)
 
     def test_animated_sprite_serializer_creation(self):
         """Test that animated sprite serializer is created correctly."""
@@ -160,8 +160,8 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
         red_pixel = interface.get_pixel_at(0, 0)
         green_pixel = interface.get_pixel_at(1, 0)
 
-        assert red_pixel == (255, 0, 0)
-        assert green_pixel == (0, 255, 0)
+        assert red_pixel == (255, 0, 0, 255)
+        assert green_pixel == (0, 255, 0, 255)
 
     def test_interface_integration(self):
         """Test that all animated interfaces work together correctly."""
@@ -175,7 +175,7 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
 
         # Verify the pixel was set correctly
         blue_pixel = interface.get_pixel_at(2, 2)
-        assert blue_pixel == (0, 0, 255)
+        assert blue_pixel == (0, 0, 255, 255)
 
         # Verify the surface was rendered
         assert surface is not None
@@ -228,7 +228,7 @@ class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
 
         # Test out-of-bounds access
         out_of_bounds_pixel = interface.get_pixel_at(10, 10)
-        assert out_of_bounds_pixel == (255, 0, 255)  # Should return magenta
+        assert out_of_bounds_pixel == (255, 0, 255, 255)  # Should return magenta
 
     def test_out_of_bounds_pixel_setting(self):
         """Test setting pixels outside canvas bounds."""

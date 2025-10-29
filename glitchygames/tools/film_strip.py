@@ -50,18 +50,18 @@ class FilmStripWidget:
     - If film strips don't redraw: Check dirty flag propagation
     """
 
-    # Color cycling background colors (refactored from MiniView)
-    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int]]] = [
-        (0, 255, 255),  # Cyan
-        (0, 0, 0),  # Black
-        (128, 128, 128),  # Gray
-        (255, 255, 255),  # White
-        (255, 0, 255),  # Magenta
-        (0, 255, 0),  # Green
-        (0, 0, 255),  # Blue
-        (255, 255, 0),  # Yellow
-        (64, 64, 64),  # Dark Gray
-        (192, 192, 192),  # Light Gray
+    # Color cycling background colors (RGBA for transparency support)
+    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int, int]]] = [
+        (0, 255, 255, 255),  # Cyan
+        (0, 0, 0, 255),  # Black
+        (128, 128, 128, 255),  # Gray
+        (255, 255, 255, 255),  # White
+        (255, 0, 255, 255),  # Magenta
+        (0, 255, 0, 255),  # Green
+        (0, 0, 255, 255),  # Blue
+        (255, 255, 0, 255),  # Yellow
+        (64, 64, 64, 255),  # Dark Gray
+        (192, 192, 192, 255),  # Light Gray
     ]
 
     # Debug dump interval in seconds
@@ -421,11 +421,14 @@ class FilmStripWidget:
         if hasattr(frame, "get_pixel_data"):
             pixel_data = frame.get_pixel_data()
             if pixel_data:
-                # Create a surface from the pixel data
-                frame_surface = pygame.Surface((8, 8))  # Assuming 8x8 sprites
+                # Get the actual frame dimensions
+                width, height = frame.get_size()
+                
+                # Create a surface with alpha support from the pixel data
+                frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
                 for i, color in enumerate(pixel_data):
-                    x = i % 8
-                    y = i // 8
+                    x = i % width
+                    y = i // width
                     frame_surface.set_at((x, y), color)
                 return frame_surface
 
@@ -702,7 +705,7 @@ class FilmStripWidget:
             self.parent_canvas.film_strip_sprite.image = pygame.Surface((
                 self.parent_canvas.film_strip_sprite.rect.width,
                 required_height,
-            ))
+            ), pygame.SRCALPHA)
             self.parent_canvas.film_strip_sprite.dirty = 1
 
     def _calculate_layout(self) -> None:
@@ -837,7 +840,7 @@ class FilmStripWidget:
 
                 # Add removal button rectangle to the left of each frame (only if not single-frame)
                 # Don't create removal buttons for single-frame animations
-                # Frame 0 can have a removal button if there are multiple frames
+                # Allow removal buttons for all strips if there are multiple frames
                 if len(frames) > 1:
                     # Make removal buttons narrower than insertion tabs
                     removal_button_width = 11  # Narrower than insertion tabs, reduced by 4
@@ -1093,7 +1096,7 @@ class FilmStripWidget:
         """Render a single frame thumbnail with 3D beveled border."""
         frame_surface = self._create_frame_surface()
 
-        # Fill with cycling background color
+        # Fill with cycling background color (with alpha support)
         frame_surface.fill(self.background_color)
 
         frame_img = self._get_frame_image_for_rendering(frame, is_selected=is_selected)
@@ -1173,12 +1176,13 @@ class FilmStripWidget:
             text_surface = font.render(frame_text, True, (255, 255, 255))  # White text
             text_rect = text_surface.get_rect()
 
-            # Position at bottom center of the frame
-            text_x = (self.frame_width - text_rect.width) // 2
-            text_y = self.frame_height - text_rect.height - 2  # 2 pixels from bottom
+            # Position at bottom center of the frame (like animation preview)
+            target_rect = pygame.Rect(0, 0, self.frame_width, self.frame_height)
+            text_rect.centerx = target_rect.centerx
+            text_rect.bottom = target_rect.bottom - 2  # Small margin from bottom edge
 
             # Draw text
-            surface.blit(text_surface, (text_x, text_y))
+            surface.blit(text_surface, text_rect)
         except Exception:
             # Log font rendering failures
             LOG.exception("Font rendering failed")
@@ -1242,10 +1246,10 @@ class FilmStripWidget:
             # Use stored frame data for all frames
             frame_img = frame.image
         else:
-            frame_img = None
-            LOG.debug("Film strip: No frame data available")
-
-        # Always use animation frame data, never canvas content
+            # Fall back to creating image from pixel data (same as _get_frame_image)
+            frame_img = self._get_frame_image(frame)
+            if not frame_img:
+                LOG.debug("Film strip: No frame data available")
 
         return frame_img
 
@@ -1269,14 +1273,33 @@ class FilmStripWidget:
         x_offset = (self.frame_width - new_width) // 2 + 1
         y_offset = (self.frame_height - new_height) // 2
 
-        # Make magenta (255, 0, 255) transparent for testing
-        scaled_image.set_colorkey((255, 0, 255))
-        frame_surface.blit(scaled_image, (x_offset, y_offset))
+        # Always convert magenta pixels to transparent, regardless of surface type
+        # Create a new surface with alpha support
+        rgba_surface = pygame.Surface(scaled_image.get_size(), pygame.SRCALPHA)
+        
+        # Copy pixels, converting magenta (255, 0, 255) to transparent (alpha = 0)
+        for y in range(scaled_image.get_height()):
+            for x in range(scaled_image.get_width()):
+                color = scaled_image.get_at((x, y))
+                if len(color) == 3:  # RGB
+                    r, g, b = color
+                    if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
+                        rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
+                    else:
+                        rgba_surface.set_at((x, y), (r, g, b, 255))  # Full opacity other colors
+                else:  # Already RGBA
+                    r, g, b, a = color
+                    if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
+                        rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
+                    else:
+                        rgba_surface.set_at((x, y), color)  # Keep original color and alpha
+        
+        frame_surface.blit(rgba_surface, (x_offset, y_offset))
 
     def _draw_placeholder(self, frame_surface: pygame.Surface) -> None:
         """Draw a placeholder when no frame data is available."""
         # If no frame data, create a placeholder
-        placeholder = pygame.Surface((self.frame_width - 8, self.frame_height - 8))
+        placeholder = pygame.Surface((self.frame_width - 8, self.frame_height - 8), pygame.SRCALPHA)
         placeholder.fill((120, 90, 70))  # Copper brown placeholder
         # Center the placeholder
         x_offset = (self.frame_width - placeholder.get_width()) // 2
@@ -1298,7 +1321,7 @@ class FilmStripWidget:
     def _create_selection_border(self, frame_surface: pygame.Surface) -> pygame.Surface:
         """Create a selection border for the selected frame."""
         # Yellow film leader color for selection
-        selection_border = pygame.Surface((self.frame_width + 4, self.frame_height + 4))
+        selection_border = pygame.Surface((self.frame_width + 4, self.frame_height + 4), pygame.SRCALPHA)
         selection_border.fill(self.selection_color)
         # Add film strip perforations to selection border
         for hole_x in range(4, self.frame_width, 8):
@@ -1323,7 +1346,7 @@ class FilmStripWidget:
 
     def render_sprocket_separator(self, x: int, y: int, height: int) -> pygame.Surface:
         """Render a sprocket separator between animations."""
-        separator = pygame.Surface((self.sprocket_width, height))
+        separator = pygame.Surface((self.sprocket_width, height), pygame.SRCALPHA)
         separator.fill(self.film_background)
 
         # Draw sprocket holes (perforations)
@@ -1353,7 +1376,7 @@ class FilmStripWidget:
 
         # Render preview for each animation
         for anim_name, preview_rect in self.preview_rects.items():
-            # Clear the preview area with cycling background color
+            # Fill with cycling background color (with alpha support)
             surface.fill(self.background_color, preview_rect)
 
             # Draw preview border (animation frame only - use darker border)
@@ -1488,7 +1511,7 @@ class FilmStripWidget:
         # Render animation labels
         for anim_name, anim_rect in self.animation_layouts.items():
             # Draw animation label background
-            label_surface = pygame.Surface((anim_rect.width, anim_rect.height))
+            label_surface = pygame.Surface((anim_rect.width, anim_rect.height), pygame.SRCALPHA)
             label_surface.fill(self.film_background)
 
             # Add animation name text
@@ -2061,7 +2084,8 @@ class FilmStripWidget:
                 continue
 
         # Add a horizontal top tab (delete) at the center of the film strip
-        if frames:  # Only add top tab if there are frames
+        # Don't create delete button for the first strip (strip_index = 0)
+        if frames and getattr(self, 'strip_index', 0) > 0:  # Only add top tab if there are frames and not the first strip
             # Calculate center x position of the film strip
             center_x = self.rect.width // 2
             top_tab = FilmStripDeleteTab(
@@ -2168,7 +2192,7 @@ class FilmStripWidget:
         frame_width = self.parent_scene.canvas.pixels_across
         frame_height = self.parent_scene.canvas.pixels_tall
 
-        new_surface = pygame.Surface((frame_width, frame_height))
+        new_surface = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
         new_surface.fill((255, 0, 255))  # Magenta background
 
         # Create a new SpriteFrame

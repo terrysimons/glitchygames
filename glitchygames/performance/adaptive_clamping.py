@@ -71,7 +71,9 @@ class AdaptiveClamping:
             
             # Only log significant adjustments at the configured interval
             current_time = time.perf_counter()
-            log_interval_seconds = self._fps_log_interval_ms / 1000.0
+            # Be robust if tests or external code set interval to None
+            interval_ms = self._fps_log_interval_ms if self._fps_log_interval_ms is not None else 1000.0
+            log_interval_seconds = interval_ms / 1000.0
             if (abs(adjusted_dt - dt) > 0.0001 and 
                 current_time - self._last_performance_log_time >= log_interval_seconds):
                 print(f"PERFORMANCE: Adjusted dt from {dt*1000:.1f}ms to {adjusted_dt*1000:.1f}ms per frame (avg_fps={avg_fps:.1f})")

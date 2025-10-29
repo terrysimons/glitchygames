@@ -218,14 +218,12 @@ def test_multi_ball_ball_collision_bounce():
     
     pygame.quit()
     
-    return final_alive, wall_bounces, ball_collisions
+    # Assert that the test completed successfully
+    assert final_alive > 0, "At least one ball should survive"
+    assert wall_bounces > 0, "Wall bouncing should be working"
+    # Note: ball_collisions might be 0 due to random positioning, so we don't assert on it
+    
+    print(f"\n✅ Test completed successfully")
 
 if __name__ == "__main__":
-    alive, wall_bounces, ball_collisions = test_multi_ball_ball_collision_bounce()
-    
-    if alive == 5 and wall_bounces > 0:
-        print(f"\n🎉 SUCCESS: All balls survived with collision bouncing!")
-    elif alive > 0 and wall_bounces > 0:
-        print(f"\n✅ PARTIAL SUCCESS: {alive} balls survived with {wall_bounces} wall bounces and {ball_collisions} ball collisions")
-    else:
-        print(f"\n❌ FAILURE: Collision bouncing system not working correctly")
+    test_multi_ball_ball_collision_bounce()

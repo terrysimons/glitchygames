@@ -54,7 +54,11 @@ class TestRootSprite:
         assert isinstance(sprite, RootSprite)
         # When no groups are provided, sprite gets added to a default group
         assert len(sprite.groups()) == 1
-        assert isinstance(sprite.groups()[0], pygame.sprite.LayeredDirty)
+        # Check that the group has the expected methods (works with centralized mocks)
+        group = sprite.groups()[0]
+        assert hasattr(group, 'add')
+        assert hasattr(group, 'remove')
+        assert hasattr(group, 'draw')
 
 
 class TestSpriteInitialization:

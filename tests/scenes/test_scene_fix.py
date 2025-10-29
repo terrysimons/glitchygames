@@ -1,47 +1,44 @@
 #!/usr/bin/env python3
 """Quick test to verify the Scene fix works."""
 
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch
+import pytest
+from tests.mocks.test_mock_factory import MockFactory
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent))
 
-# Mock pygame before importing
-with patch("pygame.init"), \
-     patch("pygame.display.init"), \
-     patch("pygame.display.set_mode") as mock_set_mode, \
-     patch("pygame.display.get_surface") as mock_get_surface:
-    
-    # Configure mocks
-    mock_surface = Mock()
-    mock_surface.get_width.return_value = 800
-    mock_surface.get_height.return_value = 600
-    mock_surface.get_size.return_value = (800, 600)
-    mock_set_mode.return_value = mock_surface
-    mock_get_surface.return_value = mock_surface
-    
-    from glitchygames.scenes import Scene, SceneManager
-    
-    # Test that Scene can access SceneManager methods
-    scene_manager = SceneManager()
-    scene = Scene()
-    scene.scene_manager = scene_manager
-    
-    # Test that the methods exist
-    print('_get_collided_sprites exists:', hasattr(scene_manager, '_get_collided_sprites'))
-    print('_get_focusable_sprites exists:', hasattr(scene_manager, '_get_focusable_sprites'))
-    print('_get_focused_sprites exists:', hasattr(scene_manager, '_get_focused_sprites'))
-    print('_has_focusable_sprites exists:', hasattr(scene_manager, '_has_focusable_sprites'))
-    print('_unfocus_sprites exists:', hasattr(scene_manager, '_unfocus_sprites'))
-    
-    # Test that Scene can call these methods through scene_manager
-    try:
+class TestSceneFix:
+    """Test that Scene can access SceneManager methods."""
+
+    def setup_method(self):
+        """Set up test fixtures using centralized mocks."""
+        # Use centralized mocks
+        self.patchers = MockFactory.setup_pygame_mocks()
+        for patcher in self.patchers:
+            patcher.start()
+
+    def teardown_method(self):
+        """Clean up after tests."""
+        MockFactory.teardown_pygame_mocks(self.patchers)
+
+    def test_scene_has_collision_methods(self):
+        """Test that Scene has collision detection and sprite management methods."""
+        from glitchygames.scenes import Scene, SceneManager
+        
+        # Test that Scene has the methods directly
+        scene = Scene()
+        scene_manager = SceneManager()
+        scene.scene_manager = scene_manager
+        
+        # Test that the methods exist on the Scene object
+        assert hasattr(scene, '_get_collided_sprites')
+        assert hasattr(scene, '_get_focusable_sprites')
+        assert hasattr(scene, '_get_focused_sprites')
+        assert hasattr(scene, '_has_focusable_sprites')
+        
+        # Test that Scene can call these methods directly
         # This should not raise an AttributeError
-        result = scene.scene_manager._get_collided_sprites((100, 100))
-        print('Scene can call _get_collided_sprites through scene_manager')
-    except Exception as e:
-        print(f'Error calling _get_collided_sprites: {e}')
-    
-    print('Scene fix verification complete!')
+        result = scene._get_collided_sprites((100, 100))
+        assert result is not None  # Should return some result (even if empty list)
+        
+        # Test that Scene can access SceneManager through scene_manager property
+        assert scene.scene_manager is not None
+        assert hasattr(scene.scene_manager, 'all_sprites')

@@ -179,14 +179,11 @@ def test_multi_ball_bounce_trajectories():
     
     pygame.quit()
     
-    return final_alive, total_bounces, interactions
+    # Assert that the test completed successfully
+    assert final_alive > 0, "At least one ball should survive"
+    assert total_bounces > 0, "Bouncing should be working"
+    
+    print(f"\n✅ Test completed successfully")
 
 if __name__ == "__main__":
-    alive, bounces, interactions = test_multi_ball_bounce_trajectories()
-    
-    if alive == 5 and bounces > 0:
-        print(f"\n🎉 SUCCESS: All balls survived with clean bouncing trajectories!")
-    elif alive > 0 and bounces > 0:
-        print(f"\n✅ PARTIAL SUCCESS: {alive} balls survived with {bounces} bounces")
-    else:
-        print(f"\n❌ FAILURE: Bouncing system not working correctly")
+    test_multi_ball_bounce_trajectories()

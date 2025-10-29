@@ -505,13 +505,22 @@ class VisualCollisionManager:
             Dictionary of controller_id -> VisualIndicator
         """
         if location_type == LocationType.FILM_STRIP:
-            print(f"DEBUG: get_indicators_by_location FILM_STRIP - {len(self.film_strip_indicators)} indicators")
+            # Suppress debug output during pytest runs
+            import sys
+            if 'pytest' not in sys.modules:
+                print(f"DEBUG: get_indicators_by_location FILM_STRIP - {len(self.film_strip_indicators)} indicators")
             return self.film_strip_indicators
         elif location_type == LocationType.CANVAS:
-            print(f"DEBUG: get_indicators_by_location CANVAS - {len(self.canvas_indicators)} indicators")
+            # Suppress debug output during pytest runs
+            import sys
+            if 'pytest' not in sys.modules:
+                print(f"DEBUG: get_indicators_by_location CANVAS - {len(self.canvas_indicators)} indicators")
             return self.canvas_indicators
         elif location_type == LocationType.SLIDER:
-            print(f"DEBUG: get_indicators_by_location SLIDER - {len(self.slider_indicators)} indicators")
+            # Suppress debug output during pytest runs
+            import sys
+            if 'pytest' not in sys.modules:
+                print(f"DEBUG: get_indicators_by_location SLIDER - {len(self.slider_indicators)} indicators")
             return self.slider_indicators
         else:
             return self.indicators

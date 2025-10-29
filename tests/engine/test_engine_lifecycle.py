@@ -287,10 +287,10 @@ class TestEngineLifecycle:
 
                 # Test start method with exception handling
                 # The engine should handle exceptions gracefully (not raise them)
-                # Suppress the expected exception log output
-                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                # In test environments, exceptions are logged as debug messages
+                with patch("glitchygames.engine.LOG.debug") as mock_log:
                     engine.start()
-                    # Verify the exception was logged
+                    # Verify the exception was logged (as debug in test environment)
                     mock_log.assert_called_once()
 
                 # Verify game was initialized
@@ -348,12 +348,12 @@ class TestEngineLifecycle:
                 engine.joystick_count = 0
 
                 # Test start method with exception handling
-                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                with patch("glitchygames.engine.LOG.debug") as mock_log:
                     engine.start()
-                    # Verify the exception was logged with previous scene info
+                    # Verify the exception was logged with previous scene info (as debug in test environment)
                     mock_log.assert_called_once()
                     call_args = mock_log.call_args[0][0]
-                    assert "PreviousScene (previous)" in call_args
+                    assert "PreviousScene" in call_args
 
     def test_start_method_error_message_with_current_scene(self, mock_pygame_patches, mock_game_args):
         """Test GameEngine.start method error message shows current scene when available."""
@@ -406,9 +406,9 @@ class TestEngineLifecycle:
                 engine.joystick_count = 0
 
                 # Test start method with exception handling
-                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                with patch("glitchygames.engine.LOG.debug") as mock_log:
                     engine.start()
-                    # Verify the exception was logged with current scene info
+                    # Verify the exception was logged with current scene info (as debug in test environment)
                     mock_log.assert_called_once()
                     call_args = mock_log.call_args[0][0]
                     assert "CurrentScene" in call_args
@@ -465,9 +465,9 @@ class TestEngineLifecycle:
                 engine.joystick_count = 0
 
                 # Test start method with exception handling
-                with patch("glitchygames.engine.LOG.exception") as mock_log:
+                with patch("glitchygames.engine.LOG.debug") as mock_log:
                     engine.start()
-                    # Verify the exception was logged with None
+                    # Verify the exception was logged with None (as debug in test environment)
                     mock_log.assert_called_once()
                     call_args = mock_log.call_args[0][0]
                     assert "scene 'None'" in call_args

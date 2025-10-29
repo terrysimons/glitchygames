@@ -181,22 +181,23 @@ def test_ball_math_fast():
     # Check for NaN or infinity
     if math.isnan(speed_x) or math.isnan(speed_y) or math.isnan(x) or math.isnan(y):
         print(f"  ❌ NaN values detected!")
+        assert False, "NaN values detected in ball calculations"
     elif math.isinf(speed_x) or math.isinf(speed_y) or math.isinf(x) or math.isinf(y):
         print(f"  ❌ Infinity values detected!")
+        assert False, "Infinity values detected in ball calculations"
     else:
         print(f"  ✅ All values are finite")
     
-    return bounce_count, magnitude_samples
+    # Assert that the test completed successfully
+    assert bounce_count >= 0, "Bounce count should be non-negative"
+    assert len(magnitude_samples) > 0, "Should have magnitude samples"
+    
+    # Check for mathematical stability (no excessive drift)
+    if len(magnitude_samples) > 1:
+        drift = max(magnitude_samples) - min(magnitude_samples)
+        assert drift < 0.01, f"Mathematical drift too high: {drift:.6f}"
+    
+    print(f"\n✅ Test completed successfully")
 
 if __name__ == "__main__":
-    bounces, magnitudes = test_ball_math_fast()
-    
-    if len(magnitudes) > 0:
-        drift = max(magnitudes) - min(magnitudes)
-        if drift < 0.01:
-            print(f"\n🎉 SUCCESS: Mathematical calculations are stable over 1 billion iterations!")
-            print(f"   Processed {1000000000:,} iterations with {1000000000*4:,} total calculations")
-        else:
-            print(f"\n⚠️  WARNING: Mathematical drift detected: {drift:.6f}")
-    else:
-        print(f"\n✅ Test completed successfully")
+    test_ball_math_fast()

@@ -135,7 +135,7 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
 
         # Verify the pixel was set
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (255, 255, 255)
+        assert pixel_color == (255, 255, 255, 255)
 
         # Verify it's set in the actual frame
         current_frame = self.animated_sprite.frames["idle"][0]
@@ -151,12 +151,12 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
         # Switch to frame 1 of idle animation
         self.canvas.show_frame("idle", 1)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (0, 255, 0)  # Should be green (original color)
+        assert pixel_color == (0, 255, 0, 255)  # Should be green (original color)
 
         # Switch back to frame 0
         self.canvas.show_frame("idle", 0)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (255, 0, 0)  # Should be red (our edit)
+        assert pixel_color == (255, 0, 0, 255)  # Should be red (our edit)
 
     def test_animation_isolation(self):
         """Test that editing one animation doesn't affect others."""
@@ -167,7 +167,7 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
         # Switch to walk animation, frame 0
         self.canvas.show_frame("walk", 0)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (0, 0, 255)  # Should be blue (original color)
+        assert pixel_color == (0, 0, 255, 255)  # Should be blue (original color)
 
     def test_frame_navigation(self):
         """Test navigating between frames."""
@@ -246,7 +246,7 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
 
         # Verify the pixel was pasted
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (255, 255, 255)
+        assert pixel_color == (255, 255, 255, 255)
 
     def test_save_load_animated_sprite(self):
         """Test saving and loading animated sprites."""

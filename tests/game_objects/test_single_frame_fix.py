@@ -13,6 +13,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'glitchygames'))
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from tests.mocks import MockFactory
 
 def test_single_frame_animation():
     """Test that single-frame animations continue playing."""
@@ -21,16 +22,23 @@ def test_single_frame_animation():
     # Initialize pygame
     pygame.init()
     
-    # Create a simple surface for the frame
-    surface = pygame.Surface((8, 8))
+    # Create a real surface for the frame using MockFactory
+    surface = MockFactory.create_real_pygame_surface(8, 8)
     surface.fill((255, 0, 0))  # Red color
     
     # Create a single frame
     frame = SpriteFrame(surface)
     frame.duration = 0.5  # 0.5 seconds duration
     
-    # Create animated sprite with single frame
-    sprite = AnimatedSprite()
+    # Create animated sprite with single frame using centralized mocks
+    sprite = MockFactory.create_animated_sprite_mock(
+        animation_name="idle",
+        frame_size=(8, 8),
+        pixel_color=(255, 0, 0),
+        current_frame=0
+    )
+    
+    # Override the animations to use our single frame
     sprite._animations = {"idle": [frame]}
     sprite.frame_manager.current_animation = "idle"
     sprite.frame_manager.current_frame = 0

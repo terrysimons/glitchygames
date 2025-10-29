@@ -164,7 +164,7 @@ class BallSprite(Sprite):
         self.speed_up_mode = speed_up_mode
         self.speed_up_multiplier = speed_up_multiplier
         self.speed_up_interval = speed_up_interval
-        self._last_speed_up_time = 0.0
+        self._last_speed_up_time = time.time()  # Initialize to current time
 
         self.reset()
 
@@ -359,14 +359,21 @@ class BallSprite(Sprite):
             self.speed.y *= multiplier
         elif speed_up_type == "exponential_x":
             # Exponential X speed-up: exponential scaling of X component
-            self.speed.x = self.speed.x * (multiplier ** abs(self.speed.x / 100.0)) if self.speed.x != 0 else 0
+            # Cap the exponent to prevent runaway growth (max 2.0)
+            exponent = min(abs(self.speed.x) / 100.0, 2.0)
+            self.speed.x = self.speed.x * (multiplier ** exponent) if self.speed.x != 0 else 0
         elif speed_up_type == "exponential_y":
             # Exponential Y speed-up: exponential scaling of Y component
-            self.speed.y = self.speed.y * (multiplier ** abs(self.speed.y / 100.0)) if self.speed.y != 0 else 0
+            # Cap the exponent to prevent runaway growth (max 2.0)
+            exponent = min(abs(self.speed.y) / 100.0, 2.0)
+            self.speed.y = self.speed.y * (multiplier ** exponent) if self.speed.y != 0 else 0
         elif speed_up_type == "exponential_both":
             # Exponential both: exponential scaling of both components
-            self.speed.x = self.speed.x * (multiplier ** abs(self.speed.x / 100.0)) if self.speed.x != 0 else 0
-            self.speed.y = self.speed.y * (multiplier ** abs(self.speed.y / 100.0)) if self.speed.y != 0 else 0
+            # Cap the exponent to prevent runaway growth (max 2.0)
+            x_exponent = min(abs(self.speed.x) / 100.0, 2.0)
+            y_exponent = min(abs(self.speed.y) / 100.0, 2.0)
+            self.speed.x = self.speed.x * (multiplier ** x_exponent) if self.speed.x != 0 else 0
+            self.speed.y = self.speed.y * (multiplier ** y_exponent) if self.speed.y != 0 else 0
 
     def _check_continuous_speed_up(self: Self, current_time: float) -> None:
         """Check if continuous speed-up should be applied.

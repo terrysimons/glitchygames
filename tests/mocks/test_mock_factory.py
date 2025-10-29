@@ -215,8 +215,12 @@ class MockFactory:
             mock_frame_image.get_size.return_value = frame_size
             mock_frame.image = mock_frame_image
 
-            # Add duration attribute for animation timing
-            mock_frame.duration = 1.0  # 1 second duration
+            # Add frame_index for sequence testing
+            mock_frame.frame_index = frame_idx
+
+            # Add varied duration for timing testing (simulate different frame speeds)
+            # Frame 0: 0.3s (fast), Frame 1: 0.7s (normal), Frame 2: 1.0s (slow), etc.
+            mock_frame.duration = 0.3 + (frame_idx * 0.2)  # 0.3, 0.5, 0.7, 0.9, 1.1
 
             mock_frames.append(mock_frame)
 
@@ -226,42 +230,20 @@ class MockFactory:
         # Add pixels attribute for surface creation
         mock_frame.pixels = [pixel_color] * pixel_count
 
-        # Configure sprite properties
-        # Create multiple frames for testing (5 frames per animation) with different colors
-        mock_frames = []
-        for frame_idx in range(5):  # Create 5 frames with different colors
-            frame = Mock()
-            frame.get_size.return_value = frame_size
-            frame.get_width.return_value = frame_size[0]
-            frame.get_height.return_value = frame_size[1]
-
-            # Create different pixel colors for each frame to simulate animation
-            frame_color = (
-                (pixel_color[0] + frame_idx * 20) % 256,
-                (pixel_color[1] + frame_idx * 30) % 256,
-                (pixel_color[2] + frame_idx * 40) % 256
-            )
-            frame.get_pixel_data.return_value = [frame_color] * pixel_count
-
-            # Create frame image with proper methods
-            frame_image = Mock()
-            frame_image.get_width.return_value = frame_size[0]
-            frame_image.get_height.return_value = frame_size[1]
-            frame_image.get_size.return_value = frame_size
-            frame.image = frame_image
-
-            # Add duration attribute for animation timing
-            frame.duration = 1.0  # 1 second duration
-
-            # Add pixels attribute for surface creation
-            frame.pixels = [frame_color] * pixel_count
-            mock_frames.append(frame)
-
-        mock_sprite._animations = {animation_name: mock_frames}
+        # Create animations for testing
+        mock_sprite._animations = {
+            animation_name: mock_frames,
+            "timing_demo": mock_frames,  # Add timing_demo animation for tests
+        }
+        
+        # Only add "idle" if it's specifically requested
+        if animation_name == "idle":
+            mock_sprite._animations["idle"] = mock_frames
         mock_sprite.current_animation = animation_name  # Set to the provided animation name
         mock_sprite.current_frame = current_frame  # Start with specified frame
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
+        mock_sprite.name = "Tiley McTile Face"  # Default name for tests
 
         # Add essential sprite attributes
         mock_sprite.image = mock_frames[0].image
@@ -272,11 +254,11 @@ class MockFactory:
         rect.left = 0
         rect.right = frame_size[0]
         mock_sprite.rect = rect
-        mock_sprite.animations = {animation_name: mock_frames}
+        mock_sprite.animations = mock_sprite._animations  # Use the full animations dict
         mock_sprite.dirty = 1  # Required for pygame.sprite.DirtySprite
 
         # Add frames attribute that canvas_interfaces.py expects
-        mock_sprite.frames = {animation_name: mock_frames}
+        mock_sprite.frames = mock_sprite._animations
 
         # Add missing methods and attributes for comprehensive testing
         def mock_play():
@@ -358,6 +340,28 @@ class MockFactory:
                 mock_sprite._frame_manager._observers.remove(observer)
         mock_sprite.remove_frame_observer = mock_remove_frame_observer
 
+        # Add get_frame method with error handling
+        def mock_get_frame(animation_name, frame_idx):
+            if animation_name not in mock_sprite._animations:
+                raise ValueError(f"Animation '{animation_name}' not found")
+            if frame_idx < 0 or frame_idx >= len(mock_sprite._animations[animation_name]):
+                raise IndexError(f"Frame index {frame_idx} out of range for animation '{animation_name}'")
+            return mock_sprite._animations[animation_name][frame_idx]
+        mock_sprite.get_frame = mock_get_frame
+
+        # Add get_animation_metadata method
+        def mock_get_animation_metadata(animation_name):
+            if animation_name not in mock_sprite._animations:
+                raise ValueError(f"Animation '{animation_name}' not found")
+            frames = mock_sprite._animations[animation_name]
+            return {
+                "name": animation_name,
+                "frame_count": len(frames),
+                "total_duration": sum(frame.duration for frame in frames),
+                "is_looping": mock_sprite._is_looping
+            }
+        mock_sprite.get_animation_metadata = mock_get_animation_metadata
+
         mock_sprite.get_current_surface = Mock(return_value=Mock())
         mock_sprite.save = Mock()
         mock_sprite.load = Mock()
@@ -367,6 +371,27 @@ class MockFactory:
         mock_sprite._frame_manager = Mock()
         mock_sprite._frame_manager._observers = []
         mock_sprite._frame_manager.animated_sprite = mock_sprite
+        
+        # Add frame_manager with current_animation and current_frame properties
+        mock_sprite.frame_manager = Mock()
+        mock_sprite.frame_manager.current_animation = animation_name
+        mock_sprite.frame_manager.current_frame = current_frame
+        
+        # Add animation_count property
+        mock_sprite.animation_count = len(mock_frames)
+        
+        # Add current_animation_frame_count property
+        mock_sprite.current_animation_frame_count = len(mock_frames)
+        
+        # Add current_animation_total_duration property
+        total_duration = sum(frame.duration for frame in mock_frames)
+        mock_sprite.current_animation_total_duration = total_duration
+        
+        # Add animation_names property
+        mock_sprite.animation_names = list(mock_sprite._animations.keys())
+        
+        # Add frame_interval property (simulate timing)
+        mock_sprite.frame_interval = 1.0  # Default 1 second interval
 
         # Skip caching to avoid deep copy issues with Mock objects
         # if use_cache:
@@ -689,6 +714,19 @@ class MockFactory:
         return MockSurface((width, height))
 
     @staticmethod
+    def create_pygame_surface_mock_object(width: int = 8, height: int = 8):
+        """Create a Mock object that can have its methods mocked (for tests that need to set return_value)."""
+        mock_surface = Mock()
+        mock_surface.get_width.return_value = width
+        mock_surface.get_height.return_value = height
+        mock_surface.get_size.return_value = (width, height)
+        mock_surface.get_width.return_value = width
+        mock_surface.get_height.return_value = height
+        mock_surface.get_size.return_value = (width, height)
+        mock_surface.make_surface.return_value = mock_surface
+        return mock_surface
+
+    @staticmethod
     def create_real_pygame_surface(width: int = 8, height: int = 8):
         """Create a real pygame.Surface for tests that need actual pygame functionality."""
         import pygame  # noqa: PLC0415
@@ -720,6 +758,22 @@ class MockFactory:
         mock_event.unicode = ""
         mock_event.text = ""
         return mock_event
+
+    @staticmethod
+    def create_pygame_key_mock(shift_pressed=False):
+        """Create a mock pygame key state for testing.
+        
+        Args:
+            shift_pressed (bool): Whether shift keys should be pressed
+            
+        Returns:
+            Mock: A mock that returns a list of key states
+        """
+        mock_key_state = [False] * 512
+        if shift_pressed:
+            mock_key_state[304] = True  # pygame.K_LSHIFT
+            mock_key_state[303] = True  # pygame.K_RSHIFT
+        return mock_key_state
 
     @staticmethod
     def create_pygame_joystick_mock():
@@ -1116,7 +1170,8 @@ class MockFactory:
             if hasattr(surface, "_surface"):
                 # Use the original pygame.draw.polygon directly to avoid recursion
                 return original_draw_polygon(surface._surface, color, points, width)
-            return original_draw_polygon(surface, color, points, width)
+            # For mock surfaces, just return without doing anything
+            return None
 
         draw_polygon_patcher = patch("pygame.draw.polygon", side_effect=mock_draw_polygon)
 
@@ -1131,6 +1186,7 @@ class MockFactory:
         key_mock = Mock()
         key_mock.set_repeat.return_value = None
         key_mock.get_mods.return_value = 0  # No modifier keys pressed by default
+        key_mock.get_pressed.return_value = [False] * 512  # All keys not pressed by default
         key_patcher = patch("pygame.key", key_mock)
 
         # Transform mocking - create a mock that returns a real surface
@@ -1142,13 +1198,8 @@ class MockFactory:
             return pygame.Surface(size)
         transform_scale_patcher = patch("pygame.transform.scale", side_effect=mock_transform_scale)
 
-        # Surface mocking - create real surfaces for drawing operations
-        def mock_surface_constructor(*args, **kwargs):
-            """Mock pygame.Surface constructor that returns a real pygame surface."""
-            # Create a real pygame surface using the original constructor
-            import pygame.surface
-            return pygame.surface.Surface(*args, **kwargs)
-        surface_constructor_patcher = patch("pygame.Surface", side_effect=mock_surface_constructor)
+        # Surface mocking - use the mock surface class instead of real surfaces
+        # The surface_class_mock already handles this properly
 
         # FontManager mock - create a mock font that returns a proper surface
         mock_font = Mock()
@@ -1245,6 +1296,8 @@ class MockFactory:
         # Key constants mocking
         key_constants_patcher = patch("pygame.K_q", 113)
         key_escape_patcher = patch("pygame.K_ESCAPE", 27)
+        key_lshift_patcher = patch("pygame.K_LSHIFT", 304)
+        key_rshift_patcher = patch("pygame.K_RSHIFT", 303)
         key_down_patcher = patch("pygame.KEYDOWN", pygame.KEYDOWN)
         key_up_patcher = patch("pygame.KEYUP", pygame.KEYUP)
         mouse_button_down_patcher = patch("pygame.MOUSEBUTTONDOWN", pygame.MOUSEBUTTONDOWN)
@@ -1297,8 +1350,8 @@ class MockFactory:
 
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-                sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
+                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
+                sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
                 touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,  # noqa: E501
@@ -1321,8 +1374,8 @@ class MockFactory:
         (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
          draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher,  # noqa: E501
-         transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-         sprite_patcher, key_constants_patcher, key_escape_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
+         transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
+         sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
          touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
@@ -1351,7 +1404,6 @@ class MockFactory:
         sprite_factory_patcher.stop()
         key_patcher.stop()
         transform_scale_patcher.stop()
-        surface_constructor_patcher.stop()
         font_manager_patcher.stop()
         clock_patcher.stop()
         sprite_patcher.stop()
@@ -1359,6 +1411,8 @@ class MockFactory:
         # Stop all constant patches
         key_constants_patcher.stop()
         key_escape_patcher.stop()
+        key_lshift_patcher.stop()
+        key_rshift_patcher.stop()
         key_down_patcher.stop()
         key_up_patcher.stop()
         mouse_button_down_patcher.stop()

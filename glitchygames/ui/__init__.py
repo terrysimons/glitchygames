@@ -965,7 +965,7 @@ class TextSprite(BitmappySprite):
         # Initialize cursor state for blinking
         self._cursor_timer = 0
         self._cursor_visible = True
-        
+
         # Initialize hover tracking (disabled)
         # self.is_hovered = False
         # self.base_text_color = text_color  # Store original text color
@@ -1053,7 +1053,7 @@ class TextSprite(BitmappySprite):
 
         # Create text surface using FontManager for consistent font handling
         font = FontManager.get_font()
-        
+
         # Set text color (hover disabled)
         # if self.is_hovered:
         #     # Hover state - bright blue text
@@ -1130,7 +1130,7 @@ class TextSprite(BitmappySprite):
                 if cursor_x < self.width and cursor_y < self.height:
                     # Set cursor color (hover disabled)
                     cursor_color = self.text_color  # Use original text color
-                    
+
                     # Draw a vertical line for the cursor
                     pygame.draw.line(
                         self.image,
@@ -2048,7 +2048,7 @@ class SliderSprite(BitmappySprite):
             else:
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
-        
+
         # Draw visual indicators for multi-controller system
         self._draw_slider_visual_indicators()
 
@@ -2056,37 +2056,37 @@ class SliderSprite(BitmappySprite):
         """Draw visual indicators for multi-controller system on sliders."""
         if not hasattr(self, 'parent') or not self.parent:
             return
-            
+
         # Check if parent has visual collision manager
         if not hasattr(self.parent, 'visual_collision_manager'):
             return
-            
+
         from glitchygames.tools.visual_collision_manager import LocationType
-        
+
         # Get slider indicators from the visual collision manager
         slider_indicators = self.parent.visual_collision_manager.get_indicators_by_location(LocationType.SLIDER)
         if not slider_indicators:
             return
-            
+
         print(f"DEBUG: Drawing {len(slider_indicators)} slider indicators on {self.name} slider")
-        
+
         # Draw each indicator on this slider
         for controller_id, indicator in slider_indicators.items():
             # Calculate position relative to this slider
             slider_x = self.rect.x
             slider_y = self.rect.y
             slider_width = self.rect.width
-            
+
             # Map indicator position to slider coordinates
             # For now, use a simple mapping - this could be improved
             indicator_x = slider_x + (indicator.position[0] % slider_width)
             indicator_y = slider_y + indicator.position[1]
-            
+
             # Draw the indicator based on its shape
             if indicator.shape.value == "circle":
                 # Draw circle (slider indicator)
-                pygame.draw.circle(self.image, indicator.color, 
-                                 (indicator_x - slider_x, indicator_y - slider_y), 
+                pygame.draw.circle(self.image, indicator.color,
+                                 (indicator_x - slider_x, indicator_y - slider_y),
                                  indicator.size // 2)
             elif indicator.shape.value == "square":
                 # Draw square
@@ -2192,11 +2192,14 @@ class SliderSprite(BitmappySprite):
                 self.parent.green_slider.value = self._value
             elif self.name == "B":
                 self.parent.blue_slider.value = self._value
+            elif self.name == "A":
+                self.parent.alpha_slider.value = self._value
 
             self.parent.color_well.active_color = (
                 self.parent.red_slider.value,
                 self.parent.green_slider.value,
                 self.parent.blue_slider.value,
+                self.parent.alpha_slider.value,
             )
 
     def on_left_mouse_button_down_event(self, event):
@@ -2231,6 +2234,11 @@ class SliderSprite(BitmappySprite):
         else:
             self.log.info(f"Mouse click not on slider {self.name} rect")
 
+    def on_left_mouse_button_up_event(self, event):
+        """Handle left mouse button up event."""
+        self.log.info(f"Slider {self.name} mouse up event")
+        self.dragging = False
+
     def on_mouse_motion_event(self, event):
         """Handle mouse motion event."""
         if self.dragging:
@@ -2260,12 +2268,6 @@ class SliderSprite(BitmappySprite):
             self.text_sprite.dirty = 2  # Force redraw
         else:
             pass
-
-    def on_left_mouse_button_up_event(self, event):
-        """Handle left mouse button up event."""
-        if self.dragging:
-            self.log.info(f"Mouse up on slider {self.name}")
-            self.dragging = False
 
     def update(self):
         """Update the slider."""
@@ -2310,9 +2312,14 @@ class ColorWellSprite(BitmappySprite):
         super().__init__(
             x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
         )
+
+        # Override the surface to support alpha
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+
         self.red = 0
         self.green = 0
         self.blue = 0
+        self.alpha = 255
         # Ensure callbacks attribute is initialized (inheritance issue fix)
         if not hasattr(self, "callbacks"):
             self.callbacks = {}
@@ -2332,24 +2339,24 @@ class ColorWellSprite(BitmappySprite):
         # self.text_sprite.rect.midleft = self.rect.midright
 
     @property
-    def active_color(self: Self) -> tuple[int, int, int]:
+    def active_color(self: Self) -> tuple[int, int, int, int]:
         """Get the active color.
 
         Args:
             None
 
         Returns:
-            tuple[R: int, G: int, B: int]: The active color.
+            tuple[R: int, G: int, B: int, A: int]: The active color.
 
         """
-        return (self.red, self.green, self.blue)
+        return (self.red, self.green, self.blue, self.alpha)
 
     @active_color.setter
-    def active_color(self: Self, active_color: tuple[int, int, int]) -> None:
+    def active_color(self: Self, active_color: tuple[int, int, int] | tuple[int, int, int, int]) -> None:
         """Set the active color.
 
         Args:
-            active_color (tuple[R: int, G: int, B: int]): The new active color.
+            active_color (tuple[R: int, G: int, B: int] | tuple[R: int, G: int, B: int, A: int]): The new active color.
 
         Returns:
             None
@@ -2358,6 +2365,11 @@ class ColorWellSprite(BitmappySprite):
         self.red = active_color[0]
         self.green = active_color[1]
         self.blue = active_color[2]
+        # Handle both RGB and RGBA tuples
+        if len(active_color) == 4:
+            self.alpha = active_color[3]
+        else:
+            self.alpha = 255  # Default to fully opaque if not specified
         self.dirty = 1
 
     @property
@@ -2368,17 +2380,18 @@ class ColorWellSprite(BitmappySprite):
             None
 
         Returns:
-            str: The hex color in #RRGGBB format.
+            str: The hex color in #RRGGBBAA format.
 
         """
         hex_str = "{:02X}"
-        red, green, blue = self.active_color
+        red, green, blue, alpha = self.active_color
 
         red = hex_str.format(red)
         green = hex_str.format(green)
         blue = hex_str.format(blue)
+        alpha = hex_str.format(alpha)
 
-        return f"#{red}{green}{blue}"
+        return f"#{red}{green}{blue}{alpha}"
 
     def update_nested_sprites(self: Self) -> None:
         """Update the nested sprites.
@@ -2404,6 +2417,8 @@ class ColorWellSprite(BitmappySprite):
 
         """
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
+
+        # Draw the color directly on the alpha-compatible surface
         pygame.draw.rect(self.image, self.active_color, Rect(1, 1, self.width - 2, self.height - 2))
 
         # Hide hex color display
@@ -2836,7 +2851,7 @@ class MultiLineTextBox(BitmappySprite):
         # Initialize selection attributes
         self.selection_start = None
         self.selection_end = None
-        
+
         # Initialize hover tracking
         self.is_hovered = False
 
