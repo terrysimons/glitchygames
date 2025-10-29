@@ -237,8 +237,9 @@ class TestBallExponentialSpeedUp(unittest.TestCase):
         # Apply exponential speed-up
         ball.speed_up(speed_up_type="exponential_x")
         
-        # X speed should be exponentially increased (very large)
-        expected_x = 1000.0 * (1.1 ** (1000.0 / 100.0))  # 1000 * 1.1^10 ≈ 2593.7
+        # X speed should be exponentially increased but capped to prevent runaway growth
+        # With cap of 2.0: 1000 * 1.1^2 = 1210
+        expected_x = 1000.0 * (1.1 ** 2.0)  # Capped at 2.0 to prevent runaway growth
         self.assertAlmostEqual(ball.speed.x, expected_x, places=1)
         # Y speed should remain unchanged
         self.assertEqual(ball.speed.y, 500.0)
