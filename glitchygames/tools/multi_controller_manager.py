@@ -82,7 +82,10 @@ class MultiControllerManager:
         self.scan_interval = 1.0  # seconds
         self._initialized = True
         
-        print("DEBUG: MultiControllerManager singleton initialized")
+        # Suppress debug output during pytest runs
+        import sys
+        if 'pytest' not in sys.modules:
+            print("DEBUG: MultiControllerManager singleton initialized")
     
     @classmethod
     def get_instance(cls):

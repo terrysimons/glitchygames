@@ -230,12 +230,15 @@ class MockFactory:
         # Add pixels attribute for surface creation
         mock_frame.pixels = [pixel_color] * pixel_count
 
-        # Create multiple animations for testing (including "timing_demo" that tests expect)
+        # Create animations for testing
         mock_sprite._animations = {
             animation_name: mock_frames,
             "timing_demo": mock_frames,  # Add timing_demo animation for tests
-            "idle": mock_frames  # Ensure idle is available
         }
+        
+        # Only add "idle" if it's specifically requested
+        if animation_name == "idle":
+            mock_sprite._animations["idle"] = mock_frames
         mock_sprite.current_animation = animation_name  # Set to the provided animation name
         mock_sprite.current_frame = current_frame  # Start with specified frame
         mock_sprite.is_playing = is_playing
@@ -1154,7 +1157,8 @@ class MockFactory:
             if hasattr(surface, "_surface"):
                 # Use the original pygame.draw.polygon directly to avoid recursion
                 return original_draw_polygon(surface._surface, color, points, width)
-            return original_draw_polygon(surface, color, points, width)
+            # For mock surfaces, just return without doing anything
+            return None
 
         draw_polygon_patcher = patch("pygame.draw.polygon", side_effect=mock_draw_polygon)
 

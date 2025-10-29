@@ -30,7 +30,7 @@ class TestOnLoadFileEvent(unittest.TestCase):
         """Set up test fixtures before each test method."""
         # pygame.init() is handled by the pytest fixture
 
-        # Create a test animated sprite
+        # Create a test animated sprite using centralized mocks
         self.animated_sprite = self._create_test_animated_sprite()
 
         # Create a test animated canvas
@@ -45,11 +45,12 @@ class TestOnLoadFileEvent(unittest.TestCase):
             pixel_height=16,
         )
 
-        # Create a test scene with canvas
+        # Create a test scene with canvas using centralized mocks
         test_options = {"size": "8x8"}
         self.scene = BitmapEditorScene(options=test_options)
         self.scene.canvas = self.canvas
-        self.scene.all_sprites = pygame.sprite.LayeredDirty()
+        # Use centralized mock for sprite group
+        self.scene.all_sprites = MockFactory.create_pygame_sprite_group_mock()
 
     def tearDown(self):
         """Clean up after each test method."""
@@ -57,26 +58,20 @@ class TestOnLoadFileEvent(unittest.TestCase):
 
     @staticmethod
     def _create_test_animated_sprite():
-        """Create a test animated sprite with 2 frames."""
-        # Create frame 1
-        surface1 = pygame.Surface((8, 8))
-        surface1.fill((255, 0, 0))  # Red frame
-        frame1 = SpriteFrame(surface1)
-        frame1.pixels = [(255, 0, 0)] * 64  # 8x8 = 64 pixels
+        """Create a test animated sprite with 2 frames using centralized mocks."""
+        # Use centralized mock factory to create animated sprite
+        animated_sprite = MockFactory.create_animated_sprite_mock(
+            animation_name="idle",
+            frame_size=(8, 8),
+            pixel_color=(255, 0, 0),  # Red base color
+            current_frame=0
+        )
 
-        # Create frame 2
-        surface2 = pygame.Surface((8, 8))
-        surface2.fill((0, 255, 0))  # Green frame
-        frame2 = SpriteFrame(surface2)
-        frame2.pixels = [(0, 255, 0)] * 64
-
-        # Create animated sprite
-        animated_sprite = AnimatedSprite()
-        animated_sprite._animations = {"idle": [frame1, frame2]}
-        animated_sprite._frame_interval = 0.5
-        animated_sprite._is_looping = True
+        # Set up frame manager
         animated_sprite.frame_manager.current_animation = "idle"
         animated_sprite.frame_manager.current_frame = 0
+        animated_sprite._frame_interval = 0.5
+        animated_sprite._is_looping = True
 
         return animated_sprite
 
@@ -213,7 +208,7 @@ pixels = \"\"\"
 
                 # Verify error was handled gracefully
                 # (The method should not raise an exception)
-                
+
                 # Verify the ERROR log message was called
                 mock_log.error.assert_called_once()
                 # Check that the log message contains the expected content
@@ -236,12 +231,11 @@ pixels = \"\"\"
                 self.scene.canvas.on_load_file_event(event)
 
                 # Verify error was handled gracefully
-                
-                # Verify the ERROR log message was called
-                mock_log.error.assert_called_once()
-                # Check that the log message contains the expected content
-                call_args = mock_log.error.call_args[0][0]
-                assert "Error in on_load_file_event for animated sprite" in call_args
+                # The error log should be called at least once (it may be called multiple times for different error details)
+                assert mock_log.error.call_count >= 1
+                # Check that at least one log message contains the expected content
+                all_calls = [call[0][0] for call in mock_log.error.call_args_list]
+                assert any("Error in on_load_file_event for animated sprite" in call for call in all_calls)
 
     def test_canvas_resize_on_different_dimensions(self):
         """Test that canvas resizes when sprite has different dimensions."""

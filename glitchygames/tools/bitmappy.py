@@ -12791,13 +12791,18 @@ pixels = \"\"\"
             preserved_controller_selections: Optional dict of preserved controller selections
                 from before film strip reconstruction.
         """
-        print("DEBUG: Reinitializing multi-controller system")
-        print(f"DEBUG: Current controller_selections: {list(self.controller_selections.keys())}")
-        print(f"DEBUG: Current film_strips: {list(self.film_strips.keys()) if hasattr(self, 'film_strips') and self.film_strips else 'None'}")
+        # Suppress debug output during pytest runs
+        import sys
+        if 'pytest' not in sys.modules:
+            print("DEBUG: Reinitializing multi-controller system")
+            print(f"DEBUG: Current controller_selections: {list(self.controller_selections.keys())}")
+            print(f"DEBUG: Current film_strips: {list(self.film_strips.keys()) if hasattr(self, 'film_strips') and self.film_strips else 'None'}")
 
         # Check if controller_selections is empty (scene was recreated)
         if not self.controller_selections:
-            print("DEBUG: controller_selections is empty - scene was likely recreated")
+            # Suppress debug output during pytest runs
+            if 'pytest' not in sys.modules:
+                print("DEBUG: controller_selections is empty - scene was likely recreated")
             # If scene was recreated, we can't preserve controller selections
             # Controllers will need to be reactivated manually
             return
