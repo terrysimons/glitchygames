@@ -14,6 +14,10 @@ from glitchygames.sprites import SpriteFactory
 
 from tests.mocks.test_mock_factory import MockFactory
 
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
+original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
+
 
 class TestSpriteFactory:
     """Test SpriteFactory functionality."""
@@ -164,8 +168,10 @@ class TestSpriteFactory:
 
     def test_load_sprite_invalid_file(self):
         """Test loading sprite from invalid file."""
-        with pytest.raises(FileNotFoundError):
-            SpriteFactory.load_sprite(filename="nonexistent.toml")
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            with pytest.raises(FileNotFoundError):
+                SpriteFactory.load_sprite(filename="nonexistent.toml")
 
     def test_load_sprite_mixed_content(self):
         """Test loading sprite with mixed content."""
@@ -176,13 +182,17 @@ class TestSpriteFactory:
                 "has_frame_sections": False
             }
 
-            with pytest.raises(ValueError, match="Invalid sprite file"):
-                SpriteFactory.load_sprite(filename="mixed.toml")
+            # Temporarily disable the centralized mock for this test by patching with the original method
+            with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+                with pytest.raises(ValueError, match="Invalid sprite file"):
+                    SpriteFactory.load_sprite(filename="mixed.toml")
 
     def test_sprite_factory_load_sprite_invalid_file(self):
         """Test SpriteFactory load_sprite with invalid file."""
-        with pytest.raises(FileNotFoundError):
-            SpriteFactory.load_sprite(filename="nonexistent.toml")
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            with pytest.raises(FileNotFoundError):
+                SpriteFactory.load_sprite(filename="nonexistent.toml")
 
     def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self):
         """Test analyzing TOML file with sprite pixels."""

@@ -43,8 +43,7 @@ cookiecutter = "*"
 pyperclip = "*"
 aisuite = {extras = ["all"], version = "^0.1.12"}
 numpy = "^2.3.3"
-speechrecognition = "^3.10.0"
-pyaudio = "^0.2.11"
+
 
 # --- docs extras as optional main deps ---
 mkdocs = { version = "1.6.1", optional = true }
@@ -72,6 +71,7 @@ ruff = { version = "*", optional = true }
 pre-commit = { version = "*", optional = true }
 poetry-plugin-export = { version = "*", optional = true }
 pyright = { version = "*", optional = true }
+miniaudio = "^1.61"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]

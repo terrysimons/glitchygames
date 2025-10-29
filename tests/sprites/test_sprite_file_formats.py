@@ -16,6 +16,10 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from tests.mocks.test_mock_factory import MockFactory
 
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
+original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
+
 # Constants for magic values
 EXPECTED_ERROR_COUNT_2 = 2
 
@@ -81,11 +85,13 @@ class TestTOMLOnlySupport(unittest.TestCase):
         assert "red =" in content  # Should have color definitions
 
         # Load it back
-        loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
-        assert loaded_sprite.name == "test_toml"
-        # Check that the sprite was loaded correctly
-        assert hasattr(loaded_sprite, "image")
-        assert loaded_sprite.image.get_size() == (2, 2)
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
+            assert loaded_sprite.name == "test_toml"
+            # Check that the sprite was loaded correctly
+            assert hasattr(loaded_sprite, "image")
+            assert loaded_sprite.image.get_size() == (2, 2)
 
     def test_animated_sprite_toml_save_load(self):
         """Test that animated sprites can save and load in TOML format."""
@@ -118,9 +124,11 @@ class TestTOMLOnlySupport(unittest.TestCase):
         assert "red =" in content  # Should have color definitions
 
         # Load it back
-        loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
-        assert loaded_sprite.name == "test_animated_toml"
-        assert "test_anim" in loaded_sprite.animations
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
+            loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
+            assert loaded_sprite.name == "test_animated_toml"
+            assert "test_anim" in loaded_sprite.animations
 
     def test_yaml_format_rejected(self):
         """Test that YAML format is properly rejected."""
