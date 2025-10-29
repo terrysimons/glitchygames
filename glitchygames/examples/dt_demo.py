@@ -43,7 +43,8 @@ class Game(Scene):
         super().__init__(options=options, groups=groups)
         self.font = pygame.font.SysFont("Calibri", 40)
         self.rect_pos = 0
-        self.velocity = 5
+        # Pixels per second; use a visible speed
+        self.velocity = 300
         self.record = 0
         self.passed = False
         self.start = False
@@ -109,26 +110,18 @@ class Game(Scene):
         self.screen.fill((0, 0, 0))
 
         if self.rect_pos > self.screen_width and not self.passed:
-            self.record = self.dt_timer / 100
+            self.record = self.dt_timer
             self.passed = True
 
-        countdown = self.font.render(
-            text="Time: " + str(round(self.dt_timer / 100, 5)),
-            antialias=False,
-            color=(255, 255, 255),
-        )
-        fps_text = self.font.render(
-            text=f"FPS: {round(self.fps, 2)}", antialias=False, color=(255, 255, 255)
-        )
+        countdown = self.font.render("Time: " + str(round(self.dt_timer, 2)), False, (255, 255, 255))
+        fps_text = self.font.render(f"FPS: {round(self.fps, 2)}", False, (255, 255, 255))
 
         self.screen.blit(countdown, (0, 0))
         self.screen.blit(fps_text, (0, 50))
 
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
-            record_text = self.font.render(
-                text=f"Time: {round(self.record, 5)}", antialias=False, color=(255, 255, 255)
-            )
+            record_text = self.font.render(f"Time: {round(self.record, 2)}", False, (255, 255, 255))
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
