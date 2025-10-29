@@ -41,9 +41,9 @@ pygame = "*"
 future = "*"
 cookiecutter = "*"
 pyperclip = "*"
-aisuite = {extras = ["all"], version = "^0.1.12"}
-numpy = "^2.3.3"
-
+aisuite = {extras = ["all"], version = "*"}
+numpy = "*"
+miniaudio = "*"
 
 # --- docs extras as optional main deps ---
 mkdocs = { version = "1.6.1", optional = true }
@@ -71,16 +71,10 @@ ruff = { version = "*", optional = true }
 pre-commit = { version = "*", optional = true }
 poetry-plugin-export = { version = "*", optional = true }
 pyright = { version = "*", optional = true }
-miniaudio = "^1.61"
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
 dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
-
-
-
-
-
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
