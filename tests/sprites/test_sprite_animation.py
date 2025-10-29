@@ -124,9 +124,8 @@ class TestSpriteFrame:
 
     def test_sprite_frame_initialization(self):
         """Test SpriteFrame initialization."""
-        # Create a mock surface for the frame
-        mock_surface = Mock()
-        mock_surface.get_size.return_value = (32, 32)
+        # Create a mock surface for the frame using centralized mocks
+        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
 
         # SpriteFrame doesn't have direct width/height attributes, use get_size() or rect
@@ -135,9 +134,8 @@ class TestSpriteFrame:
 
     def test_sprite_frame_get_size(self):
         """Test getting sprite frame size."""
-        # Create a mock surface for the frame
-        mock_surface = Mock()
-        mock_surface.get_size.return_value = (32, 32)
+        # Create a mock surface for the frame using centralized mocks
+        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
         size = frame.get_size()
 
@@ -145,9 +143,12 @@ class TestSpriteFrame:
 
     def test_sprite_frame_get_pixel_data(self):
         """Test getting pixel data from sprite frame."""
-        # Create a mock surface for the frame
+        # Create a mock surface for the frame using regular Mock
         mock_surface = Mock()
         mock_surface.get_size.return_value = (32, 32)
+        # Return a pygame.Color object instead of tuple
+        mock_color = pygame.Color(255, 0, 0, 255)
+        mock_surface.get_at.return_value = mock_color
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
         pixel_data = frame.get_pixel_data()
 
@@ -155,9 +156,8 @@ class TestSpriteFrame:
 
     def test_sprite_frame_set_pixel_data(self):
         """Test setting pixel data for sprite frame."""
-        # Create a mock surface for the frame
-        mock_surface = Mock()
-        mock_surface.get_size.return_value = (32, 32)
+        # Create a mock surface for the frame using centralized mocks
+        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
         pixel_data = [(255, 0, 0), (0, 255, 0)]
 
@@ -166,9 +166,8 @@ class TestSpriteFrame:
 
     def test_sprite_frame_str_representation(self):
         """Test string representation of sprite frame."""
-        # Create a mock surface for the frame
-        mock_surface = Mock()
-        mock_surface.get_size.return_value = (32, 32)
+        # Create a mock surface for the frame using centralized mocks
+        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
         str_repr = str(frame)
 

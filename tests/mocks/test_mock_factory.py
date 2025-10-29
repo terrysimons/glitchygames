@@ -1160,13 +1160,8 @@ class MockFactory:
             return pygame.Surface(size)
         transform_scale_patcher = patch("pygame.transform.scale", side_effect=mock_transform_scale)
 
-        # Surface mocking - create real surfaces for drawing operations
-        def mock_surface_constructor(*args, **kwargs):
-            """Mock pygame.Surface constructor that returns a real pygame surface."""
-            # Create a real pygame surface using the original constructor
-            import pygame.surface
-            return pygame.surface.Surface(*args, **kwargs)
-        surface_constructor_patcher = patch("pygame.Surface", side_effect=mock_surface_constructor)
+        # Surface mocking - use the mock surface class instead of real surfaces
+        # The surface_class_mock already handles this properly
 
         # FontManager mock - create a mock font that returns a proper surface
         mock_font = Mock()
@@ -1317,7 +1312,7 @@ class MockFactory:
 
         return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
                 event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
+                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
                 sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
                 mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
                 mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -1341,7 +1336,7 @@ class MockFactory:
         (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
          event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
          draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher,  # noqa: E501
-         transform_scale_patcher, surface_constructor_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
+         transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
          sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
          mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
          mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
@@ -1371,7 +1366,6 @@ class MockFactory:
         sprite_factory_patcher.stop()
         key_patcher.stop()
         transform_scale_patcher.stop()
-        surface_constructor_patcher.stop()
         font_manager_patcher.stop()
         clock_patcher.stop()
         sprite_patcher.stop()
