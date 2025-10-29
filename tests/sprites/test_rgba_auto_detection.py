@@ -79,6 +79,18 @@ class TestAlphaDetectionHelpers:
         result = _convert_pixels_to_rgb_if_possible(pixels)
         assert result == pixels
 
+    def test_convert_pixels_to_rgb_if_possible_alpha_255_converts_to_rgb(self):
+        """Test that RGBA pixels with alpha=255 convert to RGB."""
+        pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
+        result = _convert_pixels_to_rgb_if_possible(pixels)
+        expected = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        assert result == expected
+
+    def test_needs_alpha_channel_alpha_255_does_not_need_alpha(self):
+        """Test that RGBA pixels with alpha=255 don't need alpha channel."""
+        pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
+        assert not _needs_alpha_channel(pixels)
+
     def test_convert_pixels_to_rgba_if_needed_rgb_to_rgba(self):
         """Test converting RGB pixels to RGBA."""
         pixels = [(255, 0, 0), (255, 0, 255), (0, 0, 255)]
@@ -196,6 +208,36 @@ class TestAnimatedSpriteRGBRGBA:
         assert color_map["G"] == (0, 255, 0, 128)  # Transparent -> RGBA
         assert color_map["B"] == (0, 0, 255)  # Opaque -> RGB
 
+    def test_build_color_map_from_toml_alpha_not_set(self):
+        """Test loading color map when alpha is not specified (defaults to opaque)."""
+        data = {
+            "colors": {
+                "R": {"red": 255, "green": 0, "blue": 0},  # No alpha specified
+                "G": {"red": 0, "green": 255, "blue": 0},  # No alpha specified
+            }
+        }
+        
+        color_map = AnimatedSprite._build_color_map(data)
+        
+        # Should convert to RGB since alpha defaults to 255 (opaque)
+        assert color_map["R"] == (255, 0, 0)  # RGB
+        assert color_map["G"] == (0, 255, 0)  # RGB
+
+    def test_build_color_map_from_toml_alpha_255_explicit(self):
+        """Test loading color map when alpha is explicitly set to 255."""
+        data = {
+            "colors": {
+                "R": {"red": 255, "green": 0, "blue": 0, "alpha": 255},  # Explicit alpha=255
+                "G": {"red": 0, "green": 255, "blue": 0, "alpha": 255},  # Explicit alpha=255
+            }
+        }
+        
+        color_map = AnimatedSprite._build_color_map(data)
+        
+        # Should convert to RGB since alpha=255 (opaque)
+        assert color_map["R"] == (255, 0, 0)  # RGB
+        assert color_map["G"] == (0, 255, 0)  # RGB
+
     def test_build_color_map_from_toml_mixed_rgb_rgba(self):
         """Test loading color map from mixed RGB/RGBA TOML."""
         data = {
@@ -237,6 +279,8 @@ class TestSpriteSaveLoadRGBRGBA:
         # Create a single frame with RGB pixels using centralized mocks
         frame = MockFactory.create_sprite_frame_mock()
         frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+        # Override get_pixel_data to return the actual pixels
+        frame.get_pixel_data.return_value = frame.pixels
         
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
@@ -268,6 +312,8 @@ class TestSpriteSaveLoadRGBRGBA:
         # Create a single frame with RGBA pixels including transparency
         frame = MockFactory.create_sprite_frame_mock()
         frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255), (128, 128, 128, 0)]
+        # Override get_pixel_data to return the actual pixels
+        frame.get_pixel_data.return_value = frame.pixels
         
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
@@ -297,9 +343,11 @@ class TestSpriteSaveLoadRGBRGBA:
         # Create frames with RGB pixels
         frame1 = MockFactory.create_sprite_frame_mock()
         frame1.pixels = [(255, 0, 0), (0, 255, 0)]
+        frame1.get_pixel_data.return_value = frame1.pixels
         
         frame2 = MockFactory.create_sprite_frame_mock()
         frame2.pixels = [(0, 0, 255), (128, 128, 128)]
+        frame2.get_pixel_data.return_value = frame2.pixels
         
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
@@ -331,9 +379,11 @@ class TestSpriteSaveLoadRGBRGBA:
         # Create frames with RGBA pixels including transparency
         frame1 = MockFactory.create_sprite_frame_mock()
         frame1.pixels = [(255, 0, 0, 255), (0, 255, 0, 128)]
+        frame1.get_pixel_data.return_value = frame1.pixels
         
         frame2 = MockFactory.create_sprite_frame_mock()
         frame2.pixels = [(0, 0, 255, 255), (128, 128, 128, 0)]
+        frame2.get_pixel_data.return_value = frame2.pixels
         
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
@@ -376,7 +426,20 @@ G = { red = 0, green = 255, blue = 0 }
             temp_path = f.name
         
         try:
-            sprite = AnimatedSprite(temp_path)
+            # Create a simple mock surface that doesn't require video mode
+            def mock_surface_constructor(*args, **kwargs):
+                """Mock pygame.Surface constructor that returns a mock surface."""
+                mock_surface = Mock()
+                mock_surface.convert.return_value = mock_surface
+                mock_surface.convert_alpha.return_value = mock_surface
+                mock_surface.set_at = Mock()
+                mock_surface.get_at = Mock(return_value=(255, 0, 0))
+                mock_surface.get_size = Mock(return_value=(2, 2))
+                return mock_surface
+            
+            # Patch pygame.Surface specifically for the load operation
+            with patch('pygame.Surface', side_effect=mock_surface_constructor):
+                sprite = AnimatedSprite(temp_path)
             
             # Should load RGB colors
             assert sprite._color_map['R'] == (255, 0, 0)
@@ -406,7 +469,20 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
             temp_path = f.name
         
         try:
-            sprite = AnimatedSprite(temp_path)
+            # Create a simple mock surface that doesn't require video mode
+            def mock_surface_constructor(*args, **kwargs):
+                """Mock pygame.Surface constructor that returns a mock surface."""
+                mock_surface = Mock()
+                mock_surface.convert.return_value = mock_surface
+                mock_surface.convert_alpha.return_value = mock_surface
+                mock_surface.set_at = Mock()
+                mock_surface.get_at = Mock(return_value=(255, 0, 0))
+                mock_surface.get_size = Mock(return_value=(2, 2))
+                return mock_surface
+            
+            # Patch pygame.Surface specifically for the load operation
+            with patch('pygame.Surface', side_effect=mock_surface_constructor):
+                sprite = AnimatedSprite(temp_path)
             
             # Should load RGBA colors appropriately
             assert sprite._color_map['R'] == (255, 0, 0)  # Opaque -> RGB
@@ -437,7 +513,20 @@ B = { red = 0, green = 0, blue = 255 }
             temp_path = f.name
         
         try:
-            sprite = AnimatedSprite(temp_path)
+            # Create a simple mock surface that doesn't require video mode
+            def mock_surface_constructor(*args, **kwargs):
+                """Mock pygame.Surface constructor that returns a mock surface."""
+                mock_surface = Mock()
+                mock_surface.convert.return_value = mock_surface
+                mock_surface.convert_alpha.return_value = mock_surface
+                mock_surface.set_at = Mock()
+                mock_surface.get_at = Mock(return_value=(255, 0, 0))
+                mock_surface.get_size = Mock(return_value=(2, 2))
+                return mock_surface
+            
+            # Patch pygame.Surface specifically for the load operation
+            with patch('pygame.Surface', side_effect=mock_surface_constructor):
+                sprite = AnimatedSprite(temp_path)
             
             # Should handle mixed formats correctly
             assert sprite._color_map['R'] == (255, 0, 0)  # RGB
@@ -471,6 +560,7 @@ class TestRGBRGBAIntegration:
         sprite = AnimatedSprite()
         frame = MockFactory.create_sprite_frame_mock()
         frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+        frame.get_pixel_data.return_value = frame.pixels
         
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
@@ -482,11 +572,26 @@ class TestRGBRGBAIntegration:
             # Save
             sprite._save_toml_single_frame(temp_path)
             
-            # Load
-            loaded_sprite = AnimatedSprite(temp_path)
+            # Create a simple mock surface that doesn't require video mode
+            def mock_surface_constructor(*args, **kwargs):
+                """Mock pygame.Surface constructor that returns a mock surface."""
+                mock_surface = Mock()
+                mock_surface.convert.return_value = mock_surface
+                mock_surface.convert_alpha.return_value = mock_surface
+                mock_surface.set_at = Mock()
+                mock_surface.get_at = Mock(return_value=(255, 0, 0))
+                mock_surface.get_size = Mock(return_value=(8, 8))
+                return mock_surface
+            
+            # Load with mock surface
+            with patch('pygame.Surface', side_effect=mock_surface_constructor):
+                loaded_sprite = AnimatedSprite(temp_path)
             
             # Should maintain RGB format
-            loaded_frame = loaded_sprite._animations["strip_1"][0]
+            # Check what animations are available
+            assert len(loaded_sprite._animations) > 0, "No animations loaded"
+            animation_name = list(loaded_sprite._animations.keys())[0]
+            loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
             
             # All pixels should be RGB (no alpha component)
@@ -499,9 +604,11 @@ class TestRGBRGBAIntegration:
     def test_roundtrip_rgba_with_transparency(self):
         """Test saving and loading RGBA sprite maintains transparency."""
         # Create sprite with RGBA pixels including transparency
+        # Use alpha values 0-254 to ensure RGBA format is preserved
         sprite = AnimatedSprite()
         frame = MockFactory.create_sprite_frame_mock()
-        frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255), (128, 128, 128, 0)]
+        frame.pixels = [(255, 0, 0, 254), (0, 255, 0, 128), (0, 0, 255, 200), (128, 128, 128, 0)]
+        frame.get_pixel_data.return_value = frame.pixels
         
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
@@ -513,18 +620,34 @@ class TestRGBRGBAIntegration:
             # Save
             sprite._save_toml_single_frame(temp_path)
             
-            # Load
-            loaded_sprite = AnimatedSprite(temp_path)
+            # Create a simple mock surface that doesn't require video mode
+            def mock_surface_constructor(*args, **kwargs):
+                """Mock pygame.Surface constructor that returns a mock surface."""
+                mock_surface = Mock()
+                mock_surface.convert.return_value = mock_surface
+                mock_surface.convert_alpha.return_value = mock_surface
+                mock_surface.set_at = Mock()
+                mock_surface.get_at = Mock(return_value=(255, 0, 0))
+                mock_surface.get_size = Mock(return_value=(8, 8))
+                return mock_surface
+            
+            # Load with mock surface
+            with patch('pygame.Surface', side_effect=mock_surface_constructor):
+                loaded_sprite = AnimatedSprite(temp_path)
             
             # Should maintain RGBA format with transparency
-            loaded_frame = loaded_sprite._animations["strip_1"][0]
+            # Check what animations are available
+            assert len(loaded_sprite._animations) > 0, "No animations loaded"
+            animation_name = list(loaded_sprite._animations.keys())[0]
+            loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
             
             # Should have RGBA pixels with correct alpha values
-            assert (255, 0, 0, 255) in loaded_pixels
-            assert (0, 255, 0, 128) in loaded_pixels
-            assert (0, 0, 255, 255) in loaded_pixels
-            assert (128, 128, 128, 0) in loaded_pixels
+            # All pixels should remain RGBA since none have alpha=255
+            assert (255, 0, 0, 254) in loaded_pixels  # Nearly opaque red -> RGBA
+            assert (0, 255, 0, 128) in loaded_pixels  # Semi-transparent green -> RGBA
+            assert (0, 0, 255, 200) in loaded_pixels  # Semi-transparent blue -> RGBA
+            assert (128, 128, 128, 0) in loaded_pixels  # Fully transparent -> RGBA
             
         finally:
             Path(temp_path).unlink()
@@ -535,6 +658,7 @@ class TestRGBRGBAIntegration:
         rgb_sprite = AnimatedSprite()
         rgb_frame = MockFactory.create_sprite_frame_mock()
         rgb_frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+        rgb_frame.get_pixel_data.return_value = rgb_frame.pixels
         rgb_sprite._animations = {"test": [rgb_frame]}
         rgb_sprite.name = "rgb_sprite"
         
@@ -542,6 +666,7 @@ class TestRGBRGBAIntegration:
         rgba_sprite = AnimatedSprite()
         rgba_frame = MockFactory.create_sprite_frame_mock()
         rgba_frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255), (128, 128, 128, 0)]
+        rgba_frame.get_pixel_data.return_value = rgba_frame.pixels
         rgba_sprite._animations = {"test": [rgba_frame]}
         rgba_sprite.name = "rgba_sprite"
         

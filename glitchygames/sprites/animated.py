@@ -903,10 +903,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Create a single frame from the surface
         frame = SpriteFrame(surface)
         frame.pixels = []
+        
+        # Check if any colors in the color map have alpha values
+        has_alpha = any(len(color) == 4 for color in color_map.values())
+        
         for y in range(height):
             for x in range(width):
-                color = surface.get_at((x, y))
-                frame.pixels.append((color[0], color[1], color[2]))
+                char = pixel_rows[y][x]
+                if char in color_map:
+                    # Use the original color from color_map to preserve alpha
+                    original_color = color_map[char]
+                    frame.pixels.append(original_color)
+                else:
+                    # Default to magenta for unknown characters
+                    if has_alpha:
+                        frame.pixels.append((255, 0, 255, 255))
+                    else:
+                        frame.pixels.append((255, 0, 255))
 
         # Create a single animation with one frame
         animation_name = sprite_data.get("name", "idle")
