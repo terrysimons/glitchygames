@@ -262,6 +262,7 @@ class MockFactory:
         mock_sprite.current_frame = current_frame  # Start with specified frame
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
+        mock_sprite.name = "Tiley McTile Face"  # Default name for tests
 
         # Add essential sprite attributes
         mock_sprite.image = mock_frames[0].image
