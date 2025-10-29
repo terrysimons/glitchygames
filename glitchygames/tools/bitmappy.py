@@ -4505,59 +4505,85 @@ class BitmapEditorScene(Scene):
         strip_height = 180  # Height of each film strip (increased by 20 pixels to accommodate delete button and proper spacing)
         current_y = film_strip_y_start  # Start at canvas Y position
 
-        # Check if we should create a single film strip for all animations or separate strips
-        # For now, let's support both modes - single strip mode for multi-frame sprites
-        use_single_strip_mode = len(animated_sprite._animations) > 1 and any(len(frames) > 1 for frames in animated_sprite._animations.values())
+        # Create a separate film strip for each animation
+        LOG.debug(f"DEBUG: Starting film strip creation loop")
+        for strip_index, (anim_name, frames) in enumerate(animated_sprite._animations.items()):
+            LOG.debug(f"DEBUG: Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
+            LOG.debug(f"Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
+            # Create a single animated sprite with just this animation
+            # Use the proper constructor to ensure all attributes are initialized
+            single_anim_sprite = AnimatedSprite()
+            single_anim_sprite._animations = {anim_name: frames}
+            single_anim_sprite._animation_order = [anim_name]  # Set animation order
 
-        if use_single_strip_mode:
-            # Single film strip mode: Create one strip that can display all animations
-            LOG.debug(f"DEBUG: Creating single film strip for multi-frame sprite with {len(animated_sprite._animations)} animations")
+            # Properly initialize the frame manager state
+            single_anim_sprite.frame_manager.current_animation = anim_name
+            single_anim_sprite.frame_manager.current_frame = 0
 
-            # Use the shared animated sprite
-            single_anim_sprite = self.animated_sprite
+            # Set up the sprite to be ready for animation
+            single_anim_sprite.set_animation(anim_name)
+            single_anim_sprite.is_looping = True
             single_anim_sprite.play()
 
-            # Create a single film strip widget
+            # DEBUG: Log the sprite state
+            LOG.debug(f"Created single_anim_sprite for {anim_name}:")
+            LOG.debug(f"  _animations: {list(single_anim_sprite._animations.keys())}")
+            LOG.debug(f"  _animation_order: {single_anim_sprite._animation_order}")
+            LOG.debug(f"  current_animation: {single_anim_sprite.current_animation}")
+            LOG.debug(f"  is_playing: {single_anim_sprite.is_playing}")
+            LOG.debug(f"  is_looping: {single_anim_sprite.is_looping}")
+
+            # Calculate Y position with scrolling
+            base_y = film_strip_y_start + (strip_index * (strip_height + strip_spacing))
+            scroll_y = base_y - (self.film_strip_scroll_offset * (strip_height + strip_spacing))
+
+            # Create film strip widget for this animation
             film_strip = FilmStripWidget(
                 x=film_strip_x,
-                y=film_strip_y_start,
+                y=scroll_y,
                 width=film_strip_width,
                 height=strip_height
             )
             film_strip.set_animated_sprite(single_anim_sprite)
-            film_strip.strip_index = 0  # Single strip
-            film_strip.current_animation = list(animated_sprite._animations.keys())[0]  # Start with first animation
+            film_strip.strip_index = strip_index  # Track which strip this is
 
-            # CRITICAL FIX: Ensure all frames in the shared animated sprite have proper image data
+            # CRITICAL FIX: Ensure all frames in the single animation sprite have proper image data
+            # This fixes the issue where film strips show empty gray squares
             self._ensure_frames_have_image_data(single_anim_sprite)
 
             # Update the layout to calculate frame positions
-            LOG.debug(f"Updating layout for single film strip")
+            LOG.debug(f"Updating layout for film strip {strip_index} ({anim_name})")
             film_strip.update_layout()
+            LOG.debug(f"Film strip {strip_index} layout updated, frame_layouts has {len(film_strip.frame_layouts)} entries")
 
             # Set parent scene reference for selection handling
             film_strip.parent_scene = self
 
-            # Store the strip in the film strips dictionary (use first animation name as key)
-            first_anim_name = list(animated_sprite._animations.keys())[0]
-            self.film_strips[first_anim_name] = film_strip
+            # Store the strip in the film strips dictionary
+            self.film_strips[anim_name] = film_strip
 
             # Create film strip sprite for rendering
             film_strip_sprite = FilmStripSprite(
                 film_strip_widget=film_strip,
                 x=film_strip_x,
-                y=film_strip_y_start,
+                y=scroll_y,
                 width=film_strip_width,
                 height=film_strip.rect.height,
                 groups=groups,
             )
 
+            # Debug: Check if film strip sprite was added to groups
+            self.log.debug(f"Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}")
+            LOG.debug(f"DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())} groups: {film_strip_sprite.groups()}")
+
             # Connect the film strip to the canvas
             film_strip_sprite.set_parent_canvas(self.canvas)
             film_strip.set_parent_canvas(self.canvas)
 
-            # Set parent scene references
+            # Set parent scene reference for the film strip sprite
             film_strip_sprite.parent_scene = self
+
+            # Set parent scene reference for the film strip widget
             film_strip.parent_scene = self
 
             # Set up bidirectional reference between film strip widget and sprite
@@ -4565,93 +4591,7 @@ class BitmapEditorScene(Scene):
             film_strip_sprite.film_strip_widget = film_strip
 
             # Store the film strip sprite
-            self.film_strip_sprites[first_anim_name] = film_strip_sprite
-
-            # Set backward compatibility attributes (for tests) - use the single film strip
-            if not hasattr(self.canvas, "film_strip") or self.canvas.film_strip is None:
-                self.canvas.film_strip = film_strip
-                self.canvas.film_strip_sprite = film_strip_sprite
-
-            LOG.debug(f"DEBUG: Single film strip created successfully for multi-frame sprite")
-
-        else:
-            # Multiple film strips mode: Create a separate film strip for each animation
-            LOG.debug(f"DEBUG: Starting film strip creation loop")
-            for strip_index, (anim_name, frames) in enumerate(animated_sprite._animations.items()):
-                LOG.debug(f"DEBUG: Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
-                LOG.debug(f"Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames")
-                # Use the shared animated sprite instead of creating separate instances
-                # This ensures all film strips reference the same source of truth
-                single_anim_sprite = self.animated_sprite
-                single_anim_sprite.play()
-
-                # DEBUG: Log the sprite state
-                LOG.debug(f"Using shared animated_sprite for {anim_name}:")
-                LOG.debug(f"  _animations: {list(single_anim_sprite._animations.keys())}")
-
-                # Calculate Y position with scrolling
-                base_y = film_strip_y_start + (strip_index * (strip_height + strip_spacing))
-                scroll_y = base_y - (self.film_strip_scroll_offset * (strip_height + strip_spacing))
-
-                # Create film strip widget for this animation
-                film_strip = FilmStripWidget(
-                    x=film_strip_x,
-                    y=scroll_y,
-                    width=film_strip_width,
-                    height=strip_height
-                )
-                film_strip.set_animated_sprite(single_anim_sprite)
-                film_strip.strip_index = strip_index  # Track which strip this is
-
-                # CRITICAL FIX: Set each film strip to display its specific animation
-                # This ensures each film strip shows the correct animation frames
-                film_strip.current_animation = anim_name
-
-                # CRITICAL FIX: Ensure all frames in the shared animated sprite have proper image data
-                # This fixes the issue where film strips show empty gray squares
-                self._ensure_frames_have_image_data(single_anim_sprite)
-
-                # Update the layout to calculate frame positions
-                LOG.debug(f"Updating layout for film strip {strip_index} ({anim_name})")
-                film_strip.update_layout()
-                LOG.debug(f"Film strip {strip_index} layout updated, frame_layouts has {len(film_strip.frame_layouts)} entries")
-
-                # Set parent scene reference for selection handling
-                film_strip.parent_scene = self
-
-                # Store the strip in the film strips dictionary
-                self.film_strips[anim_name] = film_strip
-
-                # Create film strip sprite for rendering
-                film_strip_sprite = FilmStripSprite(
-                    film_strip_widget=film_strip,
-                    x=film_strip_x,
-                    y=scroll_y,
-                    width=film_strip_width,
-                    height=film_strip.rect.height,
-                    groups=groups,
-                )
-
-                # Debug: Check if film strip sprite was added to groups
-                self.log.debug(f"Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}")
-                LOG.debug(f"DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())} groups: {film_strip_sprite.groups()}")
-
-                # Connect the film strip to the canvas
-                film_strip_sprite.set_parent_canvas(self.canvas)
-                film_strip.set_parent_canvas(self.canvas)
-
-                # Set parent scene reference for the film strip sprite
-                film_strip_sprite.parent_scene = self
-
-                # Set parent scene reference for the film strip widget
-                film_strip.parent_scene = self
-
-                # Set up bidirectional reference between film strip widget and sprite
-                film_strip.film_strip_sprite = film_strip_sprite
-                film_strip_sprite.film_strip_widget = film_strip
-
-                # Store the film strip sprite
-                self.film_strip_sprites[anim_name] = film_strip_sprite
+            self.film_strip_sprites[anim_name] = film_strip_sprite
 
             # Set backward compatibility attributes (for tests) - use first film strip
             if not hasattr(self.canvas, "film_strip") or self.canvas.film_strip is None:
