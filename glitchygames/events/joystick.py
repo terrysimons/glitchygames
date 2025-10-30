@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import JOYSTICK_EVENTS
 from glitchygames.events import JoystickEvents, ResourceManager
 
 LOG = logging.getLogger("game.joysticks")
@@ -291,6 +292,10 @@ class JoystickManager(JoystickEvents, ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(JOYSTICK_EVENTS)
+        except Exception:
+            pass
         self.joysticks = {}
         self.game = game
 

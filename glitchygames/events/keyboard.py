@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import KEYBOARD_EVENTS
 from glitchygames.events import KeyboardEvents, ResourceManager
 
 log = logging.getLogger("game.keyboard")
@@ -128,6 +129,11 @@ class KeyboardManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        # Enable keyboard events for this manager
+        try:
+            pygame.event.set_allowed(KEYBOARD_EVENTS)
+        except Exception:
+            pass
         self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
 
     @classmethod

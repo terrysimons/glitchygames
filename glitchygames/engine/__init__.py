@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import contextlib
 import cProfile
 import importlib
@@ -305,6 +306,9 @@ class GameEngine(events.EventManager):
         if pygame.version.vernum[0] < 2 and pygame.version.vernum[1] < 2:  # noqa: PLR2004
             self.USE_FASTEVENTS = True
 
+        # Ensure Linux/X11 sends DOWN on focus clicks
+        os.environ.setdefault("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1")
+
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
         self.print_game_info()
@@ -320,6 +324,7 @@ class GameEngine(events.EventManager):
             #
             # pygame.event doesn't have an init() method, so nothing to do.
             self.log.info(f"Using pygame.events for pygame version {pygame.version.ver}")
+
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -1207,10 +1212,14 @@ class GameEngine(events.EventManager):
 
         if event.type == pygame.WINDOWFOCUSGAINED:
             self.window_manager.on_window_focus_gained_event(event)
+            with contextlib.suppress(Exception):
+                pygame.event.set_grab(True)
             return True
 
         if event.type == pygame.WINDOWFOCUSLOST:
             self.window_manager.on_window_focus_lost_event(event)
+            with contextlib.suppress(Exception):
+                pygame.event.set_grab(False)
             return True
 
         if event.type == pygame.WINDOWENTER:

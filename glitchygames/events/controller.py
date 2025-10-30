@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import CONTROLLER_EVENTS
 import pygame._sdl2.controller
 from glitchygames.events import ControllerEvents, ResourceManager
 
@@ -254,6 +255,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         """
         super().__init__(game=game)
+        # Ensure controller events are enabled
+        try:
+            pygame.event.set_allowed(CONTROLLER_EVENTS)
+        except Exception:
+            pass
         self.controllers = {}
         self.proxies = []
         self.game = game

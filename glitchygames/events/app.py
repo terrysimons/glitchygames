@@ -1,6 +1,8 @@
 """App event manager for application lifecycle events."""
 
 import logging
+import pygame
+from glitchygames.events import APP_EVENTS
 from typing import Self
 
 from glitchygames.events import AppEvents, HashableEvent, ResourceManager
@@ -21,6 +23,11 @@ class AppManager(ResourceManager, AppEvents):
 
         """
         super().__init__(game)
+        # Ensure app-related events are enabled
+        try:
+            pygame.event.set_allowed(APP_EVENTS)
+        except Exception:
+            pass
         self.game = game
         self.proxies = []
 

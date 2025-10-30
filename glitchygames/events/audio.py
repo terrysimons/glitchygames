@@ -9,6 +9,7 @@ import logging
 from typing import Self
 
 import pygame
+from glitchygames.events import AUDIO_EVENTS
 from glitchygames.events import AudioEvents, ResourceManager
 
 log = logging.getLogger("game.audio")
@@ -71,6 +72,10 @@ class AudioManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(AUDIO_EVENTS)
+        except Exception:
+            pass
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)

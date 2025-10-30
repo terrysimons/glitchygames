@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import logging
+import pygame
+from glitchygames.events import MIDI_EVENTS
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -29,6 +31,10 @@ class MidiManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(MIDI_EVENTS)
+        except Exception:
+            pass
         self.game = game
         self.proxies = []
 

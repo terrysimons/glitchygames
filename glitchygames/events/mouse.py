@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import MOUSE_EVENTS
 from glitchygames.events import MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
@@ -473,6 +474,9 @@ class MouseManager(ResourceManager):
             #     # TODO: Fix - Disabling for debugging.
             #     self.focus_locked = False
 
+            # Scene-first: let scene clear focus/overlays before per-sprite handlers
+            self.game.on_mouse_button_down_event(event)
+
             if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_down_event(event)
             if event.button == MOUSE_BUTTON_WHEEL:
@@ -483,8 +487,6 @@ class MouseManager(ResourceManager):
                 self.on_mouse_scroll_down_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
-
-            self.game.on_mouse_button_down_event(event)
 
         def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             """Handle the left mouse button down event.
@@ -577,6 +579,10 @@ class MouseManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(MOUSE_EVENTS)
+        except Exception:
+            pass
         self.proxies = [MouseManager.MouseProxy(game=game)]
 
     @classmethod

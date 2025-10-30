@@ -11,6 +11,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import pygame  # pragma: no cover
 
+import pygame
+from glitchygames.events import WINDOW_EVENTS
 from glitchygames.events import ResourceManager, WindowEvents
 
 LOG = logging.getLogger("game.window")
@@ -241,6 +243,10 @@ class WindowManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(WINDOW_EVENTS)
+        except Exception:
+            pass
         self.proxies = [WindowManager.WindowManagerProxy(game=game)]
 
     @classmethod

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
     import pygame
 
+import pygame
+from glitchygames.events import DROP_EVENTS
 from glitchygames.events import DropEvents, ResourceManager
 
 log = logging.getLogger("game.events.drop_events")
@@ -115,5 +117,9 @@ class DropManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(DROP_EVENTS)
+        except Exception:
+            pass
 
         self.proxies = [DropManager.DropProxy(game=game)]
