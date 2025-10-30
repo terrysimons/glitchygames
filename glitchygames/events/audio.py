@@ -16,10 +16,10 @@ log = logging.getLogger("game.audio")
 log.addHandler(logging.NullHandler())
 
 
-class AudioManager(ResourceManager):
+class AudioEventManager(ResourceManager):
     """Manage pygame audio events."""
 
-    class AudioProxy(AudioEvents, ResourceManager):
+    class AudioEventProxy(AudioEvents, ResourceManager):
         """Pygame audio event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -89,7 +89,7 @@ class AudioManager(ResourceManager):
             f"Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}"
         )
 
-        self.proxies = [AudioManager.AudioProxy(game=game)]
+        self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

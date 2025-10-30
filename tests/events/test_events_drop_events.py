@@ -20,7 +20,7 @@ from glitchygames.events import (
     HashableEvent,
     UnhandledEventError,
 )
-from glitchygames.events.drop import DropManager
+from glitchygames.events.drop import DropEventManager
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -322,34 +322,34 @@ class TestDropEvents:
         return mock_game
 
 
-class TestDropManagerCoverage:
+class TestDropEventManagerCoverage:
     """Test coverage for drop manager functionality."""
 
     def test_drop_manager_initialization(self, mock_pygame_patches):
-        """Test DropManager initialization."""
+        """Test DropEventManager initialization."""
         mock_game = Mock()
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
         
         assert manager.game == mock_game
         assert hasattr(manager, "on_drop_begin_event")
         assert hasattr(manager, "on_drop_file_event")
 
     def test_drop_manager_initialization_no_game(self, mock_pygame_patches):
-        """Test DropManager initialization without game."""
-        manager = DropManager(game=None)
+        """Test DropEventManager initialization without game."""
+        manager = DropEventManager(game=None)
         assert manager.game is None
 
     def test_drop_manager_args(self, mock_pygame_patches):
-        """Test DropManager args method."""
+        """Test DropEventManager args method."""
         parser = argparse.ArgumentParser()
-        result = DropManager.args(parser)
+        result = DropEventManager.args(parser)
 
         assert result is parser
 
     def test_drop_proxy_initialization(self, mock_pygame_patches):
         """Test drop proxy initialization."""
         mock_game = Mock()
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
 
         # Test that proxy is created
         assert hasattr(manager, "proxies")
@@ -357,7 +357,7 @@ class TestDropManagerCoverage:
 
     def test_drop_proxy_initialization_no_game(self, mock_pygame_patches):
         """Test drop proxy initialization without game."""
-        manager = DropManager(game=None)
+        manager = DropEventManager(game=None)
 
         # Test that proxy is created even without game
         assert hasattr(manager, "proxies")
@@ -369,7 +369,7 @@ class TestDropManagerCoverage:
         mock_game = Mock()
         mock_game.on_drop_begin_event = Mock()
 
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.DROPBEGIN)
@@ -383,7 +383,7 @@ class TestDropManagerCoverage:
         mock_game = Mock()
         mock_game.on_drop_complete_event = Mock()
 
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.DROPCOMPLETE)
@@ -397,7 +397,7 @@ class TestDropManagerCoverage:
         mock_game = Mock()
         mock_game.on_drop_file_event = Mock()
 
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt")
@@ -411,7 +411,7 @@ class TestDropManagerCoverage:
         mock_game = Mock()
         mock_game.on_drop_text_event = Mock()
 
-        manager = DropManager(game=mock_game)
+        manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.DROPTEXT, text="dropped text")

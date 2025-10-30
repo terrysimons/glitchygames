@@ -277,15 +277,15 @@ class TestMouseEvents:
         return mock_game
 
 
-class TestMouseManager:
-    """Test MouseManager in isolation."""
+class TestMouseEventManager:
+    """Test MouseEventManager in isolation."""
 
     def test_mouse_manager_initialization(self, mock_pygame_patches):
-        """Test MouseManager initializes correctly."""
-        from glitchygames.events.mouse import MouseManager
+        """Test MouseEventManager initializes correctly."""
+        from glitchygames.events.mouse import MouseEventManager
 
         mock_game = Mock()
-        manager = MouseManager(game=mock_game)
+        manager = MouseEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_mouse_motion_event")
@@ -295,7 +295,7 @@ class TestMouseManager:
         """Test mouse event handling through manager."""
         from unittest.mock import patch
 
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         from tests.mocks.test_mock_factory import MockFactory
 
@@ -312,7 +312,7 @@ class TestMouseManager:
         scene_mock.on_mouse_button_up_event = Mock()
 
         # self.game IS the scene, so we pass the scene directly
-        manager = MouseManager(game=scene_mock)
+        manager = MouseEventManager(game=scene_mock)
 
         # Mock collided_sprites to prevent pygame.sprite.spritecollide calls
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
@@ -334,9 +334,9 @@ class TestMouseManager:
                 manager.on_mouse_button_up_event(up_event)
                 mock_handler.assert_called_once_with(up_event)
 
-    def test_mouse_down_order_specific_then_generic(self, mock_pygame_patches):
-        """Left down should call left-specific then generic scene handler."""
-        from glitchygames.events.mouse import MouseManager
+    def test_mouse_down_order_generic_then_specific(self, mock_pygame_patches):
+        """Left down should call generic scene handler first, then left-specific."""
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         call_order = []
@@ -352,17 +352,17 @@ class TestMouseManager:
         scene.on_left_mouse_button_down_event = left_down
         scene.on_mouse_button_down_event = generic_down
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
 
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(10, 10), button=1)
             manager.on_mouse_button_down_event(event)
 
-        assert call_order == ["left", "generic"]
+        assert call_order == ["generic", "left"]
 
     def test_mouse_up_order_specific_then_generic(self, mock_pygame_patches):
         """Left up should call left-specific then generic scene handler."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         call_order = []
@@ -378,7 +378,7 @@ class TestMouseManager:
         scene.on_left_mouse_button_up_event = left_up
         scene.on_mouse_button_up_event = generic_up
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
 
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             event = HashableEvent(pygame.MOUSEBUTTONUP, pos=(10, 10), button=1)
@@ -388,13 +388,13 @@ class TestMouseManager:
 
     def test_right_button_down_routes_to_right_specific(self, mock_pygame_patches):
         """Right button down should hit right-specific, not middle."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         scene.on_right_mouse_button_down_event = Mock(return_value=True)
         scene.on_middle_mouse_button_down_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
 
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(10, 10), button=3)
@@ -403,9 +403,9 @@ class TestMouseManager:
         scene.on_right_mouse_button_down_event.assert_called_once()
         scene.on_middle_mouse_button_down_event.assert_not_called()
 
-    def test_middle_mouse_down_up_order_specific_then_generic(self, mock_pygame_patches):
-        """Middle button order should be specific then generic."""
-        from glitchygames.events.mouse import MouseManager
+    def test_middle_mouse_down_up_order_generic_then_specific(self, mock_pygame_patches):
+        """Middle button down: generic then specific; up: specific then generic."""
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         down_order, up_order = [], []
@@ -415,19 +415,19 @@ class TestMouseManager:
         scene.on_middle_mouse_button_up_event = lambda e: up_order.append("middle") or True
         scene.on_mouse_button_up_event = lambda e: up_order.append("generic") or True
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             md = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(1, 1), button=2)
             mu = HashableEvent(pygame.MOUSEBUTTONUP, pos=(1, 1), button=2)
             manager.on_mouse_button_down_event(md)
             manager.on_mouse_button_up_event(mu)
 
-        assert down_order == ["middle", "generic"]
+        assert down_order == ["generic", "middle"]
         assert up_order == ["middle", "generic"]
 
     def test_right_mouse_up_order_specific_then_generic(self, mock_pygame_patches):
         """Right button up should be specific then generic."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         order = []
@@ -435,16 +435,16 @@ class TestMouseManager:
         scene.on_right_mouse_button_up_event = lambda e: order.append("right") or True
         scene.on_mouse_button_up_event = lambda e: order.append("generic") or True
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             mu = HashableEvent(pygame.MOUSEBUTTONUP, pos=(2, 2), button=3)
             manager.on_mouse_button_up_event(mu)
 
         assert order == ["right", "generic"]
 
-    def test_right_mouse_down_order_specific_then_generic(self, mock_pygame_patches):
-        """Right button down should be specific then generic."""
-        from glitchygames.events.mouse import MouseManager
+    def test_right_mouse_down_order_generic_then_specific(self, mock_pygame_patches):
+        """Right button down should be generic then specific."""
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         order = []
@@ -452,16 +452,16 @@ class TestMouseManager:
         scene.on_right_mouse_button_down_event = lambda e: order.append("right") or True
         scene.on_mouse_button_down_event = lambda e: order.append("generic") or True
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             md = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(3, 3), button=3)
             manager.on_mouse_button_down_event(md)
 
-        assert order == ["right", "generic"]
+        assert order == ["generic", "right"]
 
     def test_drag_drop_lifecycle_middle(self, mock_pygame_patches):
         """Middle button drag/drop lifecycle triggers generic drag/drop."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         scene.on_mouse_drag_event = Mock(return_value=True)
@@ -471,7 +471,7 @@ class TestMouseManager:
         scene.on_mouse_button_down_event = Mock(return_value=True)
         scene.on_mouse_button_up_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             down = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=2)
             motion = HashableEvent(pygame.MOUSEMOTION, pos=(6, 6), rel=(1, 1), buttons=(0, 1, 0))
@@ -487,7 +487,7 @@ class TestMouseManager:
 
     def test_drag_drop_lifecycle_right(self, mock_pygame_patches):
         """Right button drag/drop lifecycle triggers generic drag/drop."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         scene.on_mouse_drag_event = Mock(return_value=True)
@@ -497,7 +497,7 @@ class TestMouseManager:
         scene.on_mouse_button_down_event = Mock(return_value=True)
         scene.on_mouse_button_up_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             down = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=3)
             motion = HashableEvent(pygame.MOUSEMOTION, pos=(6, 6), rel=(1, 1), buttons=(0, 0, 1))
@@ -513,14 +513,14 @@ class TestMouseManager:
 
     def test_button4_5_scroll_mapping_on_mousedown(self, mock_pygame_patches):
         """Legacy scroll buttons 4/5 should route to scroll up/down handlers."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         scene.on_mouse_scroll_up_event = Mock(return_value=True)
         scene.on_mouse_scroll_down_event = Mock(return_value=True)
         scene.on_mouse_button_down_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             btn4 = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(0, 0), button=4)
             btn5 = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(0, 0), button=5)
@@ -532,10 +532,10 @@ class TestMouseManager:
 
     def test_focus_enter_unfocus_sequence_updates_state(self, mock_pygame_patches):
         """Entering focus should unfocus old, set current to new, and call handlers."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         proxy = manager.proxies[0]
 
         old_target = Mock()
@@ -557,10 +557,10 @@ class TestMouseManager:
 
     def test_unfocus_clears_current_and_sets_previous(self, mock_pygame_patches):
         """Unfocus should call target unfocus, clear current, and record previous."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         proxy = manager.proxies[0]
 
         target = Mock()
@@ -575,10 +575,10 @@ class TestMouseManager:
 
     def test_unfocus_no_target_is_noop(self, mock_pygame_patches):
         """Unfocus with None should not crash or change state significantly."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
         proxy = manager.proxies[0]
 
         proxy.current_focus = None
@@ -591,12 +591,12 @@ class TestMouseManager:
 
     def test_mouse_wheel_event_routes(self, mock_pygame_patches):
         """Wheel events should route to scene.on_mouse_wheel_event."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
         scene.on_mouse_wheel_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
 
         # pygame.MOUSEWHEEL delivers x,y deltas
         event = HashableEvent(pygame.MOUSEWHEEL, x=0, y=1)
@@ -605,11 +605,11 @@ class TestMouseManager:
 
     def test_drag_drop_lifecycle_left(self, mock_pygame_patches):
         """Down -> motion -> up should trigger drag then drop lifecycle."""
-        from glitchygames.events.mouse import MouseManager
+        from glitchygames.events.mouse import MouseEventManager
 
         scene = MockFactory.create_event_test_scene_mock()
 
-        # Track calls to generic drag/drop (MouseManager emits generic drag/drop)
+        # Track calls to generic drag/drop (MouseEventManager emits generic drag/drop)
         scene.on_mouse_drag_event = Mock(return_value=True)
         scene.on_mouse_drop_event = Mock(return_value=True)
         scene.on_left_mouse_button_down_event = Mock(return_value=True)
@@ -617,7 +617,7 @@ class TestMouseManager:
         scene.on_mouse_button_down_event = Mock(return_value=True)
         scene.on_mouse_button_up_event = Mock(return_value=True)
 
-        manager = MouseManager(game=scene)
+        manager = MouseEventManager(game=scene)
 
         with patch("glitchygames.events.mouse.collided_sprites", return_value=[]):
             down = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=1)

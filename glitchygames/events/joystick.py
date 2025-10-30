@@ -17,7 +17,7 @@ LOG = logging.getLogger("game.joysticks")
 LOG.addHandler(logging.NullHandler())
 
 
-class JoystickManager(JoystickEvents, ResourceManager):
+class JoystickEventManager(JoystickEvents, ResourceManager):
     """Manage joystick events."""
 
     log = LOG
@@ -28,7 +28,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
     # there can be multiple joysticks, so having one instance
     # won't work.
 
-    class JoystickProxy(JoystickEvents):
+    class JoystickEventProxy(JoystickEvents):
         """Joystick event proxy."""
 
         log = LOG
@@ -304,7 +304,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
         pygame.joystick.init()
 
         self.log.info(f"Joystick Module Inited: {pygame.joystick.get_init()}")
-        self.log.debug(f"JoystickManager init id(self)={id(self)}")
+        self.log.debug(f"JoystickEventManager init id(self)={id(self)}")
 
         # Joystick Setup
         self.log.info(f"Joystick Count: {pygame.joystick.get_count()}")
@@ -339,11 +339,10 @@ class JoystickManager(JoystickEvents, ResourceManager):
                 instance_id = joystick.get_instance_id()
             except AttributeError:
                 instance_id = pygame_joystick_index
-            joystick_proxy = JoystickManager.JoystickProxy(
+            joystick_proxy = JoystickEventManager.JoystickEventProxy(
                 joystick_id=pygame_joystick_index, instance_id=instance_id, game=self.game
             )
             self.joysticks[instance_id] = joystick_proxy
-
             # The joystick proxy overrides the joystick object
             self.log.info(f"Added Joystick: {joystick_proxy}")
 
@@ -520,7 +519,7 @@ class JoystickManager(JoystickEvents, ResourceManager):
             self.log.debug(f"Instance #{instance_id} already exists, skipping duplicate creation")
             return
 
-        joystick_proxy = JoystickManager.JoystickProxy(
+        joystick_proxy = JoystickEventManager.JoystickEventProxy(
             joystick_id=event.device_index, instance_id=instance_id, game=self.game
         )
         self.log.debug(f"Created JoystickProxy with device_index={event.device_index}, instance_id={instance_id}, _device_id={joystick_proxy._device_id}")

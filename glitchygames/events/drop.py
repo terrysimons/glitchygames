@@ -22,10 +22,10 @@ log = logging.getLogger("game.events.drop_events")
 log.addHandler(logging.NullHandler())
 
 
-class DropManager(ResourceManager):
+class DropEventManager(ResourceManager):
     """Manage drop events."""
 
-    class DropProxy(DropEvents, ResourceManager):
+    class DropEventProxy(DropEvents, ResourceManager):
         """Proxy class for drop events."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -122,4 +122,4 @@ class DropManager(ResourceManager):
         except Exception:
             pass
 
-        self.proxies = [DropManager.DropProxy(game=game)]
+        self.proxies = [DropEventManager.DropEventProxy(game=game)]

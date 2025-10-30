@@ -10,12 +10,12 @@ from glitchygames.scenes import Scene
 LOG = logging.getLogger(__name__)
 
 
-class GameManager(ResourceManager, GameEvents):
+class GameEventManager(ResourceManager, GameEvents):
     """Manager for game events."""
 
     log: logging.Logger = LOG
 
-    class GameProxy(ResourceManager):
+    class GameEventProxy(ResourceManager):
         """Game event proxy."""
 
         log: logging.Logger = LOG
@@ -214,7 +214,7 @@ class GameManager(ResourceManager, GameEvents):
 
         """
         super().__init__(game=game)
-        self.proxies: list[GameManager.GameProxy] = [GameManager.GameProxy(game=game)]
+        self.proxies: list[GameEventManager.GameEventProxy] = [GameEventManager.GameEventProxy(game=game)]
 
     def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active event."""

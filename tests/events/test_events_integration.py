@@ -155,8 +155,8 @@ class TestEventIntegration:
             engine.scene_manager.game = scene
 
             # Set up the audio manager to delegate to the scene
-            from glitchygames.events.audio import AudioManager
-            engine.audio_manager = AudioManager(game=scene)
+            from glitchygames.events.audio import AudioEventManager
+            engine.audio_manager = AudioEventManager(game=scene)
 
             # Configure the scene manager to handle audio events
             def scene_audio_handler(event):

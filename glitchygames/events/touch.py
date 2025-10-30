@@ -10,10 +10,10 @@ from glitchygames.events import TOUCH_EVENTS
 from glitchygames.events import ResourceManager, TouchEvents
 
 
-class TouchManager(ResourceManager):
+class TouchEventManager(ResourceManager):
     """Touch event manager."""
 
-    class TouchProxy(TouchEvents, ResourceManager):
+    class TouchEventProxy(TouchEvents, ResourceManager):
         """Touch event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -121,4 +121,4 @@ class TouchManager(ResourceManager):
             pygame.event.set_allowed(TOUCH_EVENTS)
         except Exception:
             pass
-        self.proxies = [TouchManager.TouchProxy(game=game)]
+        self.proxies = [TouchEventManager.TouchEventProxy(game=game)]

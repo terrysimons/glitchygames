@@ -20,7 +20,7 @@ from glitchygames.events import (
     MidiEventStubs,
     UnhandledEventError,
 )
-from glitchygames.events.midi import MidiManager
+from glitchygames.events.midi import MidiEventManager
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -318,27 +318,27 @@ class TestMidiEvents:
         return scene_mock
 
 
-class TestMidiManagerCoverage:
+class TestMidiEventManagerCoverage:
     """Test coverage for MIDI manager functionality."""
 
     def test_midi_manager_initialization(self, mock_pygame_patches):
-        """Test MidiManager initialization."""
+        """Test MidiEventManager initialization."""
         mock_game = Mock()
-        manager = MidiManager(game=mock_game)
+        manager = MidiEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "proxies")
         assert isinstance(manager.proxies, list)
 
     def test_midi_manager_initialization_no_game(self, mock_pygame_patches):
-        """Test MidiManager initialization without game."""
-        manager = MidiManager(game=None)
+        """Test MidiEventManager initialization without game."""
+        manager = MidiEventManager(game=None)
         # Test that manager was created successfully
         assert manager is not None
 
     def test_midi_manager_args(self, mock_pygame_patches):
-        """Test MidiManager args method."""
+        """Test MidiEventManager args method."""
         parser = argparse.ArgumentParser()
-        result = MidiManager.args(parser)
+        result = MidiEventManager.args(parser)
 
         assert result is parser

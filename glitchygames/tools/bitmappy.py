@@ -36,9 +36,9 @@ except ImportError:
 
 # Try to import voice recognition, but don't fail if it's not available
 try:
-    from glitchygames.events.voice import VoiceRecognitionManager
+    from glitchygames.events.voice import VoiceEventManager
 except ImportError:
-    VoiceRecognitionManager = None
+    VoiceEventManager = None
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
@@ -5463,7 +5463,7 @@ class BitmapEditorScene(Scene):
     def _setup_voice_recognition(self) -> None:
         """Set up voice recognition for voice commands."""
         try:
-            self.voice_manager = VoiceRecognitionManager(logger=self.log)
+            self.voice_manager = VoiceEventManager(logger=self.log)
 
             if self.voice_manager.is_available():
                 # Register voice commands

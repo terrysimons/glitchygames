@@ -27,10 +27,10 @@ MOUSE_WHEEL_SCROLL_UP = 4
 MOUSE_WHEEL_SCROLL_DOWN = 5
 
 
-class MouseManager(ResourceManager):
+class MouseEventManager(ResourceManager):
     """Mouse manager event handler."""
 
-    class MouseProxy(MouseEvents, ResourceManager):
+    class MouseEventProxy(MouseEvents, ResourceManager):
         """Mouse manager event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -583,7 +583,7 @@ class MouseManager(ResourceManager):
             pygame.event.set_allowed(MOUSE_EVENTS)
         except Exception:
             pass
-        self.proxies = [MouseManager.MouseProxy(game=game)]
+        self.proxies = [MouseEventManager.MouseEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

@@ -221,8 +221,8 @@ class ResourceManager:
     there is only ever a single manager for any given
     resource.
 
-    For instance, a second instantiation of MouseManager
-    would return the same MouseManager object that the
+    For instance, a second instantiation of MouseEventManager
+    would return the same MouseEventManager object that the
     GameEngine created to process mouse events with.
 
     This behavior allows easy access to resource managers

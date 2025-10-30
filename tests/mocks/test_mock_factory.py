@@ -812,13 +812,13 @@ class MockFactory:
 
     @staticmethod
     def create_joystick_manager_mock(joystick_count: int = 0) -> Mock:
-        """Create a properly configured JoystickManager mock.
+        """Create a properly configured JoystickEventManager mock.
 
         Args:
             joystick_count: Number of joysticks to simulate (default: 0)
 
         Returns:
-            Properly configured JoystickManager mock
+            Properly configured JoystickEventManager mock
 
         """
         mock_manager = Mock()

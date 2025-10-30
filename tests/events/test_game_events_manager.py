@@ -1,6 +1,6 @@
-"""Tests for GameManager functionality.
+"""Tests for GameEventManager functionality.
 
-This module tests GameManager initialization and event processing.
+This module tests GameEventManager initialization and event processing.
 """
 
 import argparse
@@ -13,7 +13,7 @@ import pygame
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameManager
+from glitchygames.engine import GameEventManager
 from glitchygames.scenes import Scene
 
 from tests.mocks import MockFactory
@@ -57,7 +57,7 @@ class MockGameWithArgs(MockGame):
 
 
 class TestGameManager:
-    """Test GameManager functionality."""
+    """Test GameEventManager functionality."""
 
     def _create_mock_game(self):
         """Create a mock game using MockFactory."""
@@ -72,7 +72,7 @@ class TestGameManager:
         return mock_event
 
     def test_game_manager_init(self, mock_pygame_patches, mock_game_args):
-        """Test GameManager initialization."""
+        """Test GameEventManager initialization."""
         # Mock argument parsing to prevent command line argument issues
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
@@ -80,8 +80,8 @@ class TestGameManager:
             # Create mock game
             mock_game = self._create_mock_game()
 
-            # Create GameManager.GameProxy instance (concrete implementation)
-            manager = GameManager.GameProxy(game=mock_game)
+            # Create GameEventManager.GameEventProxy instance (concrete implementation)
+            manager = GameEventManager.GameEventProxy(game=mock_game)
 
             # Test that manager is properly initialized
             assert manager is not None
@@ -92,7 +92,7 @@ class TestGameManager:
             assert manager.proxies[0] is not None
 
     def test_game_manager_process_events(self, mock_pygame_patches, mock_game_args):
-        """Test GameManager event processing."""
+        """Test GameEventManager event processing."""
         # Mock argument parsing to prevent command line argument issues
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
@@ -100,8 +100,8 @@ class TestGameManager:
             # Create mock game
             mock_game = self._create_mock_game()
 
-            # Create GameManager.GameProxy instance (concrete implementation)
-            manager = GameManager.GameProxy(game=mock_game)
+            # Create GameEventManager.GameEventProxy instance (concrete implementation)
+            manager = GameEventManager.GameEventProxy(game=mock_game)
 
             # Mock events
             mock_events = [
@@ -121,7 +121,7 @@ class TestGameManager:
                 mock_process_events.assert_called_once_with(mock_events)
 
     def test_game_manager_event_handlers(self, mock_pygame_patches, mock_game_args):
-        """Test GameManager event handler methods."""
+        """Test GameEventManager event handler methods."""
         # Mock argument parsing to prevent command line argument issues
         with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
             mock_parse_args.return_value = mock_game_args
@@ -129,8 +129,8 @@ class TestGameManager:
             # Create mock game
             mock_game = self._create_mock_game()
 
-            # Create GameManager.GameProxy instance (concrete implementation)
-            manager = GameManager.GameProxy(game=mock_game)
+            # Create GameEventManager.GameEventProxy instance (concrete implementation)
+            manager = GameEventManager.GameEventProxy(game=mock_game)
 
             # Mock events
             mock_active_event = self._create_mock_event(pygame.ACTIVEEVENT)
@@ -150,22 +150,22 @@ class TestGameManager:
             assert True
 
     def test_game_manager_initialization(self, mock_pygame_patches):
-        """Test GameManager initialization."""
+        """Test GameEventManager initialization."""
         # Create mock scene manager
         mock_scene_manager = MockFactory.create_game_mock()
 
-        # Test GameManager.GameProxy initialization (concrete implementation)
-        game_manager = GameManager.GameProxy(game=mock_scene_manager)
+        # Test GameEventManager.GameEventProxy initialization (concrete implementation)
+        game_manager = GameEventManager.GameEventProxy(game=mock_scene_manager)
 
         # Verify game is set
         assert game_manager.game == mock_scene_manager
 
     def test_game_manager_args(self, mock_pygame_patches):
-        """Test GameManager.args method."""
+        """Test GameEventManager.args method."""
         parser = argparse.ArgumentParser()
 
         # Test that args method returns the parser
-        result = GameManager.args(parser)
+        result = GameEventManager.args(parser)
 
         assert result is parser
 

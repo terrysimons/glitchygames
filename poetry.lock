@@ -142,6 +142,65 @@ files = [
 ]
 
 [[package]]
+name = "audioop-lts"
+version = "0.2.2"
+description = "LTS Port of Python audioop"
+optional = false
+python-versions = ">=3.13"
+groups = ["main"]
+files = [
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_universal2.whl", hash = "sha256:fd3d4602dc64914d462924a08c1a9816435a2155d74f325853c1f1ac3b2d9800"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_x86_64.whl", hash = "sha256:550c114a8df0aafe9a05442a1162dfc8fec37e9af1d625ae6060fed6e756f303"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_11_0_arm64.whl", hash = "sha256:9a13dc409f2564de15dd68be65b462ba0dde01b19663720c68c1140c782d1d75"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:51c916108c56aa6e426ce611946f901badac950ee2ddaf302b7ed35d9958970d"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:47eba38322370347b1c47024defbd36374a211e8dd5b0dcbce7b34fdb6f8847b"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:ba7c3a7e5f23e215cb271516197030c32aef2e754252c4c70a50aaff7031a2c8"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:def246fe9e180626731b26e89816e79aae2276f825420a07b4a647abaa84becc"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:e160bf9df356d841bb6c180eeeea1834085464626dc1b68fa4e1d59070affdc3"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:4b4cd51a57b698b2d06cb9993b7ac8dfe89a3b2878e96bc7948e9f19ff51dba6"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_ppc64le.whl", hash = "sha256:4a53aa7c16a60a6857e6b0b165261436396ef7293f8b5c9c828a3a203147ed4a"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_riscv64.whl", hash = "sha256:3fc38008969796f0f689f1453722a0f463da1b8a6fbee11987830bfbb664f623"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_s390x.whl", hash = "sha256:15ab25dd3e620790f40e9ead897f91e79c0d3ce65fe193c8ed6c26cffdd24be7"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:03f061a1915538fd96272bac9551841859dbb2e3bf73ebe4a23ef043766f5449"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win32.whl", hash = "sha256:3bcddaaf6cc5935a300a8387c99f7a7fbbe212a11568ec6cf6e4bc458c048636"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win_amd64.whl", hash = "sha256:a2c2a947fae7d1062ef08c4e369e0ba2086049a5e598fda41122535557012e9e"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win_arm64.whl", hash = "sha256:5f93a5db13927a37d2d09637ccca4b2b6b48c19cd9eda7b17a2e9f77edee6a6f"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:73f80bf4cd5d2ca7814da30a120de1f9408ee0619cc75da87d0641273d202a09"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:106753a83a25ee4d6f473f2be6b0966fc1c9af7e0017192f5531a3e7463dce58"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:fbdd522624141e40948ab3e8cdae6e04c748d78710e9f0f8d4dae2750831de19"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:143fad0311e8209ece30a8dbddab3b65ab419cbe8c0dde6e8828da25999be911"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:dfbbc74ec68a0fd08cfec1f4b5e8cca3d3cd7de5501b01c4b5d209995033cde9"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:cfcac6aa6f42397471e4943e0feb2244549db5c5d01efcd02725b96af417f3fe"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:752d76472d9804ac60f0078c79cdae8b956f293177acd2316cd1e15149aee132"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:83c381767e2cc10e93e40281a04852facc4cd9334550e0f392f72d1c0a9c5753"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:c0022283e9556e0f3643b7c3c03f05063ca72b3063291834cca43234f20c60bb"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_ppc64le.whl", hash = "sha256:a2d4f1513d63c795e82948e1305f31a6d530626e5f9f2605408b300ae6095093"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_riscv64.whl", hash = "sha256:c9c8e68d8b4a56fda8c025e538e639f8c5953f5073886b596c93ec9b620055e7"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_s390x.whl", hash = "sha256:96f19de485a2925314f5020e85911fb447ff5fbef56e8c7c6927851b95533a1c"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:e541c3ef484852ef36545f66209444c48b28661e864ccadb29daddb6a4b8e5f5"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win32.whl", hash = "sha256:d5e73fa573e273e4f2e5ff96f9043858a5e9311e94ffefd88a3186a910c70917"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win_amd64.whl", hash = "sha256:9191d68659eda01e448188f60364c7763a7ca6653ed3f87ebb165822153a8547"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win_arm64.whl", hash = "sha256:c174e322bb5783c099aaf87faeb240c8d210686b04bd61dfd05a8e5a83d88969"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_10_13_universal2.whl", hash = "sha256:f9ee9b52f5f857fbaf9d605a360884f034c92c1c23021fb90b2e39b8e64bede6"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:49ee1a41738a23e98d98b937a0638357a2477bc99e61b0f768a8f654f45d9b7a"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:5b00be98ccd0fc123dcfad31d50030d25fcf31488cde9e61692029cd7394733b"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:a6d2e0f9f7a69403e388894d4ca5ada5c47230716a03f2847cfc7bd1ecb589d6"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f9b0b8a03ef474f56d1a842af1a2e01398b8f7654009823c6d9e0ecff4d5cfbf"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:2b267b70747d82125f1a021506565bdc5609a2b24bcb4773c16d79d2bb260bbd"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:0337d658f9b81f4cd0fdb1f47635070cc084871a3d4646d9de74fdf4e7c3d24a"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:167d3b62586faef8b6b2275c3218796b12621a60e43f7e9d5845d627b9c9b80e"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:0d9385e96f9f6da847f4d571ce3cb15b5091140edf3db97276872647ce37efd7"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_ppc64le.whl", hash = "sha256:48159d96962674eccdca9a3df280e864e8ac75e40a577cc97c5c42667ffabfc5"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_riscv64.whl", hash = "sha256:8fefe5868cd082db1186f2837d64cfbfa78b548ea0d0543e9b28935ccce81ce9"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_s390x.whl", hash = "sha256:58cf54380c3884fb49fdd37dfb7a772632b6701d28edd3e2904743c5e1773602"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:088327f00488cdeed296edd9215ca159f3a5a5034741465789cad403fcf4bec0"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win32.whl", hash = "sha256:068aa17a38b4e0e7de771c62c60bbca2455924b67a8814f3b0dee92b5820c0b3"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win_amd64.whl", hash = "sha256:a5bf613e96f49712073de86f20dbdd4014ca18efd4d34ed18c75bd808337851b"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win_arm64.whl", hash = "sha256:b492c3b040153e68b9fdaff5913305aaaba5bb433d8a7f73d5cf6a64ed3cc1dd"},
+    {file = "audioop_lts-0.2.2.tar.gz", hash = "sha256:64d0c62d88e67b98a1a5e71987b7aa7b5bcffc7dcee65b635823dbdd0a8dbbd0"},
+]
+
+[[package]]
 name = "authlib"
 version = "1.6.5"
 description = "The ultimate Python library in building OAuth and OpenID Connect servers and clients."
@@ -946,44 +1005,44 @@ poetry = ["poetry"]
 
 [[package]]
 name = "dulwich"
-version = "0.24.7"
+version = "0.24.8"
 description = "Python Git Library"
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"dev\""
 files = [
-    {file = "dulwich-0.24.7-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:d55ccb9b89c00334a372bd1a8ac8203669251af0d1747dff36730eca617f941f"},
-    {file = "dulwich-0.24.7-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:03baba91e4c143e8cacf1e55c91061a401a266de4ced5904909825a934b43cbb"},
-    {file = "dulwich-0.24.7-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:1476379539c60a689ccfefbde3ec3b5e584cd6fc8669de89e69c4ea6a404520f"},
-    {file = "dulwich-0.24.7-cp310-cp310-win32.whl", hash = "sha256:e3675065022ec06a9ddc339e317900a1b4e6cc020516704e7c58eb3ba990458a"},
-    {file = "dulwich-0.24.7-cp310-cp310-win_amd64.whl", hash = "sha256:7c9f59c4089667f64e9f6c3711a444067882f1ae3d27e6475acf2c12ec9aeadc"},
-    {file = "dulwich-0.24.7-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:381baadd6b4af9264586b91fe09260ccf790b08dae5ef688645503c199094c7a"},
-    {file = "dulwich-0.24.7-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:f88c2e7f6c369f2d988e14b76d2228a48d3aea475e7ff13ceb156edb3a18b2f9"},
-    {file = "dulwich-0.24.7-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:bb12ace558b3f4ba37bbd069d0f6bd4add7416693a3bc95e3286c5acff0c05a1"},
-    {file = "dulwich-0.24.7-cp311-cp311-win32.whl", hash = "sha256:ae60eec025625e65f7caf37a69076b12cdb4b63ddb317990ff0cb817c8132988"},
-    {file = "dulwich-0.24.7-cp311-cp311-win_amd64.whl", hash = "sha256:d328200d3caa20557e0568e8dd6c46714406b45abd4e0b333eeb5436614e4f3c"},
-    {file = "dulwich-0.24.7-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:5cb46d76558147529d8de295f8ca22bce0a4cb62163f708c54fc92f2a8d8728f"},
-    {file = "dulwich-0.24.7-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:ba0a121b148dffa5cc3d5fdceb32a002cb6b75a6b79abd89750584baa5021c0b"},
-    {file = "dulwich-0.24.7-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:23182ca6bd54b74109c2fb2bb70b6c34e7dc3bbcc08ecb5c6c31a3a4aa1b30c3"},
-    {file = "dulwich-0.24.7-cp312-cp312-win32.whl", hash = "sha256:1c154a8f33acd815ad990e85d230497de892dde2476e35370f5762d34a1f70fa"},
-    {file = "dulwich-0.24.7-cp312-cp312-win_amd64.whl", hash = "sha256:19f7a90377f5814716beaaeec34897d181c200a666baf477650e0cd4c699443f"},
-    {file = "dulwich-0.24.7-cp313-cp313-android_21_arm64_v8a.whl", hash = "sha256:461f2a894e1045fc6faad1ca0123aac87554f5dd40cbb5772e35933f1f6f1e32"},
-    {file = "dulwich-0.24.7-cp313-cp313-android_21_x86_64.whl", hash = "sha256:c8f44cb89d85fe40fa91ec34190d70a016be917ee841591fdbe9fd7e0ff61fc2"},
-    {file = "dulwich-0.24.7-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:06219dd38d553f18184dc885fbabe27d3d344ab0327d4ab3f1606617c09d8b32"},
-    {file = "dulwich-0.24.7-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:3eb5af24dd2c760701f4b7780b1a9fb5a0da731053fe5d1d0a2f92daa4c62240"},
-    {file = "dulwich-0.24.7-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:d8c42e45c217506759170b01b09e194acce1463aafd61f71fb7094b192ad09aa"},
-    {file = "dulwich-0.24.7-cp313-cp313-win32.whl", hash = "sha256:32e7e18edfad5dfb978ccf8e575b5776234110b722ea677d4e843058a1df1dd0"},
-    {file = "dulwich-0.24.7-cp313-cp313-win_amd64.whl", hash = "sha256:265549c96680be1f6322cfeabb41337714c1a128824ab7e06d8c9d8a2640f4fb"},
-    {file = "dulwich-0.24.7-cp314-cp314-android_24_arm64_v8a.whl", hash = "sha256:d29784211e7aeb84ddca1265fe7b8356556f8da531432b542084fb70e8341a00"},
-    {file = "dulwich-0.24.7-cp314-cp314-android_24_x86_64.whl", hash = "sha256:4bb0673480005c7aa331b05af77795f2612e5155fbecaaa0c3fd9da665dad420"},
-    {file = "dulwich-0.24.7-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:0ad2b37d65f1f97f9635febf43cf5ecc643900c18463e3dbe43538076c9778bf"},
-    {file = "dulwich-0.24.7-cp39-cp39-manylinux_2_28_aarch64.whl", hash = "sha256:f48a06d635b061f1196e63e91046e9b8ba9c9865fa8ac1ec7b21580538c9ef0c"},
-    {file = "dulwich-0.24.7-cp39-cp39-manylinux_2_28_x86_64.whl", hash = "sha256:9fe8e6c075fe9de2532ee176145172fcb52529b9fbe63708392ddca9c185cf91"},
-    {file = "dulwich-0.24.7-cp39-cp39-win32.whl", hash = "sha256:c7143322dbbeaf78a8a8a433a13f62b51def640b699426c64643f58bf80dfbee"},
-    {file = "dulwich-0.24.7-cp39-cp39-win_amd64.whl", hash = "sha256:8f86d5da9dd29ee20f3b5e4aa18a088707e5a05413ae29cf67d7d7474b88de99"},
-    {file = "dulwich-0.24.7-py3-none-any.whl", hash = "sha256:c1d6e35d7c41982d4ba375ce8ba9db783f4b4ca1a00c62f3121eb881f5c03c53"},
-    {file = "dulwich-0.24.7.tar.gz", hash = "sha256:f10bffa1395a8dedc3d38ac05164f761ae838a6a18f9a09a966f27dd651850d4"},
+    {file = "dulwich-0.24.8-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:661af1fa3852d970fef68b0ab431f0bd488c3f94306e89244c173c4e6abb978e"},
+    {file = "dulwich-0.24.8-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:1bac020051cf228b33c787294e17ac80a284e028c3749437ee72577ee04e1cd9"},
+    {file = "dulwich-0.24.8-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:97f7c64b02fbd366c36557aa2e8642fc686aaec7d6569bc1460d0b38a63169f9"},
+    {file = "dulwich-0.24.8-cp310-cp310-win32.whl", hash = "sha256:f7519f3b8c66ba2e4ea66f47c2156a66cefedce2a121ac3227e030abe95698f3"},
+    {file = "dulwich-0.24.8-cp310-cp310-win_amd64.whl", hash = "sha256:a60f8a5d718c7cc1f60bb931cc915311fd5198d85d68dde0ef3c569311c14a70"},
+    {file = "dulwich-0.24.8-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:07aa6e7d41358fcba2a8ac53731e1b8ab201cac7a192ec678ef0da34c7643cf1"},
+    {file = "dulwich-0.24.8-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:0e9aacbbb0b0cf4b3fecac2c29ddd4d4e36f03ced30851889c193986e8bb327e"},
+    {file = "dulwich-0.24.8-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:8eca5242f8aed324394c95ecd13a0a66d2a0c31c2556f0a52e7bb8dd67edef20"},
+    {file = "dulwich-0.24.8-cp311-cp311-win32.whl", hash = "sha256:108c74b329599931bfe66c4a34fb9312cd8136053cbfc04e7007e7c34081c6b7"},
+    {file = "dulwich-0.24.8-cp311-cp311-win_amd64.whl", hash = "sha256:efbf0f29d8d3d56a098e2b4a9260bdfa5f313142180a882c7b28e648d9b5ca9e"},
+    {file = "dulwich-0.24.8-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:8ac85e3ea42878fa91b6a9282652327df54f5abea4aaf674036e1000608a15f0"},
+    {file = "dulwich-0.24.8-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:b31e08bcd0a4eb29915987fa5273a827cccca7ee83eb27ef17bd5899f5668055"},
+    {file = "dulwich-0.24.8-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:267e79367cd6f438091248c1e826c6cf7abd84d5b641b9fe46fbc4d9119e11ed"},
+    {file = "dulwich-0.24.8-cp312-cp312-win32.whl", hash = "sha256:6a51a41e858e0427b14bb19df7ac1207275dd6b5cc1976f54710bf15cb4c5614"},
+    {file = "dulwich-0.24.8-cp312-cp312-win_amd64.whl", hash = "sha256:6016e3f7a0f1dd5e19df14b772cb8f42bfde0cd55c504642c05e1e8328de21e3"},
+    {file = "dulwich-0.24.8-cp313-cp313-android_21_arm64_v8a.whl", hash = "sha256:19be46710a9d810a66d4a925754abf3818ba22d61134e7d7e1d7b1585c9445b6"},
+    {file = "dulwich-0.24.8-cp313-cp313-android_21_x86_64.whl", hash = "sha256:17d8223cc69cf79ddd7a2f0893e223708f7efc2ea372f919ddcc0d852b3f5d06"},
+    {file = "dulwich-0.24.8-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:a0a780b512d4144336eac2f1f6b982eb78c313442e88ba0db853a224e2b918ef"},
+    {file = "dulwich-0.24.8-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:2e3a9a713fda94f3216da4743db3cc8d670330f44c4d98580ac4600242dba2c4"},
+    {file = "dulwich-0.24.8-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:b03474c16bcfa3524241b4ae89007931d79ac37c0b19e059133a6e63b7039845"},
+    {file = "dulwich-0.24.8-cp313-cp313-win32.whl", hash = "sha256:ec0f62538b6fb26cdd1b2fb70788ccfdb17df26a4ba1ca70e623e196c4004f5c"},
+    {file = "dulwich-0.24.8-cp313-cp313-win_amd64.whl", hash = "sha256:16e335bce0d5192d476db0ca81de1f90fb56863ad7d0b985b0333a8194c73c64"},
+    {file = "dulwich-0.24.8-cp314-cp314-android_24_arm64_v8a.whl", hash = "sha256:19855e8a0ce299cdcdafdc8bc4f6653bea9e02124a5022e13cda8103fb36912d"},
+    {file = "dulwich-0.24.8-cp314-cp314-android_24_x86_64.whl", hash = "sha256:da03c7a6629b7ed37e7139739a175f2c9678080a45444418c54ab28d2ec6524b"},
+    {file = "dulwich-0.24.8-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:f7a0d2cef91cf92a44071daa92639f648ab756d3db63a99e37d3a08ebacf69f3"},
+    {file = "dulwich-0.24.8-cp39-cp39-manylinux_2_28_aarch64.whl", hash = "sha256:5593a7216b27412333b99b2e1851bcc2485485d5c4694430aa86d34a36f08d63"},
+    {file = "dulwich-0.24.8-cp39-cp39-manylinux_2_28_x86_64.whl", hash = "sha256:ea6c63d3e40fc321ec7c5673b92be036b57aba7802c7e94a18f61451af382de0"},
+    {file = "dulwich-0.24.8-cp39-cp39-win32.whl", hash = "sha256:a6055b12cf2b90a0b4c21d38594f2681667d26bb0c135dfc36c2ea6de7458a37"},
+    {file = "dulwich-0.24.8-cp39-cp39-win_amd64.whl", hash = "sha256:138fd2480c1db43f372d52e4e6ed050c15f92ffbeeab9a0877dceb9801c65d2a"},
+    {file = "dulwich-0.24.8-py3-none-any.whl", hash = "sha256:6ffdd616135bcb31eb2edcccf82d4408720f1db69f596f687ffa2d26c2f5e6f4"},
+    {file = "dulwich-0.24.8.tar.gz", hash = "sha256:c9f4748bbcca56fb57458c71c0d30e2351ac15e0583d428c739c09228be68f05"},
 ]
 
 [package.dependencies]
@@ -3860,6 +3919,62 @@ files = [
 ]
 
 [[package]]
+name = "speechrecognition"
+version = "3.14.3"
+description = "Library for performing speech recognition, with support for several engines and APIs, online and offline."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "speechrecognition-3.14.3-py3-none-any.whl", hash = "sha256:1859fbb09ae23fa759200f5b0677307f1fb16e2c5c798f4259fcc41dd5399fe6"},
+    {file = "speechrecognition-3.14.3.tar.gz", hash = "sha256:bdd2000a9897832b33095e33adfa48580787255706092e1346d1c6c36adae0a4"},
+]
+
+[package.dependencies]
+audioop-lts = {version = "*", markers = "python_version >= \"3.13\""}
+standard-aifc = {version = "*", markers = "python_version >= \"3.13\""}
+typing-extensions = "*"
+
+[package.extras]
+assemblyai = ["requests"]
+audio = ["PyAudio (>=0.2.11)"]
+dev = ["numpy", "pytest", "pytest-randomly", "respx"]
+faster-whisper = ["faster-whisper"]
+google-cloud = ["google-cloud-speech"]
+groq = ["groq", "httpx (<0.28)"]
+openai = ["httpx (<0.28)", "openai"]
+pocketsphinx = ["pocketsphinx"]
+whisper-local = ["openai-whisper", "soundfile"]
+
+[[package]]
+name = "standard-aifc"
+version = "3.13.0"
+description = "Standard library aifc redistribution. \"dead battery\"."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "standard_aifc-3.13.0-py3-none-any.whl", hash = "sha256:f7ae09cc57de1224a0dd8e3eb8f73830be7c3d0bc485de4c1f82b4a7f645ac66"},
+    {file = "standard_aifc-3.13.0.tar.gz", hash = "sha256:64e249c7cb4b3daf2fdba4e95721f811bde8bdfc43ad9f936589b7bb2fae2e43"},
+]
+
+[package.dependencies]
+audioop-lts = {version = "*", markers = "python_version >= \"3.13\""}
+standard-chunk = {version = "*", markers = "python_version >= \"3.13\""}
+
+[[package]]
+name = "standard-chunk"
+version = "3.13.0"
+description = "Standard library chunk redistribution. \"dead battery\"."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "standard_chunk-3.13.0-py3-none-any.whl", hash = "sha256:17880a26c285189c644bd5bd8f8ed2bdb795d216e3293e6dbe55bbd848e2982c"},
+    {file = "standard_chunk-3.13.0.tar.gz", hash = "sha256:4ac345d37d7e686d2755e01836b8d98eda0d1a3ee90375e597ae43aaf064d654"},
+]
+
+[[package]]
 name = "stevedore"
 version = "5.5.0"
 description = "Manage dynamic plugins for Python applications"
@@ -4141,15 +4256,15 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "virtualenv"
-version = "20.35.3"
+version = "20.35.4"
 description = "Virtual Python Environment builder"
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
 markers = "extra == \"dev\""
 files = [
-    {file = "virtualenv-20.35.3-py3-none-any.whl", hash = "sha256:63d106565078d8c8d0b206d48080f938a8b25361e19432d2c9db40d2899c810a"},
-    {file = "virtualenv-20.35.3.tar.gz", hash = "sha256:4f1a845d131133bdff10590489610c98c168ff99dc75d6c96853801f7f67af44"},
+    {file = "virtualenv-20.35.4-py3-none-any.whl", hash = "sha256:c21c9cede36c9753eeade68ba7d523529f228a403463376cf821eaae2b650f1b"},
+    {file = "virtualenv-20.35.4.tar.gz", hash = "sha256:643d3914d73d3eeb0c552cbb12d7e82adf0e504dbf86a3182f8771a153a1971c"},
 ]
 
 [package.dependencies]
@@ -4392,4 +4507,4 @@ docs = ["mkdocs", "mkdocs-autorefs", "mkdocs-gen-files", "mkdocs-literate-nav", 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13.0,<4.0"
-content-hash = "207c09c63646408c379ec90fc09968fcab5dbf01d3a7e8b2a50340478cdc2679"
+content-hash = "9781219ec8ab9b7f976a54220476c57d2cc4b7ad052cab5acd84209f4815e27c"

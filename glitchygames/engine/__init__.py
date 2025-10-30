@@ -18,17 +18,17 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 import pygame
 from glitchygames import events
 from glitchygames.color import PURPLE
-from glitchygames.events.app import AppManager
-from glitchygames.events.audio import AudioManager
-from glitchygames.events.controller import ControllerManager
-from glitchygames.events.drop import DropManager
-from glitchygames.events.game import GameManager
-from glitchygames.events.joystick import JoystickManager
-from glitchygames.events.keyboard import KeyboardManager
-from glitchygames.events.midi import MidiManager
-from glitchygames.events.mouse import MouseManager
-from glitchygames.events.touch import TouchManager
-from glitchygames.events.window import WindowManager
+from glitchygames.events.app import AppEventManager
+from glitchygames.events.audio import AudioEventManager
+from glitchygames.events.controller import ControllerEventManager
+from glitchygames.events.drop import DropEventManager
+from glitchygames.events.game import GameEventManager
+from glitchygames.events.joystick import JoystickEventManager
+from glitchygames.events.keyboard import KeyboardEventManager
+from glitchygames.events.midi import MidiEventManager
+from glitchygames.events.mouse import MouseEventManager
+from glitchygames.events.touch import TouchEventManager
+from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
@@ -201,16 +201,16 @@ class GameEngine(events.EventManager):
         group.add_argument("--video-driver", default=None, choices=default_videodriver)
 
         event_managers = (
-            AudioManager,
-            DropManager,
-            ControllerManager,
+            AudioEventManager,
+            DropEventManager,
+            ControllerEventManager,
             FontManager,
-            GameManager,
-            JoystickManager,
-            KeyboardManager,
-            MidiManager,
-            MouseManager,
-            WindowManager,
+            GameEventManager,
+            JoystickEventManager,
+            KeyboardEventManager,
+            MidiEventManager,
+            MouseEventManager,
+            WindowEventManager,
         )
 
         for event_manager in event_managers:
@@ -718,10 +718,10 @@ class GameEngine(events.EventManager):
             self.scene_manager.game_engine = self
 
             self.registered_events = {}
-            from glitchygames.events.app import AppManager
-            self.app_manager = AppManager(game=self.scene_manager)
-            self.audio_manager = AudioManager(game=self.scene_manager)
-            self.drop_manager = DropManager(game=self.scene_manager)
+            from glitchygames.events.app import AppEventManager
+            self.app_manager = AppEventManager(game=self.scene_manager)
+            self.audio_manager = AudioEventManager(game=self.scene_manager)
+            self.drop_manager = DropEventManager(game=self.scene_manager)
 
             using_pygame_ce = False
             try:
@@ -735,24 +735,24 @@ class GameEngine(events.EventManager):
                 # Disable Controller Events
                 pygame.event.set_blocked(events.CONTROLLER_EVENTS)
             else:
-                self.controller_manager = ControllerManager(game=self.scene_manager)
+                self.controller_manager = ControllerEventManager(game=self.scene_manager)
                 # Enable controller events for button presses and axis movements
                 pygame._sdl2.controller.set_eventstate(True)
 
-            self.touch_manager = TouchManager(game=self.scene_manager)
+            self.touch_manager = TouchEventManager(game=self.scene_manager)
             # https://glitchy-games.atlassian.net/browse/GG-23
             self.font_manager = FontManager(game=self.scene_manager)
-            self.game_manager = GameManager(game=self.scene_manager)
-            self.joystick_manager = JoystickManager(game=self.scene_manager)
-            self.keyboard_manager = KeyboardManager(game=self.scene_manager)
-            self.midi_manager = MidiManager(game=self.scene_manager)
-            self.mouse_manager = MouseManager(game=self.scene_manager)
-            self.window_manager = WindowManager(game=self.scene_manager)
+            self.game_manager = GameEventManager(game=self.scene_manager)
+            self.joystick_manager = JoystickEventManager(game=self.scene_manager)
+            self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
+            self.midi_manager = MidiEventManager(game=self.scene_manager)
+            self.mouse_manager = MouseEventManager(game=self.scene_manager)
+            self.window_manager = WindowEventManager(game=self.scene_manager)
 
             # Get count of joysticks
             self.joysticks = []
             if self.joystick_manager:
-                # JoystickManager.joysticks is a dictionary, convert to list of values
+                # JoystickEventManager.joysticks is a dictionary, convert to list of values
                 self.joysticks = list(self.joystick_manager.joysticks.values())
             self.joystick_count = len(self.joysticks)
 

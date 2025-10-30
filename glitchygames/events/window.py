@@ -19,10 +19,10 @@ LOG = logging.getLogger("game.window")
 LOG.addHandler(logging.NullHandler())
 
 
-class WindowManager(ResourceManager):
+class WindowEventManager(ResourceManager):
     """Window manager event handler."""
 
-    class WindowManagerProxy(WindowEvents, ResourceManager):
+    class WindowEventProxy(WindowEvents, ResourceManager):
         """Window manager event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -247,7 +247,7 @@ class WindowManager(ResourceManager):
             pygame.event.set_allowed(WINDOW_EVENTS)
         except Exception:
             pass
-        self.proxies = [WindowManager.WindowManagerProxy(game=game)]
+        self.proxies = [WindowEventManager.WindowEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

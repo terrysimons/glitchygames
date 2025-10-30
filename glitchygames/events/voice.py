@@ -9,7 +9,11 @@ import threading
 import time
 from collections.abc import Callable
 
-# from typing import Optional  # Not used
+from glitchygames.events import ResourceManager
+try:
+    from .voice_backends import get_microphone_backend
+except Exception:
+    get_microphone_backend = lambda: None  # type: ignore
 
 # Centralized logger for voice recognition
 LOG: logging.Logger = logging.getLogger("glitchygames.events.voice")
@@ -24,8 +28,27 @@ except ImportError:
     SPEECH_RECOGNITION_AVAILABLE = False
 
 
-class VoiceRecognitionManager:
+class VoiceEventManager(ResourceManager):
     """Manages voice recognition and command processing."""
+
+    class VoiceEventProxy(ResourceManager):
+        """Proxy for voice manager operations (consistency with other managers)."""
+
+        log: logging.Logger = LOG
+
+        def __init__(self, game: "VoiceEventManager") -> None:
+            super().__init__(game)
+            self.game = game
+            self.proxies = [self.game]
+
+        def start_listening(self) -> None:
+            self.game.start_listening()
+
+        def stop_listening(self) -> None:
+            self.game.stop_listening()
+
+        def register_command(self, phrase: str, callback: Callable[[], None]) -> None:
+            self.game.register_command(phrase, callback)
 
     def __init__(self, logger: logging.Logger | None = None):
         """Initialize the voice recognition manager.
@@ -34,18 +57,46 @@ class VoiceRecognitionManager:
             logger: Optional logger instance. If None, creates a default logger.
 
         """
+        super().__init__(game=self)
         self.log = logger or logging.getLogger(__name__)
         self.is_listening = False
         self.listen_thread = None
         self.commands: dict[str, Callable[[], None]] = {}
         self.stop_listening_event = threading.Event()
+        # Provide a proxy for API symmetry with other event managers
+        self.proxies = [VoiceEventManager.VoiceEventProxy(game=self)]
 
         # Initialize speech recognition components if available
         if SPEECH_RECOGNITION_AVAILABLE:
             self.recognizer = sr.Recognizer()
             self.microphone = None
-            # Initialize microphone
-            self._setup_microphone()
+            # Select a backend microphone class
+            mic_cls = get_microphone_backend()
+            if mic_cls is not None:
+                backend_name = getattr(mic_cls, "__name__", str(mic_cls))
+                # Probe the backend by opening/closing once to surface errors early
+                try:
+                    _probe = mic_cls()  # type: ignore[call-arg]
+                    try:
+                        _enter = _probe.__enter__
+                    except AttributeError:
+                        _enter = None
+                    if callable(_enter):  # type: ignore[truthy-bool]
+                        try:
+                            _probe.__enter__()
+                        finally:
+                            try:
+                                _probe.__exit__(None, None, None)
+                            except Exception:
+                                pass
+                    self.log.info(f"Voice backend selected: {backend_name}")
+                    self.microphone = mic_cls()  # type: ignore[call-arg]
+                except Exception as e:
+                    self.log.error(f"Voice backend probe failed for {backend_name}: {e}")
+                    self.microphone = None
+            if self.microphone is None:
+                # Last resort: try built-in sr.Microphone init
+                self._setup_microphone()
         else:
             self.recognizer = None
             self.microphone = None
@@ -190,10 +241,14 @@ class VoiceRecognitionManager:
         """Check if voice recognition is available.
 
         Returns:
-            True if microphone and speech recognition are available
+            True if speech_recognition and a microphone are available
 
         """
         return SPEECH_RECOGNITION_AVAILABLE and self.microphone is not None
+
+    def has_microphone(self) -> bool:
+        """Check if a microphone device is available/initialized."""
+        return self.microphone is not None
 
     def get_available_commands(self) -> list[str]:
         """Get list of available voice commands.

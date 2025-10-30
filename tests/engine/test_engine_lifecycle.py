@@ -141,17 +141,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock,
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
@@ -198,17 +198,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock,
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
@@ -261,17 +261,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes to raise exceptions
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock(side_effect=Exception("AudioManager failed")),
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock(side_effect=Exception("AudioEventManager failed")),
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
@@ -320,17 +320,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock,
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
@@ -379,17 +379,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock,
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
@@ -438,17 +438,17 @@ class TestEngineLifecycle:
             # Mock all the manager classes
             with patch.multiple(
                 "glitchygames.engine",
-                AudioManager=Mock,
-                DropManager=Mock,
-                ControllerManager=Mock,
-                TouchManager=Mock,
+                AudioEventManager=Mock,
+                DropEventManager=Mock,
+                ControllerEventManager=Mock,
+                TouchEventManager=Mock,
                 FontManager=Mock,
-                GameManager=Mock,
-                JoystickManager=mock_joystick_manager_class,
-                KeyboardManager=Mock,
-                MidiManager=Mock,
-                MouseManager=Mock,
-                WindowManager=Mock
+                GameEventManager=Mock,
+                JoystickEventManager=mock_joystick_manager_class,
+                KeyboardEventManager=Mock,
+                MidiEventManager=Mock,
+                MouseEventManager=Mock,
+                WindowEventManager=Mock
             ), patch.object(engine, "game") as mock_game_class:
                 mock_game_instance = Mock()
                 mock_game_class.return_value = mock_game_instance
