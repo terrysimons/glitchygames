@@ -1260,6 +1260,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
+        # Diagnostics: log the top-most collided sprite and its active state
+        if collided_sprites:
+            top_sprite = collided_sprites[-1]
+            self.log.info(
+                f"Top sprite @ DOWN: {type(top_sprite).__name__}, "
+                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+            )
+
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
@@ -1296,6 +1304,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} {trigger}")
         collided_sprites = self.sprites_at_position(pos=event.pos)
+
+        # Diagnostics: log the top-most collided sprite and its active state during drag
+        if collided_sprites:
+            top_sprite = collided_sprites[-1]
+            self.log.info(
+                f"Top sprite @ DRAG: {type(top_sprite).__name__}, "
+                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+            )
 
         for sprite in collided_sprites:
             sprite.on_mouse_drag_event(event, trigger)
