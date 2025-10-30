@@ -496,7 +496,14 @@ class MouseManager(ResourceManager):
                 None
 
             """
-            self.mouse_state[event.type] = event
+            try:
+                state_keys = list(self.mouse_state.keys())
+            except Exception:
+                state_keys = []
+            self.log.info(
+                f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
+                f"pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            )
             self.game.on_left_mouse_button_down_event(event)
 
         def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
