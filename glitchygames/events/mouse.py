@@ -397,6 +397,7 @@ class MouseManager(ResourceManager):
                 None
 
             """
+            self.mouse_state[event.button] = event
             self.game.on_left_mouse_button_up_event(event)
 
         def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -434,6 +435,9 @@ class MouseManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
+            self.log.info(
+                f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)}"
+            )
 
             # Whatever was clicked on gets lock.
             # if self.current_focus:
