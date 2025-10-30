@@ -360,14 +360,18 @@ class MouseManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
-            self.game.on_mouse_button_up_event(event)
 
+            # First dispatch to specific button handlers to allow widgets to react
             if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_up_event(event)
             if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_up_event(event)
             if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_up_event(event)
+
+            # Then dispatch the generic scene-level handler to keep symmetry
+            # with mouse down and ensure scene-wide focus/overlay bookkeeping runs
+            self.game.on_mouse_button_up_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
@@ -440,7 +444,7 @@ class MouseManager(ResourceManager):
                 self.on_left_mouse_button_down_event(event)
             if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_down_event(event)
-            if event.button == MOUSE_BUTTON_WHEEL:
+            if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_down_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
                 self.on_mouse_scroll_down_event(event)
