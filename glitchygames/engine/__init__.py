@@ -31,6 +31,7 @@ from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.timing import create_timer
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
@@ -167,6 +168,36 @@ class GameEngine(events.EventManager):
             help="update or flip (default: update)",
             choices=["update", "flip"],
             default="update",
+        )
+        group.add_argument(
+            "--timer-backend",
+            help="timer backend for draw loop pacing (pygame|fast)",
+            choices=["pygame", "fast"],
+            default="pygame",
+        )
+        group.add_argument(
+            "--sleep-granularity-ns",
+            type=int,
+            help="minimum sleep granularity for pacing (ns); 0 to uncap",
+            default=1_000_000,
+        )
+        group.add_argument(
+            "--windows-timer-1ms",
+            help="on Windows, request 1ms system timer resolution",
+            action="store_true",
+            default=False,
+        )
+        group.add_argument(
+            "--log-timer-jitter",
+            help="log frame pacing jitter statistics periodically",
+            action="store_true",
+            default=False,
+        )
+        group.add_argument(
+            "--perf-trim-percent",
+            type=float,
+            help="percent of frames to trim from top and bottom in global FPS report",
+            default=5.0,
         )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
@@ -757,6 +788,26 @@ class GameEngine(events.EventManager):
             self.joystick_count = len(self.joysticks)
 
             self.scene_manager.switch_to_scene(self.game)
+            # Initialize timer backend for draw-loop pacing (after options exist)
+            try:
+                self.timer = create_timer(
+                    GameEngine.OPTIONS.get("timer_backend"), GameEngine.OPTIONS
+                )
+                self.log.info(
+                    f"Timer backend: {GameEngine.OPTIONS.get('timer_backend')}"
+                )
+            except Exception:
+                self.timer = None
+                self.log.debug("Timer backend failed to initialize; using pygame clock only")
+            # Configure performance trim percent if available
+            try:
+                from glitchygames.performance import performance_manager
+
+                trim = float(GameEngine.OPTIONS.get("perf_trim_percent", 5.0))
+                if hasattr(performance_manager, "set_trim_percent"):
+                    performance_manager.set_trim_percent(trim)
+            except Exception:
+                pass
             self.scene_manager.start()
         except Exception:
             current_scene = getattr(self.scene_manager, 'current_scene', None)

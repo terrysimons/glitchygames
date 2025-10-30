@@ -29,6 +29,8 @@ class AdaptiveClamping:
             self._fps_log_interval_ms = 1000.0  # Default 1 second
             self._current_scene = None
             self._target_fps = 0.0  # 0 means unlimited FPS
+            # Percentage of frames to trim from both tails when summarizing FPS.
+            self._trim_percent = 5.0
             # Sliding window configuration for low-RAM systems
             self._max_fps_history = 100000  # Keep 100k samples in memory
             self._statistical_sample_size = 1000000  # Target 1M samples for 5 9s reliability
@@ -98,6 +100,19 @@ class AdaptiveClamping:
             target_fps (float): Target FPS (0 means unlimited).
         """
         self._target_fps = target_fps
+
+    def set_trim_percent(self: Self, percent: float) -> None:
+        """Set percentage of frames to trim from both tails for summaries.
+        
+        Args:
+            percent (float): Percentage in [0, 50). 0 disables trimming.
+        """
+        if percent < 0:
+            percent = 0.0
+        if percent >= 50.0:
+            # Prevent trimming away all data; clamp just below 50%
+            percent = 49.9
+        self._trim_percent = float(percent)
     
     def set_current_scene(self: Self, scene_name: str) -> None:
         """Set the current scene for per-scene tracking.
@@ -291,9 +306,13 @@ class AdaptiveClamping:
         fps_values.sort()
         total_frames = len(fps_values)
         
-        # Calculate percentiles (drop top and bottom 5%)
-        drop_count = max(1, int(total_frames * 0.05))
-        trimmed_fps = fps_values[drop_count:-drop_count] if len(fps_values) > 2 * drop_count else fps_values
+        # Calculate percentiles (drop top and bottom self._trim_percent)
+        trim_ratio = max(0.0, min(self._trim_percent, 49.9)) / 100.0
+        drop_count = int(total_frames * trim_ratio)
+        if drop_count == 0:
+            trimmed_fps = fps_values
+        else:
+            trimmed_fps = fps_values[drop_count:-drop_count] if len(fps_values) > 2 * drop_count else fps_values
         
         # Create histogram from trimmed FPS data to match the percentage calculations
         fps_histogram = {}
@@ -350,9 +369,13 @@ class AdaptiveClamping:
             fps_values.sort()
             total_frames = len(fps_values)
             
-            # Calculate percentiles (drop top and bottom 5%)
-            drop_count = max(1, int(total_frames * 0.05))
-            trimmed_fps = fps_values[drop_count:-drop_count] if len(fps_values) > 2 * drop_count else fps_values
+            # Calculate percentiles (drop top and bottom self._trim_percent)
+            trim_ratio = max(0.0, min(self._trim_percent, 49.9)) / 100.0
+            drop_count = int(total_frames * trim_ratio)
+            if drop_count == 0:
+                trimmed_fps = fps_values
+            else:
+                trimmed_fps = fps_values[drop_count:-drop_count] if len(fps_values) > 2 * drop_count else fps_values
             
             # Create histogram from trimmed FPS data to match the percentage calculations
             scene_histogram = {}
@@ -476,7 +499,8 @@ class AdaptiveClamping:
         print("🎮 GAME PERFORMANCE REPORT")
         print("="*80)
         print(f"📊 Total Frames: {stats['total_frames']:,}")
-        print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} (dropped top/bottom 5%)")
+        trim_label = "no trimming" if self._trim_percent == 0 else f"dropped top/bottom {self._trim_percent:.1f}%"
+        print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
         
         # Add spare time information for capped FPS
         spare_stats = self.get_spare_time_stats()
@@ -584,7 +608,8 @@ class AdaptiveClamping:
                 continue
             
             print(f"📊 Total Frames: {stats['total_frames']:,}")
-            print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} (dropped top/bottom 5%)")
+            trim_label = "no trimming" if self._trim_percent == 0 else f"dropped top/bottom {self._trim_percent:.1f}%"
+            print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
             
             # Add spare time information for capped FPS
             spare_stats = self.get_spare_time_stats(scene_name)

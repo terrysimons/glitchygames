@@ -298,6 +298,7 @@ class GameEventManager(ResourceManager, GameEvents):
             "--log-level",
             help="set the logging level",
             choices=["debug", "info", "warning", "error", "critical"],
+            type=str.lower,
             default="info",
         )
         group.add_argument(
