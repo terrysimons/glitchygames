@@ -496,6 +496,7 @@ class MouseManager(ResourceManager):
                 None
 
             """
+            self.mouse_state[event.type] = event
             self.game.on_left_mouse_button_down_event(event)
 
         def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
