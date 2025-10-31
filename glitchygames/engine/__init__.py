@@ -204,6 +204,7 @@ class GameEngine(events.EventManager):
         default_videodriver = []
         if platform.system() == "Linux":
             linux_videodriver_choices = [
+                "wayland",
                 "x11",
                 "dga",
                 "fbcon",
