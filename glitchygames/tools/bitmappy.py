@@ -3010,11 +3010,11 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         """Handle the left mouse button down event."""
-        self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
+        # self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
-            self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
+            # self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
 
             # Check for control-click (flood fill mode)
             is_control_click = pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
@@ -3105,7 +3105,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(trigger, "pixel_number"):
             pixel_num = trigger.pixel_number
             new_color = trigger.pixel_color
-            self.log.debug(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
+            # self.log.debug(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
 
             self.pixels[pixel_num] = new_color
             self.dirty_pixels[pixel_num] = True
