@@ -2984,23 +2984,33 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Track pixel for batched undo/redo update
             if not hasattr(self, '_drag_pixels'):
                 self._drag_pixels = {}
+            
+            # Cache frame reference during drag to avoid repeated lookups
+            if not hasattr(self, '_drag_frame'):
+                if (hasattr(self, "animated_sprite") and 
+                    hasattr(self, "current_animation") and 
+                    hasattr(self, "current_frame") and
+                    self.current_animation in self.animated_sprite.frames):
+                    self._drag_frame = self.animated_sprite._animations[self.current_animation][self.current_frame]
+                else:
+                    self._drag_frame = None
+            
             pixel_key = (x, y)
             pixel_num = y * self.pixels_across + x
             
             # Store pixel change with old color for batched undo/redo (only get old color once per pixel)
+            # OPTIMIZATION: Access frame.pixels directly to avoid expensive get_pixel_data() copy
             if pixel_key not in self._drag_pixels:
                 # Get old color from current frame (only once per unique pixel during drag)
-                if hasattr(self, "animated_sprite"):
-                    current_animation = self.current_animation
-                    current_frame_index = self.current_frame
-                    if current_animation in self.animated_sprite.frames:
-                        frame = self.animated_sprite._animations[current_animation][current_frame_index]
-                        frame_pixels = frame.get_pixel_data()
-                        old_color = frame_pixels[pixel_num] if pixel_num < len(frame_pixels) else (255, 0, 255, 255)
+                old_color = self.pixels[pixel_num]  # Default to canvas pixels
+                if self._drag_frame is not None:
+                    # Fast path: Directly access frame.pixels to avoid array copy
+                    if hasattr(self._drag_frame, "pixels") and pixel_num < len(self._drag_frame.pixels):
+                        old_color = self._drag_frame.pixels[pixel_num]
                     else:
-                        old_color = self.pixels[pixel_num]
-                else:
-                    old_color = self.pixels[pixel_num]
+                        # Fallback only if frame.pixels doesn't exist (rare)
+                        frame_pixels = self._drag_frame.get_pixel_data()
+                        old_color = frame_pixels[pixel_num] if pixel_num < len(frame_pixels) else (255, 0, 255, 255)
                 self._drag_pixels[pixel_key] = (x, y, old_color, self.active_color)
             
             # Update pixel data for immediate visual feedback
@@ -3008,19 +3018,25 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.dirty_pixels[pixel_num] = True
             
             # Update frame data immediately so renderer shows the change (but skip other expensive ops)
-            if hasattr(self, "animated_sprite"):
-                current_animation = self.current_animation
-                current_frame_index = self.current_frame
-                if current_animation in self.animated_sprite.frames:
-                    frame = self.animated_sprite._animations[current_animation][current_frame_index]
-                    frame_pixels = frame.get_pixel_data()
+            # OPTIMIZATION: Directly modify frame.pixels to avoid expensive get/set_pixel_data() copies
+            if self._drag_frame is not None:
+                # Fast path: Directly update frame.pixels if it exists (avoids array copies)
+                # This avoids the expensive .copy() calls in get_pixel_data()/set_pixel_data()
+                if hasattr(self._drag_frame, "pixels"):
+                    if pixel_num < len(self._drag_frame.pixels):
+                        self._drag_frame.pixels[pixel_num] = self.active_color
+                        # Skip updating the underlying surface during drag - it will be redrawn
+                        # Updating surface.set_at() for every pixel during drag is expensive
+                else:
+                    # Fallback: Use the slower get/set_pixel_data path if pixels attr doesn't exist
+                    frame_pixels = self._drag_frame.get_pixel_data()
                     if pixel_num < len(frame_pixels):
                         frame_pixels[pixel_num] = self.active_color
-                        frame.set_pixel_data(frame_pixels)
+                        self._drag_frame.set_pixel_data(frame_pixels)
                         
                         # Clear surface cache so it redraws
-                        if hasattr(self.animated_sprite, "_surface_cache"):
-                            cache_key = f"{current_animation}_{current_frame_index}"
+                        if hasattr(self, "animated_sprite") and hasattr(self.animated_sprite, "_surface_cache"):
+                            cache_key = f"{self.current_animation}_{self.current_frame}"
                             if cache_key in self.animated_sprite._surface_cache:
                                 del self.animated_sprite._surface_cache[cache_key]
             
@@ -3096,6 +3112,8 @@ class AnimatedCanvasSprite(BitmappySprite):
             self._drag_pixels = {}
             if hasattr(self, '_drag_redraw_counter'):
                 del self._drag_redraw_counter
+            if hasattr(self, '_drag_frame'):
+                del self._drag_frame
             
             # Force final redraw to show all changes
             self.dirty = 1
