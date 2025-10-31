@@ -1060,7 +1060,7 @@ class MockFactory:
 
         """
         # Ensure headless-friendly video driver for environments without a display
-        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        # os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
         # Create display mock
         display_mock = MockFactory.create_pygame_display_mock()
@@ -1080,7 +1080,7 @@ class MockFactory:
 
         """
         # Ensure headless-friendly video driver for environments without a display
-        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        # os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
         # Create comprehensive mocks
         display_mock = MockFactory.create_pygame_display_mock()
