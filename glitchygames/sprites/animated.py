@@ -829,8 +829,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._animations = {}
         self._animation_order = []  # Track order of animations as they appear in file
 
-        color_map = self._build_color_map(data)
+        color_map, color_order, colors_with_per_pixel_alpha = self._build_color_map(data)
         self._color_map = color_map  # Store color map for later use
+        self._color_order = color_order  # Store color order for preserving file format
+        # Store which colors originally had alpha=0-254 (per-pixel alpha) vs alpha=255 or no alpha (indexed)
+        self._colors_with_per_pixel_alpha = colors_with_per_pixel_alpha
         animations = data.get("animation", [])
 
         self.log.debug(f"Found {len(animations)} animation(s) in TOML file")
@@ -932,23 +935,39 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         )
 
     @staticmethod
-    def _build_color_map(data: dict) -> dict:
-        """Build color map from TOML colors section."""
+    def _build_color_map(data: dict) -> tuple[dict, list, dict]:
+        """Build color map from TOML colors section.
+        
+        Returns:
+            tuple: (color_map dict, color_order list, original_alpha_values dict) - 
+                   color_map maps char->color,
+                   color_order preserves the order colors appeared in the file,
+                   original_alpha_values maps char->alpha_value for colors that had alpha=0-254 (per-pixel)
+        """
         color_map = {}
+        color_order = []  # Preserve order of colors as they appear in file
+        original_alpha_values = {}  # Track original alpha values for colors with alpha=0-254 (per-pixel)
         colors_section = data.get("colors", {})
         for char, color_data in colors_section.items():
             r = color_data.get("red", 0)
             g = color_data.get("green", 0)
             b = color_data.get("blue", 0)
-            a = color_data.get("alpha", 255)  # Default to opaque if alpha not specified
             
-            if a != 255:
-                # Has alpha - use RGBA
-                color_map[char] = (r, g, b, a)
+            # Check if 'alpha' was explicitly in the original file
+            if "alpha" in color_data:
+                a = color_data["alpha"]
+                if 0 <= a <= 254:
+                    # Has per-pixel alpha (0-254) - store the original value for preservation
+                    color_map[char] = (r, g, b, a)
+                    original_alpha_values[char] = a
+                else:
+                    # Had alpha=255 explicitly - treat as indexed (RGBA with alpha=255)
+                    color_map[char] = (r, g, b, 255)
             else:
-                # No alpha or fully opaque - use RGB
+                # No alpha field in original - use RGB (indexed color)
                 color_map[char] = (r, g, b)
-        return color_map
+            color_order.append(char)  # Preserve order
+        return color_map, color_order, original_alpha_values
 
     def _process_toml_animation(self: Self, anim_data: dict, color_map: dict) -> list:
         """Process a single animation from TOML data."""
@@ -1283,11 +1302,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     r, g, b = color_tuple
                     f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
 
-            # Write alpha section if needed
-            if _needs_alpha_channel(pixels):
-                f.write("\n[alpha]\n")
-                f.write("blending = true\n")
-
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
 
@@ -1304,13 +1318,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         with Path(filename).open("w", encoding="utf-8") as f:
             AnimatedSprite._write_toml_sprite_section(f, data)
             AnimatedSprite._write_toml_animations(f, data)
-            AnimatedSprite._write_toml_colors(f, data)
-            AnimatedSprite._write_toml_alpha(f, data)
+            # Use original color order if available to preserve file format
+            color_order = getattr(self, "_color_order", None)
+            AnimatedSprite._write_toml_colors(f, data, color_order)
 
     def _build_toml_color_map(self: Self) -> dict:
         """Build color map for TOML format.
 
         This method creates a mapping from RGB/RGBA colors to characters for TOML format.
+        If the sprite was loaded from a TOML file, it preserves the original character assignments.
         To add new formats, create similar methods like _build_json_color_map(),
         _build_xml_color_map()
         See LOADER_README.md for detailed implementation guide.
@@ -1318,8 +1334,38 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         color_map = {}
         universal_chars = SPRITE_GLYPHS
         char_index = 0
+        
+        # If we have an original color map from loading, build reverse mapping (color -> char)
+        original_color_to_char = {}
+        used_chars = set()
+        if hasattr(self, "_color_map") and self._color_map:
+            # Build reverse mapping, normalizing colors appropriately
+            for char, color in self._color_map.items():
+                used_chars.add(char)
+                # Normalize color to match how we'll look it up
+                if len(color) == 4:
+                    r, g, b, a = color
+                    if (r, g, b) == (255, 0, 255):
+                        # Magenta - always use RGBA format
+                        original_color_to_char[(255, 0, 255, 255)] = char
+                    elif a == 255:
+                        # Opaque RGBA - can match as RGB or RGBA
+                        original_color_to_char[color] = char  # RGBA key
+                        original_color_to_char[(r, g, b)] = char  # RGB key too
+                    else:
+                        # Has transparency - only RGBA key
+                        original_color_to_char[color] = char
+                else:
+                    # RGB color
+                    if color == (255, 0, 255):
+                        # Magenta - map to RGBA format
+                        original_color_to_char[(255, 0, 255, 255)] = char
+                    else:
+                        original_color_to_char[color] = char  # RGB key
+                        # Also allow RGBA version with alpha=255
+                        original_color_to_char[(color[0], color[1], color[2], 255)] = char
 
-        # Reserve █ for (255, 0, 255) if it exists
+        # Reserve █ for (255, 0, 255) - always use RGBA format (255, 0, 255, 255)
         has_magenta = False
         for frames in self._animations.values():
             for frame in frames:
@@ -1339,7 +1385,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 break
 
         if has_magenta:
-            color_map[(255, 0, 255)] = "█"
+            # Always store magenta as RGBA with alpha=255
+            # Use original char if available, otherwise use █
+            if (255, 0, 255, 255) in original_color_to_char:
+                color_map[(255, 0, 255, 255)] = original_color_to_char[(255, 0, 255, 255)]
+            else:
+                color_map[(255, 0, 255, 255)] = "█"
             universal_chars = [c for c in universal_chars if c != "█"]
 
         for frames in self._animations.values():
@@ -1353,24 +1404,41 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     if len(pixel) == 4:
                         # RGBA pixel
                         r, g, b, a = pixel
-                        if needs_alpha:
+                        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
+                        if (r, g, b) == (255, 0, 255):
+                            color_tuple = (255, 0, 255, 255)
+                        elif needs_alpha:
                             # Use RGBA tuple for alpha-aware sprites
                             color_tuple = (r, g, b, a)
                         else:
-                            # Convert to RGB for non-alpha sprites
+                            # Convert to RGB for non-alpha sprites (but not magenta)
                             if a == 255:
                                 color_tuple = (r, g, b)
                             else:
-                                color_tuple = (255, 0, 255)  # Transparent
+                                color_tuple = (255, 0, 255, 255)  # Transparent -> magenta RGBA
                     else:
-                        # RGB pixel
-                        color_tuple = pixel
+                        # RGB pixel - normalize magenta to RGBA format
+                        if pixel == (255, 0, 255):
+                            color_tuple = (255, 0, 255, 255)
+                        else:
+                            color_tuple = pixel
                     
                     if color_tuple not in color_map:
-                        if char_index >= len(universal_chars):
-                            raise ValueError(f"Too many colors (max {len(universal_chars)})")
-                        color_map[color_tuple] = universal_chars[char_index]
-                        char_index += 1
+                        # First try to use original character assignment
+                        if color_tuple in original_color_to_char:
+                            char = original_color_to_char[color_tuple]
+                            color_map[color_tuple] = char
+                        else:
+                            # New color - assign next available character
+                            # Skip characters already used in original map
+                            while char_index < len(universal_chars) and universal_chars[char_index] in used_chars:
+                                char_index += 1
+                            if char_index >= len(universal_chars):
+                                raise ValueError(f"Too many colors (max {len(universal_chars)})")
+                            char = universal_chars[char_index]
+                            color_map[color_tuple] = char
+                            used_chars.add(char)
+                            char_index += 1
 
         return color_map
 
@@ -1385,29 +1453,40 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             "animation": [],
         }
 
-        # Check if sprite needs alpha blending
-        needs_alpha = False
+        # Check if sprite needs per-pixel alpha by examining pixel data
+        # Use presence of alpha 0-254 in pixels to determine if we need per-pixel alpha
+        needs_per_pixel_alpha = False
         for frames in self._animations.values():
             for frame in frames:
                 pixels = frame.get_pixel_data()
                 if _needs_alpha_channel(pixels):
-                    needs_alpha = True
+                    needs_per_pixel_alpha = True
                     break
-            if needs_alpha:
+            if needs_per_pixel_alpha:
                 break
 
-        if needs_alpha:
-            data["alpha"] = {"blending": True}
-
-        # Add color definitions
+        # Add color definitions - preserve original alpha format
+        # Colors with alpha=0-254 are per-pixel alpha, colors with alpha=255 or no alpha are indexed
+        original_alpha_values = getattr(self, "_colors_with_per_pixel_alpha", {})
         for color_tuple, char in color_map.items():
-            if len(color_tuple) == 4:
-                # RGBA color
-                r, g, b, a = color_tuple
-                data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": a}
+            r, g, b = color_tuple[:3]
+            if char in original_alpha_values:
+                # This color originally had alpha=0-254 (per-pixel alpha) - preserve that value
+                data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": original_alpha_values[char]}
+            elif needs_per_pixel_alpha and len(color_tuple) == 4:
+                # Sprite has pixels with alpha 0-254, and this color has RGBA - write the alpha value
+                a = color_tuple[3]
+                if 0 <= a <= 254:
+                    # Per-pixel alpha value - write it
+                    data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": a}
+                else:
+                    # Alpha=255 (opaque) - write RGB only (indexed color)
+                    data["colors"][char] = {"red": r, "green": g, "blue": b}
+            elif len(color_tuple) == 4 and color_tuple[3] != 255:
+                # New color with non-opaque alpha - write alpha field
+                data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": color_tuple[3]}
             else:
-                # RGB color
-                r, g, b = color_tuple
+                # RGB color or alpha=255 (indexed) - write RGB only
                 data["colors"][char] = {"red": r, "green": g, "blue": b}
 
         # Add animations
@@ -1456,17 +1535,84 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 if pixel_idx < len(pixels):
                     pixel = pixels[pixel_idx]
                     # Normalize pixel tuple to match color_map key style
+                    color_char = None
                     if len(pixel) == 4:
                         r, g, b, a = pixel
-                        if map_uses_alpha:
-                            lookup = (r, g, b, a)
+                        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
+                        if (r, g, b) == (255, 0, 255):
+                            lookup = (255, 0, 255, 255)
+                            if lookup not in color_map:
+                                raise KeyError(
+                                    f"Color {lookup} not found in color map. "
+                                    f"Available colors: {list(color_map.keys())}"
+                                )
+                            color_char = color_map[lookup]
+                        elif map_uses_alpha:
+                            # Map has some RGBA keys (magenta), but may have RGB keys for other colors
+                            # If pixel is opaque (alpha=255), try RGB first, then RGBA
+                            if a == 255:
+                                # Try RGB version first
+                                lookup_rgb = (r, g, b)
+                                if lookup_rgb in color_map:
+                                    color_char = color_map[lookup_rgb]
+                                elif (r, g, b, a) in color_map:
+                                    # Try RGBA version
+                                    color_char = color_map[(r, g, b, a)]
+                                else:
+                                    raise KeyError(
+                                        f"Color {(r, g, b)} (or RGBA {(r, g, b, a)}) not found in color map. "
+                                        f"Available colors: {list(color_map.keys())}"
+                                    )
+                            else:
+                                # Pixel has transparency, must use RGBA
+                                lookup = (r, g, b, a)
+                                if lookup not in color_map:
+                                    raise KeyError(
+                                        f"Color {lookup} not found in color map. "
+                                        f"Available colors: {list(color_map.keys())}"
+                                    )
+                                color_char = color_map[lookup]
                         else:
                             # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
-                            lookup = (r, g, b) if a == 255 else (255, 0, 255)
+                            lookup = (r, g, b) if a == 255 else (255, 0, 255, 255)
+                            if lookup not in color_map:
+                                raise KeyError(
+                                    f"Color {lookup} not found in color map. "
+                                    f"Available colors: {list(color_map.keys())}"
+                                )
+                            color_char = color_map[lookup]
                     else:
-                        # RGB pixel
-                        lookup = pixel
-                    color_char = color_map.get(lookup, ".")
+                        # RGB pixel - normalize magenta to RGBA format
+                        if pixel == (255, 0, 255):
+                            lookup = (255, 0, 255, 255)
+                            if lookup not in color_map:
+                                raise KeyError(
+                                    f"Color {lookup} not found in color map. "
+                                    f"Available colors: {list(color_map.keys())}"
+                                )
+                            color_char = color_map[lookup]
+                        elif map_uses_alpha:
+                            # Map uses alpha (has magenta as RGBA), but may have RGB keys for other colors
+                            # Try RGBA version first, then fall back to RGB
+                            lookup_rgba = (pixel[0], pixel[1], pixel[2], 255)
+                            if lookup_rgba in color_map:
+                                color_char = color_map[lookup_rgba]
+                            elif pixel in color_map:
+                                # Try RGB version in case the map has RGB keys
+                                color_char = color_map[pixel]
+                            else:
+                                raise KeyError(
+                                    f"Color {pixel} (or RGBA {lookup_rgba}) not found in color map. "
+                                    f"Available colors: {list(color_map.keys())}"
+                                )
+                        else:
+                            lookup = pixel
+                            if lookup not in color_map:
+                                raise KeyError(
+                                    f"Color {lookup} not found in color map. "
+                                    f"Available colors: {list(color_map.keys())}"
+                                )
+                            color_char = color_map[lookup]
                     row.append(color_char)
                 else:
                     row.append(".")
@@ -1500,11 +1646,29 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write('\n"""\n\n')
 
     @staticmethod
-    def _write_toml_colors(f, data: dict) -> None:
-        """Write TOML colors section."""
+    def _write_toml_colors(f, data: dict, color_order: list | None = None) -> None:
+        """Write TOML colors section.
+        
+        Args:
+            f: File handle to write to
+            data: TOML data structure
+            color_order: Optional list of characters in the order they should be written.
+                        If None, uses dictionary iteration order.
+        """
         if data["colors"]:
             f.write("[colors]\n")
-            for char, color in data["colors"].items():
+            # Use original order if provided, otherwise use dict iteration order
+            if color_order:
+                chars_to_write = [char for char in color_order if char in data["colors"]]
+                # Add any new colors not in original order
+                for char in data["colors"]:
+                    if char not in chars_to_write:
+                        chars_to_write.append(char)
+            else:
+                chars_to_write = list(data["colors"].keys())
+            
+            for char in chars_to_write:
+                color = data["colors"][char]
                 f.write(f'[colors."{char}"]\n')
                 f.write(f"red = {color['red']}\n")
                 f.write(f"green = {color['green']}\n")
@@ -1514,12 +1678,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write("\n")
 
     @staticmethod
-    def _write_toml_alpha(f, data: dict) -> None:
+    def _write_toml_alpha(f, data: dict, preserve_trailing_newline: bool = False) -> None:
         """Write TOML alpha section if needed."""
         if "alpha" in data:
             f.write("[alpha]\n")
             f.write(f"blending = {str(data['alpha']['blending']).lower()}\n")
-            f.write("\n")
+            if not preserve_trailing_newline:
+                f.write("\n")
 
     def update(self: Self, dt: float = 0.016) -> None:
         """Update animation timing."""

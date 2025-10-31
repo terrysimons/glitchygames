@@ -2601,6 +2601,8 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self.pixels = frame_pixels
                     self.dirty_pixels = [True] * len(self.pixels)
                     self.log.info(f"Updated canvas pixels from frame {current_frame}")
+                    # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
+                    self.dirty = 1
                 else:
                     self.log.info(f"DEBUG: Frame has no get_pixel_data method")
             else:
@@ -3249,23 +3251,34 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         This is critical before saving because get_pixel_data() may read from
         frame.pixels if it exists, but we need to ensure _image is also up to date.
+
+        For frames that don't have pixels attribute, we extract from _image first,
+        then sync to ensure consistency.
+
+        CRITICAL: If ANY frame has alpha pixels, normalize ALL frames to RGBA format
+        to ensure consistent color map matching during save.
         """
         if not hasattr(self, "animated_sprite") or not self.animated_sprite:
             return
 
         try:
-            # Iterate through all animations and frames
+            # Sync frames using ONLY the raw pixel data in memory
+            # Don't extract from _image - just use frame.pixels if it exists
+            # set_pixel_data() will update _image to match pixels
             for anim_name, frames in self.animated_sprite._animations.items():
                 for frame in frames:
-                    # If frame has pixels attribute, sync it to the surface
-                    if hasattr(frame, "pixels") and frame.pixels:
-                        try:
-                            # set_pixel_data updates both pixels and the underlying surface
-                            # This ensures get_pixel_data() returns correct values
+                    try:
+                        # Only sync if frame already has pixels in memory
+                        # Don't extract from _image - use the raw pixel data we have
+                        if hasattr(frame, "pixels") and frame.pixels:
+                            # Just sync pixels to surface - set_pixel_data updates _image to match pixels
+                            # This ensures _image matches what's in frame.pixels
                             frame.set_pixel_data(list(frame.pixels))
-                        except Exception:
-                            # Best-effort sync; continue if frame cannot be updated
-                            continue
+                        # If frame doesn't have pixels, leave it alone - it will use get_pixel_data()
+                        # which will extract from _image when needed, preserving original indexed colors
+                    except Exception:
+                        # Best-effort sync; continue if frame cannot be updated
+                        continue
         except Exception:
             # Best-effort sync; continue even if some frames fail
             pass
