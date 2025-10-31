@@ -1144,7 +1144,7 @@ class GameEngine(events.EventManager):
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
-            self.log.info(
+            self.log.debug(
                 f"ENGINE: MOUSEBUTTONDOWN received: button={getattr(event, 'button', None)}, pos={getattr(event, 'pos', None)}"
             )
             self.mouse_manager.on_mouse_button_down_event(event)

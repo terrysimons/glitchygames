@@ -1329,7 +1329,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Diagnostics: log the top-most collided sprite and its active state
         if collided_sprites:
             top_sprite = collided_sprites[-1]
-            self.log.info(
+            self.log.debug(
                 f"Top sprite @ DOWN: {type(top_sprite).__name__}, "
                 f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
             )
@@ -1374,7 +1374,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Diagnostics: log the top-most collided sprite and its active state during drag
         if collided_sprites:
             top_sprite = collided_sprites[-1]
-            self.log.info(
+            self.log.debug(
                 f"Top sprite @ DRAG: {type(top_sprite).__name__}, "
                 f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
             )
