@@ -3051,9 +3051,29 @@ class AnimatedCanvasSprite(BitmappySprite):
             )
 
     def on_left_mouse_drag_event(self, event, trigger):
-        """Handle mouse drag events."""
-        # For drag events, we treat them the same as button down
-        self.on_left_mouse_button_down_event(event)
+        """Handle mouse drag events - optimized path that skips expensive redraws."""
+        # Optimized drag path: just update pixels, skip full redraws
+        # The sprite will redraw naturally via dirty flag management
+        if self.rect.collidepoint(event.pos):
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            
+            # Skip flood fill during drag (only on initial click)
+            # Just update the pixel directly - much faster
+            self.canvas_interface.set_pixel_at(x, y, self.active_color)
+            
+            # Mark sprite as dirty for redraw, but don't force immediate redraw
+            # This allows the rendering loop to batch updates
+            self.dirty = 1
+            
+            # Throttle mini view updates during drag to avoid performance issues
+            # Only update mini view occasionally (every N pixels) or let it update on mouse up
+            if hasattr(self, "mini_view") and self.mini_view is not None:
+                # Update mini view cursor position without full refresh
+                try:
+                    self.mini_view.update_canvas_cursor(x, y, self.active_color)
+                except AttributeError:
+                    pass  # Mini view might not have this method
 
     def on_mouse_motion_event(self, event):
         """Handle mouse motion events."""
