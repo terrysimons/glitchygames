@@ -2973,31 +2973,31 @@ class AnimatedCanvasSprite(BitmappySprite):
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
-            
+
             # Validate coordinates before processing
             if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
                 return
-            
+
             # Mark drag as active
             self._drag_active = True
-            
+
             # Track pixel for batched undo/redo update
             if not hasattr(self, '_drag_pixels'):
                 self._drag_pixels = {}
-            
+
             # Cache frame reference during drag to avoid repeated lookups
             if not hasattr(self, '_drag_frame'):
-                if (hasattr(self, "animated_sprite") and 
-                    hasattr(self, "current_animation") and 
+                if (hasattr(self, "animated_sprite") and
+                    hasattr(self, "current_animation") and
                     hasattr(self, "current_frame") and
                     self.current_animation in self.animated_sprite.frames):
                     self._drag_frame = self.animated_sprite._animations[self.current_animation][self.current_frame]
                 else:
                     self._drag_frame = None
-            
+
             pixel_key = (x, y)
             pixel_num = y * self.pixels_across + x
-            
+
             # Store pixel change with old color for batched undo/redo (only get old color once per pixel)
             # OPTIMIZATION: Access frame.pixels directly to avoid expensive get_pixel_data() copy
             if pixel_key not in self._drag_pixels:
@@ -3012,11 +3012,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                         frame_pixels = self._drag_frame.get_pixel_data()
                         old_color = frame_pixels[pixel_num] if pixel_num < len(frame_pixels) else (255, 0, 255, 255)
                 self._drag_pixels[pixel_key] = (x, y, old_color, self.active_color)
-            
+
             # Update pixel data for immediate visual feedback
             self.pixels[pixel_num] = self.active_color
             self.dirty_pixels[pixel_num] = True
-            
+
             # Update frame data immediately so renderer shows the change (but skip other expensive ops)
             # OPTIMIZATION: Directly modify frame.pixels to avoid expensive get/set_pixel_data() copies
             if self._drag_frame is not None:
@@ -3025,6 +3025,10 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if hasattr(self._drag_frame, "pixels"):
                     if pixel_num < len(self._drag_frame.pixels):
                         self._drag_frame.pixels[pixel_num] = self.active_color
+                        # Mark that frame.image is stale so film strip will prefer pixels
+                        # We store this on the frame object so _get_frame_image can check it
+                        if not hasattr(self._drag_frame, '_image_stale'):
+                            self._drag_frame._image_stale = True
                         # Skip updating the underlying surface during drag - it will be redrawn
                         # Updating surface.set_at() for every pixel during drag is expensive
                 else:
@@ -3033,24 +3037,46 @@ class AnimatedCanvasSprite(BitmappySprite):
                     if pixel_num < len(frame_pixels):
                         frame_pixels[pixel_num] = self.active_color
                         self._drag_frame.set_pixel_data(frame_pixels)
-                        
+
                         # Clear surface cache so it redraws
                         if hasattr(self, "animated_sprite") and hasattr(self.animated_sprite, "_surface_cache"):
                             cache_key = f"{self.current_animation}_{self.current_frame}"
                             if cache_key in self.animated_sprite._surface_cache:
                                 del self.animated_sprite._surface_cache[cache_key]
-            
+
             # Throttle full redraws during drag - only redraw every N drag events
             # This prevents starving the rendering loop while still providing visual feedback
             if not hasattr(self, '_drag_redraw_counter'):
                 self._drag_redraw_counter = 0
             self._drag_redraw_counter += 1
-            
-            # Redraw every 2nd drag event to balance visual feedback with performance
+
+            # Redraw every 3rd drag event to balance visual feedback with performance
             # Setting dirty=1 triggers force_redraw() in update(), which redraws the entire canvas
             # Throttling prevents doing this on every single drag event (which can be 60+ per second)
-            if self._drag_redraw_counter % 2 == 0:
+            if self._drag_redraw_counter % 3 == 0:
+                # Update frame.image from pixels so film strip sees the changes during drag
+                if (self._drag_frame is not None and
+                    hasattr(self._drag_frame, 'pixels') and
+                    hasattr(self._drag_frame, '_image') and
+                    self._drag_frame._image is not None):
+                    # Rebuild frame.image surface to match current pixels
+                    width, height = self._drag_frame._image.get_size()
+                    for i, pixel in enumerate(self._drag_frame.pixels):
+                        if i < width * height:
+                            x = i % width
+                            y = i // width
+                            if len(pixel) == 4:
+                                self._drag_frame._image.set_at((x, y), pixel)
+                            else:
+                                self._drag_frame._image.set_at((x, y), pixel)
+                    # Clear stale flag since image is now up to date
+                    if hasattr(self._drag_frame, '_image_stale'):
+                        del self._drag_frame._image_stale
+
                 self.dirty = 1
+                # Also update film strips at the same cadence as canvas redraws
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    self.parent_scene._update_film_strips_for_pixel_update()
             # Note: Final redraw is guaranteed by on_left_mouse_button_up_event setting dirty=1
 
     def on_left_mouse_button_up_event(self, event):
@@ -3062,31 +3088,31 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if hasattr(self, "animated_sprite"):
                     current_animation = self.current_animation
                     current_frame_index = self.current_frame
-                    
+
                     if current_animation in self.animated_sprite.frames:
                         frame = self.animated_sprite._animations[current_animation][current_frame_index]
                         frame_pixels = frame.get_pixel_data()
-                        
+
                         # Apply all pixel changes to the frame
                         for (x, y, old_color, new_color) in self._drag_pixels.values():
                             pixel_num = y * self.pixels_across + x
                             if pixel_num < len(frame_pixels):
                                 frame_pixels[pixel_num] = new_color
-                        
+
                         frame.set_pixel_data(frame_pixels)
-                        
+
                         # Clear surface cache for this frame
                         if hasattr(self.animated_sprite, "_surface_cache"):
                             cache_key = f"{current_animation}_{current_frame_index}"
                             if cache_key in self.animated_sprite._surface_cache:
                                 del self.animated_sprite._surface_cache[cache_key]
-                
+
                 # Batch submit all pixel changes to undo/redo system
-                if (hasattr(self, "parent_scene") and 
-                    self.parent_scene and 
+                if (hasattr(self, "parent_scene") and
+                    self.parent_scene and
                     hasattr(self.parent_scene, "canvas_operation_tracker") and
                     not getattr(self.parent_scene, "_applying_undo_redo", False)):
-                    
+
                     # Convert drag pixels dict to list format for operation tracker
                     pixel_changes = list(self._drag_pixels.values())
                     if pixel_changes:
@@ -3094,27 +3120,45 @@ class AnimatedCanvasSprite(BitmappySprite):
                         if not hasattr(self.parent_scene, "_current_pixel_changes"):
                             self.parent_scene._current_pixel_changes = []
                         self.parent_scene._current_pixel_changes.extend(pixel_changes)
-                        
+
                         # Trigger submission if timer exists (from canvas_interface logic)
                         if hasattr(self.parent_scene, "_submit_pixel_changes_if_ready"):
                             self.parent_scene._submit_pixel_changes_if_ready()
-                
+
                 # Update animated sprite frame once
                 if hasattr(self, "animated_sprite"):
                     self._update_animated_sprite_frame()
-                
+
                 # Notify parent scene to update film strips (once, not per pixel)
                 if hasattr(self, "parent_scene") and self.parent_scene:
                     self.parent_scene._update_film_strips_for_pixel_update()
-            
+
             # Clear drag state
             self._drag_active = False
             self._drag_pixels = {}
             if hasattr(self, '_drag_redraw_counter'):
                 del self._drag_redraw_counter
             if hasattr(self, '_drag_frame'):
+                # Final update: ensure frame.image matches pixels when drag ends
+                # (This handles the case where drag ended between redraw events)
+                if (hasattr(self._drag_frame, 'pixels') and
+                    hasattr(self._drag_frame, '_image') and
+                    self._drag_frame._image is not None):
+                    width, height = self._drag_frame._image.get_size()
+                    for i, pixel in enumerate(self._drag_frame.pixels):
+                        if i < width * height:
+                            x = i % width
+                            y = i // width
+                            if len(pixel) == 4:
+                                self._drag_frame._image.set_at((x, y), pixel)
+                            else:
+                                self._drag_frame._image.set_at((x, y), pixel)
+
+                # Clear the stale flag when drag ends (if it still exists)
+                if hasattr(self._drag_frame, '_image_stale'):
+                    del self._drag_frame._image_stale
                 del self._drag_frame
-            
+
             # Force final redraw to show all changes
             self.dirty = 1
 
@@ -9560,7 +9604,7 @@ pixels = \"\"\"
         elif hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
             # Fallback to list if dict doesn't exist (backward compatibility)
             pixel_changes_list = self._current_pixel_changes
-        
+
         if pixel_changes_list and hasattr(self, "canvas_operation_tracker"):
             pixel_count = len(pixel_changes_list)
 
@@ -9597,7 +9641,7 @@ pixels = \"\"\"
             pixel_count = len(self._current_pixel_changes_dict)
         elif hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
             pixel_count = len(self._current_pixel_changes)
-        
+
         if (pixel_count == 1 and  # Only for single pixels
             hasattr(self, "_pixel_change_timer") and self._pixel_change_timer):
 
