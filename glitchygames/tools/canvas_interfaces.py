@@ -397,8 +397,15 @@ class AnimatedCanvasInterface:
                 return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
-    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
-        """Set the color of a pixel at the given coordinates."""
+    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int], skip_drag_ops: bool = False) -> None:
+        """Set the color of a pixel at the given coordinates.
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            color: Color tuple
+            skip_drag_ops: If True, skip expensive operations during drag (used for optimization)
+        """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             
@@ -416,6 +423,14 @@ class AnimatedCanvasInterface:
                     old_color = frame_pixels[pixel_num]
             else:
                 old_color = self.canvas_sprite.pixels[pixel_num]
+            
+            # Skip expensive operations during drag if flag is set
+            if skip_drag_ops:
+                # Fast path: just update the pixel data, skip everything else
+                self.canvas_sprite.pixels[pixel_num] = color
+                self.canvas_sprite.dirty_pixels[pixel_num] = True
+                self.canvas_sprite.dirty = 1
+                return
             
             # Track the pixel change for undo/redo if we have a parent scene with operation tracker
             # Skip tracking if we're currently applying undo/redo to prevent feedback loops

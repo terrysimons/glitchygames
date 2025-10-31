@@ -2935,6 +2935,10 @@ class AnimatedCanvasSprite(BitmappySprite):
             y = (event.pos[1] - self.rect.y) // self.pixel_height
             # self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
 
+            # Mark that we're starting a potential drag operation
+            self._drag_active = False  # Will be set to True on first drag event
+            self._drag_pixels = {}  # Track pixels changed during drag for batched updates
+
             # Check for control-click (flood fill mode)
             is_control_click = pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
 
@@ -2963,9 +2967,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             )
 
     def on_left_mouse_drag_event(self, event, trigger):
-        """Handle mouse drag events - optimized path that skips expensive redraws."""
-        # Optimized drag path: just update pixels, skip full redraws
-        # The sprite will redraw naturally via dirty flag management
+        """Handle mouse drag events - optimized path that updates visuals but defers expensive ops."""
+        # Fast visual update path: update frame data immediately for visual feedback
+        # But skip expensive operations (undo/redo, events, film strips) until drag ends
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
@@ -2974,12 +2978,126 @@ class AnimatedCanvasSprite(BitmappySprite):
             if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
                 return
             
-            # Skip flood fill during drag (only on initial click)
-            # Just update the pixel directly - much faster
-            self.canvas_interface.set_pixel_at(x, y, self.active_color)
+            # Mark drag as active
+            self._drag_active = True
             
-            # Mark sprite as dirty for redraw, but don't force immediate redraw
-            # This allows the rendering loop to batch updates
+            # Track pixel for batched undo/redo update
+            if not hasattr(self, '_drag_pixels'):
+                self._drag_pixels = {}
+            pixel_key = (x, y)
+            pixel_num = y * self.pixels_across + x
+            
+            # Store pixel change with old color for batched undo/redo (only get old color once per pixel)
+            if pixel_key not in self._drag_pixels:
+                # Get old color from current frame (only once per unique pixel during drag)
+                if hasattr(self, "animated_sprite"):
+                    current_animation = self.current_animation
+                    current_frame_index = self.current_frame
+                    if current_animation in self.animated_sprite.frames:
+                        frame = self.animated_sprite._animations[current_animation][current_frame_index]
+                        frame_pixels = frame.get_pixel_data()
+                        old_color = frame_pixels[pixel_num] if pixel_num < len(frame_pixels) else (255, 0, 255, 255)
+                    else:
+                        old_color = self.pixels[pixel_num]
+                else:
+                    old_color = self.pixels[pixel_num]
+                self._drag_pixels[pixel_key] = (x, y, old_color, self.active_color)
+            
+            # Update pixel data for immediate visual feedback
+            self.pixels[pixel_num] = self.active_color
+            self.dirty_pixels[pixel_num] = True
+            
+            # Update frame data immediately so renderer shows the change (but skip other expensive ops)
+            if hasattr(self, "animated_sprite"):
+                current_animation = self.current_animation
+                current_frame_index = self.current_frame
+                if current_animation in self.animated_sprite.frames:
+                    frame = self.animated_sprite._animations[current_animation][current_frame_index]
+                    frame_pixels = frame.get_pixel_data()
+                    if pixel_num < len(frame_pixels):
+                        frame_pixels[pixel_num] = self.active_color
+                        frame.set_pixel_data(frame_pixels)
+                        
+                        # Clear surface cache so it redraws
+                        if hasattr(self.animated_sprite, "_surface_cache"):
+                            cache_key = f"{current_animation}_{current_frame_index}"
+                            if cache_key in self.animated_sprite._surface_cache:
+                                del self.animated_sprite._surface_cache[cache_key]
+            
+            # Throttle full redraws during drag - only redraw every N drag events
+            # This prevents starving the rendering loop while still providing visual feedback
+            if not hasattr(self, '_drag_redraw_counter'):
+                self._drag_redraw_counter = 0
+            self._drag_redraw_counter += 1
+            
+            # Redraw every 2nd drag event to balance visual feedback with performance
+            # Setting dirty=1 triggers force_redraw() in update(), which redraws the entire canvas
+            # Throttling prevents doing this on every single drag event (which can be 60+ per second)
+            if self._drag_redraw_counter % 2 == 0:
+                self.dirty = 1
+            # Note: Final redraw is guaranteed by on_left_mouse_button_up_event setting dirty=1
+
+    def on_left_mouse_button_up_event(self, event):
+        """Handle mouse button up - flush batched drag updates."""
+        if hasattr(self, '_drag_active') and self._drag_active:
+            # Flush all batched pixel updates from drag operation
+            if hasattr(self, '_drag_pixels') and self._drag_pixels:
+                # Update animated sprite frame data for all changed pixels
+                if hasattr(self, "animated_sprite"):
+                    current_animation = self.current_animation
+                    current_frame_index = self.current_frame
+                    
+                    if current_animation in self.animated_sprite.frames:
+                        frame = self.animated_sprite._animations[current_animation][current_frame_index]
+                        frame_pixels = frame.get_pixel_data()
+                        
+                        # Apply all pixel changes to the frame
+                        for (x, y, old_color, new_color) in self._drag_pixels.values():
+                            pixel_num = y * self.pixels_across + x
+                            if pixel_num < len(frame_pixels):
+                                frame_pixels[pixel_num] = new_color
+                        
+                        frame.set_pixel_data(frame_pixels)
+                        
+                        # Clear surface cache for this frame
+                        if hasattr(self.animated_sprite, "_surface_cache"):
+                            cache_key = f"{current_animation}_{current_frame_index}"
+                            if cache_key in self.animated_sprite._surface_cache:
+                                del self.animated_sprite._surface_cache[cache_key]
+                
+                # Batch submit all pixel changes to undo/redo system
+                if (hasattr(self, "parent_scene") and 
+                    self.parent_scene and 
+                    hasattr(self.parent_scene, "canvas_operation_tracker") and
+                    not getattr(self.parent_scene, "_applying_undo_redo", False)):
+                    
+                    # Convert drag pixels dict to list format for operation tracker
+                    pixel_changes = list(self._drag_pixels.values())
+                    if pixel_changes:
+                        # Submit all changes as a single batched operation
+                        if not hasattr(self.parent_scene, "_current_pixel_changes"):
+                            self.parent_scene._current_pixel_changes = []
+                        self.parent_scene._current_pixel_changes.extend(pixel_changes)
+                        
+                        # Trigger submission if timer exists (from canvas_interface logic)
+                        if hasattr(self.parent_scene, "_submit_pixel_changes_if_ready"):
+                            self.parent_scene._submit_pixel_changes_if_ready()
+                
+                # Update animated sprite frame once
+                if hasattr(self, "animated_sprite"):
+                    self._update_animated_sprite_frame()
+                
+                # Notify parent scene to update film strips (once, not per pixel)
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    self.parent_scene._update_film_strips_for_pixel_update()
+            
+            # Clear drag state
+            self._drag_active = False
+            self._drag_pixels = {}
+            if hasattr(self, '_drag_redraw_counter'):
+                del self._drag_redraw_counter
+            
+            # Force final redraw to show all changes
             self.dirty = 1
 
     def on_mouse_motion_event(self, event):
