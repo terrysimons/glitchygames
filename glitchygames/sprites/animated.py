@@ -1446,18 +1446,27 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     ) -> list:
         """Convert pixels to TOML character representation."""
         pixel_chars = []
+        # Determine whether the color map expects RGBA or RGB tuples
+        # If any key in the color_map has length 4, we assume alpha-aware mapping
+        map_uses_alpha = any(len(k) == 4 for k in color_map.keys()) if color_map else False
         for y in range(height):
             row = []
             for x in range(width):
                 pixel_idx = y * width + x
                 if pixel_idx < len(pixels):
                     pixel = pixels[pixel_idx]
+                    # Normalize pixel tuple to match color_map key style
                     if len(pixel) == 4:
-                        # RGBA pixel - use the full tuple as key
-                        color_char = color_map.get(pixel, ".")
+                        r, g, b, a = pixel
+                        if map_uses_alpha:
+                            lookup = (r, g, b, a)
+                        else:
+                            # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
+                            lookup = (r, g, b) if a == 255 else (255, 0, 255)
                     else:
-                        # RGB pixel - use the tuple as key
-                        color_char = color_map.get(pixel, ".")
+                        # RGB pixel
+                        lookup = pixel
+                    color_char = color_map.get(lookup, ".")
                     row.append(color_char)
                 else:
                     row.append(".")

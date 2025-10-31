@@ -3107,6 +3107,19 @@ class AnimatedCanvasSprite(BitmappySprite):
                             if cache_key in self.animated_sprite._surface_cache:
                                 del self.animated_sprite._surface_cache[cache_key]
 
+            else:
+                # No per-pixel drag tracking (fast-path updated frame.pixels directly);
+                # ensure the frame surface is synchronized from pixels so saving reads correct data.
+                if hasattr(self, '_drag_frame') and self._drag_frame is not None:
+                    frame_obj = self._drag_frame
+                    if hasattr(frame_obj, 'pixels') and frame_obj.pixels:
+                        try:
+                            # set_pixel_data updates both the stored pixels and the underlying surface
+                            frame_obj.set_pixel_data(list(frame_obj.pixels))
+                        except Exception:
+                            # Best-effort sync; ignore if frame cannot be updated
+                            pass
+
                 # Batch submit all pixel changes to undo/redo system
                 if (hasattr(self, "parent_scene") and
                     self.parent_scene and
@@ -3231,10 +3244,41 @@ class AnimatedCanvasSprite(BitmappySprite):
         """Handle mouse exiting canvas."""
         pass
 
+    def _sync_all_frames_pixel_data(self) -> None:
+        """Ensure all frames have their pixel data synchronized from pixels to surface.
+
+        This is critical before saving because get_pixel_data() may read from
+        frame.pixels if it exists, but we need to ensure _image is also up to date.
+        """
+        if not hasattr(self, "animated_sprite") or not self.animated_sprite:
+            return
+
+        try:
+            # Iterate through all animations and frames
+            for anim_name, frames in self.animated_sprite._animations.items():
+                for frame in frames:
+                    # If frame has pixels attribute, sync it to the surface
+                    if hasattr(frame, "pixels") and frame.pixels:
+                        try:
+                            # set_pixel_data updates both pixels and the underlying surface
+                            # This ensures get_pixel_data() returns correct values
+                            frame.set_pixel_data(list(frame.pixels))
+                        except Exception:
+                            # Best-effort sync; continue if frame cannot be updated
+                            continue
+        except Exception:
+            # Best-effort sync; continue even if some frames fail
+            pass
+
     def on_save_file_event(self, filename: str) -> None:
         """Handle save file events."""
         self.log.info(f"Starting save to file: {filename}")
         try:
+            # CRITICAL: Sync all frame pixel data before saving
+            # This ensures that any direct modifications to frame.pixels during drag
+            # are properly reflected in the frame surface, which get_pixel_data() may read from
+            self._sync_all_frames_pixel_data()
+
             # Detect file format from extension
             file_format = detect_file_format(filename)
             self.log.info(f"Detected file format: {file_format}")
