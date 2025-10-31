@@ -414,52 +414,29 @@ class FilmStripWidget:
     @staticmethod
     def _get_frame_image(frame) -> pygame.Surface:
         """Get the image surface for a frame."""
-        # First, try to get the normal image property
-        # This works for loaded frames that have _image set
-        try:
-            if hasattr(frame, "image"):
-                frame_img = frame.image
-                if frame_img is not None:
-                    # If image is not marked as stale, use it directly
-                    if not (hasattr(frame, "_image_stale") and frame._image_stale):
-                        return frame_img
-                    # If image is stale, we need to rebuild from pixels
-                    # But only if pixels exists and is populated
-                    if hasattr(frame, "pixels") and frame.pixels and len(frame.pixels) > 0:
-                        # Rebuild from pixels during drag
-                        try:
-                            width, height = frame_img.get_size()
-                            frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-                            for i, color in enumerate(frame.pixels):
-                                if i < width * height:
-                                    x = i % width
-                                    y = i // width
-                                    frame_surface.set_at((x, y), color)
-                            return frame_surface
-                        except (AttributeError, TypeError, pygame.error):
-                            # If rebuilding fails, fall back to original image
-                            return frame_img
-                    else:
-                        # Image is marked stale but no pixels available - use image anyway
-                        return frame_img
-        except (AttributeError, TypeError):
-            pass
-
-        # Fallback: Create a surface from the frame's pixel data
-        # This handles frames that don't have image set but have pixel data
-        try:
-            if hasattr(frame, "get_pixel_data"):
-                pixel_data = frame.get_pixel_data()
+        # If frame.image is marked as stale (during drag), prefer pixels over cached image
+        # This ensures film strip sees real-time updates during drag operations
+        if hasattr(frame, "_image_stale") and frame._image_stale:
+            # Prefer pixels if image is stale (will be cleared when drag ends)
+            if hasattr(frame, "pixels") and frame.pixels:
+                pixel_data = frame.pixels
                 if pixel_data:
-                    # Try to get dimensions safely
-                    try:
-                        width, height = frame.get_size()
-                    except (AttributeError, TypeError):
-                        # If get_size() fails, try _image directly
-                        if hasattr(frame, "_image") and frame._image:
-                            width, height = frame._image.get_size()
-                        else:
-                            return None
+                    # Get dimensions from existing image if available, or calculate from pixels
+                    if hasattr(frame, "image") and frame.image:
+                        width, height = frame.image.get_size()
+                    elif hasattr(frame, "_image") and frame._image:
+                        width, height = frame._image.get_size()
+                    else:
+                        # Fallback: calculate from pixel count (assumes square or known aspect)
+                        # This shouldn't normally happen, but handles edge cases
+                        total_pixels = len(pixel_data)
+                        # Try to get dimensions from frame if available
+                        try:
+                            width, height = frame.get_size()
+                        except (AttributeError, TypeError):
+                            # Last resort: assume square (not ideal but prevents crash)
+                            import math
+                            width = height = int(math.sqrt(total_pixels))
                     
                     # Create a surface with alpha support from the pixel data
                     frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -469,8 +446,25 @@ class FilmStripWidget:
                             y = i // width
                             frame_surface.set_at((x, y), color)
                     return frame_surface
-        except (AttributeError, TypeError, pygame.error):
-            pass
+        
+        # Normal path: use cached image if available
+        if hasattr(frame, "image") and frame.image:
+            return frame.image
+
+        # Fallback: Create a surface from the frame's pixel data
+        if hasattr(frame, "get_pixel_data"):
+            pixel_data = frame.get_pixel_data()
+            if pixel_data:
+                # Get the actual frame dimensions
+                width, height = frame.get_size()
+                
+                # Create a surface with alpha support from the pixel data
+                frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                for i, color in enumerate(pixel_data):
+                    x = i % width
+                    y = i // width
+                    frame_surface.set_at((x, y), color)
+                return frame_surface
 
         return None
 
@@ -1281,11 +1275,15 @@ class FilmStripWidget:
 
     def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
         """Get the appropriate frame image for rendering."""
-        # Use the same logic as _get_frame_image which handles stale image flag
-        # This ensures film strip sees updated pixels during drag operations
-        frame_img = self._get_frame_image(frame)
-        if not frame_img:
-            LOG.debug("Film strip: No frame data available")
+        # Always use the actual animation frame data, not canvas content
+        if hasattr(frame, "image") and frame.image:
+            # Use stored frame data for all frames
+            frame_img = frame.image
+        else:
+            # Fall back to creating image from pixel data (same as _get_frame_image)
+            frame_img = self._get_frame_image(frame)
+            if not frame_img:
+                LOG.debug("Film strip: No frame data available")
 
         return frame_img
 
