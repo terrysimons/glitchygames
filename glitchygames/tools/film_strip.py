@@ -414,10 +414,44 @@ class FilmStripWidget:
     @staticmethod
     def _get_frame_image(frame) -> pygame.Surface:
         """Get the image surface for a frame."""
+        # If frame.image is marked as stale (during drag), prefer pixels over cached image
+        # This ensures film strip sees real-time updates during drag operations
+        if hasattr(frame, "_image_stale") and frame._image_stale:
+            # Prefer pixels if image is stale (will be cleared when drag ends)
+            if hasattr(frame, "pixels") and frame.pixels:
+                pixel_data = frame.pixels
+                if pixel_data:
+                    # Get dimensions from existing image if available, or calculate from pixels
+                    if hasattr(frame, "image") and frame.image:
+                        width, height = frame.image.get_size()
+                    elif hasattr(frame, "_image") and frame._image:
+                        width, height = frame._image.get_size()
+                    else:
+                        # Fallback: calculate from pixel count (assumes square or known aspect)
+                        # This shouldn't normally happen, but handles edge cases
+                        total_pixels = len(pixel_data)
+                        # Try to get dimensions from frame if available
+                        try:
+                            width, height = frame.get_size()
+                        except (AttributeError, TypeError):
+                            # Last resort: assume square (not ideal but prevents crash)
+                            import math
+                            width = height = int(math.sqrt(total_pixels))
+                    
+                    # Create a surface with alpha support from the pixel data
+                    frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                    for i, color in enumerate(pixel_data):
+                        if i < width * height:
+                            x = i % width
+                            y = i // width
+                            frame_surface.set_at((x, y), color)
+                    return frame_surface
+        
+        # Normal path: use cached image if available
         if hasattr(frame, "image") and frame.image:
             return frame.image
 
-        # Create a surface from the frame's pixel data
+        # Fallback: Create a surface from the frame's pixel data
         if hasattr(frame, "get_pixel_data"):
             pixel_data = frame.get_pixel_data()
             if pixel_data:

@@ -619,7 +619,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite.height,
                 ), pygame.SRCALPHA)
                 self.canvas_sprite.image = self.canvas_sprite.image.convert_alpha()
-                self.canvas_sprite.image.fill((255, 0, 255, 255))  # Magenta background at 100% opacity
+                # Use magenta background pixel (opaque) as the canvas background
+                # Per-pixel alpha pixels will be blended on top
+                self.canvas_sprite.image.fill((255, 0, 255, 255))
 
                 # Get onion skinning manager
                 from .onion_skinning import get_onion_skinning_manager
