@@ -12884,7 +12884,7 @@ def main() -> None:
 
     """
 
-    LOG.setLevel(logging.DEBUG)
+    LOG.setLevel(logging.INFO)
 
     # Set up signal handling to prevent multiprocessing issues on macOS
     def signal_handler(signum):
