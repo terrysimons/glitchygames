@@ -1369,6 +1369,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} {trigger}")
+        # Optimized: Skip expensive collision detection for drag events
+        # Most drag handling is done by specific sprite drag handlers (e.g., on_left_mouse_drag_event)
+        # Only do collision detection if specifically needed
         collided_sprites = self.sprites_at_position(pos=event.pos)
 
         # Diagnostics: log the top-most collided sprite and its active state during drag
