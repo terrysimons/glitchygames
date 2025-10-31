@@ -75,10 +75,10 @@ class MouseEventManager(ResourceManager):
                 has_down = any(getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN for e in self.mouse_state.values())
             except Exception:
                 has_down = False
-            if self._motion_seq % 10 == 0:
-                self.log.info(
-                    f"MOUSE PROXY: MOTION#{self._motion_seq} pos={getattr(event, 'pos', None)} rel={getattr(event, 'rel', None)} has_down={has_down}"
-                )
+            # if self._motion_seq % 10 == 0:
+            #     self.log.info(
+            #         f"MOUSE PROXY: MOTION#{self._motion_seq} pos={getattr(event, 'pos', None)} rel={getattr(event, 'rel', None)} has_down={has_down}"
+            #     )
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
@@ -131,9 +131,9 @@ class MouseEventManager(ResourceManager):
 
             """
             self._drag_seq += 1
-            self.log.info(
-                f"MOUSE PROXY: DRAG#{self._drag_seq} pos={getattr(event, 'pos', None)} trigger_button={getattr(trigger, 'button', None)}"
-            )
+            # self.log.info(
+            #     f"MOUSE PROXY: DRAG#{self._drag_seq} pos={getattr(event, 'pos', None)} trigger_button={getattr(trigger, 'button', None)}"
+            # )
             self.game.on_mouse_drag_event(event, trigger)
 
             # if self.focus_locked:
@@ -379,9 +379,9 @@ class MouseEventManager(ResourceManager):
             """
             self.mouse_state[event.button] = event
             # Diagnostics
-            self.log.info(
-                f"MOUSE PROXY: UP button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)}"
-            )
+            # self.log.info(
+            #     f"MOUSE PROXY: UP button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)}"
+            # )
 
             # First dispatch to specific button handlers to allow widgets to react
             if event.button == MOUSE_BUTTON_LEFT:
@@ -465,9 +465,9 @@ class MouseEventManager(ResourceManager):
                 state_keys = list(self.mouse_state.keys())
             except Exception:
                 state_keys = []
-            self.log.info(
-                f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={state_keys}"
-            )
+            # self.log.info(
+            #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            # )
 
             # Whatever was clicked on gets lock.
             # if self.current_focus:
@@ -502,10 +502,10 @@ class MouseEventManager(ResourceManager):
                 state_keys = list(self.mouse_state.keys())
             except Exception:
                 state_keys = []
-            self.log.info(
-                f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
-                f"pos={getattr(event, 'pos', None)} state_keys={state_keys}"
-            )
+            # self.log.info(
+            #     f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
+            #     f"pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            # )
             self.game.on_left_mouse_button_down_event(event)
 
         def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
