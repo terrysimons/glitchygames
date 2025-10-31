@@ -11608,10 +11608,20 @@ pixels = \"\"\"
         print(f"DEBUG: Joystick hat motion: hat={event.hat}, value={event.value}")
 
         # Only respond to strong hat inputs (threshold > 0.5)
-        # Hat values: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
-        if abs(event.value) < 0.5:
-            print("DEBUG: Joystick hat motion below threshold, ignoring")
-            return
+        # Hat values can be either:
+        # - Integer bitmask: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
+        # - Tuple (x, y): (0,0)=center, (0,1)=up, (1,0)=right, (0,-1)=down, (-1,0)=left
+        if isinstance(event.value, tuple):
+            # For tuple, calculate magnitude
+            hat_magnitude = (event.value[0] ** 2 + event.value[1] ** 2) ** 0.5
+            if hat_magnitude < 0.5:
+                print("DEBUG: Joystick hat motion below threshold, ignoring")
+                return
+        else:
+            # For integer bitmask, use abs
+            if abs(event.value) < 0.5:
+                print("DEBUG: Joystick hat motion below threshold, ignoring")
+                return
 
         # Map hat directions to controller actions
         if event.value == 1:  # Up
