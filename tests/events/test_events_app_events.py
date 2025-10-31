@@ -20,7 +20,7 @@ from glitchygames.events import (
     HashableEvent,
     UnhandledEventError,
 )
-from glitchygames.events.app import AppManager
+from glitchygames.events.app import AppEventManager
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -206,8 +206,8 @@ class TestAppEventFlow:
             engine = GameEngine(scene)
             
             # Initialize the app manager manually since start() isn't called
-            from glitchygames.events.app import AppManager
-            engine.app_manager = AppManager(game=scene)
+            from glitchygames.events.app import AppEventManager
+            engine.app_manager = AppEventManager(game=scene)
             
             # Also initialize event handlers manually
             engine.initialize_event_handlers()
@@ -229,7 +229,7 @@ class TestAppEventFlow:
         scene = MockFactory.create_event_test_scene_mock(event_handlers={})
 
         # Create app manager
-        manager = AppManager(game=scene)
+        manager = AppEventManager(game=scene)
 
         # Test app did enter background event - should fall back to stubs
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
@@ -244,7 +244,7 @@ class TestAppEventFlow:
         scene = MockFactory.create_event_test_scene_mock()
 
         # Create app manager
-        manager = AppManager(game=scene)
+        manager = AppEventManager(game=scene)
 
         # Test app did enter background event
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)

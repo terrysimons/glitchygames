@@ -170,11 +170,14 @@ class SceneManager(SceneInterface, events.EventManager):
         current_time: float = previous_time
 
         while self.active_scene is not None and self.quit_requested is False:
-            # Tick the clock for FPS control
-            if self.target_fps > 0:
-                self.clock.tick(self.target_fps)
-            else:
-                self.clock.tick()
+            # Frame pacing using timer backend when available
+            timer = getattr(self.game_engine, "timer", None)
+            period_ns = 0
+            if timer is not None:
+                period_ns = timer.start_frame(int(self.target_fps))
+
+            prev_deadline_ns = getattr(self, "_timer_prev_deadline_ns", None)
+            frame_start_ns = timer.ns_now() if timer is not None else 0
 
             now: float = time.perf_counter()
             self.dt: float = now - previous_time
@@ -187,6 +190,62 @@ class SceneManager(SceneInterface, events.EventManager):
             self._process_events()
             self._render_scene()
             self._update_display()
+
+            # Sleep to next frame deadline if pacing is enabled
+            if timer is not None and period_ns > 0:
+                deadline_ns = timer.compute_deadline(prev_deadline_ns, period_ns)
+                wake_ns = timer.sleep_until_next(deadline_ns)
+                self._timer_prev_deadline_ns = deadline_ns
+                # Update dt based on actual pacing wake time for next iteration
+                self.dt = (wake_ns - frame_start_ns) / 1e9
+                # Optional jitter logging
+                if self.OPTIONS.get("log_timer_jitter", False):
+                    try:
+                        jitter_ns = max(0, int(wake_ns - deadline_ns))
+                        buf = getattr(self, "_jitter_samples", None)
+                        if buf is None:
+                            buf = []
+                            self._jitter_samples = buf
+                            now_init = timer.ns_now()
+                            self._jitter_last_log_ns = now_init
+                            self._jitter_interval_start_ns = now_init
+                            self._jitter_late_frames = 0
+                        buf.append(jitter_ns)
+                        if len(buf) > 512:
+                            del buf[: len(buf) - 512]
+                        # Late frame if jitter > 0
+                        if jitter_ns > 0:
+                            self._jitter_late_frames = getattr(self, "_jitter_late_frames", 0) + 1
+                        # Log every fps_log_interval_ms
+                        interval_ns = int(float(self.fps_log_interval_ms) * 1_000_000)
+                        now_ns = timer.ns_now()
+                        if now_ns - getattr(self, "_jitter_last_log_ns", 0) >= interval_ns:
+                            data = sorted(buf)
+                            count = len(data)
+                            if count:
+                                p50 = data[int(0.50 * (count - 1))]
+                                p95 = data[int(0.95 * (count - 1))]
+                                p99 = data[int(0.99 * (count - 1))]
+                                p100 = data[-1]
+                                # Compute avg FPS and late-frame percentage over interval
+                                span_ns = max(1, now_ns - getattr(self, "_jitter_interval_start_ns", now_ns))
+                                avg_fps = (count * 1_000_000_000) / span_ns
+                                late = getattr(self, "_jitter_late_frames", 0)
+                                late_pct = (late / count) * 100.0
+                                self.log.info(
+                                    f"Timer jitter ns: p50={p50} p95={p95} p99={p99} max={p100} frames={count} avg_fps={avg_fps:.1f} late={late_pct:.1f}%"
+                                )
+                            self._jitter_last_log_ns = now_ns
+                            self._jitter_interval_start_ns = now_ns
+                            self._jitter_late_frames = 0
+                    except Exception:
+                        pass
+            else:
+                # Fallback to pygame clock for FPS measurement if no timer
+                if self.target_fps > 0:
+                    self.clock.tick(self.target_fps)
+                else:
+                    self.clock.tick()
             
             # End timing the actual processing
             processing_end = time.perf_counter()
@@ -195,7 +254,11 @@ class SceneManager(SceneInterface, events.EventManager):
             # Feed FPS data to performance manager with actual processing time
             try:
                 from glitchygames.performance import performance_manager
-                current_fps = self.clock.get_fps()
+                # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
+                if timer is not None and period_ns > 0:
+                    current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
+                else:
+                    current_fps = self.clock.get_fps()
                 performance_manager.track_fps_from_event(current_fps, actual_processing_time)
             except ImportError:
                 pass  # Performance module not available
@@ -405,8 +468,11 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _post_fps_event(self) -> None:
         """Post FPS event."""
+        # Prefer dt-derived FPS when available (fast timer path); fallback to clock
+        fps_value = 1.0 / self.dt if hasattr(self, "dt") and self.dt > 0 else self.clock.get_fps()
+
         pygame.event.post(
-            pygame.event.Event(events.FPSEVENT, {"fps": self.clock.get_fps()})
+            pygame.event.Event(events.FPSEVENT, {"fps": fps_value})
         )
 
     def _tick_clock(self) -> None:
@@ -1260,6 +1326,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug(f"Focusable sprites: {focusable_sprites}")
 
+        # Diagnostics: log the top-most collided sprite and its active state
+        if collided_sprites:
+            top_sprite = collided_sprites[-1]
+            self.log.debug(
+                f"Top sprite @ DOWN: {type(top_sprite).__name__}, "
+                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+            )
+
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
         self.log.debug(f"Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}")
@@ -1295,7 +1369,18 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} {trigger}")
+        # Optimized: Skip expensive collision detection for drag events
+        # Most drag handling is done by specific sprite drag handlers (e.g., on_left_mouse_drag_event)
+        # Only do collision detection if specifically needed
         collided_sprites = self.sprites_at_position(pos=event.pos)
+
+        # Diagnostics: log the top-most collided sprite and its active state during drag
+        if collided_sprites:
+            top_sprite = collided_sprites[-1]
+            self.log.debug(
+                f"Top sprite @ DRAG: {type(top_sprite).__name__}, "
+                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+            )
 
         for sprite in collided_sprites:
             sprite.on_mouse_drag_event(event, trigger)

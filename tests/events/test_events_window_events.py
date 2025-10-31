@@ -380,11 +380,11 @@ class TestWindowEvents:
         assert scene.window_events_received[0][1].type == pygame.WINDOWHITTEST
 
     def test_window_manager_initialization(self, mock_pygame_patches):
-        """Test WindowManager initializes correctly."""
-        from glitchygames.events.window import WindowManager
+        """Test WindowEventManager initializes correctly."""
+        from glitchygames.events.window import WindowEventManager
 
         mock_game = Mock()
-        manager = WindowManager(game=mock_game)
+        manager = WindowEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_window_close_event")
@@ -392,10 +392,10 @@ class TestWindowEvents:
 
     def test_window_manager_events(self, mock_pygame_patches):
         """Test window event handling through manager."""
-        from glitchygames.events.window import WindowManager
+        from glitchygames.events.window import WindowEventManager
 
         mock_game = Mock()
-        manager = WindowManager(game=mock_game)
+        manager = WindowEventManager(game=mock_game)
 
         # Test window close
         close_event = HashableEvent(pygame.WINDOWCLOSE)

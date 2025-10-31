@@ -375,22 +375,22 @@ class TestControllerEventFlow:
                 scene.on_controller_axis_motion_event(event)
 
     def test_controller_manager_initialization(self, mock_pygame_patches):
-        """Test ControllerManager initializes correctly."""
-        from glitchygames.events.controller import ControllerManager
+        """Test ControllerEventManager initializes correctly."""
+        from glitchygames.events.controller import ControllerEventManager
 
         mock_game = Mock()
-        manager = ControllerManager(game=mock_game)
+        manager = ControllerEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_controller_axis_motion_event")
         assert hasattr(manager, "on_controller_button_down_event")
 
     def test_controller_manager_directly(self, mock_pygame_patches):
-        """Test ControllerManager in isolation."""
-        from glitchygames.events.controller import ControllerManager
+        """Test ControllerEventManager in isolation."""
+        from glitchygames.events.controller import ControllerEventManager
 
         mock_game = Mock()
-        manager = ControllerManager(game=mock_game)
+        manager = ControllerEventManager(game=mock_game)
 
         # Test that manager has the required methods
         assert hasattr(manager, "on_controller_axis_motion_event")

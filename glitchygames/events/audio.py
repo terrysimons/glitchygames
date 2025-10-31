@@ -9,16 +9,17 @@ import logging
 from typing import Self
 
 import pygame
+from glitchygames.events import AUDIO_EVENTS
 from glitchygames.events import AudioEvents, ResourceManager
 
 log = logging.getLogger("game.audio")
 log.addHandler(logging.NullHandler())
 
 
-class AudioManager(ResourceManager):
+class AudioEventManager(ResourceManager):
     """Manage pygame audio events."""
 
-    class AudioProxy(AudioEvents, ResourceManager):
+    class AudioEventProxy(AudioEvents, ResourceManager):
         """Pygame audio event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -71,6 +72,10 @@ class AudioManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        try:
+            pygame.event.set_allowed(AUDIO_EVENTS)
+        except Exception:
+            pass
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
@@ -84,7 +89,7 @@ class AudioManager(ResourceManager):
             f"Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}"
         )
 
-        self.proxies = [AudioManager.AudioProxy(game=game)]
+        self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

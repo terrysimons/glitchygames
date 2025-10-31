@@ -284,14 +284,14 @@ class TestKeyboardEvents:
 
 
 class TestKeyboardManager:
-    """Test KeyboardManager in isolation."""
+    """Test KeyboardEventManager in isolation."""
 
     def test_keyboard_manager_initialization(self, mock_pygame_patches):
-        """Test KeyboardManager initializes correctly."""
-        from glitchygames.events.keyboard import KeyboardManager
+        """Test KeyboardEventManager initializes correctly."""
+        from glitchygames.events.keyboard import KeyboardEventManager
 
         mock_game = Mock()
-        manager = KeyboardManager(game=mock_game)
+        manager = KeyboardEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_key_down_event")
@@ -299,10 +299,10 @@ class TestKeyboardManager:
 
     def test_keyboard_manager_events(self, mock_pygame_patches):
         """Test keyboard event handling through manager."""
-        from glitchygames.events.keyboard import KeyboardManager
+        from glitchygames.events.keyboard import KeyboardEventManager
 
         mock_game = Mock()
-        manager = KeyboardManager(game=mock_game)
+        manager = KeyboardEventManager(game=mock_game)
 
         # Test key down
         down_event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=" ")

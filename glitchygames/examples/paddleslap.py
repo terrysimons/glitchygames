@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 import pygame
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
-from glitchygames.events.joystick import JoystickManager
+from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.fonts import FontManager
@@ -98,7 +98,7 @@ class TextSprite(Sprite):
         self.rect.x += x
         self.rect.y += y
         self.font_manager = FontManager()
-        self.joystick_manager = JoystickManager()
+        self.joystick_manager = JoystickEventManager()
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         # Inheriting from object is default in Python 3.

@@ -5,6 +5,7 @@ across all test files, reducing code duplication and ensuring proper mock config
 """
 
 from typing import ClassVar
+import os
 from unittest.mock import Mock, patch
 
 import pygame
@@ -812,13 +813,13 @@ class MockFactory:
 
     @staticmethod
     def create_joystick_manager_mock(joystick_count: int = 0) -> Mock:
-        """Create a properly configured JoystickManager mock.
+        """Create a properly configured JoystickEventManager mock.
 
         Args:
             joystick_count: Number of joysticks to simulate (default: 0)
 
         Returns:
-            Properly configured JoystickManager mock
+            Properly configured JoystickEventManager mock
 
         """
         mock_manager = Mock()
@@ -1058,6 +1059,9 @@ class MockFactory:
             tuple: (display_patcher, display_get_surface_patcher)
 
         """
+        # Ensure headless-friendly video driver for environments without a display
+        # os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
         # Create display mock
         display_mock = MockFactory.create_pygame_display_mock()
         display_surface = display_mock.get_surface.return_value
@@ -1075,6 +1079,9 @@ class MockFactory:
             tuple: (display_patcher, surface_patcher, event_patcher, ...)
 
         """
+        # Ensure headless-friendly video driver for environments without a display
+        # os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
         # Create comprehensive mocks
         display_mock = MockFactory.create_pygame_display_mock()
 

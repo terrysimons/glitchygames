@@ -10,16 +10,17 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import KEYBOARD_EVENTS
 from glitchygames.events import KeyboardEvents, ResourceManager
 
 log = logging.getLogger("game.keyboard")
 log.addHandler(logging.NullHandler())
 
 
-class KeyboardManager(ResourceManager):
+class KeyboardEventManager(ResourceManager):
     """Manage keyboard events."""
 
-    class KeyboardProxy(KeyboardEvents, ResourceManager):
+    class KeyboardEventProxy(KeyboardEvents, ResourceManager):
         """Keyboard event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -128,7 +129,12 @@ class KeyboardManager(ResourceManager):
 
         """
         super().__init__(game=game)
-        self.proxies = [KeyboardManager.KeyboardProxy(game=game)]
+        # Enable keyboard events for this manager
+        try:
+            pygame.event.set_allowed(KEYBOARD_EVENTS)
+        except Exception:
+            pass
+        self.proxies = [KeyboardEventManager.KeyboardEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

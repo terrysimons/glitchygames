@@ -268,29 +268,29 @@ class TestTextEvents:
 
 
 class TestTextEvents:
-    """Test text events handled by KeyboardManager."""
+    """Test text events handled by KeyboardEventManager."""
 
     def test_text_events_through_keyboard_manager(self, mock_pygame_patches):
-        """Test text events are handled by KeyboardManager."""
-        from glitchygames.events.keyboard import KeyboardManager
+        """Test text events are handled by KeyboardEventManager."""
+        from glitchygames.events.keyboard import KeyboardEventManager
 
         mock_game = MockFactory.create_event_test_scene_mock()
-        manager = KeyboardManager(game=mock_game)
+        manager = KeyboardEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        # KeyboardManager handles text events
+        # KeyboardEventManager handles text events
         assert hasattr(manager, "on_text_editing_event")
         assert hasattr(manager, "on_text_input_event")
 
     def test_text_events(self, mock_pygame_patches):
         """Test text event handling through manager."""
-        from glitchygames.events.keyboard import KeyboardManager
+        from glitchygames.events.keyboard import KeyboardEventManager
 
         # Use centralized mock for scene without event handlers (stub behavior)
         mock_game = MockFactory.create_event_test_scene_mock(
             event_handlers={}  # No event handlers - will fall back to stubs
         )
-        manager = KeyboardManager(game=mock_game)
+        manager = KeyboardEventManager(game=mock_game)
 
         # Test text editing - suppress log messages since this will trigger unhandled_event
         editing_event = HashableEvent(pygame.TEXTEDITING, text="test", start=0, length=4)

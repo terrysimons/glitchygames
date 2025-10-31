@@ -203,31 +203,31 @@ class TestAudioEventFlow:
                 stub.on_audio_device_added_event(event)
 
     def test_audio_manager_initialization(self, mock_pygame_patches):
-        """Test AudioManager initializes correctly."""
+        """Test AudioEventManager initializes correctly."""
         from unittest.mock import patch
 
-        from glitchygames.events.audio import AudioManager
+        from glitchygames.events.audio import AudioEventManager
         
         mock_game = Mock()
         
         # Mock pygame.mixer.get_init to return a tuple
         with patch("pygame.mixer.get_init", return_value=(22050, -16, 2)):
-            manager = AudioManager(game=mock_game)
+            manager = AudioEventManager(game=mock_game)
             
             assert manager.game == mock_game
             assert hasattr(manager, "on_audio_device_added_event")
             assert hasattr(manager, "on_audio_device_removed_event")
 
     def test_audio_manager_directly(self, mock_pygame_patches):
-        """Test AudioManager in isolation."""
-        from glitchygames.events.audio import AudioManager
+        """Test AudioEventManager in isolation."""
+        from glitchygames.events.audio import AudioEventManager
         
         # Use centralized mock for game
         mock_game = Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": True}
         
         # The centralized mocks should handle pygame.mixer.get_init()
-        manager = AudioManager(game=mock_game)
+        manager = AudioEventManager(game=mock_game)
         
         # Test that manager has the required methods
         assert hasattr(manager, "on_audio_device_added_event")

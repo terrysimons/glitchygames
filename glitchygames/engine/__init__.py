@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import contextlib
 import cProfile
 import importlib
@@ -17,19 +18,20 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 import pygame
 from glitchygames import events
 from glitchygames.color import PURPLE
-from glitchygames.events.app import AppManager
-from glitchygames.events.audio import AudioManager
-from glitchygames.events.controller import ControllerManager
-from glitchygames.events.drop import DropManager
-from glitchygames.events.game import GameManager
-from glitchygames.events.joystick import JoystickManager
-from glitchygames.events.keyboard import KeyboardManager
-from glitchygames.events.midi import MidiManager
-from glitchygames.events.mouse import MouseManager
-from glitchygames.events.touch import TouchManager
-from glitchygames.events.window import WindowManager
+from glitchygames.events.app import AppEventManager
+from glitchygames.events.audio import AudioEventManager
+from glitchygames.events.controller import ControllerEventManager
+from glitchygames.events.drop import DropEventManager
+from glitchygames.events.game import GameEventManager
+from glitchygames.events.joystick import JoystickEventManager
+from glitchygames.events.keyboard import KeyboardEventManager
+from glitchygames.events.midi import MidiEventManager
+from glitchygames.events.mouse import MouseEventManager
+from glitchygames.events.touch import TouchEventManager
+from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.timing import create_timer
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
@@ -167,11 +169,42 @@ class GameEngine(events.EventManager):
             choices=["update", "flip"],
             default="update",
         )
+        group.add_argument(
+            "--timer-backend",
+            help="timer backend for draw loop pacing (pygame|fast)",
+            choices=["pygame", "fast"],
+            default="pygame",
+        )
+        group.add_argument(
+            "--sleep-granularity-ns",
+            type=int,
+            help="minimum sleep granularity for pacing (ns); 0 to uncap",
+            default=1_000_000,
+        )
+        group.add_argument(
+            "--windows-timer-1ms",
+            help="on Windows, request 1ms system timer resolution",
+            action="store_true",
+            default=False,
+        )
+        group.add_argument(
+            "--log-timer-jitter",
+            help="log frame pacing jitter statistics periodically",
+            action="store_true",
+            default=False,
+        )
+        group.add_argument(
+            "--perf-trim-percent",
+            type=float,
+            help="percent of frames to trim from top and bottom in global FPS report",
+            default=5.0,
+        )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         default_videodriver = []
         if platform.system() == "Linux":
             linux_videodriver_choices = [
+                "wayland",
                 "x11",
                 "dga",
                 "fbcon",
@@ -200,16 +233,16 @@ class GameEngine(events.EventManager):
         group.add_argument("--video-driver", default=None, choices=default_videodriver)
 
         event_managers = (
-            AudioManager,
-            DropManager,
-            ControllerManager,
+            AudioEventManager,
+            DropEventManager,
+            ControllerEventManager,
             FontManager,
-            GameManager,
-            JoystickManager,
-            KeyboardManager,
-            MidiManager,
-            MouseManager,
-            WindowManager,
+            GameEventManager,
+            JoystickEventManager,
+            KeyboardEventManager,
+            MidiEventManager,
+            MouseEventManager,
+            WindowEventManager,
         )
 
         for event_manager in event_managers:
@@ -305,6 +338,9 @@ class GameEngine(events.EventManager):
         if pygame.version.vernum[0] < 2 and pygame.version.vernum[1] < 2:  # noqa: PLR2004
             self.USE_FASTEVENTS = True
 
+        # Ensure Linux/X11 sends DOWN on focus clicks
+        os.environ.setdefault("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1")
+
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
         self.print_game_info()
@@ -320,6 +356,7 @@ class GameEngine(events.EventManager):
             #
             # pygame.event doesn't have an init() method, so nothing to do.
             self.log.info(f"Using pygame.events for pygame version {pygame.version.ver}")
+
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -713,10 +750,10 @@ class GameEngine(events.EventManager):
             self.scene_manager.game_engine = self
 
             self.registered_events = {}
-            from glitchygames.events.app import AppManager
-            self.app_manager = AppManager(game=self.scene_manager)
-            self.audio_manager = AudioManager(game=self.scene_manager)
-            self.drop_manager = DropManager(game=self.scene_manager)
+            from glitchygames.events.app import AppEventManager
+            self.app_manager = AppEventManager(game=self.scene_manager)
+            self.audio_manager = AudioEventManager(game=self.scene_manager)
+            self.drop_manager = DropEventManager(game=self.scene_manager)
 
             using_pygame_ce = False
             try:
@@ -730,28 +767,48 @@ class GameEngine(events.EventManager):
                 # Disable Controller Events
                 pygame.event.set_blocked(events.CONTROLLER_EVENTS)
             else:
-                self.controller_manager = ControllerManager(game=self.scene_manager)
+                self.controller_manager = ControllerEventManager(game=self.scene_manager)
                 # Enable controller events for button presses and axis movements
                 pygame._sdl2.controller.set_eventstate(True)
 
-            self.touch_manager = TouchManager(game=self.scene_manager)
+            self.touch_manager = TouchEventManager(game=self.scene_manager)
             # https://glitchy-games.atlassian.net/browse/GG-23
             self.font_manager = FontManager(game=self.scene_manager)
-            self.game_manager = GameManager(game=self.scene_manager)
-            self.joystick_manager = JoystickManager(game=self.scene_manager)
-            self.keyboard_manager = KeyboardManager(game=self.scene_manager)
-            self.midi_manager = MidiManager(game=self.scene_manager)
-            self.mouse_manager = MouseManager(game=self.scene_manager)
-            self.window_manager = WindowManager(game=self.scene_manager)
+            self.game_manager = GameEventManager(game=self.scene_manager)
+            self.joystick_manager = JoystickEventManager(game=self.scene_manager)
+            self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
+            self.midi_manager = MidiEventManager(game=self.scene_manager)
+            self.mouse_manager = MouseEventManager(game=self.scene_manager)
+            self.window_manager = WindowEventManager(game=self.scene_manager)
 
             # Get count of joysticks
             self.joysticks = []
             if self.joystick_manager:
-                # JoystickManager.joysticks is a dictionary, convert to list of values
+                # JoystickEventManager.joysticks is a dictionary, convert to list of values
                 self.joysticks = list(self.joystick_manager.joysticks.values())
             self.joystick_count = len(self.joysticks)
 
             self.scene_manager.switch_to_scene(self.game)
+            # Initialize timer backend for draw-loop pacing (after options exist)
+            try:
+                self.timer = create_timer(
+                    GameEngine.OPTIONS.get("timer_backend"), GameEngine.OPTIONS
+                )
+                self.log.info(
+                    f"Timer backend: {GameEngine.OPTIONS.get('timer_backend')}"
+                )
+            except Exception:
+                self.timer = None
+                self.log.debug("Timer backend failed to initialize; using pygame clock only")
+            # Configure performance trim percent if available
+            try:
+                from glitchygames.performance import performance_manager
+
+                trim = float(GameEngine.OPTIONS.get("perf_trim_percent", 5.0))
+                if hasattr(performance_manager, "set_trim_percent"):
+                    performance_manager.set_trim_percent(trim)
+            except Exception:
+                pass
             self.scene_manager.start()
         except Exception:
             current_scene = getattr(self.scene_manager, 'current_scene', None)
@@ -1088,6 +1145,9 @@ class GameEngine(events.EventManager):
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
+            self.log.debug(
+                f"ENGINE: MOUSEBUTTONDOWN received: button={getattr(event, 'button', None)}, pos={getattr(event, 'pos', None)}"
+            )
             self.mouse_manager.on_mouse_button_down_event(event)
             return True
 
@@ -1204,10 +1264,14 @@ class GameEngine(events.EventManager):
 
         if event.type == pygame.WINDOWFOCUSGAINED:
             self.window_manager.on_window_focus_gained_event(event)
+            with contextlib.suppress(Exception):
+                pygame.event.set_grab(True)
             return True
 
         if event.type == pygame.WINDOWFOCUSLOST:
             self.window_manager.on_window_focus_lost_event(event)
+            with contextlib.suppress(Exception):
+                pygame.event.set_grab(False)
             return True
 
         if event.type == pygame.WINDOWENTER:

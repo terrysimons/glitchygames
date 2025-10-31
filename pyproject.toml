@@ -44,6 +44,7 @@ pyperclip = "*"
 aisuite = {extras = ["all"], version = "*"}
 numpy = "*"
 miniaudio = "*"
+speechrecognition = "*"
 
 # --- docs extras as optional main deps ---
 mkdocs = { version = "1.6.1", optional = true }

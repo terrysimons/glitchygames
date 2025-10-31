@@ -12,7 +12,7 @@
 
 
 
-<!-- ::: glitchygames.events.audio.AudioManager
+<!-- ::: glitchygames.events.audio.AudioEventManager
     options:
        allow_inspection: no
        show_bases: no

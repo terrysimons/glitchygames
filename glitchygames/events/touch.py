@@ -6,13 +6,14 @@ from __future__ import annotations
 from typing import Self
 
 import pygame
+from glitchygames.events import TOUCH_EVENTS
 from glitchygames.events import ResourceManager, TouchEvents
 
 
-class TouchManager(ResourceManager):
+class TouchEventManager(ResourceManager):
     """Touch event manager."""
 
-    class TouchProxy(TouchEvents, ResourceManager):
+    class TouchEventProxy(TouchEvents, ResourceManager):
         """Touch event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -116,4 +117,8 @@ class TouchManager(ResourceManager):
 
         """
         super().__init__(game=game)
-        self.proxies = [TouchManager.TouchProxy(game=game)]
+        try:
+            pygame.event.set_allowed(TOUCH_EVENTS)
+        except Exception:
+            pass
+        self.proxies = [TouchEventManager.TouchEventProxy(game=game)]

@@ -286,14 +286,14 @@ class TestJoystickEvents:
 
 
 class TestJoystickManager:
-    """Test JoystickManager in isolation."""
+    """Test JoystickEventManager in isolation."""
 
     def test_joystick_manager_initialization(self, mock_pygame_patches):
-        """Test JoystickManager initializes correctly."""
-        from glitchygames.events.joystick import JoystickManager
+        """Test JoystickEventManager initializes correctly."""
+        from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = Mock()
-        manager = JoystickManager(game=mock_game)
+        manager = JoystickEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_joystick_axis_motion_event")
@@ -301,10 +301,10 @@ class TestJoystickManager:
 
     def test_joystick_manager_events(self, mock_pygame_patches):
         """Test joystick event handling through manager."""
-        from glitchygames.events.joystick import JoystickManager
+        from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = Mock()
-        manager = JoystickManager(game=mock_game)
+        manager = JoystickEventManager(game=mock_game)
 
         # Test axis motion
         axis_event = HashableEvent(pygame.JOYAXISMOTION, joy=0, axis=0, value=0.5)

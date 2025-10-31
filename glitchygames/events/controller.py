@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import CONTROLLER_EVENTS
 import pygame._sdl2.controller
 from glitchygames.events import ControllerEvents, ResourceManager
 
@@ -23,12 +24,12 @@ LOG: logging.Logger = logging.getLogger("game.controllers")
 LOG.addHandler(logging.NullHandler())
 
 
-class ControllerManager(ControllerEvents, ResourceManager):
+class ControllerEventManager(ControllerEvents, ResourceManager):
     """Manage controller events."""
 
     log: logging.Logger = LOG
 
-    class ControllerProxy(ControllerEvents, ResourceManager):
+    class ControllerEventProxy(ControllerEvents, ResourceManager):
         """Proxy class for controller events."""
 
         log: logging.Logger = LOG
@@ -244,7 +245,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
             return repr(self.controller)
 
     def __init__(self: Self, game: object = None) -> None:
-        """Initialize the ControllerManager.
+        """Initialize the ControllerEventManager.
 
         Args:
             game (object): The game object.
@@ -254,6 +255,11 @@ class ControllerManager(ControllerEvents, ResourceManager):
 
         """
         super().__init__(game=game)
+        # Ensure controller events are enabled
+        try:
+            pygame.event.set_allowed(CONTROLLER_EVENTS)
+        except Exception:
+            pass
         self.controllers = {}
         self.proxies = []
         self.game = game
@@ -276,7 +282,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
                 f"{pygame._sdl2.controller.name_forindex(controller_id)}"
             )
 
-            controller_proxy = ControllerManager.ControllerProxy(
+            controller_proxy = ControllerEventManager.ControllerEventProxy(
                 controller_id=controller_id, game=game
             )
             self.controllers[controller_id] = controller_proxy
@@ -364,7 +370,7 @@ class ControllerManager(ControllerEvents, ResourceManager):
         # Note: There is a bug in pygame where a reinitialized
         # controller object due to hotplug ends up with an incorrect
         # device_index.
-        controller_proxy = ControllerManager.ControllerProxy(
+        controller_proxy = ControllerEventManager.ControllerEventProxy(
             controller_id=event.device_index, game=self.game
         )
         self.controllers[event.device_index] = controller_proxy

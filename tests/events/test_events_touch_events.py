@@ -290,14 +290,14 @@ class TestTouchEvents:
 
 
 class TestTouchManager:
-    """Test TouchManager in isolation."""
+    """Test TouchEventManager in isolation."""
 
     def test_touch_manager_initialization(self, mock_pygame_patches):
-        """Test TouchManager initializes correctly."""
-        from glitchygames.events.touch import TouchManager
+        """Test TouchEventManager initializes correctly."""
+        from glitchygames.events.touch import TouchEventManager
 
         mock_game = Mock()
-        manager = TouchManager(game=mock_game)
+        manager = TouchEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "proxies")
@@ -305,10 +305,10 @@ class TestTouchManager:
 
     def test_touch_manager_events(self, mock_pygame_patches):
         """Test touch event handling through manager."""
-        from glitchygames.events.touch import TouchManager
+        from glitchygames.events.touch import TouchEventManager
 
         mock_game = Mock()
-        manager = TouchManager(game=mock_game)
+        manager = TouchEventManager(game=mock_game)
 
         # Test touch finger down
         touch_down_event = HashableEvent(pygame.FINGERDOWN, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0)

@@ -110,7 +110,7 @@ class ControllerModeState:
 class TriggerDetector:
     """Detects analog trigger presses for mode switching."""
     
-    TRIGGER_THRESHOLD = 0.5
+    TRIGGER_THRESHOLD = 0.4  # Lowered from 0.5 to accommodate Linux trigger values
     DEBOUNCE_TIME = 0.1  # 100ms debounce
     
     def __init__(self):

@@ -397,8 +397,15 @@ class AnimatedCanvasInterface:
                 return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
-    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
-        """Set the color of a pixel at the given coordinates."""
+    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int], skip_drag_ops: bool = False) -> None:
+        """Set the color of a pixel at the given coordinates.
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            color: Color tuple
+            skip_drag_ops: If True, skip expensive operations during drag (used for optimization)
+        """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             
@@ -416,6 +423,14 @@ class AnimatedCanvasInterface:
                     old_color = frame_pixels[pixel_num]
             else:
                 old_color = self.canvas_sprite.pixels[pixel_num]
+            
+            # Skip expensive operations during drag if flag is set
+            if skip_drag_ops:
+                # Fast path: just update the pixel data, skip everything else
+                self.canvas_sprite.pixels[pixel_num] = color
+                self.canvas_sprite.dirty_pixels[pixel_num] = True
+                self.canvas_sprite.dirty = 1
+                return
             
             # Track the pixel change for undo/redo if we have a parent scene with operation tracker
             # Skip tracking if we're currently applying undo/redo to prevent feedback loops
@@ -442,16 +457,53 @@ class AnimatedCanvasInterface:
                 # Collect pixel changes during drag operations
                 if not hasattr(self.canvas_sprite.parent_scene, "_current_pixel_changes"):
                     self.canvas_sprite.parent_scene._current_pixel_changes = []
+                if not hasattr(self.canvas_sprite.parent_scene, "_current_pixel_changes_dict"):
+                    # Use a dict for O(1) deduplication lookups during drag
+                    # Maps (x, y) -> (x, y, old_color, new_color) for fast replacement
+                    self.canvas_sprite.parent_scene._current_pixel_changes_dict = {}
                 
-                # Add this pixel change to the current collection
-                self.canvas_sprite.parent_scene._current_pixel_changes.append((x, y, old_color, color))
-                print(f"DEBUG: Canvas interface added pixel ({x}, {y}) to _current_pixel_changes, now has {len(self.canvas_sprite.parent_scene._current_pixel_changes)} pixels")
+                # Performance optimization: Use dict for O(1) deduplication to prevent memory bloat
+                # If the same pixel was already changed in this drag, replace the old entry
+                # This prevents unbounded growth during long drags on the same pixels
+                pixel_key = (x, y)
+                pixel_changes_dict = self.canvas_sprite.parent_scene._current_pixel_changes_dict
+                
+                # Store or update the pixel change (keeps original old_color, updates new_color)
+                if pixel_key in pixel_changes_dict:
+                    # Update existing: keep original old_color, update to latest new_color
+                    existing = pixel_changes_dict[pixel_key]
+                    pixel_changes_dict[pixel_key] = (x, y, existing[2], color)
+                else:
+                    # New pixel change
+                    pixel_changes_dict[pixel_key] = (x, y, old_color, color)
+                
+                # Convert dict to list format for compatibility (only when needed, not every time)
+                # We'll convert to list format when submitting, but keep dict for efficient updates
+                # Update the list periodically or convert on-demand
+                if not hasattr(self.canvas_sprite.parent_scene, "_pixel_changes_list_dirty"):
+                    self.canvas_sprite.parent_scene._pixel_changes_list_dirty = True
+                
+                # Only convert to list occasionally or when submitting - this avoids O(n) conversion every drag event
+                # The dict will be converted to list when _submit_pixel_changes_if_ready is called
+                
+                # Safety limit: If collection grows beyond 2000 unique pixels, trim oldest entries
+                # (Unlikely with deduplication, but protects against edge cases)
+                max_pixel_changes = 2000
+                if len(pixel_changes_dict) > max_pixel_changes:
+                    # Keep only the most recent entries (dict keeps insertion order in Python 3.7+)
+                    items = list(pixel_changes_dict.items())[-1500:]
+                    pixel_changes_dict.clear()
+                    pixel_changes_dict.update(items)
+                
+                # Only log debug info occasionally to reduce overhead
+                if len(pixel_changes_dict) % 100 == 0:
+                    LOG.debug(f"Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels")
                 
                 # Start a timer for single clicks (if this is the first pixel)
-                if len(self.canvas_sprite.parent_scene._current_pixel_changes) == 1:
+                if len(self.canvas_sprite.parent_scene._current_pixel_changes_dict) == 1:
                     import time
                     self.canvas_sprite.parent_scene._pixel_change_timer = time.time()
-                    print(f"DEBUG: Canvas interface started pixel change timer for single click")
+                    LOG.debug(f"Canvas interface started pixel change timer for single click")
             elif controller_drag_active:
                 # Controller drag is active with pixels, don't collect pixels in canvas interface
                 print(f"DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection")

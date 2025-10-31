@@ -36,9 +36,9 @@ except ImportError:
 
 # Try to import voice recognition, but don't fail if it's not available
 try:
-    from glitchygames.events.voice import VoiceRecognitionManager
+    from glitchygames.events.voice import VoiceEventManager
 except ImportError:
-    VoiceRecognitionManager = None
+    VoiceEventManager = None
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
@@ -2507,39 +2507,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         screen_info = pygame.display.Info()
         screen_width = screen_info.current_w
 
-        # Calculate mini map size using the same logic as MiniView
-        pixel_width, _ = MiniView.pixels_per_pixel(self.pixels_across, self.pixels_tall)
-        mini_map_width = self.pixels_across * pixel_width
 
-        # Position mini map flush to the right edge and top
-        mini_map_x = screen_width - mini_map_width  # Flush to right edge
-        mini_map_y = 24  # Flush to top (below menu bar)
-
-        # Ensure mini map doesn't go off screen
-        if mini_map_x < 0:
-            mini_map_x = 20  # Fallback to left side if too wide
-
-        # Get current frame pixels for the mini view
-        current_frame_pixels = self._get_current_frame_pixels()
-
-        # Create miniview - position in top right corner
-        # self.mini_view = MiniView(
-        #     pixels=current_frame_pixels,
-        #     x=mini_map_x,
-        #     y=mini_map_y,
-        #     width=self.pixels_across,
-        #     height=self.pixels_tall,
-        #     groups=groups,
-        # )
-        self.mini_view = None
-
-        # Add MiniView to the sprite groups explicitly
-        if groups and self.mini_view is not None:
-            if isinstance(groups, (list, tuple)):
-                for group in groups:
-                    group.add(self.mini_view)
-            else:
-                groups.add(self.mini_view)
 
         # Show the first frame
         self.show_frame(self.current_animation, self.current_frame)
@@ -2640,38 +2608,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             self.log.info(f"DEBUG: No animated_sprite available for canvas sync")
 
-    def _update_mini_view_from_current_frame(self) -> None:
-        """Update the mini view with pixel data from the current frame."""
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            current_frame_pixels = self._get_current_frame_pixels()
-            self.log.debug(
-                f"Updating mini view with {len(current_frame_pixels)} pixels, "
-                f"first few: {current_frame_pixels[:5]}"
-            )
-            if hasattr(self, "mini_view") and self.mini_view is not None:
-                self.log.debug(
-                    f"Mini view dimensions: {self.mini_view.pixels_across}x{self.mini_view.pixels_tall}"
-                )
-                self.log.debug(
-                    f"Expected pixels: {self.mini_view.pixels_across * self.mini_view.pixels_tall}"
-                )
-
-                if (
-                    len(current_frame_pixels)
-                    == self.mini_view.pixels_across * self.mini_view.pixels_tall
-                ):
-                    self.mini_view.pixels = current_frame_pixels
-                    self.mini_view.dirty_pixels = [True] * len(current_frame_pixels)
-                    self.mini_view.dirty = 1
-                    self.mini_view.force_redraw()
-                    self.log.debug("Mini view updated successfully with frame pixels")
-                else:
-                    self.log.debug(
-                        f"Frame pixels don't match mini view dimensions: "
-                        f"{len(current_frame_pixels)} vs "
-                        f"{self.mini_view.pixels_across * self.mini_view.pixels_tall}"
-                    )
-                # Don't update if dimensions don't match
 
     def set_frame(self, frame_index: int) -> None:
         """Set the current frame index for the current animation."""
@@ -2698,10 +2634,6 @@ class AnimatedCanvasSprite(BitmappySprite):
                 # Update the undo/redo manager with the current frame for frame-specific operations
                 if hasattr(self, "parent_scene") and self.parent_scene and hasattr(self.parent_scene, "undo_redo_manager"):
                     self.parent_scene.undo_redo_manager.set_current_frame(self.current_animation, frame_index)
-
-                # Update mini view and mark as dirty
-                if hasattr(self, "mini_view"):
-                    self._update_mini_view_from_current_frame()
 
                 # Only restart animation if it was playing before
                 if was_playing:
@@ -2770,12 +2702,6 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Mark all pixels as dirty
             self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1
-
-            # Update mini view
-            if hasattr(self, "mini_view") and self.mini_view is not None:
-                self.mini_view.pixels = self.pixels.copy()
-                self.mini_view.dirty_pixels = [True] * len(self.pixels)
-                self.mini_view.dirty = 1
 
             # Notify parent scene to update film strips
             if hasattr(self, "parent_scene") and self.parent_scene:
@@ -2988,13 +2914,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         screen_info = pygame.display.Info()
         screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
 
-        # If mouse is outside window or canvas, clear cursor
-        if (
-            not screen_rect.collidepoint(mouse_pos) or not self.rect.collidepoint(mouse_pos)
-        ) and hasattr(self, "mini_view") and self.mini_view is not None:
-            self.log.info("Mouse outside canvas/window, clearing miniview cursor")
-            self.mini_view.clear_cursor()
-
         # Animation timing is handled by the scene's update_animation method
 
         # Force redraw if dirty
@@ -3010,11 +2929,15 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def on_left_mouse_button_down_event(self, event):
         """Handle the left mouse button down event."""
-        self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
+        # self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
             y = (event.pos[1] - self.rect.y) // self.pixel_height
-            self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
+            # self.log.debug(f"AnimatedCanvasSprite clicked at pixel ({x}, {y})")
+
+            # Mark that we're starting a potential drag operation
+            self._drag_active = False  # Will be set to True on first drag event
+            self._drag_pixels = {}  # Track pixels changed during drag for batched updates
 
             # Check for control-click (flood fill mode)
             is_control_click = pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
@@ -3037,23 +2960,163 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Force redraw the canvas to show the changes
             self.force_redraw()
 
-            # Update miniview with current frame data
-            self._update_mini_view_from_current_frame()
-
             # Note: Live preview functionality is now integrated into the film strip
-
-            # Update miniview
-            if hasattr(self, "mini_view") and self.mini_view is not None:
-                self.mini_view.on_pixel_update_event(event, self)
         else:
-            self.log.info(
+            self.log.debug(
                 f"AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}"
             )
 
     def on_left_mouse_drag_event(self, event, trigger):
-        """Handle mouse drag events."""
-        # For drag events, we treat them the same as button down
-        self.on_left_mouse_button_down_event(event)
+        """Handle mouse drag events - optimized path that updates visuals but defers expensive ops."""
+        # Fast visual update path: update frame data immediately for visual feedback
+        # But skip expensive operations (undo/redo, events, film strips) until drag ends
+        if self.rect.collidepoint(event.pos):
+            x = (event.pos[0] - self.rect.x) // self.pixel_width
+            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            
+            # Validate coordinates before processing
+            if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
+                return
+            
+            # Mark drag as active
+            self._drag_active = True
+            
+            # Track pixel for batched undo/redo update
+            if not hasattr(self, '_drag_pixels'):
+                self._drag_pixels = {}
+            
+            # Cache frame reference during drag to avoid repeated lookups
+            if not hasattr(self, '_drag_frame'):
+                if (hasattr(self, "animated_sprite") and 
+                    hasattr(self, "current_animation") and 
+                    hasattr(self, "current_frame") and
+                    self.current_animation in self.animated_sprite.frames):
+                    self._drag_frame = self.animated_sprite._animations[self.current_animation][self.current_frame]
+                else:
+                    self._drag_frame = None
+            
+            pixel_key = (x, y)
+            pixel_num = y * self.pixels_across + x
+            
+            # Store pixel change with old color for batched undo/redo (only get old color once per pixel)
+            # OPTIMIZATION: Access frame.pixels directly to avoid expensive get_pixel_data() copy
+            if pixel_key not in self._drag_pixels:
+                # Get old color from current frame (only once per unique pixel during drag)
+                old_color = self.pixels[pixel_num]  # Default to canvas pixels
+                if self._drag_frame is not None:
+                    # Fast path: Directly access frame.pixels to avoid array copy
+                    if hasattr(self._drag_frame, "pixels") and pixel_num < len(self._drag_frame.pixels):
+                        old_color = self._drag_frame.pixels[pixel_num]
+                    else:
+                        # Fallback only if frame.pixels doesn't exist (rare)
+                        frame_pixels = self._drag_frame.get_pixel_data()
+                        old_color = frame_pixels[pixel_num] if pixel_num < len(frame_pixels) else (255, 0, 255, 255)
+                self._drag_pixels[pixel_key] = (x, y, old_color, self.active_color)
+            
+            # Update pixel data for immediate visual feedback
+            self.pixels[pixel_num] = self.active_color
+            self.dirty_pixels[pixel_num] = True
+            
+            # Update frame data immediately so renderer shows the change (but skip other expensive ops)
+            # OPTIMIZATION: Directly modify frame.pixels to avoid expensive get/set_pixel_data() copies
+            if self._drag_frame is not None:
+                # Fast path: Directly update frame.pixels if it exists (avoids array copies)
+                # This avoids the expensive .copy() calls in get_pixel_data()/set_pixel_data()
+                if hasattr(self._drag_frame, "pixels"):
+                    if pixel_num < len(self._drag_frame.pixels):
+                        self._drag_frame.pixels[pixel_num] = self.active_color
+                        # Skip updating the underlying surface during drag - it will be redrawn
+                        # Updating surface.set_at() for every pixel during drag is expensive
+                else:
+                    # Fallback: Use the slower get/set_pixel_data path if pixels attr doesn't exist
+                    frame_pixels = self._drag_frame.get_pixel_data()
+                    if pixel_num < len(frame_pixels):
+                        frame_pixels[pixel_num] = self.active_color
+                        self._drag_frame.set_pixel_data(frame_pixels)
+                        
+                        # Clear surface cache so it redraws
+                        if hasattr(self, "animated_sprite") and hasattr(self.animated_sprite, "_surface_cache"):
+                            cache_key = f"{self.current_animation}_{self.current_frame}"
+                            if cache_key in self.animated_sprite._surface_cache:
+                                del self.animated_sprite._surface_cache[cache_key]
+            
+            # Throttle full redraws during drag - only redraw every N drag events
+            # This prevents starving the rendering loop while still providing visual feedback
+            if not hasattr(self, '_drag_redraw_counter'):
+                self._drag_redraw_counter = 0
+            self._drag_redraw_counter += 1
+            
+            # Redraw every 2nd drag event to balance visual feedback with performance
+            # Setting dirty=1 triggers force_redraw() in update(), which redraws the entire canvas
+            # Throttling prevents doing this on every single drag event (which can be 60+ per second)
+            if self._drag_redraw_counter % 2 == 0:
+                self.dirty = 1
+            # Note: Final redraw is guaranteed by on_left_mouse_button_up_event setting dirty=1
+
+    def on_left_mouse_button_up_event(self, event):
+        """Handle mouse button up - flush batched drag updates."""
+        if hasattr(self, '_drag_active') and self._drag_active:
+            # Flush all batched pixel updates from drag operation
+            if hasattr(self, '_drag_pixels') and self._drag_pixels:
+                # Update animated sprite frame data for all changed pixels
+                if hasattr(self, "animated_sprite"):
+                    current_animation = self.current_animation
+                    current_frame_index = self.current_frame
+                    
+                    if current_animation in self.animated_sprite.frames:
+                        frame = self.animated_sprite._animations[current_animation][current_frame_index]
+                        frame_pixels = frame.get_pixel_data()
+                        
+                        # Apply all pixel changes to the frame
+                        for (x, y, old_color, new_color) in self._drag_pixels.values():
+                            pixel_num = y * self.pixels_across + x
+                            if pixel_num < len(frame_pixels):
+                                frame_pixels[pixel_num] = new_color
+                        
+                        frame.set_pixel_data(frame_pixels)
+                        
+                        # Clear surface cache for this frame
+                        if hasattr(self.animated_sprite, "_surface_cache"):
+                            cache_key = f"{current_animation}_{current_frame_index}"
+                            if cache_key in self.animated_sprite._surface_cache:
+                                del self.animated_sprite._surface_cache[cache_key]
+                
+                # Batch submit all pixel changes to undo/redo system
+                if (hasattr(self, "parent_scene") and 
+                    self.parent_scene and 
+                    hasattr(self.parent_scene, "canvas_operation_tracker") and
+                    not getattr(self.parent_scene, "_applying_undo_redo", False)):
+                    
+                    # Convert drag pixels dict to list format for operation tracker
+                    pixel_changes = list(self._drag_pixels.values())
+                    if pixel_changes:
+                        # Submit all changes as a single batched operation
+                        if not hasattr(self.parent_scene, "_current_pixel_changes"):
+                            self.parent_scene._current_pixel_changes = []
+                        self.parent_scene._current_pixel_changes.extend(pixel_changes)
+                        
+                        # Trigger submission if timer exists (from canvas_interface logic)
+                        if hasattr(self.parent_scene, "_submit_pixel_changes_if_ready"):
+                            self.parent_scene._submit_pixel_changes_if_ready()
+                
+                # Update animated sprite frame once
+                if hasattr(self, "animated_sprite"):
+                    self._update_animated_sprite_frame()
+                
+                # Notify parent scene to update film strips (once, not per pixel)
+                if hasattr(self, "parent_scene") and self.parent_scene:
+                    self.parent_scene._update_film_strips_for_pixel_update()
+            
+            # Clear drag state
+            self._drag_active = False
+            self._drag_pixels = {}
+            if hasattr(self, '_drag_redraw_counter'):
+                del self._drag_redraw_counter
+            if hasattr(self, '_drag_frame'):
+                del self._drag_frame
+            
+            # Force final redraw to show all changes
+            self.dirty = 1
 
     def on_mouse_motion_event(self, event):
         """Handle mouse motion events."""
@@ -3075,16 +3138,11 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.hovered_pixel = (x, y)
                 self.dirty = 1  # Mark for redraw to show hover effect
 
-                if hasattr(self, "mini_view") and self.mini_view is not None:
-                    self.mini_view.update_canvas_cursor(x, y, self.active_color)
             else:
                 # Mouse is over canvas but outside pixel grid - clear pixel hover
                 if hasattr(self, "hovered_pixel") and self.hovered_pixel is not None:
                     self.hovered_pixel = None
                     self.dirty = 1  # Mark for redraw to remove pixel hover effect
-
-                if hasattr(self, "mini_view") and self.mini_view is not None:
-                    self.mini_view.clear_cursor()
         else:
             # Mouse is outside canvas - clear all hover effects
             if self.is_hovered:
@@ -3097,15 +3155,12 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self.hovered_pixel = None
                 self.dirty = 1  # Mark for redraw to remove pixel hover effect
 
-            if hasattr(self, "mini_view") and self.mini_view is not None:
-                self.mini_view.clear_cursor()
-
     def on_pixel_update_event(self, event, trigger):
         """Handle pixel update events."""
         if hasattr(trigger, "pixel_number"):
             pixel_num = trigger.pixel_number
             new_color = trigger.pixel_color
-            self.log.debug(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
+            # self.log.debug(f"Animated canvas updating pixel {pixel_num} to color {new_color}")
 
             self.pixels[pixel_num] = new_color
             self.dirty_pixels[pixel_num] = True
@@ -3119,31 +3174,18 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "animated_sprite"):
                 self._update_animated_sprite_frame()
 
-            # Update miniview
-            if hasattr(self, "mini_view") and self.mini_view is not None:
-                self.mini_view.on_pixel_update_event(event, trigger)
 
     def on_mouse_leave_window_event(self, event):
         """Handle mouse leaving window event."""
-        self.log.info("Mouse left window, clearing miniview cursor")
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            self.mini_view.clear_cursor()
+        pass
 
     def on_mouse_enter_sprite_event(self, event):
         """Handle mouse entering canvas."""
-        self.log.info("Mouse entered animated canvas")
-        if hasattr(self, "mini_view"):
-            # Update cursor position immediately
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
-            if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
-                self.mini_view.update_canvas_cursor(x, y, self.active_color)
+        pass
 
     def on_mouse_exit_sprite_event(self, event):
         """Handle mouse exiting canvas."""
-        self.log.info("Mouse exited animated canvas")
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            self.mini_view.clear_cursor()
+        pass
 
     def on_save_file_event(self, filename: str) -> None:
         """Handle save file events."""
@@ -3310,20 +3352,13 @@ class AnimatedCanvasSprite(BitmappySprite):
             loaded_sprite: The loaded sprite to update UI components with
 
         """
-        # Update the current frame display - this happens after the sprite is fully loaded
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            self.log.debug("Updating mini view after animation change")
-            self._update_mini_view_from_current_frame()
-        else:
-            # Mini view is disabled, update film strips instead
-            self.log.debug("Mini view disabled, updating film strips instead")
-            # Update multiple film strips
-            if hasattr(self, "film_strips") and self.film_strips:
-                for film_strip in self.film_strips.values():
-                    film_strip.mark_dirty()
-            if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
-                for film_strip_sprite in self.film_strip_sprites.values():
-                    film_strip_sprite.dirty = 1
+        # Update multiple film strips
+        if hasattr(self, "film_strips") and self.film_strips:
+            for film_strip in self.film_strips.values():
+                film_strip.mark_dirty()
+        if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
+            for film_strip_sprite in self.film_strip_sprites.values():
+                film_strip_sprite.dirty = 1
 
         # Note: Live preview functionality is now integrated into the film strip
 
@@ -3404,11 +3439,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.force_redraw()
 
         self.log.info(f"Successfully loaded animated sprite from {filename}")
-
-        # Final mini view update to ensure it has the correct data
-        if hasattr(self, "mini_view"):
-            self.log.debug("Final mini view update after sprite load")
-            self._update_mini_view_from_current_frame()
 
         # Update AI textbox with sprite description or default prompt
         self.log.debug("Checking parent and debug_text access...")
@@ -3499,10 +3529,6 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.parent_scene._update_ai_sprite_position()
         AnimatedCanvasSprite.WIDTH = sprite_width
         AnimatedCanvasSprite.HEIGHT = sprite_height
-
-        # Reinitialize mini view if it exists and has the resize method
-        if hasattr(self, "mini_view") and hasattr(self, "_resize_mini_view"):
-            self._resize_mini_view(sprite_width, sprite_height)
 
         self.log.info(
             f"Canvas resized to {sprite_width}x{sprite_height} with pixel size {pixel_size}"
@@ -3641,63 +3667,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         else:
             self.log.warning("No current frame pixels to copy to canvas")
 
-    def _resize_mini_view(self, width: int, height: int) -> None:
-        """Resize mini view for new canvas dimensions."""
-        if not hasattr(self, "mini_view") or not self.mini_view:
-            return
-
-        self.log.debug(f"Resizing mini view to {width}x{height}")
-
-        # Get screen dimensions from pygame
-        screen_info = pygame.display.Info()
-        screen_width = screen_info.current_w
-
-        # Calculate mini map size using the same logic as MiniView
-        pixel_width, pixel_height = MiniView.pixels_per_pixel(width, height)
-        mini_map_width = width * pixel_width
-
-        # Position mini map flush to the right edge and top
-        mini_map_x = screen_width - mini_map_width  # Flush to right edge
-        mini_map_y = 24  # Flush to top (below menu bar)
-
-        # Ensure mini map doesn't go off screen
-        if mini_map_x < 0:
-            mini_map_x = 20  # Fallback to left side if too wide
-
-        # Update mini view dimensions and position
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            self.mini_view.pixels_across = width
-            self.mini_view.pixels_tall = height
-            self.mini_view.rect.x = mini_map_x
-            self.mini_view.rect.y = mini_map_y
-
-            # Update mini view surface
-            self.mini_view.image = pygame.Surface((mini_map_width, height * pixel_height))
-            self.mini_view.rect = self.mini_view.image.get_rect(x=mini_map_x, y=mini_map_y)
-
-            # Update pixel arrays - copy from the current canvas pixels
-            if hasattr(self, "pixels") and len(self.pixels) == width * height:
-                self.mini_view.pixels = self.pixels.copy()
-            else:
-                # Fallback to magenta if dimensions don't match
-                self.mini_view.pixels = [(255, 0, 255, 255)] * (width * height)
-            self.mini_view.dirty_pixels = [True] * (width * height)
-
-            # Don't update mini view pixels here - it will be updated later after animation is set
-            self.log.debug("Mini view resized, will update pixels after animation is set")
-
-            # Force redraw
-            self.mini_view.dirty = 1
-            self.mini_view.force_redraw()
-
-        self.log.debug(
-            f"Mini view resized to {width}x{height} at position ({mini_map_x}, {mini_map_y})"
-        )
-        if hasattr(self, "mini_view") and self.mini_view is not None:
-            self.log.debug(
-                f"Mini view pixels: {len(self.mini_view.pixels)} pixels, "
-                f"first few: {self.mini_view.pixels[:5] if self.mini_view.pixels else 'None'}"
-            )
 
     def _update_animated_sprite_frame(self):
         """Update the animated sprite's current frame with canvas data."""
@@ -4041,157 +4010,6 @@ class AnimatedCanvasSprite(BitmappySprite):
                     viewport_pixels.append((255, 0, 255))  # Transparent
 
         return viewport_pixels
-
-
-class MiniView(BitmappySprite):
-    """Mini View."""
-
-    log = LOG
-    BACKGROUND_COLORS: ClassVar[list[tuple[int, int, int, int]]] = [
-        (0, 255, 255, 255),  # Cyan
-        (0, 0, 0, 255),  # Black
-        (128, 128, 128, 255),  # Gray
-        (255, 255, 255, 255),  # White
-        (255, 0, 255, 255),  # Magenta
-        (0, 255, 0, 255),  # Green
-        (0, 0, 255, 255),  # Blue
-        (255, 255, 0, 255),  # Yellow
-        (64, 64, 64, 255),  # Dark Gray
-        (192, 192, 192, 255),  # Light Gray
-    ]
-
-    def __init__(self, pixels, x, y, width, height, name="Mini View", groups=None):
-        """Initialize the MiniView sprite.
-
-        Args:
-            pixels: List of pixel colors
-            x: X position
-            y: Y position
-            width: Width in pixels
-            height: Height in pixels
-            name: Sprite name
-            groups: Sprite groups
-
-        """
-        self.pixels_across = width
-        self.pixels_tall = height
-        pixel_width, pixel_height = self.pixels_per_pixel(width, height)
-        actual_width = width * pixel_width
-        actual_height = height * pixel_height
-
-        super().__init__(
-            x=x, y=y, width=actual_width, height=actual_height, name=name, groups=groups
-        )
-
-        self.pixels = pixels
-        self.dirty_pixels = [True] * len(pixels)
-        self.background_color_index = 0
-        self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-
-        # Create initial surface
-        self.image = pygame.Surface((actual_width, actual_height))
-        self.rect = self.image.get_rect(x=x, y=y)
-
-        # Initialize cursor and mouse tracking state
-        self.canvas_cursor_pos = None
-        self.cursor_color = (0, 0, 0)  # Will be updated from canvas's active color
-        self.mouse_in_canvas = False
-
-        self.dirty = 1
-        self.force_redraw()
-        self.log.info("MiniView initialized")
-
-    def on_left_mouse_button_down_event(self, event):
-        """Handle left mouse button to cycle background color."""
-        if self.rect.collidepoint(event.pos):
-            self.log.info(f"MiniView clicked at {event.pos}, rect is {self.rect}")
-            old_color = self.background_color
-            self.background_color_index = (self.background_color_index + 1) % len(
-                self.BACKGROUND_COLORS
-            )
-            self.background_color = self.BACKGROUND_COLORS[self.background_color_index]
-            self.log.info(
-                f"MiniView background color changing from {old_color} to {self.background_color}"
-            )
-            self.dirty = 1
-            self.log.info("Setting dirty flag and calling force_redraw")
-            self.force_redraw()
-            return True
-        return False
-
-    def update_canvas_cursor(self, x, y, active_color=None):
-        """Update the cursor position and color from the main canvas."""
-        if x is None or y is None:
-            self.clear_cursor()
-            return
-
-        if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
-            self.clear_cursor()
-            return
-
-        if active_color is not None:
-            self.cursor_color = active_color
-
-        old_pos = self.canvas_cursor_pos
-        self.canvas_cursor_pos = (x, y)
-
-        if old_pos != self.canvas_cursor_pos:
-            self.dirty = 1
-
-    def on_pixel_update_event(self, event, trigger):
-        """Handle pixel update events."""
-        if hasattr(trigger, "pixel_number"):
-            pixel_num = trigger.pixel_number
-            new_color = trigger.pixel_color
-            self.log.debug(f"MiniView updating pixel {pixel_num} to color {new_color}")
-
-            self.pixels[pixel_num] = new_color
-            self.dirty_pixels[pixel_num] = True
-            self.dirty = 1
-
-    def force_redraw(self):
-        """Force a complete redraw of the miniview."""
-        self.log.debug(f"Starting force_redraw with background color {self.background_color}")
-        self.image.fill(self.background_color)
-        pixel_width, pixel_height = self.pixels_per_pixel(self.pixels_across, self.pixels_tall)
-
-        # Draw all non-magenta pixels
-        for i, pixel in enumerate(self.pixels):
-            if pixel != (255, 0, 255):  # Skip magenta pixels
-                x = (i % self.pixels_across) * pixel_width
-                y = (i // self.pixels_across) * pixel_height
-                pygame.draw.rect(self.image, pixel, (x, y, pixel_width, pixel_height))
-
-        self.log.debug(f"MiniView force redraw complete with background {self.background_color}")
-
-    def update(self):
-        """Update the miniview display."""
-        # Get mouse position and window size
-        mouse_pos = pygame.mouse.get_pos()
-        screen_info = pygame.display.Info()
-        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
-
-        # Clear cursor if mouse is outside window
-        if not screen_rect.collidepoint(mouse_pos):
-            self.clear_cursor()
-
-        if self.dirty:
-            self.force_redraw()
-            self.dirty = 0
-
-    def clear_cursor(self):
-        """Clear the cursor and force a redraw."""
-        if self.canvas_cursor_pos is not None:
-            self.log.info("Clearing miniview cursor")
-            self.canvas_cursor_pos = None
-            self.dirty = 1
-            self.force_redraw()
-
-    @staticmethod
-    def pixels_per_pixel(_pixels_across: int, _pixels_tall: int) -> tuple[int, int]:
-        """Calculate the size of each pixel in the miniview."""
-        # Use consistent 2x2 pixel doubling for best ergonomic experience
-        return (2, 2)
 
 
 class BitmapEditorScene(Scene):
@@ -5463,7 +5281,7 @@ class BitmapEditorScene(Scene):
     def _setup_voice_recognition(self) -> None:
         """Set up voice recognition for voice commands."""
         try:
-            self.voice_manager = VoiceRecognitionManager(logger=self.log)
+            self.voice_manager = VoiceEventManager(logger=self.log)
 
             if self.voice_manager.is_available():
                 # Register voice commands
@@ -6527,11 +6345,6 @@ class BitmapEditorScene(Scene):
                     film_strip.dirty = 1
             LOG.debug("Forced film strip redraw after undo/redo")
 
-        # Force mini view redraw if it exists
-        if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'mini_view') and self.canvas.mini_view:
-            self.canvas.mini_view.dirty = 1
-            self.canvas.mini_view.force_redraw()
-            LOG.debug("Forced mini view redraw after undo/redo")
         # self.register_game_event('save', self.on_save_event)
         # self.register_game_event('load', self.on_load_event)
 
@@ -6697,20 +6510,6 @@ class BitmapEditorScene(Scene):
             mini_map_x = max(screen_width - mini_map_width, 0)  # Flush to right edge
             mini_map_y = 24  # Flush to top
 
-            # Update mini map
-            if hasattr(self.canvas, "mini_view") and self.canvas.mini_view is not None:
-                self.canvas.mini_view.pixels_across = width
-                self.canvas.mini_view.pixels_tall = height
-                self.canvas.mini_view.pixels = self.canvas.pixels
-                self.canvas.mini_view.dirty_pixels = [True] * len(self.canvas.pixels)
-                pixel_width, pixel_height = self.canvas.mini_view.pixels_per_pixel(width, height)
-                self.canvas.mini_view.image = pygame.Surface((
-                    width * pixel_width,
-                    height * pixel_height,
-                ))
-                self.canvas.mini_view.rect = self.canvas.mini_view.image.get_rect(
-                    x=mini_map_x, y=mini_map_y
-                )
 
             # Update canvas dimensions and redraw
             self.canvas.update()
@@ -7272,8 +7071,14 @@ class BitmapEditorScene(Scene):
             self._handle_film_strip_drag_scroll(event.pos[1])
             return  # Don't process other drag events when dragging film strips
 
-        # Don't set drag flag here - let the pixel collection logic handle it
+        # Optimized: If dragging on canvas, skip expensive sprite collision detection
+        # The canvas already handles its own drag events efficiently
+        if hasattr(self, "canvas") and self.canvas.rect.collidepoint(event.pos):
+            # Directly call canvas drag handler - skip sprite iteration
+            self.canvas.on_left_mouse_drag_event(event, trigger)
+            return
 
+        # Only do expensive sprite iteration if not dragging on canvas
         self.canvas.on_left_mouse_drag_event(event, trigger)
 
         try:
@@ -7928,12 +7733,6 @@ class BitmapEditorScene(Scene):
         mock_event = MockEvent(tmp_path)
         self.canvas.on_load_file_event(mock_event)
 
-        # Ensure mini map is updated for animated sprites
-        if hasattr(self.canvas, "mini_view") and self.canvas.mini_view is not None:
-            self.canvas._update_mini_view_from_current_frame()
-            self.canvas.mini_view.dirty = 1
-            self.canvas.mini_view.force_redraw()
-
         # Animation will be started by on_load_file_event, no need to start here
         self.log.info("AI animated sprite loaded successfully")
 
@@ -7969,14 +7768,6 @@ class BitmapEditorScene(Scene):
         # Force canvas redraw to show the new sprite
         self.canvas.dirty = 1
         self.canvas.force_redraw()
-
-        # Update mini view to match the new canvas size
-        if hasattr(self.canvas, "mini_view") and self.canvas.mini_view is not None:
-            self.log.debug("Updating mini view for resized canvas")
-            self.canvas.mini_view.pixels = self.canvas.pixels.copy()
-            self.canvas.mini_view.dirty_pixels = [True] * len(self.canvas.pixels)
-            self.canvas.mini_view.dirty = 1
-            self.canvas.mini_view.force_redraw()
 
         # Also force a scene update to ensure everything is redrawn
         if hasattr(self, "all_sprites"):
@@ -9759,36 +9550,56 @@ pixels = \"\"\"
 
     def _submit_pixel_changes_if_ready(self) -> None:
         """Submit collected pixel changes if they're ready (single click or drag ended)."""
-        if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
-            if hasattr(self, "canvas_operation_tracker"):
-                pixel_count = len(self._current_pixel_changes)
+        # Convert dict to list format for submission (dict is used for efficient O(1) deduplication during drag)
+        pixel_changes_list = []
+        if hasattr(self, "_current_pixel_changes_dict") and self._current_pixel_changes_dict:
+            # Convert dict values to list format
+            pixel_changes_list = list(self._current_pixel_changes_dict.values())
+            # Clear the dict after conversion
+            self._current_pixel_changes_dict.clear()
+        elif hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
+            # Fallback to list if dict doesn't exist (backward compatibility)
+            pixel_changes_list = self._current_pixel_changes
+        
+        if pixel_changes_list and hasattr(self, "canvas_operation_tracker"):
+            pixel_count = len(pixel_changes_list)
 
-                # Get current frame information for frame-specific tracking
-                current_animation = None
-                current_frame = None
-                if hasattr(self, "canvas") and self.canvas:
-                    current_animation = getattr(self.canvas, "current_animation", None)
-                    current_frame = getattr(self.canvas, "current_frame", None)
+            # Get current frame information for frame-specific tracking
+            current_animation = None
+            current_frame = None
+            if hasattr(self, "canvas") and self.canvas:
+                current_animation = getattr(self.canvas, "current_animation", None)
+                current_frame = getattr(self.canvas, "current_frame", None)
 
 
-                # Use frame-specific tracking if we have frame information
-                if current_animation is not None and current_frame is not None:
-                    self.canvas_operation_tracker.add_frame_pixel_changes(
-                        current_animation, current_frame, self._current_pixel_changes
-                    )
-                    self.log.debug(f"Submitted {pixel_count} pixel changes for frame {current_animation}[{current_frame}] undo/redo tracking")
-                else:
-                    # Fall back to global tracking
-                    self.canvas_operation_tracker.add_pixel_changes(self._current_pixel_changes)
-                    self.log.debug(f"Submitted {pixel_count} pixel changes for global undo/redo tracking")
+            # Use frame-specific tracking if we have frame information
+            if current_animation is not None and current_frame is not None:
+                self.canvas_operation_tracker.add_frame_pixel_changes(
+                    current_animation, current_frame, pixel_changes_list
+                )
+                self.log.debug(f"Submitted {pixel_count} pixel changes for frame {current_animation}[{current_frame}] undo/redo tracking")
+            else:
+                # Fall back to global tracking
+                self.canvas_operation_tracker.add_pixel_changes(pixel_changes_list)
+                self.log.debug(f"Submitted {pixel_count} pixel changes for global undo/redo tracking")
 
-                self._current_pixel_changes = []  # Clear the collection
+            # Clear both collections after submission
+            if hasattr(self, "_current_pixel_changes"):
+                self._current_pixel_changes = []
+            if hasattr(self, "_current_pixel_changes_dict"):
+                self._current_pixel_changes_dict.clear()
 
     def _check_single_click_timer(self) -> None:
         """Check if we should submit a single click based on timer."""
-        if (hasattr(self, "_current_pixel_changes") and self._current_pixel_changes and
-            hasattr(self, "_pixel_change_timer") and self._pixel_change_timer and
-            len(self._current_pixel_changes) == 1):  # Only for single pixels
+        # Check dict first (new optimized path), then fallback to list
+        pixel_count = 0
+        if hasattr(self, "_current_pixel_changes_dict") and self._current_pixel_changes_dict:
+            pixel_count = len(self._current_pixel_changes_dict)
+        elif hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
+            pixel_count = len(self._current_pixel_changes)
+        
+        if (pixel_count == 1 and  # Only for single pixels
+            hasattr(self, "_pixel_change_timer") and self._pixel_change_timer):
 
             import time
             current_time = time.time()
@@ -11608,10 +11419,20 @@ pixels = \"\"\"
         print(f"DEBUG: Joystick hat motion: hat={event.hat}, value={event.value}")
 
         # Only respond to strong hat inputs (threshold > 0.5)
-        # Hat values: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
-        if abs(event.value) < 0.5:
-            print("DEBUG: Joystick hat motion below threshold, ignoring")
-            return
+        # Hat values can be either:
+        # - Integer bitmask: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
+        # - Tuple (x, y): (0,0)=center, (0,1)=up, (1,0)=right, (0,-1)=down, (-1,0)=left
+        if isinstance(event.value, tuple):
+            # For tuple, calculate magnitude
+            hat_magnitude = (event.value[0] ** 2 + event.value[1] ** 2) ** 0.5
+            if hat_magnitude < 0.5:
+                print("DEBUG: Joystick hat motion below threshold, ignoring")
+                return
+        else:
+            # For integer bitmask, use abs
+            if abs(event.value) < 0.5:
+                print("DEBUG: Joystick hat motion below threshold, ignoring")
+                return
 
         # Map hat directions to controller actions
         if event.value == 1:  # Up
@@ -12884,7 +12705,7 @@ def main() -> None:
 
     """
 
-    LOG.setLevel(logging.DEBUG)
+    LOG.setLevel(logging.INFO)
 
     # Set up signal handling to prevent multiprocessing issues on macOS
     def signal_handler(signum):

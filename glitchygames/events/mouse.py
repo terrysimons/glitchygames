@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+from glitchygames.events import MOUSE_EVENTS
 from glitchygames.events import MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
@@ -26,10 +27,10 @@ MOUSE_WHEEL_SCROLL_UP = 4
 MOUSE_WHEEL_SCROLL_DOWN = 5
 
 
-class MouseManager(ResourceManager):
+class MouseEventManager(ResourceManager):
     """Mouse manager event handler."""
 
-    class MouseProxy(MouseEvents, ResourceManager):
+    class MouseEventProxy(MouseEvents, ResourceManager):
         """Mouse manager event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -53,6 +54,10 @@ class MouseManager(ResourceManager):
             self.game = game
             self.proxies = [self.game, pygame.mouse]
 
+            # Diagnostics: counters for motion/drag while a button is held
+            self._motion_seq = 0
+            self._drag_seq = 0
+
         def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
             """Handle the mouse motion event.
 
@@ -64,6 +69,16 @@ class MouseManager(ResourceManager):
 
             """
             self.mouse_state[event.type] = event
+            # Diagnostics: sample motion rate and whether a DOWN is currently tracked
+            self._motion_seq += 1
+            try:
+                has_down = any(getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN for e in self.mouse_state.values())
+            except Exception:
+                has_down = False
+            # if self._motion_seq % 10 == 0:
+            #     self.log.info(
+            #         f"MOUSE PROXY: MOTION#{self._motion_seq} pos={getattr(event, 'pos', None)} rel={getattr(event, 'rel', None)} has_down={has_down}"
+            #     )
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
@@ -115,7 +130,10 @@ class MouseManager(ResourceManager):
                 None
 
             """
-            self.log.debug(f"{type(self)}: Mouse Drag: {event}")
+            self._drag_seq += 1
+            # self.log.info(
+            #     f"MOUSE PROXY: DRAG#{self._drag_seq} pos={getattr(event, 'pos', None)} trigger_button={getattr(trigger, 'button', None)}"
+            # )
             self.game.on_mouse_drag_event(event, trigger)
 
             # if self.focus_locked:
@@ -360,14 +378,22 @@ class MouseManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
-            self.game.on_mouse_button_up_event(event)
+            # Diagnostics
+            # self.log.info(
+            #     f"MOUSE PROXY: UP button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)}"
+            # )
 
+            # First dispatch to specific button handlers to allow widgets to react
             if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_up_event(event)
             if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_up_event(event)
             if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_up_event(event)
+
+            # Then dispatch the generic scene-level handler to keep symmetry
+            # with mouse down and ensure scene-wide focus/overlay bookkeeping runs
+            self.game.on_mouse_button_up_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
                 # This doesn't really make sense.
                 pass
@@ -393,6 +419,7 @@ class MouseManager(ResourceManager):
                 None
 
             """
+            self.mouse_state[event.button] = event
             self.game.on_left_mouse_button_up_event(event)
 
         def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -430,24 +457,36 @@ class MouseManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
+            # Reset diagnostics counters at the start of a hold
+            self._motion_seq = 0
+            self._drag_seq = 0
+            # Diagnostics
+            try:
+                state_keys = list(self.mouse_state.keys())
+            except Exception:
+                state_keys = []
+            # self.log.info(
+            #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            # )
 
             # Whatever was clicked on gets lock.
             # if self.current_focus:
             #     # TODO: Fix - Disabling for debugging.
             #     self.focus_locked = False
 
+            # Scene-first: let scene clear focus/overlays before per-sprite handlers
+            self.game.on_mouse_button_down_event(event)
+
             if event.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_button_down_event(event)
             if event.button == MOUSE_BUTTON_WHEEL:
                 self.on_middle_mouse_button_down_event(event)
-            if event.button == MOUSE_BUTTON_WHEEL:
+            if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_down_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
                 self.on_mouse_scroll_down_event(event)
             if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
-
-            self.game.on_mouse_button_down_event(event)
 
         def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
             """Handle the left mouse button down event.
@@ -459,6 +498,14 @@ class MouseManager(ResourceManager):
                 None
 
             """
+            try:
+                state_keys = list(self.mouse_state.keys())
+            except Exception:
+                state_keys = []
+            # self.log.info(
+            #     f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
+            #     f"pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            # )
             self.game.on_left_mouse_button_down_event(event)
 
         def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
@@ -532,7 +579,11 @@ class MouseManager(ResourceManager):
 
         """
         super().__init__(game=game)
-        self.proxies = [MouseManager.MouseProxy(game=game)]
+        try:
+            pygame.event.set_allowed(MOUSE_EVENTS)
+        except Exception:
+            pass
+        self.proxies = [MouseEventManager.MouseEventProxy(game=game)]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

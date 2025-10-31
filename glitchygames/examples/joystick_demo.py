@@ -18,8 +18,8 @@ import pygame._sdl2.controller
 import glitchygames
 from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, WHITE, YELLOW
 from glitchygames.engine import GameEngine
-from glitchygames.events.joystick import JoystickManager
-from glitchygames.events.controller import ControllerManager
+from glitchygames.events.joystick import JoystickEventManager
+from glitchygames.events.controller import ControllerEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.ui import TabControlSprite
 from glitchygames.scenes import Scene
@@ -270,7 +270,7 @@ class TextSprite(Sprite):
         self.rect.x += x
         self.rect.y += y
         # Create a joystick manager for this demo, connected to the scene for events
-        self.joystick_manager = JoystickManager(game=game)
+        self.joystick_manager = JoystickEventManager(game=game)
 
         # Use the game engine's controller manager instead of creating a new one
         # This ensures we get hotplug events from the engine
@@ -278,7 +278,7 @@ class TextSprite(Sprite):
             self.controller_manager = game.controller_manager
         else:
             # Fallback: create our own if the game doesn't have one
-            self.controller_manager = ControllerManager(game=game)
+            self.controller_manager = ControllerEventManager(game=game)
         self.joystick_count = len(self.joystick_manager.joysticks)
 
         # Track previous button states to detect changes
@@ -760,7 +760,7 @@ class JoystickScene(Scene):
                         if controller_id not in devices:
                             try:
                                 if pygame._sdl2.controller.is_controller(controller_id):
-                                    controller_proxy = ControllerManager.ControllerProxy(
+                                    controller_proxy = ControllerEventManager.ControllerEventProxy(
                                         controller_id=controller_id, game=device_manager.game
                                     )
                                     devices[controller_id] = controller_proxy
