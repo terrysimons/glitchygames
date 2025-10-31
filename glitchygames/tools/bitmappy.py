@@ -3046,7 +3046,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             if hasattr(self, "mini_view") and self.mini_view is not None:
                 self.mini_view.on_pixel_update_event(event, self)
         else:
-            self.log.info(
+            self.log.debug(
                 f"AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}"
             )
 
