@@ -1534,6 +1534,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 "frame": animation_frames,
             }
             data["animation"].append(animation_entry)
+            # Debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Serializing animation '{anim_name}' with {len(frames)} frames")
 
         return data
 

@@ -515,3 +515,243 @@ class SaveDialogScene(InputConfirmationDialogScene):
         # Pass the path as string to maintain compatibility
         self.previous_scene.canvas.on_save_file_event(str(save_path))
         self.dismiss()
+
+
+class DeleteAnimationDialogScene(Scene):
+    """Delete Animation Confirmation Dialog - requires typing exact name."""
+
+    log = LOG
+    NAME = "DeleteAnimationDialog"
+
+    def __init__(
+        self,
+        previous_scene: Scene,
+        animation_name: str,
+        on_confirm_callback,
+        on_cancel_callback=None,
+        options: dict | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ):
+        """Initialize the Delete Animation Dialog Scene.
+
+        Args:
+            previous_scene: The previous scene to return to
+            animation_name: The name of the animation to delete
+            on_confirm_callback: Function to call when user confirms
+            on_cancel_callback: Function to call when user cancels (optional)
+            options: Options for the scene
+            groups: Sprite groups
+        """
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
+        super().__init__(options=options, groups=groups)
+        self.previous_scene = previous_scene
+        self.animation_name = animation_name
+        self.on_confirm_callback = on_confirm_callback
+        self.on_cancel_callback = on_cancel_callback
+
+        # Create dialog
+        dialog_width = 500
+        dialog_height = 200
+
+        message = f"Type '{animation_name}' to confirm deletion:"
+
+        self.dialog = InputDialog(
+            name=self.NAME,
+            dialog_text=message,
+            confirm_text="Delete",
+            cancel_text="Cancel",
+            x=self.screen.get_rect().center[0] - (dialog_width // 2),
+            y=self.screen.get_rect().center[1] - (dialog_height // 2),
+            width=dialog_width,
+            height=dialog_height,
+            parent=self,
+            groups=self.all_sprites,
+        )
+        self.dialog.dialog_text_sprite.text_box.text = message
+        self.dialog.dialog_text_sprite.border_width = 0
+
+    def setup(self):
+        """Set up the scene."""
+        self.dialog.cancel_button.callbacks = {
+            "on_left_mouse_button_up_event": self.on_cancel_event
+        }
+        self.dialog.confirm_button.callbacks = {
+            "on_left_mouse_button_up_event": self.on_confirm_event
+        }
+        self.dialog.add(self.all_sprites)
+        # Activate input box so user can start typing immediately
+        self.dialog.input_box.activate()
+
+    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None):
+        """Handle confirm button click."""
+        # Get the typed text
+        typed_text = self.dialog.input_box.text.strip()
+
+        # Validate that the typed text matches the animation name
+        if typed_text == self.animation_name:
+            LOG.info(f"DeleteAnimationDialog: User confirmed deletion of '{self.animation_name}'")
+            # Call the callback if provided
+            if self.on_confirm_callback:
+                self.on_confirm_callback()
+            # Return to previous scene
+            self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+        else:
+            LOG.warning(f"DeleteAnimationDialog: Typed name '{typed_text}' does not match '{self.animation_name}'")
+            # Could show an error message here, but for now just do nothing
+            # Clear the input box to let user try again
+            self.dialog.input_box.text = ""
+
+    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None):
+        """Handle cancel button click."""
+        LOG.info("DeleteAnimationDialog: User cancelled")
+        # Call the cancel callback if provided
+        if self.on_cancel_callback:
+            self.on_cancel_callback()
+        # Return to previous scene
+        self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+
+    def on_key_down_event(self, event: pygame.event.Event) -> None:
+        """Handle the key down event."""
+        if self.dialog.input_box.active:
+            self.dialog.on_key_down_event(event)
+        else:
+            super().on_key_down_event(event)
+
+    def on_key_up_event(self, event: pygame.event.Event) -> None:
+        """Handle the key up event."""
+        if self.dialog.input_box.active:
+            self.dialog.on_key_up_event(event)
+        elif event.key == pygame.K_TAB:
+            self.dialog.input_box.activate()
+        else:
+            super().on_key_up_event(event)
+
+
+class DeleteFrameDialogScene(Scene):
+    """Delete Frame Confirmation Dialog - requires typing 'YES'."""
+
+    log = LOG
+    NAME = "DeleteFrameDialog"
+
+    def __init__(
+        self,
+        previous_scene: Scene,
+        animation_name: str,
+        frame_index: int,
+        on_confirm_callback,
+        on_cancel_callback=None,
+        options: dict | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ):
+        """Initialize the Delete Frame Dialog Scene.
+
+        Args:
+            previous_scene: The previous scene to return to
+            animation_name: The name of the animation containing the frame
+            frame_index: The index of the frame to delete
+            on_confirm_callback: Function to call when user confirms
+            on_cancel_callback: Function to call when user cancels (optional)
+            options: Options for the scene
+            groups: Sprite groups
+        """
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+
+        super().__init__(options=options, groups=groups)
+        self.previous_scene = previous_scene
+        self.animation_name = animation_name
+        self.frame_index = frame_index
+        self.on_confirm_callback = on_confirm_callback
+        self.on_cancel_callback = on_cancel_callback
+
+        # Create dialog
+        dialog_width = 500
+        dialog_height = 200
+
+        message1 = f"Delete this frame from '{animation_name}'?"
+        message2 = "Type 'YES' to confirm:"
+
+        self.dialog = InputDialog(
+            name=self.NAME,
+            dialog_text=message1,
+            confirm_text="Delete",
+            cancel_text="Cancel",
+            x=self.screen.get_rect().center[0] - (dialog_width // 2),
+            y=self.screen.get_rect().center[1] - (dialog_height // 2),
+            width=dialog_width,
+            height=dialog_height,
+            parent=self,
+            groups=self.all_sprites,
+        )
+        self.dialog.dialog_text_sprite.text_box.text = message1
+        self.dialog.dialog_text_sprite.border_width = 0
+
+        # Add second label for the confirmation prompt
+        from glitchygames.ui import TextSprite
+        self.second_label = TextSprite(
+            text=message2,
+            x=self.dialog.dialog_text_sprite.rect.x,
+            y=self.dialog.dialog_text_sprite.rect.y + 30,  # Position below first label
+            width=self.dialog.dialog_text_sprite.rect.width,
+            height=20,
+            groups=self.all_sprites
+        )
+        self.second_label.border_width = 0
+        self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
+
+    def setup(self):
+        """Set up the scene."""
+        self.dialog.cancel_button.callbacks = {
+            "on_left_mouse_button_up_event": self.on_cancel_event
+        }
+        self.dialog.confirm_button.callbacks = {
+            "on_left_mouse_button_up_event": self.on_confirm_event
+        }
+        self.dialog.add(self.all_sprites)
+        # Activate input box so user can start typing immediately
+        self.dialog.input_box.activate()
+
+    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None):
+        """Handle confirm button click."""
+        # Get the typed text
+        typed_text = self.dialog.input_box.text.strip()
+
+        # Validate that the typed text is "YES"
+        if typed_text == "YES":
+            LOG.info(f"DeleteFrameDialog: User confirmed deletion of frame {self.frame_index} from '{self.animation_name}'")
+            # Call the callback if provided
+            if self.on_confirm_callback:
+                self.on_confirm_callback()
+            # Return to previous scene
+            self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+        else:
+            LOG.warning(f"DeleteFrameDialog: Typed text '{typed_text}' does not match 'YES'")
+            # Clear the input box to let user try again
+            self.dialog.input_box.text = ""
+
+    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None):
+        """Handle cancel button click."""
+        LOG.info("DeleteFrameDialog: User cancelled")
+        # Call the cancel callback if provided
+        if self.on_cancel_callback:
+            self.on_cancel_callback()
+        # Return to previous scene
+        self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+
+    def on_key_down_event(self, event: pygame.event.Event) -> None:
+        """Handle the key down event."""
+        if self.dialog.input_box.active:
+            self.dialog.on_key_down_event(event)
+        else:
+            super().on_key_down_event(event)
+
+    def on_key_up_event(self, event: pygame.event.Event) -> None:
+        """Handle the key up event."""
+        if self.dialog.input_box.active:
+            self.dialog.on_key_up_event(event)
+        elif event.key == pygame.K_TAB:
+            self.dialog.input_box.activate()
+        else:
+            super().on_key_up_event(event)

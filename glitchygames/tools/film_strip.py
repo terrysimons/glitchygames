@@ -88,6 +88,8 @@ class FilmStripWidget:
         self.editing_animation: str | None = None  # Animation name being edited (None = not editing)
         self.editing_text: str = ""  # Text buffer for editing
         self.original_animation_name: str | None = None  # Original name before editing started
+        self.cursor_blink_time: int = 0  # Last time cursor blink toggled
+        self.cursor_visible: bool = True  # Whether cursor is currently visible
 
         # Color cycling state
         self.background_color_index = 2  # Start with gray instead of cyan
@@ -773,7 +775,7 @@ class FilmStripWidget:
         available_width = self.rect.width - self.preview_width - self.preview_padding
         # Add top margin for delete button
         top_margin = 20  # Space for the [-] delete button at the top
-        y_offset = top_margin - 3  # Move labels up 3 pixels to keep them visible
+        y_offset = top_margin - 9  # Move labels up to align with film strip area
 
         # Calculate the center position between sprocket groups
         # Left group ends at x=61, right group starts at preview_start_x + 10
@@ -1055,6 +1057,9 @@ class FilmStripWidget:
             self.editing_animation = clicked_animation
             self.editing_text = ""  # Start with blank buffer
             self.original_animation_name = clicked_animation
+            # Initialize cursor blink state
+            self.cursor_blink_time = pygame.time.get_ticks()
+            self.cursor_visible = True
             LOG.debug(f"FilmStripWidget: Entered edit mode for animation '{clicked_animation}'")
             self.mark_dirty()  # Force redraw to show edit state
             # Don't change frame selection when entering edit mode
@@ -1178,14 +1183,20 @@ class FilmStripWidget:
         if hasattr(event, 'key') and event.key == pygame.K_BACKSPACE:
             if self.editing_text:
                 self.editing_text = self.editing_text[:-1]
+                # Reset cursor blink to show cursor after typing
+                self.cursor_blink_time = pygame.time.get_ticks()
+                self.cursor_visible = True
                 self.mark_dirty()
                 return True
-        
+
         # Handle printable characters
         if hasattr(event, 'unicode') and event.unicode and event.unicode.isprintable():
             # Limit length to prevent overflow
             if len(self.editing_text) < 50:  # Reasonable limit
                 self.editing_text += event.unicode
+                # Reset cursor blink to show cursor after typing
+                self.cursor_blink_time = pygame.time.get_ticks()
+                self.cursor_visible = True
                 self.mark_dirty()
                 return True
         
@@ -1617,16 +1628,52 @@ class FilmStripWidget:
 
             # Check if this animation is being edited
             if self.editing_animation == anim_name:
-                # Show editing text (or underscore if buffer is empty)
-                display_text = self.editing_text or "_"
+                # Update cursor blink state
+                current_time = pygame.time.get_ticks()
+                if current_time - self.cursor_blink_time > 530:  # Blink every 530ms
+                    self.cursor_visible = not self.cursor_visible
+                    self.cursor_blink_time = current_time
+
+                # Show editing text
+                display_text = self.editing_text
                 font = FontManager.get_font()
-                text = font.render(display_text, fgcolor=(200, 220, 255), size=12)  # Light blue for editing
-                if isinstance(text, tuple):  # freetype returns (surface, rect)
-                    text, text_rect = text
-                else:  # pygame.font returns surface
-                    text_rect = text.get_rect()
-                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
-                label_surface.blit(text, text_rect)
+                text_color = (200, 220, 255)  # Light blue for editing
+
+                if display_text:
+                    text = font.render(display_text, fgcolor=text_color, size=12)
+                    if isinstance(text, tuple):  # freetype returns (surface, rect)
+                        text, text_rect = text
+                    else:  # pygame.font returns surface
+                        text_rect = text.get_rect()
+                    text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
+                    label_surface.blit(text, text_rect)
+
+                    # Draw blinking I-beam cursor after the text
+                    if self.cursor_visible:
+                        cursor_x = text_rect.right + 2
+                        cursor_y = text_rect.centery
+                        cursor_height = 12
+                        pygame.draw.line(
+                            label_surface,
+                            text_color,
+                            (cursor_x, cursor_y - cursor_height // 2),
+                            (cursor_x, cursor_y + cursor_height // 2),
+                            2
+                        )
+                else:
+                    # No text yet - show blinking cursor at center
+                    if self.cursor_visible:
+                        cursor_x = anim_rect.width // 2
+                        cursor_y = anim_rect.height // 2
+                        cursor_height = 12
+                        pygame.draw.line(
+                            label_surface,
+                            text_color,
+                            (cursor_x, cursor_y - cursor_height // 2),
+                            (cursor_x, cursor_y + cursor_height // 2),
+                            2
+                        )
+
                 # Add edit mode highlight - subtle cyan border
                 pygame.draw.rect(
                     label_surface, (100, 180, 220), (0, 0, anim_rect.width, anim_rect.height), 2
@@ -2288,6 +2335,12 @@ class FilmStripWidget:
                 hovered_any = True
         return hovered_any
 
+    def reset_all_tab_states(self) -> None:
+        """Reset click and hover states for all tabs."""
+        for tab in self.film_tabs:
+            tab.reset_click_state()
+            tab.is_hovered = False
+
     def _insert_frame_at_tab(self, tab: "FilmTabWidget") -> None:
         """Insert a new frame at the position specified by the tab.
 
@@ -2395,13 +2448,13 @@ class FilmStripWidget:
 
         """
         LOG.debug(f"FilmStripWidget: Checking removal button click at {pos}")
-        
+
         if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             LOG.debug("FilmStripWidget: No removal button layouts found")
             return False
 
         LOG.debug(f"FilmStripWidget: Checking {len(self.removal_button_layouts)} removal buttons")
-        
+
         for (anim_name, frame_idx), button_rect in self.removal_button_layouts.items():
             LOG.debug(f"FilmStripWidget: Checking button {anim_name}[{frame_idx}] at {button_rect}")
             if button_rect.collidepoint(pos):
@@ -2411,7 +2464,9 @@ class FilmStripWidget:
                     anim_name in self.animated_sprite._animations and
                     frame_idx < len(self.animated_sprite._animations[anim_name])):
                     LOG.debug(f"FilmStripWidget: Removal button clicked for {anim_name}[{frame_idx}]")
-                    self._remove_frame(anim_name, frame_idx)
+                    # Show confirmation dialog instead of directly removing
+                    if hasattr(self, "parent_scene") and self.parent_scene:
+                        self.parent_scene._show_delete_frame_confirmation(anim_name, frame_idx)
                     return True
                 LOG.debug(f"FilmStripWidget: Cannot remove frame - index {frame_idx} out of range")
                 return False

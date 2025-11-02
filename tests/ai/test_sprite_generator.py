@@ -3,9 +3,11 @@
 import pytest
 
 from glitchygames.ai.sprite_generator import (
+    build_refinement_messages,
     build_sprite_generation_messages,
     clean_ai_response,
     detect_animation_request,
+    detect_refinement_request,
     format_training_example,
     get_sprite_size_hint,
     validate_ai_response,
@@ -427,3 +429,154 @@ class TestAnimationDetection:
         assert detect_animation_request("animation")
         assert detect_animation_request("running")
         assert detect_animation_request("jumping")
+
+
+class TestRefinementDetection:
+    """Tests for detect_refinement_request."""
+
+    def test_refinement_keywords(self):
+        """Test detection of refinement keywords."""
+        assert detect_refinement_request("Make it bigger")
+        assert detect_refinement_request("Change the color to blue")
+        assert detect_refinement_request("Add more details")
+        assert detect_refinement_request("Use less red")
+        assert detect_refinement_request("Make it brighter")
+
+    def test_non_refinement_request(self):
+        """Test that non-refinement requests don't trigger detection."""
+        assert not detect_refinement_request("Create a red square")
+        assert not detect_refinement_request("Generate a dragon")
+        assert not detect_refinement_request("32x32 sprite")
+
+    def test_case_insensitive(self):
+        """Test that detection is case insensitive."""
+        assert detect_refinement_request("MAKE IT BIGGER")
+        assert detect_refinement_request("Change Color")
+        assert detect_refinement_request("more Details")
+
+
+class TestRefinementMessages:
+    """Tests for build_refinement_messages."""
+
+    def test_basic_refinement_message(self):
+        """Test basic refinement message structure."""
+        last_sprite = '[sprite]\nname = "test"\npixels = "X"'
+        messages = build_refinement_messages(
+            user_request="Make it bigger",
+            last_sprite_content=last_sprite
+        )
+
+        assert len(messages) == 4
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert messages[2]["role"] == "assistant"
+        assert messages[3]["role"] == "user"
+
+        # Check that last sprite is included in context
+        assert last_sprite in messages[3]["content"]
+        assert "Make it bigger" in messages[3]["content"]
+
+    def test_with_conversation_history(self):
+        """Test refinement with existing conversation history."""
+        last_sprite = '[sprite]\nname = "test"\npixels = "X"'
+        history = [
+            {"role": "user", "content": "Create a red square"},
+            {"role": "assistant", "content": last_sprite}
+        ]
+
+        messages = build_refinement_messages(
+            user_request="Make it blue",
+            last_sprite_content=last_sprite,
+            conversation_history=history
+        )
+
+        # Should have system, format, confirmation, history (2), and new request
+        assert len(messages) == 6
+        assert messages[3]["role"] == "user"
+        assert messages[3]["content"] == "Create a red square"
+        assert messages[4]["role"] == "assistant"
+        assert messages[4]["content"] == last_sprite
+
+    def test_size_hint_in_refinement(self):
+        """Test that refinement requests include the user's size request."""
+        last_sprite = '[sprite]\nname = "test"\npixels = "X"'
+        messages = build_refinement_messages(
+            user_request="Make it 32x32",
+            last_sprite_content=last_sprite,
+            include_size_hint=True
+        )
+
+        last_message = messages[-1]["content"]
+        # Should include user's request (which mentions size)
+        assert "32x32" in last_message
+        assert last_sprite in last_message
+
+    def test_animation_hint_in_refinement(self):
+        """Test that refinement requests include the user's animation request."""
+        last_sprite = '[sprite]\nname = "test"\npixels = "X"'
+        messages = build_refinement_messages(
+            user_request="Make it animated with 2 frames",
+            last_sprite_content=last_sprite,
+            include_animation_hint=True
+        )
+
+        last_message = messages[-1]["content"]
+        # Should include user's request (which mentions animation)
+        assert "animated with 2 frames" in last_message
+        assert last_sprite in last_message
+
+    def test_preserves_all_frames_in_animated_refinement(self):
+        """Test that animated sprite refinements include the full sprite content."""
+        # Create a multi-frame animated sprite
+        last_sprite = '''[sprite]
+name = "test"
+
+[[animation]]
+namespace = "jump"
+
+[[animation.frame]]
+namespace = "jump"
+frame_index = 0
+pixels = "A"
+
+[[animation.frame]]
+namespace = "jump"
+frame_index = 1
+pixels = "B"
+
+[[animation.frame]]
+namespace = "jump"
+frame_index = 2
+pixels = "C"
+
+[colors."A"]
+red = 255
+'''
+        messages = build_refinement_messages(
+            user_request="Make it red",
+            last_sprite_content=last_sprite
+        )
+
+        last_message = messages[-1]["content"]
+        # Should include the full sprite content (with all frames)
+        assert "[[animation.frame]]" in last_message
+        assert "frame_index = 0" in last_message
+        assert "frame_index = 1" in last_message
+        assert "frame_index = 2" in last_message
+        # Should include user's request
+        assert "Make it red" in last_message
+
+    def test_static_to_animated_conversion_hint(self):
+        """Test that refinement requests include sprite content and user request."""
+        last_sprite = '[sprite]\nname = "test"\npixels = "X"\n\n[colors."X"]\nred = 255'
+        messages = build_refinement_messages(
+            user_request="Make it animated with 2 frames",
+            last_sprite_content=last_sprite,
+            include_animation_hint=True
+        )
+
+        last_message = messages[-1]["content"]
+        # Should include the full sprite content
+        assert last_sprite in last_message
+        # Should include user's request
+        assert "Make it animated with 2 frames" in last_message

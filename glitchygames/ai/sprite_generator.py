@@ -473,3 +473,94 @@ def detect_animation_request(request: str) -> bool:
     ]
 
     return any(keyword in request_lower for keyword in animation_keywords)
+
+
+def detect_refinement_request(request: str) -> bool:
+    """Detect if user is requesting a refinement of a previous sprite.
+
+    Args:
+        request: User's sprite generation request
+
+    Returns:
+        True if refinement keywords detected
+    """
+    request_lower = request.lower()
+
+    refinement_keywords = [
+        "make it", "change", "modify", "update", "adjust",
+        "more", "less", "bigger", "smaller", "larger", "wider", "taller",
+        "brighter", "darker", "lighter",
+        "add", "remove", "replace",
+        "different", "another", "new color",
+        # Possessive pronouns indicating existing sprite
+        "make his", "make her", "make their", "make its",
+        "give him", "give her", "give it", "give them",
+        "turn it", "turn the", "turn his", "turn her",
+        # Direct references to "the sprite" or specific parts
+        "make the", "change the", "update the",
+    ]
+
+    return any(keyword in request_lower for keyword in refinement_keywords)
+
+
+def build_refinement_messages(
+    user_request: str,
+    last_sprite_content: str,
+    conversation_history: list[dict[str, str]] | None = None,
+    *,
+    include_size_hint: bool = True,
+    include_animation_hint: bool = True
+) -> list[dict[str, str]]:
+    """Build message conversation for sprite refinement.
+
+    Args:
+        user_request: User's refinement request (e.g., "make it bigger")
+        last_sprite_content: The last successfully generated sprite TOML
+        conversation_history: Previous conversation messages (optional)
+        include_size_hint: If True, detect and emphasize size hints
+        include_animation_hint: If True, detect and emphasize animation hints
+
+    Returns:
+        List of message dicts for AI API
+    """
+    # Start with base system message and format spec
+    messages = [
+        {
+            "role": "system",
+            "content": SpriteGenerationPrompt.SYSTEM_MESSAGE
+        },
+        {
+            "role": "user",
+            "content": SpriteGenerationPrompt.FORMAT_SPEC
+        },
+        {
+            "role": "assistant",
+            "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION
+        }
+    ]
+
+    # Add conversation history if available
+    if conversation_history:
+        messages.extend(conversation_history)
+
+    # Add the previous sprite as context with explicit preservation instructions
+    refinement_context = (
+        f"Here is the current sprite:\n\n"
+        f"```toml\n{last_sprite_content}\n```\n\n"
+        f"User's request: {user_request}\n\n"
+        f"CRITICAL INSTRUCTIONS:\n"
+        f"1. Return the EXACT same sprite structure with ONLY the changes requested\n"
+        f"2. Preserve ALL animation namespaces (film strip labels) that exist\n"
+        f"3. Preserve the EXACT number of frames in each animation UNLESS the user explicitly asks to add/remove frames\n"
+        f"4. Preserve ALL [[animation]] and [[animation.frame]] sections\n"
+        f"5. Only modify what the user specifically requested (e.g., if they say 'make it red', only change colors)\n"
+        f"6. If the user asks to add frames, add them. If they ask to remove frames, remove them. Otherwise, keep the same count.\n\n"
+        f"Return ONLY the complete updated sprite in TOML format."
+    )
+
+    messages.append({
+        "role": "user",
+        "content": refinement_context
+    })
+
+    return messages

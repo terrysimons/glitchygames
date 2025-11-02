@@ -5,6 +5,7 @@ This module provides AI-based sprite generation and related functionality.
 
 from glitchygames.ai.sprite_generator import (
     SpriteGenerationPrompt,
+    build_refinement_messages,
     build_sprite_generation_messages,
     clean_ai_response,
     detect_animation_request,
@@ -15,6 +16,7 @@ from glitchygames.ai.sprite_generator import (
 
 __all__ = [
     "SpriteGenerationPrompt",
+    "build_refinement_messages",
     "build_sprite_generation_messages",
     "clean_ai_response",
     "detect_animation_request",

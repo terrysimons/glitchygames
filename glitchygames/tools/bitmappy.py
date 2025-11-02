@@ -41,6 +41,7 @@ except ImportError:
 
 from glitchygames import events
 from glitchygames.ai import (
+    build_refinement_messages,
     build_sprite_generation_messages,
     clean_ai_response as ai_clean_response,
     get_sprite_size_hint,
@@ -826,6 +827,8 @@ class AIRequestState:
     retry_count: int = 0
     last_error: str | None = None
     training_examples: list | None = None
+    conversation_history: list[dict[str, str]] | None = None  # For multi-turn refinement
+    last_sprite_content: str | None = None  # Last successfully generated sprite
 
 
 def _setup_ai_worker_logging() -> logging.Logger:
@@ -5160,11 +5163,12 @@ class BitmapEditorScene(Scene):
                 self.canvas.dirty = 1
                 self.canvas.force_redraw()
 
-    def _delete_animation(self, animation_name: str):
+    def _delete_animation(self, animation_name: str, confirmed: bool = False):
         """Delete an animation (film strip).
 
         Args:
             animation_name: The name of the animation to delete
+            confirmed: If True, skip confirmation dialog and delete immediately
 
         """
         if not hasattr(self, "canvas") or not self.canvas or not hasattr(self.canvas, "animated_sprite"):
@@ -5174,6 +5178,11 @@ class BitmapEditorScene(Scene):
         animations = list(self.canvas.animated_sprite._animations.keys())
         if len(animations) <= 1:
             self.log.warning("Cannot delete the last remaining animation")
+            return
+
+        # Show confirmation dialog unless already confirmed
+        if not confirmed:
+            self._show_delete_animation_confirmation(animation_name)
             return
 
         # Remove the animation from the sprite
@@ -5273,6 +5282,90 @@ class BitmapEditorScene(Scene):
                 self._update_scroll_arrows()
 
                 self.log.info(f"Switched to remaining animation: {new_animation}, deleted_index: {deleted_index}, scroll_offset: {self.film_strip_scroll_offset}")
+
+    def _show_delete_animation_confirmation(self, animation_name: str):
+        """Show confirmation dialog before deleting an animation.
+
+        Args:
+            animation_name: Name of the animation to potentially delete
+        """
+        self.log.info(f"Showing delete confirmation dialog for animation: {animation_name}")
+
+        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+
+        # Create confirmation callback that deletes the animation
+        def on_confirm():
+            self.log.info(f"User confirmed deletion of animation: {animation_name}")
+            self._delete_animation(animation_name, confirmed=True)
+
+        # Create cancel callback that resets tab states
+        def on_cancel():
+            self.log.info(f"User cancelled deletion of animation: {animation_name}")
+            # Reset all film strip tab states to unhighlight the delete button
+            if hasattr(self, "film_strip_sprites"):
+                for anim_name, film_strip_sprite in self.film_strip_sprites.items():
+                    if hasattr(film_strip_sprite, "film_strip_widget"):
+                        film_strip_sprite.film_strip_widget.reset_all_tab_states()
+                        film_strip_sprite.dirty = 1  # Force redraw
+
+        # Create the confirmation dialog scene
+        confirmation_scene = DeleteAnimationDialogScene(
+            previous_scene=self,
+            animation_name=animation_name,
+            on_confirm_callback=on_confirm,
+            on_cancel_callback=on_cancel
+        )
+
+        # Set the dialog's background to the screenshot
+        confirmation_scene.background = self.screenshot
+
+        # Switch to the confirmation dialog scene
+        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)
+
+    def _show_delete_frame_confirmation(self, animation_name: str, frame_index: int):
+        """Show confirmation dialog before deleting a frame.
+
+        Args:
+            animation_name: Name of the animation containing the frame
+            frame_index: Index of the frame to potentially delete
+        """
+        self.log.info(f"Showing delete frame confirmation dialog for {animation_name}[{frame_index}]")
+
+        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+
+        # Create confirmation callback that deletes the frame
+        def on_confirm():
+            self.log.info(f"User confirmed deletion of frame {frame_index} from animation: {animation_name}")
+            # Find the film strip widget for this animation and call its _remove_frame method
+            if hasattr(self, "film_strip_sprites") and animation_name in self.film_strip_sprites:
+                film_strip_sprite = self.film_strip_sprites[animation_name]
+                if hasattr(film_strip_sprite, "film_strip_widget"):
+                    film_strip_sprite.film_strip_widget._remove_frame(animation_name, frame_index)
+
+        # Create cancel callback that resets removal button highlight
+        def on_cancel():
+            self.log.info(f"User cancelled deletion of frame {frame_index} from animation: {animation_name}")
+            # Reset the removal button highlight by clearing hover state
+            if hasattr(self, "film_strip_sprites") and animation_name in self.film_strip_sprites:
+                film_strip_sprite = self.film_strip_sprites[animation_name]
+                if hasattr(film_strip_sprite, "film_strip_widget"):
+                    film_strip_sprite.film_strip_widget.hovered_removal_button = None
+                    film_strip_sprite.dirty = 1  # Force redraw
+
+        # Create the confirmation dialog scene
+        confirmation_scene = DeleteFrameDialogScene(
+            previous_scene=self,
+            animation_name=animation_name,
+            frame_index=frame_index,
+            on_confirm_callback=on_confirm,
+            on_cancel_callback=on_cancel
+        )
+
+        # Set the dialog's background to the screenshot
+        confirmation_scene.background = self.screenshot
+
+        # Switch to the confirmation dialog scene
+        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)
 
     @staticmethod
     def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict) -> None:
@@ -7980,14 +8073,69 @@ class BitmapEditorScene(Scene):
             relevant_examples = _select_relevant_training_examples(text)
             self.log.info(f"Frame is empty, using {len(relevant_examples)} regular examples")
 
-        # Use new AI module for optimized message building
-        messages = build_sprite_generation_messages(
-            user_request=text.strip(),
-            training_examples=relevant_examples,
-            max_examples=3,
-            include_size_hint=True,
-            include_animation_hint=True
-        )
+        # Check if this is a refinement request (user wants to modify the current/last sprite)
+        is_refinement = False
+        last_sprite_content = None
+        conversation_history = None
+
+        # Always serialize current sprite if one is loaded (for refinement)
+        # The user's prompt will determine what to do with it
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
+            try:
+                import tempfile
+                import os
+
+                # Save current sprite to temp file
+                temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_refinement_")
+                os.close(temp_fd)
+
+                self.canvas.animated_sprite.save(temp_path, DEFAULT_FILE_FORMAT)
+
+                # Read the serialized content
+                with open(temp_path, 'r', encoding='utf-8') as f:
+                    last_sprite_content = f.read()
+
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+
+                is_refinement = True
+                # Get conversation history if available (only exists for AI-generated sprites)
+                if hasattr(self, "last_conversation_history"):
+                    conversation_history = self.last_conversation_history
+
+                # Debug: Count animations and frames
+                anim_count = last_sprite_content.count("[[animation]]")
+                frame_count = last_sprite_content.count("[[animation.frame]]")
+                self.log.info(f"Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars, {anim_count} animations, {frame_count} frames)")
+
+                # Debug: Log first 500 chars to verify structure
+                self.log.debug(f"Serialized sprite preview:\n{last_sprite_content[:500]}")
+            except Exception as e:
+                self.log.error(f"Failed to serialize sprite: {e}")
+                self.log.warning("Will use standard generation mode instead")
+
+        # Build messages based on request type
+        if is_refinement and last_sprite_content:
+            # Use refinement message building with conversation history
+            messages = build_refinement_messages(
+                user_request=text.strip(),
+                last_sprite_content=last_sprite_content,
+                conversation_history=conversation_history,
+                include_size_hint=True,
+                include_animation_hint=True
+            )
+        else:
+            # Standard sprite generation with training examples
+            messages = build_sprite_generation_messages(
+                user_request=text.strip(),
+                training_examples=relevant_examples,
+                max_examples=3,
+                include_size_hint=True,
+                include_animation_hint=True
+            )
 
         try:
             # Create unique request ID
@@ -7999,11 +8147,13 @@ class BitmapEditorScene(Scene):
 
             self.ai_request_queue.put(request)
 
-            # Store request state with training examples for potential retries
+            # Store request state with training examples and conversation for potential retries
             self.pending_ai_requests[request_id] = AIRequestState(
                 original_prompt=text,
                 retry_count=0,
-                training_examples=relevant_examples
+                training_examples=relevant_examples,
+                conversation_history=conversation_history,
+                last_sprite_content=last_sprite_content
             )
 
             # Update UI to show pending state
@@ -8024,6 +8174,10 @@ class BitmapEditorScene(Scene):
         self.ai_request_queue = None
         self.ai_response_queue = None
         self.ai_process = None
+
+        # Initialize conversation tracking for multi-turn refinement
+        self.last_successful_sprite_content = None
+        self.last_conversation_history = None
 
         # Check if we're in the main process
         if multiprocessing.current_process().name == "MainProcess":
@@ -8136,7 +8290,10 @@ class BitmapEditorScene(Scene):
 
     def _log_ai_response_content(self, content: str) -> None:
         """Log AI response content for debugging."""
-        self.log.info(f"AI response received, content length: {len(content)}")
+        # Count animations and frames in response
+        anim_count = content.count("[[animation]]")
+        frame_count = content.count("[[animation.frame]]")
+        self.log.info(f"AI response received, content length: {len(content)}, {anim_count} animations, {frame_count} frames")
 
         # Debug: Dump the sprite content
         self.log.info("=== AI GENERATED SPRITE CONTENT ===")
@@ -8452,7 +8609,9 @@ class BitmapEditorScene(Scene):
 
             # Copy the animation data
             new_sprite._animations = {current_animation: current_frames}
-            new_sprite.current_animation = current_animation
+            # Set the animation order to only include this animation
+            new_sprite._animation_order = [current_animation]
+            # The sprite will automatically play the first (and only) animation
 
             # Create temporary file
             temp_fd, temp_path = tempfile.mkstemp(suffix=".toml", prefix="bitmappy_strip_")
@@ -8808,6 +8967,34 @@ pixels = \"\"\"
             if original_prompt and hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite:
                 self.canvas.animated_sprite.description = original_prompt
                 self.log.info(f"Updated sprite description with generation prompt: '{original_prompt}'")
+
+            # Save successful sprite content for future refinements
+            self.last_successful_sprite_content = cleaned_content
+            self.log.info("Saved sprite content for potential refinement requests")
+
+            # Update conversation history for multi-turn refinement
+            if request_id in self.pending_ai_requests:
+                request_state = self.pending_ai_requests[request_id]
+                # Build conversation history: previous history + new user request + assistant response
+                new_history = []
+                if request_state.conversation_history:
+                    new_history.extend(request_state.conversation_history)
+
+                # Add user's request
+                new_history.append({
+                    "role": "user",
+                    "content": original_prompt
+                })
+
+                # Add assistant's response (cleaned sprite content)
+                new_history.append({
+                    "role": "assistant",
+                    "content": cleaned_content
+                })
+
+                # Save for next request
+                self.last_conversation_history = new_history
+                self.log.info(f"Updated conversation history (now {len(new_history)} messages)")
 
             # Update UI components
             self._update_ui_after_ai_load(request_id)
@@ -10728,6 +10915,19 @@ pixels = \"\"\"
         # Debug logging for keyboard events
         if event.type == pygame.KEYDOWN:
             self.log.debug(f"KEYDOWN event received in handle_event: key={event.key}")
+
+        # Handle confirmation dialog clicks first (highest priority)
+        if event.type == pygame.MOUSEBUTTONDOWN and hasattr(self, 'confirmation_dialog') and self.confirmation_dialog:
+            mouse_pos = pygame.mouse.get_pos()
+            if self.confirmation_dialog.rect.collidepoint(mouse_pos):
+                # Convert to dialog-relative coordinates
+                dialog_relative_pos = (
+                    mouse_pos[0] - self.confirmation_dialog.rect.x,
+                    mouse_pos[1] - self.confirmation_dialog.rect.y
+                )
+                if self.confirmation_dialog.handle_mouse_down(dialog_relative_pos):
+                    self.confirmation_dialog = None  # Clear reference after handling
+                    return  # Event handled, don't pass to other handlers
 
         super().handle_event(event)
 

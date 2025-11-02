@@ -820,12 +820,18 @@ class GameEngine(events.EventManager):
         except Exception:
             current_scene = getattr(self.scene_manager, 'current_scene', None)
             if current_scene:
-                scene_name = getattr(current_scene, 'NAME', 'Unknown')
+                scene_name = getattr(current_scene, 'NAME', None)
+                # If NAME is None, use the class name
+                if scene_name is None:
+                    scene_name = current_scene.__class__.__name__
             else:
                 # If current scene is None, try to get the previous scene
                 previous_scene = getattr(self.scene_manager, 'previous_scene', None)
                 if previous_scene:
-                    scene_name = getattr(previous_scene, 'NAME', 'Unknown')
+                    scene_name = getattr(previous_scene, 'NAME', None)
+                    # If NAME is None, use the class name
+                    if scene_name is None:
+                        scene_name = previous_scene.__class__.__name__
                 else:
                     scene_name = 'None'
             # In test environments, use debug level to avoid cluttering test output
