@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import collections
 import contextlib
 import logging
 import multiprocessing
@@ -75,7 +74,6 @@ from glitchygames.ui.dialogs import (
 
 # Constants
 MAGENTA_TRANSPARENT = (255, 0, 255)  # Magenta color used for transparency
-MAGENTA_TRANSPARENT_RGBA = (255, 0, 255, 255)  # Magenta with alpha channel
 TRANSPARENT_GLYPH = "█"  # Block character used for transparent pixels
 
 from .canvas_interfaces import (
@@ -97,60 +95,6 @@ from .visual_collision_manager import VisualCollisionManager
 
 if TYPE_CHECKING:
     import argparse
-
-# Constants
-CONTENT_PREVIEW_LENGTH = 500
-
-# Complete TOML format template for AI instructions
-COMPLETE_TOML_FORMAT = """
-COMPLETE TOML FORMAT REQUIREMENTS:
-
-STATIC SPRITES (single-frame):
-    [sprite] section with name and pixels
-    [colors] section with colors.0 through colors.7
-    Each color has red, green, blue values (0-255)
-
-ANIMATED SPRITES (multi-frame):
-    [sprite] section with name only (NO pixels item)
-    [colors] section with 'colors."X"' section keys, where X is the character used in the pixels
-    [[animation]] section with namespace, frame_interval, loop
-    [[animation.frame]] sections with namespace, frame_index, pixels
-    PER-FRAME TIMING: When asked to generate per-frame frame_intervals, add a frame_interval
-    parameter to each frame where the frame's draw interval is different from the global
-    animation namespace frame_interval
-
-CRITICAL RULES:
-    - ONLY include color definitions for colors that are actually used in the pixels
-    - ALWAYS include namespace in each [[animation.frame]] section
-    - ALWAYS include frame_index in each [[animation.frame]] section
-    - ALWAYS include frame_interval and loop in [[animation]] section
-    - NEVER mix static and animated content in the same file!
-    - Static sprites: [sprite] with pixels + [colors] sections ONLY
-    - Animated sprites: [sprite] with NO pixels item + [colors] + [[animation]] sections
-      ONLY
-    - IMPORTANT: Animated sprites must NOT have a pixels item in the [sprite] section!
-    - CRITICAL: Use triple-quoted block strings for multi-line pixel data, never use single quotes
-    - EFFICIENCY: Only define colors that appear in the pixel data (e.g., if pixels only use
-      "0", only define [colors."0"])
-
-COLOR FORMAT REQUIREMENTS:
-    - Each color definition MUST use separate red, green, blue fields
-    - NEVER use comma-separated values like "red = 255, 0, 0"
-    - ALWAYS use the format:
-      [colors."X"]
-      red = 255
-      green = 0
-      blue = 0
-    - Each color value must be a single integer from 0-255
-    - Example of CORRECT color format:
-      [colors."#"]
-      red = 255
-      green = 0
-      blue = 0
-    - Example of INCORRECT color format (DO NOT USE):
-      [colors."#"]
-      red = 255, 0, 0
-"""
 
 LOG = logging.getLogger("game.tools.bitmappy")
 
@@ -2877,10 +2821,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Initialize canvas surface and UI components
         self._initialize_canvas_surface(x, y, width, height, groups)
 
-        # Initialize backward compatibility properties for tests
-        self.film_strip = None
-        self.film_strip_sprite = None
-
         # Initialize hover tracking for pixel hover effects
         self.hovered_pixel = None
 
@@ -5087,10 +5027,6 @@ class BitmapEditorScene(Scene):
         # Set parent scene reference for canvas
         self.canvas.parent_scene = self
 
-        # Add backward compatibility properties for tests
-        self.canvas.film_strip = None  # Will be set when film strips are created
-        self.canvas.film_strip_sprite = None  # Will be set when film strips are created
-
         # Debug: Log canvas position and size
         self.log.info(
             f"AnimatedCanvasSprite created at position "
@@ -5268,11 +5204,6 @@ class BitmapEditorScene(Scene):
 
             # Store the film strip sprite
             self.film_strip_sprites[anim_name] = film_strip_sprite
-
-            # Set backward compatibility attributes (for tests) - use first film strip
-            if not hasattr(self.canvas, "film_strip") or self.canvas.film_strip is None:
-                self.canvas.film_strip = film_strip
-                self.canvas.film_strip_sprite = film_strip_sprite
 
             # CRITICAL: Mark film strip sprite as dirty and force initial redraw
             # This ensures the film strip updates properly on first load
@@ -7596,9 +7527,6 @@ class BitmapEditorScene(Scene):
                     film_strip.dirty = 1
             LOG.debug("Forced film strip redraw after undo/redo")
 
-        # self.register_game_event('save', self.on_save_event)
-        # self.register_game_event('load', self.on_load_event)
-
         # Dialog scenes are now created fresh each time they're needed
         # No need to store persistent dialog scene instances
 
@@ -9869,27 +9797,7 @@ pixels = \"\"\"
             # Pass delta time to the canvas for animation updates
             self.canvas.update_animation(self.dt)
 
-            # CRITICAL: Update film strip preview animations for backward compatibility
-            # This handles the legacy single film strip case (canvas.film_strip)
-            # NOTE: The main animation updates now happen in the scene update loop
-            # for better performance and cleaner separation of concerns
-            if (
-                hasattr(self.canvas, "film_strip")
-                and self.canvas.film_strip
-                and hasattr(self.canvas, "film_strip_sprite")
-                and self.canvas.film_strip_sprite
-            ):
-                self.canvas.film_strip.update_animations(self.dt)
-                # Mark film strip sprite as dirty to redraw with new animation frames
-                # Always mark as dirty when animations are present to ensure continuous updates
-                if (
-                    hasattr(self.canvas.film_strip, "animated_sprite")
-                    and self.canvas.film_strip.animated_sprite
-                    and len(self.canvas.film_strip.animated_sprite._animations) > 0
-                ):
-                    self.canvas.film_strip_sprite.dirty = 2
-
-            # Update multiple film strip animations (new multi-strip system)
+            # Update film strip animations
             # This ensures each film strip has its own independent animation timing
             if hasattr(self, "film_strips") and self.film_strips:
                 for film_strip in self.film_strips.values():
