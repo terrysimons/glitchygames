@@ -264,14 +264,16 @@ class Game(Scene):
         for _ in range(self.options.get("balls", 1)):
             ball = BallSprite(
                 collision_sound=SFX.BOUNCE,
-                bounce_top_bottom=True,   # Bounce off top and bottom walls
+                bounce_top_bottom=True,  # Bounce off top and bottom walls
                 bounce_left_right=False,  # Don't bounce off side walls (scoring)
                 speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,  # Logarithmic speed up on X only for paddle hits
                 speed_up_multiplier=1.15,  # 15% speed increase
-                speed_up_interval=1.0  # Not used for paddle-only mode
+                speed_up_interval=1.0,  # Not used for paddle-only mode
             )
             # Set a more reasonable speed for the ball (pixels per second)
-            ball.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
+            ball.speed = Speed(
+                250.0, 125.0
+            )  # 250 pixels/second horizontal, 125 pixels/second vertical
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
             # Set up paddle collision callback for ball spawn (with speed limit check)
@@ -308,10 +310,11 @@ class Game(Scene):
         )
 
         parser.add_argument(
-            "--ball-spawn-mode", type=str,
+            "--ball-spawn-mode",
+            type=str,
             help="ball spawn mode (paddle_only, wall_only, ball_only, frequent, rare, none)",
             default="paddle_only",
-            choices=["paddle_only", "wall_only", "ball_only", "frequent", "rare", "none"]
+            choices=["paddle_only", "wall_only", "ball_only", "frequent", "rare", "none"],
         )
 
     def setup(self: Self) -> None:
@@ -346,7 +349,7 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 # Track trajectory over time to detect curving
-                if not hasattr(ball, '_debug_positions'):
+                if not hasattr(ball, "_debug_positions"):
                     ball._debug_positions = []
 
                 ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))
@@ -364,13 +367,13 @@ class Game(Scene):
                         y_trend = y_positions[-1] - y_positions[0]
                         if y_trend < -5:  # Moving upward significantly
                             log.debug(
-                                f"BALL {i+1} UPWARD CURVE DETECTED: "
+                                f"BALL {i + 1} UPWARD CURVE DETECTED: "
                                 f"y_trend={y_trend:.1f} positions={y_positions[-3:]} "
                                 f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f})"
                             )
 
                 log.debug(
-                    f"BALL {i+1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
+                    f"BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
                     f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
                     f"magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}"
                 )
@@ -382,7 +385,7 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 log.debug(
-                    f"BALL {i+1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
+                    f"BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
                     f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
                     f"magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}"
                 )
@@ -403,7 +406,7 @@ class Game(Scene):
 
             # Debug log ball state before collision checks
             log.debug(
-                f"BALL {i+1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
+                f"BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
                 f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
                 f"paddle1_rect=({self.player1.rect.x},{self.player1.rect.y},{self.player1.rect.width},{self.player1.rect.height}) "
                 f"paddle2_rect=({self.player2.rect.x},{self.player2.rect.y},{self.player2.rect.width},{self.player2.rect.height})"
@@ -453,11 +456,11 @@ class Game(Scene):
         # Create new ball at default speed
         new_ball = BallSprite(
             collision_sound=SFX.BOUNCE,
-            bounce_top_bottom=True,   # Bounce off top and bottom walls
+            bounce_top_bottom=True,  # Bounce off top and bottom walls
             bounce_left_right=False,  # Don't bounce off side walls (scoring)
             speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,  # Logarithmic speed up on X only for paddle hits
             speed_up_multiplier=1.15,  # 15% speed increase
-            speed_up_interval=1.0  # Not used for paddle-only mode
+            speed_up_interval=1.0,  # Not used for paddle-only mode
         )
 
         # Position the ball based on spawn mode
@@ -469,8 +472,12 @@ class Game(Scene):
             # Try to find a location that's not too close to existing balls
             max_attempts = 10
             for attempt in range(max_attempts):
-                spawn_x = secrets.randbelow(self.screen_width - 60) + 30  # Between paddles with margin
-                spawn_y = secrets.randbelow(self.screen_height - 40) + 20  # Within top/bottom boundaries
+                spawn_x = (
+                    secrets.randbelow(self.screen_width - 60) + 30
+                )  # Between paddles with margin
+                spawn_y = (
+                    secrets.randbelow(self.screen_height - 40) + 20
+                )  # Within top/bottom boundaries
 
                 # Check if this location is far enough from existing balls
                 min_distance = 100  # Minimum distance from other balls
@@ -499,18 +506,18 @@ class Game(Scene):
             # Ensure both X and Y speeds are non-zero by avoiding cardinal directions
             angle = secrets.randbelow(360) * (2 * math.pi / 360)
             base_speed = 150.0  # Lower speed for new balls
-            
+
             # Calculate initial speeds
             speed_x = base_speed * math.cos(angle)
             speed_y = base_speed * math.sin(angle)
-            
+
             # Ensure minimum speed in both directions (avoid zero speeds)
             min_speed = 50.0  # Minimum 50 pixels per second in each direction
             if abs(speed_x) < min_speed:
                 speed_x = min_speed if speed_x >= 0 else -min_speed
             if abs(speed_y) < min_speed:
                 speed_y = min_speed if speed_y >= 0 else -min_speed
-                
+
             new_ball.speed = Speed(speed_x, speed_y)
         else:
             # Fixed speed (default ball speed)
@@ -518,7 +525,11 @@ class Game(Scene):
 
         # Set color based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_COLOR:
-            new_ball.color = (secrets.randbelow(256), secrets.randbelow(256), secrets.randbelow(256))
+            new_ball.color = (
+                secrets.randbelow(256),
+                secrets.randbelow(256),
+                secrets.randbelow(256),
+            )
         else:
             new_ball.color = WHITE
         # Add collision cooldown tracking
@@ -548,7 +559,9 @@ class Game(Scene):
             current_time = time.time()
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
-                log.debug(f"Ball spawn cooldown active ({current_time - self.last_ball_spawn_time:.1f}s < {cooldown}s), not spawning")
+                log.debug(
+                    f"Ball spawn cooldown active ({current_time - self.last_ball_spawn_time:.1f}s < {cooldown}s), not spawning"
+                )
                 return
 
         # Check speed if enabled
@@ -633,23 +646,13 @@ class Game(Scene):
                 # Calculate relative velocity along collision normal
                 dvn = dvx * nx + dvy * ny
 
-                # Simplified collision logic: always allow collision if balls are overlapping
-                # or if they're moving toward each other (dvn <= 0)
-                if dvn > 0:
-                    # Balls are moving away from each other - only allow collision if they're overlapping
-                    # or if there's a significant speed difference (faster ball catching up)
-                    ball1_speed_magnitude = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
-                    ball2_speed_magnitude = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
-                    
-                    # Allow collision if balls are overlapping (distance < collision_distance)
-                    # or if there's a significant speed difference
-                    if distance >= collision_distance:
-                        if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
-                            speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(ball1_speed_magnitude, ball2_speed_magnitude)
-                            if speed_ratio < 1.2:  # Lower threshold for more collisions
-                                continue  # Skip if speeds are too similar and balls aren't overlapping
-                        else:
-                            continue  # Skip if one ball has zero speed
+                # CRITICAL FIX: Don't skip collision based solely on dvn sign
+                # For perpendicular motion (e.g., vertical vs horizontal), dvn can be
+                # positive even when balls are colliding due to geometry.
+                # Only skip if balls are clearly separating AND not overlapping.
+                if dvn > 0 and distance >= collision_distance:
+                    # Balls are moving away AND not currently overlapping - skip collision
+                    continue
 
                 # Proper elastic collision physics for equal mass balls
                 # Decompose velocities into normal and tangential components
@@ -683,10 +686,10 @@ class Game(Scene):
                         ball.speed.y *= scale_factor
 
                 # Calculate energy before and after for debugging
-                energy_before = (ball1_speed_before**2 + ball2_speed_before**2)
+                energy_before = ball1_speed_before**2 + ball2_speed_before**2
                 ball1_speed_after = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
                 ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
-                energy_after = (ball1_speed_after**2 + ball2_speed_after**2)
+                energy_after = ball1_speed_after**2 + ball2_speed_after**2
 
                 log.debug(
                     f"BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, "
@@ -695,16 +698,36 @@ class Game(Scene):
                 )
 
                 # Separate balls to prevent sticking
+                # Calculate overlap and ensure minimum separation
                 overlap = collision_distance - distance
-                separation_distance = max(overlap, 2.0)  # Minimum 2px separation
+                separation_distance = max(overlap + 2.0, 3.0)  # Minimum 3px total separation
 
-                separation_x = nx * separation_distance * 0.5
-                separation_y = ny * separation_distance * 0.5
+                # Calculate separation for each ball (half each)
+                half_separation = separation_distance * 0.5
+                separation_x = nx * half_separation
+                separation_y = ny * half_separation
 
-                ball1.rect.x -= separation_x
-                ball1.rect.y -= separation_y
-                ball2.rect.x += separation_x
-                ball2.rect.y += separation_y
+                # CRITICAL FIX: Ensure at least 1 pixel separation in each direction
+                # when the normal has a component in that direction
+                # This prevents balls from getting stuck in collision loops
+                # when moving perpendicular (e.g., horizontal vs vertical)
+                min_pixel_separation = 1.0
+
+                # If collision normal has X component, ensure minimum X separation
+                if abs(nx) > 0.1:  # Significant X component
+                    if abs(separation_x) < min_pixel_separation:
+                        separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
+
+                # If collision normal has Y component, ensure minimum Y separation
+                if abs(ny) > 0.1:  # Significant Y component
+                    if abs(separation_y) < min_pixel_separation:
+                        separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
+
+                # Apply separation using round() to ensure integer pixel movement
+                ball1.rect.x -= round(separation_x)
+                ball1.rect.y -= round(separation_y)
+                ball2.rect.x += round(separation_x)
+                ball2.rect.y += round(separation_y)
 
                 # No cooldown for ball-to-ball collisions - balls should be able to collide freely
 
@@ -792,16 +815,24 @@ class Game(Scene):
             # Track that spacebar is pressed (but don't act on it yet)
             self._space_pressed = True
         elif event.key == pygame.K_w:
-            log.debug(f"PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}")
+            log.debug(
+                f"PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}"
+            )
             self.player1.up()
         elif event.key == pygame.K_s:
-            log.debug(f"PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}")
+            log.debug(
+                f"PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}"
+            )
             self.player1.down()
         elif event.key == pygame.K_UP:
-            log.debug(f"PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}")
+            log.debug(
+                f"PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}"
+            )
             self.player2.up()
         elif event.key == pygame.K_DOWN:
-            log.debug(f"PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}")
+            log.debug(
+                f"PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}"
+            )
             self.player2.down()
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -821,6 +852,7 @@ class Game(Scene):
         else:
             # Handle ESC/q to quit
             super().on_key_up_event(event)
+
 
 def main() -> None:
     """Run the main function.

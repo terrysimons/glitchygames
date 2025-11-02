@@ -4966,8 +4966,8 @@ class BitmapEditorScene(Scene):
             Configured AnimatedSprite instance
 
         """
-        # Create single test frame
-        surface1 = pygame.Surface((pixels_across, pixels_tall))
+        # Create single test frame with SRCALPHA for per-pixel alpha support
+        surface1 = pygame.Surface((pixels_across, pixels_tall), pygame.SRCALPHA)
         surface1.fill(MAGENTA_TRANSPARENT)  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
         frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)
@@ -4996,6 +4996,35 @@ class BitmapEditorScene(Scene):
         animated_sprite.pause()
 
         return animated_sprite
+
+    def _create_blank_frame(self, width: int, height: int, duration: float = 0.5) -> "SpriteFrame":
+        """Create a blank frame with magenta background and proper alpha support.
+
+        This is the canonical method for creating blank frames to ensure consistency
+        across the codebase and proper per-pixel alpha support.
+
+        Args:
+            width: Width of the frame in pixels
+            height: Height of the frame in pixels
+            duration: Frame duration in seconds (default: 0.5)
+
+        Returns:
+            A new SpriteFrame with magenta background and SRCALPHA support
+
+        """
+        from glitchygames.sprites.animated import SpriteFrame
+
+        # Create surface with SRCALPHA to support per-pixel alpha transparency
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        surface.fill((255, 0, 255))  # Magenta background
+
+        # Create the SpriteFrame
+        frame = SpriteFrame(surface, duration=duration)
+
+        # Initialize pixel data (magenta with full alpha)
+        frame.pixels = [(255, 0, 255, 255)] * (width * height)
+
+        return frame
 
     def _create_canvas_sprite(
         self, animated_sprite: AnimatedSprite, pixels_across: int, pixels_tall: int, pixel_size: int
@@ -5452,26 +5481,14 @@ class BitmapEditorScene(Scene):
         # Create a new animation (film strip)
         new_animation_name = f"strip_{len(self.canvas.animated_sprite._animations) + 1}"
 
-        # Create a blank frame for the new animation
+        # Create a blank frame for the new animation using the canonical helper
         if hasattr(self, "canvas") and self.canvas:
             # Get the canvas pixel dimensions (same as original canvas)
             pixels_across = self.canvas.pixels_across
             pixels_tall = self.canvas.pixels_tall
 
-            # Create a blank frame surface with magenta background
-            frame_surface = pygame.Surface((pixels_across, pixels_tall))
-            frame_surface.fill((255, 0, 255))  # Magenta background
-
-            # Create a proper animated sprite frame object
-            from glitchygames.sprites.animated import SpriteFrame
-
-            animated_frame = SpriteFrame(
-                surface=frame_surface,
-                duration=1.0,  # 1 second duration
-            )
-
-            # Initialize the pixel data for the new frame
-            animated_frame.pixels = [(255, 0, 255, 255)] * (pixels_across * pixels_tall)
+            # Use the shared helper to create a blank frame with proper SRCALPHA support
+            animated_frame = self._create_blank_frame(pixels_across, pixels_tall, duration=1.0)
 
             # Insert the new animation at the specified position
             if insert_after_index is not None:

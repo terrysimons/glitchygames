@@ -22,9 +22,10 @@ class PixelChange:
 
 class CanvasOperationTracker:
     """Tracks canvas operations for undo/redo."""
-    
+
     def __init__(self, undo_redo_manager):
         self.undo_redo_manager = undo_redo_manager
+        self._current_brush_pixels = []
         LOG.debug("CanvasOperationTracker initialized")
     
     def add_pixel_changes(self, pixels: List[Tuple[int, int, Tuple[int, int, int], Tuple[int, int, int]]]) -> None:
@@ -62,10 +63,10 @@ class CanvasOperationTracker:
         
         LOG.debug(f"Tracked pixel changes: {description}")
     
-    def add_single_pixel_change(self, x: int, y: int, old_color: Tuple[int, int, int], 
+    def add_single_pixel_change(self, x: int, y: int, old_color: Tuple[int, int, int],
                                new_color: Tuple[int, int, int]) -> None:
         """Add a single pixel change operation.
-        
+
         Args:
             x: X coordinate of the pixel
             y: Y coordinate of the pixel
@@ -74,6 +75,40 @@ class CanvasOperationTracker:
         """
         # Use the new method for consistency
         self.add_pixel_changes([(x, y, old_color, new_color)])
+
+    def start_brush_stroke(self) -> None:
+        """Start tracking a brush stroke (backward-compatible API).
+
+        This method initializes brush stroke tracking. Call add_pixel_change()
+        to add pixels, then end_brush_stroke() to commit to history.
+        """
+        self._current_brush_pixels = []
+        LOG.debug("Started brush stroke tracking")
+
+    def add_pixel_change(self, x: int, y: int, old_color: Tuple[int, int, int],
+                        new_color: Tuple[int, int, int]) -> None:
+        """Add a pixel to the current brush stroke (backward-compatible API).
+
+        Args:
+            x: X coordinate of the pixel
+            y: Y coordinate of the pixel
+            old_color: Previous color of the pixel
+            new_color: New color of the pixel
+        """
+        self._current_brush_pixels.append((x, y, old_color, new_color))
+        LOG.debug(f"Added pixel to brush stroke: ({x}, {y})")
+
+    def end_brush_stroke(self) -> None:
+        """End brush stroke and commit to history (backward-compatible API).
+
+        This commits all pixels added via add_pixel_change() to the undo/redo history.
+        """
+        if self._current_brush_pixels:
+            self.add_pixel_changes(self._current_brush_pixels)
+            LOG.debug(f"Ended brush stroke: {len(self._current_brush_pixels)} pixels")
+            self._current_brush_pixels = []
+        else:
+            LOG.debug("Ended brush stroke with no pixels")
     
     def add_flood_fill(self, x: int, y: int, old_color: Tuple[int, int, int], 
                       new_color: Tuple[int, int, int], affected_pixels: List[Tuple[int, int]]) -> None:
@@ -247,7 +282,7 @@ class FilmStripOperationTracker:
             "action": "reorder"
         }
         
-        description = f"Reordered frame {old_index} to {new_index} in '{animation_name}'"
+        description = f"Moved frame {old_index} to {new_index} in '{animation_name}'"
         self.undo_redo_manager.add_operation(
             operation_type=OperationType.FILM_STRIP_FRAME_REORDER,
             description=description,

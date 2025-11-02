@@ -267,10 +267,10 @@ class UndoRedoManager:
         if self.is_undoing or self.is_redoing:
             LOG.debug("Skipping operation addition during undo/redo")
             return
-        
-        # Clear redo stack when new operation is added (only if we're at the head of undo history)
-        # This prevents clearing redo stack when we're in the middle of an undo/redo sequence
-        if self.redo_stack and self.at_head_of_history:
+
+        # Clear redo stack when new operation is added
+        # This is correct behavior: when branching off after an undo, we discard the redo history
+        if self.redo_stack:
             LOG.debug(f"Clearing {len(self.redo_stack)} redo operations")
             self.redo_stack.clear()
         
@@ -1227,7 +1227,7 @@ class UndoRedoManager:
                     animation = operation.undo_data.get("animation_name")  # Note: uses animation_name, not animation
                     frame_index = operation.undo_data.get("frame_index")
                     frame_data = operation.undo_data.get("frame_data")
-                    if animation and frame_index is not None and frame_data:
+                    if animation and frame_index is not None and frame_data is not None:
                         return self.add_frame_callback(animation, frame_index, frame_data)
                     else:
                         LOG.warning("Frame delete undo data missing animation_name, frame_index, or frame_data")
@@ -1254,7 +1254,7 @@ class UndoRedoManager:
                 if self.add_animation_callback:
                     animation = operation.undo_data.get("animation_name")  # Note: uses animation_name, not animation
                     animation_data = operation.undo_data.get("animation_data")
-                    if animation and animation_data:
+                    if animation and animation_data is not None:
                         return self.add_animation_callback(animation, animation_data)
                     else:
                         LOG.warning("Animation delete undo data missing animation_name or animation_data")
@@ -1301,7 +1301,7 @@ class UndoRedoManager:
                     animation = operation.redo_data.get("animation_name")  # Note: uses animation_name, not animation
                     frame_index = operation.redo_data.get("frame_index")
                     frame_data = operation.redo_data.get("frame_data")
-                    if animation and frame_index is not None and frame_data:
+                    if animation and frame_index is not None and frame_data is not None:
                         return self.add_frame_callback(animation, frame_index, frame_data)
                     else:
                         LOG.warning("Frame add redo data missing animation_name, frame_index, or frame_data")
@@ -1329,7 +1329,7 @@ class UndoRedoManager:
                 if self.add_animation_callback:
                     animation = operation.redo_data.get("animation_name")  # Note: uses animation_name, not animation
                     animation_data = operation.redo_data.get("animation_data")
-                    if animation and animation_data:
+                    if animation and animation_data is not None:
                         return self.add_animation_callback(animation, animation_data)
                     else:
                         LOG.warning("Animation add redo data missing animation_name or animation_data")

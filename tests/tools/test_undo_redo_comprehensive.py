@@ -113,8 +113,8 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Frame-specific brush stroke",
-            undo_data={"pixels": [(10, 20, (255, 0, 0))]},
-            redo_data={"pixels": [(10, 20, (0, 255, 0))]}
+            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
 
         frame_key = ("walk_animation", 1)
@@ -174,8 +174,8 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (255, 0, 0))]},
-            redo_data={"pixels": [(10, 20, (0, 255, 0))]}
+            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
 
         # Undo the operation
@@ -199,8 +199,8 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (255, 0, 0))]},
-            redo_data={"pixels": [(10, 20, (0, 255, 0))]}
+            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
 
         self.manager.undo_frame("walk_animation", 1)
@@ -366,8 +366,8 @@ class TestUndoRedoCallbacks:
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
             "Test brush stroke",
-            {"pixels": [(10, 20, (255, 0, 0))]},
-            {"pixels": [(10, 20, (0, 255, 0))]}
+            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
 
         self.manager.undo()
@@ -507,7 +507,7 @@ class TestIntegrationScenarios:
         frame_key = ("walk_animation", 1)
         frame_operation = self.manager.frame_undo_stacks[frame_key][0]
         assert "walk_animation[1]" in frame_operation.description
-        assert "pixel changes" in frame_operation.description
+        assert "pixel change" in frame_operation.description  # Singular for single pixel
 
 
 class TestEdgeCases:
@@ -581,8 +581,8 @@ class TestEdgeCases:
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
             "Test operation",
-            {"pixels": [(10, 20, (255, 0, 0))]},
-            {"pixels": [(10, 20, (0, 255, 0))]}
+            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
 
         # Undo should fail

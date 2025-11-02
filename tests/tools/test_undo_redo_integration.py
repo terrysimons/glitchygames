@@ -36,12 +36,12 @@ class TestUndoRedoCallbacks:
         """Test that canvas operations call the correct callbacks."""
         # Test brush stroke undo
         from glitchygames.tools.undo_redo_manager import OperationType
-        
+
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
             "Test brush stroke",
-            {"pixels": [(10, 20, (255, 0, 0))]},
-            {"pixels": [(10, 20, (0, 255, 0))]}
+            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
         
         self.manager.undo()
@@ -183,4 +183,4 @@ class TestIntegrationScenarios:
         frame_key = ("walk_animation", 1)
         frame_operation = self.manager.frame_undo_stacks[frame_key][0]
         assert "walk_animation[1]" in frame_operation.description
-        assert "pixel changes" in frame_operation.description
+        assert "pixel change" in frame_operation.description  # Singular for single pixel

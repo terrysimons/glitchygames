@@ -51,26 +51,30 @@ class TestUndoRedoManager:
     
     def test_add_operation_clears_redo_stack(self):
         """Test that adding new operation clears redo stack."""
+        # Set up a mock callback for pixel changes
+        mock_callback = Mock(return_value=True)
+        self.manager.set_pixel_change_callback(mock_callback)
+
         # Add initial operation
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
             "First operation",
-            {"data": "undo1"},
-            {"data": "redo1"}
+            {"pixel": (10, 20, (255, 0, 0))},
+            {"pixel": (10, 20, (0, 255, 0))}
         )
-        
+
         # Undo it to create redo stack
         self.manager.undo()
         assert len(self.manager.redo_stack) == 1
-        
+
         # Add new operation - should clear redo stack
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
             "Second operation",
-            {"data": "undo2"},
-            {"data": "redo2"}
+            {"pixel": (15, 25, (100, 0, 0))},
+            {"pixel": (15, 25, (0, 100, 0))}
         )
-        
+
         assert len(self.manager.redo_stack) == 0
         assert len(self.manager.undo_stack) == 1
     
@@ -90,13 +94,17 @@ class TestUndoRedoManager:
     
     def test_undo_operation(self):
         """Test undoing operations."""
+        # Set up a mock callback for pixel changes
+        mock_callback = Mock(return_value=True)
+        self.manager.set_pixel_change_callback(mock_callback)
+
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
             "Test operation",
-            {"data": "undo"},
-            {"data": "redo"}
+            {"pixel": (10, 20, (255, 0, 0))},
+            {"pixel": (10, 20, (0, 255, 0))}
         )
-        
+
         result = self.manager.undo()
         assert result is True
         assert len(self.manager.undo_stack) == 0
@@ -106,16 +114,20 @@ class TestUndoRedoManager:
     
     def test_redo_operation(self):
         """Test redoing operations."""
+        # Set up a mock callback for pixel changes
+        mock_callback = Mock(return_value=True)
+        self.manager.set_pixel_change_callback(mock_callback)
+
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
             "Test operation",
-            {"data": "undo"},
-            {"data": "redo"}
+            {"pixel": (10, 20, (255, 0, 0))},
+            {"pixel": (10, 20, (0, 255, 0))}
         )
-        
+
         # Undo first
         self.manager.undo()
-        
+
         # Then redo
         result = self.manager.redo()
         assert result is True
@@ -181,58 +193,51 @@ class TestCanvasOperationTracker:
     
     def test_start_brush_stroke(self):
         """Test starting a brush stroke."""
-        self.tracker.start_brush_stroke(5, "round")
-        
-        assert self.tracker.current_stroke is not None
-        assert self.tracker.current_stroke.brush_size == 5
-        assert self.tracker.current_stroke.brush_type == "round"
-        assert len(self.tracker.stroke_pixels) == 0
+        self.tracker.start_brush_stroke()
+
+        assert len(self.tracker._current_brush_pixels) == 0
     
     def test_add_pixel_change(self):
         """Test adding pixel changes to a stroke."""
-        self.tracker.start_brush_stroke(3, "square")
+        self.tracker.start_brush_stroke()
         self.tracker.add_pixel_change(10, 20, (255, 0, 0), (0, 255, 0))
-        
-        assert len(self.tracker.stroke_pixels) == 1
-        pixel = self.tracker.stroke_pixels[0]
-        assert pixel.x == 10
-        assert pixel.y == 20
-        assert pixel.old_color == (255, 0, 0)
-        assert pixel.new_color == (0, 255, 0)
+
+        assert len(self.tracker._current_brush_pixels) == 1
+        pixel = self.tracker._current_brush_pixels[0]
+        assert pixel == (10, 20, (255, 0, 0), (0, 255, 0))
     
     def test_end_brush_stroke(self):
         """Test ending a brush stroke."""
-        self.tracker.start_brush_stroke(2, "round")
+        self.tracker.start_brush_stroke()
         self.tracker.add_pixel_change(5, 10, (0, 0, 0), (255, 255, 255))
         self.tracker.add_pixel_change(6, 10, (0, 0, 0), (255, 255, 255))
-        
+
         self.tracker.end_brush_stroke()
-        
-        assert self.tracker.current_stroke is None
-        assert len(self.tracker.stroke_pixels) == 0
+
+        assert len(self.tracker._current_brush_pixels) == 0
         assert len(self.manager.undo_stack) == 1
-        
+
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
         assert "Brush stroke" in operation.description
     
     def test_end_brush_stroke_no_pixels(self):
         """Test ending a brush stroke with no pixel changes."""
-        self.tracker.start_brush_stroke(2, "round")
+        self.tracker.start_brush_stroke()
         # Don't add any pixels
-        
+
         self.tracker.end_brush_stroke()
-        
-        assert self.tracker.current_stroke is None
+
+        assert len(self.tracker._current_brush_pixels) == 0
         assert len(self.manager.undo_stack) == 0  # No operation should be created
     
     def test_add_single_pixel_change(self):
         """Test adding a single pixel change operation."""
         self.tracker.add_single_pixel_change(15, 25, (100, 100, 100), (200, 200, 200))
-        
+
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
-        assert operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE
+        assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE  # Single pixel uses brush stroke type
         assert "Pixel change at (15, 25)" in operation.description
     
     def test_add_flood_fill(self):
@@ -316,8 +321,8 @@ class TestCrossAreaOperationTracker:
     def test_add_frame_copy(self):
         """Test tracking frame copy operation."""
         frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_copy(1, "source_animation", frame_data)
-        
+        self.tracker.add_frame_copied(1, "source_animation", frame_data)
+
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.FRAME_COPY
@@ -326,8 +331,8 @@ class TestCrossAreaOperationTracker:
     def test_add_frame_paste(self):
         """Test tracking frame paste operation."""
         frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_paste(2, "target_animation", frame_data)
-        
+        self.tracker.add_frame_pasted(2, "target_animation", frame_data)
+
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.FRAME_PASTE
@@ -358,36 +363,13 @@ class TestOperationTypes:
 
 class TestDataClasses:
     """Test data class functionality."""
-    
+
     def test_pixel_change_creation(self):
         """Test PixelChange data class."""
         pixel = PixelChange(10, 20, (255, 0, 0), (0, 255, 0))
-        
+
         assert pixel.x == 10
         assert pixel.y == 20
         assert pixel.old_color == (255, 0, 0)
         assert pixel.new_color == (0, 255, 0)
-        assert pixel.timestamp > 0
-    
-    def test_brush_stroke_creation(self):
-        """Test BrushStroke data class."""
-        pixels = [
-            PixelChange(10, 20, (255, 0, 0), (0, 255, 0)),
-            PixelChange(11, 20, (255, 0, 0), (0, 255, 0))
-        ]
-        stroke = BrushStroke(pixels, 3, "round")
-        
-        assert len(stroke.pixels) == 2
-        assert stroke.brush_size == 3
-        assert stroke.brush_type == "round"
-        assert stroke.timestamp > 0
-    
-    def test_frame_operation_creation(self):
-        """Test FrameOperation data class."""
-        operation_data = {"width": 32, "height": 32}
-        frame_op = FrameOperation(2, "test_animation", operation_data)
-        
-        assert frame_op.frame_index == 2
-        assert frame_op.animation_name == "test_animation"
-        assert frame_op.operation_data == operation_data
-        assert frame_op.timestamp > 0
+        # Note: PixelChange no longer has timestamp attribute

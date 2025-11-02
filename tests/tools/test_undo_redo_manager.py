@@ -113,10 +113,9 @@ class TestUndoRedoManager:
             {"pixel": (15, 25, (255, 0, 0))},
             {"pixel": (15, 25, (0, 255, 0))}
         )
-        
-        # After undo, we're not at the head of history, so redo stack is NOT cleared
-        # This is correct behavior - redo stack only clears when at head of history
-        assert len(self.manager.redo_stack) == 1  # First operation is still in redo stack
+
+        # Adding a new operation always clears the redo stack (we're branching off)
+        assert len(self.manager.redo_stack) == 0  # Redo stack is cleared
         assert len(self.manager.undo_stack) == 1  # Second operation is in undo stack
     
     def test_max_history_limit(self):
@@ -189,8 +188,8 @@ class TestUndoRedoManager:
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
             "Test operation",
-            {"pixels": [(10, 20, (255, 0, 0))]},
-            {"pixels": [(10, 20, (0, 255, 0))]}
+            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
         )
         
         # Undo should fail

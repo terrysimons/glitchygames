@@ -2571,8 +2571,7 @@ class FilmStripWidget:
         if current_animation not in self.animated_sprite._animations:
             return
 
-        # Create a new blank frame with magenta background
-        # Get the canvas dimensions from the parent scene
+        # Create a new blank frame using the canonical helper from parent scene
         if not (
             hasattr(self, "parent_scene")
             and self.parent_scene
@@ -2583,14 +2582,8 @@ class FilmStripWidget:
         frame_width = self.parent_scene.canvas.pixels_across
         frame_height = self.parent_scene.canvas.pixels_tall
 
-        new_surface = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
-        new_surface.fill((255, 0, 255))  # Magenta background
-
-        # Create a new SpriteFrame
-        new_frame = SpriteFrame(new_surface, duration=0.5)
-
-        # Initialize the pixel data for the new frame
-        new_frame.pixels = [(255, 0, 255)] * (frame_width * frame_height)
+        # Use the shared helper to create a blank frame with proper SRCALPHA support
+        new_frame = self.parent_scene._create_blank_frame(frame_width, frame_height, duration=0.5)
 
         # Determine insertion index
         if tab.insertion_type == "before":
