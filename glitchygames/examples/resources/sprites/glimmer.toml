@@ -1,0 +1,129 @@
+[sprite]
+name = "save_point_glimmer"
+description = """A save point glimmer from Final Fantasy VI """
+
+[[animation]]
+namespace = "glimmer"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 0
+pixels = """
+.......
+.......
+...y...
+..yYy..
+...y...
+.......
+.......
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 1
+pixels = """
+.......
+..y.y..
+.y.Y.y.
+..yYy..
+.y.Y.y.
+..y.y..
+.......
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 2
+pixels = """
+..y.y..
+.y.y.y.
+y..Y..y
+.y.Y.y.
+y..Y..y
+.y.y.y.
+..y.y..
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 3
+pixels = """
+.y...y.
+..y.y..
+y..Y..y
+...Y...
+y..Y..y
+..y.y..
+.y...y.
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 4
+pixels = """
+y.....y
+.......
+...Y...
+..YYY..
+...Y...
+.......
+y.....y
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 5
+pixels = """
+.......
+.......
+...Y...
+..YYY..
+...Y...
+.......
+.......
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 6
+pixels = """
+.......
+..y.y..
+.y.Y.y.
+..YYY..
+.y.Y.y.
+..y.y..
+.......
+"""
+
+[[animation.frame]]
+namespace = "glimmer"
+frame_index = 7
+pixels = """
+.......
+.......
+...y...
+..yYy..
+...y...
+.......
+.......
+"""
+
+[colors]
+[colors."."]
+red = 0
+green = 0
+blue = 0
+
+[colors."y"]
+red = 255
+green = 200
+blue = 100
+
+[colors."Y"]
+red = 255
+green = 255
+blue = 255
+

@@ -1590,7 +1590,13 @@ class InputBox(Sprite):
                 if event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
                 else:
-                    self.text += event.unicode
+                    # Handle colon character - check key combination first, then unicode
+                    if event.key == pygame.K_SEMICOLON and (event.mod & pygame.KMOD_SHIFT):
+                        # Shift+; produces colon (:) - handle case where unicode might not be set
+                        self.text += ":"
+                    elif event.unicode:
+                        # Use unicode if available
+                        self.text += event.unicode
                 self.render()
 
 
@@ -2801,6 +2807,209 @@ class InputDialog(BitmappySprite):
             self.input_box.on_key_down_event(event)
 
 
+class Scrollbar:
+    """A reusable scrollbar component for scrollable widgets.
+
+    Handles rendering and interaction for vertical scrollbars.
+    """
+
+    def __init__(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        total_items: int,
+        visible_items: int,
+        scroll_offset: float = 0,
+    ):
+        """Initialize the scrollbar.
+
+        Args:
+            x: X position relative to parent surface
+            y: Y position relative to parent surface
+            width: Scrollbar width in pixels
+            height: Scrollbar track height in pixels
+            total_items: Total number of items (e.g., total lines)
+            visible_items: Number of visible items (e.g., visible lines)
+            scroll_offset: Current scroll position (0 to max_scroll)
+        """
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.total_items = total_items
+        self.visible_items = visible_items
+        self.scroll_offset = scroll_offset
+
+        # Visual styling
+        self.track_color = (40, 40, 40)
+        self.thumb_color = (128, 128, 128)
+        self.thumb_hover_color = (160, 160, 160)
+        self.thumb_drag_color = (180, 180, 180)
+
+        # Interaction state
+        self.is_dragging = False
+        self.is_hovering = False
+        self.drag_start_y = 0
+        self.drag_start_offset = 0
+
+    @property
+    def max_scroll(self) -> float:
+        """Maximum scroll offset."""
+        return max(0, self.total_items - self.visible_items)
+
+    @property
+    def is_visible(self) -> bool:
+        """Whether scrollbar should be visible."""
+        return self.total_items > self.visible_items
+
+    @property
+    def thumb_height(self) -> int:
+        """Calculate thumb height based on content ratio."""
+        if self.total_items <= 0:
+            return self.height
+        ratio = self.visible_items / self.total_items
+        return max(20, int(ratio * self.height))
+
+    @property
+    def thumb_y(self) -> int:
+        """Calculate thumb Y position."""
+        if self.max_scroll <= 0:
+            return self.y
+        ratio = self.scroll_offset / self.max_scroll
+        available_space = self.height - self.thumb_height
+        return self.y + int(ratio * available_space)
+
+    def get_thumb_rect(self) -> pygame.Rect:
+        """Get the thumb rectangle for hit testing."""
+        return pygame.Rect(self.x, self.thumb_y, self.width, self.thumb_height)
+
+    def update(self, total_items: int, visible_items: int, scroll_offset: float):
+        """Update scrollbar state.
+
+        Args:
+            total_items: New total items count
+            visible_items: New visible items count
+            scroll_offset: New scroll offset
+        """
+        self.total_items = total_items
+        self.visible_items = visible_items
+        self.scroll_offset = max(0, min(scroll_offset, self.max_scroll))
+
+    def handle_mouse_down(self, mouse_pos: tuple[int, int]) -> bool:
+        """Handle mouse button down event.
+
+        Args:
+            mouse_pos: Absolute mouse position
+
+        Returns:
+            True if event was handled
+        """
+        if not self.is_visible:
+            return False
+
+        thumb_rect = self.get_thumb_rect()
+
+        if thumb_rect.collidepoint(mouse_pos):
+            # Start dragging thumb
+            self.is_dragging = True
+            self.drag_start_y = mouse_pos[1]
+            self.drag_start_offset = self.scroll_offset
+            return True
+
+        # Check if clicked on track (above or below thumb)
+        track_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        if track_rect.collidepoint(mouse_pos):
+            # Jump to clicked position
+            # mouse_pos is already relative to widget, self.y is scrollbar's y in widget
+            # So we need to subtract self.y to get position within scrollbar
+            relative_y = mouse_pos[1] - self.y
+            # Clamp to valid range
+            relative_y = max(0, min(relative_y, self.height))
+            ratio = relative_y / self.height
+            new_offset = ratio * self.max_scroll
+            self.scroll_offset = max(0, min(new_offset, self.max_scroll))
+            return True
+
+        return False
+
+    def handle_mouse_up(self, mouse_pos: tuple[int, int]) -> bool:
+        """Handle mouse button up event.
+
+        Args:
+            mouse_pos: Absolute mouse position
+
+        Returns:
+            True if event was handled
+        """
+        if self.is_dragging:
+            self.is_dragging = False
+            return True
+        return False
+
+    def handle_mouse_motion(self, mouse_pos: tuple[int, int]) -> bool:
+        """Handle mouse motion event.
+
+        Args:
+            mouse_pos: Absolute mouse position
+
+        Returns:
+            True if event was handled
+        """
+        if not self.is_visible:
+            self.is_hovering = False
+            return False
+
+        # Update hover state
+        thumb_rect = self.get_thumb_rect()
+        self.is_hovering = thumb_rect.collidepoint(mouse_pos)
+
+        # Handle dragging
+        if self.is_dragging:
+            delta_y = mouse_pos[1] - self.drag_start_y
+            # Convert pixel delta to scroll offset delta
+            if self.height > self.thumb_height:
+                scroll_per_pixel = self.max_scroll / (self.height - self.thumb_height)
+                delta_scroll = delta_y * scroll_per_pixel
+                new_offset = self.drag_start_offset + delta_scroll
+                self.scroll_offset = max(0, min(new_offset, self.max_scroll))
+            return True
+
+        return False
+
+    def draw(self, surface: pygame.Surface):
+        """Draw the scrollbar on the given surface.
+
+        Args:
+            surface: Surface to draw on (parent widget's image)
+        """
+        if not self.is_visible:
+            return
+
+        # Draw track
+        pygame.draw.rect(
+            surface,
+            self.track_color,
+            (self.x, self.y, self.width, self.height)
+        )
+
+        # Choose thumb color based on state
+        if self.is_dragging:
+            thumb_color = self.thumb_drag_color
+        elif self.is_hovering:
+            thumb_color = self.thumb_hover_color
+        else:
+            thumb_color = self.thumb_color
+
+        # Draw thumb
+        pygame.draw.rect(
+            surface,
+            thumb_color,
+            (self.x, self.thumb_y, self.width, self.thumb_height)
+        )
+
+
 class MultiLineTextBox(BitmappySprite):
     """A multi-line text box sprite class."""
 
@@ -2875,7 +3084,20 @@ class MultiLineTextBox(BitmappySprite):
         else:
             # For freetype fonts, use the size attribute (it's a float, not a tuple)
             line_height = self.font.size if hasattr(self.font, "size") else 24
-        self.visible_lines = int(self.height // line_height)
+        # Account for top/bottom padding (5px each = 10px total)
+        self.visible_lines = int((self.height - 10) // line_height)
+
+        # Create scrollbar component
+        scrollbar_width = 8
+        self.scrollbar = Scrollbar(
+            x=self.width - scrollbar_width - 2,
+            y=2,
+            width=scrollbar_width,
+            height=self.height - 4,
+            total_items=1,  # Will be updated when text is set
+            visible_items=self.visible_lines,
+            scroll_offset=0
+        )
 
     def _get_text_width(self, text: str) -> int:
         """Get text width for both pygame.font and pygame.freetype fonts."""
@@ -3042,7 +3264,7 @@ class MultiLineTextBox(BitmappySprite):
 
     @text.setter
     def text(self, value: str) -> None:
-        """Set the text content with automatic wrapping."""
+        """Set the text content with automatic wrapping and auto-scroll to bottom."""
         if value != self._original_text:
             # Store the original text before wrapping
             self._original_text = str(value)
@@ -3050,6 +3272,20 @@ class MultiLineTextBox(BitmappySprite):
             available_width = self.width - 10  # 5px padding on each side
             wrapped_text = self._wrap_text(str(value), available_width)
             self._text = wrapped_text
+
+            # Move cursor to end of ORIGINAL text for auto-scroll to work
+            self.cursor_pos = len(self._original_text)
+
+            # Auto-scroll to bottom to show latest content
+            total_lines = len(self._text.split("\n"))
+            if total_lines > self.visible_lines:
+                self.scroll_offset = total_lines - self.visible_lines
+            else:
+                self.scroll_offset = 0
+
+            # Update scrollbar state
+            self.scrollbar.update(total_lines, self.visible_lines, self.scroll_offset)
+
             self.dirty = 2
 
     def update(self) -> None:  # noqa: PLR0912, PLR0915, PLR0914
@@ -3095,12 +3331,17 @@ class MultiLineTextBox(BitmappySprite):
         if self._text:
             lines = self._text.split("\n")
 
-            # Adjust scroll if needed to keep cursor visible
-            cursor_line, _ = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)
-            if cursor_line - self.scroll_offset >= self.visible_lines:
-                self.scroll_offset = cursor_line - self.visible_lines + 1
-            elif cursor_line < self.scroll_offset:
-                self.scroll_offset = cursor_line
+            # Only auto-scroll to keep cursor visible when the textbox is active (being edited)
+            if self.active:
+                cursor_line, _ = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)
+                if cursor_line - self.scroll_offset >= self.visible_lines:
+                    self.scroll_offset = cursor_line - self.visible_lines + 1
+                    # Sync scrollbar
+                    self.scrollbar.scroll_offset = self.scroll_offset
+                elif cursor_line < self.scroll_offset:
+                    self.scroll_offset = cursor_line
+                    # Sync scrollbar
+                    self.scrollbar.scroll_offset = self.scroll_offset
 
             # Render visible lines
             start_idx = int(self.scroll_offset)
@@ -3157,6 +3398,12 @@ class MultiLineTextBox(BitmappySprite):
                         2,
                     )
 
+        # Update and draw scrollbar
+        if self._text:
+            total_lines = len(self._text.split("\n"))
+            self.scrollbar.update(total_lines, self.visible_lines, self.scroll_offset)
+            self.scrollbar.draw(self.image)
+
         # Force continuous updates
         self.dirty = 2
 
@@ -3166,6 +3413,17 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug(f"Mouse down at {event.pos}")
         self.log.debug(f"Current rect: {self.rect}")
         self.log.debug(f"Current state: active={self.active}, cursor_visible={self.cursor_visible}")
+
+        # Convert absolute mouse position to widget-relative coordinates
+        if self.rect.collidepoint(event.pos):
+            relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+
+            # Check if scrollbar handled the event
+            if self.scrollbar.handle_mouse_down(relative_pos):
+                # Immediately sync scroll offset from scrollbar
+                self.scroll_offset = self.scrollbar.scroll_offset
+                self.dirty = 2
+                return
 
         if self.rect.collidepoint(event.pos):
             self.active = True
@@ -3225,10 +3483,30 @@ class MultiLineTextBox(BitmappySprite):
         if not self.active:
             return
 
+        # Handle Escape key to deactivate
+        if event.key == pygame.K_ESCAPE:
+            self.active = False
+            pygame.key.stop_text_input()
+            pygame.key.set_repeat()  # Disable key repeat
+            self.log.debug("Deactivated by Escape key")
+            self.dirty = 2
+            return
+
         mods = pygame.key.get_mods()
-        is_paste = event.key == pygame.K_v and (
-            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
-        )
+        is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
+        
+        # Handle Ctrl+D (or Cmd+D) to clear contents
+        if event.key == pygame.K_d and is_ctrl:
+            self.text = ""
+            self._text = ""
+            self.cursor_pos = 0
+            self.selection_start = None
+            self.selection_end = None
+            self.dirty = 2
+            self.log.debug("Cleared text contents with Ctrl+D")
+            return
+        
+        is_paste = event.key == pygame.K_v and is_ctrl
         is_copy = event.key == pygame.K_c and (
             (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
         )
@@ -3261,7 +3539,7 @@ class MultiLineTextBox(BitmappySprite):
                 if event.key == pygame.K_LEFT:
                     self.cursor_pos = max(0, self.cursor_pos - 1)
                 else:
-                    self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+                    self.cursor_pos = min(len(self._original_text), self.cursor_pos + 1)
                 self.selection_end = self.cursor_pos
                 return
             self.selection_start = None
@@ -3289,8 +3567,8 @@ class MultiLineTextBox(BitmappySprite):
                 if pyperclip:
                     clipboard_text = pyperclip.paste()
                 if clipboard_text:
-                    before_cursor = self._text[: self.cursor_pos]
-                    after_cursor = self._text[self.cursor_pos :]
+                    before_cursor = self._original_text[: self.cursor_pos]
+                    after_cursor = self._original_text[self.cursor_pos :]
                     self.text = before_cursor + clipboard_text + after_cursor
                     self.cursor_pos += len(clipboard_text)
             except (ImportError, AttributeError):
@@ -3298,7 +3576,7 @@ class MultiLineTextBox(BitmappySprite):
             return
 
         # Handle cut (Ctrl+X)
-        if is_cut and self._text:
+        if is_cut and self._original_text:
             try:
                 if (
                     pyperclip
@@ -3307,18 +3585,18 @@ class MultiLineTextBox(BitmappySprite):
                 ):
                     start = min(self.selection_start, self.selection_end)
                     end = max(self.selection_start, self.selection_end)
-                    selected_text = self._text[start:end]
+                    selected_text = self._original_text[start:end]
                     pyperclip.copy(selected_text)
                     # Remove selected text
-                    before_selection = self._text[:start]
-                    after_selection = self._text[end:]
+                    before_selection = self._original_text[:start]
+                    after_selection = self._original_text[end:]
                     self.text = before_selection + after_selection
                     self.cursor_pos = start
                     self.selection_start = None
                     self.selection_end = None
                 else:
                     # Cut all text
-                    pyperclip.copy(self._text)
+                    pyperclip.copy(self._original_text)
                     self.text = ""
                     self.cursor_pos = 0
             except (ImportError, AttributeError):
@@ -3328,8 +3606,8 @@ class MultiLineTextBox(BitmappySprite):
         # Handle select all (Ctrl+A)
         if is_select_all:
             self.selection_start = 0
-            self.selection_end = len(self._text)
-            self.cursor_pos = len(self._text)
+            self.selection_end = len(self._original_text)
+            self.cursor_pos = len(self._original_text)
             return
 
         # Handle delete with selection
@@ -3338,8 +3616,8 @@ class MultiLineTextBox(BitmappySprite):
         ):
             start = min(self.selection_start, self.selection_end)
             end = max(self.selection_start, self.selection_end)
-            before_selection = self._text[:start]
-            after_selection = self._text[end:]
+            before_selection = self._original_text[:start]
+            after_selection = self._original_text[end:]
             self.text = before_selection + after_selection
             self.cursor_pos = start
             self.selection_start = None
@@ -3349,28 +3627,28 @@ class MultiLineTextBox(BitmappySprite):
         # Handle regular key events
         if event.key == pygame.K_RETURN:
             # Handle newline
-            before_cursor = self._text[: self.cursor_pos]
-            after_cursor = self._text[self.cursor_pos :]
+            before_cursor = self._original_text[: self.cursor_pos]
+            after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + "\n" + after_cursor
             self.cursor_pos += 1
         elif event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
-                self.text = self._text[: self.cursor_pos - 1] + self._text[self.cursor_pos :]
+                self.text = self._original_text[: self.cursor_pos - 1] + self._original_text[self.cursor_pos :]
                 self.cursor_pos -= 1
         elif event.key == pygame.K_DELETE:
-            if self.cursor_pos < len(self._text):
-                self.text = self._text[: self.cursor_pos] + self._text[self.cursor_pos + 1 :]
+            if self.cursor_pos < len(self._original_text):
+                self.text = self._original_text[: self.cursor_pos] + self._original_text[self.cursor_pos + 1 :]
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
         elif event.key == pygame.K_RIGHT:
-            self.cursor_pos = min(len(self._text), self.cursor_pos + 1)
+            self.cursor_pos = min(len(self._original_text), self.cursor_pos + 1)
         elif event.key == pygame.K_UP:
             self._move_cursor_up()
         elif event.key == pygame.K_DOWN:
             self._move_cursor_down()
         elif event.unicode and event.unicode >= " ":
-            before_cursor = self._text[: self.cursor_pos]
-            after_cursor = self._text[self.cursor_pos :]
+            before_cursor = self._original_text[: self.cursor_pos]
+            after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + event.unicode + after_cursor
             self.cursor_pos += 1
 
@@ -3400,7 +3678,17 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug("MultiLineTextBox deactivated")
 
     def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
-        """Handle mouse motion events for hover effects."""
+        """Handle mouse motion events for hover effects and scrollbar."""
+        # Convert absolute mouse position to widget-relative coordinates
+        relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+
+        # Check if scrollbar handled the event
+        if self.scrollbar.handle_mouse_motion(relative_pos):
+            # Sync scroll offset from scrollbar
+            self.scroll_offset = self.scrollbar.scroll_offset
+            self.dirty = 2
+            return
+
         if self.rect.collidepoint(event.pos):
             # Mouse is over the textbox - set hover state
             if not self.is_hovered:
@@ -3411,3 +3699,191 @@ class MultiLineTextBox(BitmappySprite):
             if self.is_hovered:
                 self.is_hovered = False
                 self.dirty = 1  # Mark for redraw to remove hover effects
+
+    def on_left_mouse_button_up_event(self, event: pygame.event.Event) -> None:
+        """Handle left mouse button up events."""
+        # Convert absolute mouse position to widget-relative coordinates
+        relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+
+        # Check if scrollbar handled the event
+        if self.scrollbar.handle_mouse_up(relative_pos):
+            # Sync scroll offset from scrollbar
+            self.scroll_offset = self.scrollbar.scroll_offset
+            self.dirty = 2
+            return
+
+    def on_mouse_wheel_event(self, event: pygame.event.Event) -> None:
+        """Handle mouse wheel events for scrolling."""
+        if not self.rect.collidepoint(pygame.mouse.get_pos()):
+            return
+
+        # Get total lines for boundary checking
+        total_lines = len(self._text.split("\n")) if self._text else 0
+        max_scroll = max(0, total_lines - self.visible_lines)
+
+        # Scroll by 3 lines per wheel notch
+        scroll_amount = 3
+
+        if hasattr(event, 'y'):
+            # pygame 2.0+ style
+            self.scroll_offset -= event.y * scroll_amount
+        elif hasattr(event, 'button'):
+            # pygame 1.9 style (button 4 = up, button 5 = down)
+            if event.button == 4:  # Scroll up
+                self.scroll_offset -= scroll_amount
+            elif event.button == 5:  # Scroll down
+                self.scroll_offset += scroll_amount
+
+        # Clamp scroll offset
+        self.scroll_offset = max(0, min(self.scroll_offset, max_scroll))
+
+        # Sync scrollbar
+        self.scrollbar.scroll_offset = self.scroll_offset
+
+        self.dirty = 2
+
+class ConfirmDialog(BitmappySprite):
+    """Confirmation dialog with Yes/No buttons."""
+
+    def __init__(self, text: str, confirm_callback, cancel_callback, x=0, y=0, width=300, height=100, groups=None):
+        """Initialize the confirmation dialog.
+
+        Args:
+            text: The confirmation message to display
+            confirm_callback: Function to call when user confirms
+            cancel_callback: Function to call when user cancels
+            x: X position
+            y: Y position
+            width: Dialog width
+            height: Dialog height
+            groups: Sprite groups
+        """
+        super().__init__(x, y, width, height, groups)
+        
+        self.text = text
+        self.confirm_callback = confirm_callback
+        self.cancel_callback = cancel_callback
+        
+        # Button dimensions
+        button_width = 80
+        button_height = 30
+        button_spacing = 20
+        button_y = height - button_height - 10
+        
+        # Calculate button positions (centered)
+        total_button_width = (button_width * 2) + button_spacing
+        buttons_start_x = (width - total_button_width) // 2
+        
+        # Create Yes button
+        self.yes_button_rect = pygame.Rect(
+            buttons_start_x,
+            button_y,
+            button_width,
+            button_height
+        )
+        
+        # Create No button
+        self.no_button_rect = pygame.Rect(
+            buttons_start_x + button_width + button_spacing,
+            button_y,
+            button_width,
+            button_height
+        )
+        
+        self.hover_button = None  # Track which button is hovered
+        
+        self.dirty = 2
+
+    def update(self, *args, **kwargs):
+        """Update the dialog."""
+        # Check mouse position for hover effects
+        mouse_pos = pygame.mouse.get_pos()
+        dialog_relative_x = mouse_pos[0] - self.rect.x
+        dialog_relative_y = mouse_pos[1] - self.rect.y
+
+        prev_hover = self.hover_button
+        self.hover_button = None
+
+        if self.yes_button_rect.collidepoint(dialog_relative_x, dialog_relative_y):
+            self.hover_button = "yes"
+        elif self.no_button_rect.collidepoint(dialog_relative_x, dialog_relative_y):
+            self.hover_button = "no"
+
+        if prev_hover != self.hover_button:
+            self.dirty = 2
+
+        # Render if dirty
+        if self.dirty:
+            self.render()
+
+    def render(self):
+        """Render the confirmation dialog."""
+        # Draw semi-transparent background
+        self.image.fill((40, 40, 40))
+        
+        # Draw border
+        pygame.draw.rect(self.image, (100, 100, 100), self.image.get_rect(), 2)
+        
+        # Render text
+        font = FontManager.get_font()
+        text_surface = font.render(self.text, fgcolor=(255, 255, 255), size=14)
+        if isinstance(text_surface, tuple):
+            text_surface, text_rect = text_surface
+        else:
+            text_rect = text_surface.get_rect()
+        
+        text_rect.centerx = self.image.get_width() // 2
+        text_rect.y = 20
+        self.image.blit(text_surface, text_rect)
+        
+        # Draw Yes button
+        yes_color = (60, 120, 60) if self.hover_button == "yes" else (40, 100, 40)
+        pygame.draw.rect(self.image, yes_color, self.yes_button_rect)
+        pygame.draw.rect(self.image, (80, 140, 80), self.yes_button_rect, 2)
+        
+        yes_text = font.render("Yes", fgcolor=(255, 255, 255), size=12)
+        if isinstance(yes_text, tuple):
+            yes_text, yes_text_rect = yes_text
+        else:
+            yes_text_rect = yes_text.get_rect()
+        yes_text_rect.center = self.yes_button_rect.center
+        self.image.blit(yes_text, yes_text_rect)
+        
+        # Draw No button
+        no_color = (120, 60, 60) if self.hover_button == "no" else (100, 40, 40)
+        pygame.draw.rect(self.image, no_color, self.no_button_rect)
+        pygame.draw.rect(self.image, (140, 80, 80), self.no_button_rect, 2)
+        
+        no_text = font.render("No", fgcolor=(255, 255, 255), size=12)
+        if isinstance(no_text, tuple):
+            no_text, no_text_rect = no_text
+        else:
+            no_text_rect = no_text.get_rect()
+        no_text_rect.center = self.no_button_rect.center
+        self.image.blit(no_text, no_text_rect)
+        
+        self.dirty = 0
+
+    def handle_mouse_down(self, pos):
+        """Handle mouse down events.
+
+        Args:
+            pos: Mouse position relative to dialog
+
+        Returns:
+            True if event was handled
+        """
+        if self.yes_button_rect.collidepoint(pos):
+            # User confirmed
+            if self.confirm_callback:
+                self.confirm_callback()
+            self.kill()  # Remove dialog
+            return True
+        elif self.no_button_rect.collidepoint(pos):
+            # User cancelled
+            if self.cancel_callback:
+                self.cancel_callback()
+            self.kill()  # Remove dialog
+            return True
+        
+        return False

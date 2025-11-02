@@ -363,6 +363,8 @@ class GameEngine(events.EventManager):
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
+
+        # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
 
         # Update the scene manager's update_type from the engine's options
@@ -469,6 +471,11 @@ class GameEngine(events.EventManager):
             GameEngine.EVENT_HANDLERS[event_type] = self.process_game_event
 
         self.initialize_input_event_handlers()
+
+        # Enable all events.
+        # Note that glitchygames will auto-suppress events not handled
+        # by the game once they are encountered, so it is recommended to enable all.
+        pygame.event.set_allowed(None)
 
     def initialize_input_event_handlers(self: Self) -> None:
         """Initialize input event handlers.
@@ -813,12 +820,18 @@ class GameEngine(events.EventManager):
         except Exception:
             current_scene = getattr(self.scene_manager, 'current_scene', None)
             if current_scene:
-                scene_name = getattr(current_scene, 'NAME', 'Unknown')
+                scene_name = getattr(current_scene, 'NAME', None)
+                # If NAME is None, use the class name
+                if scene_name is None:
+                    scene_name = current_scene.__class__.__name__
             else:
                 # If current scene is None, try to get the previous scene
                 previous_scene = getattr(self.scene_manager, 'previous_scene', None)
                 if previous_scene:
-                    scene_name = getattr(previous_scene, 'NAME', 'Unknown')
+                    scene_name = getattr(previous_scene, 'NAME', None)
+                    # If NAME is None, use the class name
+                    if scene_name is None:
+                        scene_name = previous_scene.__class__.__name__
                 else:
                     scene_name = 'None'
             # In test environments, use debug level to avoid cluttering test output

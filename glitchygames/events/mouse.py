@@ -579,10 +579,7 @@ class MouseEventManager(ResourceManager):
 
         """
         super().__init__(game=game)
-        try:
-            pygame.event.set_allowed(MOUSE_EVENTS)
-        except Exception:
-            pass
+        pygame.event.set_allowed(MOUSE_EVENTS)
         self.proxies = [MouseEventManager.MouseEventProxy(game=game)]
 
     @classmethod
