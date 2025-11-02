@@ -40,6 +40,12 @@ except ImportError:
     VoiceEventManager = None
 
 from glitchygames import events
+from glitchygames.ai import (
+    build_sprite_generation_messages,
+    clean_ai_response as ai_clean_response,
+    get_sprite_size_hint,
+    validate_ai_response,
+)
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
@@ -198,8 +204,9 @@ AI_MODEL = "anthropic:claude-sonnet-4-5"
 #AI_MODEL = "ollama:mistral-nemo:12b"
 AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)
 AI_QUEUE_SIZE = 10
-AI_MAX_CONTEXT_SIZE = 65536
-AI_MAX_INPUT_TOKENS = 8192
+AI_MAX_CONTEXT_SIZE = 65536  # Total context window size
+AI_MAX_INPUT_TOKENS = 8192   # Maximum tokens for INPUT (prompts, examples)
+AI_MAX_OUTPUT_TOKENS = 64000  # Maximum tokens for OUTPUT (AI response, large sprites)
 AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
 
 # Retry configuration for AI requests
@@ -811,6 +818,16 @@ class AIResponse:
     error: str | None = None
 
 
+@dataclass
+class AIRequestState:
+    """Tracks state of an AI request including retries."""
+
+    original_prompt: str
+    retry_count: int = 0
+    last_error: str | None = None
+    training_examples: list | None = None
+
+
 def _setup_ai_worker_logging() -> logging.Logger:
     """Set up logging for AI worker process."""
     log = logging.getLogger("game.ai")
@@ -1191,7 +1208,7 @@ def _make_ai_api_call(request: AIRequest, client, log: logging.Logger):
         api_kwargs = {
             "model": AI_MODEL,
             "messages": request.messages,
-            "max_tokens": AI_MAX_INPUT_TOKENS
+            "max_tokens": AI_MAX_OUTPUT_TOKENS  # Use OUTPUT token limit for AI response
         }
 
         # Add timeout parameters if the client supports them
@@ -1259,24 +1276,40 @@ def _process_ai_request(request: AIRequest, client, log: logging.Logger) -> AIRe
 def _select_relevant_training_examples(
     user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES
 ) -> list:
-    """Select the most relevant training examples based on user request."""
+    """Select the most relevant training examples based on user request.
+
+    Enhanced selection algorithm scores examples by:
+    - Animation type match (+10)
+    - Size similarity (+5 for exact, +3 for close, +1 for same aspect ratio)
+    - Name keyword match (+5 per word)
+    - Alpha usage match (+3)
+    - Color keyword hints (+2)
+    """
     if len(AI_TRAINING_DATA) <= max_examples:
         return AI_TRAINING_DATA
 
-    # Simple keyword matching for now - could be enhanced with semantic similarity
     user_lower = user_request.lower()
-    relevant_examples = []
 
-    # Score examples based on keyword matches
+    # Extract size hint from request (using sprite_generator utility)
+    requested_size = get_sprite_size_hint(user_request)
+
+    # Extract keywords for better matching
+    user_words = set(user_lower.split())
+
+    # Detect alpha request
+    wants_alpha = any(kw in user_lower for kw in ["alpha", "transparent", "transparency", "translucent"])
+
+    # Score examples based on multiple factors
     scored_examples = []
     for example in AI_TRAINING_DATA:
         score = 0
         name = example.get("name", "").lower()
         sprite_type = example.get("sprite_type", "").lower()
+        has_alpha = example.get("has_alpha", False)
 
-        # Check for keyword matches
+        # Animation type matching (+10 for exact match)
         if (
-            any(keyword in user_lower for keyword in ["animated", "animation", "frame"])
+            any(keyword in user_lower for keyword in ["animated", "animation", "frame", "walk", "run", "idle"])
             and sprite_type == "animated"
         ):
             score += 10
@@ -1286,22 +1319,136 @@ def _select_relevant_training_examples(
         ):
             score += 10
 
-        # Check for name similarity
-        if any(word in name for word in user_lower.split()):
-            score += 5
+        # Size matching (if size hint detected)
+        if requested_size:
+            req_width, req_height = requested_size
+            example_size = _extract_example_size(example)
+            if example_size:
+                ex_width, ex_height = example_size
+                # Exact size match (+5)
+                if req_width == ex_width and req_height == ex_height:
+                    score += 5
+                # Close size match within 25% (+3)
+                elif (
+                    abs(req_width - ex_width) <= req_width * 0.25
+                    and abs(req_height - ex_height) <= req_height * 0.25
+                ):
+                    score += 3
+                # Same aspect ratio (+1)
+                elif abs((req_width / req_height) - (ex_width / ex_height)) < 0.2:
+                    score += 1
+
+        # Name keyword matching (+5 per matching word)
+        name_words = set(name.split())
+        common_words = user_words & name_words
+        score += len(common_words) * 5
+
+        # Alpha usage matching (+3)
+        if wants_alpha and has_alpha:
+            score += 3
+        elif not wants_alpha and not has_alpha:
+            score += 1  # Slight preference for non-alpha when not requested
+
+        # Color keyword hints (+2 each)
+        color_keywords = ["red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "black", "white"]
+        for color in color_keywords:
+            if color in user_lower and color in name:
+                score += 2
 
         scored_examples.append((score, example))
 
-    # Sort by score and take top examples
+    # Sort by score (descending) and take top examples
     scored_examples.sort(key=operator.itemgetter(0), reverse=True)
     relevant_examples = [example for _, example in scored_examples[:max_examples]]
 
-    # Fill remaining slots with random examples if needed
+    # Fill remaining slots with highest-scoring unused examples
     if len(relevant_examples) < max_examples:
-        remaining = [ex for ex in AI_TRAINING_DATA if ex not in relevant_examples]
+        remaining = [ex for _, ex in scored_examples if ex not in relevant_examples]
         relevant_examples.extend(remaining[: max_examples - len(relevant_examples)])
 
     return relevant_examples
+
+
+def _extract_example_size(example: dict) -> tuple[int, int] | None:
+    """Extract sprite dimensions from training example.
+
+    Args:
+        example: Training example dictionary
+
+    Returns:
+        (width, height) tuple or None if size cannot be determined
+    """
+    # Try to get size from pixels field (static sprites)
+    if "pixels" in example:
+        pixels = example["pixels"]
+        if isinstance(pixels, str) and "\n" in pixels:
+            lines = pixels.strip().split("\n")
+            if lines:
+                height = len(lines)
+                width = len(lines[0])
+                return (width, height)
+
+    # Try to get size from first animation frame
+    if "animations" in example and example["animations"]:
+        first_anim = example["animations"][0]
+        if "frame" in first_anim and first_anim["frame"]:
+            first_frame = first_anim["frame"][0]
+            if "pixels" in first_frame:
+                pixels = first_frame["pixels"]
+                if isinstance(pixels, str) and "\n" in pixels:
+                    lines = pixels.strip().split("\n")
+                    if lines:
+                        height = len(lines)
+                        width = len(lines[0])
+                        return (width, height)
+
+    return None
+
+
+def _build_retry_prompt(original_prompt: str, validation_error: str) -> str:
+    """Build a targeted retry prompt based on validation error.
+
+    Args:
+        original_prompt: Original user request
+        validation_error: Error message from validate_ai_response()
+
+    Returns:
+        Enhanced prompt with specific corrections
+    """
+    # Base prompt
+    retry_prompt = original_prompt + "\n\n"
+
+    # Add specific corrections based on error type
+    error_lower = validation_error.lower()
+
+    if "missing [sprite] section" in error_lower:
+        retry_prompt += "CRITICAL: You must include a [sprite] section at the beginning."
+    elif "missing [colors] section" in error_lower:
+        retry_prompt += "CRITICAL: You must include [colors] sections defining every color used in pixels."
+    elif "truncated" in error_lower or "incomplete" in error_lower:
+        retry_prompt += (
+            "IMPORTANT: Previous response was cut off. "
+            "Reduce detail, use fewer frames, or make it smaller to fit within token limits."
+        )
+    elif "mixed" in error_lower and "format" in error_lower:
+        retry_prompt += (
+            "CRITICAL: For animated sprites, do NOT include 'pixels' in [sprite] section. "
+            "Only include pixels in [[animation.frame]] sections."
+        )
+    elif "comma" in error_lower:
+        retry_prompt += (
+            "CRITICAL: Color values must use separate fields (red = X, green = Y, blue = Z), "
+            "NOT comma-separated tuples."
+        )
+    elif "markdown" in error_lower:
+        retry_prompt += "CRITICAL: Return ONLY raw TOML, no markdown code blocks (```), no explanations."
+    elif "empty" in error_lower:
+        retry_prompt += "CRITICAL: You must generate sprite content, not an empty or error message."
+    else:
+        # Generic retry message
+        retry_prompt += f"IMPORTANT: Previous attempt had an error: {validation_error}. Please fix and try again."
+
+    return retry_prompt
 
 
 def parse_toml_robustly(content: str, log: logging.Logger = None) -> dict:
@@ -3009,7 +3156,17 @@ class AnimatedCanvasSprite(BitmappySprite):
             self._save_viewport_sprite(filename)
         else:
             # Save full sprite when not panning
-            self.sprite_serializer.save(self.animated_sprite, filename, DEFAULT_FILE_FORMAT)
+            # Prefer canvas.animated_sprite if available
+            sprite_to_save = None
+            if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+                sprite_to_save = self.canvas.animated_sprite
+            elif hasattr(self, "animated_sprite"):
+                sprite_to_save = self.animated_sprite
+
+            if sprite_to_save:
+                self.sprite_serializer.save(sprite_to_save, filename, DEFAULT_FILE_FORMAT)
+            else:
+                self.log.error("No sprite found to save")
 
     @classmethod
     def from_file(
@@ -5823,17 +5980,26 @@ class BitmapEditorScene(Scene):
         """Handle animation name changes from film strip editing."""
         self.log.debug(f"BitmapEditorScene: Animation renamed from '{old_name}' to '{new_name}'")
 
+        # Determine which sprite object to update - prefer canvas.animated_sprite
+        sprite_to_update = None
+        if hasattr(self, "canvas") and self.canvas and hasattr(self.canvas, "animated_sprite"):
+            sprite_to_update = self.canvas.animated_sprite
+            self.log.debug(f"BitmapEditorScene: Using canvas.animated_sprite for rename")
+        elif hasattr(self, "animated_sprite") and self.animated_sprite:
+            sprite_to_update = self.animated_sprite
+            self.log.debug(f"BitmapEditorScene: Using self.animated_sprite for rename")
+
         # Update the animated sprite's animation names
-        if hasattr(self, "animated_sprite") and self.animated_sprite:
-            if old_name in self.animated_sprite._animations:
+        if sprite_to_update:
+            if old_name in sprite_to_update._animations:
                 # Rename the animation in the sprite
-                frames = self.animated_sprite._animations[old_name]
-                del self.animated_sprite._animations[old_name]
-                self.animated_sprite._animations[new_name] = frames
+                frames = sprite_to_update._animations[old_name]
+                del sprite_to_update._animations[old_name]
+                sprite_to_update._animations[new_name] = frames
                 # Maintain animation order list if present
-                if hasattr(self.animated_sprite, "_animation_order"):
-                    order = list(getattr(self.animated_sprite, "_animation_order", []))
-                    self.animated_sprite._animation_order = [
+                if hasattr(sprite_to_update, "_animation_order"):
+                    order = list(getattr(sprite_to_update, "_animation_order", []))
+                    sprite_to_update._animation_order = [
                         (new_name if name == old_name else name) for name in order
                     ]
 
@@ -5850,6 +6016,30 @@ class BitmapEditorScene(Scene):
                     strip_widget = self.film_strips[new_name]
                     if getattr(strip_widget, "current_animation", None) == old_name:
                         strip_widget.current_animation = new_name
+
+                    # CRITICAL: Update the FilmStripWidget's own animated_sprite
+                    if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
+                        if old_name in strip_widget.animated_sprite._animations:
+                            # Rename in the widget's sprite
+                            widget_frames = strip_widget.animated_sprite._animations[old_name]
+                            del strip_widget.animated_sprite._animations[old_name]
+                            strip_widget.animated_sprite._animations[new_name] = widget_frames
+
+                            # Update animation order
+                            if hasattr(strip_widget.animated_sprite, "_animation_order"):
+                                strip_widget.animated_sprite._animation_order = [new_name]
+
+                            # Update frame manager
+                            if strip_widget.animated_sprite.frame_manager.current_animation == old_name:
+                                strip_widget.animated_sprite.frame_manager.current_animation = new_name
+
+                            self.log.debug(f"Updated FilmStripWidget's internal sprite: '{old_name}' -> '{new_name}'")
+                    # Update film_strip_sprites dictionary (keyed by animation name)
+                    if hasattr(self, "film_strip_sprites") and old_name in self.film_strip_sprites:
+                        self.film_strip_sprites[new_name] = self.film_strip_sprites[old_name]
+                        del self.film_strip_sprites[old_name]
+                        self.log.debug(f"Updated film_strip_sprites dict: '{old_name}' -> '{new_name}'")
+
                     try:
                         # Recalculate layout to update animation_layouts with new name
                         strip_widget.update_layout()
@@ -6816,6 +7006,11 @@ class BitmapEditorScene(Scene):
 
             # Clear the AI sprite dialog for new canvas
             self._clear_ai_sprite_box()
+
+            # Purge AI request cache for new canvas
+            if hasattr(self, "pending_ai_requests"):
+                self.pending_ai_requests.clear()
+                self.log.info("Cleared AI request cache for new canvas")
 
             # Update AI sprite positioning for new canvas size
             self._update_ai_sprite_position()
@@ -7785,66 +7980,14 @@ class BitmapEditorScene(Scene):
             relevant_examples = _select_relevant_training_examples(text)
             self.log.info(f"Frame is empty, using {len(relevant_examples)} regular examples")
 
-        messages: list[dict[str, str]] = [
-            {
-                "role": "system",
-                "content": f"""
-                    You are a helpful assistant in a bitmap editor that can create
-                    game content for game developers. You can create both static
-                    single-frame sprites and animated multi-frame sprites.
-
-                    Available character set for sprite pixels: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
-                """.strip(),
-            },
-            {
-                "role": "user",
-                "content": f"""
-                            Here is the context for your sprite generation:
-
-                            {"\n".join([str(data) for data in relevant_examples])}
-
-                            Available character set: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
-
-                            IMPORTANT: The examples above include both the selected frame and the selected strip from the current sprite. Use this context to understand what the user is asking for and determine the appropriate response based on their request.
-                        """.strip(),
-            },
-            {
-                "role": "assistant",
-                "content": f"""
-                    Thank you for providing those sprite examples. I understand
-                    that each sprite consists of:
-
-                    1. A name
-                    2. A pixel layout using characters from: {len(SPRITE_GLYPHS[:512])} colors: {SPRITE_GLYPHS[:512]}
-                    3. A color palette mapping characters to RGB values
-                    4. For animated sprites: multiple frames with timing information
-
-                    I'll use the {AI_TRAINING_FORMAT.upper()} format when suggesting new sprites.
-                """.strip(),
-            },
-            {
-                "role": "user",
-                "content": f"""
-                    Great! When I ask you to create a sprite, please provide ONLY the
-                    {AI_TRAINING_FORMAT.upper()} content without any markdown formatting,
-                    code blocks, or explanations. Just the raw {AI_TRAINING_FORMAT.upper()}
-                    file content.
-
-                    {COMPLETE_TOML_FORMAT}
-
-                    IMPORTANT: Return ONLY the {AI_TRAINING_FORMAT.upper()} content,
-                    no markdown code blocks, no explanations, no ```toml or ``` markers.
-                """.strip(),
-            },
-            {
-                "role": "assistant",
-                "content": format_instruction,
-            },
-            {
-                "role": "user",
-                "content": text.strip(),
-            },
-        ]
+        # Use new AI module for optimized message building
+        messages = build_sprite_generation_messages(
+            user_request=text.strip(),
+            training_examples=relevant_examples,
+            max_examples=3,
+            include_size_hint=True,
+            include_animation_hint=True
+        )
 
         try:
             # Create unique request ID
@@ -7856,8 +7999,12 @@ class BitmapEditorScene(Scene):
 
             self.ai_request_queue.put(request)
 
-            # Store request ID
-            self.pending_ai_requests[request_id] = text
+            # Store request state with training examples for potential retries
+            self.pending_ai_requests[request_id] = AIRequestState(
+                original_prompt=text,
+                retry_count=0,
+                training_examples=relevant_examples
+            )
 
             # Update UI to show pending state
             if hasattr(self, "debug_text"):
@@ -7904,15 +8051,84 @@ class BitmapEditorScene(Scene):
             self.log.warning("Not in main process, AI processing not available")
 
     def _process_ai_response(self, request_id: str, response) -> None:
-        """Process an AI response."""
+        """Process an AI response with automatic validation-driven retry."""
         self.log.info(f"Got AI response for request {request_id}")
 
-        if response.content is not None:
-            self._load_ai_sprite(request_id, response.content)
-        else:
+        # Handle empty response
+        if response.content is None:
             self.log.error("AI response content is None, cannot save sprite")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = "AI response was empty"
+            # Clean up
+            if request_id in self.pending_ai_requests:
+                del self.pending_ai_requests[request_id]
+            return
+
+        # Get request state
+        if request_id not in self.pending_ai_requests:
+            self.log.warning(f"Request {request_id} not found in pending requests")
+            self._load_ai_sprite(request_id, response.content)
+            return
+
+        request_state = self.pending_ai_requests[request_id]
+
+        # Validate the response
+        is_valid, validation_error = validate_ai_response(response.content)
+
+        if not is_valid:
+            self.log.warning(f"AI response validation failed: {validation_error}")
+
+            # Check if we can retry
+            MAX_RETRIES = 2
+            if request_state.retry_count < MAX_RETRIES:
+                # Trigger retry with targeted prompt
+                request_state.retry_count += 1
+                request_state.last_error = validation_error
+
+                self.log.info(f"Retrying request (attempt {request_state.retry_count + 1}/{MAX_RETRIES + 1})")
+
+                # Build retry prompt with specific corrections
+                retry_prompt = _build_retry_prompt(request_state.original_prompt, validation_error)
+
+                # Rebuild messages with retry prompt
+                messages = build_sprite_generation_messages(
+                    user_request=retry_prompt,
+                    training_examples=request_state.training_examples,
+                    max_examples=3,
+                    include_size_hint=True,
+                    include_animation_hint=True
+                )
+
+                # Create new request with same ID
+                retry_request = AIRequest(
+                    prompt=messages,
+                    request_id=request_id,  # Reuse same ID
+                    messages=messages
+                )
+
+                # Submit retry
+                self.ai_request_queue.put(retry_request)
+
+                # Update UI
+                if hasattr(self, "debug_text"):
+                    self.debug_text.text = (
+                        f"Retrying with corrections... (attempt {request_state.retry_count + 1}/{MAX_RETRIES + 1})\n"
+                        f"Error: {validation_error}"
+                    )
+
+                # DON'T delete from pending_ai_requests - we're retrying
+                return
+            else:
+                # Max retries reached, load anyway and show error
+                self.log.error(f"Max retries ({MAX_RETRIES}) reached, loading sprite anyway")
+                if hasattr(self, "debug_text"):
+                    self.debug_text.text = (
+                        f"Failed after {MAX_RETRIES} retries:\n{validation_error}\n\n"
+                        f"Attempting to load anyway..."
+                    )
+
+        # Valid response or max retries reached - load the sprite
+        self._load_ai_sprite(request_id, response.content)
 
         # Remove from pending requests
         if request_id in self.pending_ai_requests:
@@ -7932,10 +8148,16 @@ class BitmapEditorScene(Scene):
 
     def _prepare_ai_content(self, request_id: str, content: str) -> str:
         """Clean AI response content and add description if needed."""
+        # Check if this is an error message BEFORE cleaning
+        if self._is_ai_error_message(content):
+            self.log.warning("AI returned error/apology message, skipping processing")
+            return content
+        
         # Get the original user prompt from the request
         original_prompt = ""
         if request_id in self.pending_ai_requests:
-            original_prompt = self.pending_ai_requests[request_id]
+            request_state = self.pending_ai_requests[request_id]
+            original_prompt = request_state.original_prompt
             self.log.debug(f"Using original prompt: '{original_prompt}'")
 
         # Clean up any markdown formatting from AI response
@@ -8099,9 +8321,12 @@ class BitmapEditorScene(Scene):
         """Update UI components after AI sprite load."""
         if hasattr(self, "debug_text"):
             # Restore the original prompt text that was submitted
-            original_prompt = self.pending_ai_requests.get(
-                request_id, "Enter a description of the sprite you want to create:"
-            )
+            if request_id in self.pending_ai_requests:
+                request_state = self.pending_ai_requests[request_id]
+                original_prompt = request_state.original_prompt
+            else:
+                original_prompt = "Enter a description of the sprite you want to create:"
+
             self.debug_text.text = original_prompt
 
     def _cleanup_ai_request(self, request_id: str) -> None:
@@ -8483,6 +8708,26 @@ pixels = \"\"\"
             self.log.error(f"Error loading temp TOML as example: {e}")
             return None
 
+    def _is_ai_error_message(self, content: str) -> bool:
+        """Check if AI response is an error message rather than valid sprite code.
+
+        Uses the AI module's validation function for comprehensive checking.
+
+        Args:
+            content: The AI response content to check
+
+        Returns:
+            True if the content appears to be an error/apology message
+        """
+        # Use the new AI module's validation function
+        is_valid, error_msg = validate_ai_response(content)
+
+        if not is_valid:
+            self.log.warning(f"AI response validation failed: {error_msg}")
+            return True
+
+        return False
+
     def _load_ai_sprite(self, request_id: str, content: str) -> None:
         """Load sprite from AI content using SpriteFactory APIs."""
         # Log AI response content for debugging
@@ -8497,13 +8742,44 @@ pixels = \"\"\"
             self._cleanup_ai_request(request_id)
             return
 
+        # Check if this looks like an error/apology message
+        if self._is_ai_error_message(content):
+            self.log.warning("AI returned error/apology message instead of sprite code")
+            self.log.debug(f"Detected error message, content preview: {content[:100]}...")
+            
+            # Get the original prompt that was sent to the AI
+            original_prompt = ""
+            if request_id in self.pending_ai_requests:
+                request_state = self.pending_ai_requests[request_id]
+                original_prompt = request_state.original_prompt
+
+            if hasattr(self, "debug_text"):
+                # Append the error message to the input box, with original prompt at the bottom
+                current_text = getattr(self.debug_text, "text", "")
+                if current_text:
+                    error_text = current_text + "\n\n" + content
+                else:
+                    error_text = content
+                
+                # Add original prompt at the bottom if we have it
+                if original_prompt:
+                    error_text = error_text + "\n\n--- Original Prompt ---\n" + original_prompt
+                
+                self.debug_text.text = error_text
+                self.log.info(f"Appended error message to debug_text input box")
+            
+            # Clean up pending request
+            self._cleanup_ai_request(request_id)
+            return
+
         # Prepare AI content (clean and add description if needed)
         cleaned_content = self._prepare_ai_content(request_id, content)
 
         # Get the original prompt to update sprite description
         original_prompt = ""
         if request_id in self.pending_ai_requests:
-            original_prompt = self.pending_ai_requests[request_id]
+            request_state = self.pending_ai_requests[request_id]
+            original_prompt = request_state.original_prompt
 
         # Create temporary file from content
         tmp_path = self._create_temp_file_from_content(cleaned_content)
@@ -8541,51 +8817,36 @@ pixels = \"\"\"
 
         except Exception as sprite_error:
             self.log.error("Failed to load AI sprite")
+            
+            # Get the original prompt that was sent to the AI
+            original_prompt = ""
+            if request_id in self.pending_ai_requests:
+                request_state = self.pending_ai_requests[request_id]
+                original_prompt = request_state.original_prompt
+
             if hasattr(self, "debug_text"):
-                self.debug_text.text = f"Error loading AI sprite: {sprite_error}"
+                # Show error with original prompt at the bottom
+                error_text = f"Error loading AI sprite: {sprite_error}"
+                if original_prompt:
+                    error_text = error_text + "\n\n--- Original Prompt ---\n" + original_prompt
+                
+                # Also include the AI response content for debugging
+                error_text = error_text + "\n\n--- AI Response ---\n" + content
+                
+                self.debug_text.text = error_text
         # Note: Temp file is kept for debugging - remove this comment when done debugging
 
     def _clean_ai_response(self, content: str) -> str:
-        """Clean up markdown formatting from AI response."""
+        """Clean up markdown formatting from AI response using AI module."""
         # Check if this is an error message instead of valid content
         if content.strip() in ["AI features not available", "AI features not available."]:
             self.log.warning("AI returned error message instead of sprite content")
             return content  # Return as-is for error handling upstream
 
-        cleaned_content = content
-
-        # Handle various markdown code block patterns
-        markdown_patterns = [
-            ("```toml", "```"),
-            ("```", "```"),
-            ("```ini", "```"),
-        ]
-
-        for start_marker, end_marker in markdown_patterns:
-            if start_marker in content:
-                start_idx = content.find(start_marker)
-                if start_idx != -1:
-                    start_idx += len(start_marker)
-                    end_idx = content.find(end_marker, start_idx)
-                    if end_idx != -1:
-                        cleaned_content = content[start_idx:end_idx].strip()
-                        self.log.info(
-                            f"Extracted content from markdown code block ({start_marker})"
-                        )
-                        break
-
-        # Remove any remaining markdown artifacts
-        if cleaned_content.startswith("```") or cleaned_content.endswith("```"):
-            cleaned_content = cleaned_content.strip("`")
-
-        # Remove any explanatory text before the actual content
-        lines = cleaned_content.split("\n")
-        content_start = 0
-        for i, line in enumerate(lines):
-            if line.strip().startswith("[") and ("sprite" in line or "animation" in line):
-                content_start = i
-                break
-        return "\n".join(lines[content_start:])
+        # Use the new AI module's cleaning function
+        cleaned = ai_clean_response(content)
+        self.log.info("Cleaned AI response using AI module")
+        return cleaned
 
     def update(self):
         """Update scene state."""

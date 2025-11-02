@@ -879,7 +879,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Parse pixel rows
         pixel_rows = pixels.strip().split("\n")
         height = len(pixel_rows)
-        width = len(pixel_rows[0]) if pixel_rows else 0
+
+        # Calculate maximum width across all rows to handle inconsistent widths
+        row_widths = [len(row) for row in pixel_rows]
+        width = max(row_widths) if row_widths else 0
+
+        # Check for inconsistent row widths and pad if needed
+        if len(set(row_widths)) > 1:
+            self.log.warning(
+                f"Inconsistent row widths detected in static sprite: "
+                f"min={min(row_widths)}, max={max(row_widths)}. "
+                f"Padding shorter rows to {width} characters."
+            )
+            # Pad shorter rows with first character (usually transparency)
+            # Find the most common character to use as padding (likely transparency)
+            from collections import Counter
+            all_chars = ''.join(pixel_rows)
+            char_counts = Counter(all_chars)
+            pad_char = char_counts.most_common(1)[0][0] if char_counts else ' '
+
+            # Pad rows to consistent width
+            pixel_rows = [row.ljust(width, pad_char) for row in pixel_rows]
+            self.log.debug(f"Using '{pad_char}' as padding character")
 
         # Create a surface from the pixel data
         surface = pygame.Surface((width, height))

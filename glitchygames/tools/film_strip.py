@@ -1143,11 +1143,19 @@ class FilmStripWidget:
         if hasattr(event, 'key') and event.key == pygame.K_RETURN:
             if self.editing_text and self.original_animation_name:
                 new_name = self.editing_text.strip()
+                LOG.debug(f"FilmStripWidget: Attempting to rename '{self.original_animation_name}' to '{new_name}'")
                 if new_name and new_name != self.original_animation_name:
                     # Notify parent scene to handle the rename
                     if hasattr(self, "parent_scene") and self.parent_scene:
+                        LOG.debug(f"FilmStripWidget: Calling parent_scene.on_animation_rename")
                         self.parent_scene.on_animation_rename(self.original_animation_name, new_name)
-            
+                    else:
+                        LOG.warning(f"FilmStripWidget: No parent_scene found! Cannot rename animation.")
+                else:
+                    LOG.debug(f"FilmStripWidget: Name unchanged or empty, not renaming")
+            else:
+                LOG.debug(f"FilmStripWidget: editing_text='{self.editing_text}', original_animation_name='{self.original_animation_name}'")
+
             # Clear edit mode
             self.editing_animation = None
             self.editing_text = ""
@@ -1612,16 +1620,16 @@ class FilmStripWidget:
                 # Show editing text (or underscore if buffer is empty)
                 display_text = self.editing_text or "_"
                 font = FontManager.get_font()
-                text = font.render(display_text, fgcolor=(255, 255, 0), size=12)  # Yellow for editing
+                text = font.render(display_text, fgcolor=(200, 220, 255), size=12)  # Light blue for editing
                 if isinstance(text, tuple):  # freetype returns (surface, rect)
                     text, text_rect = text
                 else:  # pygame.font returns surface
                     text_rect = text.get_rect()
-                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2 - 5)
+                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
                 label_surface.blit(text, text_rect)
-                # Add edit mode highlight
+                # Add edit mode highlight - subtle cyan border
                 pygame.draw.rect(
-                    label_surface, (255, 255, 0), (0, 0, anim_rect.width, anim_rect.height), 2
+                    label_surface, (100, 180, 220), (0, 0, anim_rect.width, anim_rect.height), 2
                 )
             else:
                 # Add animation name text
@@ -1631,7 +1639,7 @@ class FilmStripWidget:
                     text, text_rect = text
                 else:  # pygame.font returns surface
                     text_rect = text.get_rect()
-                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2 - 5)
+                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
                 label_surface.blit(text, text_rect)
 
             # Add hover highlighting (only if not editing)
