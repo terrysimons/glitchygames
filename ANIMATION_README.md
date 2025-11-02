@@ -141,6 +141,264 @@ The `namespace` field creates a binding between `[animation]` and `[animation.fr
 
 For example, frames with `namespace = "idle"` belong to the animation with `namespace = "idle"`, while frames with `namespace = "walk"` belong to a separate animation with `namespace = "walk"`.
 
+### Format Benefits
+
+The TOML sprite format provides several key utilities that make it powerful for game development:
+
+#### Human-Readable Design
+
+The format is intentionally designed to be **easy to read by humans**. Single-frame sprites use the most terse format possible for maximum readability:
+
+```toml
+[sprite]
+name = "SimpleSprite"
+pixels = """
+#@@@#
+@AAA@
+#@@@#
+"""
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."@"]
+red = 255
+green = 0
+blue = 0
+```
+
+This compact representation allows developers to quickly visualize and understand sprite artwork directly in the file, without needing specialized tools.
+
+#### Unified Animation System
+
+The system provides a unified approach to handling both static and animated sprites:
+
+- **Single-frame sprites** are automatically converted at load time into single-frame animations internally
+- When saved, single-frame animations are automatically condensed back down to the terse static format
+- This unified approach means the same animation system handles both static and animated sprites seamlessly
+
+#### AI-Assisted Generation
+
+The text-based format enables powerful AI-assisted sprite generation workflows:
+
+- **Easy to debug**: The text format makes it straightforward to inspect and verify AI-generated sprites
+- **Style matching**: Developers can provide example art in the same format to help AI match existing sprite styles
+- **Iterative refinement**: The readable format allows for quick manual adjustments and style nudges when working with AI-generated content
+
+This combination of human readability, unified handling, and AI-friendly format makes the TOML sprite format a powerful tool for both manual sprite creation and automated generation workflows.
+
+## Color Handling: Indexed, RGBA, and Mixed Modes
+
+The GlitchyGames animation system supports three color modes: **indexed (RGB-only)**, **RGBA (per-pixel alpha)**, and **mixed mode** (combining both in the same sprite). The system automatically determines the color mode for each character based on the presence and value of the `alpha` field in its color definition.
+
+### Character-to-Color Mapping
+
+Each character in the `pixels` string maps to an RGB or RGBA tuple through the `[colors."<character>"]` sections. During loading, the system looks up each character in the pixel data and replaces it with the corresponding color tuple defined in the colors section.
+
+**Example:**
+
+```toml
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."@"]
+red = 255
+green = 0
+blue = 0
+alpha = 127
+
+[animation.frame]
+pixels = """
+#@@@#
+@.A.@
+#@@@#
+"""
+```
+
+In this example:
+
+- The `#` character maps to `(0, 0, 0)` (black RGB)
+- The `@` character maps to `(255, 0, 0, 127)` (red with semi-transparency RGBA)
+- The `.` character maps to whatever is defined in `[colors."."]`
+- The `A` character maps to whatever is defined in `[colors."A"]`
+
+### Color Modes
+
+#### Indexed Color (RGB-Only)
+
+Indexed colors are opaque and use RGB tuples only:
+
+- **No `alpha` field**: When a color definition has no `alpha` field, it's treated as an opaque indexed color
+- **`alpha = 255`**: When `alpha` is explicitly set to 255, it's also treated as an opaque indexed color
+- **Save behavior**: Indexed colors are written as RGB only (no `alpha` field) for clarity
+
+**Example (Indexed):**
+
+```toml
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."A"]
+red = 255
+green = 255
+blue = 255
+```
+
+#### RGBA Color (Per-Pixel Alpha)
+
+RGBA colors support transparency with per-pixel alpha values:
+
+- **`alpha` 0-254**: When `alpha` is present with a value from 0-254, it represents semi-transparent or fully transparent pixels
+  - `alpha = 0`: Fully transparent
+  - `alpha = 1-254`: Semi-transparent (lower values = more transparent)
+- **Save behavior**: RGBA colors with alpha 0-254 are written with the `alpha` field preserved
+
+**Example (RGBA):**
+
+```toml
+[colors."~"]        # Semi-transparent red
+red = 255
+green = 0
+blue = 0
+alpha = 127
+
+[colors."."]        # Fully transparent
+red = 0
+green = 0
+blue = 0
+alpha = 0
+```
+
+#### Mixed Mode
+
+Sprites can combine indexed and RGBA colors in the same file:
+
+- **Flexible composition**: Some characters can be indexed (opaque) while others use RGBA (transparent)
+- **Preserved format**: The system preserves each character's original format and order
+- **Save behavior**: During save, original per-pixel alpha values are preserved, and opaque colors are saved without the `alpha` field
+
+**Example (Mixed):**
+
+```toml
+[colors."#"]        # Indexed (opaque)
+red = 0
+green = 0
+blue = 0
+
+[colors."@"]        # RGBA (semi-transparent)
+red = 255
+green = 0
+blue = 0
+alpha = 96
+
+[colors."A"]        # Explicit opaque; treated like indexed
+red = 255
+green = 255
+blue = 255
+alpha = 255
+```
+
+### Special Block Character: Magenta Transparency (255, 0, 255)
+
+The color `(255, 0, 255)` (magenta) is a special transparency color used throughout the GlitchyGames system. It serves as the transparency key color and has special handling:
+
+#### Block Character Assignment
+
+- **Preferred character**: The block character `█` is reserved and preferred for `(255, 0, 255)`
+- **Original character preservation**: If a sprite file already uses a different character (like `.` or `M`) for `(255, 0, 255)`, that character is preserved on load
+- **Automatic assignment**: If `(255, 0, 255)` is present but not mapped to a character, `█` is automatically assigned
+
+#### Internal Format
+
+- **Always RGBA**: Internally, `(255, 0, 255)` is normalized to RGBA format `(255, 0, 255, 255)`
+- **Save behavior**: When saved, it's written as RGB only (no `alpha` field) since it's opaque
+- **Transparency role**: Despite being opaque RGB internally, magenta serves as the transparency key color for sprite backgrounds and padding
+
+**Example:**
+
+```toml
+[colors."█"]        # Block character for magenta (transparency key)
+red = 255
+green = 0
+blue = 255
+
+# Or using a different character:
+[colors."."]
+red = 255
+green = 0
+blue = 255
+```
+
+#### Loading Behavior
+
+When loading sprites:
+
+- If `(255, 0, 255)` is found in pixel data, it uses the character originally mapped to it (if available), otherwise defaults to `█`
+- Magenta pixels are normalized to `(255, 0, 255, 255)` format internally
+- The character mapping is preserved so the sprite can be saved with the same character
+
+#### Saving Behavior
+
+When saving sprites:
+
+- If the sprite contains `(255, 0, 255, 255)` pixels, the system:
+  - Uses the original character from the loaded file if available
+  - Otherwise assigns `█` to magenta
+  - Writes the color definition as RGB only (no `alpha` field) since it's opaque
+- The block character `█` is reserved/preferred but not forced if another character was originally used
+
+### Load/Save Details
+
+#### Loading Process
+
+1. **Character lookup**: Each character in the `pixels` string is looked up in the `[colors."<character>"]` sections
+2. **Color tuple creation**: Based on the color definition:
+   - No `alpha` field → RGB tuple `(r, g, b)`
+   - `alpha` 0-254 → RGBA tuple `(r, g, b, a)`
+   - `alpha` 255 → RGB tuple `(r, g, b)` (treated as indexed)
+3. **Magenta normalization**: `(255, 0, 255)` pixels are normalized to `(255, 0, 255, 255)` internally
+4. **Per-pixel alpha tracking**: Colors with `alpha` 0-254 are tracked for preservation during save
+5. **Surface creation**: The system creates either:
+   - RGB surface with magenta transparency key (if no per-pixel alpha needed)
+   - RGBA surface with per-pixel alpha (if any pixels have alpha 0-254)
+
+#### Saving Process
+
+1. **Color map building**: All unique colors from pixel data are collected
+2. **Character assignment**: Characters are assigned to colors, preserving original mappings when possible
+3. **Magenta handling**: If `(255, 0, 255)` is present:
+   - Uses original character if available
+   - Otherwise assigns `█`
+   - Always stores as RGBA format `(255, 0, 255, 255)` internally
+4. **Alpha preservation**: Colors that originally had `alpha` 0-254 are preserved with their exact alpha values
+5. **Format determination**: For each color:
+   - **Original alpha 0-254**: Write RGB + `alpha` field with original value
+   - **Opaque colors** (`alpha=255` or no `alpha`): Write RGB only (no `alpha` field)
+   - **New RGBA colors**: Write RGB + `alpha` field if alpha < 255, otherwise RGB only
+6. **Pixel string generation**: Each pixel tuple is converted back to its assigned character
+
+#### Transparency Rendering
+
+In terminal/ASCII rendering tools:
+
+- **Fully transparent** (`alpha = 0`): Uses a transparency placeholder glyph
+- **Semi-transparent** (`alpha` 1-254): Color intensity is adjusted based on alpha value
+- **Opaque colors**: Render normally
+
+### Best Practices
+
+1. **Prefer indexed colors**: Omit the `alpha` field unless transparency is needed
+2. **Use magenta for transparency**: Use `(255, 0, 255)` (mapped to `█` or `.`) for transparent backgrounds
+3. **Avoid `alpha = 255`**: Don't explicitly set `alpha = 255`; it's redundant and treated like indexed RGB
+4. **Preserve character mappings**: The system preserves original character assignments, so your sprite files will maintain consistent character usage
+5. **Mixed mode efficiency**: Use indexed colors for opaque pixels and RGBA only where transparency is needed
+
 ## Animation Features
 
 ### 1. Per-Frame Timing

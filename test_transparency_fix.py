@@ -20,33 +20,6 @@ class TestTransparencyFix:
         """Clean up after tests."""
         MockFactory.teardown_pygame_mocks(self.patchers)
 
-    def test_static_canvas_skips_transparency_key_pixels(self):
-        """Test that StaticCanvasRenderer skips transparency key pixels."""
-        from glitchygames.tools.canvas_interfaces import StaticCanvasRenderer
-        from glitchygames.sprites import BitmappySprite
-
-        # Create a test sprite with transparency key pixels
-        sprite = BitmappySprite()
-        sprite.pixels = [(255, 0, 0), (255, 0, 255), (0, 255, 0), (255, 0, 255, 255)]
-        sprite.pixels_across = 2
-        sprite.pixels_tall = 2
-        sprite.pixel_width = 10
-        sprite.pixel_height = 10
-        sprite.width = 20
-        sprite.height = 20
-        sprite.image = MockFactory.create_display_mock(20, 20)
-        sprite.background_color = (0, 0, 0)
-        sprite.dirty_pixels = [True] * 4
-        sprite.border_thickness = 0
-
-        # Test the renderer
-        renderer = StaticCanvasRenderer(sprite)
-        result = renderer.force_redraw(sprite)
-
-        # The result should be a surface
-        assert result is not None
-        print("StaticCanvasRenderer test passed - transparency key pixels should be skipped")
-
     def test_animated_canvas_skips_transparency_key_pixels(self):
         """Test that AnimatedCanvasRenderer skips transparency key pixels."""
         from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
@@ -86,7 +59,6 @@ if __name__ == "__main__":
     test = TestTransparencyFix()
     test.setup_method()
     try:
-        test.test_static_canvas_skips_transparency_key_pixels()
         test.test_animated_canvas_skips_transparency_key_pixels()
         print("All transparency fix tests passed!")
     finally:

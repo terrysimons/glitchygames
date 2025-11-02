@@ -8,14 +8,111 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Self
 
+import sys
 import pygame
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
 LOG = logging.getLogger("game.ui.dialogs")
 LOG.addHandler(logging.NullHandler())
+
+
+def _process_example_filename(filename: str) -> tuple[str, bool]:
+    """Process filename that may contain 'example:' or 'examples:' prefix.
+    
+    If the filename contains 'example:' or 'examples:', strip it off and return the cleaned
+    filename along with a flag indicating it should be saved to the examples
+    directory.
+    
+    Args:
+        filename: The input filename that may contain 'example:' or 'examples:' prefix
+        
+    Returns:
+        tuple: (cleaned_filename, is_example) where is_example is True if
+               the filename had 'example:' or 'examples:' prefix
+    """
+    is_example = False
+    cleaned_filename = filename.strip()
+    
+    if cleaned_filename.startswith("example:"):
+        is_example = True
+        cleaned_filename = cleaned_filename[len("example:"):].strip()
+        LOG.info(f"Detected 'example:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'")
+    elif cleaned_filename.startswith("examples:"):
+        is_example = True
+        cleaned_filename = cleaned_filename[len("examples:"):].strip()
+        LOG.info(f"Detected 'examples:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'")
+    
+    return cleaned_filename, is_example
+
+
+def _get_examples_dir() -> Path:
+    """Get the path to the examples/resources/sprites directory.
+    
+    Returns:
+        Path: Path to the examples sprites directory
+    """
+    # Use the same logic as resource_path but defined here to avoid circular imports
+    if hasattr(sys, "_MEIPASS"):
+        # Running in PyInstaller bundle
+        base_path = Path(sys._MEIPASS)
+        return base_path.joinpath("glitchygames", "examples", "resources", "sprites")
+    # Running in normal Python environment
+    # dialogs.py is in glitchygames/ui, so go up to glitchygames/, then to examples/
+    # Path(__file__) = glitchygames/ui/dialogs.py
+    # .parent = glitchygames/ui/
+    # .parent.parent = glitchygames/
+    # Then join with examples/resources/sprites
+    return Path(__file__).parent.parent.joinpath("examples", "resources", "sprites")
+
+
+def _get_save_path(filename: str) -> Path:
+    """Get the full save path for a filename.
+    
+    Args:
+        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        
+    Returns:
+        Path: Full path where the file should be saved
+    """
+    cleaned_filename, is_example = _process_example_filename(filename)
+    
+    if is_example:
+        examples_dir = _get_examples_dir()
+        save_path = examples_dir / cleaned_filename
+        LOG.info(f"Example save path: {save_path}")
+        return save_path
+    else:
+        # Normal save - return just the filename (current behavior)
+        save_path = Path(cleaned_filename)
+        LOG.info(f"Normal save path: {save_path}")
+        return save_path
+
+
+def _get_load_path(filename: str) -> Path:
+    """Get the full load path for a filename.
+    
+    Args:
+        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        
+    Returns:
+        Path: Full path where the file should be loaded from
+    """
+    cleaned_filename, is_example = _process_example_filename(filename)
+    
+    if is_example:
+        examples_dir = _get_examples_dir()
+        load_path = examples_dir / cleaned_filename
+        LOG.info(f"Example load path: {load_path}")
+        return load_path
+    else:
+        # Normal load - return just the filename (current behavior)
+        load_path = Path(cleaned_filename)
+        LOG.info(f"Normal load path: {load_path}")
+        return load_path
 
 
 class InputConfirmationDialogScene(Scene):
@@ -351,7 +448,11 @@ class LoadDialogScene(InputConfirmationDialogScene):
         self.log.info(f"Load File: event: {event}, trigger: {trigger}")
         # Get the filename from the input box text
         filename = self.dialog.input_box.text
-        self.previous_scene.canvas.on_load_file_event(filename)
+        # Process example: prefix if present
+        load_path = _get_load_path(filename)
+        LOG.info(f"Processed load path: {load_path}")
+        # Pass the path as string to maintain compatibility
+        self.previous_scene.canvas.on_load_file_event(str(load_path))
         self.dismiss()
 
 
@@ -408,6 +509,9 @@ class SaveDialogScene(InputConfirmationDialogScene):
         self.log.info(f"Save File: event: {event}, trigger: {trigger}")
         # Get the filename from the input box
         filename = self.dialog.input_box.text
-        # Call save with just the filename
-        self.previous_scene.canvas.on_save_file_event(filename)
+        # Process example: prefix if present
+        save_path = _get_save_path(filename)
+        LOG.info(f"Processed save path: {save_path}")
+        # Pass the path as string to maintain compatibility
+        self.previous_scene.canvas.on_save_file_event(str(save_path))
         self.dismiss()

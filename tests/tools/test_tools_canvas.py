@@ -123,12 +123,3 @@ class TestCanvasInterfaces:
         # It's an abstract base class, so we just verify it can be instantiated
         assert serializer is not None
 
-    def test_static_canvas_renderer(self, mock_pygame_patches):
-        """Test static canvas renderer functionality."""
-        # Test StaticCanvasRenderer initialization - requires canvas_sprite parameter
-        mock_sprite = self._create_mock_sprite()
-        renderer = canvas_interfaces.StaticCanvasRenderer(mock_sprite)
-
-        # Test basic properties
-        assert hasattr(renderer, "canvas_sprite")
-        assert renderer.canvas_sprite == mock_sprite

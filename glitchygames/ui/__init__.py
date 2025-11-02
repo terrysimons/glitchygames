@@ -1590,7 +1590,13 @@ class InputBox(Sprite):
                 if event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
                 else:
-                    self.text += event.unicode
+                    # Handle colon character - check key combination first, then unicode
+                    if event.key == pygame.K_SEMICOLON and (event.mod & pygame.KMOD_SHIFT):
+                        # Shift+; produces colon (:) - handle case where unicode might not be set
+                        self.text += ":"
+                    elif event.unicode:
+                        # Use unicode if available
+                        self.text += event.unicode
                 self.render()
 
 

@@ -83,6 +83,11 @@ class FilmStripWidget:
         self.hovered_preview: str | None = None
         self.is_hovering_strip: bool = False
         self.hovered_removal_button: tuple[str, int] | None = None  # Track which removal button is hovered
+        
+        # Animation rename editing state
+        self.editing_animation: str | None = None  # Animation name being edited (None = not editing)
+        self.editing_text: str = ""  # Text buffer for editing
+        self.original_animation_name: str | None = None  # Original name before editing started
 
         # Color cycling state
         self.background_color_index = 2  # Start with gray instead of cyan
@@ -1046,17 +1051,14 @@ class FilmStripWidget:
         # Check if clicking on an animation label
         clicked_animation = self.get_animation_at_position(pos)
         if clicked_animation and clicked_animation in self.animated_sprite._animations:
-            # Use this film strip's animation name instead of the clicked animation name
-            # since each film strip represents a specific animation
-            strip_animation = next(iter(self.animated_sprite._animations.keys())) if self.animated_sprite and self.animated_sprite._animations else clicked_animation
-            # When clicking on an animation strip, use the scene's global selected_frame
-            # instead of the strip's own selected_frame
-            global_selected_frame = 0
-            if hasattr(self, "parent_scene") and self.parent_scene:
-                global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
-            LOG.debug(f"FilmStripWidget: Animation clicked, calling set_current_frame({strip_animation}, {global_selected_frame})")
-            self.set_current_frame(strip_animation, global_selected_frame)
-            return (strip_animation, global_selected_frame)
+            # Enter edit mode for animation renaming
+            self.editing_animation = clicked_animation
+            self.editing_text = ""  # Start with blank buffer
+            self.original_animation_name = clicked_animation
+            LOG.debug(f"FilmStripWidget: Entered edit mode for animation '{clicked_animation}'")
+            self.mark_dirty()  # Force redraw to show edit state
+            # Don't change frame selection when entering edit mode
+            return None
 
         # Check if clicking on preview area
         preview_click = self.handle_preview_click(pos)
@@ -1123,6 +1125,63 @@ class FilmStripWidget:
                     global_selected_frame = getattr(self.parent_scene, "selected_frame", 0)
                 return (anim_name, global_selected_frame)
         return None
+
+    def handle_keyboard_input(self, event) -> bool:
+        """Handle keyboard input for animation renaming.
+        
+        Args:
+            event: Keyboard event with 'key' and optionally 'unicode' attributes
+            
+        Returns:
+            True if the event was handled, False otherwise
+        """
+        # Only handle keyboard input if we're in edit mode
+        if not self.editing_animation:
+            return False
+        
+        # Handle Enter key to commit rename
+        if hasattr(event, 'key') and event.key == pygame.K_RETURN:
+            if self.editing_text and self.original_animation_name:
+                new_name = self.editing_text.strip()
+                if new_name and new_name != self.original_animation_name:
+                    # Notify parent scene to handle the rename
+                    if hasattr(self, "parent_scene") and self.parent_scene:
+                        self.parent_scene.on_animation_rename(self.original_animation_name, new_name)
+            
+            # Clear edit mode
+            self.editing_animation = None
+            self.editing_text = ""
+            self.original_animation_name = None
+            self.mark_dirty()
+            LOG.debug("FilmStripWidget: Committed animation rename")
+            return True
+        
+        # Handle Escape key to cancel editing
+        if hasattr(event, 'key') and event.key == pygame.K_ESCAPE:
+            # Clear edit mode without committing
+            self.editing_animation = None
+            self.editing_text = ""
+            self.original_animation_name = None
+            self.mark_dirty()
+            LOG.debug("FilmStripWidget: Cancelled animation rename")
+            return True
+        
+        # Handle backspace
+        if hasattr(event, 'key') and event.key == pygame.K_BACKSPACE:
+            if self.editing_text:
+                self.editing_text = self.editing_text[:-1]
+                self.mark_dirty()
+                return True
+        
+        # Handle printable characters
+        if hasattr(event, 'unicode') and event.unicode and event.unicode.isprintable():
+            # Limit length to prevent overflow
+            if len(self.editing_text) < 50:  # Reasonable limit
+                self.editing_text += event.unicode
+                self.mark_dirty()
+                return True
+        
+        return False
 
     def render_frame_thumbnail(
         self, frame, *, is_selected: bool = False, is_hovered: bool = False, frame_index: int = 0, animation_name: str = ""
@@ -1548,18 +1607,35 @@ class FilmStripWidget:
             label_surface = pygame.Surface((anim_rect.width, anim_rect.height), pygame.SRCALPHA)
             label_surface.fill(self.film_background)
 
-            # Add animation name text
-            font = FontManager.get_font()
-            text = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
-            if isinstance(text, tuple):  # freetype returns (surface, rect)
-                text, text_rect = text
-            else:  # pygame.font returns surface
-                text_rect = text.get_rect()
-            text_rect.center = (anim_rect.width // 2, anim_rect.height // 2 - 5)
-            label_surface.blit(text, text_rect)
+            # Check if this animation is being edited
+            if self.editing_animation == anim_name:
+                # Show editing text (or underscore if buffer is empty)
+                display_text = self.editing_text or "_"
+                font = FontManager.get_font()
+                text = font.render(display_text, fgcolor=(255, 255, 0), size=12)  # Yellow for editing
+                if isinstance(text, tuple):  # freetype returns (surface, rect)
+                    text, text_rect = text
+                else:  # pygame.font returns surface
+                    text_rect = text.get_rect()
+                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2 - 5)
+                label_surface.blit(text, text_rect)
+                # Add edit mode highlight
+                pygame.draw.rect(
+                    label_surface, (255, 255, 0), (0, 0, anim_rect.width, anim_rect.height), 2
+                )
+            else:
+                # Add animation name text
+                font = FontManager.get_font()
+                text = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
+                if isinstance(text, tuple):  # freetype returns (surface, rect)
+                    text, text_rect = text
+                else:  # pygame.font returns surface
+                    text_rect = text.get_rect()
+                text_rect.center = (anim_rect.width // 2, anim_rect.height // 2 - 5)
+                label_surface.blit(text, text_rect)
 
-            # Add hover highlighting
-            if self.hovered_animation == anim_name:
+            # Add hover highlighting (only if not editing)
+            if self.hovered_animation == anim_name and self.editing_animation != anim_name:
                 pygame.draw.rect(
                     label_surface, self.hover_color, (0, 0, anim_rect.width, anim_rect.height), 2
                 )

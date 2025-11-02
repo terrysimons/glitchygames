@@ -363,6 +363,8 @@ class GameEngine(events.EventManager):
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
+
+        # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
 
         # Update the scene manager's update_type from the engine's options
@@ -469,6 +471,11 @@ class GameEngine(events.EventManager):
             GameEngine.EVENT_HANDLERS[event_type] = self.process_game_event
 
         self.initialize_input_event_handlers()
+
+        # Enable all events.
+        # Note that glitchygames will auto-suppress events not handled
+        # by the game once they are encountered, so it is recommended to enable all.
+        pygame.event.set_allowed(None)
 
     def initialize_input_event_handlers(self: Self) -> None:
         """Initialize input event handlers.

@@ -838,10 +838,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         self.log.debug(f"Found {len(animations)} animation(s) in TOML file")
 
-        # Check if this is a legacy static sprite (has sprite.pixels but no animations)
+        # Check if this is a static sprite (has sprite.pixels but no animations)
         if not animations and "sprite" in data and "pixels" in data["sprite"]:
-            self.log.debug("Detected legacy static sprite, converting to single-frame animation")
-            self._convert_legacy_static_sprite(data, color_map)
+            self.log.debug("Detected static sprite, converting to single-frame animation")
+            self._convert_static_sprite(data, color_map)
         else:
             # Process normal animated sprite
             for anim_data in animations:
@@ -851,16 +851,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     self._animations[anim_name] = frames
                     self._animation_order.append(anim_name)  # Track order
 
-        # Log the first namespace found in the file
-        if animations:
-            first_anim = animations[0]
-            first_namespace = first_anim.get("namespace", "default")
-            self.log.info(f"FIRST ANIMATION NAMESPACE: '{first_namespace}'")
-        elif self._animations:
-            # For legacy static sprites, log the converted animation
-            first_anim_name = next(iter(self._animations.keys()))
-            self.log.info(f"LEGACY STATIC SPRITE CONVERTED TO ANIMATION: '{first_anim_name}'")
-        else:
+        # Log if no animations found
+        if not animations and not self._animations:
             self.log.info("NO ANIMATIONS FOUND IN FILE")
 
         self._set_initial_animation()
@@ -879,8 +871,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             self._last_frame_index = -1  # Force update regardless of previous state
             self._update_surface_and_mark_dirty()
 
-    def _convert_legacy_static_sprite(self: Self, data: dict, color_map: dict) -> None:
-        """Convert a legacy static sprite to a single-frame animation."""
+    def _convert_static_sprite(self: Self, data: dict, color_map: dict) -> None:
+        """Convert a static sprite to a single-frame animation."""
         sprite_data = data["sprite"]
         pixels = sprite_data["pixels"]
 
@@ -930,7 +922,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._animation_order.append(animation_name)
 
         self.log.debug(
-            f"Converted legacy static sprite to single-frame animation "
+            f"Converted static sprite to single-frame animation "
             f"'{animation_name}' ({width}x{height})"
         )
 
@@ -1221,7 +1213,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """
         # Check if this is a single animation with a single frame
         if self._is_single_frame_sprite():
-            self.log.info("Detected single-frame sprite, saving in legacy static format")
+            self.log.info("Detected single-frame sprite, saving in static sprite format")
             self._save_as_static_sprite(filename, file_format)
         elif file_format == "toml":
             self._save_toml(filename)
@@ -1230,6 +1222,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f"Unsupported format: {file_format}. Only TOML is currently supported."
             )
 
+    def get_total_frame_count(self: Self) -> int:
+        """Get the total number of frames across all animations.
+        
+        Returns:
+            Total frame count across all animations. Returns 0 if no animations exist.
+        """
+        total_frames = 0
+        for frames in self._animations.values():
+            total_frames += len(frames)
+        return total_frames
+    
+    def is_static_sprite(self: Self) -> bool:
+        """Check if this sprite is static (has exactly 1 frame total).
+        
+        A static sprite has a single frame across all animations.
+        This is determined by frame count, not by file format.
+        
+        Returns:
+            True if sprite has exactly 1 frame, False otherwise
+        """
+        return self.get_total_frame_count() == 1
+    
     def _is_single_frame_sprite(self: Self) -> bool:
         """Check if this sprite has only one animation with one frame."""
         if len(self._animations) != 1:
@@ -1240,7 +1254,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return len(animation_frames) == 1
 
     def _save_as_static_sprite(self: Self, filename: str, file_format: str) -> None:
-        """Save as a legacy static sprite format using existing TOML save methods."""
+        """Save as a static sprite format using existing TOML save methods."""
         if file_format == "toml":
             # Use the existing TOML save method but modify it for single frame
             self._save_toml_single_frame(filename)
