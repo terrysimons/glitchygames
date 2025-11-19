@@ -42,7 +42,7 @@ name = "AnimatedSprite"
 
 [[animation]]
 namespace = "idle"
-frame_interval = 0.5
+frame_interval = 0.5  # Default timing for all frames
 loop = true
 
 [[animation.frame]]
@@ -56,6 +56,7 @@ DEF
 [[animation.frame]]
 namespace = "idle"
 frame_index = 1
+frame_interval = 1.0  # Override: hold this frame longer
 pixels = \"\"\"
 XYZ
 123
@@ -66,6 +67,23 @@ red = 255
 green = 0
 blue = 0
 
+ANIMATED WITH VARIED TIMING:
+[[animation]]
+namespace = "blink"
+frame_interval = 0.1  # Fast default
+
+[[animation.frame]]
+namespace = "blink"
+frame_index = 0
+frame_interval = 2.0  # Eyes open (hold 2 sec)
+pixels = \"\"\"OO\"\"\"
+
+[[animation.frame]]
+namespace = "blink"
+frame_index = 1
+frame_interval = 0.1  # Eyes closed (quick blink)
+pixels = \"\"\"--\"\"\"
+
 CRITICAL RULES:
 1. Use triple-quoted strings for pixels (\"\"\" not \")
 2. Only define colors actually used in pixels
@@ -74,6 +92,7 @@ CRITICAL RULES:
 5. Each color: separate red/green/blue fields (0-255)
 6. Animated frames: include namespace AND frame_index
 7. Character set: Use ASCII printable chars
+8. Add per-frame timing when frames should hold different durations
 
 PER-PIXEL ALPHA (optional):
 [colors."A"]
@@ -87,11 +106,16 @@ red = 255
 green = 0
 blue = 255     # Magenta transparency key (no alpha field)
 
+ANIMATION TIMING:
+- Set frame_interval at [[animation]] level for default timing
+- Override frame_interval in [[animation.frame]] for specific frames
+- Use varied timing for: blinking (long open, quick close), anticipation, impact frames
+- Default 0.5 seconds per frame if not specified
+
 ANIMATION FEATURES:
-- frame_interval: seconds per frame (default 0.5)
-- Per-frame timing: add frame_interval to specific frames
-- Multiple animations: use different namespace values
 - loop: true (repeat) or false (play once)
+- Multiple animations: use different namespace values
+- Each animation can have different timing patterns
 """
 
     SYSTEM_MESSAGE = (
@@ -107,6 +131,7 @@ ANIMATION FEATURES:
         "- Only colors used in pixels\n"
         "- Separate red/green/blue fields\n"
         "- Per-pixel alpha when needed\n"
+        "- Per-frame timing overrides for varied animation\n"
         "- Raw TOML output only (no markdown)"
     )
 
