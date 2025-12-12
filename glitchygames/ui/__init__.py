@@ -3243,19 +3243,16 @@ class MultiLineTextBox(BitmappySprite):
         target_wrapped_pos = min(target_wrapped_pos, len(self._text))
 
         # Find the corresponding position in original text
-        # This is a simplified approach - we'll map character by character
-        original_pos = 0
+        # Map character by character, checking position BEFORE incrementing
         wrapped_pos = 0
 
         for i, char in enumerate(self._original_text):
             if wrapped_pos >= target_wrapped_pos:
-                break
-            original_pos = i
+                return i  # Return current position when we've reached target
             wrapped_pos += 1
-            if char == "\n":
-                wrapped_pos += 1  # Account for newlines in wrapped text
 
-        return original_pos
+        # If we've gone through the whole text, return the end position
+        return len(self._original_text)
 
     @property
     def text(self) -> str:
@@ -3625,19 +3622,24 @@ class MultiLineTextBox(BitmappySprite):
             return
 
         # Handle regular key events
+        # Note: self.text setter moves cursor to end, so we save intended position first
         if event.key == pygame.K_RETURN:
             # Handle newline
+            new_cursor_pos = self.cursor_pos + 1
             before_cursor = self._original_text[: self.cursor_pos]
             after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + "\n" + after_cursor
-            self.cursor_pos += 1
+            self.cursor_pos = new_cursor_pos
         elif event.key == pygame.K_BACKSPACE:
             if self.cursor_pos > 0:
+                new_cursor_pos = self.cursor_pos - 1
                 self.text = self._original_text[: self.cursor_pos - 1] + self._original_text[self.cursor_pos :]
-                self.cursor_pos -= 1
+                self.cursor_pos = new_cursor_pos
         elif event.key == pygame.K_DELETE:
             if self.cursor_pos < len(self._original_text):
+                new_cursor_pos = self.cursor_pos
                 self.text = self._original_text[: self.cursor_pos] + self._original_text[self.cursor_pos + 1 :]
+                self.cursor_pos = new_cursor_pos
         elif event.key == pygame.K_LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
         elif event.key == pygame.K_RIGHT:
@@ -3647,10 +3649,11 @@ class MultiLineTextBox(BitmappySprite):
         elif event.key == pygame.K_DOWN:
             self._move_cursor_down()
         elif event.unicode and event.unicode >= " ":
+            new_cursor_pos = self.cursor_pos + 1
             before_cursor = self._original_text[: self.cursor_pos]
             after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + event.unicode + after_cursor
-            self.cursor_pos += 1
+            self.cursor_pos = new_cursor_pos
 
         self.cursor_visible = True
         self.cursor_blink_time = pygame.time.get_ticks()
