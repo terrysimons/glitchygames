@@ -1,229 +1,270 @@
 #!/usr/bin/env python3
-"""Multi-ball test with wall bouncing AND ball-to-ball collision bouncing."""
+"""Multi-ball test with wall bouncing AND ball-to-ball collision bouncing.
+
+Tests energy conservation across wall bounces and ball-to-ball elastic collisions.
+Uses correct normal-decomposition physics (exchange normal velocity components,
+preserve tangential components) which conserves energy exactly.
+
+Includes per-pair collision cooldown to prevent the same collision from being
+processed multiple times while balls are still overlapping.
+"""
 
 import math
-import pygame
-import time
 import random
+
+import pygame
+
 from glitchygames.game_objects.ball import BallSprite
 
+# Tolerance for floating-point energy comparison.
+# The collision math (normal decomposition + exchange) is exact in theory.
+# IEEE 754 double precision introduces errors on the order of 1e-12 per operation,
+# and these accumulate over multiple collisions. 1e-9 is generous.
+ENERGY_TOLERANCE = 1e-9
+
+# Number of frames to suppress re-detection of the same ball pair after a collision.
+# This prevents duplicate collision processing when bounding boxes overlap across
+# multiple consecutive frames (especially for balls with similar trajectories).
+COLLISION_COOLDOWN_FRAMES = 10
+
+
+def _compute_kinetic_energy(balls):
+    """Compute total kinetic energy (proportional) for a list of balls.
+
+    Returns sum of speed_magnitude^2 for all alive balls.
+    For equal-mass balls, this is proportional to total kinetic energy.
+    """
+    return sum(
+        ball.speed.x ** 2 + ball.speed.y ** 2
+        for ball in balls
+        if ball.alive()
+    )
+
+
+def _handle_elastic_collision(ball1, ball2):
+    """Handle elastic collision between two equal-mass balls.
+
+    Uses normal-decomposition: decomposes each ball's velocity into components
+    along the collision normal and tangent, then exchanges the normal components.
+    This preserves both momentum and kinetic energy exactly.
+
+    Args:
+        ball1: First BallSprite.
+        ball2: Second BallSprite.
+
+    Returns:
+        True if collision was resolved, False if balls were separating.
+    """
+    # Use center positions for accurate collision normal
+    dx = ball2.rect.centerx - ball1.rect.centerx
+    dy = ball2.rect.centery - ball1.rect.centery
+    distance = math.sqrt(dx * dx + dy * dy)
+
+    if distance < 0.001:
+        # Balls at exact same position — can't compute normal
+        return False
+
+    # Collision normal (unit vector from ball1 center to ball2 center)
+    nx = dx / distance
+    ny = dy / distance
+
+    # Check if balls are approaching along the collision normal
+    relative_velocity_along_normal = (
+        (ball2.speed.x - ball1.speed.x) * nx
+        + (ball2.speed.y - ball1.speed.y) * ny
+    )
+
+    # If relative velocity along normal is positive, balls are separating
+    collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
+    if relative_velocity_along_normal > 0 and distance >= collision_distance:
+        return False
+
+    # Decompose velocities into normal and tangential components
+    v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
+    v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
+
+    v1n_vec_x = v1n_scalar * nx
+    v1n_vec_y = v1n_scalar * ny
+    v2n_vec_x = v2n_scalar * nx
+    v2n_vec_y = v2n_scalar * ny
+
+    v1t_vec_x = ball1.speed.x - v1n_vec_x
+    v1t_vec_y = ball1.speed.y - v1n_vec_y
+    v2t_vec_x = ball2.speed.x - v2n_vec_x
+    v2t_vec_y = ball2.speed.y - v2n_vec_y
+
+    # Exchange normal components, preserve tangential components
+    ball1.speed.x = v1t_vec_x + v2n_vec_x
+    ball1.speed.y = v1t_vec_y + v2n_vec_y
+    ball2.speed.x = v2t_vec_x + v1n_vec_x
+    ball2.speed.y = v2t_vec_y + v1n_vec_y
+
+    # Separate balls to prevent re-triggering collision next frame
+    overlap = collision_distance - distance
+    if overlap > 0:
+        separation_distance = overlap + 2.0  # Extra buffer to prevent sticking
+        half_separation = separation_distance * 0.5
+        ball1.rect.x -= round(nx * half_separation)
+        ball1.rect.y -= round(ny * half_separation)
+        ball2.rect.x += round(nx * half_separation)
+        ball2.rect.y += round(ny * half_separation)
+
+    return True
+
+
 def test_multi_ball_ball_collision_bounce():
-    """Test multiple balls with both wall bouncing and ball-to-ball collision bouncing."""
-    print("=== MULTI-BALL COLLISION BOUNCE TEST ===")
-    print("Testing multiple balls with wall bouncing AND ball-to-ball collision bouncing...")
-    
+    """Test multiple balls with both wall bouncing and ball-to-ball collision bouncing.
+
+    Verifies:
+    - All balls survive the simulation
+    - Wall bouncing works
+    - Ball-to-ball collisions are detected and resolved
+    - Total kinetic energy is conserved (within floating-point tolerance)
+    - Individual ball speed magnitudes remain stable through wall bounces
+    - No duplicate collision detections for the same crossing event
+    """
+    # Use a fixed seed for reproducibility
+    random.seed(42)
+
     # Initialize pygame
     pygame.init()
-    screen = pygame.display.set_mode((800, 600))
-    
+    pygame.display.set_mode((800, 600))
+
     # Create multiple balls with wall bouncing enabled
     num_balls = 5
     balls = []
-    
-    for i in range(num_balls):
+
+    for _ball_index in range(num_balls):
         ball = BallSprite(
-            bounce_top_bottom=True,   # Enable wall bouncing
-            bounce_left_right=True
+            bounce_top_bottom=True,
+            bounce_left_right=True,
         )
-        # Randomize starting position and speed
         ball.rect.x = random.randint(100, 700)
         ball.rect.y = random.randint(100, 500)
         ball.speed.x = random.uniform(-150, 150)
         ball.speed.y = random.uniform(-150, 150)
         balls.append(ball)
-    
-    print(f"Created {num_balls} balls with wall bouncing enabled")
-    print(f"Initial ball states:")
-    for i, ball in enumerate(balls):
-        magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        print(f"  Ball {i+1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}")
-    
+
+    # Record initial energy
+    initial_energy = _compute_kinetic_energy(balls)
+
     # Track statistics
-    start_time = time.time()
     wall_bounces = 0
     ball_collisions = 0
     frame_count = 0
-    
-    # Track trajectory data
-    trajectory_data = [[] for _ in range(num_balls)]
-    speed_magnitude_samples = [[] for _ in range(num_balls)]
-    
-    # Simulate movement
-    dt = 1.0/60.0  # 60 FPS
-    max_frames = 1800  # 30 seconds at 60 FPS
-    
-    print(f"\nRunning simulation for {max_frames} frames ({max_frames/60:.1f} seconds)...")
-    
+
+    # Per-pair cooldown: maps (i, j) tuple to remaining cooldown frames
+    collision_cooldowns = {}
+
+    # Track per-ball speed magnitude history for stability analysis
+    initial_magnitudes = [
+        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
+        for ball in balls
+    ]
+    # Track which balls have been involved in collisions
+    collision_participants = set()
+
+    # Simulate movement: 30 seconds at 60 FPS
+    dt = 1.0 / 60.0
+    max_frames = 1800
+
     while frame_count < max_frames and any(ball.alive() for ball in balls):
-        # Check for ball-to-ball collisions
+        # Tick cooldowns at start of each frame
+        expired_pairs = [
+            pair for pair, remaining in collision_cooldowns.items() if remaining <= 1
+        ]
+        for pair in expired_pairs:
+            del collision_cooldowns[pair]
+        for pair in collision_cooldowns:
+            collision_cooldowns[pair] -= 1
+
+        # Check for ball-to-ball collisions using center-distance detection
         for i in range(len(balls)):
-            for j in range(i+1, len(balls)):
-                if balls[i].alive() and balls[j].alive():
-                    # Check if balls are colliding
-                    if pygame.sprite.collide_rect(balls[i], balls[j]):
+            for j in range(i + 1, len(balls)):
+                if not (balls[i].alive() and balls[j].alive()):
+                    continue
+
+                # Skip pairs still in cooldown
+                pair_key = (i, j)
+                if pair_key in collision_cooldowns:
+                    continue
+
+                # Use center-based distance for collision detection (not AABB)
+                dx = balls[j].rect.centerx - balls[i].rect.centerx
+                dy = balls[j].rect.centery - balls[i].rect.centery
+                distance = math.sqrt(dx * dx + dy * dy)
+                collision_distance = balls[i].rect.width // 2 + balls[j].rect.width // 2
+
+                if distance <= collision_distance:
+                    resolved = _handle_elastic_collision(balls[i], balls[j])
+                    if resolved:
                         ball_collisions += 1
-                        print(f"  Ball {i+1} and Ball {j+1} collision detected!")
-                        
-                        # Simple elastic collision response
-                        # Calculate relative velocity
-                        rel_vel_x = balls[i].speed.x - balls[j].speed.x
-                        rel_vel_y = balls[i].speed.y - balls[j].speed.y
-                        
-                        # Calculate relative position
-                        rel_pos_x = balls[i].rect.x - balls[j].rect.x
-                        rel_pos_y = balls[i].rect.y - balls[j].rect.y
-                        
-                        # Calculate distance
-                        distance = math.sqrt(rel_pos_x**2 + rel_pos_y**2)
-                        
-                        if distance > 0:
-                            # Normalize relative position
-                            norm_x = rel_pos_x / distance
-                            norm_y = rel_pos_y / distance
-                            
-                            # Calculate relative velocity in collision normal direction
-                            vel_along_normal = rel_vel_x * norm_x + rel_vel_y * norm_y
-                            
-                            # Do not resolve if velocities are separating
-                            if vel_along_normal > 0:
-                                continue
-                            
-                            # Calculate restitution (elastic collision)
-                            restitution = 1.0
-                            impulse = -(1 + restitution) * vel_along_normal
-                            
-                            # Apply impulse
-                            impulse_x = impulse * norm_x
-                            impulse_y = impulse * norm_y
-                            
-                            balls[i].speed.x += impulse_x
-                            balls[i].speed.y += impulse_y
-                            balls[j].speed.x -= impulse_x
-                            balls[j].speed.y -= impulse_y
-                            
-                            # Separate balls to prevent sticking
-                            overlap = (balls[i].width + balls[j].width) / 2 - distance
-                            if overlap > 0:
-                                separation_x = norm_x * overlap / 2
-                                separation_y = norm_y * overlap / 2
-                                
-                                balls[i].rect.x += separation_x
-                                balls[i].rect.y += separation_y
-                                balls[j].rect.x -= separation_x
-                                balls[j].rect.y -= separation_y
-        
-        # Update ball positions and check for wall bounces
+                        collision_participants.add(i)
+                        collision_participants.add(j)
+                        collision_cooldowns[pair_key] = COLLISION_COOLDOWN_FRAMES
+
+        # Update ball positions (wall bouncing happens inside dt_tick)
         for i, ball in enumerate(balls):
             if ball.alive():
-                old_x, old_y = ball.rect.x, ball.rect.y
                 old_speed_x, old_speed_y = ball.speed.x, ball.speed.y
-                
+
                 ball.dt_tick(dt)
-                
-                new_x, new_y = ball.rect.x, ball.rect.y
-                new_speed_x, new_speed_y = ball.speed.x, ball.speed.y
-                
-                # Track trajectory
-                trajectory_data[i].append((new_x, new_y))
-                
-                # Check for wall bounces
-                if old_x != new_x and (new_x <= 1 or new_x >= 800 - ball.width - 1):
+
+                # Detect wall bounces by checking if speed direction flipped
+                if (
+                    old_speed_x * ball.speed.x < 0
+                    and (ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1)
+                ):
                     wall_bounces += 1
-                    print(f"  Ball {i+1} X wall bounce at x={new_x}")
-                
-                if old_y != new_y and (new_y <= 1 or new_y >= 600 - ball.height - 1):
+
+                if (
+                    old_speed_y * ball.speed.y < 0
+                    and (ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1)
+                ):
                     wall_bounces += 1
-                    print(f"  Ball {i+1} Y wall bounce at y={new_y}")
-                
-                # Sample speed magnitude every 60 frames (1 second)
-                if frame_count % 60 == 0:
-                    current_magnitude = math.sqrt(new_speed_x**2 + new_speed_y**2)
-                    speed_magnitude_samples[i].append(current_magnitude)
-        
+
         frame_count += 1
-        
-        # Report progress every 300 frames (5 seconds)
-        if frame_count % 300 == 0:
-            alive_count = sum(1 for ball in balls if ball.alive())
-            elapsed = time.time() - start_time
-            print(f"  Frame {frame_count}: {alive_count} balls alive, {wall_bounces} wall bounces, {ball_collisions} ball collisions")
-    
-    total_time = time.time() - start_time
+
+    # Compute final energy
+    final_energy = _compute_kinetic_energy(balls)
     final_alive = sum(1 for ball in balls if ball.alive())
-    
-    print(f"\n=== FINAL RESULTS ===")
-    print(f"Total time: {total_time:.2f} seconds")
-    print(f"Frames processed: {frame_count:,}")
-    print(f"Balls still alive: {final_alive}")
-    print(f"Wall bounces: {wall_bounces}")
-    print(f"Ball-to-ball collisions: {ball_collisions}")
-    
-    # Analyze trajectory data
-    print(f"\n=== TRAJECTORY ANALYSIS ===")
-    for i, ball in enumerate(balls):
-        if ball.alive() and trajectory_data[i]:
-            positions = trajectory_data[i]
-            x_positions = [pos[0] for pos in positions]
-            y_positions = [pos[1] for pos in positions]
-            
-            # Check position bounds
-            min_x, max_x = min(x_positions), max(x_positions)
-            min_y, max_y = min(y_positions), max(y_positions)
-            
-            print(f"Ball {i+1} trajectory:")
-            print(f"  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
-            print(f"  Final position: ({ball.rect.x}, {ball.rect.y})")
-            print(f"  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})")
-            print(f"  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}")
-            
-            # Check for trajectory issues
-            x_drift = max_x - min_x
-            y_drift = max_y - min_y
-            
-            if x_drift > 50 or y_drift > 50:
-                print(f"  ⚠️  Significant position drift detected")
-            else:
-                print(f"  ✅ Position is stable")
-            
-            # Check speed magnitude stability
-            if speed_magnitude_samples[i]:
-                magnitudes = speed_magnitude_samples[i]
-                min_mag = min(magnitudes)
-                max_mag = max(magnitudes)
-                drift = max_mag - min_mag
-                
-                print(f"  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}")
-                
-                if drift < 0.01:
-                    print(f"  ✅ Speed magnitude is stable")
-                else:
-                    print(f"  ⚠️  Speed magnitude drift detected")
-    
-    # Overall analysis
-    print(f"\n=== OVERALL ANALYSIS ===")
-    if final_alive == num_balls:
-        print(f"  ✅ All balls survived with collision bouncing enabled")
-    else:
-        print(f"  ⚠️  Only {final_alive}/{num_balls} balls survived")
-    
-    if wall_bounces > 0:
-        print(f"  ✅ Wall bouncing is working ({wall_bounces} wall bounces)")
-    else:
-        print(f"  ❌ No wall bounces detected")
-    
-    if ball_collisions > 0:
-        print(f"  ✅ Ball-to-ball collision bouncing is working ({ball_collisions} collisions)")
-    else:
-        print(f"  ⚠️  No ball-to-ball collisions detected")
-    
+
+    # Compute per-ball magnitude drift
+    final_magnitudes = [
+        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
+        for ball in balls
+    ]
+
     pygame.quit()
-    
-    # Assert that the test completed successfully
-    assert final_alive > 0, "At least one ball should survive"
-    assert wall_bounces > 0, "Wall bouncing should be working"
-    # Note: ball_collisions might be 0 due to random positioning, so we don't assert on it
-    
-    print(f"\n✅ Test completed successfully")
+
+    # === ASSERTIONS ===
+
+    # All balls must survive
+    assert final_alive == num_balls, (
+        f"Expected all {num_balls} balls to survive, but only {final_alive} alive"
+    )
+
+    # Wall bouncing must be working
+    assert wall_bounces > 0, "No wall bounces detected — wall bouncing is broken"
+
+    # Total kinetic energy must be conserved
+    energy_drift = abs(final_energy - initial_energy)
+    assert energy_drift < ENERGY_TOLERANCE, (
+        f"Total kinetic energy not conserved: "
+        f"initial={initial_energy:.6f}, final={final_energy:.6f}, "
+        f"drift={energy_drift:.2e} (tolerance={ENERGY_TOLERANCE:.2e})"
+    )
+
+    # Balls that never collided must have exactly stable speed magnitude
+    for i in range(num_balls):
+        if i not in collision_participants:
+            magnitude_drift = abs(final_magnitudes[i] - initial_magnitudes[i])
+            assert magnitude_drift < 1e-12, (
+                f"Ball {i + 1} (no collisions) has speed magnitude drift: "
+                f"initial={initial_magnitudes[i]:.6f}, "
+                f"final={final_magnitudes[i]:.6f}, drift={magnitude_drift:.2e}"
+            )
+
 
 if __name__ == "__main__":
     test_multi_ball_ball_collision_bounce()

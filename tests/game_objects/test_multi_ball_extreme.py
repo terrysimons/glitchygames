@@ -2,7 +2,7 @@
 """Extreme multi-ball test with maximum balls."""
 
 import time
-from test_multi_ball_base import MultiBallTestBase
+from tests.game_objects.test_multi_ball_base import MultiBallTestBase
 
 def run_extreme_tests():
     """Run multi-ball tests with extreme ball density."""

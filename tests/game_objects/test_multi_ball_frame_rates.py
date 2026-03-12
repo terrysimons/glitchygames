@@ -2,7 +2,7 @@
 """Multi-ball tests at different frame rates."""
 
 import time
-from test_multi_ball_base import MultiBallTestBase
+from tests.game_objects.test_multi_ball_base import MultiBallTestBase
 
 def run_frame_rate_tests():
     """Run multi-ball tests at different frame rates."""

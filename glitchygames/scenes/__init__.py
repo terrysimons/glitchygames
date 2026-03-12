@@ -75,6 +75,19 @@ class SceneManager(SceneInterface, events.EventManager):
         # Mark as initialized to prevent re-initialization
         self._initialized = True
 
+    @classmethod
+    def _reset(cls) -> None:
+        """Reset the singleton for testing.
+
+        Clears the singleton instance so the next call to SceneManager()
+        creates a freshly initialized instance. This should only be used
+        in tests.
+        """
+        instance = cls._instance
+        if instance is not None and hasattr(instance, "_initialized"):
+            del instance._initialized
+        cls._instance = None
+
     def update_screen(self) -> None:
         """Update the screen reference when display becomes available."""
         if self.screen is None:

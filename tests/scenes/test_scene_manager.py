@@ -26,7 +26,7 @@ class TestSceneManager:
     def setup_method(self):
         """Set up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
@@ -42,12 +42,12 @@ class TestSceneManager:
     def teardown_method(self):
         """Clean up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
     def test_scene_manager_initialization(self):
         """Test SceneManager initialization."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         scene_manager = self.scene_manager
 
@@ -69,7 +69,7 @@ class TestSceneManager:
     def test_scene_manager_game_engine_property(self):
         """Test SceneManager game_engine property."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         scene_manager = self.scene_manager
 
@@ -107,7 +107,7 @@ class TestSceneManager:
     def test_scene_manager_switch_to_scene(self):
         """Test SceneManager switch_to_scene method."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         scene_manager = self.scene_manager
         mock_scene = Mock()
@@ -264,7 +264,7 @@ class TestSceneManager:
 
         # Set up proper OPTIONS structure
         scene_manager.OPTIONS = {
-            "fps_refresh_rate": FPS_REFRESH_RATE
+            "fps_log_interval_ms": FPS_REFRESH_RATE
         }
 
         # Test FPS event posting logic

@@ -1457,6 +1457,300 @@ class MockFactory:
         midi_in_patcher.stop()
         user_event_patcher.stop()
 
+    @staticmethod
+    def setup_pygame_mocks_with_mocker(mocker):  # noqa: PLR0915,PLR0914
+        """Set up comprehensive pygame mocks using pytest-mock's mocker fixture.
+
+        Unlike setup_pygame_mocks(), this method uses mocker.patch() which
+        automatically cleans up all patches at test teardown. No manual
+        teardown_pygame_mocks() call is needed.
+
+        Args:
+            mocker: The pytest-mock mocker fixture.
+
+        Returns:
+            dict: A dictionary of mock names to their mock objects for inspection.
+
+        """
+        # Create comprehensive mocks
+        display_mock = MockFactory.create_pygame_display_mock()
+
+        # Get the display surface from the display mock to ensure consistency
+        display_surface = display_mock.get_surface.return_value
+
+        # Set up patches - mocker.patch() auto-cleans up at test end
+        mocks = {}
+        mocks["display"] = mocker.patch("pygame.display", display_mock)
+        mocks["display_get_surface"] = mocker.patch(
+            "pygame.display.get_surface", return_value=display_surface
+        )
+
+        surface_class_mock = MockFactory.create_pygame_surface_class_mock()
+        mocks["surface"] = mocker.patch("pygame.Surface", surface_class_mock)
+        mocks["event_get"] = mocker.patch("pygame.event.get", return_value=[])
+        mocks["event_get_blocked"] = mocker.patch("pygame.event.get_blocked", return_value=False)
+        mocks["event_post"] = mocker.patch("pygame.event.post")
+        mocks["event_event"] = mocker.patch("pygame.event.Event")
+
+        # Additional pygame mocks for Film Strip and other modules
+        mocks["draw_circle"] = mocker.patch("pygame.draw.circle")
+        mocks["draw_line"] = mocker.patch("pygame.draw.line")
+        mocks["draw_rect"] = mocker.patch("pygame.draw.rect")
+
+        # Sprite group mocking - create proper mocks for LayeredDirty and other sprite groups
+        def mock_layered_dirty_constructor(*args, **kwargs):
+            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock."""
+            mock_group = Mock()
+            mock_group._spritelist = []
+            mock_group._old_rect = {}
+            mock_group._clip = None
+
+            def mock_draw(surface):
+                """Mock draw method that handles sprites properly."""
+                for sprite in mock_group._spritelist:
+                    if hasattr(sprite, "image") and hasattr(sprite, "rect"):
+                        if sprite not in mock_group._old_rect:
+                            mock_group._old_rect[sprite] = sprite.rect.copy()
+                        surface.blit(sprite.image, sprite.rect)
+
+            def mock_add(*sprites):
+                """Mock add method."""
+                for sprite in sprites:
+                    if sprite not in mock_group._spritelist:
+                        mock_group._spritelist.append(sprite)
+                        if hasattr(sprite, "rect"):
+                            mock_group._old_rect[sprite] = sprite.rect.copy()
+
+            def mock_remove(*sprites):
+                """Mock remove method."""
+                for sprite in sprites:
+                    if sprite in mock_group._spritelist:
+                        mock_group._spritelist.remove(sprite)
+                    if sprite in mock_group._old_rect:
+                        del mock_group._old_rect[sprite]
+
+            mock_group.draw = mock_draw
+            mock_group.add = mock_add
+            mock_group.remove = mock_remove
+            mock_group.__iter__ = lambda self: iter(mock_group._spritelist)
+            mock_group.__len__ = lambda self: len(mock_group._spritelist)
+            mock_group.__contains__ = lambda self, sprite: sprite in mock_group._spritelist
+
+            return mock_group
+
+        mocks["layered_dirty"] = mocker.patch(
+            "pygame.sprite.LayeredDirty", side_effect=mock_layered_dirty_constructor
+        )
+        mocks["sprite_group"] = mocker.patch(
+            "pygame.sprite.Group", side_effect=mock_layered_dirty_constructor
+        )
+
+        # Mock SpriteFactory.load_sprite to return our mocked animated sprite
+        def mock_sprite_factory_load_sprite(*, filename: str = None):
+            """Mock SpriteFactory.load_sprite to return a mocked animated sprite."""
+            return MockFactory.create_animated_sprite_mock(
+                animation_name="idle",
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+                current_frame=0,
+                is_playing=True,
+                is_looping=True,
+            )
+
+        mocks["sprite_factory"] = mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            side_effect=mock_sprite_factory_load_sprite,
+        )
+
+        # Draw function mocking - create mocks that handle MockSurface objects
+        import pygame  # noqa: PLC0415
+
+        original_draw_polygon = pygame.draw.polygon
+
+        def mock_draw_polygon(surface, color, points, width=0):
+            """Mock pygame.draw.polygon that handles MockSurface objects."""
+            if hasattr(surface, "_surface"):
+                return original_draw_polygon(surface._surface, color, points, width)
+            return None
+
+        mocks["draw_polygon"] = mocker.patch(
+            "pygame.draw.polygon", side_effect=mock_draw_polygon
+        )
+
+        # Sound/mixer mocking
+        mixer_mock = Mock()
+        mixer_mock.Sound.return_value = Mock()
+        mixer_mock.get_init.return_value = (22050, -16, 2)
+        mocks["mixer"] = mocker.patch("pygame.mixer", mixer_mock)
+        mocks["mixer_sound"] = mocker.patch("pygame.mixer.Sound", return_value=Mock())
+
+        # Keyboard mocking
+        key_mock = Mock()
+        key_mock.set_repeat.return_value = None
+        key_mock.get_mods.return_value = 0
+        key_mock.get_pressed.return_value = [False] * 512
+        mocks["key"] = mocker.patch("pygame.key", key_mock)
+
+        # Transform mocking
+        def mock_transform_scale(surface, size):
+            """Mock pygame.transform.scale that returns a real surface."""
+            import pygame  # noqa: PLC0415
+
+            _ = surface
+            return pygame.Surface(size)
+
+        mocks["transform_scale"] = mocker.patch(
+            "pygame.transform.scale", side_effect=mock_transform_scale
+        )
+
+        # FontManager mock
+        mock_font = Mock()
+
+        def mock_render(*args, **kwargs):
+            """Mock font render that creates real surfaces."""
+            text = str(args[0]) if len(args) >= 1 else "Mock"
+
+            import pygame  # noqa: PLC0415
+
+            if not pygame.get_init():
+                pygame.init()
+
+            width = len(text) * 8
+            height = 16
+            surface = pygame.Surface((width, height), pygame.SRCALPHA)
+            surface.fill((0, 0, 0, 0))
+            text_rect = pygame.Rect(0, 0, width, height)
+            surface.get_rect = Mock(return_value=text_rect)
+
+            if "fgcolor" in kwargs or len(args) >= MIN_ARGS_FOR_FGCOLOR:
+                return surface, text_rect
+            return surface
+
+        mock_font.render = mock_render
+        mock_font.render_to = Mock(return_value=Mock())
+        mock_font.get_linesize.return_value = 24
+        mock_font.size = Mock(return_value=(100, 16))
+
+        # Image module mock
+        def mock_image_tostring(surface, format_str):
+            """Mock pygame.image.tostring that returns mock pixel data."""
+            _ = format_str
+            if hasattr(surface, "get_width") and hasattr(surface, "get_height"):
+                width = surface.get_width()
+                height = surface.get_height()
+
+                if hasattr(surface, "_test_single_color") and surface._test_single_color:
+                    pixel_data = bytearray()
+                    for _ in range(height):
+                        for _ in range(width):
+                            pixel_data.extend([255, 0, 0])
+                    return bytes(pixel_data)
+
+                pixel_data = bytearray()
+                for y in range(height):
+                    for x in range(width):
+                        r = (x + y * width) % 256
+                        g = ((x + y * width) * 2) % 256
+                        b = ((x + y * width) * 3) % 256
+                        pixel_data.extend([r, g, b])
+                return bytes(pixel_data)
+            return b"\x00" * 100
+
+        mocks["image_tostring"] = mocker.patch(
+            "pygame.image.tostring", side_effect=mock_image_tostring
+        )
+        mock_font.size = 24  # For freetype fonts
+        mocks["font_manager"] = mocker.patch(
+            "glitchygames.fonts.FontManager.get_font", return_value=mock_font
+        )
+
+        # Clock mocking
+        clock_mock = Mock()
+        clock_mock.tick.return_value = 16.67
+        clock_mock.get_fps.return_value = 60.0
+        mocks["clock"] = mocker.patch("pygame.time.Clock", return_value=clock_mock)
+
+        # Sprite class mocking
+        mocks["sprite_init"] = mocker.patch(
+            "glitchygames.sprites.BitmappySprite.__init__", MockFactory._mock_sprite_init
+        )
+
+        # Key constants mocking
+        mocks["K_q"] = mocker.patch("pygame.K_q", 113)
+        mocks["K_ESCAPE"] = mocker.patch("pygame.K_ESCAPE", 27)
+        mocks["K_LSHIFT"] = mocker.patch("pygame.K_LSHIFT", 304)
+        mocks["K_RSHIFT"] = mocker.patch("pygame.K_RSHIFT", 303)
+        mocks["KEYDOWN"] = mocker.patch("pygame.KEYDOWN", pygame.KEYDOWN)
+        mocks["KEYUP"] = mocker.patch("pygame.KEYUP", pygame.KEYUP)
+        mocks["MOUSEBUTTONDOWN"] = mocker.patch("pygame.MOUSEBUTTONDOWN", pygame.MOUSEBUTTONDOWN)
+        mocks["MOUSEBUTTONUP"] = mocker.patch("pygame.MOUSEBUTTONUP", pygame.MOUSEBUTTONUP)
+        mocks["MOUSEMOTION"] = mocker.patch("pygame.MOUSEMOTION", pygame.MOUSEMOTION)
+        mocks["MOUSEWHEEL"] = mocker.patch("pygame.MOUSEWHEEL", pygame.MOUSEWHEEL)
+        mocks["QUIT"] = mocker.patch("pygame.QUIT", pygame.QUIT)
+        mocks["TEXTINPUT"] = mocker.patch("pygame.TEXTINPUT", pygame.TEXTINPUT)
+        mocks["FINGERDOWN"] = mocker.patch("pygame.FINGERDOWN", pygame.FINGERDOWN)
+        mocks["FINGERUP"] = mocker.patch("pygame.FINGERUP", pygame.FINGERUP)
+        mocks["FINGERMOTION"] = mocker.patch("pygame.FINGERMOTION", pygame.FINGERMOTION)
+        mocks["WINDOWRESIZED"] = mocker.patch("pygame.WINDOWRESIZED", pygame.WINDOWRESIZED)
+        mocks["WINDOWRESTORED"] = mocker.patch("pygame.WINDOWRESTORED", pygame.WINDOWRESTORED)
+        mocks["WINDOWFOCUSGAINED"] = mocker.patch(
+            "pygame.WINDOWFOCUSGAINED", pygame.WINDOWFOCUSGAINED
+        )
+        mocks["WINDOWFOCUSLOST"] = mocker.patch(
+            "pygame.WINDOWFOCUSLOST", pygame.WINDOWFOCUSLOST
+        )
+        mocks["AUDIODEVICEADDED"] = mocker.patch(
+            "pygame.AUDIODEVICEADDED", pygame.AUDIODEVICEADDED
+        )
+        mocks["AUDIODEVICEREMOVED"] = mocker.patch(
+            "pygame.AUDIODEVICEREMOVED", pygame.AUDIODEVICEREMOVED
+        )
+
+        # Joystick/Controller events
+        mocks["JOYAXISMOTION"] = mocker.patch("pygame.JOYAXISMOTION", pygame.JOYAXISMOTION)
+        mocks["JOYBALLMOTION"] = mocker.patch("pygame.JOYBALLMOTION", pygame.JOYBALLMOTION)
+        mocks["JOYBUTTONDOWN"] = mocker.patch("pygame.JOYBUTTONDOWN", pygame.JOYBUTTONDOWN)
+        mocks["JOYBUTTONUP"] = mocker.patch("pygame.JOYBUTTONUP", pygame.JOYBUTTONUP)
+        mocks["JOYHATMOTION"] = mocker.patch("pygame.JOYHATMOTION", pygame.JOYHATMOTION)
+        mocks["JOYDEVICEADDED"] = mocker.patch("pygame.JOYDEVICEADDED", pygame.JOYDEVICEADDED)
+        mocks["JOYDEVICEREMOVED"] = mocker.patch(
+            "pygame.JOYDEVICEREMOVED", pygame.JOYDEVICEREMOVED
+        )
+
+        # Controller events
+        mocks["CONTROLLERAXISMOTION"] = mocker.patch(
+            "pygame.CONTROLLERAXISMOTION", pygame.CONTROLLERAXISMOTION
+        )
+        mocks["CONTROLLERBUTTONDOWN"] = mocker.patch(
+            "pygame.CONTROLLERBUTTONDOWN", pygame.CONTROLLERBUTTONDOWN
+        )
+        mocks["CONTROLLERBUTTONUP"] = mocker.patch(
+            "pygame.CONTROLLERBUTTONUP", pygame.CONTROLLERBUTTONUP
+        )
+        mocks["CONTROLLERDEVICEADDED"] = mocker.patch(
+            "pygame.CONTROLLERDEVICEADDED", pygame.CONTROLLERDEVICEADDED
+        )
+        mocks["CONTROLLERDEVICEREMOVED"] = mocker.patch(
+            "pygame.CONTROLLERDEVICEREMOVED", pygame.CONTROLLERDEVICEREMOVED
+        )
+        mocks["CONTROLLERDEVICEREMAPPED"] = mocker.patch(
+            "pygame.CONTROLLERDEVICEREMAPPED", pygame.CONTROLLERDEVICEREMAPPED
+        )
+
+        # Drop events
+        mocks["DROPBEGIN"] = mocker.patch("pygame.DROPBEGIN", pygame.DROPBEGIN)
+        mocks["DROPCOMPLETE"] = mocker.patch("pygame.DROPCOMPLETE", pygame.DROPCOMPLETE)
+        mocks["DROPFILE"] = mocker.patch("pygame.DROPFILE", pygame.DROPFILE)
+        mocks["DROPTEXT"] = mocker.patch("pygame.DROPTEXT", pygame.DROPTEXT)
+
+        # MIDI events
+        mocks["MIDIIN"] = mocker.patch("pygame.MIDIIN", pygame.MIDIIN)
+
+        # User events
+        mocks["USEREVENT"] = mocker.patch("pygame.USEREVENT", pygame.USEREVENT)
+
+        return mocks
+
 
 # Convenience functions for common use cases
 def create_8x8_sprite_mock(animation_name: str = "idle") -> Mock:

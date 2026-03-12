@@ -26,7 +26,7 @@ class TestSceneEvents:
     def setup_method(self):
         """Set up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
@@ -64,7 +64,7 @@ class TestSceneEvents:
     def teardown_method(self):
         """Clean up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
     def test_scene_event_handling(self):
         """Test basic scene event handling."""

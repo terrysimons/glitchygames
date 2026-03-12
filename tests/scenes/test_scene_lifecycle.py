@@ -23,7 +23,7 @@ class TestSceneLifecycle:
     def setup_method(self):
         """Set up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
@@ -39,7 +39,7 @@ class TestSceneLifecycle:
     def teardown_method(self):
         """Clean up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
     def test_scene_creation(self):
         """Test scene creation and initialization."""

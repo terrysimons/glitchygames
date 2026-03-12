@@ -82,10 +82,11 @@ ruff = { version = "*", optional = true }
 pre-commit = { version = "*", optional = true }
 poetry-plugin-export = { version = "*", optional = true }
 pyright = { version = "*", optional = true }
+pytest-mock = { version = "*", optional = true }
 
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
+dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "pytest-mock", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export", "pillow"]
 api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
 
 [tool.pytest.ini_options]
@@ -131,64 +132,7 @@ src = ["glitchygames", "tests", "scripts"]
 lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 extend-include = []
-lint.select = [
-  "F",
-  "E",
-  "W",
-  "C90",
-  "I",
-  "N",
-  "D",
-  "UP",
-  "YTT",
-  "ASYNC",
-  "S",
-  "BLE",
-  "FBT",
-  "B",
-  "A",
-  "COM",
-  "CPY",
-  "C4",
-  "DTZ",
-  "T10",
-  "DJ",
-  "EM",
-  "EXE",
-  "FA",
-  "ISC",
-  "ICN",
-  "G",
-  "INP",
-  "PIE",
-  "T20",
-  "PYI",
-  "PT",
-  "Q",
-  "RSE",
-  "RET",
-  "SLF",
-  "SLOT",
-  "SIM",
-  "TID",
-  "INT",
-  "ARG",
-  "PTH",
-  "TD",
-  "FIX",
-  "ERA",
-  "PD",
-  "PGH",
-  "PL",
-  "TRY",
-  "FLY",
-  "NPY",
-  "AIR",
-  "PERF",
-  "FURB",
-  "LOG",
-  "RUF",
-]
+lint.select = ["ALL"]
 lint.ignore = [
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
@@ -290,3 +234,8 @@ reportPrivateImportUsage = false
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest-mock (>=3.15.1,<4.0.0)",
+]

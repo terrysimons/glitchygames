@@ -473,7 +473,7 @@ pixels = \"\"\"
                     # Mock helper methods
                     with (
                         patch.object(self.scene.canvas, "_copy_sprite_to_canvas"),
-                        patch.object(self.scene.canvas, "_update_mini_view_from_current_frame"),
+                        patch.object(self.scene.canvas, "_update_canvas_from_current_frame"),
                     ):
                         # Call the method
                         self.scene.canvas.on_load_file_event(event)
@@ -538,7 +538,7 @@ pixels = \"\"\"
                     # Mock helper methods
                     with (
                         patch.object(self.scene.canvas, "_copy_sprite_to_canvas"),
-                        patch.object(self.scene.canvas, "_update_mini_view_from_current_frame"),
+                        patch.object(self.scene.canvas, "_update_canvas_from_current_frame"),
                     ):
                         # Call the method with string parameter
                         self.scene.canvas.on_load_file_event(sprite_file)

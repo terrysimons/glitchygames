@@ -186,11 +186,15 @@ class TestAnimatedSpriteRGBRGBA:
             }
         }
         
-        color_map = AnimatedSprite._build_color_map(data)
-        
+        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+
         assert color_map["R"] == (255, 0, 0)
         assert color_map["G"] == (0, 255, 0)
         assert color_map["B"] == (0, 0, 255)
+        # RGB-only colors have no per-pixel alpha
+        assert original_alpha_values == {}
+        # Color order preserves insertion order
+        assert color_order == ["R", "G", "B"]
 
     def test_build_color_map_from_toml_rgba(self):
         """Test loading color map from RGBA TOML."""
@@ -201,12 +205,16 @@ class TestAnimatedSpriteRGBRGBA:
                 "B": {"red": 0, "green": 0, "blue": 255, "alpha": 255},
             }
         }
-        
-        color_map = AnimatedSprite._build_color_map(data)
-        
-        assert color_map["R"] == (255, 0, 0)  # Opaque -> RGB
+
+        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+
+        # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
+        assert color_map["R"] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
         assert color_map["G"] == (0, 255, 0, 128)  # Transparent -> RGBA
-        assert color_map["B"] == (0, 0, 255)  # Opaque -> RGB
+        assert color_map["B"] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+        # Only per-pixel alpha (0-254) is tracked; alpha=255 is not
+        assert original_alpha_values == {"G": 128}
+        assert color_order == ["R", "G", "B"]
 
     def test_build_color_map_from_toml_alpha_not_set(self):
         """Test loading color map when alpha is not specified (defaults to opaque)."""
@@ -216,12 +224,14 @@ class TestAnimatedSpriteRGBRGBA:
                 "G": {"red": 0, "green": 255, "blue": 0},  # No alpha specified
             }
         }
-        
-        color_map = AnimatedSprite._build_color_map(data)
-        
-        # Should convert to RGB since alpha defaults to 255 (opaque)
+
+        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+
+        # Should be RGB since alpha was not specified (indexed color)
         assert color_map["R"] == (255, 0, 0)  # RGB
         assert color_map["G"] == (0, 255, 0)  # RGB
+        assert original_alpha_values == {}
+        assert color_order == ["R", "G"]
 
     def test_build_color_map_from_toml_alpha_255_explicit(self):
         """Test loading color map when alpha is explicitly set to 255."""
@@ -231,12 +241,15 @@ class TestAnimatedSpriteRGBRGBA:
                 "G": {"red": 0, "green": 255, "blue": 0, "alpha": 255},  # Explicit alpha=255
             }
         }
-        
-        color_map = AnimatedSprite._build_color_map(data)
-        
-        # Should convert to RGB since alpha=255 (opaque)
-        assert color_map["R"] == (255, 0, 0)  # RGB
-        assert color_map["G"] == (0, 255, 0)  # RGB
+
+        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+
+        # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
+        assert color_map["R"] == (255, 0, 0, 255)  # RGBA
+        assert color_map["G"] == (0, 255, 0, 255)  # RGBA
+        # alpha=255 is not per-pixel alpha, so not tracked
+        assert original_alpha_values == {}
+        assert color_order == ["R", "G"]
 
     def test_build_color_map_from_toml_mixed_rgb_rgba(self):
         """Test loading color map from mixed RGB/RGBA TOML."""
@@ -247,12 +260,15 @@ class TestAnimatedSpriteRGBRGBA:
                 "B": {"red": 0, "green": 0, "blue": 255},  # RGB only
             }
         }
-        
-        color_map = AnimatedSprite._build_color_map(data)
-        
+
+        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+
         assert color_map["R"] == (255, 0, 0)  # RGB
         assert color_map["G"] == (0, 255, 0, 128)  # RGBA
         assert color_map["B"] == (0, 0, 255)  # RGB
+        # Only the per-pixel alpha color is tracked
+        assert original_alpha_values == {"G": 128}
+        assert color_order == ["R", "G", "B"]
 
 
 class TestSpriteSaveLoadRGBRGBA:
@@ -375,34 +391,35 @@ class TestSpriteSaveLoadRGBRGBA:
     def test_save_animated_sprite_rgba_with_transparency(self):
         """Test saving an animated sprite with RGBA pixels."""
         sprite = AnimatedSprite()
-        
+
         # Create frames with RGBA pixels including transparency
         frame1 = MockFactory.create_sprite_frame_mock()
         frame1.pixels = [(255, 0, 0, 255), (0, 255, 0, 128)]
         frame1.get_pixel_data.return_value = frame1.pixels
-        
+
         frame2 = MockFactory.create_sprite_frame_mock()
         frame2.pixels = [(0, 0, 255, 255), (128, 128, 128, 0)]
         frame2.get_pixel_data.return_value = frame2.pixels
-        
+
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
             temp_path = f.name
-        
+
         try:
             sprite._save_toml(temp_path)
-            
+
             # Read the saved file
             with open(temp_path, 'r') as f:
                 content = f.read()
-            
-            # Should contain alpha values
-            assert 'alpha = 255' in content
+
+            # Should contain per-pixel alpha values (0-254) only
+            # alpha=255 (opaque) is omitted as an optimization since it's the default
+            assert 'alpha = 255' not in content
             assert 'alpha = 128' in content
             assert 'alpha = 0' in content
-            
+
         finally:
             Path(temp_path).unlink()
 
@@ -485,9 +502,10 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
                 sprite = AnimatedSprite(temp_path)
             
             # Should load RGBA colors appropriately
-            assert sprite._color_map['R'] == (255, 0, 0)  # Opaque -> RGB
+            # Explicit alpha=255 in TOML is preserved as RGBA 4-tuple
+            assert sprite._color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
             assert sprite._color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
-            assert sprite._color_map['B'] == (0, 0, 255)  # Opaque -> RGB
+            assert sprite._color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
             
         finally:
             Path(temp_path).unlink()

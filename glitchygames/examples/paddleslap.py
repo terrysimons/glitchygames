@@ -245,6 +245,10 @@ class Game(Scene):
         self.balls = []
         self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
+        # Per-pair collision cooldown to prevent duplicate collision processing
+        # when ball bounding boxes overlap across multiple consecutive frames.
+        # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
+        self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
         # Convert string argument to BallSpawnMode flag
         spawn_mode_str = self.options.get("ball_spawn_mode", "paddle_only")
         if spawn_mode_str == "paddle_only":
@@ -593,6 +597,10 @@ class Game(Scene):
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
 
+        Uses normal-decomposition for energy-conserving elastic collisions
+        and per-pair cooldown to prevent duplicate collision processing when
+        bounding boxes overlap across multiple consecutive frames.
+
         Args:
             None
 
@@ -600,11 +608,27 @@ class Game(Scene):
             None
 
         """
-        # Ball-to-ball collisions enabled
+        # Tick cooldowns: decrement all active cooldowns and remove expired ones
+        expired_pairs = [
+            pair for pair, remaining in self._ball_collision_cooldowns.items()
+            if remaining <= 1
+        ]
+        for pair in expired_pairs:
+            del self._ball_collision_cooldowns[pair]
+        for pair in self._ball_collision_cooldowns:
+            self._ball_collision_cooldowns[pair] -= 1
+
+        # Number of frames to suppress re-detection after a collision
+        cooldown_frames = 10
 
         # Check all pairs of balls for collisions
         for i in range(len(self.balls)):
             for j in range(i + 1, len(self.balls)):
+                # Skip pairs still in cooldown
+                pair_key = (id(self.balls[i]), id(self.balls[j]))
+                if pair_key in self._ball_collision_cooldowns:
+                    continue
+
                 ball1 = self.balls[i]
                 ball2 = self.balls[j]
 
@@ -620,8 +644,6 @@ class Game(Scene):
                 if distance > collision_distance or distance < 0.001:
                     continue
 
-                # No cooldown for ball-to-ball collisions - balls should be able to collide freely
-
                 # Play collision sound
                 if hasattr(ball1, "snd") and ball1.snd is not None:
                     ball1.snd.play()
@@ -634,24 +656,18 @@ class Game(Scene):
                     f"ball2 speed before={ball2_speed_before:.2f}"
                 )
 
-                # Simple billiards-style collision
-                # Calculate collision normal
+                # Collision normal (unit vector from ball1 center to ball2 center)
                 nx = dx / distance
                 ny = dy / distance
 
-                # Calculate relative velocity
-                dvx = ball2.speed.x - ball1.speed.x
-                dvy = ball2.speed.y - ball1.speed.y
-
                 # Calculate relative velocity along collision normal
-                dvn = dvx * nx + dvy * ny
+                dvn = (
+                    (ball2.speed.x - ball1.speed.x) * nx
+                    + (ball2.speed.y - ball1.speed.y) * ny
+                )
 
-                # CRITICAL FIX: Don't skip collision based solely on dvn sign
-                # For perpendicular motion (e.g., vertical vs horizontal), dvn can be
-                # positive even when balls are colliding due to geometry.
-                # Only skip if balls are clearly separating AND not overlapping.
+                # Only skip if balls are clearly separating AND not overlapping
                 if dvn > 0 and distance >= collision_distance:
-                    # Balls are moving away AND not currently overlapping - skip collision
                     continue
 
                 # Proper elastic collision physics for equal mass balls
@@ -676,16 +692,15 @@ class Game(Scene):
                 ball2.speed.y = v2t_vec_y + v1n_vec_y
 
                 # Cap ball speeds to prevent runaway physics
-                max_speed = 500.0  # Maximum speed in pixels per second
+                max_speed = 500.0
                 for ball in [ball1, ball2]:
                     speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
                     if speed_magnitude > max_speed:
-                        # Scale down the speed while preserving direction
                         scale_factor = max_speed / speed_magnitude
                         ball.speed.x *= scale_factor
                         ball.speed.y *= scale_factor
 
-                # Calculate energy before and after for debugging
+                # Energy debugging
                 energy_before = ball1_speed_before**2 + ball2_speed_before**2
                 ball1_speed_after = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
                 ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
@@ -698,38 +713,26 @@ class Game(Scene):
                 )
 
                 # Separate balls to prevent sticking
-                # Calculate overlap and ensure minimum separation
                 overlap = collision_distance - distance
-                separation_distance = max(overlap + 2.0, 3.0)  # Minimum 3px total separation
-
-                # Calculate separation for each ball (half each)
+                separation_distance = max(overlap + 2.0, 3.0)
                 half_separation = separation_distance * 0.5
                 separation_x = nx * half_separation
                 separation_y = ny * half_separation
 
-                # CRITICAL FIX: Ensure at least 1 pixel separation in each direction
-                # when the normal has a component in that direction
-                # This prevents balls from getting stuck in collision loops
-                # when moving perpendicular (e.g., horizontal vs vertical)
+                # Ensure at least 1 pixel separation in each significant direction
                 min_pixel_separation = 1.0
+                if abs(nx) > 0.1 and abs(separation_x) < min_pixel_separation:
+                    separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
+                if abs(ny) > 0.1 and abs(separation_y) < min_pixel_separation:
+                    separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
-                # If collision normal has X component, ensure minimum X separation
-                if abs(nx) > 0.1:  # Significant X component
-                    if abs(separation_x) < min_pixel_separation:
-                        separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
-
-                # If collision normal has Y component, ensure minimum Y separation
-                if abs(ny) > 0.1:  # Significant Y component
-                    if abs(separation_y) < min_pixel_separation:
-                        separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
-
-                # Apply separation using round() to ensure integer pixel movement
                 ball1.rect.x -= round(separation_x)
                 ball1.rect.y -= round(separation_y)
                 ball2.rect.x += round(separation_x)
                 ball2.rect.y += round(separation_y)
 
-                # No cooldown for ball-to-ball collisions - balls should be able to collide freely
+                # Set cooldown for this pair to prevent duplicate processing
+                self._ball_collision_cooldowns[pair_key] = cooldown_frames
 
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button down events.

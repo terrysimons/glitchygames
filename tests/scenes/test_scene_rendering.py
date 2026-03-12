@@ -27,7 +27,7 @@ class TestSceneRendering:
     def setup_method(self):
         """Set up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
@@ -44,7 +44,7 @@ class TestSceneRendering:
     def teardown_method(self):
         """Clean up test fixtures."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
     def test_scene_rendering(self):
         """Test basic scene rendering."""
@@ -81,7 +81,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_manager(self):
         """Test scene rendering with manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -101,7 +101,7 @@ class TestSceneRendering:
     def test_scene_rendering_multiple_scenes(self):
         """Test rendering with multiple scenes."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -127,7 +127,7 @@ class TestSceneRendering:
     def test_scene_rendering_scene_transition(self):
         """Test rendering during scene transition."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -168,7 +168,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_visibility_manager(self):
         """Test scene rendering with visibility through manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -212,7 +212,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_layering(self):
         """Test scene rendering with layering."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -255,7 +255,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_render_state_manager(self):
         """Test scene rendering with render state through manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -286,7 +286,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_manager_exceptions(self):
         """Test scene rendering with manager exceptions."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -317,7 +317,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_surface_management_manager(self):
         """Test scene rendering with surface management through manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -361,7 +361,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_render_order(self):
         """Test scene rendering with render order."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -387,7 +387,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_render_order_transition(self):
         """Test scene rendering with render order during transition."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -428,7 +428,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_render_state_changes_manager(self):
         """Test scene rendering with render state changes through manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 
@@ -459,7 +459,7 @@ class TestSceneRendering:
     def test_scene_rendering_with_edge_cases_manager(self):
         """Test scene rendering with edge cases through manager."""
         # Reset singleton state for clean test
-        SceneManager._instance = None
+        SceneManager._reset()
 
         manager = self.scene_manager
 

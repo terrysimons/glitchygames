@@ -1,11 +1,11 @@
 """Shared test fixtures for the GlitchyGames test suite.
 
 This module provides common fixtures and utilities used across multiple test files.
+Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -24,12 +24,16 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
-def setup_conditional_pygame_mocks(request):
-    """Set up pygame mocks conditionally based on test file."""
+def setup_conditional_pygame_mocks(request, mocker):
+    """Set up pygame mocks conditionally based on test file.
+
+    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
+    teardown needed.
+    """
     # Check if this is a scene test or game objects test that needs mocks
     test_file = str(request.node.fspath)
     needs_mocks = "scene" in test_file.lower() or "game_objects" in test_file.lower()
-    
+
     if needs_mocks:
         # Ensure pygame is properly initialized for mocks
         import pygame
@@ -38,35 +42,30 @@ def setup_conditional_pygame_mocks(request):
         # Ensure display mode is set (needed after pygame.quit() from other tests)
         if pygame.display.get_surface() is None:
             pygame.display.set_mode((800, 600))
-        
-        # Use full pygame mocks for scene tests to prevent infinite loops
-        patchers = MockFactory.setup_pygame_mocks()
-        for patcher in patchers:
-            patcher.start()
 
-        yield patchers
+        # Use mocker-based mocks — cleanup is automatic
+        mocks = MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-        # Teardown the full mocks
-        MockFactory.teardown_pygame_mocks(patchers)
+        yield mocks
     else:
         # No mocks needed for this test
-        yield []
+        yield {}
 
 
 @pytest.fixture(autouse=True)
 def reset_scene_manager_singleton():
     """Reset SceneManager singleton before each test to prevent contamination."""
     # Reset singleton state for clean test isolation
-    SceneManager._instance = None
+    SceneManager._reset()
     yield
     # Clean up after test
-    SceneManager._instance = None
+    SceneManager._reset()
 
 
 @pytest.fixture
-def mock_game_args():
+def mock_game_args(mocker):
     """Create mock command line arguments for testing."""
-    mock_args = Mock()
+    mock_args = mocker.Mock()
     mock_args.fps = 60
     mock_args.resolution = "800x600"  # String format expected by GameEngine
     mock_args.windowed = True
@@ -81,8 +80,12 @@ def mock_game_args():
 
 
 @pytest.fixture
-def mock_pygame_patches():
-    """Set up pygame mocks for testing."""
+def mock_pygame_patches(mocker):
+    """Set up pygame mocks for testing.
+
+    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
+    teardown needed.
+    """
     # Ensure pygame is properly initialized for mocks
     import pygame
     if not pygame.get_init():
@@ -90,18 +93,14 @@ def mock_pygame_patches():
     # Ensure display mode is set (needed after pygame.quit() from other tests)
     if pygame.display.get_surface() is None:
         pygame.display.set_mode((800, 600))
-    
-    patchers = MockFactory.setup_pygame_mocks()
-    for patcher in patchers:
-        patcher.start()
 
-    yield patchers
+    mocks = MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    MockFactory.teardown_pygame_mocks(patchers)
+    yield mocks
 
 
 @pytest.fixture
-def mock_game():
+def mock_game(mocker):
     """Create a mock game scene for testing."""
     class MockGame(Scene):
         """Simple mock game scene for testing."""
@@ -116,7 +115,7 @@ def mock_game():
                     "no_unhandled_events": True  # Enable globally to catch unhandled events as bugs
                 }
             if groups is None:
-                groups = Mock()  # Mock pygame.sprite.Group
+                groups = mocker.Mock()  # Mock pygame.sprite.Group
             super().__init__(options=options, groups=groups)
             self.fps = 60
             self.background_color = (0, 0, 0)
@@ -163,18 +162,18 @@ def mock_joystick_manager():
 
 
 @pytest.fixture
-def mock_managers():
+def mock_managers(mocker):
     """Create mock managers for testing."""
     return {
-        "joystick_manager": Mock(),
-        "font_manager": Mock(),
-        "game_manager": Mock(),
-        "keyboard_manager": Mock(),
-        "midi_manager": Mock(),
-        "mouse_manager": Mock(),
-        "window_manager": Mock(),
-        "audio_manager": Mock(),
-        "controller_manager": Mock(),
-        "drop_manager": Mock(),
-        "touch_manager": Mock(),
+        "joystick_manager": mocker.Mock(),
+        "font_manager": mocker.Mock(),
+        "game_manager": mocker.Mock(),
+        "keyboard_manager": mocker.Mock(),
+        "midi_manager": mocker.Mock(),
+        "mouse_manager": mocker.Mock(),
+        "window_manager": mocker.Mock(),
+        "audio_manager": mocker.Mock(),
+        "controller_manager": mocker.Mock(),
+        "drop_manager": mocker.Mock(),
+        "touch_manager": mocker.Mock(),
     }

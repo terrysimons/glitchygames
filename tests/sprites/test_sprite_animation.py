@@ -23,6 +23,16 @@ from tests.mocks.test_mock_factory import MockFactory
 # Constants for test values
 TEST_FRAME_INDEX = 5
 
+# Path to the static sprite fixture used by TestAnimatedSprite
+STATIC_TOML = str(
+    Path(__file__).parent.parent.parent
+    / "glitchygames"
+    / "examples"
+    / "resources"
+    / "sprites"
+    / "static.toml"
+)
+
 
 class TestAnimatedSpriteFrameManager:
     """Test FrameManager functionality."""
@@ -194,7 +204,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_initialization(self):
         """Test AnimatedSprite initialization."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         assert isinstance(sprite, AnimatedSprite)
         # The name comes from the loaded file, not the default
@@ -203,7 +213,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_play_pause_stop(self):
         """Test play, pause, and stop methods."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test play - use the actual animation name from the loaded file
         sprite.play("idle")
@@ -219,7 +229,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_add_remove_animation(self):
         """Test adding and removing animations."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test adding animation
         sprite.add_animation("walk", [])
@@ -231,7 +241,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_management(self):
         """Test frame management."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test frame management - use set_frame method instead of direct assignment
         sprite.set_frame(0)
@@ -243,7 +253,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_looping(self):
         """Test animation looping."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test looping property
         sprite.looping = True
@@ -254,7 +264,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_surface_caching(self):
         """Test surface caching."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test surface caching - use the image attribute instead of get_surface method
         # AnimatedSprite has an image attribute that contains the current surface
@@ -263,7 +273,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_animation_order(self):
         """Test animation order."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test animation order
         sprite.animation_order = ["walk", "run"]
@@ -271,7 +281,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_observers(self):
         """Test frame observers."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
         _observer = Mock()
 
         # Test that AnimatedSprite can be created and has basic functionality
@@ -283,7 +293,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_save_load_functionality(self):
         """Test save and load functionality."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test save functionality
         with patch("pathlib.Path.open") as mock_open:
@@ -292,7 +302,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_file_format_detection(self):
         """Test file format detection."""
-        _sprite = AnimatedSprite(filename="static.toml")
+        _sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test format detection - use the module-level function
         format_type = detect_file_format("test.toml")
@@ -300,7 +310,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_error_handling(self):
         """Test error handling."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test error handling for invalid operations
         with pytest.raises(ValueError, match="Animation 'nonexistent' not found"):
@@ -308,14 +318,14 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_manager_integration(self):
         """Test integration with frame manager."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test frame manager integration
         assert isinstance(sprite.frame_manager, FrameManager)
 
     def test_animated_sprite_animation_switching(self):
         """Test animation switching."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test switching between animations
         sprite.add_animation("walk", [])
@@ -329,7 +339,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_frame_bounds(self):
         """Test frame bounds checking."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test frame bounds - use set_frame method instead of direct assignment
         sprite.set_frame(0)
@@ -341,7 +351,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_surface_generation(self):
         """Test surface generation."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test surface generation - use the image attribute instead of generate_surface method
         # AnimatedSprite has an image attribute that contains the current surface
@@ -350,7 +360,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_animation_metadata(self):
         """Test animation metadata."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test animation metadata
         sprite.add_animation("walk", [], metadata={"speed": 1.0})
@@ -358,7 +368,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_import_fallback(self):
         """Test import fallback functionality."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have _import_fallback method, so we test basic functionality
@@ -368,7 +378,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_bitmappy_integration(self):
         """Test integration with bitmappy."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have bitmappy_integration attribute, so we test basic functionality
@@ -378,7 +388,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_logging(self):
         """Test logging functionality."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have _log_info method, so we test basic functionality
@@ -388,7 +398,7 @@ class TestAnimatedSprite:
 
     def test_animated_sprite_constants(self):
         """Test sprite constants."""
-        sprite = AnimatedSprite(filename="static.toml")
+        sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have DEFAULT_FRAME_RATE or MAX_FRAMES constants

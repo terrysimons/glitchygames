@@ -10,13 +10,17 @@ def lint_and_test(session: Session) -> None:
         "poetry",
         "install",
         "--extras",
+        "dev",
+        "--extras",
         "docs",
         external=True,
     )
 
     # Run tests with coverage
+    # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
         "pytest",
+        "-o", "addopts=",
         "--cov=glitchygames",
         "--cov-report=term-missing",
         "--cov-report=html",
@@ -133,6 +137,8 @@ def security_scan(session: Session) -> None:
     session.run(
         "poetry",
         "install",
+        "--extras",
+        "dev",
         external=True,
     )
 
@@ -174,12 +180,16 @@ def performance_test(session: Session) -> None:
     session.run(
         "poetry",
         "install",
+        "--extras",
+        "dev",
         external=True,
     )
 
     # Run performance tests with pytest-benchmark
+    # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         "pytest",
+        "-o", "addopts=",
         "--benchmark-only",
         "--benchmark-save=baseline",
         "tests/",
@@ -193,12 +203,16 @@ def coverage_report(session: Session) -> None:
     session.run(
         "poetry",
         "install",
+        "--extras",
+        "dev",
         external=True,
     )
 
     # Run tests with coverage
+    # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
         "pytest",
+        "-o", "addopts=",
         "--cov=glitchygames",
         "--cov-report=html",
         "--cov-report=term-missing",
