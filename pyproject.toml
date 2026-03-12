@@ -32,6 +32,8 @@ include = [
 
 [tool.poetry.scripts]
 bitmappy = "glitchygames.tools.bitmappy:main"
+glitchygames-server = "glitchygames.api.main:run"
+glitchygames-client = "glitchygames.api.client:run"
 
 [tool.poetry.dependencies]
 # keep your python version here, e.g.:
@@ -47,16 +49,24 @@ miniaudio = "*"
 speechrecognition = "*"
 
 # --- docs extras as optional main deps ---
-mkdocs = { version = "1.6.1", optional = true }
-mkdocstrings = { version = "^0", optional = true, extras = ["crystal", "python"] }
-mkdocs-material = { version = "^9.6", optional = true }
-mkdocs-gen-files = { version = "^0", optional = true }
-mkdocs-literate-nav = { version = "^0", optional = true }
-mkdocs-section-index = { version = "^0", optional = true }
+mkdocs = { version = "*", optional = true }
+mkdocstrings = { version = "*", optional = true, extras = ["crystal", "python"] }
+mkdocs-material = { version = "*", optional = true }
+mkdocs-gen-files = { version = "*", optional = true }
+mkdocs-literate-nav = { version = "*", optional = true }
+mkdocs-section-index = { version = "*", optional = true }
 pymdown-extensions = { version = "*", optional = true }
-mkdocs-autorefs = { version = "^1.4", optional = true }
-mkdocs-macros-plugin = { version = "^1.4", optional = true }
-mkdocstrings-python = { version = "^1.18", optional = true }
+mkdocs-autorefs = { version = "*", optional = true }
+mkdocs-macros-plugin = { version = "*", optional = true }
+mkdocstrings-python = { version = "*", optional = true }
+
+# --- api extras as optional main deps ---
+fastapi = { version = "*", optional = true }
+uvicorn = { version = "*", optional = true }
+pydantic = { version = "*", optional = true }
+httpx = { version = "*", optional = true }
+apng = { version = "*", optional = true }  # pyAPNG (MIT license)
+pillow = { version = "*", optional = true }  # For uncompressed PNG output
 
 # --- dev extras as optional main deps ---
 nox = { version = "*", optional = true }
@@ -76,6 +86,7 @@ pyright = { version = "*", optional = true }
 [tool.poetry.extras]
 docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
 dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
+api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

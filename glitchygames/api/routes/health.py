@@ -1,0 +1,38 @@
+"""Health check endpoints for the GlitchyGames API."""
+
+from fastapi import APIRouter
+from glitchygames.api.models import HealthResponse
+from glitchygames.services import RendererService, ServiceConfig
+
+router = APIRouter(tags=["health"])
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health_check() -> HealthResponse:
+    """Check the health status of the API.
+
+    Returns service status, version, and configuration information.
+    """
+    config = ServiceConfig.from_env()
+
+    # Check if pygame is initialized (renderer will initialize it if needed)
+    pygame_initialized = RendererService._pygame_initialized
+
+    return HealthResponse(
+        status="healthy",
+        version="1.0.0",
+        ai_provider=config.ai_provider,
+        ai_model=config.ai_model,
+        pygame_initialized=pygame_initialized,
+    )
+
+
+@router.get("/")
+async def root() -> dict:
+    """Root endpoint with API information."""
+    return {
+        "name": "GlitchyGames Sprite Generation API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
