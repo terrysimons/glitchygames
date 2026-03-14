@@ -207,7 +207,7 @@ class TestResponseCleaning:
 
     def test_empty_content(self):
         """Test handling of empty content."""
-        assert clean_ai_response("") == ""
+        assert not clean_ai_response("")
         assert clean_ai_response(None) is None
 
 
@@ -230,7 +230,7 @@ blue = 0
         is_valid, error = validate_ai_response(content)
 
         assert is_valid
-        assert error == ""
+        assert not error
 
     def test_valid_animated_sprite(self):
         """Test validation of valid animated sprite."""
@@ -253,7 +253,7 @@ red = 255
         is_valid, error = validate_ai_response(content)
 
         assert is_valid
-        assert error == ""
+        assert not error
 
     def test_empty_response(self):
         """Test detection of empty response."""

@@ -2939,7 +2939,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         if (
             hasattr(animated_sprite, "current_animation")
             and animated_sprite.current_animation
-            and animated_sprite.current_animation != ""
         ):
             self.current_animation = animated_sprite.current_animation
         else:
@@ -8112,7 +8111,7 @@ class BitmapEditorScene(Scene):
                 clicked_slider != "red" or clicked_slider is None
             ):
                 # Commit any uncommitted value before deactivating
-                if self.red_slider.text_sprite.text.strip() == "":
+                if not self.red_slider.text_sprite.text.strip():
                     # If empty, restore original value
                     self.red_slider.text_sprite.text = str(self.red_slider.original_value)
                 else:
@@ -8162,7 +8161,7 @@ class BitmapEditorScene(Scene):
                 clicked_slider != "green" or clicked_slider is None
             ):
                 # Commit any uncommitted value before deactivating
-                if self.green_slider.text_sprite.text.strip() == "":
+                if not self.green_slider.text_sprite.text.strip():
                     # If empty, restore original value
                     self.green_slider.text_sprite.text = str(self.green_slider.original_value)
                 else:
@@ -8205,7 +8204,7 @@ class BitmapEditorScene(Scene):
                 clicked_slider != "blue" or clicked_slider is None
             ):
                 # Commit any uncommitted value before deactivating
-                if self.blue_slider.text_sprite.text.strip() == "":
+                if not self.blue_slider.text_sprite.text.strip():
                     # If empty, restore original value
                     self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
                 else:

@@ -179,7 +179,7 @@ class TestControllerSelection:
         """Test controller selection initialization."""
         assert self.controller_selection.controller_id == 0
         assert self.controller_selection.instance_id == 0
-        assert self.controller_selection.get_animation() == ""
+        assert not self.controller_selection.get_animation()
         assert self.controller_selection.get_frame() == 0
         assert not self.controller_selection.is_active()
 
@@ -268,7 +268,7 @@ class TestControllerSelection:
         self.controller_selection.reset_to_default()
 
         # Check reset state
-        assert self.controller_selection.get_animation() == ""
+        assert not self.controller_selection.get_animation()
         assert self.controller_selection.get_frame() == 0
         assert not self.controller_selection.is_active()
         assert len(self.controller_selection.get_navigation_history()) == 0

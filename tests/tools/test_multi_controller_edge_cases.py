@@ -163,7 +163,7 @@ class TestNavigationBoundaryCases:
         # Test with empty animation name
         self.controller_selection.set_selection("", 0)
         animation, frame = self.controller_selection.get_selection()
-        assert animation == ""
+        assert not animation
         assert frame == 0
 
         # Test with negative frame

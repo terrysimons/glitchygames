@@ -46,7 +46,7 @@ class TestModePosition:
 
         assert position.position == (0, 0)
         assert position.frame == 0
-        assert position.animation == ""
+        assert not position.animation
         assert position.is_valid is True
 
 
