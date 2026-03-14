@@ -1577,7 +1577,7 @@ class BitmappySprite(Sprite):
 
             import toml
 
-            with Path(self.filename).open() as f:
+            with Path(self.filename).open(encoding="utf-8") as f:
                 toml_data = toml.load(f)
 
             # Check if it's an animated sprite and show all frames

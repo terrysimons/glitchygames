@@ -673,7 +673,7 @@ class TestSaveLoadPixelPreservation:
             f.write(CANDLE_SPRITE_CONTENT)
 
         # Create temporary file for save output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_output = f.name
 
         try:
@@ -717,7 +717,7 @@ class TestSaveLoadPixelPreservation:
             f.write(CANDLE_SPRITE_WITH_ALPHA_CONTENT)
 
         # Create temporary file for save output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_output = f.name
 
         try:

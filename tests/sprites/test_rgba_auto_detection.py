@@ -292,14 +292,14 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text()
+            content = Path(temp_path).read_text(encoding="utf-8")
 
             # Should contain RGB colors only
             assert "red = 255" in content
@@ -324,14 +324,14 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text()
+            content = Path(temp_path).read_text(encoding="utf-8")
 
             # Should contain alpha values
             assert "alpha = 255" in content
@@ -357,14 +357,14 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text()
+            content = Path(temp_path).read_text(encoding="utf-8")
 
             # Should contain RGB colors only
             assert "red = 255" in content
@@ -392,14 +392,14 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text()
+            content = Path(temp_path).read_text(encoding="utf-8")
 
             # Should contain per-pixel alpha values (0-254) only
             # alpha=255 (opaque) is omitted as an optimization since it's the default
@@ -425,7 +425,7 @@ R = { red = 255, green = 0, blue = 0 }
 G = { red = 0, green = 255, blue = 0 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -473,7 +473,7 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255, alpha = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -523,7 +523,7 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -582,7 +582,7 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
@@ -635,7 +635,7 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
             temp_path = f.name
 
         try:
@@ -702,10 +702,10 @@ class TestRGBRGBAIntegration:
         rgba_sprite._animations = {"test": [rgba_frame]}
         rgba_sprite.name = "rgba_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as rgb_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as rgb_file:
             rgb_path = rgb_file.name
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as rgba_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as rgba_file:
             rgba_path = rgba_file.name
 
         try:

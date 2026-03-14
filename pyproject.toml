@@ -174,7 +174,6 @@ lint.ignore = [
   # --- Game engine specifics ---
   "E501", # line-too-long (ruff format handles what it can)
   "E712", # true-false-comparison (pygame uses == True/False)
-  "PLW1514", # unspecified-encoding (fine for game assets)
 
   # --- Boolean arguments (common in game APIs) ---
   "FBT001", # boolean-type-hint-positional-argument

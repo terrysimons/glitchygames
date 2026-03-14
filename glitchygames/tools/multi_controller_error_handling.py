@@ -329,7 +329,7 @@ class MultiControllerConfig:
             return cls()
 
         try:
-            with config_path.open() as f:
+            with config_path.open(encoding="utf-8") as f:
                 config_data = json.load(f)
 
             return cls(**config_data)
@@ -366,7 +366,7 @@ class MultiControllerConfig:
                 "enable_navigation_history": self.enable_navigation_history,
             }
 
-            with Path(config_file).open("w") as f:
+            with Path(config_file).open("w", encoding="utf-8") as f:
                 json.dump(config_data, f, indent=2)
 
             return True
