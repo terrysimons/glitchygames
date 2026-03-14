@@ -335,7 +335,7 @@ class TestColorWellSpriteFunctionality:
         assert colorwell.rect.width == COLORWELL_WIDTH
         assert colorwell.rect.height == COLORWELL_HEIGHT
         assert colorwell.name == "TestColorWell"
-        assert colorwell.active_color == (0, 0, 0)  # Default color
+        assert colorwell.active_color == (0, 0, 0, 255)  # Default color (RGBA)
 
     def test_colorwell_color_change(self, mocker):
         """Test ColorWellSprite color change functionality."""

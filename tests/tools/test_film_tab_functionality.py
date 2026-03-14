@@ -138,8 +138,9 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_animation = "idle"
         film_strip.current_frame = 0
 
-        # Mock parent scene
+        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
+        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -164,11 +165,11 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_animation = "idle"
         film_strip.current_frame = 0
 
-        # Mock parent scene with proper canvas dimensions
+        # Mock parent scene with proper canvas dimensions and animated_sprite._animations
         mock_scene = self._mocker.Mock()
-        mock_scene.canvas = self._mocker.Mock()
         mock_scene.canvas.pixels_across = 32
         mock_scene.canvas.pixels_tall = 32
+        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -194,8 +195,9 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_animation = "idle"
         film_strip.current_frame = 0
 
-        # Mock parent scene
+        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
+        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -258,12 +260,19 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_animation = "idle"
         film_strip.current_frame = 0
 
-        # Mock parent scene
+        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
+        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
+        mock_scene.controller_selections = {}
+        mock_scene.multi_controller_manager.controllers = {}
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
         film_strip.update_layout()
+
+        # Clear parent_scene before rendering to avoid deep Mock iteration issues
+        # in the rendering path (controller_selections, multi_controller_manager, etc.)
+        film_strip.parent_scene = None
 
         # Should not raise any exceptions when rendering
         test_surface = pygame.Surface((800, 600))

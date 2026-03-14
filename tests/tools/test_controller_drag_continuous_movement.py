@@ -137,10 +137,10 @@ class TestControllerDragContinuousMovement:
         assert mock_scene._canvas_paint_at_controller_position.call_count == 0
         assert mock_scene._canvas_move_cursor.call_count == 0
     
-    def test_controller_drag_inactive_during_continuous_movement(self, mock_scene):
+    def test_controller_drag_inactive_during_continuous_movement(self, mock_scene, mocker):
         """Test that no painting occurs when controller drag is inactive during continuous movement."""
         controller_id = 0
-        
+
         # Set up continuous movement
         mock_scene.canvas_continuous_movements[controller_id] = {
             'start_time': time.time(),
@@ -149,20 +149,29 @@ class TestControllerDragContinuousMovement:
             'dy': 0,
             'acceleration_level': 0
         }
-        
+
         # Don't start a controller drag (no controller_drags entry)
-        
-        # Simulate continuous movement update
-        mock_scene._update_canvas_continuous_movements()
-        
+
+        # Use the real method from BitmapEditorScene bound to a real instance
+        from glitchygames.tools.bitmappy import BitmapEditorScene
+        real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
+        real_scene.controller_drags = mock_scene.controller_drags
+        real_scene.canvas_continuous_movements = mock_scene.canvas_continuous_movements
+        real_scene.mode_switcher = mock_scene.mode_switcher
+        real_scene._canvas_move_cursor = mock_scene._canvas_move_cursor
+        real_scene._canvas_paint_at_controller_position = mock_scene._canvas_paint_at_controller_position
+
+        # Simulate continuous movement update using the real method
+        real_scene._update_canvas_continuous_movements()
+
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1
         assert mock_scene._canvas_paint_at_controller_position.call_count == 0
     
-    def test_controller_drag_ended_during_continuous_movement(self, mock_scene):
+    def test_controller_drag_ended_during_continuous_movement(self, mock_scene, mocker):
         """Test that no painting occurs when controller drag is ended during continuous movement."""
         controller_id = 0
-        
+
         # Start a controller drag but mark it as inactive
         mock_scene.controller_drags[controller_id] = {
             'active': False,  # Inactive drag
@@ -172,7 +181,7 @@ class TestControllerDragContinuousMovement:
             'end_time': time.time(),
             'end_position': (8, 5)
         }
-        
+
         # Set up continuous movement
         mock_scene.canvas_continuous_movements[controller_id] = {
             'start_time': time.time(),
@@ -181,10 +190,19 @@ class TestControllerDragContinuousMovement:
             'dy': 0,
             'acceleration_level': 0
         }
-        
-        # Simulate continuous movement update
-        mock_scene._update_canvas_continuous_movements()
-        
+
+        # Use the real method from BitmapEditorScene bound to a real instance
+        from glitchygames.tools.bitmappy import BitmapEditorScene
+        real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
+        real_scene.controller_drags = mock_scene.controller_drags
+        real_scene.canvas_continuous_movements = mock_scene.canvas_continuous_movements
+        real_scene.mode_switcher = mock_scene.mode_switcher
+        real_scene._canvas_move_cursor = mock_scene._canvas_move_cursor
+        real_scene._canvas_paint_at_controller_position = mock_scene._canvas_paint_at_controller_position
+
+        # Simulate continuous movement update using the real method
+        real_scene._update_canvas_continuous_movements()
+
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1
         assert mock_scene._canvas_paint_at_controller_position.call_count == 0

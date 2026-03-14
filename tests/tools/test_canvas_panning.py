@@ -226,23 +226,25 @@ class TestCanvasPanning:
 
         # Test panning
         large_canvas.pan_canvas(5, 3)
-        assert large_canvas.pan_offset_x == 5
-        assert large_canvas.pan_offset_y == 3
-        assert large_canvas._panning_active is True
+        frame_key = large_canvas._get_current_frame_key()
+        assert frame_key in large_canvas._frame_panning
+        assert large_canvas._frame_panning[frame_key]['pan_x'] == 5
+        assert large_canvas._frame_panning[frame_key]['pan_y'] == 3
+        assert large_canvas.is_panning_active() is True
 
     def test_panning_state_persistence(self):
         """Test that panning state persists across operations."""
         # Pan the canvas
         self.canvas.pan_canvas(2, 1)
-        assert self.canvas._panning_active is True
+        assert self.canvas.is_panning_active() is True
 
         # Simulate some operations that shouldn't reset panning
         self.canvas.update()
-        assert self.canvas._panning_active is True
+        assert self.canvas.is_panning_active() is True
 
         # Only reset_panning should reset the state
         self.canvas.reset_panning()
-        assert self.canvas._panning_active is False
+        assert self.canvas.is_panning_active() is False
 
 
 class TestPanningKeyboardHandling:
@@ -268,6 +270,11 @@ class TestPanningKeyboardHandling:
         self.canvas.current_animation = 'strip_1'
         self.canvas.current_frame = 0
         self.canvas.pixels = [(255, 0, 0)] * 64
+
+        # Set up _frame_panning as a real dict on the mock canvas so
+        # that _commit_panned_buffer can use 'in' operator on it
+        self.canvas._frame_panning = {}
+        self.canvas._get_current_frame_key = mocker.Mock(return_value='strip_1_0')
 
         # Create a mock scene with canvas
         self.scene = mocker.Mock(spec=BitmapEditorScene)
@@ -371,11 +378,14 @@ class TestPanningKeyboardHandling:
         self.real_scene.on_key_down_event(event_down)
         self.canvas.pan_canvas.assert_called_with(-1, 0)
 
-        # Simulate that panning is active
-        self.canvas._panning_active = True
-        self.canvas.pan_offset_x = -1
-        self.canvas.pan_offset_y = 0
-        self.canvas._original_frame_pixels = [(255, 0, 0)] * 64
+        # Simulate that panning is active by setting up _frame_panning state
+        frame_key = 'strip_1_0'
+        self.canvas._frame_panning[frame_key] = {
+            'pan_x': -1,
+            'pan_y': 0,
+            'original_pixels': [(255, 0, 0)] * 64,
+            'active': True,
+        }
 
         # Now release the key
         event_up = self._mocker.Mock()
@@ -385,7 +395,6 @@ class TestPanningKeyboardHandling:
         self.real_scene.on_key_up_event(event_up)
 
         # Verify that panning state was preserved (not cleared)
-        frame_key = self.canvas._get_current_frame_key()
         assert frame_key in self.canvas._frame_panning
         frame_state = self.canvas._frame_panning[frame_key]
         assert frame_state['active'] is True
@@ -403,11 +412,14 @@ class TestPanningKeyboardHandling:
         self.real_scene.on_key_down_event(event_down)
         self.canvas.pan_canvas.assert_called_with(-1, 0)
 
-        # Simulate that panning is active
-        self.canvas._panning_active = True
-        self.canvas.pan_offset_x = -1
-        self.canvas.pan_offset_y = 0
-        self.canvas._original_frame_pixels = [(255, 0, 0)] * 64
+        # Simulate that panning is active by setting up _frame_panning state
+        frame_key = 'strip_1_0'
+        self.canvas._frame_panning[frame_key] = {
+            'pan_x': -1,
+            'pan_y': 0,
+            'original_pixels': [(255, 0, 0)] * 64,
+            'active': True,
+        }
 
         # Mock the _update_film_strips_for_animated_sprite_update method
         mock_update_film = mocker.patch.object(self.real_scene, '_update_film_strips_for_animated_sprite_update')

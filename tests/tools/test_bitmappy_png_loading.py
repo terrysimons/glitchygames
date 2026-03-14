@@ -48,6 +48,9 @@ class TestPNGLoading:
         self.mock_canvas._update_border_thickness = mocker.Mock()
         self.mock_canvas.force_redraw = mocker.Mock()
         self.mock_canvas.parent = self.mock_scene
+        # Attributes needed by __str__ and __repr__ inherited from parent classes
+        self.mock_canvas.filename = None
+        self.mock_canvas.name = "test_canvas"
 
         self.mock_scene.all_sprites = [self.mock_canvas]
 
@@ -60,10 +63,10 @@ class TestPNGLoading:
             Path(tmp_png.name).write_bytes(b"fake png data")
 
             try:
-                # Mock the conversion method to return a TOML path
-                mock_convert = self._mocker.patch.object(self.mock_canvas, "_convert_png_to_bitmappy")
-                # Use a mock path that doesn't create actual files
-                mock_convert.return_value = "mock_converted_file.toml"
+                # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
+                # AnimatedCanvasSprite, so set it directly as a Mock attribute
+                mock_convert = self._mocker.Mock(return_value="mock_converted_file.toml")
+                self.mock_canvas._convert_png_to_bitmappy = mock_convert
 
                 # Mock the AnimatedSprite.load method
                 mock_sprite_class = self._mocker.patch("glitchygames.tools.bitmappy.AnimatedSprite")
@@ -77,8 +80,8 @@ class TestPNGLoading:
                 # Verify PNG conversion was called
                 mock_convert.assert_called_once_with(tmp_png.name)
 
-                # Verify AnimatedSprite.load was called with TOML path
-                mock_sprite.load.assert_called_once_with("/tmp/test.toml")  # noqa: S108
+                # Verify AnimatedSprite.load was called with the converted TOML path
+                mock_sprite.load.assert_called_once_with("mock_converted_file.toml")
 
                 assert result == mock_sprite
 
@@ -94,9 +97,10 @@ class TestPNGLoading:
             Path(tmp_png.name).write_bytes(b"fake png data")
 
             try:
-                # Mock conversion to return None (failure)
-                mock_convert = self._mocker.patch.object(self.mock_canvas, "_convert_png_to_bitmappy")
-                mock_convert.return_value = None
+                # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
+                # AnimatedCanvasSprite, so set it directly as a Mock attribute
+                mock_convert = self._mocker.Mock(return_value=None)
+                self.mock_canvas._convert_png_to_bitmappy = mock_convert
 
                 # Should raise an exception
                 with pytest.raises(Exception, match="Failed to convert PNG to bitmappy format"):

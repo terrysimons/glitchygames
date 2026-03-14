@@ -269,18 +269,24 @@ class TestFrameCopyPaste:
         scene.blue_slider = self._mocker.Mock()
         scene.blue_slider.text_sprite = self._mocker.Mock()
         scene.blue_slider.text_sprite.active = False
-        
-        # Mock the copy method
+        scene.alpha_slider = self._mocker.Mock()
+        scene.alpha_slider.text_sprite = self._mocker.Mock()
+        scene.alpha_slider.text_sprite.active = False
+
+        # Mock the copy method that the real on_key_down_event calls
         scene._handle_copy_frame = self._mocker.Mock()
-        
+
         # Create Ctrl+C event
         event = self._mocker.Mock()
         event.key = pygame.K_c
         event.mod = pygame.KMOD_CTRL
-        
+
+        # Mock film_strips to prevent early return from film strip editing check
+        scene.film_strips = {}
+
         # Test keyboard event handling
         scene.on_key_down_event(event)
-        
+
         # Verify copy was called
         scene._handle_copy_frame.assert_called_once()
 
@@ -306,18 +312,24 @@ class TestFrameCopyPaste:
         scene.blue_slider = self._mocker.Mock()
         scene.blue_slider.text_sprite = self._mocker.Mock()
         scene.blue_slider.text_sprite.active = False
-        
-        # Mock the paste method
+        scene.alpha_slider = self._mocker.Mock()
+        scene.alpha_slider.text_sprite = self._mocker.Mock()
+        scene.alpha_slider.text_sprite.active = False
+
+        # Mock the paste method that the real on_key_down_event calls
         scene._handle_paste_frame = self._mocker.Mock()
-        
+
         # Create Ctrl+V event
         event = self._mocker.Mock()
         event.key = pygame.K_v
         event.mod = pygame.KMOD_CTRL
-        
+
+        # Mock film_strips to prevent early return from film strip editing check
+        scene.film_strips = {}
+
         # Test keyboard event handling
         scene.on_key_down_event(event)
-        
+
         # Verify paste was called
         scene._handle_paste_frame.assert_called_once()
 

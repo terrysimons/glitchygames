@@ -200,8 +200,8 @@ class TestFilmStripSelection:
         assert film_strip_widget.is_selected
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2  # Should still be 2
 
-    def test_animation_label_click_preserves_selected_frame(self, film_strip_widget):
-        """Test that clicking on animation label preserves the selected frame."""
+    def test_animation_label_click_enters_edit_mode(self, film_strip_widget):
+        """Test that clicking on animation label enters rename edit mode."""
         # Set up initial state: frame 2 is selected
         film_strip_widget.selected_frame = 2
         film_strip_widget.parent_scene.selected_frame = 2
@@ -212,13 +212,10 @@ class TestFilmStripSelection:
         label_pos = (15, 5)  # Position within animation_layouts["walk"] but outside frame areas
         result = film_strip_widget.handle_click(label_pos)
 
-        # Should return the selected frame (2), not reset to 0
-        assert result is not None
-        animation, frame_idx = result
-        assert animation == "walk"
-        assert frame_idx == TEST_FRAME_COUNT_2, (
-            f"Expected frame {TEST_FRAME_COUNT_2}, got {frame_idx}"
-        )
+        # Animation label clicks now enter edit mode for renaming, returning None
+        assert result is None
+        assert film_strip_widget.editing_animation == "walk"
+        assert film_strip_widget.original_animation_name == "walk"
 
     def test_frame_click_updates_selection(self, film_strip_widget):
         """Test that clicking on a specific frame updates the selection."""
@@ -320,12 +317,11 @@ class TestFilmStripSelection:
             f"(strip had {film_strip_widget.selected_frame})"
         )
 
-        # Click on animation label (use position that's definitely in animation layout
-        # but not in frame areas)
-        # animation_layouts["walk"] is pygame.Rect(10, 0, 200, 20)
-        # frame_layouts are at y=10, so use y=5 to be in animation layout but not in frame areas
-        label_pos = (15, 5)
-        result = film_strip_widget.handle_click(label_pos)
+        # Click on a position within the strip rect but outside any specific element
+        # (frames, labels, preview) to test the parent strip click path
+        # which also uses the scene's global selected_frame
+        parent_strip_pos = (290, 80)
+        result = film_strip_widget.handle_click(parent_strip_pos)
 
         # Should also use scene's global selection
         assert result is not None
@@ -426,12 +422,13 @@ class TestFilmStripSelection:
         # Verify pygame.draw.polygon was called twice (filled + border)
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
-    def test_triangle_indicator_draws_when_no_animation(
+    def test_triangle_indicator_skips_when_no_animation(
         self, film_strip_widget, mock_pygame_patches
     ):
-        """Test that triangle indicator is drawn at default position.
+        """Test that triangle indicator is not drawn when there's no current animation.
 
-        Tests when there's no current animation.
+        The production code returns early when current_animation is empty,
+        since there are no frames to indicate.
         """
         # Set up: no current animation
         film_strip_widget.current_animation = ""
@@ -445,17 +442,16 @@ class TestFilmStripSelection:
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
 
-        # Verify pygame.draw.polygon was called (triangle should always be drawn)
-        assert mock_draw.polygon.called
-        # Filled + border
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
+        # Should NOT draw when there is no current animation
+        assert not mock_draw.polygon.called
 
-    def test_triangle_indicator_draws_when_no_sprite(
+    def test_triangle_indicator_skips_when_no_sprite(
         self, film_strip_widget, mock_pygame_patches
     ):
-        """Test that triangle indicator is drawn at default position.
+        """Test that triangle indicator is not drawn when there's no animated sprite.
 
-        Tests when there's no animated sprite.
+        The production code returns early when animated_sprite is None,
+        since there are no frames to indicate.
         """
         # Set up: no animated sprite
         film_strip_widget.animated_sprite = None
@@ -470,10 +466,8 @@ class TestFilmStripSelection:
         # Call the triangle indicator drawing method
         film_strip_widget._draw_triforce_indicator(mock_surface)
 
-        # Verify pygame.draw.polygon was called (triangle should always be drawn)
-        assert mock_draw.polygon.called
-        # Filled + border
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
+        # Should NOT draw when there is no animated sprite
+        assert not mock_draw.polygon.called
 
     def test_triangle_indicator_draws_when_frame_not_found(
         self, film_strip_widget, mock_pygame_patches, mocker

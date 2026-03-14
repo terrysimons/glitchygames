@@ -486,13 +486,14 @@ class TestColorWellSpriteFunctionality:
         )
         color_well.active_color = (100, 150, 200)
 
-        # Act
-        red, green, blue = color_well.active_color
+        # Act - active_color returns RGBA 4-tuple
+        red, green, blue, alpha = color_well.active_color
 
         # Assert
         assert red == TEST_VALUE_100
         assert green == TEST_VALUE_150
         assert blue == TEST_VALUE_200
+        assert alpha == TEST_MAX_VALUE
 
     def test_color_well_color_clamping(self):
         """Test ColorWellSprite color value clamping."""

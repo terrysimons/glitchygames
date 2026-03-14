@@ -37,13 +37,18 @@ class TestFilmStripDropPNG:
         film_strip_sprite.rect.x = 0
         film_strip_sprite.rect.y = 0
 
-        # Create a test PNG file
+        # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
+        mock_frame = self._mocker.Mock()
+        self._mocker.patch.object(
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+        )
+
+        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
+        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+
+        # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:
-            # Create a simple 32x32 test image
-            import pygame
-            test_surface = pygame.Surface((32, 32))
-            test_surface.fill((255, 0, 0))  # Red
-            pygame.image.save(test_surface, test_file.name)
+            Path(test_file.name).write_bytes(b"fake png data")
 
             # Create mock drop event
             class MockEvent:
@@ -86,13 +91,18 @@ class TestFilmStripDropPNG:
         film_strip_sprite.rect.x = 0
         film_strip_sprite.rect.y = 0
 
-        # Create a test PNG file
+        # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
+        mock_frame = self._mocker.Mock()
+        self._mocker.patch.object(
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+        )
+
+        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
+        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+
+        # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:
-            # Create a simple 32x32 test image
-            import pygame
-            test_surface = pygame.Surface((32, 32))
-            test_surface.fill((0, 255, 0))  # Green
-            pygame.image.save(test_surface, test_file.name)
+            Path(test_file.name).write_bytes(b"fake png data")
 
             # Create mock drop event
             class MockEvent:
@@ -184,13 +194,18 @@ class TestFilmStripDropPNG:
         film_strip_sprite.rect.x = 0
         film_strip_sprite.rect.y = 0
 
-        # Create a test PNG file
+        # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
+        mock_frame = self._mocker.Mock()
+        self._mocker.patch.object(
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+        )
+
+        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
+        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+
+        # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:
-            # Create a simple 32x32 test image
-            import pygame
-            test_surface = pygame.Surface((32, 32))
-            test_surface.fill((128, 128, 128))  # Gray
-            pygame.image.save(test_surface, test_file.name)
+            Path(test_file.name).write_bytes(b"fake png data")
 
             # Create mock drop event
             class MockEvent:

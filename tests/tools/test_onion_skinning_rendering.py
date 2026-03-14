@@ -16,6 +16,7 @@ class TestOnionSkinningRendering:
         """Set up test fixtures before each test method."""
         # Initialize pygame for testing
         pygame.init()
+        pygame.display.set_mode((800, 600))
 
         # Store mocker for use in test methods
         self._mocker = mocker
@@ -31,6 +32,17 @@ class TestOnionSkinningRendering:
         self.canvas_sprite.border_thickness = 1
         self.canvas_sprite.current_animation = "test_animation"
         self.canvas_sprite.current_frame = 1
+
+        # Ensure panning is not active so we use frame pixel data
+        self.canvas_sprite._panning_active = False
+        # Set parent_scene to None so hasattr checks pass but truthiness is False
+        self.canvas_sprite.parent_scene = None
+        # Set hovered_pixel to None so hover drawing is skipped
+        self.canvas_sprite.hovered_pixel = None
+        # Set is_hovered to False so canvas hover border is skipped
+        self.canvas_sprite.is_hovered = False
+        # Provide pixel data for controller indicator lookups
+        self.canvas_sprite.pixels = [(255, 0, 255)] * 64
 
         # Create mock animated sprite with frames
         self.animated_sprite = mocker.Mock()
@@ -137,7 +149,11 @@ class TestOnionSkinningRendering:
             self._create_mock_frame(transparent_pixels),
         ]
 
-        # Mock controller indicator method
+        # Mock controller indicator methods
+        mock_has_controllers = self._mocker.patch.object(
+            self.renderer, '_has_active_controllers_in_canvas_mode'
+        )
+        mock_has_controllers.return_value = True
         mock_get_indicator = self._mocker.patch.object(self.renderer, '_get_controller_indicator_for_pixel')
         mock_get_indicator.return_value = (255, 0, 0)  # Red indicator
 
@@ -165,7 +181,8 @@ class TestOnionSkinningIntegration:
     def setup_method(self):
         """Set up test fixtures before each test method."""
         pygame.init()
-    
+        pygame.display.set_mode((800, 600))
+
     def teardown_method(self):
         """Clean up after each test method."""
         pygame.quit()
@@ -205,6 +222,15 @@ class TestOnionSkinningIntegration:
         canvas_sprite.border_thickness = 1
         canvas_sprite.current_animation = "test_animation"
         canvas_sprite.current_frame = 1
+
+        # Ensure panning is not active so we use frame pixel data
+        canvas_sprite._panning_active = False
+        # Set parent_scene to None so hasattr checks pass but truthiness is False
+        canvas_sprite.parent_scene = None
+        # Set hovered_pixel to None so hover drawing is skipped
+        canvas_sprite.hovered_pixel = None
+        # Set is_hovered to False so canvas hover border is skipped
+        canvas_sprite.is_hovered = False
 
         # Create mock animated sprite
         animated_sprite = mocker.Mock()

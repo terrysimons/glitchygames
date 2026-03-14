@@ -36,12 +36,12 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert hasattr(scene, "film_strips")
         assert len(scene.film_strips) > 0
 
-        # Test backward compatibility - canvas should have film_strip attribute
-        assert hasattr(scene.canvas, "film_strip")
-        assert isinstance(scene.canvas.film_strip, film_strip.FilmStripWidget)
+        # Film strips are stored on the scene, not on the canvas
+        first_film_strip = next(iter(scene.film_strips.values()))
+        assert isinstance(first_film_strip, film_strip.FilmStripWidget)
 
         # Test that film strip has the animated sprite
-        assert scene.canvas.film_strip.animated_sprite is not None
+        assert first_film_strip.animated_sprite is not None
 
     def test_film_strip_sprite_creation(self):
         """Test film strip sprite creation through scene."""
@@ -52,53 +52,42 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert hasattr(scene, "film_strip_sprites")
         assert len(scene.film_strip_sprites) > 0
 
-        # Test backward compatibility - canvas should have film_strip_sprite attribute
-        assert hasattr(scene.canvas, "film_strip_sprite")
-        assert isinstance(scene.canvas.film_strip_sprite, bitmappy.FilmStripSprite)
+        # Film strip sprites are stored on the scene, keyed by animation name
+        first_film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
+        assert isinstance(first_film_strip_sprite, bitmappy.FilmStripSprite)
 
-        # Test that film strip sprite has the widget
-        assert scene.canvas.film_strip_sprite.film_strip_widget == scene.canvas.film_strip
+        # Test that film strip sprite has the widget matching its corresponding film strip
+        first_film_strip = next(iter(scene.film_strips.values()))
+        assert first_film_strip_sprite.film_strip_widget == first_film_strip
 
     def test_film_strip_positioning(self):
         """Test film strip positioning relative to canvas through scene."""
         # Use optimized setup
         scene, _ = self.setup_scene_with_sprite()
 
-        # Test film strip positioning - the actual positioning logic may vary
-        film_strip = scene.canvas.film_strip
+        # Film strips are stored on the scene, not on the canvas
+        first_film_strip = next(iter(scene.film_strips.values()))
+        first_film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
+
         # Check that film strip is positioned to the right of canvas
-        assert film_strip.rect.x >= scene.canvas.rect.right
-        assert film_strip.rect.y == scene.canvas.rect.y
+        assert first_film_strip.rect.x >= scene.canvas.rect.right
+        assert first_film_strip.rect.y == scene.canvas.rect.y
 
-        # Test film strip sprite positioning
-        film_strip_sprite = scene.canvas.film_strip_sprite
-        assert film_strip_sprite.rect.x == film_strip.rect.x
-        assert film_strip_sprite.rect.y == film_strip.rect.y
+        # Test film strip sprite positioning matches its widget
+        assert first_film_strip_sprite.rect.x == first_film_strip.rect.x
+        assert first_film_strip_sprite.rect.y == first_film_strip.rect.y
 
-    def test_film_strip_width_calculation(self, mocker):
+    def test_film_strip_width_calculation(self):
         """Test film strip width calculation through scene."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        # Use optimized setup (base class already initializes pygame display)
+        scene, _ = self.setup_scene_with_sprite()
 
-        # Create scene with mock sprite
-        mock_display = mocker.patch("pygame.display.get_surface")
-        mock_surface = self._mocker.Mock()
-        mock_surface.get_width.return_value = DISPLAY_WIDTH
-        mock_surface.get_height.return_value = DISPLAY_HEIGHT
-        mock_display.return_value = mock_surface
+        # Film strips are stored on the scene, not on the canvas
+        first_film_strip = next(iter(scene.film_strips.values()))
 
-        scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
-        )
-
-        # Load the sprite
-        scene._on_sprite_loaded(mock_sprite)
-
-        # Test that film strip has appropriate width
-        film_strip = scene.canvas.film_strip
         # Minimum width
-        assert film_strip.rect.width >= MIN_FILM_STRIP_WIDTH
-        assert film_strip.rect.width > 0
+        assert first_film_strip.rect.width >= MIN_FILM_STRIP_WIDTH
+        assert first_film_strip.rect.width > 0
 
     def test_film_strip_height_calculation(self):
         """Test film strip height calculation."""
@@ -527,4 +516,6 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Should convert screen coordinates to film strip coordinates
         expected_x = mock_event.pos[0] - film_strip_sprite.rect.x
         expected_y = mock_event.pos[1] - film_strip_sprite.rect.y
-        mock_handle_click.assert_called_once_with((expected_x, expected_y))
+        mock_handle_click.assert_called_once_with(
+            (expected_x, expected_y), is_shift_click=False
+        )

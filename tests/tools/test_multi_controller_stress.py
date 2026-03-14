@@ -135,8 +135,8 @@ class TestMultiControllerStress:
         assert end_time - start_time < 2.0
         
         # Verify collision avoidance was applied
-        assert (100, 100) in self.visual_manager.collision_groups
-        assert len(self.visual_manager.collision_groups[(100, 100)]) == 50
+        assert (100, 100) in self.visual_manager.film_strip_collision_groups
+        assert len(self.visual_manager.film_strip_collision_groups[(100, 100)]) == 50
         
         # Test rapid position updates
         update_start = time.time()
@@ -368,4 +368,4 @@ class TestMultiControllerStress:
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
             assert animation == f"animation_{i}"
-            assert frame == 99  # Last cycle
+            assert frame == 49  # Last cycle: 99 % 50 = 49

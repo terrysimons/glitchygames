@@ -36,8 +36,9 @@ class TestShiftRightClickSampling:
         self.parent_scene.screen.get_at.return_value = (128, 64, 192, 255)  # RGBA color
         self.parent_scene.on_slider_event = mocker.Mock()
 
-        # Add the _sample_color_from_screen method to the mock
-        def mock_sample_color_from_screen(screen_pos):
+        # Add the _sample_color_from_screen method as a wrapping Mock so
+        # assert_called_once_with works while still executing the logic
+        def _sample_color_impl(screen_pos):
             try:
                 color = self.parent_scene.screen.get_at(screen_pos)
                 if len(color) == 4:
@@ -58,10 +59,15 @@ class TestShiftRightClickSampling:
             except Exception:
                 pass
 
-        self.parent_scene._sample_color_from_screen = mock_sample_color_from_screen
+        self.parent_scene._sample_color_from_screen = mocker.Mock(side_effect=_sample_color_impl)
 
         # Set parent scene reference
         self.film_strip_sprite.parent_scene = self.parent_scene
+
+        # Ensure rect has real int coordinates since pygame.Surface is mocked
+        # and get_rect() returns Mock attributes instead of real ints
+        self.film_strip_sprite.rect.x = 100
+        self.film_strip_sprite.rect.y = 100
 
     def test_regular_right_click_samples_pixel_data(self, mocker):
         """Test that regular right-click samples from pixel data (RGBA)."""
@@ -103,15 +109,12 @@ class TestShiftRightClickSampling:
         event.pos = (150, 150)  # Inside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Mock pygame key state to return True for left shift key
+        # Set pygame.key.get_pressed to return shift-pressed state.
+        # Since setup_pygame_mocks_with_mocker replaces pygame.key entirely,
+        # we set get_pressed directly on the mocked key object.
         mock_key_state = [False] * 512
-        # Use actual pygame constants if available, otherwise use known values
-        try:
-            mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
-        except (IndexError, AttributeError):
-            # Fallback: just return all False
-            pass
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
+        pygame.key.get_pressed = mocker.Mock(return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -149,6 +152,8 @@ class TestShiftRightClickSampling:
         scene.canvas = self._mocker.Mock()
         scene.canvas.rect = self._mocker.Mock()
         scene.canvas.rect.collidepoint.return_value = True
+        scene.canvas.rect.x = 0
+        scene.canvas.rect.y = 0
         scene.canvas.pixel_width = 10
         scene.canvas.pixel_height = 10
         scene.canvas.pixels_across = 32
@@ -228,38 +233,38 @@ class TestShiftRightClickSampling:
         scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA screen color
 
         # Add the _sample_color_from_screen method to the mock scene
-        def mock_sample_color_from_screen(screen_pos):
-            try:
-                color = scene.screen.get_at(screen_pos)
-                if len(color) == 4:
-                    red, green, blue, _ = color
-                else:
-                    red, green, blue = color
-                alpha = 255
+        def _sample_color_impl(screen_pos):
+            color = scene.screen.get_at(screen_pos)
+            if len(color) == 4:
+                red, green, blue, _ = color
+            else:
+                red, green, blue = color
+            alpha = 255
 
-                # Update sliders
-                trigger = pygame.event.Event(0, {"name": "R", "value": red})
-                scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {"name": "G", "value": green})
-                scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {"name": "B", "value": blue})
-                scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
-                scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-            except Exception:
-                pass
+            # Update sliders with simple mock triggers
+            for name, value in [("R", red), ("G", green), ("B", blue), ("A", alpha)]:
+                trigger = self._mocker.Mock()
+                trigger.name = name
+                trigger.value = value
+                scene.on_slider_event(event=self._mocker.Mock(), trigger=trigger)
 
-        scene._sample_color_from_screen = mock_sample_color_from_screen
+        scene._sample_color_from_screen = _sample_color_impl
 
-        # Add the right-click handler method to the mock scene
+        # Build a key state list with shift pressed, then create a mock
+        # get_pressed function that returns it. We set it directly on
+        # the mocked pygame.key object to avoid patch ordering issues.
+        mock_key_state = [False] * 512
+        mock_key_state[pygame.K_LSHIFT] = True
+        mock_get_pressed = self._mocker.Mock(return_value=mock_key_state)
+
+        # Add the right-click handler method to the mock scene.
+        # Capture mock_get_pressed to avoid depending on pygame.key patching.
         def mock_on_right_mouse_button_up_event(event):
-            # Check for shift-right-click (screen sampling)
-            is_shift_click = pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+            key_state = mock_get_pressed()
+            is_shift_click = key_state[pygame.K_LSHIFT] or key_state[pygame.K_RSHIFT]
 
-            # Check if the click is on the canvas
             if hasattr(scene, "canvas") and scene.canvas and scene.canvas.rect.collidepoint(event.pos):
                 if is_shift_click:
-                    # Shift-right-click: sample screen directly (RGB only)
                     scene._sample_color_from_screen(event.pos)
                     return
 
@@ -268,16 +273,6 @@ class TestShiftRightClickSampling:
         # Create event
         event = MockFactory.create_pygame_event_mock()
         event.pos = (50, 50)  # On canvas
-
-        # Mock pygame key state to return True for left shift key
-        mock_key_state = [False] * 512
-        # Use actual pygame constants if available, otherwise use known values
-        try:
-            mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
-        except (IndexError, AttributeError):
-            # Fallback: just return all False
-            pass
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
 
         # Call the scene's right-click handler
         scene.on_right_mouse_button_up_event(event)

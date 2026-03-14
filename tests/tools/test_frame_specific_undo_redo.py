@@ -81,47 +81,47 @@ class TestFrameSpecificUndoRedo:
         # Mock the callback
         mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
-        
-        # Add frame operation
+
+        # Add frame operation with 4-value pixel tuples: (x, y, new_color, old_color)
         self.manager.add_frame_operation(
             animation="walk_animation",
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (255, 0, 0))]},
-            redo_data={"pixels": [(10, 20, (0, 255, 0))]}
+            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},
+            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}
         )
-        
+
         # Undo the operation
         result = self.manager.undo_frame("walk_animation", 1)
-        
+
         assert result is True
         frame_key = ("walk_animation", 1)
         assert len(self.manager.frame_undo_stacks[frame_key]) == 0
         assert len(self.manager.frame_redo_stacks[frame_key]) == 1
         mock_callback.assert_called_once()
-    
+
     def test_redo_frame(self, mocker):
         """Test frame-specific redo."""
         # Mock the callback
         mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
-        
-        # Add frame operation and undo it
+
+        # Add frame operation and undo it with 4-value pixel tuples: (x, y, new_color, old_color)
         self.manager.add_frame_operation(
             animation="walk_animation",
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (255, 0, 0))]},
-            redo_data={"pixels": [(10, 20, (0, 255, 0))]}
+            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},
+            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}
         )
-        
+
         self.manager.undo_frame("walk_animation", 1)
-        
+
         # Redo the operation
         result = self.manager.redo_frame("walk_animation", 1)
-        
+
         assert result is True
         frame_key = ("walk_animation", 1)
         assert len(self.manager.frame_undo_stacks[frame_key]) == 1

@@ -414,14 +414,14 @@ class TestFilmStripDirtyMarking:
 
     def test_film_strip_dirty_marking(self):
         """Test that film strip is marked dirty when colors change."""
-        # Initially not dirty
-        assert self.film_strip.dirty == 0
+        # Initially not needing redraw
+        assert not getattr(self.film_strip, '_force_redraw', False)
 
         # Mark as dirty
         self.film_strip.mark_dirty()
 
-        # Should be dirty
-        assert self.film_strip.dirty == 1
+        # Should be flagged for redraw
+        assert self.film_strip._force_redraw is True
 
     def test_film_strip_sprite_dirty_marking(self, mocker):
         """Test that film strip sprites are marked dirty."""

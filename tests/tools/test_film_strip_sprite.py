@@ -70,6 +70,11 @@ class TestFilmStripSprite:
         # Test initial dirty state
         assert sprite.dirty == 1
 
+        # FilmStripSprite.update() checks that the sprite is in at least one group
+        # before processing. Mock groups() to return a non-empty list so update proceeds.
+        mock_group = self._mocker.Mock()
+        sprite.groups = self._mocker.Mock(return_value=[mock_group])
+
         # Test update with dirty flag
         sprite.update()
         # Should call force_redraw and reset dirty flag if no animations
@@ -236,7 +241,7 @@ class TestFilmStripSprite:
 
         # Should convert screen coordinates to film strip coordinates
         # Sprite is at (10, 20), so (50, 70) - (10, 20) = (40, 50)
-        mock_handle_click.assert_called_once_with((40, 50))
+        mock_handle_click.assert_called_once_with((40, 50), is_shift_click=False)
 
     def test_film_strip_sprite_edge_cases(self):
         """Test film strip sprite edge cases."""

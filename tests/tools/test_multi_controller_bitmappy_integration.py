@@ -163,8 +163,8 @@ class TestBitmappyMultiControllerIntegration:
             )
 
         # Verify collision avoidance was applied
-        assert (200, 200) in self.visual_manager.collision_groups
-        assert len(self.visual_manager.collision_groups[(200, 200)]) == 3
+        assert (200, 200) in self.visual_manager.film_strip_collision_groups
+        assert len(self.visual_manager.film_strip_collision_groups[(200, 200)]) == 3
 
         # Verify all indicators exist
         assert len(self.visual_manager.indicators) == 6

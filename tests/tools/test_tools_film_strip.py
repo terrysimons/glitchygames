@@ -168,8 +168,10 @@ class TestFilmStripFunctionality:
     def test_get_frame_image_no_image_with_pixel_data(self, mock_pygame_patches, mocker):
         """Test _get_frame_image when frame has no image but has pixel data."""
         # Create a frame without image but with pixel data
+        # Production code calls frame.get_size() after get_pixel_data(), so both are needed
         frame = type("Frame", (), {})()
         frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
+        frame.get_size = mocker.Mock(return_value=(10, 10))
 
         result = film_strip.FilmStripWidget._get_frame_image(frame)
         assert result is not None  # Should return a surface
@@ -287,8 +289,8 @@ class TestFilmStripFunctionality:
         """Test that the film strip starts with gray as the default background color."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
-        # Test that the default background color is gray (128, 128, 128)
-        assert strip.background_color == (128, 128, 128)
+        # Test that the default background color is gray (128, 128, 128, 255) RGBA
+        assert strip.background_color == (128, 128, 128, 255)
         assert strip.background_color_index == FRAME_COUNT  # Gray is at index 2
 
     def test_color_cycling_functionality(self, mock_pygame_patches):
@@ -326,17 +328,18 @@ class TestFilmStripFunctionality:
         """Test that the background colors list contains expected colors."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
-        # Test that cyan is still in the list
-        assert (0, COLOR_COMPONENT_MAX, COLOR_COMPONENT_MAX) in strip.BACKGROUND_COLORS  # Cyan
+        # Test that cyan is still in the list (RGBA format)
+        assert (0, COLOR_COMPONENT_MAX, COLOR_COMPONENT_MAX, COLOR_COMPONENT_MAX) in strip.BACKGROUND_COLORS  # Cyan
 
-        # Test that gray is in the list
-        assert (128, 128, 128) in strip.BACKGROUND_COLORS  # Gray
+        # Test that gray is in the list (RGBA format)
+        assert (128, 128, 128, COLOR_COMPONENT_MAX) in strip.BACKGROUND_COLORS  # Gray
 
         # Test that we have a reasonable number of colors
         assert len(strip.BACKGROUND_COLORS) >= ANIMATION_COUNT
 
-        # Test that all colors are valid RGB tuples
+        # Test that all colors are valid RGBA tuples
+        rgba_length = 4
         for color in strip.BACKGROUND_COLORS:
             assert isinstance(color, tuple)
-            assert len(color) == ANIMATION_COUNT
+            assert len(color) == rgba_length
             assert all(0 <= component <= COLOR_COMPONENT_MAX for component in color)

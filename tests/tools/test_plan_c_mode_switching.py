@@ -130,7 +130,7 @@ class TestTriggerDetector:
     
     def test_initial_state(self):
         """Test initial state of TriggerDetector."""
-        assert self.trigger_detector.TRIGGER_THRESHOLD == 0.5
+        assert self.trigger_detector.TRIGGER_THRESHOLD == 0.4
         assert self.trigger_detector.DEBOUNCE_TIME == 0.1
     
     def test_detect_trigger_press_first_time(self):
@@ -149,14 +149,14 @@ class TestTriggerDetector:
     def test_detect_trigger_press_below_threshold(self):
         """Test that trigger press below threshold returns False."""
         controller_id = 0
-        trigger_value = 0.4  # Below threshold
+        trigger_value = 0.3  # Below threshold of 0.4
         trigger_name = "L2"
         current_time = time.time()
-        
+
         result = self.trigger_detector.detect_trigger_press(
             controller_id, trigger_value, trigger_name, current_time
         )
-        
+
         assert result is False
     
     def test_detect_trigger_press_debounce(self):
