@@ -61,8 +61,8 @@ class AudioEventManager(ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(AUDIO_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug("Failed to set allowed audio events: pygame not fully initialized")
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)

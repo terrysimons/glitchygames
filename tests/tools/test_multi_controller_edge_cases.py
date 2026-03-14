@@ -4,8 +4,11 @@ This module provides specific edge case tests for hotplug scenarios,
 navigation boundaries, collision edge cases, and race conditions.
 """
 
+import logging
 import threading
 import time
+
+LOG = logging.getLogger(__name__)
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -524,9 +527,9 @@ class TestErrorRecoveryEdgeCases:
         try:
             self.manager.is_controller_active(0)
             self.manager.get_controller_info(0)
-        except Exception:
+        except (TypeError, AttributeError):
             # Should not crash the entire system
-            pass
+            LOG.debug("System error during corrupted state access handled gracefully")
 
         # Restore data
         self.manager.controllers = original_controllers

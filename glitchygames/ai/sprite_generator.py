@@ -172,7 +172,7 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
 
         return description + "# (Format unavailable)"
 
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         LOG.warning(f"Error formatting training example: {e}")
         return f"# Example: {example.get('name', 'unknown')} (formatting error)"
 

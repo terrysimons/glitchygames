@@ -4,8 +4,12 @@ This module provides integration tests for the multi-controller system
 with the actual bitmappy tool, testing real-world scenarios.
 """
 
+import logging
+
 import pygame
 import pytest
+
+LOG = logging.getLogger(__name__)
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
@@ -292,18 +296,18 @@ class TestBitmappyMultiControllerIntegration:
                     if event.instance_id in self.scene.controller_selections:
                         # Process event
                         pass
-            except Exception:
+            except (AttributeError, KeyError):
                 # Should handle gracefully
-                pass
+                LOG.debug("Invalid event handled gracefully: %s", event)
 
         # Test with malformed controller data
         try:
             # Try to access non-existent controller
             if 999 in self.scene.controller_selections:
                 self.scene.controller_selections[999].activate()
-        except Exception:
+        except (KeyError, AttributeError):
             # Should handle gracefully
-            pass
+            LOG.debug("Malformed controller data handled gracefully")
 
         # System should still be functional
         assert True  # If we get here, error handling worked

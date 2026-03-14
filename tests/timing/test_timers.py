@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Tests for timer backend deadline computation and monotonicity."""
 
+import logging
 import os
 import time
 
 import pytest
 from glitchygames.timing import FastTimer, PygameTimer
+
+LOG = logging.getLogger(__name__)
 
 
 def test_fast_timer_compute_deadline_monotonic():
@@ -31,9 +34,9 @@ def test_pygame_timer_ns_now_monotonic():
         try:
             if not pygame.display.get_init():
                 pygame.display.init()
-        except Exception:
-            pass
-    except Exception:
+        except pygame.error:
+            LOG.debug("Display init failed with dummy driver, continuing without display")
+    except (ImportError, pygame.error):
         pytest.skip("Pygame could not initialize even with dummy driver")
 
     p = PygameTimer()

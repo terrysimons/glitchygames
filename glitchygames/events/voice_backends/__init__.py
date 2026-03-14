@@ -7,6 +7,10 @@ preferring miniaudio and falling back to PortAudio (via speech_recognition).
 
 from __future__ import annotations
 
+import logging
+
+LOG = logging.getLogger(__name__)
+
 
 def get_microphone_backend() -> type[object] | None:
     """Return an AudioSource-like microphone class or None.
@@ -28,10 +32,10 @@ def get_microphone_backend() -> type[object] | None:
         try:
             _ = MiniaudioMicrophone()
             return MiniaudioMicrophone
-        except Exception:
-            pass
-    except Exception:
-        pass
+        except (OSError, RuntimeError):
+            LOG.debug("MiniaudioMicrophone probe failed, trying next backend")
+    except ImportError:
+        LOG.debug("voice_miniaudio module not available")
 
     # Fallback to PortAudio wrapper if speech_recognition is installed
     try:
@@ -40,9 +44,9 @@ def get_microphone_backend() -> type[object] | None:
         try:
             _ = PortAudioMicrophone()
             return PortAudioMicrophone
-        except Exception:
-            pass
-    except Exception:
-        pass
+        except (OSError, RuntimeError):
+            LOG.debug("PortAudioMicrophone probe failed")
+    except ImportError:
+        LOG.debug("voice_portaudio module not available")
 
     return None

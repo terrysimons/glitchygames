@@ -161,7 +161,7 @@ class MultiControllerErrorHandler:
         if error_key in self.recovery_handlers:
             try:
                 return self.recovery_handlers[error_key](error_info)
-            except Exception as recovery_error:
+            except (ValueError, TypeError, AttributeError, KeyError, OSError) as recovery_error:
                 self.logger.error(f"Recovery handler failed: {recovery_error}")
                 return False
 
@@ -328,7 +328,7 @@ class MultiControllerConfig:
                 config_data = json.load(f)
 
             return cls(**config_data)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
             log.warning(f"Failed to load config from {config_file}: {e}")
             return cls()
 

@@ -66,7 +66,7 @@ class AppEventManager(ResourceManager):
         # Ensure app-related events are enabled
         try:
             pygame.event.set_allowed(APP_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            LOG.debug("Failed to set allowed app events: pygame not fully initialized")
         self.game = game
         self.proxies = [AppEventManager.AppEventProxy(game=game)]

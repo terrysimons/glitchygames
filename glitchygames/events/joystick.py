@@ -54,7 +54,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                     self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)
                 else:
                     self.joystick = pygame.joystick.Joystick(joystick_id)
-            except Exception:
+            except pygame.error:
                 # Fallback to index
                 self.joystick = pygame.joystick.Joystick(joystick_id)
             self.joystick.init()
@@ -185,7 +185,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             try:
                 # Prefer live name from the underlying joystick to avoid stale cached values
                 return self.joystick.get_name()
-            except Exception:
+            except pygame.error:
                 return self._name
 
         def get_init(self: Self) -> bool:
@@ -271,8 +271,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(JOYSTICK_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            LOG.debug("Failed to set allowed joystick events: pygame not fully initialized")
         self.joysticks = {}
         self.game = game
 
@@ -293,21 +293,21 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             # Deep debug: capture both index and instance identity at init time
             try:
                 idx_get_id = joystick.get_id() if hasattr(joystick, "get_id") else None
-            except Exception:
+            except pygame.error:
                 idx_get_id = None
             try:
                 idx_instance = (
                     joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
                 )
-            except Exception:
+            except pygame.error:
                 idx_instance = None
             try:
                 idx_name = joystick.get_name() if hasattr(joystick, "get_name") else None
-            except Exception:
+            except pygame.error:
                 idx_name = None
             try:
                 idx_guid = joystick.get_guid() if hasattr(joystick, "get_guid") else None
-            except Exception:
+            except pygame.error:
                 idx_guid = None
             self.log.debug(
                 f"INIT MAP index={pygame_joystick_index} get_id={idx_get_id} instance_id={idx_instance} name={idx_name} guid={idx_guid}"
@@ -444,24 +444,24 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         js = None
         try:
             js = pygame.joystick.Joystick(added_idx)
-        except Exception as e:
+        except pygame.error as e:
             self.log.debug(f"DEVICEADDED could not open Joystick({added_idx}): {e}")
         if js is not None:
             try:
                 js_name = js.get_name()
-            except Exception:
+            except pygame.error:
                 js_name = None
             try:
                 js_guid = js.get_guid()
-            except Exception:
+            except pygame.error:
                 js_guid = None
             try:
                 js_get_id = js.get_id()
-            except Exception:
+            except pygame.error:
                 js_get_id = None
             try:
                 js_instance = js.get_instance_id()
-            except Exception:
+            except pygame.error:
                 js_instance = None
             self.log.debug(
                 f"DEVICEADDED index={added_idx} get_id={js_get_id} instance_id={js_instance} name={js_name} guid={js_guid}"
@@ -476,7 +476,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 if hasattr(js_inst, "get_instance_id")
                 else event.device_index
             )
-        except Exception:
+        except pygame.error:
+            LOG.debug(
+                "Failed to get instance_id for device_index=%s, using device_index as key",
+                event.device_index,
+            )
             instance_id = event.device_index
 
         # Check if already tracked

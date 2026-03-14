@@ -224,8 +224,8 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         # Ensure controller events are enabled
         try:
             pygame.event.set_allowed(CONTROLLER_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            LOG.debug("Failed to set allowed controller events: pygame not fully initialized")
         self.controllers = {}
         self.proxies = []
         self.game = game

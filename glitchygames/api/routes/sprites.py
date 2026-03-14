@@ -352,7 +352,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         # Decode the base64 APNG data
         try:
             apng_bytes = base64.b64decode(request.apng_base64)
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             LOG.warning(f"Failed to decode base64: {e}")
             return ApngExtractResponse(
                 success=False,
@@ -362,7 +362,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         # Parse the APNG
         try:
             apng = APNG.from_bytes(apng_bytes)
-        except Exception as e:
+        except (ValueError, OSError) as e:
             LOG.warning(f"Failed to parse APNG: {e}")
             return ApngExtractResponse(
                 success=False,
@@ -414,8 +414,8 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
                     if len(frame_bytes) >= 24:
                         frame_width = struct.unpack(">I", frame_bytes[16:20])[0]
                         frame_height = struct.unpack(">I", frame_bytes[20:24])[0]
-                except Exception:
-                    pass
+                except (struct.error, IndexError, ValueError) as dimension_error:
+                    LOG.debug("Could not extract PNG dimensions: %s", dimension_error)
 
             # Track canvas size (first frame usually defines it)
             if canvas_width is None:

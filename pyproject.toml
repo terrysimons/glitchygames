@@ -169,10 +169,6 @@ lint.ignore = [
   "PLC0415", # import-outside-top-level
   "E402", # module-import-not-at-top-of-file
 
-  # --- Exception handling (event handlers catch broad exceptions intentionally) ---
-  "BLE001", # blind-except
-  "S110", # try-except-pass
-
   # --- Module structure ---
   "RUF067", # non-empty-init-module (__init__.py re-exports are intentional)
 

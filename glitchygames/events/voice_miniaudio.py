@@ -12,12 +12,12 @@ from collections import deque
 
 try:
     import miniaudio as mi
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     mi = None  # type: ignore
 
 try:
     import speech_recognition as sr
-except Exception:  # pragma: no cover - test environments may skip
+except ImportError:  # pragma: no cover - test environments may skip
     sr = None  # type: ignore
 
 

@@ -113,8 +113,8 @@ class KeyboardEventManager(ResourceManager):
         # Enable keyboard events for this manager
         try:
             pygame.event.set_allowed(KEYBOARD_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug("Failed to set allowed keyboard events: pygame not fully initialized")
         self.proxies = [KeyboardEventManager.KeyboardEventProxy(game=game)]
 
     @classmethod

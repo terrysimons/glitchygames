@@ -190,8 +190,8 @@ class WindowEventManager(ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(WINDOW_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            LOG.debug("Failed to set allowed window events: pygame not fully initialized")
         self.proxies = [WindowEventManager.WindowEventProxy(game=game)]
 
     @classmethod

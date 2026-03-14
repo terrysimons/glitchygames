@@ -8,8 +8,11 @@ Backends:
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
+
+LOG = logging.getLogger(__name__)
 
 
 def ms_to_ns(ms: float) -> int:
@@ -100,7 +103,8 @@ class FastTimer:
 
                 ctypes.windll.winmm.timeBeginPeriod(1)
                 self._win_period_on = True
-            except Exception:
+            except (OSError, AttributeError) as timer_error:
+                LOG.debug("Windows timer resolution setup failed: %s", timer_error)
                 self._win_period_on = False
 
     def __del__(self) -> None:
@@ -110,8 +114,8 @@ class FastTimer:
                 import ctypes
 
                 ctypes.windll.winmm.timeEndPeriod(1)
-            except Exception:
-                pass
+            except (OSError, AttributeError) as timer_error:
+                LOG.debug("Windows timer resolution cleanup failed: %s", timer_error)
 
     def ns_now(self) -> int:
         """Return the current time in nanoseconds using perf_counter_ns.

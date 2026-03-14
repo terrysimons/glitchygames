@@ -69,7 +69,7 @@ class MouseEventManager(ResourceManager):
                     getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN
                     for e in self.mouse_state.values()
                 )
-            except Exception:
+            except RuntimeError:
                 has_down = False
             # if self._motion_seq % 10 == 0:
             #     self.log.info(
@@ -414,7 +414,7 @@ class MouseEventManager(ResourceManager):
             # Diagnostics
             try:
                 state_keys = list(self.mouse_state.keys())
-            except Exception:
+            except RuntimeError:
                 state_keys = []
             # self.log.info(
             #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={state_keys}"
@@ -448,7 +448,7 @@ class MouseEventManager(ResourceManager):
             """
             try:
                 state_keys = list(self.mouse_state.keys())
-            except Exception:
+            except RuntimeError:
                 state_keys = []
             # self.log.info(
             #     f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "

@@ -13,7 +13,7 @@ from glitchygames.events import ResourceManager
 
 try:
     from .voice_backends import get_microphone_backend
-except Exception:
+except ImportError:
     get_microphone_backend = lambda: None  # type: ignore
 
 # Centralized logger for voice recognition
@@ -93,11 +93,11 @@ class VoiceEventManager(ResourceManager):
                         finally:
                             try:
                                 _probe.__exit__(None, None, None)
-                            except Exception:
-                                pass
+                            except OSError:
+                                LOG.debug("Voice backend cleanup raised OSError during probe")
                     self.log.info(f"Voice backend selected: {backend_name}")
                     self.microphone = mic_cls()  # type: ignore[call-arg]
-                except Exception as e:
+                except OSError as e:
                     self.log.error(f"Voice backend probe failed for {backend_name}: {e}")
                     self.microphone = None
             if self.microphone is None:
@@ -120,7 +120,7 @@ class VoiceEventManager(ResourceManager):
         try:
             self.microphone = sr.Microphone()
             self.log.info("Microphone initialized successfully")
-        except Exception:
+        except (OSError, AttributeError):
             self.log.error("Failed to initialize microphone")
             self.microphone = None
 
@@ -209,7 +209,7 @@ class VoiceEventManager(ResourceManager):
                 except sr.WaitTimeoutError:
                     # Timeout is normal, continue listening
                     continue
-                except Exception:
+                except OSError:
                     self.log.error("Error in voice recognition loop")
                     time.sleep(1)
 
@@ -225,8 +225,8 @@ class VoiceEventManager(ResourceManager):
             self.log.info(f"Executing voice command: '{text}'")
             try:
                 self.commands[text]()
-            except Exception:
-                self.log.error(f"Error executing voice command '{text}'")
+            except Exception:  # Arbitrary user callbacks can raise anything
+                self.log.exception(f"Error executing voice command '{text}'")
             return
 
         # Check for partial matches (commands that contain the text)
@@ -237,8 +237,8 @@ class VoiceEventManager(ResourceManager):
                 )
                 try:
                     callback()
-                except Exception:
-                    self.log.error(f"Error executing voice command '{command_phrase}'")
+                except Exception:  # Arbitrary user callbacks can raise anything
+                    self.log.exception(f"Error executing voice command '{command_phrase}'")
                 return
 
         self.log.debug(f"No voice command found for: '{text}'")

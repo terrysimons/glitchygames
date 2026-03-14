@@ -4,7 +4,10 @@ This module provides stress tests and performance benchmarks for the
 multi-controller system under extreme conditions.
 """
 
+import logging
 import time
+
+LOG = logging.getLogger(__name__)
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -307,9 +310,9 @@ class TestMultiControllerStress:
                 self.visual_manager.remove_controller_indicator(999)
                 self.visual_manager.update_controller_position(999, (0, 0))
 
-            except Exception:
+            except (KeyError, AttributeError, ValueError):
                 # Should handle errors gracefully
-                pass
+                LOG.debug("Invalid controller operation handled gracefully")
 
         # System should still be functional
         assert True  # If we get here, error handling worked

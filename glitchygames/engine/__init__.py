@@ -768,9 +768,12 @@ class GameEngine(events.EventManager):
                     GameEngine.OPTIONS.get("timer_backend"), GameEngine.OPTIONS
                 )
                 self.log.info(f"Timer backend: {GameEngine.OPTIONS.get('timer_backend')}")
-            except Exception:
+            except (ValueError, TypeError, OSError) as timer_error:
                 self.timer = None
-                self.log.debug("Timer backend failed to initialize; using pygame clock only")
+                self.log.debug(
+                    "Timer backend failed to initialize; using pygame clock only: %s",
+                    timer_error,
+                )
             # Configure performance trim percent if available
             try:
                 from glitchygames.performance import performance_manager
@@ -778,8 +781,8 @@ class GameEngine(events.EventManager):
                 trim = float(GameEngine.OPTIONS.get("perf_trim_percent", 5.0))
                 if hasattr(performance_manager, "set_trim_percent"):
                     performance_manager.set_trim_percent(trim)
-            except Exception:
-                pass
+            except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
+                LOG.debug("Performance trim percent configuration failed: %s", perf_error)
             self.scene_manager.start()
         except Exception:
             current_scene = getattr(self.scene_manager, "current_scene", None)

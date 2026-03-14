@@ -77,7 +77,7 @@ def dump_event(event):
         if hasattr(event, "guid"):
             LOG.debug(f"   Event guid: {event.guid}")
 
-    except Exception as e:
+    except (AttributeError, pygame.error) as e:
         LOG.debug(f"⚠️  Error dumping event: {e}")
         LOG.debug(f"   Raw event: {event}")
 
@@ -95,11 +95,11 @@ def process_events():
                     LOG.info(
                         f"✅ Successfully opened controller {event.device_index}: {controller}"
                     )
-                except Exception as e:
+                except pygame.error as e:
                     LOG.debug(f"❌ Failed to open controller {event.device_index}: {e}")
 
             dump_event(event)
-    except Exception as e:
+    except pygame.error as e:
         LOG.debug(f"⚠️  Error getting events: {e}")
 
     current_count = pygame._sdl2.controller.get_count()
@@ -132,7 +132,7 @@ def test_controller_hotplug():
         try:
             controller = pygame._sdl2.controller.Controller(i)
             LOG.debug(f"Opened controller {i}: {controller}")
-        except Exception as e:
+        except pygame.error as e:
             LOG.debug(f"Could not open controller {i}: {e}")
 
     # Test 1: No event blocking

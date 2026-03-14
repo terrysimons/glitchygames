@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Self
 
 import pygame
 from glitchygames.events import TOUCH_EVENTS, ResourceManager, TouchEvents
+
+LOG = logging.getLogger("game.touch")
+LOG.addHandler(logging.NullHandler())
 
 
 class TouchEventManager(ResourceManager):
@@ -94,6 +98,6 @@ class TouchEventManager(ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(TOUCH_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            LOG.debug("Failed to set allowed touch events: pygame not fully initialized")
         self.proxies = [TouchEventManager.TouchEventProxy(game=game)]

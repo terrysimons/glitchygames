@@ -123,7 +123,7 @@ class RendererService:
             ) as temp_file:
                 temp_file.write(toml_content)
                 temp_path = temp_file.name
-        except Exception as e:
+        except OSError as e:
             LOG.error(f"Failed to create temporary file: {e}")
             return RenderResult(
                 success=False,
@@ -191,7 +191,7 @@ class RendererService:
                 rendered_frames=rendered_frames,
             )
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
             LOG.error(f"Failed to render sprite: {e}")
             return RenderResult(
                 success=False,
@@ -201,8 +201,8 @@ class RendererService:
             # Clean up temporary file
             try:
                 Path(temp_path).unlink()
-            except Exception:
-                pass
+            except OSError as unlink_error:
+                LOG.debug("Failed to clean up temporary file %s: %s", temp_path, unlink_error)
 
     def _render_frame_to_png(self, surface, scale: int = 1) -> tuple[bytes, str]:
         """Render a pygame surface to PNG bytes with no compression.
@@ -351,7 +351,7 @@ class RendererService:
                 success=False,
                 error=f"File not found: {file_path}",
             )
-        except Exception as e:
+        except OSError as e:
             return RenderResult(
                 success=False,
                 error=f"Failed to read file: {e}",

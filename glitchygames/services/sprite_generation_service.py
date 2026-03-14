@@ -308,7 +308,7 @@ class SpriteGenerationService:
 
         try:
             data = toml.loads(toml_content)
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             LOG.warning(f"Failed to parse TOML for metadata: {e}")
             return "unknown", False, 1
 

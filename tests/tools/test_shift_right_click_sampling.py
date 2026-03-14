@@ -1,10 +1,13 @@
 """Test shift-right-click screen sampling functionality."""
 
+import logging
 import sys
 from pathlib import Path
 
 import pygame
 import pytest
+
+LOG = logging.getLogger(__name__)
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -57,8 +60,8 @@ class TestShiftRightClickSampling:
                 self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
                 trigger = pygame.event.Event(0, {"name": "A", "value": alpha})
                 self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-            except Exception:
-                pass
+            except (pygame.error, ValueError, TypeError):
+                LOG.debug("Failed to sample color from screen at %s", screen_pos)
 
         self.parent_scene._sample_color_from_screen = mocker.Mock(side_effect=_sample_color_impl)
 

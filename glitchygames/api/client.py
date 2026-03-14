@@ -269,7 +269,7 @@ def display_sprite_ascii(toml_content: str) -> None:
 
         print()  # noqa: T201  # Empty line after output
 
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
         LOG.warning(f"Could not render ASCII preview: {e}")
 
 
@@ -604,7 +604,7 @@ def _handle_extract_frames(parsed_args) -> int:
     except httpx.HTTPStatusError as e:
         LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
         return 1
-    except Exception as e:
+    except (OSError, ValueError, KeyError, TypeError) as e:
         LOG.error(f"Error: {e}")
         if parsed_args.verbose:
             import traceback
@@ -710,7 +710,7 @@ def main(args: list[str] | None = None) -> int:
     except httpx.HTTPStatusError as e:
         LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
         return 1
-    except Exception as e:
+    except (OSError, ValueError, KeyError, TypeError) as e:
         LOG.error(f"Error: {e}")
         if parsed_args.verbose:
             import traceback

@@ -1627,7 +1627,7 @@ class BitmappySprite(Sprite):
             renderer = ASCIIRenderer()
             return renderer.render_sprite(toml_data)
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             # Fallback to basic representation if rendering fails
             return f'{type(self)} "{self.name}" (error rendering: {e})'
 

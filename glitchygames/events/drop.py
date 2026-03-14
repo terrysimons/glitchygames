@@ -100,7 +100,7 @@ class DropEventManager(ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(DROP_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug("Failed to set allowed drop events: pygame not fully initialized")
 
         self.proxies = [DropEventManager.DropEventProxy(game=game)]

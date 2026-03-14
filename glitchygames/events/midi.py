@@ -50,8 +50,8 @@ class MidiEventManager(ResourceManager):
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(MIDI_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug("Failed to set allowed MIDI events: pygame not fully initialized")
         self.game = game
         self.proxies = [MidiEventManager.MidiEventProxy(game=game)]
 

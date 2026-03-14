@@ -242,8 +242,8 @@ class SceneManager(SceneInterface, events.EventManager):
                             self._jitter_last_log_ns = now_ns
                             self._jitter_interval_start_ns = now_ns
                             self._jitter_late_frames = 0
-                    except Exception:
-                        pass
+                    except (ValueError, TypeError, AttributeError) as jitter_error:
+                        LOG.debug("Jitter logging error: %s", jitter_error)
             # Fallback to pygame clock for FPS measurement if no timer
             elif self.target_fps > 0:
                 self.clock.tick(self.target_fps)

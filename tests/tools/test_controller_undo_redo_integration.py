@@ -6,8 +6,12 @@ functionality for film strip operations, ensuring that controller inputs properl
 trigger undo/redo operations for frame management.
 """
 
+import logging
+
 import pygame
 import pytest
+
+LOG = logging.getLogger(__name__)
 from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
 
@@ -40,9 +44,9 @@ class TestControllerUndoRedoIntegration:
                 elif button == pygame.CONTROLLER_BUTTON_X:
                     if getattr(scene, "selected_frame_visible", True):
                         scene._handle_redo()
-            except Exception:
+            except (AttributeError, ValueError):
                 # Controller handler should handle exceptions gracefully
-                pass
+                LOG.debug("Controller %d button press handler error suppressed", controller_id)
 
         scene._handle_film_strip_button_press = mock_handle_film_strip_button_press
 
@@ -362,8 +366,8 @@ class TestControllerUndoRedoIntegration:
 
     def test_controller_undo_redo_error_handling(self, mock_scene):
         """Test controller undo/redo error handling."""
-        # Mock undo to raise an exception
-        mock_scene._handle_undo.side_effect = Exception("Test error")
+        # Mock undo to raise a ValueError (simulating an undo operation error)
+        mock_scene._handle_undo.side_effect = ValueError("Test error")
 
         # Create some operations
         mock_scene.film_strip_operation_tracker.add_frame_added("strip_1", 1, {})
@@ -375,7 +379,7 @@ class TestControllerUndoRedoIntegration:
         # Call the controller handler (should not raise exception)
         try:
             mock_scene._handle_film_strip_button_press(controller_id, button)
-        except Exception:
+        except (AttributeError, ValueError):
             pytest.fail("Controller handler should handle exceptions gracefully")
 
         # Verify undo was called
