@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test script to verify Game Over functionality."""
 
+import logging
 import os
 import sys
 
@@ -10,6 +11,8 @@ import pygame
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../glitchygames"))
 
 from glitchygames.examples.paddleslap import Game
+
+LOG = logging.getLogger(__name__)
 
 
 def test_game_over_condition():
@@ -24,7 +27,7 @@ def test_game_over_condition():
 
     # Check initial state
     initial_ball_count = len(game.balls)
-    print(f"Initial ball count: {initial_ball_count}")
+    LOG.debug(f"Initial ball count: {initial_ball_count}")
 
     # Simulate all balls being killed
     for ball in game.balls:
@@ -32,18 +35,18 @@ def test_game_over_condition():
 
     # Check that balls are marked as dead
     dead_balls = [ball for ball in game.balls if not ball.alive()]
-    print(f"Dead balls: {len(dead_balls)}")
+    LOG.debug(f"Dead balls: {len(dead_balls)}")
 
     # Simulate the update cycle that should trigger Game Over
     game.update()
 
     # Check if Game Over was triggered (balls list should be empty after cleanup)
     final_ball_count = len(game.balls)
-    print(f"Final ball count after update: {final_ball_count}")
+    LOG.debug(f"Final ball count after update: {final_ball_count}")
 
     # Verify that all balls were removed
     assert final_ball_count == 0, f"Expected 0 balls, got {final_ball_count}"
-    print("✅ Game Over condition properly detected!")
+    LOG.info("✅ Game Over condition properly detected!")
 
     pygame.quit()
 

@@ -1,6 +1,10 @@
 """Example usage of the centralized performance manager."""
 
+import logging
+
 from glitchygames.performance import performance_manager
+
+LOG = logging.getLogger(__name__)
 
 
 class ExampleGameObject:
@@ -41,10 +45,10 @@ def example_game_loop():
     test_dts = [0.016, 0.033, 0.008, 0.025, 0.050]  # Various frame times
 
     for dt in test_dts:
-        print(f"Raw dt: {dt:.3f}")
+        LOG.info(f"Raw dt: {dt:.3f}")
         obj.dt_tick(dt)
-        print(f"Performance: {obj.get_performance_info()}")
-        print()
+        LOG.info(f"Performance: {obj.get_performance_info()}")
+        LOG.info("")
 
 
 if __name__ == "__main__":

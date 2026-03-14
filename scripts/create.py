@@ -2,8 +2,11 @@
 """Create Glitchy Games template game."""
 
 import argparse
+import logging
 
 from glitchygames import templates
+
+LOG = logging.getLogger(__name__)
 
 
 def get_args() -> argparse.Namespace:
@@ -31,7 +34,7 @@ def main() -> None:
     args = get_args()
 
     if args.list:
-        [print(x) for x in templates.get_templates()]
+        [LOG.info(x) for x in templates.get_templates()]
     elif args.template == "pong":
         templates.build("pong")
 

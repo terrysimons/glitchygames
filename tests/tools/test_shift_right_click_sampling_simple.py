@@ -1,5 +1,6 @@
 """Test shift-right-click screen sampling functionality - simplified version."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -11,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.tools import bitmappy, film_strip
 
 from tests.mocks.test_mock_factory import MockFactory
+
+LOG = logging.getLogger(__name__)
 
 
 class TestShiftRightClickSamplingSimple:
@@ -85,9 +88,9 @@ class TestShiftRightClickSamplingSimple:
         )
 
         # Debug: Check the mock key state
-        print(f"Mock key state: {mock_key_state}")
-        print(f"Mock key state[304] (LSHIFT): {mock_key_state[304]}")
-        print(f"Mock key state[303] (RSHIFT): {mock_key_state[303]}")
+        LOG.debug(f"Mock key state: {mock_key_state}")
+        LOG.debug(f"Mock key state[304] (LSHIFT): {mock_key_state[304]}")
+        LOG.debug(f"Mock key state[303] (RSHIFT): {mock_key_state[303]}")
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -96,10 +99,10 @@ class TestShiftRightClickSamplingSimple:
         assert result, "Shift-right-click should be handled"
 
         # Debug: Check if the mock was called
-        print(f"Mock call count: {self.parent_scene._sample_color_from_screen.call_count}")
-        print(f"Mock call args: {self.parent_scene._sample_color_from_screen.call_args_list}")
-        print(f"get_pressed call count: {mock_get_pressed.call_count}")
-        print(f"get_pressed call args: {mock_get_pressed.call_args_list}")
+        LOG.debug(f"Mock call count: {self.parent_scene._sample_color_from_screen.call_count}")
+        LOG.debug(f"Mock call args: {self.parent_scene._sample_color_from_screen.call_args_list}")
+        LOG.debug(f"get_pressed call count: {mock_get_pressed.call_count}")
+        LOG.debug(f"get_pressed call args: {mock_get_pressed.call_args_list}")
 
         # Should call the parent scene's screen sampling method
         self.parent_scene._sample_color_from_screen.assert_called_once_with((150, 150))

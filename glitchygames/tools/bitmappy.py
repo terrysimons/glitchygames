@@ -722,7 +722,7 @@ def load_ai_training_data():
                                 if first_frame:
                                     ascii_output = _render_frame_to_ascii(first_frame, renderer)
                                     if ascii_output:
-                                        print(ascii_output)
+                                        print(ascii_output)  # noqa: T201
                             except Exception as e:
                                 LOG.debug(f"Failed to render ASCII for single-frame sprite: {e}")
                         else:
@@ -733,12 +733,12 @@ def load_ai_training_data():
                             try:
                                 for anim_name, frames in sprite._animations.items():
                                     if frames:
-                                        print(f'  Animation: "{anim_name}" ({len(frames)} frames)')
+                                        print(f'  Animation: "{anim_name}" ({len(frames)} frames)')  # noqa: T201
 
                                         # Render frames side-by-side
                                         ascii_output = _render_frames_side_by_side(frames, renderer)
                                         if ascii_output:
-                                            print(ascii_output)
+                                            print(ascii_output)  # noqa: T201
                             except Exception as e:
                                 LOG.debug(f"Failed to render frames side-by-side: {e}")
                     else:

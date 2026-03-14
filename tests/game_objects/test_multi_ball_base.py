@@ -8,12 +8,15 @@ Includes per-pair collision cooldown to prevent the same collision from being
 processed multiple times while balls are still overlapping.
 """
 
+import logging
 import math
 import random
 import time
 
 import pygame
 from glitchygames.game_objects.ball import BallSprite
+
+LOG = logging.getLogger(__name__)
 
 # Number of frames to suppress re-detection of the same ball pair after a collision.
 # This prevents duplicate collision processing when bounding boxes overlap across
@@ -73,11 +76,11 @@ class MultiBallTestBase:
 
     def print_initial_state(self):
         """Print initial ball states."""
-        print(f"Created {self.num_balls} balls")
-        print("Initial ball states:")
+        LOG.debug(f"Created {self.num_balls} balls")
+        LOG.debug("Initial ball states:")
         for i, ball in enumerate(self.balls):
             magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-            print(
+            LOG.debug(
                 f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) "
                 f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
             )
@@ -246,8 +249,8 @@ class MultiBallTestBase:
             object: The result.
 
         """
-        print(f"=== {self.test_name} ===")
-        print(f"Testing at {fps} FPS for {duration_seconds} seconds...")
+        LOG.debug(f"=== {self.test_name} ===")
+        LOG.debug(f"Testing at {fps} FPS for {duration_seconds} seconds...")
 
         # Initialize pygame
         pygame.init()
@@ -265,7 +268,7 @@ class MultiBallTestBase:
             dt = 1.0 / fps
             max_frames = int(fps * duration_seconds)
 
-        print(f"\nRunning simulation for {max_frames} frames ({duration_seconds} seconds)...")
+        LOG.debug(f"\nRunning simulation for {max_frames} frames ({duration_seconds} seconds)...")
 
         # Track statistics
         start_time = time.time()
@@ -292,7 +295,7 @@ class MultiBallTestBase:
 
             if frame_count % 300 == 0:
                 alive_count = sum(1 for ball in self.balls if ball.alive())
-                print(
+                LOG.debug(
                     f"  Frame {frame_count}: {alive_count} balls alive, "
                     f"{total_wall_bounces} wall bounces, "
                     f"{total_ball_collisions} ball collisions"
@@ -315,23 +318,23 @@ class MultiBallTestBase:
 
     def print_results(self, total_time, frame_count, final_alive, wall_bounces, ball_collisions):
         """Print test results."""
-        print("\n=== FINAL RESULTS ===")
-        print(f"Total time: {total_time:.2f} seconds")
-        print(f"Frames processed: {frame_count:,}")
-        print(f"Balls still alive: {final_alive}")
-        print(f"Wall bounces: {wall_bounces}")
-        print(f"Ball-to-ball collisions: {ball_collisions}")
+        LOG.debug("\n=== FINAL RESULTS ===")
+        LOG.debug(f"Total time: {total_time:.2f} seconds")
+        LOG.debug(f"Frames processed: {frame_count:,}")
+        LOG.debug(f"Balls still alive: {final_alive}")
+        LOG.debug(f"Wall bounces: {wall_bounces}")
+        LOG.debug(f"Ball-to-ball collisions: {ball_collisions}")
 
         # Energy conservation check
         final_energy = self._compute_total_energy()
         energy_drift = abs(final_energy - self.initial_energy)
-        print("\n=== ENERGY ANALYSIS ===")
-        print(f"  Initial energy: {self.initial_energy:.6f}")
-        print(f"  Final energy:   {final_energy:.6f}")
-        print(f"  Drift:          {energy_drift:.2e}")
+        LOG.debug("\n=== ENERGY ANALYSIS ===")
+        LOG.debug(f"  Initial energy: {self.initial_energy:.6f}")
+        LOG.debug(f"  Final energy:   {final_energy:.6f}")
+        LOG.debug(f"  Drift:          {energy_drift:.2e}")
 
         # Per-ball speed magnitude analysis
-        print("\n=== SPEED MAGNITUDE ANALYSIS ===")
+        LOG.debug("\n=== SPEED MAGNITUDE ANALYSIS ===")
         for i, ball in enumerate(self.balls):
             if ball.alive() and self.speed_magnitude_samples[i]:
                 magnitudes = self.speed_magnitude_samples[i]
@@ -339,23 +342,27 @@ class MultiBallTestBase:
                 max_mag = max(magnitudes)
                 drift = max_mag - min_mag
 
-                print(
+                LOG.debug(
                     f"Ball {i + 1}: magnitude range [{min_mag:.3f}, {max_mag:.3f}], "
                     f"drift={drift:.6f}"
                 )
 
         # Overall analysis
-        print("\n=== OVERALL ANALYSIS ===")
+        LOG.info("\n=== OVERALL ANALYSIS ===")
         if final_alive == self.num_balls:
-            print(f"  All {self.num_balls} balls survived")
+            LOG.info(f"  All {self.num_balls} balls survived")
         else:
-            print(f"  Only {final_alive}/{self.num_balls} balls survived")
+            LOG.info(f"  Only {final_alive}/{self.num_balls} balls survived")
 
         if wall_bounces > 0:
-            print(f"  Wall bouncing working ({wall_bounces} bounces)")
+            LOG.info(f"  Wall bouncing working ({wall_bounces} bounces)")
 
         if self.enable_ball_collisions and ball_collisions > 0:
             if self.enable_ball_bouncing:
-                print(f"  Ball-to-ball collision bouncing working ({ball_collisions} collisions)")
+                LOG.info(
+                    f"  Ball-to-ball collision bouncing working ({ball_collisions} collisions)"
+                )
             else:
-                print(f"  Ball-to-ball collision clipping working ({ball_collisions} collisions)")
+                LOG.info(
+                    f"  Ball-to-ball collision clipping working ({ball_collisions} collisions)"
+                )

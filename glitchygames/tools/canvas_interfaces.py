@@ -358,8 +358,9 @@ class AnimatedCanvasInterface:
                         and len(drag_info.get("pixels_drawn", [])) > 0
                     ):
                         controller_drag_active = True
-                        print(
-                            f"DEBUG: Controller drag active with pixels for controller {controller_id}, skipping canvas interface tracking"
+                        LOG.debug(
+                            "Controller drag active with pixels for controller %s, skipping canvas interface tracking",
+                            controller_id,
                         )
                         break
 
@@ -426,8 +427,8 @@ class AnimatedCanvasInterface:
                     LOG.debug("Canvas interface started pixel change timer for single click")
             elif controller_drag_active:
                 # Controller drag is active with pixels, don't collect pixels in canvas interface
-                print(
-                    "DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection"
+                LOG.debug(
+                    "Controller drag active with pixels, skipping canvas interface pixel collection"
                 )
                 # But still update the frame data - don't return early
 
@@ -1085,12 +1086,14 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 if pixel_index < len(self.canvas_sprite.pixels):
                     pixel_color = self.canvas_sprite.pixels[pixel_index]
                     return pixel_color
-                print(
-                    f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})"
+                LOG.debug(
+                    "Pixel index %s out of range (max: %s)",
+                    pixel_index,
+                    len(self.canvas_sprite.pixels) - 1,
                 )
             else:
-                print(f"DEBUG: Coordinates ({x}, {y}) out of bounds")
-        print(f"DEBUG: Pixel not found at ({x}, {y}), returning black")
+                LOG.debug("Coordinates (%s, %s) out of bounds", x, y)
+        LOG.debug("Pixel not found at (%s, %s), returning black", x, y)
         return (0, 0, 0)  # Default to black if pixel not found
 
     def _get_inverse_color(self, color: tuple[int, int, int]) -> tuple[int, int, int]:

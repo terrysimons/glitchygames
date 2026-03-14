@@ -466,8 +466,8 @@ class SceneManager(SceneInterface, events.EventManager):
             current_fps = self.clock.get_fps()
             # Calculate actual frame time for spare time calculation
             frame_time = self.dt if hasattr(self, "dt") else 0.0
-            if frame_time > 0:  # Debug: only print occasionally
-                print(f"DEBUG: frame_time={frame_time * 1000:.1f}ms, fps={current_fps:.1f}")
+            if frame_time > 0:
+                LOG.debug("frame_time=%.1fms, fps=%.1f", frame_time * 1000, current_fps)
             performance_manager.track_fps_from_event(current_fps, frame_time)
         except ImportError:
             pass  # Performance module not available

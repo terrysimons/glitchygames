@@ -4,12 +4,15 @@ This module provides performance optimizations for the multi-controller system,
 including caching, memory management, and performance monitoring.
 """
 
+import logging
 import threading
 import time
 import weakref
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
+
+LOG = logging.getLogger("game.tools.multi_controller_performance")
 
 
 @dataclass
@@ -340,7 +343,7 @@ class OptimizedVisualCollisionManager:
         # Clean up memory if needed
         if self.memory_manager.get_memory_stats()["needs_cleanup"]:
             cleaned = self.memory_manager.cleanup_dead_objects()
-            print(f"DEBUG: Cleaned up {cleaned} dead objects")
+            LOG.debug("Cleaned up %s dead objects", cleaned)
 
         # Record performance
         duration = time.time() - start_time

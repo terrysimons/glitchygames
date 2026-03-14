@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Test script to verify paddle movement works correctly."""
 
+import logging
+
 import pygame
 from glitchygames.game_objects.paddle import VerticalPaddle
+
+LOG = logging.getLogger(__name__)
 
 
 def test_paddle_movement():
     """Test paddle movement for consistent behavior."""
-    print("Testing paddle movement...")
+    LOG.debug("Testing paddle movement...")
 
     # Initialize pygame
     pygame.init()
@@ -27,9 +31,9 @@ def test_paddle_movement():
     directions = ["up", "down", "stop"]
     dt = 1.0 / 60.0  # 60 FPS
 
-    print(f"Testing with dt={dt:.4f} (60 FPS)")
-    print("Direction | Initial Pos | Final Pos | Distance | Speed")
-    print("----------|-------------|-----------|----------|-------")
+    LOG.debug(f"Testing with dt={dt:.4f} (60 FPS)")
+    LOG.debug("Direction | Initial Pos | Final Pos | Distance | Speed")
+    LOG.debug("----------|-------------|-----------|----------|-------")
 
     for direction in directions:
         # Reset paddle position
@@ -55,7 +59,7 @@ def test_paddle_movement():
         distance = abs(final_y - initial_y)
         actual_speed = distance / 1.0  # distance per second
 
-        print(
+        LOG.debug(
             f"{direction:8s} | {initial_y:10d} | {final_y:9d} | {distance:6.1f} | {actual_speed:6.1f}"
         )
 

@@ -4,6 +4,8 @@ This module tests specific issues that were encountered during development
 and the fixes that were implemented.
 """
 
+import logging
+
 import pygame
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
@@ -12,6 +14,8 @@ from glitchygames.tools.multi_controller_manager import (
     ControllerStatus,
     MultiControllerManager,
 )
+
+LOG = logging.getLogger(__name__)
 
 
 class TestDuplicateMethodIssue:
@@ -269,16 +273,16 @@ class TestDebugOutputCleanup:
 
     def test_debug_output_control(self, mocker):
         """Test that debug output can be controlled."""
-        # Mock print statements
-        mock_print = mocker.patch("builtins.print")
+        # Mock the module-level LOG object
+        mock_log = mocker.patch("tests.tools.test_multi_controller_troubleshooting.LOG")
         # Simulate debug output
-        print("DEBUG: Controller 0 activated")
-        print("DEBUG: Controller 1 activated")
+        mock_log.debug("DEBUG: Controller 0 activated")
+        mock_log.debug("DEBUG: Controller 1 activated")
 
         # Verify debug output
-        assert mock_print.call_count == 2
-        assert "Controller 0 activated" in str(mock_print.call_args_list[0])
-        assert "Controller 1 activated" in str(mock_print.call_args_list[1])
+        assert mock_log.debug.call_count == 2
+        assert "Controller 0 activated" in str(mock_log.debug.call_args_list[0])
+        assert "Controller 1 activated" in str(mock_log.debug.call_args_list[1])
 
     def test_logging_integration(self, mocker):
         """Test that logging is properly integrated."""

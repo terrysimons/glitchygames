@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """High-density multi-ball test with many balls."""
 
+import logging
 import time
 
 from tests.game_objects.test_multi_ball_base import MultiBallTestBase
+
+LOG = logging.getLogger(__name__)
 
 
 def run_high_density_tests():
@@ -13,8 +16,8 @@ def run_high_density_tests():
         object: The result.
 
     """
-    print("=== HIGH-DENSITY MULTI-BALL TESTS ===")
-    print("Testing with many balls to stress test the system...")
+    LOG.debug("=== HIGH-DENSITY MULTI-BALL TESTS ===")
+    LOG.debug("Testing with many balls to stress test the system...")
 
     # High-density test configurations
     test_configs = [
@@ -36,14 +39,14 @@ def run_high_density_tests():
     all_results = []
 
     for scenario_name, enable_collisions, enable_bouncing in scenarios:
-        print(f"\n{'=' * 80}")
-        print(f"SCENARIO: {scenario_name}")
-        print(f"{'=' * 80}")
+        LOG.debug(f"\n{'=' * 80}")
+        LOG.debug(f"SCENARIO: {scenario_name}")
+        LOG.debug(f"{'=' * 80}")
 
         scenario_results = []
 
         for num_balls, fps, duration, test_name in test_configs:
-            print(f"\n--- {test_name} ---")
+            LOG.debug(f"\n--- {test_name} ---")
 
             # Create test instance
             test = MultiBallTestBase(
@@ -73,30 +76,30 @@ def run_high_density_tests():
             all_results.append(result)
 
             # Print summary
-            print(
+            LOG.debug(
                 f"\n📊 SUMMARY: {alive}/{num_balls} balls alive, {wall_bounces} wall bounces, {ball_collisions} ball collisions"
             )
-            print(f"⏱️  Test completed in {test_time:.2f} seconds")
-            print(f"🎯 Performance: {num_balls / test_time:.1f} balls/second")
+            LOG.debug(f"⏱️  Test completed in {test_time:.2f} seconds")
+            LOG.debug(f"🎯 Performance: {num_balls / test_time:.1f} balls/second")
 
         # Print scenario summary
-        print(f"\n📈 {scenario_name} Results Summary:")
+        LOG.debug(f"\n📈 {scenario_name} Results Summary:")
         for result in scenario_results:
-            print(
+            LOG.debug(
                 f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
             )
 
     # Print overall summary
-    print(f"\n{'=' * 80}")
-    print("OVERALL HIGH-DENSITY RESULTS SUMMARY")
-    print(f"{'=' * 80}")
+    LOG.debug(f"\n{'=' * 80}")
+    LOG.debug("OVERALL HIGH-DENSITY RESULTS SUMMARY")
+    LOG.debug(f"{'=' * 80}")
 
     for scenario_name, _, _ in scenarios:
-        print(f"\n{scenario_name}:")
+        LOG.debug(f"\n{scenario_name}:")
         scenario_data = [r for r in all_results if r["scenario"] == scenario_name]
 
         for result in scenario_data:
-            print(
+            LOG.debug(
                 f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
             )
 
@@ -107,22 +110,22 @@ if __name__ == "__main__":
     results = run_high_density_tests()
 
     # Final analysis
-    print("\n🎯 FINAL HIGH-DENSITY ANALYSIS:")
-    print(f"Total tests run: {len(results)}")
+    LOG.debug("\n🎯 FINAL HIGH-DENSITY ANALYSIS:")
+    LOG.debug(f"Total tests run: {len(results)}")
 
     # Check for any failures
     failures = [r for r in results if r["alive"] < r["num_balls"]]
     if failures:
-        print(f"⚠️  {len(failures)} tests had ball deaths")
+        LOG.debug(f"⚠️  {len(failures)} tests had ball deaths")
         for failure in failures:
-            print(
+            LOG.debug(
                 f"  - {failure['scenario']} with {failure['num_balls']} balls: {failure['alive']}/{failure['num_balls']} balls alive"
             )
     else:
-        print("✅ All tests passed - all balls survived in all scenarios!")
+        LOG.info("✅ All tests passed - all balls survived in all scenarios!")
 
     # Performance analysis
-    print("\n🚀 PERFORMANCE ANALYSIS:")
+    LOG.debug("\n🚀 PERFORMANCE ANALYSIS:")
     scenarios = [
         ("Wall Bounce Only", False, False),
         ("Wall Bounce + Ball Collision Bounce", True, True),
@@ -130,9 +133,11 @@ if __name__ == "__main__":
     ]
     for scenario_name, _, _ in scenarios:
         scenario_data = [r for r in results if r["scenario"] == scenario_name]
-        print(f"\n{scenario_name}:")
+        LOG.debug(f"\n{scenario_name}:")
         for result in scenario_data:
             balls_per_second = result["num_balls"] / result["test_time"]
-            print(f"  {result['num_balls']} balls: {balls_per_second:.1f} balls/second processing")
+            LOG.debug(
+                f"  {result['num_balls']} balls: {balls_per_second:.1f} balls/second processing"
+            )
 
-    print("\n🏁 High-density testing completed!")
+    LOG.info("\n🏁 High-density testing completed!")

@@ -1,5 +1,6 @@
 """Tests for the Pause Screen functionality."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
 
 from tests.mocks.test_mock_factory import MockFactory
+
+LOG = logging.getLogger(__name__)
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -72,7 +75,7 @@ class TestPauseScreen:
         assert scene_manager.active_scene == mock_pause_scene, (
             "Expected pause scene to be set as active scene"
         )
-        print("✅ Pause screen condition properly detected!")
+        LOG.info("✅ Pause screen condition properly detected!")
 
     def test_pause_screen_resume_on_spacebar(self, mocker):
         """Test that Pause Screen can be resumed with spacebar."""
@@ -111,7 +114,7 @@ class TestPauseScreen:
 
         # Check if resume was triggered
         assert pause_scene.next_scene is not None, "Expected game scene to be set for resume"
-        print("✅ Pause screen resume properly detected!")
+        LOG.info("✅ Pause screen resume properly detected!")
 
     def test_pause_screen_gets_game_engine_reference(self, mocker):
         """Test that Pause Screen gets game engine reference from scene manager."""
@@ -142,7 +145,7 @@ class TestPauseScreen:
         # Verify the game engine reference was set
         assert hasattr(pause_scene, "game_engine")
         assert pause_scene.game_engine == mock_game_engine
-        print("✅ Pause screen gets game engine reference properly!")
+        LOG.info("✅ Pause screen gets game engine reference properly!")
 
 
 class TestPauseScreenIntegration:
@@ -188,7 +191,7 @@ class TestPauseScreenIntegration:
         pause_scene.on_key_down_event(space_down_event)
         assert pause_scene.next_scene is not None, "Expected resume to work"
 
-        print("✅ Complete pause/resume cycle works properly!")
+        LOG.info("✅ Complete pause/resume cycle works properly!")
 
 
 if __name__ == "__main__":

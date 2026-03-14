@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Multi-ball test with wall bouncing enabled (no ball-to-ball collisions)."""
 
+import logging
 import math
 import random
 import time
@@ -8,11 +9,13 @@ import time
 import pygame
 from glitchygames.game_objects.ball import BallSprite
 
+LOG = logging.getLogger(__name__)
+
 
 def test_multi_ball_wall_bounce():
     """Test multiple balls with wall bouncing enabled."""
-    print("=== MULTI-BALL WALL BOUNCE TEST ===")
-    print("Testing multiple balls with wall bouncing enabled...")
+    LOG.debug("=== MULTI-BALL WALL BOUNCE TEST ===")
+    LOG.debug("Testing multiple balls with wall bouncing enabled...")
 
     # Initialize pygame
     pygame.init()
@@ -34,11 +37,11 @@ def test_multi_ball_wall_bounce():
         ball.speed.y = random.uniform(-200, 200)
         balls.append(ball)
 
-    print(f"Created {num_balls} balls with wall bouncing enabled")
-    print("Initial ball states:")
+    LOG.debug(f"Created {num_balls} balls with wall bouncing enabled")
+    LOG.debug("Initial ball states:")
     for i, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        print(
+        LOG.debug(
             f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
         )
 
@@ -57,7 +60,7 @@ def test_multi_ball_wall_bounce():
     dt = 1.0 / 60.0  # 60 FPS
     max_frames = 1800  # 30 seconds at 60 FPS
 
-    print(f"\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...")
+    LOG.debug(f"\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...")
 
     while frame_count < max_frames and any(ball.alive() for ball in balls):
         for i, ball in enumerate(balls):
@@ -77,12 +80,12 @@ def test_multi_ball_wall_bounce():
                 if old_x != new_x and (new_x <= 1 or new_x >= 800 - ball.width - 1):
                     x_bounces += 1
                     total_bounces += 1
-                    print(f"  Ball {i + 1} X wall bounce at x={new_x}")
+                    LOG.debug(f"  Ball {i + 1} X wall bounce at x={new_x}")
 
                 if old_y != new_y and (new_y <= 1 or new_y >= 600 - ball.height - 1):
                     y_bounces += 1
                     total_bounces += 1
-                    print(f"  Ball {i + 1} Y wall bounce at y={new_y}")
+                    LOG.debug(f"  Ball {i + 1} Y wall bounce at y={new_y}")
 
                 # Sample speed magnitude every 60 frames (1 second)
                 if frame_count % 60 == 0:
@@ -95,23 +98,23 @@ def test_multi_ball_wall_bounce():
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             elapsed = time.time() - start_time
-            print(
+            LOG.debug(
                 f"  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces"
             )
 
     total_time = time.time() - start_time
     final_alive = sum(1 for ball in balls if ball.alive())
 
-    print("\n=== FINAL RESULTS ===")
-    print(f"Total time: {total_time:.2f} seconds")
-    print(f"Frames processed: {frame_count:,}")
-    print(f"Balls still alive: {final_alive}")
-    print(f"Total wall bounces: {total_bounces}")
-    print(f"X wall bounces: {x_bounces}")
-    print(f"Y wall bounces: {y_bounces}")
+    LOG.debug("\n=== FINAL RESULTS ===")
+    LOG.debug(f"Total time: {total_time:.2f} seconds")
+    LOG.debug(f"Frames processed: {frame_count:,}")
+    LOG.debug(f"Balls still alive: {final_alive}")
+    LOG.debug(f"Total wall bounces: {total_bounces}")
+    LOG.debug(f"X wall bounces: {x_bounces}")
+    LOG.debug(f"Y wall bounces: {y_bounces}")
 
     # Analyze trajectory data
-    print("\n=== TRAJECTORY ANALYSIS ===")
+    LOG.debug("\n=== TRAJECTORY ANALYSIS ===")
     for i, ball in enumerate(balls):
         if ball.alive() and trajectory_data[i]:
             positions = trajectory_data[i]
@@ -122,20 +125,20 @@ def test_multi_ball_wall_bounce():
             min_x, max_x = min(x_positions), max(x_positions)
             min_y, max_y = min(y_positions), max(y_positions)
 
-            print(f"Ball {i + 1} trajectory:")
-            print(f"  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
-            print(f"  Final position: ({ball.rect.x}, {ball.rect.y})")
-            print(f"  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})")
-            print(f"  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}")
+            LOG.debug(f"Ball {i + 1} trajectory:")
+            LOG.debug(f"  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
+            LOG.debug(f"  Final position: ({ball.rect.x}, {ball.rect.y})")
+            LOG.debug(f"  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})")
+            LOG.debug(f"  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}")
 
             # Check for trajectory issues
             x_drift = max_x - min_x
             y_drift = max_y - min_y
 
             if x_drift > 50 or y_drift > 50:
-                print("  ⚠️  Significant position drift detected")
+                LOG.debug("  ⚠️  Significant position drift detected")
             else:
-                print("  ✅ Position is stable")
+                LOG.info("  ✅ Position is stable")
 
             # Check speed magnitude stability
             if speed_magnitude_samples[i]:
@@ -144,24 +147,26 @@ def test_multi_ball_wall_bounce():
                 max_mag = max(magnitudes)
                 drift = max_mag - min_mag
 
-                print(f"  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}")
+                LOG.debug(
+                    f"  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}"
+                )
 
                 if drift < 0.01:
-                    print("  ✅ Speed magnitude is stable")
+                    LOG.info("  ✅ Speed magnitude is stable")
                 else:
-                    print("  ⚠️  Speed magnitude drift detected")
+                    LOG.debug("  ⚠️  Speed magnitude drift detected")
 
     # Overall analysis
-    print("\n=== OVERALL ANALYSIS ===")
+    LOG.debug("\n=== OVERALL ANALYSIS ===")
     if final_alive == num_balls:
-        print("  ✅ All balls survived with wall bouncing enabled")
+        LOG.info("  ✅ All balls survived with wall bouncing enabled")
     else:
-        print(f"  ⚠️  Only {final_alive}/{num_balls} balls survived")
+        LOG.debug(f"  ⚠️  Only {final_alive}/{num_balls} balls survived")
 
     if total_bounces > 0:
-        print(f"  ✅ Wall bouncing is working ({total_bounces} total bounces)")
+        LOG.info(f"  ✅ Wall bouncing is working ({total_bounces} total bounces)")
     else:
-        print("  ❌ No wall bounces detected - bouncing may be disabled")
+        LOG.debug("  ❌ No wall bounces detected - bouncing may be disabled")
 
     pygame.quit()
 
@@ -169,7 +174,7 @@ def test_multi_ball_wall_bounce():
     assert final_alive > 0, "At least one ball should survive"
     assert total_bounces > 0, "Wall bouncing should be working"
 
-    print("\n✅ Test completed successfully")
+    LOG.info("\n✅ Test completed successfully")
 
 
 if __name__ == "__main__":

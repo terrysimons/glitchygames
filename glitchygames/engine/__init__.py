@@ -1410,30 +1410,36 @@ class GameEngine(events.EventManager):
         # Debug: Special handling for event type 1543
         if event.type == 1543:
             event_name = pygame.event.event_name(event.type)
-            print(
-                f"DEBUG: process_unimplemented_event received event type {event.type} ({event_name}): {event}"
+            LOG.debug(
+                "process_unimplemented_event received event type %s (%s): %s",
+                event.type,
+                event_name,
+                event,
             )
-            print(f"DEBUG: Event dict contents: {dict(event)}")
-            print(
-                f"DEBUG: Event attributes: {[attr for attr in dir(event) if not attr.startswith('_')]}"
+            LOG.debug("Event dict contents: %s", dict(event))
+            LOG.debug(
+                "Event attributes: %s",
+                [attr for attr in dir(event) if not attr.startswith("_")],
             )
 
             # Check if this might be a controller event by looking at controller count
             current_controller_count = pygame._sdl2.controller.get_count()
-            print(
-                f"DEBUG: Current controller count when event 1543 received: {current_controller_count}"
+            LOG.debug(
+                "Current controller count when event 1543 received: %s",
+                current_controller_count,
             )
 
             # Check if this event has any controller-related attributes
-            print(f"DEBUG: Event has device_index: {hasattr(event, 'device_index')}")
-            print(f"DEBUG: Event has guid: {hasattr(event, 'guid')}")
-            print(f"DEBUG: Event has instance_id: {hasattr(event, 'instance_id')}")
+            LOG.debug("Event has device_index: %s", hasattr(event, "device_index"))
+            LOG.debug("Event has guid: %s", hasattr(event, "guid"))
+            LOG.debug("Event has instance_id: %s", hasattr(event, "instance_id"))
 
             # Try to get the raw event object if possible
-            print(f"DEBUG: Event type: {type(event)}")
-            print(f"DEBUG: Event repr: {event!r}")
-            print(
-                f"DEBUG: pygame.event.event_name(event.type): {pygame.event.event_name(event.type)}"
+            LOG.debug("Event type: %s", type(event))
+            LOG.debug("Event repr: %r", event)
+            LOG.debug(
+                "pygame.event.event_name(event.type): %s",
+                pygame.event.event_name(event.type),
             )
 
         if event.type not in self.UNIMPLEMENTED_EVENTS:

@@ -460,12 +460,12 @@ class TestAdaptiveDeltaTime:
 
         # Temporarily lower the logging threshold to ensure we trigger logging
         mocker.patch.object(self.instance, "_fps_log_interval_ms", 0.0)  # No interval restriction
-        mock_print = mocker.patch("builtins.print")
+        mock_log_info = mocker.patch("glitchygames.performance.adaptive_clamping.LOG.info")
         # Manually set a large adjustment to ensure logging
         adjusted_dt = self.instance.get_adaptive_dt(1.0)
         # Check if the adjustment is significant enough
         if abs(adjusted_dt - 1.0) > 0.0001:
-            mock_print.assert_called_once()
+            mock_log_info.assert_called_once()
         else:
             # If adjustment is too small, just verify the method works
             assert not math.isclose(adjusted_dt, 1.0)  # Should be adjusted

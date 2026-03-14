@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Test comprehensive ball collision physics scenarios."""
 
+import logging
 import math
 
 import pytest
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
+
+LOG = logging.getLogger(__name__)
 
 
 class TestBallCollisionPhysics:
@@ -47,7 +50,7 @@ class TestBallCollisionPhysics:
         # Skip if balls are too far apart or at exact same position
         collision_distance = 20.0  # 10px radius each ball
         if distance > collision_distance or distance < 0.001:
-            print(
+            LOG.debug(
                 f"DEBUG: No collision - distance={distance:.2f}, collision_distance={collision_distance}"
             )
             return None

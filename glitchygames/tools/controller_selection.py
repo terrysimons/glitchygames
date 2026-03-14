@@ -11,9 +11,12 @@ Features:
 - Selection state management
 """
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
+
+LOG = logging.getLogger("game.tools.controller_selection")
 
 
 @dataclass
@@ -74,7 +77,7 @@ class ControllerSelection:
             self.state.selected_animation = animation_name
             self.state.last_update_time = time.time()
 
-            print(f"DEBUG: Controller {self.controller_id} selected animation '{animation_name}'")
+            LOG.debug("Controller %s selected animation '%s'", self.controller_id, animation_name)
 
     def set_frame(self, frame_index: int) -> None:
         """Set the selected frame for this controller.
@@ -87,7 +90,7 @@ class ControllerSelection:
             self.state.selected_frame = frame_index
             self.state.last_update_time = time.time()
 
-            print(f"DEBUG: Controller {self.controller_id} selected frame {frame_index}")
+            LOG.debug("Controller %s selected frame %s", self.controller_id, frame_index)
 
     def set_selection(self, animation_name: str, frame_index: int) -> None:
         """Set both animation and frame selection.
@@ -114,8 +117,11 @@ class ControllerSelection:
             self.state.selected_frame = frame_index
             self.state.last_update_time = time.time()
 
-            print(
-                f"DEBUG: Controller {self.controller_id} selected animation '{animation_name}', frame {frame_index}"
+            LOG.debug(
+                "Controller %s selected animation '%s', frame %s",
+                self.controller_id,
+                animation_name,
+                frame_index,
             )
 
     def get_selection(self) -> tuple[str, int]:
@@ -156,7 +162,7 @@ class ControllerSelection:
             self.state.selected_slider = slider_name
             self.state.last_update_time = time.time()
 
-            print(f"DEBUG: Controller {self.controller_id} selected slider '{slider_name}'")
+            LOG.debug("Controller %s selected slider '%s'", self.controller_id, slider_name)
 
     def get_slider(self) -> str:
         """Get the current slider selection.
@@ -177,10 +183,10 @@ class ControllerSelection:
         if direction in ["HORIZONTAL", "VERTICAL"]:
             self.state.controller_fill_direction = direction
             self.state.last_update_time = time.time()
-            print(f"DEBUG: Controller {self.controller_id} fill direction set to {direction}")
+            LOG.debug("Controller %s fill direction set to %s", self.controller_id, direction)
         else:
-            print(
-                f"DEBUG: Invalid fill direction '{direction}' for controller {self.controller_id}"
+            LOG.debug(
+                "Invalid fill direction '%s' for controller %s", direction, self.controller_id
             )
 
     def get_fill_direction(self) -> str:
@@ -197,13 +203,13 @@ class ControllerSelection:
         if not self.state.is_active:
             self.state.is_active = True
             self.state.last_update_time = time.time()
-            print(f"DEBUG: Controller {self.controller_id} activated")
+            LOG.debug("Controller %s activated", self.controller_id)
 
     def deactivate(self) -> None:
         """Deactivate this controller."""
         if self.state.is_active:
             self.state.is_active = False
-            print(f"DEBUG: Controller {self.controller_id} deactivated")
+            LOG.debug("Controller %s deactivated", self.controller_id)
 
     def is_active(self) -> bool:
         """Check if controller is active.
@@ -299,7 +305,7 @@ class ControllerSelection:
         self.state.is_active = False
         self.state.last_update_time = time.time()
         self.state.navigation_history.clear()
-        print(f"DEBUG: Controller {self.controller_id} reset to default state")
+        LOG.debug("Controller %s reset to default state", self.controller_id)
 
     def clone_state_to(self, target_controller: "ControllerSelection") -> None:
         """Clone this controller's state to another controller.
@@ -314,6 +320,8 @@ class ControllerSelection:
         else:
             target_controller.deactivate()
 
-        print(
-            f"DEBUG: Controller {self.controller_id} state cloned to controller {target_controller.controller_id}"
+        LOG.debug(
+            "Controller %s state cloned to controller %s",
+            self.controller_id,
+            target_controller.controller_id,
         )

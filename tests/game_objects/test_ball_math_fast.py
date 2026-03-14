@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Fast mathematical stability test for ball bouncing."""
 
+import logging
 import math
 import time
+
+LOG = logging.getLogger(__name__)
 
 
 def test_ball_math_fast():
     """Test ball mathematical stability with direct calculations."""
-    print("=== FAST BALL MATHEMATICAL STABILITY TEST ===")
-    print("Testing mathematical calculations for potential issues...")
+    LOG.debug("=== FAST BALL MATHEMATICAL STABILITY TEST ===")
+    LOG.debug("Testing mathematical calculations for potential issues...")
 
     # Simulate ball parameters
     screen_width = 800
@@ -23,10 +26,10 @@ def test_ball_math_fast():
     speed_y = 125.0
     dt = 1.0 / 60.0  # 60 FPS
 
-    print("Initial state:")
-    print(f"  Position: ({x:.3f}, {y:.3f})")
-    print(f"  Speed: ({speed_x:.6f}, {speed_y:.6f})")
-    print(f"  Speed magnitude: {math.sqrt(speed_x**2 + speed_y**2):.6f}")
+    LOG.debug("Initial state:")
+    LOG.debug(f"  Position: ({x:.3f}, {y:.3f})")
+    LOG.debug(f"  Speed: ({speed_x:.6f}, {speed_y:.6f})")
+    LOG.debug(f"  Speed magnitude: {math.sqrt(speed_x**2 + speed_y**2):.6f}")
 
     # Track statistics
     bounce_count = 0
@@ -45,7 +48,7 @@ def test_ball_math_fast():
     # Simulate many iterations
     iterations = 100000  # 100k iterations for fast test
 
-    print(f"\nRunning {iterations:,} iterations...")
+    LOG.debug(f"\nRunning {iterations:,} iterations...")
 
     for i in range(iterations):
         # Calculate movement
@@ -112,24 +115,24 @@ def test_ball_math_fast():
             magnitude_change = abs(current_magnitude - initial_magnitude)
 
             if magnitude_change > 0.1:
-                print(f"    WARNING: Speed magnitude changed by {magnitude_change:.6f}")
+                LOG.debug(f"    WARNING: Speed magnitude changed by {magnitude_change:.6f}")
 
     total_time = time.time() - start_time
 
-    print("\n=== FINAL RESULTS ===")
-    print(f"Total bounces: {bounce_count:,}")
-    print(f"X bounces: {x_bounces:,}")
-    print(f"Y bounces: {y_bounces:,}")
-    print(f"Total time: {total_time:.3f} seconds")
-    print(f"Iterations per second: {iterations / total_time:.0f}")
-    print(
+    LOG.debug("\n=== FINAL RESULTS ===")
+    LOG.debug(f"Total bounces: {bounce_count:,}")
+    LOG.debug(f"X bounces: {x_bounces:,}")
+    LOG.debug(f"Y bounces: {y_bounces:,}")
+    LOG.debug(f"Total time: {total_time:.3f} seconds")
+    LOG.debug(f"Iterations per second: {iterations / total_time:.0f}")
+    LOG.debug(
         f"Calculations per second: {iterations * 4 / total_time:.0f}"
     )  # 4 calculations per iteration
 
-    print(f"Final position: ({x:.3f}, {y:.3f})")
-    print(f"Final speed: ({speed_x:.6f}, {speed_y:.6f})")
-    print(f"Final speed magnitude: {math.sqrt(speed_x**2 + speed_y**2):.6f}")
-    print(f"Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
+    LOG.debug(f"Final position: ({x:.3f}, {y:.3f})")
+    LOG.debug(f"Final speed: ({speed_x:.6f}, {speed_y:.6f})")
+    LOG.debug(f"Final speed magnitude: {math.sqrt(speed_x**2 + speed_y**2):.6f}")
+    LOG.debug(f"Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
 
     # Analyze speed magnitude stability
     if magnitude_samples:
@@ -138,29 +141,29 @@ def test_ball_math_fast():
         avg_magnitude = sum(magnitude_samples) / len(magnitude_samples)
         magnitude_drift = max_magnitude - min_magnitude
 
-        print("\nSpeed magnitude analysis:")
-        print(f"  Initial: {initial_magnitude:.6f}")
-        print(f"  Samples: {len(magnitude_samples)}")
-        print(f"  Min: {min_magnitude:.6f}")
-        print(f"  Max: {max_magnitude:.6f}")
-        print(f"  Average: {avg_magnitude:.6f}")
-        print(f"  Drift: {magnitude_drift:.6f}")
+        LOG.debug("\nSpeed magnitude analysis:")
+        LOG.debug(f"  Initial: {initial_magnitude:.6f}")
+        LOG.debug(f"  Samples: {len(magnitude_samples)}")
+        LOG.debug(f"  Min: {min_magnitude:.6f}")
+        LOG.debug(f"  Max: {max_magnitude:.6f}")
+        LOG.debug(f"  Average: {avg_magnitude:.6f}")
+        LOG.debug(f"  Drift: {magnitude_drift:.6f}")
 
         if magnitude_drift > 1.0:
-            print("  WARNING: Significant speed magnitude drift detected!")
+            LOG.debug("  WARNING: Significant speed magnitude drift detected!")
         else:
-            print("  Speed magnitude is stable.")
+            LOG.info("  Speed magnitude is stable.")
 
     # Check for mathematical issues
-    print("\nMathematical stability check:")
+    LOG.debug("\nMathematical stability check:")
     final_magnitude = math.sqrt(speed_x**2 + speed_y**2)
     magnitude_change = abs(final_magnitude - initial_magnitude)
-    print(f"  Speed magnitude change: {magnitude_change:.6f}")
+    LOG.debug(f"  Speed magnitude change: {magnitude_change:.6f}")
 
     if magnitude_change < 0.01:
-        print("  ✅ Speed magnitude is stable")
+        LOG.info("  ✅ Speed magnitude is stable")
     else:
-        print("  ⚠️  Speed magnitude has drifted")
+        LOG.debug("  ⚠️  Speed magnitude has drifted")
 
     # Check position bounds
     expected_min_x, expected_max_x = 1, screen_width - ball_width - 1
@@ -172,28 +175,32 @@ def test_ball_math_fast():
         and min_y >= expected_min_y
         and max_y <= expected_max_y
     ):
-        print("  ✅ Position bounds are correct")
+        LOG.info("  ✅ Position bounds are correct")
     else:
-        print("  ⚠️  Position bounds issue detected")
-        print(f"    Expected X: [{expected_min_x}-{expected_max_x}], got [{min_x:.1f}-{max_x:.1f}]")
-        print(f"    Expected Y: [{expected_min_y}-{expected_max_y}], got [{min_y:.1f}-{max_y:.1f}]")
+        LOG.debug("  ⚠️  Position bounds issue detected")
+        LOG.debug(
+            f"    Expected X: [{expected_min_x}-{expected_max_x}], got [{min_x:.1f}-{max_x:.1f}]"
+        )
+        LOG.debug(
+            f"    Expected Y: [{expected_min_y}-{expected_max_y}], got [{min_y:.1f}-{max_y:.1f}]"
+        )
 
     # Check for floating-point precision issues
-    print("\nFloating-point precision check:")
-    print(f"  Speed X precision: {speed_x:.10f}")
-    print(f"  Speed Y precision: {speed_y:.10f}")
-    print(f"  Position X precision: {x:.10f}")
-    print(f"  Position Y precision: {y:.10f}")
+    LOG.debug("\nFloating-point precision check:")
+    LOG.debug(f"  Speed X precision: {speed_x:.10f}")
+    LOG.debug(f"  Speed Y precision: {speed_y:.10f}")
+    LOG.debug(f"  Position X precision: {x:.10f}")
+    LOG.debug(f"  Position Y precision: {y:.10f}")
 
     # Check for NaN or infinity
     if math.isnan(speed_x) or math.isnan(speed_y) or math.isnan(x) or math.isnan(y):
-        print("  ❌ NaN values detected!")
+        LOG.debug("  ❌ NaN values detected!")
         assert False, "NaN values detected in ball calculations"
     elif math.isinf(speed_x) or math.isinf(speed_y) or math.isinf(x) or math.isinf(y):
-        print("  ❌ Infinity values detected!")
+        LOG.debug("  ❌ Infinity values detected!")
         assert False, "Infinity values detected in ball calculations"
     else:
-        print("  ✅ All values are finite")
+        LOG.info("  ✅ All values are finite")
 
     # Assert that the test completed successfully
     assert bounce_count >= 0, "Bounce count should be non-negative"
@@ -204,7 +211,7 @@ def test_ball_math_fast():
         drift = max(magnitude_samples) - min(magnitude_samples)
         assert drift < 0.01, f"Mathematical drift too high: {drift:.6f}"
 
-    print("\n✅ Test completed successfully")
+    LOG.info("\n✅ Test completed successfully")
 
 
 if __name__ == "__main__":

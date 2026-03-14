@@ -157,9 +157,6 @@ lint.ignore = [
   # --- Type annotations (pyright handles type checking) ---
   "ANN", # All annotation rules — pyright is authoritative
 
-  # --- Print statements (legitimate in game engine / CLI output) ---
-  "T201", # print found
-
   # --- Code complexity (game logic is inherently complex) ---
   "PLR2004", # magic-value-comparison (pixel coords, colors, event codes)
   "PLR1702", # too-many-nested-blocks

@@ -1896,7 +1896,7 @@ class SliderSprite(BitmappySprite):
         if not slider_indicators:
             return
 
-        print(f"DEBUG: Drawing {len(slider_indicators)} slider indicators on {self.name} slider")
+        LOG.debug("Drawing %d slider indicators on %s slider", len(slider_indicators), self.name)
 
         # Draw each indicator on this slider
         for controller_id, indicator in slider_indicators.items():

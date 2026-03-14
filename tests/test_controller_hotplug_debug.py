@@ -6,6 +6,7 @@ It is automatically skipped when run non-interactively (e.g., under pytest in CI
 Run directly with: python tests/test_controller_hotplug_debug.py
 """
 
+import logging
 import sys
 import time
 
@@ -13,6 +14,8 @@ import glitchygames.events
 import pygame
 import pygame._sdl2.controller
 import pytest
+
+LOG = logging.getLogger(__name__)
 
 # Skip this entire module when stdin is not a TTY (non-interactive pytest runs)
 pytestmark = pytest.mark.skipif(
@@ -35,57 +38,57 @@ def test_controller_hotplug():
     pygame.init()
     pygame._sdl2.controller.init()
 
-    print("=== Controller Hotplug Debug Test ===")
-    print(f"Initial controller count: {pygame._sdl2.controller.get_count()}")
+    LOG.debug("=== Controller Hotplug Debug Test ===")
+    LOG.debug(f"Initial controller count: {pygame._sdl2.controller.get_count()}")
 
     # Test 1: No event blocking
-    print("\n=== TEST 1: No event blocking ===")
-    print("Please plug in a controller now...")
+    LOG.debug("\n=== TEST 1: No event blocking ===")
+    LOG.debug("Please plug in a controller now...")
     _prompt_or_skip("Press Enter when ready to start monitoring (no blocking)...")
 
     start_time = time.time()
     while time.time() - start_time < 10:  # Monitor for 10 seconds
         for event in pygame.event.get():
             if event.type == pygame.CONTROLLERDEVICEADDED:
-                print(f"CONTROLLERDEVICEADDED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEADDED received: {event}")
             elif event.type == pygame.CONTROLLERDEVICEREMOVED:
-                print(f"CONTROLLERDEVICEREMOVED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEREMOVED received: {event}")
             elif event.type == 1543:
-                print(f"Unknown event 1543: {event}")
+                LOG.debug(f"Unknown event 1543: {event}")
             elif event.type in glitchygames.events.JOYSTICK_EVENTS:
-                print(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
             elif event.type in glitchygames.events.CONTROLLER_EVENTS:
-                print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(
+            LOG.debug(
                 f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
             )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
 
-    print("\nNow please unplug the controller...")
+    LOG.debug("\nNow please unplug the controller...")
     _prompt_or_skip("Press Enter when ready to monitor unplug (no blocking)...")
 
     start_time = time.time()
     while time.time() - start_time < 10:  # Monitor for 10 seconds
         for event in pygame.event.get():
             if event.type == pygame.CONTROLLERDEVICEADDED:
-                print(f"CONTROLLERDEVICEADDED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEADDED received: {event}")
             elif event.type == pygame.CONTROLLERDEVICEREMOVED:
-                print(f"CONTROLLERDEVICEREMOVED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEREMOVED received: {event}")
             elif event.type == 1543:
-                print(f"Unknown event 1543: {event}")
+                LOG.debug(f"Unknown event 1543: {event}")
             elif event.type in glitchygames.events.JOYSTICK_EVENTS:
-                print(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
             elif event.type in glitchygames.events.CONTROLLER_EVENTS:
-                print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(
+            LOG.debug(
                 f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
             )
             test_controller_hotplug.last_count = current_count
@@ -93,64 +96,64 @@ def test_controller_hotplug():
         time.sleep(0.1)
 
     # Test 2: With joystick event blocking
-    print("\n=== TEST 2: With joystick event blocking ===")
-    print("Blocking joystick events...")
+    LOG.debug("\n=== TEST 2: With joystick event blocking ===")
+    LOG.debug("Blocking joystick events...")
     pygame.event.set_blocked(glitchygames.events.JOYSTICK_EVENTS)
-    print(f"Blocked events: {glitchygames.events.JOYSTICK_EVENTS}")
+    LOG.debug(f"Blocked events: {glitchygames.events.JOYSTICK_EVENTS}")
 
-    print("Please plug in a controller now...")
+    LOG.debug("Please plug in a controller now...")
     _prompt_or_skip("Press Enter when ready to start monitoring (with blocking)...")
 
     start_time = time.time()
     while time.time() - start_time < 10:  # Monitor for 10 seconds
         for event in pygame.event.get():
             if event.type == pygame.CONTROLLERDEVICEADDED:
-                print(f"CONTROLLERDEVICEADDED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEADDED received: {event}")
             elif event.type == pygame.CONTROLLERDEVICEREMOVED:
-                print(f"CONTROLLERDEVICEREMOVED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEREMOVED received: {event}")
             elif event.type == 1543:
-                print(f"Unknown event 1543: {event}")
+                LOG.debug(f"Unknown event 1543: {event}")
             elif event.type in glitchygames.events.JOYSTICK_EVENTS:
-                print(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
             elif event.type in glitchygames.events.CONTROLLER_EVENTS:
-                print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(
+            LOG.debug(
                 f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
             )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
 
-    print("\nNow please unplug the controller...")
+    LOG.debug("\nNow please unplug the controller...")
     _prompt_or_skip("Press Enter when ready to monitor unplug (with blocking)...")
 
     start_time = time.time()
     while time.time() - start_time < 10:  # Monitor for 10 seconds
         for event in pygame.event.get():
             if event.type == pygame.CONTROLLERDEVICEADDED:
-                print(f"CONTROLLERDEVICEADDED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEADDED received: {event}")
             elif event.type == pygame.CONTROLLERDEVICEREMOVED:
-                print(f"CONTROLLERDEVICEREMOVED received: {event}")
+                LOG.debug(f"CONTROLLERDEVICEREMOVED received: {event}")
             elif event.type == 1543:
-                print(f"Unknown event 1543: {event}")
+                LOG.debug(f"Unknown event 1543: {event}")
             elif event.type in glitchygames.events.JOYSTICK_EVENTS:
-                print(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Joystick event {event.type}: {pygame.event.event_name(event.type)}")
             elif event.type in glitchygames.events.CONTROLLER_EVENTS:
-                print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
+                LOG.debug(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(
+            LOG.debug(
                 f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
             )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
 
-    print("\n=== Test Complete ===")
+    LOG.debug("\n=== Test Complete ===")
     pygame.quit()
 
 

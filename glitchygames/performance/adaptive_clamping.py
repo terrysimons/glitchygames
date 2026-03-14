@@ -1,7 +1,10 @@
 """Adaptive delta time adjustment based on performance."""
 
+import logging
 import time
 from typing import Self
+
+LOG = logging.getLogger(__name__)
 
 
 class AdaptiveClamping:
@@ -83,8 +86,8 @@ class AdaptiveClamping:
                 abs(adjusted_dt - dt) > 0.0001
                 and current_time - self._last_performance_log_time >= log_interval_seconds
             ):
-                print(
-                    f"PERFORMANCE: Adjusted dt from {dt * 1000:.1f}ms to {adjusted_dt * 1000:.1f}ms per frame (avg_fps={avg_fps:.1f})"
+                LOG.info(
+                    f"Adjusted dt from {dt * 1000:.1f}ms to {adjusted_dt * 1000:.1f}ms per frame (avg_fps={avg_fps:.1f})"
                 )
                 self._last_performance_log_time = current_time
 
@@ -300,7 +303,7 @@ class AdaptiveClamping:
         self._dt_history = []
         self._fps_history = []
         self._fps_histogram = {}
-        print("PERFORMANCE: Reset performance tracking")
+        LOG.info("Reset performance tracking")
 
     def get_shutdown_stats(self: Self) -> dict:
         """Get comprehensive performance statistics for shutdown reporting.
@@ -377,7 +380,7 @@ class AdaptiveClamping:
         for scene_name, scene_data in self._scene_data.items():
             # Filter out "Unknown" scenes
             if scene_name == "Unknown":
-                print("PERFORMANCE: Filtering out Unknown scene from per-scene stats")
+                LOG.info("Filtering out Unknown scene from per-scene stats")
                 continue
             fps_history = scene_data["fps_history"]
             fps_histogram = scene_data["fps_histogram"]
@@ -526,42 +529,42 @@ class AdaptiveClamping:
             # Skip global report if not enough data - per-scene reports are more useful
             return
 
-        print("\n" + "=" * 80)
-        print("🎮 GAME PERFORMANCE REPORT")
-        print("=" * 80)
-        print(f"📊 Total Frames: {stats['total_frames']:,}")
+        LOG.info("\n" + "=" * 80)
+        LOG.info("🎮 GAME PERFORMANCE REPORT")
+        LOG.info("=" * 80)
+        LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
         trim_label = (
             "no trimming"
             if self._trim_percent == 0
             else f"dropped top/bottom {self._trim_percent:.1f}%"
         )
-        print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
+        LOG.info(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
 
         # Add spare time information for capped FPS
         spare_stats = self.get_spare_time_stats()
         if "message" not in spare_stats:
-            print(f"🎯 Target FPS: {self._target_fps:.1f}")
+            LOG.info(f"🎯 Target FPS: {self._target_fps:.1f}")
 
-        print(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
-        print(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
-        print(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
-        print(f"📊 Median FPS: {stats['median_fps']:.1f}")
-        print(f"🏆 Performance Grade: {stats['performance_grade']}")
+        LOG.info(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
+        LOG.info(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
+        LOG.info(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
+        LOG.info(f"📊 Median FPS: {stats['median_fps']:.1f}")
+        LOG.info(f"🏆 Performance Grade: {stats['performance_grade']}")
 
         if "message" not in spare_stats:
-            print(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick")
-            print(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick")
-            print(
+            LOG.info(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick")
+            LOG.info(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick")
+            LOG.info(
                 f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms per-tick ({spare_stats['spare_capacity_percent']:.1f}% of scheduled capacity)"
             )
-            print(
+            LOG.info(
                 f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}% of scheduled capacity)"
             )
-            print(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
+            LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
 
         # Print FPS histogram (horizontal)
         if stats["fps_histogram"]:
-            print("\n📊 FPS Distribution:")
+            LOG.info("\n📊 FPS Distribution:")
             max_count = max(stats["fps_histogram"].values())
             max_bar_length = 30  # Maximum bar length for 80-char display
 
@@ -611,19 +614,19 @@ class AdaptiveClamping:
                 bar = "█" * bar_length
                 if isinstance(bucket, str):
                     # Single FPS value bucket
-                    print(f"  {bucket:>3s} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}")
+                    LOG.info(f"  {bucket:>3s} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}")
                 elif isinstance(bucket, tuple):
                     # FPS range bucket
-                    print(
+                    LOG.info(
                         f"  {bucket[0]:3d}-{bucket[1]:3d} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}"
                     )
                 else:
                     # Legacy single number bucket
-                    print(
+                    LOG.info(
                         f"  {bucket:3d}-{bucket + 4:3d} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}"
                     )
 
-        print("=" * 80)
+        LOG.info("=" * 80)
 
     def print_per_scene_shutdown_report(self: Self) -> None:
         """Print a comprehensive performance report per scene at shutdown."""
@@ -633,58 +636,62 @@ class AdaptiveClamping:
         filtered_stats = per_scene_stats
 
         if not filtered_stats:
-            print("\n" + "=" * 80)
-            print("🎮 PER-SCENE PERFORMANCE REPORT")
-            print("=" * 80)
-            print("No scene performance data collected")
-            print("=" * 80)
+            LOG.info("\n" + "=" * 80)
+            LOG.info("🎮 PER-SCENE PERFORMANCE REPORT")
+            LOG.info("=" * 80)
+            LOG.info("No scene performance data collected")
+            LOG.info("=" * 80)
             return
 
-        print("\n" + "=" * 80)
-        print("🎮 PER-SCENE PERFORMANCE REPORT")
-        print("=" * 80)
+        LOG.info("\n" + "=" * 80)
+        LOG.info("🎮 PER-SCENE PERFORMANCE REPORT")
+        LOG.info("=" * 80)
 
         for scene_name, stats in filtered_stats.items():
-            print(f"\n📊 Scene: {scene_name}")
-            print("-" * 40)
+            LOG.info(f"\n📊 Scene: {scene_name}")
+            LOG.info("-" * 40)
 
             if "message" in stats:
-                print(f"   {stats['message']}")
+                LOG.info(f"   {stats['message']}")
                 continue
 
-            print(f"📊 Total Frames: {stats['total_frames']:,}")
+            LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
             trim_label = (
                 "no trimming"
                 if self._trim_percent == 0
                 else f"dropped top/bottom {self._trim_percent:.1f}%"
             )
-            print(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
+            LOG.info(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
 
             # Add spare time information for capped FPS
             spare_stats = self.get_spare_time_stats(scene_name)
             if "message" not in spare_stats:
-                print(f"🎯 Target FPS: {self._target_fps:.1f}")
+                LOG.info(f"🎯 Target FPS: {self._target_fps:.1f}")
 
-            print(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
-            print(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
-            print(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
-            print(f"📊 Median FPS: {stats['median_fps']:.1f}")
-            print(f"🏆 Performance Grade: {stats['performance_grade']}")
+            LOG.info(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
+            LOG.info(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
+            LOG.info(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
+            LOG.info(f"📊 Median FPS: {stats['median_fps']:.1f}")
+            LOG.info(f"🏆 Performance Grade: {stats['performance_grade']}")
 
             if "message" not in spare_stats:
-                print(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick")
-                print(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick")
-                print(
+                LOG.info(
+                    f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick"
+                )
+                LOG.info(
+                    f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick"
+                )
+                LOG.info(
                     f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms per-tick ({spare_stats['spare_capacity_percent']:.1f}% of scheduled capacity)"
                 )
-                print(
+                LOG.info(
                     f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}% of scheduled capacity)"
                 )
-                print(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
+                LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
 
             # Print FPS histogram for this scene
             if stats["fps_histogram"]:
-                print("\n📊 FPS Distribution:")
+                LOG.info("\n📊 FPS Distribution:")
                 max_count = max(stats["fps_histogram"].values())
                 max_bar_length = 30
 
@@ -733,16 +740,16 @@ class AdaptiveClamping:
                     if isinstance(bucket, str):
                         # Single FPS value
                         fps_range = f"{bucket:>3s} FPS"
-                        print(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
                     elif isinstance(bucket, tuple):
                         # Fixed-width columns: FPS range (15 chars), frames (8 chars), percentage (10 chars)
                         fps_range = f"{bucket[0]:3d}-{bucket[1]:3d} FPS"
-                        print(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
                     else:
                         fps_range = f"{bucket:3d}-{bucket + 4:3d} FPS"
-                        print(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
 
-        print("=" * 80)
+        LOG.info("=" * 80)
 
 
 # Global instance for easy access

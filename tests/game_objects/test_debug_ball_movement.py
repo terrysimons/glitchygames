@@ -18,15 +18,17 @@ logging.basicConfig(
 # Import and run the game
 from glitchygames.examples.paddleslap import main
 
+LOG = logging.getLogger(__name__)
+
 if __name__ == "__main__":
-    print("=== DEBUG BALL MOVEMENT TEST ===")
-    print("Running paddleslap with debug logging enabled...")
-    print("Look for BALL MOVE, BALL BOUNCE, and PADDLE HIT messages")
-    print("Press Ctrl+C to stop when you see the weird movement")
-    print("=" * 50)
+    LOG.debug("=== DEBUG BALL MOVEMENT TEST ===")
+    LOG.debug("Running paddleslap with debug logging enabled...")
+    LOG.debug("Look for BALL MOVE, BALL BOUNCE, and PADDLE HIT messages")
+    LOG.debug("Press Ctrl+C to stop when you see the weird movement")
+    LOG.debug("=" * 50)
 
     try:
         main()
     except KeyboardInterrupt:
-        print("\n=== DEBUG TEST STOPPED ===")
-        print("Check the debug output above for any weird ball movement patterns")
+        LOG.debug("\n=== DEBUG TEST STOPPED ===")
+        LOG.debug("Check the debug output above for any weird ball movement patterns")

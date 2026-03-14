@@ -251,23 +251,23 @@ def display_sprite_ascii(toml_content: str) -> None:
                 anim_name = animation.get("namespace", f"animation-{anim_index}")
                 frames = animation.get("frame", [])
 
-                print(f"\n=== Animation: {anim_name} ({len(frames)} frames) ===")
+                print(f"\n=== Animation: {anim_name} ({len(frames)} frames) ===")  # noqa: T201
 
                 for frame_index, frame in enumerate(frames):
                     pixels = frame.get("pixels", "")
                     if pixels:
-                        print(f"\n--- Frame {frame_index} ---")
+                        print(f"\n--- Frame {frame_index} ---")  # noqa: T201
                         colorized = renderer._colorize_pixels(pixels, colors)
-                        print(colorized)
+                        print(colorized)  # noqa: T201
         else:
             # Static sprite
             pixels = renderer._extract_pixels_from_toml(sprite_data)
             if pixels:
-                print("\n=== Sprite Preview ===")
+                print("\n=== Sprite Preview ===")  # noqa: T201
                 colorized = renderer._colorize_pixels(pixels, colors)
-                print(colorized)
+                print(colorized)  # noqa: T201
 
-        print()  # Empty line after output
+        print()  # noqa: T201  # Empty line after output
 
     except Exception as e:
         LOG.warning(f"Could not render ASCII preview: {e}")
@@ -590,7 +590,7 @@ def _handle_extract_frames(parsed_args) -> int:
             if not parsed_args.verbose:
                 for frame in output_data.get("frames", []):
                     frame["png_base64"] = f"<{len(frame.get('png_base64', ''))} chars>"
-            print(json.dumps(output_data, indent=2))
+            print(json.dumps(output_data, indent=2))  # noqa: T201
 
         return 0
 
@@ -698,8 +698,8 @@ def main(args: list[str] | None = None) -> int:
         if not parsed_args.output_path and "toml" in output_formats:
             if response.get("toml_content"):
                 if not parsed_args.quiet:
-                    print("\n--- TOML Content ---")
-                print(response["toml_content"])
+                    print("\n--- TOML Content ---")  # noqa: T201
+                print(response["toml_content"])  # noqa: T201
 
         return 0
 

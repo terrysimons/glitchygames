@@ -11,11 +11,14 @@ Features:
 - Controller-specific positioning
 """
 
+import logging
 import math
 from dataclasses import dataclass
 from enum import Enum
 
 import pygame
+
+LOG = logging.getLogger("game.tools.visual_collision_manager")
 
 
 class IndicatorShape(Enum):
@@ -139,18 +142,21 @@ class VisualCollisionManager:
         # Add to appropriate location-specific tracking
         if location_type == LocationType.FILM_STRIP:
             self.film_strip_indicators[controller_id] = indicator
-            print(
-                f"DEBUG: Added to film_strip_indicators - now {len(self.film_strip_indicators)} indicators"
+            LOG.debug(
+                "Added to film_strip_indicators - now %s indicators",
+                len(self.film_strip_indicators),
             )
         elif location_type == LocationType.CANVAS:
             self.canvas_indicators[controller_id] = indicator
-            print(
-                f"DEBUG: Added to canvas_indicators - now {len(self.canvas_indicators)} indicators"
+            LOG.debug(
+                "Added to canvas_indicators - now %s indicators",
+                len(self.canvas_indicators),
             )
         elif location_type == LocationType.SLIDER:
             self.slider_indicators[controller_id] = indicator
-            print(
-                f"DEBUG: Added to slider_indicators - now {len(self.slider_indicators)} indicators"
+            LOG.debug(
+                "Added to slider_indicators - now %s indicators",
+                len(self.slider_indicators),
             )
 
         # Keep main indicators dict for backward compatibility
@@ -160,8 +166,11 @@ class VisualCollisionManager:
         # Update collision groups for the specific location
         self._update_collision_groups(location_type)
 
-        print(
-            f"DEBUG: Added {location_type.value} indicator for controller {controller_id} at {position}"
+        LOG.debug(
+            "Added %s indicator for controller %s at %s",
+            location_type.value,
+            controller_id,
+            position,
         )
         return indicator
 
@@ -191,7 +200,7 @@ class VisualCollisionManager:
             del self.indicators[controller_id]
 
             self._update_collision_groups()
-            print(f"DEBUG: Removed indicator for controller {controller_id}")
+            LOG.debug("Removed indicator for controller %s", controller_id)
 
     def remove_controller_indicator_for_location(
         self, controller_id: int, location_type: LocationType
@@ -214,7 +223,7 @@ class VisualCollisionManager:
         # Update collision groups for the specific location
         self._update_collision_groups(location_type)
 
-        print(f"DEBUG: Removed {location_type.value} indicator for controller {controller_id}")
+        LOG.debug("Removed %s indicator for controller %s", location_type.value, controller_id)
 
     def update_controller_position(self, controller_id: int, new_position: tuple[int, int]) -> None:
         """Update the position of a controller indicator.
@@ -227,7 +236,7 @@ class VisualCollisionManager:
         if controller_id in self.indicators:
             self.indicators[controller_id].position = new_position
             self._update_collision_groups()
-            print(f"DEBUG: Updated position for controller {controller_id} to {new_position}")
+            LOG.debug("Updated position for controller %s to %s", controller_id, new_position)
 
     def get_controller_indicator(self, controller_id: int) -> VisualIndicator | None:
         """Get visual indicator for a controller.
@@ -372,14 +381,19 @@ class VisualCollisionManager:
             if controller_id in indicators_dict:
                 if i < len(offsets):
                     indicators_dict[controller_id].offset = offsets[i]
-                    print(
-                        f"DEBUG: Applied {location_type.value} offset {offsets[i]} to controller {controller_id}"
+                    LOG.debug(
+                        "Applied %s offset %s to controller %s",
+                        location_type.value,
+                        offsets[i],
+                        controller_id,
                     )
                 else:
                     # Fallback to default offset
                     indicators_dict[controller_id].offset = (0, 0)
-                    print(
-                        f"DEBUG: Applied fallback {location_type.value} offset (0, 0) to controller {controller_id}"
+                    LOG.debug(
+                        "Applied fallback %s offset (0, 0) to controller %s",
+                        location_type.value,
+                        controller_id,
                     )
 
     def _calculate_offsets(self, count: int) -> list[tuple[int, int]]:
@@ -461,7 +475,7 @@ class VisualCollisionManager:
         if controller_id in self.indicators:
             self.indicators[controller_id].is_visible = visible
             self._update_collision_groups()
-            print(f"DEBUG: Set visibility for controller {controller_id} to {visible}")
+            LOG.debug("Set visibility for controller %s to %s", controller_id, visible)
 
     def set_indicator_color(self, controller_id: int, color: tuple[int, int, int]) -> None:
         """Set color of a controller indicator.
@@ -473,7 +487,7 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].color = color
-            print(f"DEBUG: Set color for controller {controller_id} to {color}")
+            LOG.debug("Set color for controller %s to %s", controller_id, color)
 
     def set_indicator_shape(self, controller_id: int, shape: IndicatorShape) -> None:
         """Set shape of a controller indicator.
@@ -485,7 +499,7 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].shape = shape
-            print(f"DEBUG: Set shape for controller {controller_id} to {shape}")
+            LOG.debug("Set shape for controller %s to %s", controller_id, shape)
 
     def set_indicator_size(self, controller_id: int, size: int) -> None:
         """Set size of a controller indicator.
@@ -497,14 +511,14 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].size = size
-            print(f"DEBUG: Set size for controller {controller_id} to {size}")
+            LOG.debug("Set size for controller %s to %s", controller_id, size)
 
     def clear_all_indicators(self) -> None:
         """Clear all visual indicators."""
         self.indicators.clear()
         self.collision_groups.clear()
         self.position_cache.clear()
-        print("DEBUG: Cleared all indicators")
+        LOG.debug("Cleared all indicators")
 
     def get_collision_summary(self) -> dict[str, any]:
         """Get a summary of collision groups and positioning.
@@ -537,31 +551,22 @@ class VisualCollisionManager:
 
         """
         if location_type == LocationType.FILM_STRIP:
-            # Suppress debug output during pytest runs
-            import sys
-
-            if "pytest" not in sys.modules:
-                print(
-                    f"DEBUG: get_indicators_by_location FILM_STRIP - {len(self.film_strip_indicators)} indicators"
-                )
+            LOG.debug(
+                "get_indicators_by_location FILM_STRIP - %s indicators",
+                len(self.film_strip_indicators),
+            )
             return self.film_strip_indicators
         if location_type == LocationType.CANVAS:
-            # Suppress debug output during pytest runs
-            import sys
-
-            if "pytest" not in sys.modules:
-                print(
-                    f"DEBUG: get_indicators_by_location CANVAS - {len(self.canvas_indicators)} indicators"
-                )
+            LOG.debug(
+                "get_indicators_by_location CANVAS - %s indicators",
+                len(self.canvas_indicators),
+            )
             return self.canvas_indicators
         if location_type == LocationType.SLIDER:
-            # Suppress debug output during pytest runs
-            import sys
-
-            if "pytest" not in sys.modules:
-                print(
-                    f"DEBUG: get_indicators_by_location SLIDER - {len(self.slider_indicators)} indicators"
-                )
+            LOG.debug(
+                "get_indicators_by_location SLIDER - %s indicators",
+                len(self.slider_indicators),
+            )
             return self.slider_indicators
         return self.indicators
 
@@ -573,4 +578,4 @@ class VisualCollisionManager:
         # Recalculate all positions
         self._update_collision_groups()
 
-        print("DEBUG: Optimized positioning for all indicators")
+        LOG.debug("Optimized positioning for all indicators")

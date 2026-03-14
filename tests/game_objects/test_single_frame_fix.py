@@ -5,6 +5,7 @@ This script demonstrates the fix for the issue where single-frame animations
 would stop playing after the first frame advance.
 """
 
+import logging
 import os
 import sys
 
@@ -17,10 +18,12 @@ from glitchygames.sprites.animated import SpriteFrame
 
 from tests.mocks import MockFactory
 
+LOG = logging.getLogger(__name__)
+
 
 def test_single_frame_animation():
     """Test that single-frame animations continue playing."""
-    print("Testing single-frame animation fix...")
+    LOG.debug("Testing single-frame animation fix...")
 
     # Initialize pygame
     pygame.init()
@@ -45,7 +48,9 @@ def test_single_frame_animation():
     sprite._is_playing = True
     sprite._is_looping = True
 
-    print(f"Initial state: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}")
+    LOG.debug(
+        f"Initial state: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}"
+    )
 
     # Simulate multiple update cycles
     dt = 0.016  # ~60 FPS
@@ -54,7 +59,7 @@ def test_single_frame_animation():
 
         # Check every 10 updates
         if i % 10 == 0:
-            print(
+            LOG.debug(
                 f"Update {i}: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}"
             )
 
@@ -64,8 +69,8 @@ def test_single_frame_animation():
             f"Frame changed from 0 to {sprite.current_frame} at update {i}"
         )
 
-    print("✅ Single-frame animation test PASSED!")
-    print("The animation continued playing and stayed on frame 0 as expected.")
+    LOG.info("✅ Single-frame animation test PASSED!")
+    LOG.debug("The animation continued playing and stayed on frame 0 as expected.")
 
     pygame.quit()
 

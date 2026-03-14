@@ -310,8 +310,8 @@ class TextSprite(Sprite):
                     # Debug: check if text would go beyond surface bounds
                     text_width = rendered.get_width()
                     if self.x + text_width > surface.get_width():
-                        print(
-                            f"DEBUG: Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}"
+                        LOG.debug(
+                            f"Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}"
                         )
                     surface.blit(rendered, (self.x, self.y))
                     self.y += self.line_height
@@ -723,20 +723,20 @@ class JoystickScene(Scene):
                         try:
                             instance_id = proxy.joystick.get_instance_id()
                             if instance_id not in current_instance_ids:
-                                print(
-                                    f"DEBUG: {input_mode.title()} {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale"
+                                LOG.debug(
+                                    f"{input_mode.title()} {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale"
                                 )
                                 stale_ids.append(joystick_id)
                         except Exception as e:
-                            print(
-                                f"DEBUG: Marking {input_mode} {joystick_id} as stale for removal: {e}"
+                            LOG.debug(
+                                f"Marking {input_mode} {joystick_id} as stale for removal: {e}"
                             )
                             stale_ids.append(joystick_id)
 
                 # Remove stale entries
                 for stale_id in stale_ids:
                     if stale_id in devices:
-                        print(f"DEBUG: Removing stale {input_mode} {stale_id}")
+                        LOG.debug(f"Removing stale {input_mode} {stale_id}")
                         del devices[stale_id]
             else:
                 # For controllers, check if we need to add new controllers
