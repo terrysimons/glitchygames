@@ -5,8 +5,6 @@ This module tests window event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -46,7 +44,7 @@ class TestWindowEvents:
         assert hasattr(WindowEvents, "on_window_size_changed_event")
         assert hasattr(WindowEvents, "on_window_take_focus_event")
 
-    def test_window_event_stubs_implementation(self, mock_pygame_patches):
+    def test_window_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test WindowEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = WindowEventStubs()
@@ -62,12 +60,9 @@ class TestWindowEvents:
         # Test method calls
         event = HashableEvent(pygame.WINDOWCLOSE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-
-        with patch("glitchygames.events.LOG.error"):
-
-            with pytest.raises(UnhandledEventError):
-
-                stub.on_window_close_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_window_close_event(event)
 
     def test_window_close_event(self, mock_pygame_patches):
         """Test window close event handling."""
@@ -379,22 +374,22 @@ class TestWindowEvents:
         assert scene.window_events_received[0][0] == "window_hit_test"
         assert scene.window_events_received[0][1].type == pygame.WINDOWHITTEST
 
-    def test_window_manager_initialization(self, mock_pygame_patches):
+    def test_window_manager_initialization(self, mock_pygame_patches, mocker):
         """Test WindowEventManager initializes correctly."""
         from glitchygames.events.window import WindowEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = WindowEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_window_close_event")
         assert hasattr(manager, "on_window_enter_event")
 
-    def test_window_manager_events(self, mock_pygame_patches):
+    def test_window_manager_events(self, mock_pygame_patches, mocker):
         """Test window event handling through manager."""
         from glitchygames.events.window import WindowEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = WindowEventManager(game=mock_game)
 
         # Test window close
@@ -411,10 +406,11 @@ class TestWindowEvents:
 
     def _setup_mock_game_for_stub(self, stub):
         """Set up mock game object for event stubs."""
-        mock_game = Mock()
-        mock_game.options = {
-            "debug_events": False,
-            "no_unhandled_events": True
-        }
-        stub.options = mock_game.options
-        return mock_game
+        scene_mock = MockFactory.create_event_test_scene_mock(
+            options={
+                "debug_events": False,
+                "no_unhandled_events": True
+            }
+        )
+        stub.options = scene_mock.options
+        return scene_mock

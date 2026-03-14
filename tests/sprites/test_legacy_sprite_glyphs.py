@@ -5,7 +5,6 @@ to ensure it properly uses the new character mapping system.
 """
 
 import tempfile
-import unittest
 from pathlib import Path
 
 import pygame
@@ -23,26 +22,21 @@ TEST_PATTERN_SIZE = 3
 TEST_GRAYSCALE_SIZE = 4
 
 
-class TestLegacySpriteGlyphs(unittest.TestCase):
+class TestLegacySpriteGlyphs:
     """Test legacy sprite loader universal character set implementation."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        # Set up centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def test_legacy_sprite_basic_save():
@@ -381,7 +375,3 @@ class TestLegacySpriteGlyphs(unittest.TestCase):
         # Should raise ValueError when trying to deflate
         with pytest.raises(ValueError, match="Too many colors"):
             legacy_sprite.deflate()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Tests for the undo/redo system."""
 
-import pytest
 import time
-from unittest.mock import Mock, patch
 
-from glitchygames.tools.undo_redo_manager import (
-    UndoRedoManager, OperationType, Operation
-)
+import pytest
 from glitchygames.tools.operation_history import (
-    CanvasOperationTracker, FilmStripOperationTracker, CrossAreaOperationTracker,
-    PixelChange
+    CanvasOperationTracker,
+    CrossAreaOperationTracker,
+    FilmStripOperationTracker,
+    PixelChange,
 )
+from glitchygames.tools.undo_redo_manager import Operation, OperationType, UndoRedoManager
 
 
 class TestUndoRedoManager:
@@ -49,10 +48,10 @@ class TestUndoRedoManager:
         assert not self.manager.can_redo()
         assert self.manager.get_undo_description() == "Test pixel change"
     
-    def test_add_operation_clears_redo_stack(self):
+    def test_add_operation_clears_redo_stack(self, mocker):
         """Test that adding new operation clears redo stack."""
         # Set up a mock callback for pixel changes
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         # Add initial operation
@@ -92,10 +91,10 @@ class TestUndoRedoManager:
         assert len(self.manager.undo_stack) == 5  # Should be limited to max_history
         assert self.manager.undo_stack[0].description == "Operation 2"  # First 2 should be removed
     
-    def test_undo_operation(self):
+    def test_undo_operation(self, mocker):
         """Test undoing operations."""
         # Set up a mock callback for pixel changes
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         self.manager.add_operation(
@@ -112,10 +111,10 @@ class TestUndoRedoManager:
         assert not self.manager.can_undo()
         assert self.manager.can_redo()
     
-    def test_redo_operation(self):
+    def test_redo_operation(self, mocker):
         """Test redoing operations."""
         # Set up a mock callback for pixel changes
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         self.manager.add_operation(

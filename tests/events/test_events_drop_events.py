@@ -6,8 +6,6 @@ This module tests drop event interfaces, stubs, and event handling.
 import argparse
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -36,7 +34,7 @@ class TestDropEvents:
         assert hasattr(DropEvents, "on_drop_text_event")
         assert hasattr(DropEvents, "on_drop_complete_event")
 
-    def test_drop_event_stubs_implementation(self, mock_pygame_patches):
+    def test_drop_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test DropEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = DropEventStubs()
@@ -46,17 +44,14 @@ class TestDropEvents:
         assert hasattr(stub, "on_drop_complete_event")
 
         # Test that stub methods can be called with proper game object
-        self._setup_mock_game_for_stub(stub)
+        self._setup_mock_game_for_stub(stub, mocker)
 
         # Test method calls
         event = HashableEvent(pygame.DROPBEGIN)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-
-        with patch("glitchygames.events.LOG.error"):
-
-            with pytest.raises(UnhandledEventError):
-            
-                stub.on_drop_begin_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_drop_begin_event(event)
         # Expected to call unhandled_event
         # Exception was raised as expected
 
@@ -311,9 +306,9 @@ class TestDropEvents:
         total_events = len(special_file_paths) + len(special_texts)
         assert len(scene.drop_events_received) == total_events
 
-    def _setup_mock_game_for_stub(self, stub):
+    def _setup_mock_game_for_stub(self, stub, mocker):
         """Set up mock game object for event stubs."""
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         mock_game.options = {
             "debug_events": False,
             "no_unhandled_events": True
@@ -325,11 +320,11 @@ class TestDropEvents:
 class TestDropEventManagerCoverage:
     """Test coverage for drop manager functionality."""
 
-    def test_drop_manager_initialization(self, mock_pygame_patches):
+    def test_drop_manager_initialization(self, mock_pygame_patches, mocker):
         """Test DropEventManager initialization."""
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = DropEventManager(game=mock_game)
-        
+
         assert manager.game == mock_game
         assert hasattr(manager, "on_drop_begin_event")
         assert hasattr(manager, "on_drop_file_event")
@@ -346,9 +341,9 @@ class TestDropEventManagerCoverage:
 
         assert result is parser
 
-    def test_drop_proxy_initialization(self, mock_pygame_patches):
+    def test_drop_proxy_initialization(self, mock_pygame_patches, mocker):
         """Test drop proxy initialization."""
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = DropEventManager(game=mock_game)
 
         # Test that proxy is created
@@ -363,11 +358,11 @@ class TestDropEventManagerCoverage:
         assert hasattr(manager, "proxies")
         assert len(manager.proxies) > 0
 
-    def test_drop_proxy_on_drop_begin_event(self, mock_pygame_patches):
+    def test_drop_proxy_on_drop_begin_event(self, mock_pygame_patches, mocker):
         """Test drop proxy on_drop_begin_event."""
         # Create a mock game with the required methods
-        mock_game = Mock()
-        mock_game.on_drop_begin_event = Mock()
+        mock_game = mocker.Mock()
+        mock_game.on_drop_begin_event = mocker.Mock()
 
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
@@ -377,11 +372,11 @@ class TestDropEventManagerCoverage:
         proxy.on_drop_begin_event(event)
         mock_game.on_drop_begin_event.assert_called_once_with(event)
 
-    def test_drop_proxy_on_drop_complete_event(self, mock_pygame_patches):
+    def test_drop_proxy_on_drop_complete_event(self, mock_pygame_patches, mocker):
         """Test drop proxy on_drop_complete_event."""
         # Create a mock game with the required methods
-        mock_game = Mock()
-        mock_game.on_drop_complete_event = Mock()
+        mock_game = mocker.Mock()
+        mock_game.on_drop_complete_event = mocker.Mock()
 
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
@@ -391,11 +386,11 @@ class TestDropEventManagerCoverage:
         proxy.on_drop_complete_event(event)
         mock_game.on_drop_complete_event.assert_called_once_with(event)
 
-    def test_drop_proxy_on_drop_file_event(self, mock_pygame_patches):
+    def test_drop_proxy_on_drop_file_event(self, mock_pygame_patches, mocker):
         """Test drop proxy on_drop_file_event."""
         # Create a mock game with the required methods
-        mock_game = Mock()
-        mock_game.on_drop_file_event = Mock()
+        mock_game = mocker.Mock()
+        mock_game.on_drop_file_event = mocker.Mock()
 
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
@@ -405,11 +400,11 @@ class TestDropEventManagerCoverage:
         proxy.on_drop_file_event(event)
         mock_game.on_drop_file_event.assert_called_once_with(event)
 
-    def test_drop_proxy_on_drop_text_event(self, mock_pygame_patches):
+    def test_drop_proxy_on_drop_text_event(self, mock_pygame_patches, mocker):
         """Test drop proxy on_drop_text_event."""
         # Create a mock game with the required methods
-        mock_game = Mock()
-        mock_game.on_drop_text_event = Mock()
+        mock_game = mocker.Mock()
+        mock_game.on_drop_text_event = mocker.Mock()
 
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]

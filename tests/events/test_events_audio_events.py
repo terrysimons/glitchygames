@@ -5,7 +5,6 @@ This module tests audio event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -34,7 +33,7 @@ class TestAudioEvents:
         assert hasattr(AudioEvents, "on_audio_device_added_event")
         assert hasattr(AudioEvents, "on_audio_device_removed_event")
 
-    def test_audio_event_stubs_implementation(self, mock_pygame_patches):
+    def test_audio_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test AudioEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = AudioEventStubs()
@@ -47,9 +46,9 @@ class TestAudioEvents:
         # Test method calls
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                stub.on_audio_device_added_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_audio_device_added_event(event)
         # Expected to call unhandled_event
         # Exception was raised as expected
 
@@ -184,7 +183,7 @@ class TestAudioEventFlow:
         assert len(scene.audio_events_received) == 1
         assert scene.audio_events_received[0].which == 1
 
-    def test_audio_event_falls_back_to_stubs(self, mock_pygame_patches):
+    def test_audio_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
         """Test that unhandled audio events fall back to stubs and cause UnhandledEventError."""
         # Test that stubs have concrete implementations
         stub = AudioEventStubs()
@@ -196,34 +195,32 @@ class TestAudioEventFlow:
 
         # Test method calls - stubs should call unhandled_event which raises UnhandledEventError
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
-        
+
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                stub.on_audio_device_added_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_audio_device_added_event(event)
 
-    def test_audio_manager_initialization(self, mock_pygame_patches):
+    def test_audio_manager_initialization(self, mock_pygame_patches, mocker):
         """Test AudioEventManager initializes correctly."""
-        from unittest.mock import patch
-
         from glitchygames.events.audio import AudioEventManager
-        
-        mock_game = Mock()
-        
-        # Mock pygame.mixer.get_init to return a tuple
-        with patch("pygame.mixer.get_init", return_value=(22050, -16, 2)):
-            manager = AudioEventManager(game=mock_game)
-            
-            assert manager.game == mock_game
-            assert hasattr(manager, "on_audio_device_added_event")
-            assert hasattr(manager, "on_audio_device_removed_event")
 
-    def test_audio_manager_directly(self, mock_pygame_patches):
+        mock_game = mocker.Mock()
+
+        # Mock pygame.mixer.get_init to return a tuple
+        mocker.patch("pygame.mixer.get_init", return_value=(22050, -16, 2))
+        manager = AudioEventManager(game=mock_game)
+
+        assert manager.game == mock_game
+        assert hasattr(manager, "on_audio_device_added_event")
+        assert hasattr(manager, "on_audio_device_removed_event")
+
+    def test_audio_manager_directly(self, mock_pygame_patches, mocker):
         """Test AudioEventManager in isolation."""
         from glitchygames.events.audio import AudioEventManager
-        
+
         # Use centralized mock for game
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         mock_game.options = {"debug_events": False, "no_unhandled_events": True}
         
         # The centralized mocks should handle pygame.mixer.get_init()

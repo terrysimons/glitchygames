@@ -3,7 +3,7 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -17,14 +17,12 @@ from tests.mocks.test_mock_factory import MockFactory
 class TestPaddleslapExample:
     """Test paddleslap example using centralized mocks."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures using centralized mocks."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
-        
         # Create mock options
         self.mock_options = {
             "balls": 1,
@@ -46,10 +44,6 @@ class TestPaddleslapExample:
             "log_level": "info",
             "no_unhandled_events": False,
         }
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_paddleslap_game_initialization(self):
         """Test that paddleslap game initializes correctly with centralized mocks."""

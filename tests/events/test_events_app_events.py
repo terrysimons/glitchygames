@@ -5,7 +5,6 @@ This module tests app event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pygame
 import pytest
@@ -38,7 +37,7 @@ class TestAppEvents:
         assert hasattr(AppEvents, "on_app_low_memory_event")
         assert hasattr(AppEvents, "on_app_terminating_event")
 
-    def test_app_event_stubs_implementation(self, mock_pygame_patches):
+    def test_app_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test AppEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = AppEventStubs()
@@ -51,7 +50,8 @@ class TestAppEvents:
 
         # Test method calls - suppress log messages since these will trigger unhandled_event
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        with patch("glitchygames.events.LOG.error"), pytest.raises(UnhandledEventError):
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
             stub.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event
         # Exception was raised as expected
@@ -180,7 +180,7 @@ class TestAppEvents:
 class TestAppEventFlow:
     """Test app event flow through the engine."""
 
-    def test_app_event_through_engine(self, mock_pygame_patches):
+    def test_app_event_through_engine(self, mock_pygame_patches, mocker):
         """Test app event processing through the engine."""
         # Create a mock scene with app event handlers
         scene = MockFactory.create_event_test_scene_mock(
@@ -190,40 +190,40 @@ class TestAppEventFlow:
         )
 
         # Mock the argument parsing to avoid command line issues
-        with patch("glitchygames.engine.GameEngine.initialize_arguments") as mock_init_args:
-            mock_init_args.return_value = {
-                "debug_events": False, 
-                "no_unhandled_events": True,
-                "fps": 60.0,
-                "update_type": "update",
-                "use_gfxdraw": False,
-                "windowed": True,
-                "resolution": "800x600",
-                "fps_refresh_rate": 1.0
-            }
-            
-            # Create engine with the scene
-            engine = GameEngine(scene)
-            
-            # Initialize the app manager manually since start() isn't called
-            from glitchygames.events.app import AppEventManager
-            engine.app_manager = AppEventManager(game=scene)
-            
-            # Also initialize event handlers manually
-            engine.initialize_event_handlers()
+        mock_init_args = mocker.patch("glitchygames.engine.GameEngine.initialize_arguments")
+        mock_init_args.return_value = {
+            "debug_events": False,
+            "no_unhandled_events": True,
+            "fps": 60.0,
+            "update_type": "update",
+            "use_gfxdraw": False,
+            "windowed": True,
+            "resolution": "800x600",
+            "fps_refresh_rate": 1.0
+        }
 
-            # Test app did enter background event
-            event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-            
-            # Call the event handler directly (bypassing handle_event)
-            engine.process_app_event(event)
+        # Create engine with the scene
+        engine = GameEngine(scene)
 
-            # Verify the event was processed
-            assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "app_did_enter_background"
-            assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERBACKGROUND
+        # Initialize the app manager manually since start() isn't called
+        from glitchygames.events.app import AppEventManager
+        engine.app_manager = AppEventManager(game=scene)
 
-    def test_app_event_falls_back_to_stubs(self, mock_pygame_patches):
+        # Also initialize event handlers manually
+        engine.initialize_event_handlers()
+
+        # Test app did enter background event
+        event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
+
+        # Call the event handler directly (bypassing handle_event)
+        engine.process_app_event(event)
+
+        # Verify the event was processed
+        assert len(scene.game_events_received) == 1
+        assert scene.game_events_received[0][0] == "app_did_enter_background"
+        assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERBACKGROUND
+
+    def test_app_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
         """Test that app events fall back to stubs when no handlers are defined."""
         # Create a scene without app event handlers
         scene = MockFactory.create_event_test_scene_mock(event_handlers={})
@@ -233,7 +233,8 @@ class TestAppEventFlow:
 
         # Test app did enter background event - should fall back to stubs
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        with patch("glitchygames.events.LOG.error"), pytest.raises(UnhandledEventError):
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
             manager.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event
         # Exception was raised as expected

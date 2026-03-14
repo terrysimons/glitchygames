@@ -5,8 +5,6 @@ This module tests touch event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -34,7 +32,7 @@ class TestTouchEvents:
         assert hasattr(TouchEvents, "on_multi_touch_motion_event")
         assert hasattr(TouchEvents, "on_multi_touch_up_event")
 
-    def test_touch_event_stubs_implementation(self, mock_pygame_patches):
+    def test_touch_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test TouchEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = TouchEventStubs()
@@ -43,21 +41,21 @@ class TestTouchEvents:
         assert hasattr(stub, "on_touch_up_event")
 
         # Test that stub methods can be called with proper game object
-        self._setup_mock_game_for_stub(stub)
+        self._setup_mock_game_for_stub(stub, mocker)
 
         # Test method calls
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         # Use pytest logger wrapper to suppress logs during successful runs
-        with patch("glitchygames.events.LOG") as mock_log:
-            with pytest.raises(UnhandledEventError):
-                stub.on_touch_down_event(event)
-            # Expected to call unhandled_event and raise UnhandledEventError
+        mock_log = mocker.patch("glitchygames.events.LOG")
+        with pytest.raises(UnhandledEventError):
+            stub.on_touch_down_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
-            # Verify the ERROR log message was called
-            mock_log.error.assert_called_once()
-            # Check that the log message contains the expected content
-            call_args = mock_log.error.call_args[0][0]
-            assert "Unhandled Event: args: FingerDown" in call_args
+        # Verify the ERROR log message was called
+        mock_log.error.assert_called_once()
+        # Check that the log message contains the expected content
+        call_args = mock_log.error.call_args[0][0]
+        assert "Unhandled Event: args: FingerDown" in call_args
 
     def test_touch_down_event(self, mock_pygame_patches):
         """Test touch down event handling."""
@@ -278,9 +276,9 @@ class TestTouchEvents:
         # Verify all events were handled (5 positions * 3 events each = 15 events)
         assert len(scene.touch_events_received) == 15
 
-    def _setup_mock_game_for_stub(self, stub):
+    def _setup_mock_game_for_stub(self, stub, mocker):
         """Set up mock game object for event stubs."""
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         mock_game.options = {
             "debug_events": False,
             "no_unhandled_events": True
@@ -292,22 +290,22 @@ class TestTouchEvents:
 class TestTouchManager:
     """Test TouchEventManager in isolation."""
 
-    def test_touch_manager_initialization(self, mock_pygame_patches):
+    def test_touch_manager_initialization(self, mock_pygame_patches, mocker):
         """Test TouchEventManager initializes correctly."""
         from glitchygames.events.touch import TouchEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = TouchEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "proxies")
         assert isinstance(manager.proxies, list)
 
-    def test_touch_manager_events(self, mock_pygame_patches):
+    def test_touch_manager_events(self, mock_pygame_patches, mocker):
         """Test touch event handling through manager."""
         from glitchygames.events.touch import TouchEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = TouchEventManager(game=mock_game)
 
         # Test touch finger down

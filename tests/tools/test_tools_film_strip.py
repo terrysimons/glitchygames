@@ -2,8 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -133,7 +131,7 @@ class TestFilmStripFunctionality:
         # Should not crash when no sprite is set
         strip._initialize_preview_animations()
 
-    def test_initialize_preview_animations_frames_no_duration(self, mock_pygame_patches):
+    def test_initialize_preview_animations_frames_no_duration(self, mock_pygame_patches, mocker):
         """Test _initialize_preview_animations with frames that don't have duration attribute."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
@@ -142,7 +140,7 @@ class TestFilmStripFunctionality:
         frames_without_duration = []
         for _ in range(ANIMATION_COUNT):
             frame = type("Frame", (), {})()  # Simple object with no duration attribute
-            frame.image = Mock()
+            frame.image = mocker.Mock()
             frame.image.get_size.return_value = (32, 32)
             # No duration attribute
             frames_without_duration.append(frame)
@@ -167,11 +165,11 @@ class TestFilmStripFunctionality:
         result = strip.get_current_preview_frame("nonexistent_animation")
         assert result == 0
 
-    def test_get_frame_image_no_image_with_pixel_data(self, mock_pygame_patches):
+    def test_get_frame_image_no_image_with_pixel_data(self, mock_pygame_patches, mocker):
         """Test _get_frame_image when frame has no image but has pixel data."""
         # Create a frame without image but with pixel data
         frame = type("Frame", (), {})()
-        frame.get_pixel_data = Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
+        frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
 
         result = film_strip.FilmStripWidget._get_frame_image(frame)
         assert result is not None  # Should return a surface
@@ -185,13 +183,13 @@ class TestFilmStripFunctionality:
         result = film_strip.FilmStripWidget._get_frame_image(frame)
         assert result is None  # Should return None
 
-    def test_update_layout_with_parent_canvas(self, mock_pygame_patches):
+    def test_update_layout_with_parent_canvas(self, mock_pygame_patches, mocker):
         """Test update_layout when parent canvas exists with film strip sprite."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create a mock parent canvas with film strip sprite
-        mock_parent_canvas = Mock()
-        mock_film_strip_sprite = Mock()
+        mock_parent_canvas = mocker.Mock()
+        mock_film_strip_sprite = mocker.Mock()
         mock_parent_canvas.film_strip_sprite = mock_film_strip_sprite
         strip.parent_canvas = mock_parent_canvas
 
@@ -199,10 +197,10 @@ class TestFilmStripFunctionality:
         strip.update_layout()
         mock_film_strip_sprite.dirty = 1
 
-    def test_set_parent_canvas(self, mock_pygame_patches):
+    def test_set_parent_canvas(self, mock_pygame_patches, mocker):
         """Test set_parent_canvas method."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_canvas = Mock()
+        mock_canvas = mocker.Mock()
 
         strip.set_parent_canvas(mock_canvas)
         assert strip.parent_canvas == mock_canvas
@@ -214,13 +212,13 @@ class TestFilmStripFunctionality:
         strip.mark_dirty()
         assert strip._force_redraw is True
 
-    def test_propagate_dirty_to_sprite_groups(self, mock_pygame_patches):
+    def test_propagate_dirty_to_sprite_groups(self, mock_pygame_patches, mocker):
         """Test _propagate_dirty_to_sprite_groups method."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create a mock sprite with groups
-        mock_sprite = Mock()
-        mock_other_sprite = Mock()
+        mock_sprite = mocker.Mock()
+        mock_other_sprite = mocker.Mock()
         mock_group = [mock_sprite, mock_other_sprite]
         mock_sprite.groups.return_value = [mock_group]
 
@@ -254,29 +252,29 @@ class TestFilmStripFunctionality:
         # Should not crash when frame index is too high
         strip.update_scroll_for_frame(999)
 
-    def test_update_height_with_animations(self, mock_pygame_patches):
+    def test_update_height_with_animations(self, mock_pygame_patches, mocker):
         """Test _update_height method with multiple animations."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
         # Add more animations to test height calculation
-        mock_sprite._animations["walk"] = [Mock(), Mock(), Mock()]
-        mock_sprite._animations["jump"] = [Mock(), Mock()]
+        mock_sprite._animations["walk"] = [mocker.Mock(), mocker.Mock(), mocker.Mock()]
+        mock_sprite._animations["jump"] = [mocker.Mock(), mocker.Mock()]
         strip.set_animated_sprite(mock_sprite)
 
         # Should calculate height based on number of animations
         strip._update_height()
         assert strip.rect.height > 0
 
-    def test_update_height_with_parent_canvas(self, mock_pygame_patches):
+    def test_update_height_with_parent_canvas(self, mock_pygame_patches, mocker):
         """Test _update_height method with parent canvas."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
         strip.set_animated_sprite(mock_sprite)
 
         # Create a mock parent canvas with film strip sprite
-        mock_parent_canvas = Mock()
-        mock_film_strip_sprite = Mock()
-        mock_film_strip_sprite.rect = Mock()
+        mock_parent_canvas = mocker.Mock()
+        mock_film_strip_sprite = mocker.Mock()
+        mock_film_strip_sprite.rect = mocker.Mock()
         mock_film_strip_sprite.rect.width = 100
         mock_parent_canvas.film_strip_sprite = mock_film_strip_sprite
         strip.parent_canvas = mock_parent_canvas

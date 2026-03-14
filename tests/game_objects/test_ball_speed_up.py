@@ -3,8 +3,9 @@
 
 import math
 import sys
-import unittest
 from pathlib import Path
+
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -18,19 +19,12 @@ MULTIPLIER_1_1 = 1.1
 TOLERANCE_1E_10 = 1e-10
 
 
-class TestBallSpriteSpeedUp(unittest.TestCase):
+class TestBallSpriteSpeedUp:
     """Test BallSprite speed_up method for precision and consistency."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all patchers
-        for patcher in self.patchers:
-            patcher.start()
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_speed_up_applies_correct_multiplier(self):
         """Test that speed_up applies the exact multiplier specified."""
@@ -55,7 +49,7 @@ class TestBallSpriteSpeedUp(unittest.TestCase):
         ball = BallSprite()
         ball.speed.x = 100.0
         ball.speed.y = 50.0
-        
+
         # Calculate initial direction
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
@@ -141,7 +135,7 @@ class TestBallSpriteSpeedUp(unittest.TestCase):
         ball = BallSprite()
         ball.speed.x = 300.0
         ball.speed.y = 400.0
-        
+
         # Calculate initial ratio
         initial_ratio = ball.speed.y / ball.speed.x
 
@@ -169,7 +163,3 @@ class TestBallSpriteSpeedUp(unittest.TestCase):
         # Speed should be 1.0 * (1.01^100) ≈ 2.7048
         expected_speed = 1.0 * (1.01 ** 100)
         assert abs(ball.speed.x - expected_speed) < TOLERANCE_1E_10
-
-
-if __name__ == "__main__":
-    unittest.main()

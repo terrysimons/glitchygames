@@ -2,7 +2,6 @@
 """Tests for frame-specific undo/redo functionality."""
 
 import pytest
-from unittest.mock import Mock
 
 from glitchygames.tools.undo_redo_manager import (
     UndoRedoManager, OperationType, Operation
@@ -77,10 +76,10 @@ class TestFrameSpecificUndoRedo:
         assert not self.manager.can_redo_frame("run_animation", 1)  # Different animation
         assert not self.manager.can_redo_frame("walk_animation", 2)  # Different frame
     
-    def test_undo_frame(self):
+    def test_undo_frame(self, mocker):
         """Test frame-specific undo."""
         # Mock the callback
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
         
         # Add frame operation
@@ -102,10 +101,10 @@ class TestFrameSpecificUndoRedo:
         assert len(self.manager.frame_redo_stacks[frame_key]) == 1
         mock_callback.assert_called_once()
     
-    def test_redo_frame(self):
+    def test_redo_frame(self, mocker):
         """Test frame-specific redo."""
         # Mock the callback
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
         
         # Add frame operation and undo it

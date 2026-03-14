@@ -1,7 +1,5 @@
 """Film strip integration tests with animated canvas."""
 
-from unittest.mock import Mock, patch
-
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.tools import bitmappy, film_strip
 
@@ -77,29 +75,30 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert film_strip_sprite.rect.x == film_strip.rect.x
         assert film_strip_sprite.rect.y == film_strip.rect.y
 
-    def test_film_strip_width_calculation(self):
+    def test_film_strip_width_calculation(self, mocker):
         """Test film strip width calculation through scene."""
         mock_sprite = MockFactory.create_animated_sprite_mock()
 
         # Create scene with mock sprite
-        with patch("pygame.display.get_surface") as mock_display:
-            mock_display.return_value = Mock()
-            mock_display.return_value.get_width.return_value = DISPLAY_WIDTH
-            mock_display.return_value.get_height.return_value = DISPLAY_HEIGHT
+        mock_display = mocker.patch("pygame.display.get_surface")
+        mock_surface = self._mocker.Mock()
+        mock_surface.get_width.return_value = DISPLAY_WIDTH
+        mock_surface.get_height.return_value = DISPLAY_HEIGHT
+        mock_display.return_value = mock_surface
 
-            scene = bitmappy.BitmapEditorScene(
-                options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                        "pixel_size": PIXEL_SIZE}
-            )
+        scene = bitmappy.BitmapEditorScene(
+            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
+                    "pixel_size": PIXEL_SIZE}
+        )
 
-            # Load the sprite
-            scene._on_sprite_loaded(mock_sprite)
+        # Load the sprite
+        scene._on_sprite_loaded(mock_sprite)
 
-            # Test that film strip has appropriate width
-            film_strip = scene.canvas.film_strip
-            # Minimum width
-            assert film_strip.rect.width >= MIN_FILM_STRIP_WIDTH
-            assert film_strip.rect.width > 0
+        # Test that film strip has appropriate width
+        film_strip = scene.canvas.film_strip
+        # Minimum width
+        assert film_strip.rect.width >= MIN_FILM_STRIP_WIDTH
+        assert film_strip.rect.width > 0
 
     def test_film_strip_height_calculation(self):
         """Test film strip height calculation."""
@@ -146,7 +145,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
             assert canvas.current_animation == anim_name
             assert canvas.current_frame == 0
 
-    def test_film_strip_click_integration(self):
+    def test_film_strip_click_integration(self, mocker):
         """Test film strip click integration with canvas."""
         mock_sprite = MockFactory.create_animated_sprite_mock()
 
@@ -162,7 +161,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
 
         # Create mock click event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (film_strip_sprite.rect.x + CLICK_OFFSET,
                          film_strip_sprite.rect.y + CLICK_OFFSET)
 
@@ -170,12 +169,12 @@ class TestFilmStripIntegration(FilmStripTestBase):
         animation_name = next(iter(mock_sprite._animations.keys()))
 
         # Test click handling
-        with patch.object(film_strip, "handle_click", return_value=(animation_name, 1)):
-            film_strip_sprite.on_left_mouse_button_down_event(mock_event)
+        mocker.patch.object(film_strip, "handle_click", return_value=(animation_name, 1))
+        film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 
-            # Should update canvas to show the selected frame
-            assert scene.canvas.current_animation == animation_name
-            assert scene.canvas.current_frame == 1
+        # Should update canvas to show the selected frame
+        assert scene.canvas.current_animation == animation_name
+        assert scene.canvas.current_frame == 1
 
     def test_film_strip_animation_preview_integration(self):
         """Test film strip animation preview integration."""
@@ -210,9 +209,9 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create mock frames with proper image data
         def create_mock_frame(duration=FRAME_DURATION):
-            frame = Mock()
+            frame = self._mocker.Mock()
             frame.duration = duration
-            frame.image = Mock()
+            frame.image = self._mocker.Mock()
             frame.image.get_size.return_value = (FRAME_SIZE, FRAME_SIZE)
             frame.pixels = [MAGENTA_PIXELS] * (FRAME_SIZE * FRAME_SIZE)
             return frame
@@ -257,11 +256,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create a mock animated sprite with proper frame durations
         def create_mock_frame(duration=FRAME_DURATION):
-            frame = Mock()
+            frame = self._mocker.Mock()
             frame.duration = duration
             return frame
 
-        animated_sprite = Mock()
+        animated_sprite = self._mocker.Mock()
         animated_sprite._animations = {
             "test_anim": [
                 create_mock_frame(FRAME_DURATION),
@@ -303,9 +302,9 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create mock frames with proper structure
         def create_mock_frame(duration=FRAME_DURATION):
-            frame = Mock()
+            frame = self._mocker.Mock()
             frame.duration = duration
-            frame.image = Mock()
+            frame.image = self._mocker.Mock()
             frame.image.get_size.return_value = (FRAME_SIZE, FRAME_SIZE)
             frame.pixels = [MAGENTA_PIXELS] * (FRAME_SIZE * FRAME_SIZE)
             return frame
@@ -482,7 +481,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
     def test_film_strip_edge_cases_integration(self):
         """Test film strip edge cases integration."""
         # Test with empty sprite
-        empty_sprite = Mock()
+        empty_sprite = self._mocker.Mock()
         empty_sprite._animations = {}
         empty_sprite._animation_order = []
         empty_sprite.frames = {}  # Add frames attribute
@@ -500,7 +499,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert len(scene.film_strips) == 0
         assert len(scene.film_strip_sprites) == 0
 
-    def test_film_strip_coordinate_conversion_integration(self):
+    def test_film_strip_coordinate_conversion_integration(self, mocker):
         """Test film strip coordinate conversion integration."""
         mock_sprite = MockFactory.create_animated_sprite_mock()
 
@@ -516,16 +515,16 @@ class TestFilmStripIntegration(FilmStripTestBase):
         film_strip_widget = next(iter(scene.film_strips.values()))
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (film_strip_sprite.rect.x + CLICK_OFFSET,
                          film_strip_sprite.rect.y + CLICK_OFFSET)
 
         # Test coordinate conversion
-        with patch.object(film_strip_widget, "handle_click",
-                        return_value=("idle", 1)) as mock_handle_click:
-            film_strip_sprite.on_left_mouse_button_down_event(mock_event)
+        mock_handle_click = mocker.patch.object(film_strip_widget, "handle_click",
+                        return_value=("idle", 1))
+        film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 
-            # Should convert screen coordinates to film strip coordinates
-            expected_x = mock_event.pos[0] - film_strip_sprite.rect.x
-            expected_y = mock_event.pos[1] - film_strip_sprite.rect.y
-            mock_handle_click.assert_called_once_with((expected_x, expected_y))
+        # Should convert screen coordinates to film strip coordinates
+        expected_x = mock_event.pos[0] - film_strip_sprite.rect.x
+        expected_y = mock_event.pos[1] - film_strip_sprite.rect.y
+        mock_handle_click.assert_called_once_with((expected_x, expected_y))

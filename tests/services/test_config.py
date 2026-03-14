@@ -1,7 +1,6 @@
 """Tests for service configuration."""
 
 import os
-from unittest.mock import patch
 
 import pytest
 from glitchygames.services.config import ServiceConfig
@@ -10,20 +9,20 @@ from glitchygames.services.config import ServiceConfig
 class TestServiceConfig:
     """Test suite for ServiceConfig."""
 
-    def test_default_values(self):
+    def test_default_values(self, mocker):
         """Test that default values are set correctly."""
-        with patch.dict(os.environ, {}, clear=True):
-            config = ServiceConfig()
+        mocker.patch.dict(os.environ, {}, clear=True)
+        config = ServiceConfig()
 
-            assert config.ai_provider == "anthropic"
-            assert config.ai_model == "claude-sonnet-4-5"
-            assert config.ai_timeout == 120
-            assert config.default_sprite_width == 16
-            assert config.default_sprite_height == 16
-            assert config.max_sprite_size == 64
-            assert config.png_scale == 1
+        assert config.ai_provider == "anthropic"
+        assert config.ai_model == "claude-sonnet-4-5"
+        assert config.ai_timeout == 120
+        assert config.default_sprite_width == 16
+        assert config.default_sprite_height == 16
+        assert config.max_sprite_size == 64
+        assert config.png_scale == 1
 
-    def test_from_environment(self):
+    def test_from_environment(self, mocker):
         """Test that configuration is loaded from environment variables."""
         env_vars = {
             "SPRITE_AI_PROVIDER": "openai",
@@ -35,16 +34,16 @@ class TestServiceConfig:
             "SPRITE_PNG_SCALE": "2",
         }
 
-        with patch.dict(os.environ, env_vars, clear=True):
-            config = ServiceConfig.from_env()
+        mocker.patch.dict(os.environ, env_vars, clear=True)
+        config = ServiceConfig.from_env()
 
-            assert config.ai_provider == "openai"
-            assert config.ai_model == "gpt-4"
-            assert config.ai_timeout == 60
-            assert config.default_sprite_width == 32
-            assert config.default_sprite_height == 32
-            assert config.max_sprite_size == 128
-            assert config.png_scale == 2
+        assert config.ai_provider == "openai"
+        assert config.ai_model == "gpt-4"
+        assert config.ai_timeout == 60
+        assert config.default_sprite_width == 32
+        assert config.default_sprite_height == 32
+        assert config.max_sprite_size == 128
+        assert config.png_scale == 2
 
     def test_get_ai_model_string(self):
         """Test that AI model string is formatted correctly."""

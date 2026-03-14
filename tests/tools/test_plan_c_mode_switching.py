@@ -7,7 +7,6 @@ trigger detection, mode transitions, and position tracking.
 
 import pytest
 import time
-from unittest.mock import Mock, patch
 
 from glitchygames.tools.controller_mode_system import (
     ControllerMode, ModePosition, ControllerModeState, 

@@ -2,7 +2,6 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -86,123 +85,123 @@ class TestHealthEndpoints:
 class TestSpriteGenerationEndpoint:
     """Test suite for sprite generation endpoint."""
 
-    def test_generate_sprite_toml_only(self, client, mock_generation_result):
+    def test_generate_sprite_toml_only(self, client, mock_generation_result, mocker):
         """Test generating sprite with TOML output only."""
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.generate_sprite.return_value = mock_generation_result
-            mock_render_service = MagicMock()
-            mock_services.return_value = (mock_gen_service, mock_render_service)
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.generate_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_services.return_value = (mock_gen_service, mock_render_service)
 
-            response = client.post(
-                "/sprites/generate",
-                json={
-                    "prompt": "16x16 red heart",
-                    "output_format": ["toml"],
-                },
-            )
+        response = client.post(
+            "/sprites/generate",
+            json={
+                "prompt": "16x16 red heart",
+                "output_format": ["toml"],
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["toml_content"] is not None
-            assert data["png_base64"] is None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["toml_content"] is not None
+        assert data["png_base64"] is None
 
-    def test_generate_sprite_png_only(self, client, mock_generation_result, mock_render_result):
+    def test_generate_sprite_png_only(self, client, mock_generation_result, mock_render_result, mocker):
         """Test generating sprite with PNG output only."""
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.generate_sprite.return_value = mock_generation_result
-            mock_render_service = MagicMock()
-            mock_render_service.render_from_toml.return_value = mock_render_result
-            mock_services.return_value = (mock_gen_service, mock_render_service)
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.generate_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_render_service.render_from_toml.return_value = mock_render_result
+        mock_services.return_value = (mock_gen_service, mock_render_service)
 
-            response = client.post(
-                "/sprites/generate",
-                json={
-                    "prompt": "16x16 red heart",
-                    "output_format": ["png"],
-                },
-            )
+        response = client.post(
+            "/sprites/generate",
+            json={
+                "prompt": "16x16 red heart",
+                "output_format": ["png"],
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["png_base64"] is not None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["png_base64"] is not None
 
-    def test_generate_sprite_both_outputs(self, client, mock_generation_result, mock_render_result):
+    def test_generate_sprite_both_outputs(self, client, mock_generation_result, mock_render_result, mocker):
         """Test generating sprite with both TOML and PNG output."""
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.generate_sprite.return_value = mock_generation_result
-            mock_render_service = MagicMock()
-            mock_render_service.render_from_toml.return_value = mock_render_result
-            mock_services.return_value = (mock_gen_service, mock_render_service)
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.generate_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_render_service.render_from_toml.return_value = mock_render_result
+        mock_services.return_value = (mock_gen_service, mock_render_service)
 
-            response = client.post(
-                "/sprites/generate",
-                json={
-                    "prompt": "16x16 red heart",
-                    "output_format": ["toml", "png"],
-                },
-            )
+        response = client.post(
+            "/sprites/generate",
+            json={
+                "prompt": "16x16 red heart",
+                "output_format": ["toml", "png"],
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["toml_content"] is not None
-            assert data["png_base64"] is not None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["toml_content"] is not None
+        assert data["png_base64"] is not None
 
-    def test_generate_sprite_with_dimensions(self, client, mock_generation_result):
+    def test_generate_sprite_with_dimensions(self, client, mock_generation_result, mocker):
         """Test generating sprite with explicit dimensions."""
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.generate_sprite.return_value = mock_generation_result
-            mock_render_service = MagicMock()
-            mock_services.return_value = (mock_gen_service, mock_render_service)
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.generate_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_services.return_value = (mock_gen_service, mock_render_service)
 
-            response = client.post(
-                "/sprites/generate",
-                json={
-                    "prompt": "red heart",
-                    "width": 32,
-                    "height": 32,
-                    "output_format": ["toml"],
-                },
-            )
+        response = client.post(
+            "/sprites/generate",
+            json={
+                "prompt": "red heart",
+                "width": 32,
+                "height": 32,
+                "output_format": ["toml"],
+            },
+        )
 
-            assert response.status_code == 200
-            # Verify generate_sprite was called with dimensions
-            mock_gen_service.generate_sprite.assert_called_once()
-            call_args = mock_gen_service.generate_sprite.call_args
-            assert call_args.kwargs["width"] == 32
-            assert call_args.kwargs["height"] == 32
+        assert response.status_code == 200
+        # Verify generate_sprite was called with dimensions
+        mock_gen_service.generate_sprite.assert_called_once()
+        call_args = mock_gen_service.generate_sprite.call_args
+        assert call_args.kwargs["width"] == 32
+        assert call_args.kwargs["height"] == 32
 
-    def test_generate_sprite_generation_failure(self, client):
+    def test_generate_sprite_generation_failure(self, client, mocker):
         """Test handling of generation failure."""
         failed_result = GenerationResult(
             success=False,
             error="AI response invalid",
         )
 
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.generate_sprite.return_value = failed_result
-            mock_render_service = MagicMock()
-            mock_services.return_value = (mock_gen_service, mock_render_service)
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.generate_sprite.return_value = failed_result
+        mock_render_service = mocker.MagicMock()
+        mock_services.return_value = (mock_gen_service, mock_render_service)
 
-            response = client.post(
-                "/sprites/generate",
-                json={
-                    "prompt": "bad request",
-                    "output_format": ["toml"],
-                },
-            )
+        response = client.post(
+            "/sprites/generate",
+            json={
+                "prompt": "bad request",
+                "output_format": ["toml"],
+            },
+        )
 
-            assert response.status_code == 200  # Returns 200 with success=False
-            data = response.json()
-            assert data["success"] is False
-            assert data["error"] is not None
+        assert response.status_code == 200  # Returns 200 with success=False
+        data = response.json()
+        assert data["success"] is False
+        assert data["error"] is not None
 
     def test_generate_sprite_invalid_request(self, client):
         """Test handling of invalid request data."""
@@ -219,12 +218,127 @@ class TestSpriteGenerationEndpoint:
 class TestSpriteRefinementEndpoint:
     """Test suite for sprite refinement endpoint."""
 
-    def test_refine_sprite(self, client, mock_generation_result, mock_render_result):
+    def test_refine_sprite(self, client, mock_generation_result, mock_render_result, mocker):
         """Test refining an existing sprite."""
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.refine_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_render_service.render_from_toml.return_value = mock_render_result
+        mock_services.return_value = (mock_gen_service, mock_render_service)
+
+        response = client.post(
+            "/sprites/refine",
+            json={
+                "prompt": "make it blue",
+                "current_toml": "[sprite]\nname = 'test'",
+                "output_format": ["toml", "png"],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+    def test_refine_sprite_failure(self, client, mocker):
+        """Test handling of refinement failure."""
+        failed_result = GenerationResult(
+            success=False,
+            error="Refinement failed",
+        )
+
+        mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.refine_sprite.return_value = failed_result
+        mock_render_service = mocker.MagicMock()
+        mock_services.return_value = (mock_gen_service, mock_render_service)
+
+        response = client.post(
+            "/sprites/refine",
+            json={
+                "prompt": "make it fail",
+                "current_toml": "[sprite]\nname = 'test'",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["error"] is not None
+
+
+class TestOutputDirFunctionality:
+    """Test suite for output_dir file saving functionality."""
+
+    def test_generate_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result, mocker):
+        """Test generating sprite saves files when output_dir specified."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+            mock_gen_service = mocker.MagicMock()
+            mock_gen_service.generate_sprite.return_value = mock_generation_result
+            mock_render_service = mocker.MagicMock()
+            mock_render_service.render_from_toml.return_value = mock_render_result
+            mock_services.return_value = (mock_gen_service, mock_render_service)
+
+            response = client.post(
+                "/sprites/generate",
+                json={
+                    "prompt": "16x16 red heart",
+                    "output_format": ["toml", "png"],
+                    "output_path": temp_dir,
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["saved_files"] is not None
+            assert len(data["saved_files"]) == 2  # TOML and PNG
+
+            # Verify files were actually created
+            output_path = Path(temp_dir)
+            toml_files = list(output_path.glob("*.toml"))
+            png_files = list(output_path.glob("*.png"))
+            assert len(toml_files) == 1
+            assert len(png_files) == 1
+
+    def test_generate_sprite_creates_output_dir(self, client, mock_generation_result, mocker):
+        """Test that output_dir is created if it doesn't exist."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a path to a subdirectory that doesn't exist
+            new_subdir = Path(temp_dir) / "new_sprites" / "hearts"
+
+            mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+            mock_gen_service = mocker.MagicMock()
+            mock_gen_service.generate_sprite.return_value = mock_generation_result
+            mock_render_service = mocker.MagicMock()
+            mock_services.return_value = (mock_gen_service, mock_render_service)
+
+            response = client.post(
+                "/sprites/generate",
+                json={
+                    "prompt": "16x16 red heart",
+                    "output_format": ["toml"],
+                    "output_path": str(new_subdir),
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["saved_files"] is not None
+
+            # Verify directory was created
+            assert new_subdir.exists()
+            assert new_subdir.is_dir()
+
+    def test_refine_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result, mocker):
+        """Test refining sprite saves files when output_dir specified."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
+            mock_gen_service = mocker.MagicMock()
             mock_gen_service.refine_sprite.return_value = mock_generation_result
-            mock_render_service = MagicMock()
+            mock_render_service = mocker.MagicMock()
             mock_render_service.render_from_toml.return_value = mock_render_result
             mock_services.return_value = (mock_gen_service, mock_render_service)
 
@@ -234,133 +348,18 @@ class TestSpriteRefinementEndpoint:
                     "prompt": "make it blue",
                     "current_toml": "[sprite]\nname = 'test'",
                     "output_format": ["toml", "png"],
+                    "output_path": temp_dir,
                 },
             )
 
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
+            assert data["saved_files"] is not None
 
-    def test_refine_sprite_failure(self, client):
-        """Test handling of refinement failure."""
-        failed_result = GenerationResult(
-            success=False,
-            error="Refinement failed",
-        )
-
-        with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-            mock_gen_service = MagicMock()
-            mock_gen_service.refine_sprite.return_value = failed_result
-            mock_render_service = MagicMock()
-            mock_services.return_value = (mock_gen_service, mock_render_service)
-
-            response = client.post(
-                "/sprites/refine",
-                json={
-                    "prompt": "make it fail",
-                    "current_toml": "[sprite]\nname = 'test'",
-                },
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is False
-            assert data["error"] is not None
-
-
-class TestOutputDirFunctionality:
-    """Test suite for output_dir file saving functionality."""
-
-    def test_generate_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result):
-        """Test generating sprite saves files when output_dir specified."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-                mock_gen_service = MagicMock()
-                mock_gen_service.generate_sprite.return_value = mock_generation_result
-                mock_render_service = MagicMock()
-                mock_render_service.render_from_toml.return_value = mock_render_result
-                mock_services.return_value = (mock_gen_service, mock_render_service)
-
-                response = client.post(
-                    "/sprites/generate",
-                    json={
-                        "prompt": "16x16 red heart",
-                        "output_format": ["toml", "png"],
-                        "output_path": temp_dir,
-                    },
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["success"] is True
-                assert data["saved_files"] is not None
-                assert len(data["saved_files"]) == 2  # TOML and PNG
-
-                # Verify files were actually created
-                output_path = Path(temp_dir)
-                toml_files = list(output_path.glob("*.toml"))
-                png_files = list(output_path.glob("*.png"))
-                assert len(toml_files) == 1
-                assert len(png_files) == 1
-
-    def test_generate_sprite_creates_output_dir(self, client, mock_generation_result):
-        """Test that output_dir is created if it doesn't exist."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a path to a subdirectory that doesn't exist
-            new_subdir = Path(temp_dir) / "new_sprites" / "hearts"
-
-            with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-                mock_gen_service = MagicMock()
-                mock_gen_service.generate_sprite.return_value = mock_generation_result
-                mock_render_service = MagicMock()
-                mock_services.return_value = (mock_gen_service, mock_render_service)
-
-                response = client.post(
-                    "/sprites/generate",
-                    json={
-                        "prompt": "16x16 red heart",
-                        "output_format": ["toml"],
-                        "output_path": str(new_subdir),
-                    },
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["success"] is True
-                assert data["saved_files"] is not None
-
-                # Verify directory was created
-                assert new_subdir.exists()
-                assert new_subdir.is_dir()
-
-    def test_refine_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result):
-        """Test refining sprite saves files when output_dir specified."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("glitchygames.api.routes.sprites._get_services") as mock_services:
-                mock_gen_service = MagicMock()
-                mock_gen_service.refine_sprite.return_value = mock_generation_result
-                mock_render_service = MagicMock()
-                mock_render_service.render_from_toml.return_value = mock_render_result
-                mock_services.return_value = (mock_gen_service, mock_render_service)
-
-                response = client.post(
-                    "/sprites/refine",
-                    json={
-                        "prompt": "make it blue",
-                        "current_toml": "[sprite]\nname = 'test'",
-                        "output_format": ["toml", "png"],
-                        "output_path": temp_dir,
-                    },
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["success"] is True
-                assert data["saved_files"] is not None
-
-                # Verify files were actually created
-                output_path = Path(temp_dir)
-                assert any(output_path.iterdir())
+            # Verify files were actually created
+            output_path = Path(temp_dir)
+            assert any(output_path.iterdir())
 
 
 class TestApngExtractFramesEndpoint:

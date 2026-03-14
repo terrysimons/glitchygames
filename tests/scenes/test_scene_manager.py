@@ -3,8 +3,6 @@
 import contextlib
 import sys
 from pathlib import Path
-from unittest.mock import Mock
-
 import pygame
 import pytest
 
@@ -66,7 +64,7 @@ class TestSceneManager:
         assert scene_manager.active_scene is None
         assert scene_manager._game_engine is None
 
-    def test_scene_manager_game_engine_property(self):
+    def test_scene_manager_game_engine_property(self, mocker):
         """Test SceneManager game_engine property."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -81,7 +79,7 @@ class TestSceneManager:
         assert scene_manager.game_engine is None
 
         # Test setting game_engine with proper OPTIONS structure
-        mock_engine = Mock()
+        mock_engine = mocker.Mock()
         mock_engine.OPTIONS = {
             "update_type": "update",
             "fps_log_interval_ms": FPS_REFRESH_RATE,
@@ -90,7 +88,7 @@ class TestSceneManager:
         scene_manager.game_engine = mock_engine
         assert scene_manager.game_engine == mock_engine
 
-    def test_scene_manager_all_sprites_property(self):
+    def test_scene_manager_all_sprites_property(self, mocker):
         """Test SceneManager all_sprites property."""
         scene_manager = self.scene_manager
 
@@ -99,21 +97,21 @@ class TestSceneManager:
         assert scene_manager.all_sprites is None
 
         # Test with active scene
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         scene_manager.active_scene = mock_scene
         assert scene_manager.all_sprites == mock_scene.all_sprites
 
-    def test_scene_manager_switch_to_scene(self):
+    def test_scene_manager_switch_to_scene(self, mocker):
         """Test SceneManager switch_to_scene method."""
         # Reset singleton state for clean test
         SceneManager._reset()
 
         scene_manager = self.scene_manager
-        mock_scene = Mock()
+        mock_scene = mocker.Mock()
 
         # Mock the scene's required attributes
-        mock_scene.all_sprites = Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
 
         # Test switching to a scene
@@ -170,32 +168,32 @@ class TestSceneManager:
         # Test quit_game method (should not raise exceptions)
         scene_manager.quit_game()
 
-    def test_scene_manager_on_quit_event(self):
+    def test_scene_manager_on_quit_event(self, mocker):
         """Test SceneManager on_quit_event method."""
         scene_manager = self.scene_manager
-        mock_event = Mock()
+        mock_event = mocker.Mock()
 
         # Test quit event handling
         scene_manager.on_quit_event(mock_event)
 
-    def test_scene_manager_on_fps_event(self):
+    def test_scene_manager_on_fps_event(self, mocker):
         """Test SceneManager on_fps_event method."""
         scene_manager = self.scene_manager
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.fps = 60
 
         # Test FPS event handling
         scene_manager.on_fps_event(mock_event)
 
-    def test_scene_manager_on_game_event(self):
+    def test_scene_manager_on_game_event(self, mocker):
         """Test SceneManager on_game_event method."""
         scene_manager = self.scene_manager
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.subtype = "test_event"
 
         # Set up a mock game engine with registered_events and OPTIONS
-        mock_engine = Mock()
-        mock_engine.registered_events = {"test_event": Mock()}
+        mock_engine = mocker.Mock()
+        mock_engine.registered_events = {"test_event": mocker.Mock()}
         mock_engine.OPTIONS = {
             "update_type": "update",
             "fps_log_interval_ms": FPS_REFRESH_RATE,
@@ -206,10 +204,10 @@ class TestSceneManager:
         # Test game event handling
         scene_manager.on_game_event(mock_event)
 
-    def test_scene_manager_register_game_event(self):
+    def test_scene_manager_register_game_event(self, mocker):
         """Test SceneManager register_game_event method."""
         scene_manager = self.scene_manager
-        mock_callback = Mock()
+        mock_callback = mocker.Mock()
 
         # Test registering game event (may not exist in all implementations)
         with contextlib.suppress(AttributeError):
@@ -225,10 +223,10 @@ class TestSceneManager:
         with pytest.raises(AttributeError):
             _ = scene_manager.nonexistent_method
 
-    def test_scene_manager_handle_event(self):
+    def test_scene_manager_handle_event(self, mocker):
         """Test SceneManager handle_event method."""
         scene_manager = self.scene_manager
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.type = pygame.QUIT  # Set a valid event type
 
         # Test event handling with no active scene (clear any previous scene from singleton)
@@ -236,7 +234,7 @@ class TestSceneManager:
         scene_manager.handle_event(mock_event)
 
         # Test event handling with active scene
-        mock_scene = Mock()
+        mock_scene = mocker.Mock()
         mock_scene.all_sprites = []  # Empty list of sprites
         scene_manager.active_scene = mock_scene
 
@@ -334,10 +332,10 @@ class TestSceneManager:
         # Test scene timer reset
         scene_manager._reset_scene_timers()
 
-    def test_scene_manager_log_scene_switch(self):
+    def test_scene_manager_log_scene_switch(self, mocker):
         """Test SceneManager _log_scene_switch method."""
         scene_manager = self.scene_manager
-        mock_scene = Mock()
+        mock_scene = mocker.Mock()
 
         # Test scene switch logging
         scene_manager._log_scene_switch(mock_scene)

@@ -2,8 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -37,36 +35,31 @@ STATIC_TOML = str(
 class TestAnimatedSpriteFrameManager:
     """Test FrameManager functionality."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
-
-    def test_frame_manager_initialization(self):
+    def test_frame_manager_initialization(self, mocker):
         """Test FrameManager initialization."""
         # Create a mock animated sprite for the frame manager
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         manager = FrameManager(mock_animated_sprite)
 
         assert isinstance(manager, FrameManager)
         assert not manager.current_animation
         assert manager.current_frame == 0
 
-    def test_frame_manager_add_remove_observers(self):
+    def test_frame_manager_add_remove_observers(self, mocker):
         """Test adding and removing observers."""
         # Create a mock animated sprite for the frame manager
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         manager = FrameManager(mock_animated_sprite)
-        observer = Mock()
+        observer = mocker.Mock()
 
         manager.add_observer(observer)
         assert observer in manager._observers
@@ -74,30 +67,30 @@ class TestAnimatedSpriteFrameManager:
         manager.remove_observer(observer)
         assert observer not in manager._observers
 
-    def test_frame_manager_notify_observers(self):
+    def test_frame_manager_notify_observers(self, mocker):
         """Test notifying observers."""
         # Create a mock animated sprite for the frame manager
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         manager = FrameManager(mock_animated_sprite)
-        observer = Mock()
+        observer = mocker.Mock()
         manager.add_observer(observer)
 
         manager.notify_observers("test_change", "old", "new")
         observer.on_frame_change.assert_called_once_with("test_change", "old", "new")
 
-    def test_frame_manager_current_animation_property(self):
+    def test_frame_manager_current_animation_property(self, mocker):
         """Test current_animation property."""
         # Create a mock animated sprite for the frame manager
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         manager = FrameManager(mock_animated_sprite)
         manager.current_animation = "walk"
 
         assert manager.current_animation == "walk"
 
-    def test_frame_manager_current_frame_property(self):
+    def test_frame_manager_current_frame_property(self, mocker):
         """Test current_frame property."""
         # Create a mock animated sprite for the frame manager
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         manager = FrameManager(mock_animated_sprite)
         manager.current_frame = TEST_FRAME_INDEX
 
@@ -118,19 +111,14 @@ class TestAnimatedSpriteInterface:
 class TestSpriteFrame:
     """Test SpriteFrame functionality."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_frame_initialization(self):
         """Test SpriteFrame initialization."""
@@ -151,10 +139,10 @@ class TestSpriteFrame:
 
         assert size == (32, 32)
 
-    def test_sprite_frame_get_pixel_data(self):
+    def test_sprite_frame_get_pixel_data(self, mocker):
         """Test getting pixel data from sprite frame."""
         # Create a mock surface for the frame using regular Mock
-        mock_surface = Mock()
+        mock_surface = mocker.Mock()
         mock_surface.get_size.return_value = (32, 32)
         # Return a pygame.Color object instead of tuple
         mock_color = pygame.Color(255, 0, 0, 255)
@@ -188,19 +176,14 @@ class TestSpriteFrame:
 class TestAnimatedSprite:
     """Test AnimatedSprite functionality."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_animated_sprite_initialization(self):
         """Test AnimatedSprite initialization."""
@@ -279,10 +262,10 @@ class TestAnimatedSprite:
         sprite.animation_order = ["walk", "run"]
         assert sprite.animation_order == ["walk", "run"]
 
-    def test_animated_sprite_frame_observers(self):
+    def test_animated_sprite_frame_observers(self, mocker):
         """Test frame observers."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
-        _observer = Mock()
+        _observer = mocker.Mock()
 
         # Test that AnimatedSprite can be created and has basic functionality
         # The actual API doesn't have add_frame_observer/remove_frame_observer methods
@@ -291,14 +274,14 @@ class TestAnimatedSprite:
         assert sprite.name == "idle"
         assert sprite.current_animation is not None
 
-    def test_animated_sprite_save_load_functionality(self):
+    def test_animated_sprite_save_load_functionality(self, mocker):
         """Test save and load functionality."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test save functionality
-        with patch("pathlib.Path.open") as mock_open:
-            sprite.save("test.toml")
-            mock_open.assert_called_once()
+        mock_open = mocker.patch("pathlib.Path.open")
+        sprite.save("test.toml")
+        mock_open.assert_called_once()
 
     def test_animated_sprite_file_format_detection(self):
         """Test file format detection."""

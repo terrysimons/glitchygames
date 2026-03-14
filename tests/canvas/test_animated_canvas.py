@@ -6,10 +6,10 @@ to work with animated sprites, including frame selection, editing, and film stri
 
 import sys
 import tempfile
-import unittest
 from pathlib import Path
 
 import pygame
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
@@ -26,17 +26,16 @@ from glitchygames.tools.film_strip import FilmStripWidget
 from tests.mocks.test_mock_factory import MockFactory
 
 
-class TestAnimatedCanvasSprite(unittest.TestCase):
+class TestAnimatedCanvasSprite:
     """Test suite for AnimatedCanvasSprite functionality."""
 
     EXPECTED_FRAME_COUNT = 2
 
-    def setUp(self):
-        """Set up test fixtures before each test method."""
-        # Set up centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up test fixtures using centralized mocks."""
+        self._mocker = mocker
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Create a test animated sprite
         self.animated_sprite = self._create_test_animated_sprite()
@@ -61,10 +60,6 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
             height=100
         )
         self.canvas.film_strip.set_animated_sprite(self.animated_sprite)
-
-    def tearDown(self):
-        """Clean up after each test method."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def _create_test_animated_sprite():
@@ -292,19 +287,12 @@ class TestAnimatedCanvasSprite(unittest.TestCase):
         assert self.canvas.image.get_size() == (128, 128)  # 8*16 x 8*16
 
 
-class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
+class TestAnimatedCanvasSpriteEdgeCases:
     """Test edge cases for AnimatedCanvasSprite."""
 
-    def setUp(self):
-        """Set up test fixtures before each test method."""
-        # Set up centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def tearDown(self):
-        """Clean up after each test method."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def test_empty_animated_sprite():
@@ -361,23 +349,5 @@ class TestAnimatedCanvasSpriteEdgeCases(unittest.TestCase):
         assert canvas.current_frame == 0  # Should wrap to 0
 
 
-def run_tests():
-    """Run all tests and return success status."""
-    # Create test suite
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-
-    # Add test cases
-    suite.addTests(loader.loadTestsFromTestCase(TestAnimatedCanvasSprite))
-    suite.addTests(loader.loadTestsFromTestCase(TestAnimatedCanvasSpriteEdgeCases))
-
-    # Run tests
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-
-    return result.wasSuccessful()
-
-
 if __name__ == "__main__":
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(pytest.main([__file__, "-v"]))

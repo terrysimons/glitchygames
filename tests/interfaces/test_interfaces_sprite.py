@@ -1,8 +1,6 @@
 """Test coverage for SpriteInterface."""
 
 import inspect
-from unittest.mock import Mock
-
 import pygame
 from glitchygames.interfaces import SpriteInterface
 
@@ -30,10 +28,10 @@ class TestSpriteInterface:
         # Should not raise any exception
         sprite.update()
 
-    def test_sprite_interface_render(self):
+    def test_sprite_interface_render(self, mocker):
         """Test render method."""
         sprite = SpriteInterface()
-        mock_screen = Mock(spec=pygame.Surface)
+        mock_screen = mocker.Mock(spec=pygame.Surface)
         # Should not raise any exception
         sprite.render(mock_screen)
 
@@ -85,12 +83,12 @@ class TestSpriteInterface:
         assert "return" in render_annotations
         assert render_annotations["return"] == "None"
 
-    def test_type_annotations_with_pygame_surface(self):
+    def test_type_annotations_with_pygame_surface(self, mocker):
         """Test that type annotations work correctly with pygame.Surface."""
         # This test ensures that the TYPE_CHECKING import works correctly
         # and that pygame.Surface is properly typed in the interface
         sprite = SpriteInterface()
-        mock_screen = Mock(spec=pygame.Surface)
+        mock_screen = mocker.Mock(spec=pygame.Surface)
 
         # This should work without type errors
         sprite.render(mock_screen)

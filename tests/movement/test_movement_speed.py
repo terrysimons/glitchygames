@@ -1,7 +1,6 @@
 """Test coverage for Speed class."""
 
 import sys
-import unittest
 from pathlib import Path
 
 # Add project root so direct imports work in isolated runs
@@ -34,7 +33,7 @@ RESULT_NEG_8_0 = -8.0
 RESULT_NEG_4_0 = -4.0
 
 
-class TestSpeedCoverage(unittest.TestCase):
+class TestSpeedCoverage:
     """Comprehensive test coverage for Speed class."""
 
     def test_speed_initialization_default(self):

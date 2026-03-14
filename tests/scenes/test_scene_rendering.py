@@ -10,8 +10,6 @@ This module tests scene rendering including:
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -46,12 +44,12 @@ class TestSceneRendering:
         # Reset singleton state for clean test
         SceneManager._reset()
 
-    def test_scene_rendering(self):
+    def test_scene_rendering(self, mocker):
         """Test basic scene rendering."""
         scene = Scene("test_scene")
 
         # Mock render method
-        scene.render = Mock()
+        scene.render = mocker.Mock()
 
         # Create mock surface
         mock_surface = MockFactory.create_pygame_surface_mock()
@@ -62,12 +60,12 @@ class TestSceneRendering:
         # Verify rendering
         scene.render.assert_called_once_with(mock_surface)
 
-    def test_scene_rendering_with_surface(self):
+    def test_scene_rendering_with_surface(self, mocker):
         """Test scene rendering with surface."""
         scene = Scene("test_scene")
 
         # Mock render method
-        scene.render = Mock()
+        scene.render = mocker.Mock()
 
         # Create mock surface
         mock_surface = MockFactory.create_pygame_surface_mock()
@@ -78,7 +76,7 @@ class TestSceneRendering:
         # Verify rendering
         scene.render.assert_called_once_with(mock_surface)
 
-    def test_scene_rendering_with_manager(self):
+    def test_scene_rendering_with_manager(self, mocker):
         """Test scene rendering with manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -86,10 +84,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene instead of real Scene to avoid pygame.display issues
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -98,7 +96,7 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_multiple_scenes(self):
+    def test_scene_rendering_multiple_scenes(self, mocker):
         """Test rendering with multiple scenes."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -106,15 +104,15 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create mock scenes instead of real Scene to avoid pygame.display issues
-        mock_scene1 = Mock()
-        mock_scene1.all_sprites = Mock()
+        mock_scene1 = mocker.Mock()
+        mock_scene1.all_sprites = mocker.Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
-        mock_scene1.render = Mock()
+        mock_scene1.render = mocker.Mock()
 
-        mock_scene2 = Mock()
-        mock_scene2.all_sprites = Mock()
+        mock_scene2 = mocker.Mock()
+        mock_scene2.all_sprites = mocker.Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
-        mock_scene2.render = Mock()
+        mock_scene2.render = mocker.Mock()
 
         # Switch to scene1
         manager.switch_to_scene(mock_scene1)
@@ -124,7 +122,7 @@ class TestSceneRendering:
         assert hasattr(mock_scene1, "render")
         assert hasattr(mock_scene2, "render")
 
-    def test_scene_rendering_scene_transition(self):
+    def test_scene_rendering_scene_transition(self, mocker):
         """Test rendering during scene transition."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -132,15 +130,15 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create mock scenes instead of real Scene to avoid pygame.display issues
-        mock_scene1 = Mock()
-        mock_scene1.all_sprites = Mock()
+        mock_scene1 = mocker.Mock()
+        mock_scene1.all_sprites = mocker.Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
-        mock_scene1.render = Mock()
+        mock_scene1.render = mocker.Mock()
 
-        mock_scene2 = Mock()
-        mock_scene2.all_sprites = Mock()
+        mock_scene2 = mocker.Mock()
+        mock_scene2.all_sprites = mocker.Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
-        mock_scene2.render = Mock()
+        mock_scene2.render = mocker.Mock()
 
         # Switch to scene1
         manager.switch_to_scene(mock_scene1)
@@ -154,18 +152,18 @@ class TestSceneRendering:
         assert hasattr(mock_scene1, "render")
         assert hasattr(mock_scene2, "render")
 
-    def test_scene_rendering_with_visibility(self):
+    def test_scene_rendering_with_visibility(self, mocker):
         """Test scene rendering with visibility."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_visibility_manager(self):
+    def test_scene_rendering_with_visibility_manager(self, mocker):
         """Test scene rendering with visibility through manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -173,10 +171,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -185,10 +183,10 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_custom_drawing(self):
+    def test_scene_rendering_with_custom_drawing(self, mocker):
         """Test scene rendering with custom drawing."""
         # Create a mock scene with custom drawing behavior
-        mock_scene = Mock()
+        mock_scene = mocker.Mock()
         mock_scene.draw_calls = []
 
         def mock_render(surface):
@@ -209,7 +207,7 @@ class TestSceneRendering:
         assert len(mock_scene.draw_calls) == 1
         assert mock_scene.draw_calls[0] == mock_surface
 
-    def test_scene_rendering_with_layering(self):
+    def test_scene_rendering_with_layering(self, mocker):
         """Test scene rendering with layering."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -217,20 +215,20 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create mock scenes with different layers using centralized mocks
-        mock_scene1 = Mock()
-        mock_scene1.all_sprites = Mock()
+        mock_scene1 = mocker.Mock()
+        mock_scene1.all_sprites = mocker.Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
-        mock_scene1.render = Mock()
+        mock_scene1.render = mocker.Mock()
 
-        mock_scene2 = Mock()
-        mock_scene2.all_sprites = Mock()
+        mock_scene2 = mocker.Mock()
+        mock_scene2.all_sprites = mocker.Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
-        mock_scene2.render = Mock()
+        mock_scene2.render = mocker.Mock()
 
-        mock_scene3 = Mock()
-        mock_scene3.all_sprites = Mock()
+        mock_scene3 = mocker.Mock()
+        mock_scene3.all_sprites = mocker.Mock()
         mock_scene3.background = MockFactory.create_pygame_surface_mock()
-        mock_scene3.render = Mock()
+        mock_scene3.render = mocker.Mock()
 
         # Switch to scene1
         manager.switch_to_scene(mock_scene1)
@@ -241,18 +239,18 @@ class TestSceneRendering:
         assert hasattr(mock_scene2, "render")
         assert hasattr(mock_scene3, "render")
 
-    def test_scene_rendering_with_render_state(self):
+    def test_scene_rendering_with_render_state(self, mocker):
         """Test scene rendering with render state."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_render_state_manager(self):
+    def test_scene_rendering_with_render_state_manager(self, mocker):
         """Test scene rendering with render state through manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -260,10 +258,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -272,18 +270,18 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_exceptions(self):
+    def test_scene_rendering_with_exceptions(self, mocker):
         """Test scene rendering with exceptions."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_manager_exceptions(self):
+    def test_scene_rendering_with_manager_exceptions(self, mocker):
         """Test scene rendering with manager exceptions."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -291,10 +289,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -303,18 +301,18 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_surface_management(self):
+    def test_scene_rendering_with_surface_management(self, mocker):
         """Test scene rendering with surface management."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_surface_management_manager(self):
+    def test_scene_rendering_with_surface_management_manager(self, mocker):
         """Test scene rendering with surface management through manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -322,10 +320,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -334,11 +332,11 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_custom_surface(self):
+    def test_scene_rendering_with_custom_surface(self, mocker):
         """Test scene rendering with custom surface."""
         # Create a mock scene with custom surface behavior
-        mock_scene = Mock()
-        mock_scene.custom_surface = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.custom_surface = mocker.Mock()
 
         def mock_render(surface):
             # Use custom surface for rendering
@@ -358,7 +356,7 @@ class TestSceneRendering:
         # Verify custom surface usage
         mock_scene.custom_surface.blit.assert_called_once_with(mock_surface, (0, 0))
 
-    def test_scene_rendering_with_render_order(self):
+    def test_scene_rendering_with_render_order(self, mocker):
         """Test scene rendering with render order."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -366,15 +364,15 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create mock scenes using centralized mocks
-        mock_scene1 = Mock()
-        mock_scene1.all_sprites = Mock()
+        mock_scene1 = mocker.Mock()
+        mock_scene1.all_sprites = mocker.Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
-        mock_scene1.render = Mock()
+        mock_scene1.render = mocker.Mock()
 
-        mock_scene2 = Mock()
-        mock_scene2.all_sprites = Mock()
+        mock_scene2 = mocker.Mock()
+        mock_scene2.all_sprites = mocker.Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
-        mock_scene2.render = Mock()
+        mock_scene2.render = mocker.Mock()
 
         # Switch to scene1
         manager.switch_to_scene(mock_scene1)
@@ -384,7 +382,7 @@ class TestSceneRendering:
         assert hasattr(mock_scene1, "render")
         assert hasattr(mock_scene2, "render")
 
-    def test_scene_rendering_with_render_order_transition(self):
+    def test_scene_rendering_with_render_order_transition(self, mocker):
         """Test scene rendering with render order during transition."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -392,15 +390,15 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create mock scenes using centralized mocks
-        mock_scene1 = Mock()
-        mock_scene1.all_sprites = Mock()
+        mock_scene1 = mocker.Mock()
+        mock_scene1.all_sprites = mocker.Mock()
         mock_scene1.background = MockFactory.create_pygame_surface_mock()
-        mock_scene1.render = Mock()
+        mock_scene1.render = mocker.Mock()
 
-        mock_scene2 = Mock()
-        mock_scene2.all_sprites = Mock()
+        mock_scene2 = mocker.Mock()
+        mock_scene2.all_sprites = mocker.Mock()
         mock_scene2.background = MockFactory.create_pygame_surface_mock()
-        mock_scene2.render = Mock()
+        mock_scene2.render = mocker.Mock()
 
         # Switch to scene1
         manager.switch_to_scene(mock_scene1)
@@ -414,18 +412,18 @@ class TestSceneRendering:
         assert hasattr(mock_scene1, "render")
         assert hasattr(mock_scene2, "render")
 
-    def test_scene_rendering_with_render_state_changes(self):
+    def test_scene_rendering_with_render_state_changes(self, mocker):
         """Test scene rendering with render state changes."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_render_state_changes_manager(self):
+    def test_scene_rendering_with_render_state_changes_manager(self, mocker):
         """Test scene rendering with render state changes through manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -433,10 +431,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)
@@ -445,18 +443,18 @@ class TestSceneRendering:
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_edge_cases(self):
+    def test_scene_rendering_with_edge_cases(self, mocker):
         """Test scene rendering with edge cases."""
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
         assert hasattr(mock_scene, "render")
 
-    def test_scene_rendering_with_edge_cases_manager(self):
+    def test_scene_rendering_with_edge_cases_manager(self, mocker):
         """Test scene rendering with edge cases through manager."""
         # Reset singleton state for clean test
         SceneManager._reset()
@@ -464,10 +462,10 @@ class TestSceneRendering:
         manager = self.scene_manager
 
         # Create a mock scene using centralized mocks
-        mock_scene = Mock()
-        mock_scene.all_sprites = Mock()
+        mock_scene = mocker.Mock()
+        mock_scene.all_sprites = mocker.Mock()
         mock_scene.background = MockFactory.create_pygame_surface_mock()
-        mock_scene.render = Mock()
+        mock_scene.render = mocker.Mock()
 
         # Switch to scene
         manager.switch_to_scene(mock_scene)

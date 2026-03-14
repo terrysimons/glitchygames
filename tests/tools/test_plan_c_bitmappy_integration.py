@@ -8,7 +8,6 @@ including trigger handling, mode switching, and visual updates.
 import pytest
 import pygame
 import time
-from unittest.mock import Mock, patch, MagicMock
 
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.visual_collision_manager import LocationType
@@ -16,26 +15,30 @@ from glitchygames.tools.visual_collision_manager import LocationType
 
 class TestBitmappyPlanCIntegration:
     """Test Plan C integration with Bitmappy."""
-    
-    def setup_method(self):
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
         pygame.init()
         self.mode_switcher = ModeSwitcher()
         self.controller_id = 0
         self.instance_id = 0
-        
+
         # Mock Bitmappy scene
-        self.mock_scene = Mock()
+        self.mock_scene = mocker.Mock()
         self.mock_scene.mode_switcher = self.mode_switcher
         self.mock_scene.controller_selections = {}
-        self.mock_scene.multi_controller_manager = Mock()
-        self.mock_scene.visual_collision_manager = Mock()
-        
+        self.mock_scene.multi_controller_manager = mocker.Mock()
+        self.mock_scene.visual_collision_manager = mocker.Mock()
+
         # Mock controller info
-        self.mock_controller_info = Mock()
+        self.mock_controller_info = mocker.Mock()
         self.mock_controller_info.color = (255, 0, 0)
         self.mock_scene.multi_controller_manager.get_controller_id.return_value = self.controller_id
         self.mock_scene.multi_controller_manager.get_controller_info.return_value = self.mock_controller_info
+
+        # Store mocker for use in test methods
+        self._mocker = mocker
     
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -45,37 +48,37 @@ class TestBitmappyPlanCIntegration:
         """Test handling of trigger axis motion events."""
         # Register controller
         self.mode_switcher.register_controller(self.controller_id, ControllerMode.FILM_STRIP)
-        
+
         # Mock trigger axis motion event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.instance_id = self.instance_id
         mock_event.axis = 4  # L2 axis
         mock_event.value = 1.0  # Fully pressed
-        
+
         # Mock the trigger handling method
-        with patch.object(self.mock_scene, '_handle_trigger_axis_motion') as mock_handle:
-            self.mock_scene._handle_trigger_axis_motion(mock_event)
-            mock_handle.assert_called_once_with(mock_event)
+        mock_handle = self._mocker.patch.object(self.mock_scene, '_handle_trigger_axis_motion')
+        self.mock_scene._handle_trigger_axis_motion(mock_event)
+        mock_handle.assert_called_once_with(mock_event)
     
     def test_controller_registration_on_trigger(self):
         """Test that controllers are registered when trigger events occur."""
         # Mock trigger axis motion event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.instance_id = self.instance_id
         mock_event.axis = 4  # L2 axis
         mock_event.value = 1.0  # Fully pressed
-        
+
         # Verify controller is not registered initially
         assert self.controller_id not in self.mode_switcher.controller_modes
-        
+
         # Simulate trigger handling
-        with patch.object(self.mock_scene, '_handle_trigger_axis_motion') as mock_handle:
-            # Mock the registration logic
-            self.mode_switcher.register_controller(self.controller_id, ControllerMode.FILM_STRIP)
-            
-            # Verify controller was registered
-            assert self.controller_id in self.mode_switcher.controller_modes
-            assert self.mode_switcher.get_controller_mode(self.controller_id) == ControllerMode.FILM_STRIP
+        self._mocker.patch.object(self.mock_scene, '_handle_trigger_axis_motion')
+        # Mock the registration logic
+        self.mode_switcher.register_controller(self.controller_id, ControllerMode.FILM_STRIP)
+
+        # Verify controller was registered
+        assert self.controller_id in self.mode_switcher.controller_modes
+        assert self.mode_switcher.get_controller_mode(self.controller_id) == ControllerMode.FILM_STRIP
     
     def test_mode_switching_via_triggers(self):
         """Test mode switching via trigger input."""
@@ -95,17 +98,17 @@ class TestBitmappyPlanCIntegration:
         """Test that visual indicators are updated when mode switches."""
         # Register controller
         self.mode_switcher.register_controller(self.controller_id, ControllerMode.FILM_STRIP)
-        
+
         # Mock visual indicator update
-        with patch.object(self.mock_scene, '_update_controller_visual_indicator_for_mode') as mock_update:
-            # Switch mode
-            current_time = time.time()
-            new_mode = self.mode_switcher.handle_trigger_input(
-                self.controller_id, 1.0, 0.0, current_time
-            )
-            
-            # Verify visual indicator update was called
-            mock_update.assert_called_once_with(self.controller_id, new_mode)
+        mock_update = self._mocker.patch.object(self.mock_scene, '_update_controller_visual_indicator_for_mode')
+        # Switch mode
+        current_time = time.time()
+        new_mode = self.mode_switcher.handle_trigger_input(
+            self.controller_id, 1.0, 0.0, current_time
+        )
+
+        # Verify visual indicator update was called
+        mock_update.assert_called_once_with(self.controller_id, new_mode)
     
     def test_controller_position_tracking_in_bitmappy(self):
         """Test controller position tracking in Bitmappy context."""

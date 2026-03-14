@@ -2,8 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -87,11 +85,11 @@ class TestCanvasInterfaces:
         assert callable(interface.set_pixel_data)
         assert callable(interface.get_dimensions)
 
-    def test_animated_canvas_interface_initialization(self, mock_pygame_patches):
+    def test_animated_canvas_interface_initialization(self, mock_pygame_patches, mocker):
         """Test animated canvas interface initialization."""
         # Test AnimatedCanvasInterface initialization - requires properly mocked canvas_sprite
         mock_sprite = self._create_mock_sprite()
-        mock_animated_sprite = Mock()
+        mock_animated_sprite = mocker.Mock()
         mock_animated_sprite._animation_order = ["idle"]
         mock_sprite.animated_sprite = mock_animated_sprite
 

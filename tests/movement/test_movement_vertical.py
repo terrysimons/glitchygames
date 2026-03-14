@@ -1,7 +1,6 @@
 """Test coverage for Vertical class."""
 
 import sys
-import unittest
 from pathlib import Path
 
 # Add project root so direct imports work in isolated runs
@@ -17,7 +16,7 @@ SPEED_7 = 7
 SPEED_NEG_7 = -7
 
 
-class TestVerticalCoverage(unittest.TestCase):
+class TestVerticalCoverage:
     """Comprehensive test coverage for Vertical class."""
 
     def test_vertical_initialization(self):

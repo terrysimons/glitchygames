@@ -8,7 +8,6 @@ trigger undo/redo operations for frame management.
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch, MagicMock
 from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
 from glitchygames.tools.operation_history import FilmStripOperationTracker, CanvasOperationTracker
 
@@ -17,16 +16,16 @@ class TestControllerUndoRedoIntegration:
     """Test controller integration with undo/redo system for film strips."""
     
     @pytest.fixture
-    def mock_scene(self):
+    def mock_scene(self, mocker):
         """Create a mock BitmapEditorScene for testing."""
-        scene = Mock()
+        scene = mocker.Mock()
         scene.undo_redo_manager = UndoRedoManager()
         scene.canvas_operation_tracker = CanvasOperationTracker(scene.undo_redo_manager)
         scene.film_strip_operation_tracker = FilmStripOperationTracker(scene.undo_redo_manager)
-        
+
         # Mock the undo/redo methods
-        scene._handle_undo = Mock()
-        scene._handle_redo = Mock()
+        scene._handle_undo = mocker.Mock()
+        scene._handle_redo = mocker.Mock()
         
         # Mock the controller button handler
         def mock_handle_film_strip_button_press(controller_id, button):
@@ -43,11 +42,11 @@ class TestControllerUndoRedoIntegration:
         scene._handle_film_strip_button_press = mock_handle_film_strip_button_press
         
         # Mock film strip operations
-        scene._add_frame_for_undo_redo = Mock(return_value=True)
-        scene._delete_frame_for_undo_redo = Mock(return_value=True)
-        scene._add_animation_for_undo_redo = Mock(return_value=True)
-        scene._delete_animation_for_undo_redo = Mock(return_value=True)
-        scene._apply_frame_selection_for_undo_redo = Mock(return_value=True)
+        scene._add_frame_for_undo_redo = mocker.Mock(return_value=True)
+        scene._delete_frame_for_undo_redo = mocker.Mock(return_value=True)
+        scene._add_animation_for_undo_redo = mocker.Mock(return_value=True)
+        scene._delete_animation_for_undo_redo = mocker.Mock(return_value=True)
+        scene._apply_frame_selection_for_undo_redo = mocker.Mock(return_value=True)
         
         # Set up callbacks (only the ones that exist)
         scene.undo_redo_manager.pixel_change_callback = scene._apply_pixel_change_callback

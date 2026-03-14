@@ -5,8 +5,6 @@ This module tests joystick event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -36,7 +34,7 @@ class TestJoystickEvents:
         assert hasattr(JoystickEvents, "on_joy_hat_motion_event")
         assert hasattr(JoystickEvents, "on_joy_ball_motion_event")
 
-    def test_joystick_event_stubs_implementation(self, mock_pygame_patches):
+    def test_joystick_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test JoystickEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
@@ -46,9 +44,9 @@ class TestJoystickEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.JOYAXISMOTION, axis=0, value=0.5)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                scene.on_joy_axis_motion_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            scene.on_joy_axis_motion_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
 
     def test_joy_axis_motion_event(self, mock_pygame_patches):
@@ -288,22 +286,22 @@ class TestJoystickEvents:
 class TestJoystickManager:
     """Test JoystickEventManager in isolation."""
 
-    def test_joystick_manager_initialization(self, mock_pygame_patches):
+    def test_joystick_manager_initialization(self, mock_pygame_patches, mocker):
         """Test JoystickEventManager initializes correctly."""
         from glitchygames.events.joystick import JoystickEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = JoystickEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_joystick_axis_motion_event")
         assert hasattr(manager, "on_joystick_button_down_event")
 
-    def test_joystick_manager_events(self, mock_pygame_patches):
+    def test_joystick_manager_events(self, mock_pygame_patches, mocker):
         """Test joystick event handling through manager."""
         from glitchygames.events.joystick import JoystickEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = JoystickEventManager(game=mock_game)
 
         # Test axis motion

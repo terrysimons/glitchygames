@@ -2,7 +2,6 @@
 """Integration tests for undo/redo workflows and edge cases."""
 
 import pytest
-from unittest.mock import Mock
 
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
 from glitchygames.tools.operation_history import (
@@ -12,17 +11,18 @@ from glitchygames.tools.operation_history import (
 
 class TestUndoRedoCallbacks:
     """Test undo/redo callback functionality."""
-    
-    def setup_method(self):
+
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         self.manager = UndoRedoManager()
-        self.mock_pixel_callback = Mock(return_value=True)
-        self.mock_add_frame_callback = Mock(return_value=True)
-        self.mock_delete_frame_callback = Mock(return_value=True)
-        self.mock_reorder_frame_callback = Mock(return_value=True)
-        self.mock_add_animation_callback = Mock(return_value=True)
-        self.mock_delete_animation_callback = Mock(return_value=True)
-        
+        self.mock_pixel_callback = mocker.Mock(return_value=True)
+        self.mock_add_frame_callback = mocker.Mock(return_value=True)
+        self.mock_delete_frame_callback = mocker.Mock(return_value=True)
+        self.mock_reorder_frame_callback = mocker.Mock(return_value=True)
+        self.mock_add_animation_callback = mocker.Mock(return_value=True)
+        self.mock_delete_animation_callback = mocker.Mock(return_value=True)
+
         self.manager.set_pixel_change_callback(self.mock_pixel_callback)
         self.manager.set_film_strip_callbacks(
             add_frame_callback=self.mock_add_frame_callback,
@@ -105,20 +105,20 @@ class TestIntegrationScenarios:
         self.canvas_tracker = CanvasOperationTracker(self.manager)
         self.film_tracker = FilmStripOperationTracker(self.manager)
     
-    def test_mixed_operations_undo_sequence(self):
+    def test_mixed_operations_undo_sequence(self, mocker):
         """Test undoing a sequence of mixed canvas and film strip operations."""
         # Set up callbacks
-        mock_pixel_callback = Mock(return_value=True)
-        mock_add_frame_callback = Mock(return_value=True)
-        mock_delete_frame_callback = Mock(return_value=True)
-        
+        mock_pixel_callback = mocker.Mock(return_value=True)
+        mock_add_frame_callback = mocker.Mock(return_value=True)
+        mock_delete_frame_callback = mocker.Mock(return_value=True)
+
         self.manager.set_pixel_change_callback(mock_pixel_callback)
         self.manager.set_film_strip_callbacks(
             add_frame_callback=mock_add_frame_callback,
             delete_frame_callback=mock_delete_frame_callback,
-            reorder_frame_callback=Mock(return_value=True),
-            add_animation_callback=Mock(return_value=True),
-            delete_animation_callback=Mock(return_value=True)
+            reorder_frame_callback=mocker.Mock(return_value=True),
+            add_animation_callback=mocker.Mock(return_value=True),
+            delete_animation_callback=mocker.Mock(return_value=True)
         )
         
         # Add canvas operation

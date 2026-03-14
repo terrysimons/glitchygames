@@ -15,7 +15,6 @@ as the core color management functionality is not exercised.
 import configparser
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from glitchygames.color.palette import ColorPalette, PaletteUtility
@@ -33,21 +32,21 @@ class TestColorPaletteCoverage:
         expected_size = 2  # len(colors) - 1
         assert palette._size == expected_size
 
-    def test_color_palette_initialization_with_filename(self):
+    def test_color_palette_initialization_with_filename(self, mocker):
         """Test ColorPalette initialization with filename."""
         mock_colors = [(255, 0, 0), (0, 255, 0)]
 
-        with patch.object(
+        mock_load = mocker.patch.object(
             PaletteUtility, "load_palette_from_file", return_value=mock_colors
-        ) as mock_load, \
-             patch("pathlib.Path.exists", return_value=True), \
-             patch("sys.argv", ["/fake/script.py"]):
+        )
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mocker.patch("sys.argv", ["/fake/script.py"])
 
-            palette = ColorPalette(colors=None, filename="test_palette")
+        palette = ColorPalette(colors=None, filename="test_palette")
 
-            mock_load.assert_called_once()
-            assert palette._colors == mock_colors
-            assert palette._size == 1
+        mock_load.assert_called_once()
+        assert palette._colors == mock_colors
+        assert palette._size == 1
 
     def test_color_palette_initialization_no_colors_no_filename(self):
         """Test ColorPalette initialization with no colors and no filename."""
@@ -56,15 +55,15 @@ class TestColorPaletteCoverage:
         assert palette._colors is None
         assert palette._size == 0
 
-    def test_color_palette_initialization_filename_not_found(self):
+    def test_color_palette_initialization_filename_not_found(self, mocker):
         """Test ColorPalette initialization when filename is not found."""
-        with patch("pathlib.Path.exists", return_value=False), \
-             patch("sys.argv", ["/fake/script.py"]):
+        mocker.patch("pathlib.Path.exists", return_value=False)
+        mocker.patch("sys.argv", ["/fake/script.py"])
 
-            palette = ColorPalette(colors=None, filename="nonexistent")
+        palette = ColorPalette(colors=None, filename="nonexistent")
 
-            assert palette._colors is None
-            assert palette._size == 0
+        assert palette._colors is None
+        assert palette._size == 0
 
     def test_get_color_valid_index(self):
         """Test get_color with valid index."""
@@ -219,50 +218,46 @@ alpha = 255
 class TestSystemPaletteCoverage:
     """Test coverage for System palette class."""
 
-    def test_system_palette_initialization(self):
+    def test_system_palette_initialization(self, mocker):
         """Test System palette initialization and color access."""
-        from unittest.mock import patch  # noqa: PLC0415
-
         from glitchygames.color.palette import ColorPalette, System  # noqa: PLC0415
 
         # Mock the parent class __init__ and get_color method to avoid the bug
-        with patch.object(ColorPalette, "__init__", return_value=None), \
-             patch.object(System, "get_color", return_value=(0, 0, 0)):
-            system_palette = System()
+        mocker.patch.object(ColorPalette, "__init__", return_value=None)
+        mocker.patch.object(System, "get_color", return_value=(0, 0, 0))
+        system_palette = System()
 
-            # Test that the palette was created successfully
-            assert system_palette is not None
+        # Test that the palette was created successfully
+        assert system_palette is not None
 
-            # Test that system colors are accessible (these are set in __init__)
-            assert hasattr(system_palette, "BLACK")
-            assert hasattr(system_palette, "WHITE")
-            assert hasattr(system_palette, "RED")
-            assert hasattr(system_palette, "GREEN")
-            assert hasattr(system_palette, "BLUE")
+        # Test that system colors are accessible (these are set in __init__)
+        assert hasattr(system_palette, "BLACK")
+        assert hasattr(system_palette, "WHITE")
+        assert hasattr(system_palette, "RED")
+        assert hasattr(system_palette, "GREEN")
+        assert hasattr(system_palette, "BLUE")
 
-            # Test that colors are tuples (RGB values)
-            assert isinstance(system_palette.BLACK, tuple)
-            assert isinstance(system_palette.WHITE, tuple)
-            rgb_tuple_length = 3
-            assert len(system_palette.BLACK) == rgb_tuple_length  # RGB tuple
-            assert len(system_palette.WHITE) == rgb_tuple_length  # RGB tuple
+        # Test that colors are tuples (RGB values)
+        assert isinstance(system_palette.BLACK, tuple)
+        assert isinstance(system_palette.WHITE, tuple)
+        rgb_tuple_length = 3
+        assert len(system_palette.BLACK) == rgb_tuple_length  # RGB tuple
+        assert len(system_palette.WHITE) == rgb_tuple_length  # RGB tuple
 
 
 class TestVgaPaletteCoverage:
     """Test coverage for Vga palette class."""
 
-    def test_vga_palette_initialization(self):
+    def test_vga_palette_initialization(self, mocker):
         """Test Vga palette initialization."""
-        from unittest.mock import patch  # noqa: PLC0415
-
         from glitchygames.color.palette import ColorPalette, Vga  # noqa: PLC0415
 
         # Mock the parent class __init__ to avoid the bug
-        with patch.object(ColorPalette, "__init__", return_value=None):
-            vga_palette = Vga()
+        mocker.patch.object(ColorPalette, "__init__", return_value=None)
+        vga_palette = Vga()
 
-            # Test that the palette was created successfully
-            assert vga_palette is not None
+        # Test that the palette was created successfully
+        assert vga_palette is not None
 
-            # Test that it's a ColorPalette instance
-            assert isinstance(vga_palette, ColorPalette)
+        # Test that it's a ColorPalette instance
+        assert isinstance(vga_palette, ColorPalette)

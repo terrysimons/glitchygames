@@ -5,22 +5,24 @@ This module provides stress tests and performance benchmarks for the
 multi-controller system under extreme conditions.
 """
 
-import pytest
-import time
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict
+from typing import Dict, List
 
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 
 class TestMultiControllerStress:
     """Stress tests for multi-controller system."""
-    
-    def setup_method(self):
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
+        self._mocker = mocker
         # Reset singleton for clean tests
         MultiControllerManager._instance = None
         MultiControllerManager._initialized = False
@@ -33,7 +35,7 @@ class TestMultiControllerStress:
         # Add maximum controllers
         for i in range(self.manager.MAX_CONTROLLERS):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = self._mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
@@ -69,7 +71,7 @@ class TestMultiControllerStress:
         # Set up controllers
         for i in range(4):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = self._mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
         
@@ -151,7 +153,7 @@ class TestMultiControllerStress:
         # Set up controllers
         for i in range(8):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = self._mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
@@ -196,7 +198,7 @@ class TestMultiControllerStress:
             # Add controllers
             for i in range(5):
                 instance_id = i + cycle * 5
-                self.manager.controllers[instance_id] = Mock()
+                self.manager.controllers[instance_id] = self._mocker.Mock()
                 self.manager.assigned_controllers[instance_id] = i
                 
                 self.visual_manager.add_controller_indicator(
@@ -231,7 +233,7 @@ class TestMultiControllerStress:
             # Add and remove controllers
             for i in range(3):
                 instance_id = i + cycle * 3
-                self.manager.controllers[instance_id] = Mock()
+                self.manager.controllers[instance_id] = self._mocker.Mock()
                 self.manager.assigned_controllers[instance_id] = i
                 
                 self.visual_manager.add_controller_indicator(
@@ -263,7 +265,7 @@ class TestMultiControllerStress:
         start_time = time.time()
         for i in range(1000):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = self._mocker.Mock()
             controller_id = self.manager.assign_controller(instance_id)
         assignment_time = time.time()
         
@@ -327,7 +329,7 @@ class TestMultiControllerStress:
         # Set up controllers
         for i in range(10):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = self._mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()

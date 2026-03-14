@@ -5,7 +5,6 @@ with the universal character set, using TOML format only.
 """
 
 import tempfile
-import unittest
 from pathlib import Path
 
 import pygame
@@ -16,24 +15,21 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
 
 
-class TestAnimatedSpriteGlyphs(unittest.TestCase):
+class TestAnimatedSpriteGlyphs:
     """Test animated sprite universal character set implementation."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_animated_sprite_toml_save_load(self):
         """Test animated sprite TOML save and load with universal character set."""
@@ -84,8 +80,8 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         assert '[colors."a"]' in content
         assert '[colors."A"]' in content
         assert '[colors."b"]' in content
-        # Check for block character (█) used for transparency key (255, 0, 255)
-        assert '[colors."█"]' in content
+        # Check for block character used for transparency key (255, 0, 255)
+        assert '[colors."\u2588"]' in content
         assert "red =" in content
         assert "green =" in content
         assert "blue =" in content
@@ -337,7 +333,3 @@ class TestAnimatedSpriteGlyphs(unittest.TestCase):
         toml_file = self.temp_path / "test_animated_limit.toml"
         with pytest.raises(ValueError, match="Too many colors"):
             animated_sprite.save(str(toml_file), "toml")
-
-
-if __name__ == "__main__":
-    unittest.main()

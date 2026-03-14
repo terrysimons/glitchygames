@@ -2,7 +2,6 @@
 """Tests for canvas operation tracking."""
 
 import pytest
-from unittest.mock import Mock
 
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
 from glitchygames.tools.operation_history import (

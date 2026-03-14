@@ -1,7 +1,6 @@
 """Tests for renderer service."""
 
 import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 from glitchygames.services.config import ServiceConfig
@@ -105,15 +104,15 @@ green = 0
 blue = 0
 """
 
-    def test_initialization(self):
+    def test_initialization(self, mocker):
         """Test renderer service initialization."""
         # Reset the class variable for testing
         RendererService._pygame_initialized = False
 
         # Set headless environment variables
-        with patch.dict(os.environ, {"SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"}):
-            service = RendererService()
-            assert RendererService._pygame_initialized is True
+        mocker.patch.dict(os.environ, {"SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
+        service = RendererService()
+        assert RendererService._pygame_initialized is True
 
     def test_render_from_toml_static(self, sample_static_toml):
         """Test rendering a static sprite from TOML."""

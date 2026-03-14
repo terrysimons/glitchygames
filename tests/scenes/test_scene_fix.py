@@ -2,22 +2,17 @@
 """Quick test to verify the Scene fix works."""
 
 import pytest
+
 from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestSceneFix:
     """Test that Scene can access SceneManager methods."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures using centralized mocks."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_scene_has_collision_methods(self):
         """Test that Scene has collision detection and sprite management methods."""

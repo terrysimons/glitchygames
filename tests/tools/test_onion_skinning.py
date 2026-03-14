@@ -3,7 +3,6 @@
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch
 
 from glitchygames.tools.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 

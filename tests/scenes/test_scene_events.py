@@ -10,8 +10,6 @@ This module tests scene event handling including:
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -39,9 +37,9 @@ class TestSceneEvents:
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
 
-    def _create_mock_args(self):
+    def _create_mock_args(self, mocker):
         """Create mock command line arguments."""
-        mock_args = Mock()
+        mock_args = mocker.Mock()
         mock_args.fps = 60
         mock_args.resolution = "800x600"
         mock_args.windowed = True
@@ -66,12 +64,12 @@ class TestSceneEvents:
         # Reset singleton state for clean test
         SceneManager._reset()
 
-    def test_scene_event_handling(self):
+    def test_scene_event_handling(self, mocker):
         """Test basic scene event handling."""
         scene = Scene()
 
         # Create a mock event
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.type = "test_event"
 
         # Test that scene can handle events (Scene inherits from AllEventStubs)
@@ -90,7 +88,7 @@ class TestSceneEvents:
         assert hasattr(scene, "on_fps_event")
         assert hasattr(scene, "on_game_event")
 
-    def test_scene_event_routing(self):
+    def test_scene_event_routing(self, mocker):
         """Test scene event routing."""
         manager = self.scene_manager
         scene1 = Scene()
@@ -100,7 +98,7 @@ class TestSceneEvents:
         assert manager.active_scene == scene1
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.type = "test_event"
 
         # Test that manager can handle events
@@ -159,7 +157,7 @@ class TestSceneEvents:
         assert hasattr(scene1, "on_quit_event")
         assert hasattr(scene2, "on_quit_event")
 
-    def test_scene_event_handling_with_custom_handlers(self):
+    def test_scene_event_handling_with_custom_handlers(self, mocker):
         """Test scene event handling with custom handlers."""
         class CustomScene(Scene):
             def __init__(self):
@@ -177,7 +175,7 @@ class TestSceneEvents:
         assert hasattr(scene, "on_game_event")
 
         # Test custom event handling
-        custom_event = Mock()
+        custom_event = mocker.Mock()
         scene.handle_custom_event(custom_event)
         assert len(scene.custom_events_handled) == 1
         assert scene.custom_events_handled[0] == custom_event

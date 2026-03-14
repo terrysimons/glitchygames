@@ -7,7 +7,6 @@ system, ensuring that controller movements and mode changes can be undone and re
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch, MagicMock
 from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
 from glitchygames.tools.operation_history import ControllerPositionOperationTracker
 from glitchygames.tools.controller_mode_system import ControllerMode
@@ -17,34 +16,34 @@ class TestControllerPositionUndoRedo:
     """Test controller position undo/redo functionality."""
     
     @pytest.fixture
-    def mock_scene(self):
+    def mock_scene(self, mocker):
         """Create a mock BitmapEditorScene for testing."""
-        scene = Mock()
+        scene = mocker.Mock()
         scene.undo_redo_manager = UndoRedoManager()
         scene.controller_position_operation_tracker = ControllerPositionOperationTracker(scene.undo_redo_manager)
-        
+
         # Mock the undo/redo methods
-        scene._handle_undo = Mock()
-        scene._handle_redo = Mock()
-        
+        scene._handle_undo = mocker.Mock()
+        scene._handle_redo = mocker.Mock()
+
         # Mock the controller position callback
-        scene._apply_controller_position_for_undo_redo = Mock(return_value=True)
-        scene._apply_controller_mode_for_undo_redo = Mock(return_value=True)
-        
+        scene._apply_controller_position_for_undo_redo = mocker.Mock(return_value=True)
+        scene._apply_controller_mode_for_undo_redo = mocker.Mock(return_value=True)
+
         # Set up callbacks
         scene.undo_redo_manager.set_controller_position_callback(scene._apply_controller_position_for_undo_redo)
         scene.undo_redo_manager.set_controller_mode_callback(scene._apply_controller_mode_for_undo_redo)
-        
+
         # Mock mode switcher
-        scene.mode_switcher = Mock()
-        scene.mode_switcher.get_controller_mode = Mock(return_value=ControllerMode.CANVAS)
-        scene.mode_switcher.save_controller_position = Mock()
-        scene.mode_switcher.get_controller_position = Mock(return_value=Mock(position=(5, 5)))
-        
+        scene.mode_switcher = mocker.Mock()
+        scene.mode_switcher.get_controller_mode = mocker.Mock(return_value=ControllerMode.CANVAS)
+        scene.mode_switcher.save_controller_position = mocker.Mock()
+        scene.mode_switcher.get_controller_position = mocker.Mock(return_value=mocker.Mock(position=(5, 5)))
+
         # Mock visual indicator update
-        scene._update_controller_canvas_visual_indicator = Mock()
-        scene._update_controller_visual_indicator_for_mode = Mock()
-        
+        scene._update_controller_canvas_visual_indicator = mocker.Mock()
+        scene._update_controller_visual_indicator_for_mode = mocker.Mock()
+
         return scene
     
     def test_controller_position_change_tracking(self, mock_scene):

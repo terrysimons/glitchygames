@@ -8,7 +8,6 @@ visual properties and collision handling.
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch
 
 from glitchygames.tools.visual_collision_manager import (
     VisualCollisionManager, LocationType, IndicatorShape, VisualIndicator

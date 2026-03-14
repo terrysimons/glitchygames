@@ -9,7 +9,6 @@ and integration with the bitmappy tool.
 import pytest
 import pygame
 import time
-from unittest.mock import Mock, patch, MagicMock
 from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager, VisualIndicator, IndicatorShape
@@ -39,20 +38,18 @@ class TestMultiControllerManager:
         ]
         assert self.manager.CONTROLLER_COLORS == expected_colors
     
-    @patch('pygame.joystick.get_count')
-    @patch('pygame.joystick.Joystick')
-    def test_scan_for_controllers(self, mock_joystick_class, mock_get_count):
+    def test_scan_for_controllers(self, mocker):
         """Test controller scanning."""
         # Mock pygame joystick
-        mock_joystick = Mock()
+        mock_joystick = mocker.Mock()
         mock_joystick.get_init.return_value = True
         mock_joystick.get_instance_id.return_value = 0
-        mock_joystick_class.return_value = mock_joystick
-        mock_get_count.return_value = 1
-        
+        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
+        mocker.patch('pygame.joystick.get_count', return_value=1)
+
         # Test scanning
         connected_ids = self.manager.scan_for_controllers()
-        
+
         assert len(connected_ids) == 1
         assert 0 in connected_ids
         assert 0 in self.manager.controllers

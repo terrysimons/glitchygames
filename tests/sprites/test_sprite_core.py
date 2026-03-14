@@ -2,9 +2,9 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pygame
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -29,15 +29,9 @@ SPRITE_DT = 0.016
 class TestRootSprite:
     """Test RootSprite class functionality."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_root_sprite_initialization_with_groups(self):
         """Test RootSprite initialization with groups."""
@@ -64,15 +58,9 @@ class TestRootSprite:
 class TestSpriteInitialization:
     """Test Sprite initialization and basic functionality."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_initialization_with_all_parameters(self):
         """Test Sprite initialization with all parameters."""
@@ -96,22 +84,22 @@ class TestSpriteInitialization:
         # When no name is provided, it defaults to the class type
         assert sprite.name is type(sprite)
 
-    def test_sprite_initialization_with_zero_dimensions(self):
+    def test_sprite_initialization_with_zero_dimensions(self, mocker):
         """Test Sprite initialization with zero dimensions."""
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(Sprite, "log") as mock_log:
-            sprite = Sprite(x=0, y=0, width=0, height=0)
+        mock_log = mocker.patch.object(Sprite, "log")
+        sprite = Sprite(x=0, y=0, width=0, height=0)
 
-            assert sprite.width == 0
-            assert sprite.height == 0
+        assert sprite.width == 0
+        assert sprite.height == 0
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "has 0 Width" in first_call
-            assert "has 0 Height" in second_call
+        # Verify the ERROR log messages were called
+        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.error.call_args_list[0][0][0]
+        second_call = mock_log.error.call_args_list[1][0][0]
+        assert "has 0 Width" in first_call
+        assert "has 0 Height" in second_call
 
     def test_sprite_breakpoints_enabled_empty_list(self):
         """Test sprite breakpoints with empty list."""
@@ -146,15 +134,9 @@ class TestSpriteInitialization:
 class TestSpriteProperties:
     """Test Sprite properties and methods."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_width_property_getter(self):
         """Test width property getter."""

@@ -8,7 +8,6 @@ including canvas indicators, multi-location support, and collision avoidance.
 import pytest
 import pygame
 import time
-from unittest.mock import Mock, patch, MagicMock
 
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.visual_collision_manager import (
@@ -21,29 +20,30 @@ from glitchygames.tools.visual_collision_manager import (
 
 class TestCanvasVisualIndicators:
     """Test canvas visual indicators for Plan C."""
-    
-    def setup_method(self):
+
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         pygame.init()
         self.visual_manager = VisualCollisionManager()
         self.mode_switcher = ModeSwitcher()
         self.controller_id = 0
         self.instance_id = 0
-        
+
         # Mock scene with visual indicators
-        self.mock_scene = Mock()
+        self.mock_scene = mocker.Mock()
         self.mock_scene.visual_collision_manager = self.visual_manager
         self.mock_scene.mode_switcher = self.mode_switcher
         self.mock_scene.controller_selections = {}
-        self.mock_scene.multi_controller_manager = Mock()
-        
+        self.mock_scene.multi_controller_manager = mocker.Mock()
+
         # Mock controller info
-        self.mock_controller_info = Mock()
+        self.mock_controller_info = mocker.Mock()
         self.mock_controller_info.color = (255, 0, 0)
         self.mock_scene.multi_controller_manager.get_controller_info.return_value = self.mock_controller_info
-        
+
         # Mock canvas sprite
-        self.mock_canvas_sprite = Mock()
+        self.mock_canvas_sprite = mocker.Mock()
         self.mock_canvas_sprite.pixels_across = 32
         self.mock_canvas_sprite.pixels_tall = 32
         self.mock_canvas_sprite.pixel_width = 8

@@ -2,9 +2,8 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
-
 import pygame
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -17,18 +16,15 @@ from tests.mocks.test_mock_factory import MockFactory
 class TestSpriteEventHandlers:
     """Test Sprite event handlers."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_joystick_event_handlers(self):
         """Test joystick event handlers."""
@@ -65,10 +61,10 @@ class TestSpriteEventHandlers:
         event = pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=(5, 5))
         sprite.on_mouse_button_up_event(event)
 
-    def test_mouse_button_event_handlers_with_callbacks(self):
+    def test_mouse_button_event_handlers_with_callbacks(self, mocker):
         """Test mouse button event handlers with callbacks."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        callback = Mock()
+        callback = mocker.Mock()
         sprite.on_mouse_button_down_event = callback
 
         event = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(5, 5))

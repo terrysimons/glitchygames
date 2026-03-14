@@ -2,8 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -22,19 +20,15 @@ original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sp
 class TestSpriteFactory:
     """Test SpriteFactory functionality."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
-
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_get_default_sprite_path(self):
         """Test getting default sprite path."""
@@ -76,52 +70,52 @@ class TestSpriteFactory:
         sprite_type = SpriteFactory._determine_type(analysis)
         assert sprite_type == "error"
 
-    def test_save_sprite_animated(self):
+    def test_save_sprite_animated(self, mocker):
         """Test saving animated sprite."""
-        mock_sprite = Mock()
+        mock_sprite = mocker.Mock()
         mock_sprite.animations = {}  # Make it look like an AnimatedSprite
 
-        with patch("glitchygames.sprites.SpriteFactory._save_animated_sprite") as mock_save:
-            SpriteFactory.save_sprite(sprite=mock_sprite, filename="test.toml", file_format="toml")
-            mock_save.assert_called_once()
+        mock_save = mocker.patch("glitchygames.sprites.SpriteFactory._save_animated_sprite")
+        SpriteFactory.save_sprite(sprite=mock_sprite, filename="test.toml", file_format="toml")
+        mock_save.assert_called_once()
 
-    def test_save_sprite_static(self):
+    def test_save_sprite_static(self, mocker):
         """Test saving static sprite."""
-        mock_sprite = Mock()
+        mock_sprite = mocker.Mock()
         # Explicitly remove animations attribute to make it look like a BitmappySprite
         # hasattr(mock_sprite, 'animations') should return False
         del mock_sprite.animations  # Remove the default animations attribute
-        mock_sprite._save = Mock()  # Add _save method to mock
+        mock_sprite._save = mocker.Mock()  # Add _save method to mock
 
-        with patch("glitchygames.sprites.SpriteFactory._save_static_sprite") as mock_save:
-            SpriteFactory.save_sprite(sprite=mock_sprite, filename="test.toml", file_format="toml")
-            mock_save.assert_called_once_with(mock_sprite, "test.toml", "toml")
+        mock_save = mocker.patch("glitchygames.sprites.SpriteFactory._save_static_sprite")
+        SpriteFactory.save_sprite(sprite=mock_sprite, filename="test.toml", file_format="toml")
+        mock_save.assert_called_once_with(mock_sprite, "test.toml", "toml")
 
-    def test_save_static_sprite(self):
+    def test_save_static_sprite(self, mocker):
         """Test saving static sprite directly."""
-        mock_sprite = Mock()
+        mock_sprite = mocker.Mock()
 
-        with patch("glitchygames.sprites.SpriteFactory._save_static_sprite") as mock_save:
-            SpriteFactory._save_static_sprite(mock_sprite, "test.toml", "toml")
-            mock_save.assert_called_once()
+        mock_save = mocker.patch("glitchygames.sprites.SpriteFactory._save_static_sprite")
+        SpriteFactory._save_static_sprite(mock_sprite, "test.toml", "toml")
+        mock_save.assert_called_once()
 
-    def test_save_animated_sprite(self):
+    def test_save_animated_sprite(self, mocker):
         """Test saving animated sprite directly."""
-        mock_sprite = Mock()
+        mock_sprite = mocker.Mock()
 
-        with patch("glitchygames.sprites.SpriteFactory._save_animated_sprite") as mock_save:
-            SpriteFactory._save_animated_sprite(mock_sprite, "test.toml", "toml")
-            mock_save.assert_called_once()
+        mock_save = mocker.patch("glitchygames.sprites.SpriteFactory._save_animated_sprite")
+        SpriteFactory._save_animated_sprite(mock_sprite, "test.toml", "toml")
+        mock_save.assert_called_once()
 
     def test_analyze_file_with_nonexistent_file(self):
         """Test analyzing nonexistent file."""
         with pytest.raises(FileNotFoundError):
             SpriteFactory._analyze_file("nonexistent.toml")
 
-    def test_analyze_toml_file_animation(self):
+    def test_analyze_toml_file_animation(self, mocker):
         """Test analyzing TOML file with animation."""
-        with patch("pathlib.Path.open") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open = mocker.patch("pathlib.Path.open")
+        mock_open.return_value.__enter__.return_value.read.return_value = """
             [sprite]
             pixels = [1, 2, 3]
 
@@ -129,32 +123,32 @@ class TestSpriteFactory:
             frames = [1, 2, 3]
             """
 
-            result = SpriteFactory._get_toml_data("test.toml")
-            assert "sprite" in result
-            assert "animations" in result
+        result = SpriteFactory._get_toml_data("test.toml")
+        assert "sprite" in result
+        assert "animations" in result
 
-    def test_analyze_toml_file_basic(self):
+    def test_analyze_toml_file_basic(self, mocker):
         """Test analyzing basic TOML file."""
-        with patch("pathlib.Path.open") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open = mocker.patch("pathlib.Path.open")
+        mock_open.return_value.__enter__.return_value.read.return_value = """
             [sprite]
             pixels = [1, 2, 3]
             """
 
-            result = SpriteFactory._get_toml_data("test.toml")
-            assert "sprite" in result
-            assert "animations" not in result
+        result = SpriteFactory._get_toml_data("test.toml")
+        assert "sprite" in result
+        assert "animations" not in result
 
-    def test_analyze_toml_file_empty_pixels(self):
+    def test_analyze_toml_file_empty_pixels(self, mocker):
         """Test analyzing TOML file with empty pixels."""
-        with patch("pathlib.Path.open") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open = mocker.patch("pathlib.Path.open")
+        mock_open.return_value.__enter__.return_value.read.return_value = """
             [sprite]
             pixels = []
             """
 
-            result = SpriteFactory._get_toml_data("test.toml")
-            assert "sprite" in result
+        result = SpriteFactory._get_toml_data("test.toml")
+        assert "sprite" in result
 
     def test_detect_file_format_default(self):
         """Test detecting default file format."""
@@ -166,42 +160,41 @@ class TestSpriteFactory:
         format_type = SpriteFactory._detect_file_format("test.unknown")
         assert format_type == "unknown"
 
-    def test_load_sprite_invalid_file(self):
+    def test_load_sprite_invalid_file(self, mocker):
         """Test loading sprite from invalid file."""
         # Temporarily disable the centralized mock for this test by patching with the original method
-        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
-            with pytest.raises(FileNotFoundError):
-                SpriteFactory.load_sprite(filename="nonexistent.toml")
+        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        with pytest.raises(FileNotFoundError):
+            SpriteFactory.load_sprite(filename="nonexistent.toml")
 
-    def test_load_sprite_mixed_content(self):
+    def test_load_sprite_mixed_content(self, mocker):
         """Test loading sprite with mixed content."""
-        with patch("glitchygames.sprites.SpriteFactory._analyze_file") as mock_analyze:
-            mock_analyze.return_value = {
-                "has_sprite_pixels": True,
-                "has_animation_sections": True,
-                "has_frame_sections": False
-            }
+        mocker.patch("glitchygames.sprites.SpriteFactory._analyze_file", return_value={
+            "has_sprite_pixels": True,
+            "has_animation_sections": True,
+            "has_frame_sections": False
+        })
 
-            # Temporarily disable the centralized mock for this test by patching with the original method
-            with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
-                with pytest.raises(ValueError, match="Invalid sprite file"):
-                    SpriteFactory.load_sprite(filename="mixed.toml")
+        # Temporarily disable the centralized mock for this test by patching with the original method
+        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        with pytest.raises(ValueError, match="Invalid sprite file"):
+            SpriteFactory.load_sprite(filename="mixed.toml")
 
-    def test_sprite_factory_load_sprite_invalid_file(self):
+    def test_sprite_factory_load_sprite_invalid_file(self, mocker):
         """Test SpriteFactory load_sprite with invalid file."""
         # Temporarily disable the centralized mock for this test by patching with the original method
-        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
-            with pytest.raises(FileNotFoundError):
-                SpriteFactory.load_sprite(filename="nonexistent.toml")
+        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        with pytest.raises(FileNotFoundError):
+            SpriteFactory.load_sprite(filename="nonexistent.toml")
 
-    def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self):
+    def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self, mocker):
         """Test analyzing TOML file with sprite pixels."""
-        with patch("pathlib.Path.open") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open = mocker.patch("pathlib.Path.open")
+        mock_open.return_value.__enter__.return_value.read.return_value = """
             [sprite]
             pixels = [1, 2, 3, 4, 5, 6]
             """
 
-            result = SpriteFactory._get_toml_data("test.toml")
-            assert "sprite" in result
-            assert result["sprite"]["pixels"] == [1, 2, 3, 4, 5, 6]
+        result = SpriteFactory._get_toml_data("test.toml")
+        assert "sprite" in result
+        assert result["sprite"]["pixels"] == [1, 2, 3, 4, 5, 6]

@@ -5,8 +5,6 @@ This module tests controller event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -41,7 +39,7 @@ class TestControllerEvents:
         assert hasattr(ControllerEvents, "on_controller_touchpad_motion_event")
         assert hasattr(ControllerEvents, "on_controller_touchpad_up_event")
 
-    def test_controller_event_stubs_implementation(self, mock_pygame_patches):
+    def test_controller_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test ControllerEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = ControllerEventStubs()
@@ -56,9 +54,9 @@ class TestControllerEvents:
         event = HashableEvent(pygame.CONTROLLERAXISMOTION, axis=0, value=0.5)
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                stub.on_controller_axis_motion_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_axis_motion_event(event)
 
     def test_controller_axis_motion_event(self, mock_pygame_patches):
         """Test controller axis motion event handling."""
@@ -358,7 +356,7 @@ class TestControllerEventFlow:
         assert scene.controller_events_received[0].axis == 0
         assert scene.controller_events_received[0].value == 0.5
 
-    def test_controller_event_falls_back_to_stubs(self, mock_pygame_patches):
+    def test_controller_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
         """Test that unhandled controller events fall back to stubs and cause UnhandledEventError."""
         # Use centralized mock for scene without event handlers
         scene = MockFactory.create_event_test_scene_mock(
@@ -370,26 +368,26 @@ class TestControllerEventFlow:
 
         # This should cause UnhandledEventError due to unhandled_event
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                scene.on_controller_axis_motion_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            scene.on_controller_axis_motion_event(event)
 
-    def test_controller_manager_initialization(self, mock_pygame_patches):
+    def test_controller_manager_initialization(self, mock_pygame_patches, mocker):
         """Test ControllerEventManager initializes correctly."""
         from glitchygames.events.controller import ControllerEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = ControllerEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_controller_axis_motion_event")
         assert hasattr(manager, "on_controller_button_down_event")
 
-    def test_controller_manager_directly(self, mock_pygame_patches):
+    def test_controller_manager_directly(self, mock_pygame_patches, mocker):
         """Test ControllerEventManager in isolation."""
         from glitchygames.events.controller import ControllerEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = ControllerEventManager(game=mock_game)
 
         # Test that manager has the required methods
@@ -398,7 +396,7 @@ class TestControllerEventFlow:
         assert hasattr(manager, "on_controller_button_up_event")
 
         # Add a mock controller to the manager's controllers dictionary
-        mock_controller = Mock()
+        mock_controller = mocker.Mock()
         manager.controllers[0] = mock_controller
 
         # Test axis motion event

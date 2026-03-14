@@ -3,7 +3,6 @@
 
 import pytest
 import pygame
-from unittest.mock import Mock, MagicMock
 import time
 
 from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
@@ -14,49 +13,49 @@ class TestControllerDragContinuousMovement:
     """Test that controller drag operations work properly with continuous movement."""
     
     @pytest.fixture
-    def mock_scene(self):
+    def mock_scene(self, mocker):
         """Create a mock scene with undo/redo functionality."""
-        scene = Mock()
-        
+        scene = mocker.Mock()
+
         # Set up undo/redo manager
         scene.undo_redo_manager = UndoRedoManager()
         scene.canvas_operation_tracker = CanvasOperationTracker(scene.undo_redo_manager)
         scene.film_strip_operation_tracker = FilmStripOperationTracker(scene.undo_redo_manager)
-        
+
         # Set up pixel change tracking
         scene._current_pixel_changes = []
         scene._applying_undo_redo = False
-        
+
         # Set up controller drag tracking
         scene.controller_drags = {}
-        
+
         # Set up continuous movement tracking
         scene.canvas_continuous_movements = {}
-        
+
         # Mock canvas interface
-        scene.canvas = Mock()
-        scene.canvas.canvas_interface = Mock()
-        scene.canvas.canvas_interface.get_pixel_at = Mock(return_value=(0, 0, 0))  # Default black
-        scene.canvas.canvas_interface.set_pixel_at = Mock()
-        
+        scene.canvas = mocker.Mock()
+        scene.canvas.canvas_interface = mocker.Mock()
+        scene.canvas.canvas_interface.get_pixel_at = mocker.Mock(return_value=(0, 0, 0))  # Default black
+        scene.canvas.canvas_interface.set_pixel_at = mocker.Mock()
+
         # Mock mode switcher
-        scene.mode_switcher = Mock()
-        scene.mode_switcher.get_controller_mode = Mock(return_value=Mock(value='canvas'))
-        scene.mode_switcher.get_controller_position = Mock(return_value=Mock(
+        scene.mode_switcher = mocker.Mock()
+        scene.mode_switcher.get_controller_mode = mocker.Mock(return_value=mocker.Mock(value='canvas'))
+        scene.mode_switcher.get_controller_position = mocker.Mock(return_value=mocker.Mock(
             is_valid=True,
             position=(5, 5)
         ))
-        
+
         # Mock color getter
-        scene._get_current_color = Mock(return_value=(255, 0, 0))  # Red
-        
+        scene._get_current_color = mocker.Mock(return_value=(255, 0, 0))  # Red
+
         # Mock canvas move cursor method
-        scene._canvas_move_cursor = Mock()
-        scene._canvas_paint_at_controller_position = Mock()
-        
+        scene._canvas_move_cursor = mocker.Mock()
+        scene._canvas_paint_at_controller_position = mocker.Mock()
+
         return scene
     
-    def test_controller_drag_with_continuous_movement(self, mock_scene):
+    def test_controller_drag_with_continuous_movement(self, mock_scene, mocker):
         """Test that controller drag operations paint during continuous movement."""
         controller_id = 0
         
@@ -88,8 +87,8 @@ class TestControllerDragContinuousMovement:
             if position_index < len(positions):
                 pos = positions[position_index]
                 position_index += 1
-                return Mock(is_valid=True, position=pos)
-            return Mock(is_valid=True, position=(8, 5))
+                return mocker.Mock(is_valid=True, position=pos)
+            return mocker.Mock(is_valid=True, position=(8, 5))
         
         mock_scene.mode_switcher.get_controller_position = mock_get_controller_position
         

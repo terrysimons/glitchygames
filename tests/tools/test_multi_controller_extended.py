@@ -8,7 +8,6 @@ performance scenarios, and integration scenarios for the multi-controller system
 import pytest
 import time
 import pygame
-from unittest.mock import Mock, patch
 from typing import Dict, List
 
 from glitchygames.tools.multi_controller_manager import (

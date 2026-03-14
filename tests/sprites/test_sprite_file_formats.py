@@ -5,9 +5,7 @@ and properly rejects YAML/INI formats after the cleanup.
 """
 
 import tempfile
-import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import pygame
 import pytest
@@ -24,24 +22,21 @@ original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sp
 EXPECTED_ERROR_COUNT_2 = 2
 
 
-class TestTOMLOnlySupport(unittest.TestCase):
+class TestTOMLOnlySupport:
     """Test that only TOML format is supported after cleanup."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def test_file_format_detection_toml_only():
@@ -62,7 +57,7 @@ class TestTOMLOnlySupport(unittest.TestCase):
         unknown_format = SpriteFactory._detect_file_format("test.unknown")
         assert unknown_format == "unknown"
 
-    def test_static_sprite_toml_save_load(self):
+    def test_static_sprite_toml_save_load(self, mocker):
         """Test that static sprites can save and load in TOML format."""
         # Create a test sprite
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="test_toml")
@@ -86,14 +81,14 @@ class TestTOMLOnlySupport(unittest.TestCase):
 
         # Load it back
         # Temporarily disable the centralized mock for this test by patching with the original method
-        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
-            loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
-            assert loaded_sprite.name == "test_toml"
-            # Check that the sprite was loaded correctly
-            assert hasattr(loaded_sprite, "image")
-            assert loaded_sprite.image.get_size() == (2, 2)
+        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
+        assert loaded_sprite.name == "test_toml"
+        # Check that the sprite was loaded correctly
+        assert hasattr(loaded_sprite, "image")
+        assert loaded_sprite.image.get_size() == (2, 2)
 
-    def test_animated_sprite_toml_save_load(self):
+    def test_animated_sprite_toml_save_load(self, mocker):
         """Test that animated sprites can save and load in TOML format."""
         # Create an animated sprite
         animated_sprite = AnimatedSprite()
@@ -125,12 +120,12 @@ class TestTOMLOnlySupport(unittest.TestCase):
 
         # Load it back
         # Temporarily disable the centralized mock for this test by patching with the original method
-        with patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite):
-            loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
-            assert loaded_sprite.name == "test_animated_toml"
-            assert "test_anim" in loaded_sprite.animations
+        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
+        assert loaded_sprite.name == "test_animated_toml"
+        assert "test_anim" in loaded_sprite.animations
 
-    def test_yaml_format_rejected(self):
+    def test_yaml_format_rejected(self, mocker):
         """Test that YAML format is properly rejected."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="test")
         sprite.pixels = [(255, 0, 0)] * 4
@@ -140,20 +135,20 @@ class TestTOMLOnlySupport(unittest.TestCase):
         yaml_file = self.temp_path / "test.yaml"
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            # Should raise error when trying to save as YAML
-            with pytest.raises(ValueError, match="Unsupported format"):
-                sprite.save(str(yaml_file), "yaml")
+        mock_log = mocker.patch.object(sprite, "log")
+        # Should raise error when trying to save as YAML
+        with pytest.raises(ValueError, match="Unsupported format"):
+            sprite.save(str(yaml_file), "yaml")
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "Error in deflate" in first_call
-            assert "Error in save" in second_call
+        # Verify the ERROR log messages were called
+        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.error.call_args_list[0][0][0]
+        second_call = mock_log.error.call_args_list[1][0][0]
+        assert "Error in deflate" in first_call
+        assert "Error in save" in second_call
 
-    def test_ini_format_rejected(self):
+    def test_ini_format_rejected(self, mocker):
         """Test that INI format is properly rejected."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="test")
         sprite.pixels = [(255, 0, 0)] * 4
@@ -163,18 +158,18 @@ class TestTOMLOnlySupport(unittest.TestCase):
         ini_file = self.temp_path / "test.ini"
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            # Should raise error when trying to save as INI
-            with pytest.raises(ValueError, match="Unsupported format"):
-                sprite.save(str(ini_file), "ini")
+        mock_log = mocker.patch.object(sprite, "log")
+        # Should raise error when trying to save as INI
+        with pytest.raises(ValueError, match="Unsupported format"):
+            sprite.save(str(ini_file), "ini")
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "Error in deflate" in first_call
-            assert "Error in save" in second_call
+        # Verify the ERROR log messages were called
+        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.error.call_args_list[0][0][0]
+        second_call = mock_log.error.call_args_list[1][0][0]
+        assert "Error in deflate" in first_call
+        assert "Error in save" in second_call
 
     def test_animated_sprite_yaml_rejected(self):
         """Test that animated sprites reject YAML format."""
@@ -220,7 +215,7 @@ class TestTOMLOnlySupport(unittest.TestCase):
         assert toml_file.exists()
 
     @staticmethod
-    def test_unsupported_format_error_message():
+    def test_unsupported_format_error_message(mocker):
         """Test that unsupported format error messages are clear."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name="test")
         sprite.pixels = [(255, 0, 0)] * 4
@@ -228,19 +223,15 @@ class TestTOMLOnlySupport(unittest.TestCase):
         sprite.pixels_tall = 2
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            # Test error message for unsupported format
-            with pytest.raises(ValueError, match="Unsupported format"):
-                sprite.save("test.json", "json")
+        mock_log = mocker.patch.object(sprite, "log")
+        # Test error message for unsupported format
+        with pytest.raises(ValueError, match="Unsupported format"):
+            sprite.save("test.json", "json")
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "Error in deflate" in first_call
-            assert "Error in save" in second_call
-
-
-if __name__ == "__main__":
-    unittest.main()
+        # Verify the ERROR log messages were called
+        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.error.call_args_list[0][0][0]
+        second_call = mock_log.error.call_args_list[1][0][0]
+        assert "Error in deflate" in first_call
+        assert "Error in save" in second_call

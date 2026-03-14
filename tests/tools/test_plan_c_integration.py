@@ -10,7 +10,6 @@ This module tests the complete Plan C workflow including:
 
 import pytest
 import time
-from unittest.mock import Mock, patch
 
 from glitchygames.tools.controller_mode_system import (
     ControllerMode, ModeSwitcher, TriggerDetector
@@ -25,14 +24,15 @@ from glitchygames.tools.controller_selection import ControllerSelection
 class TestPlanCIntegration:
     """Integration tests for Plan C collaborative editing system."""
     
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         self.mode_switcher = ModeSwitcher()
         self.visual_manager = VisualCollisionManager()
         self.multi_controller_manager = MultiControllerManager()
-        
+
         # Mock pygame for testing
-        self.mock_pygame = Mock()
+        self.mock_pygame = mocker.Mock()
         self.mock_pygame.CONTROLLER_AXIS_TRIGGERLEFT = 4
         self.mock_pygame.CONTROLLER_AXIS_TRIGGERRIGHT = 5
         self.mock_pygame.CONTROLLER_BUTTON_A = 0

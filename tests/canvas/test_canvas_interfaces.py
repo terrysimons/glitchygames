@@ -11,10 +11,10 @@ Tests cover:
 """
 
 import sys
-import unittest
 from pathlib import Path
 
 import pygame
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
@@ -37,15 +37,14 @@ SMALL_CANVAS_SIZE = 4
 SMALL_CANVAS_PIXEL_COUNT = 16  # 4x4 = 16 pixels
 
 
-class TestAnimatedCanvasInterfaces(unittest.TestCase):
+class TestAnimatedCanvasInterfaces:
     """Test suite for animated canvas interface functionality."""
 
-    def setUp(self):
-        """Set up test fixtures before each test method."""
-        # Set up centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up test fixtures using centralized mocks."""
+        self._mocker = mocker
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -73,10 +72,6 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
             pixel_width=16,
             pixel_height=16,
         )
-
-    def tearDown(self):
-        """Clean up after each test method."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_animated_canvas_interface_creation(self):
         """Test that animated canvas interface is created correctly."""
@@ -182,15 +177,14 @@ class TestAnimatedCanvasInterfaces(unittest.TestCase):
         assert surface.get_size() == (128, 128)
 
 
-class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
+class TestAnimatedCanvasInterfaceEdgeCases:
     """Test edge cases for animated canvas interfaces."""
 
-    def setUp(self):
-        """Set up test fixtures before each test method."""
-        # Set up centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up test fixtures using centralized mocks."""
+        self._mocker = mocker
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -218,10 +212,6 @@ class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
             pixel_height=16,
         )
 
-    def tearDown(self):
-        """Clean up after each test method."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
-
     def test_out_of_bounds_pixel_access(self):
         """Test accessing pixels outside canvas bounds."""
         interface = self.canvas.get_canvas_interface()
@@ -241,28 +231,5 @@ class TestAnimatedCanvasInterfaceEdgeCases(unittest.TestCase):
         assert len(self.canvas.pixels) == SMALL_CANVAS_PIXEL_COUNT  # 4x4 = 16 pixels
 
 
-def run_tests():
-    """Run all tests and return success status."""
-    # Running Animated Canvas Interface Tests...
-    # ==================================================
-
-    # Create test suite
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-
-    # Add test cases
-    suite.addTests(loader.loadTestsFromTestCase(TestAnimatedCanvasInterfaces))
-    suite.addTests(loader.loadTestsFromTestCase(TestAnimatedCanvasInterfaceEdgeCases))
-
-    # Run tests
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-
-    # ==================================================
-    # Return success status directly
-    return result.wasSuccessful()
-
-
 if __name__ == "__main__":
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(pytest.main([__file__, "-v"]))

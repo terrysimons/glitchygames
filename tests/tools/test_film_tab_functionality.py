@@ -4,8 +4,6 @@ This module tests the film tab system that allows users to insert new frames
 before or after existing frames in film strips.
 """
 
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
@@ -121,7 +119,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Ensure frames have proper rect attributes for tab positioning
         for frame in mock_sprite._animations["idle"]:
             if not hasattr(frame, "rect"):
-                frame.rect = Mock()
+                frame.rect = self._mocker.Mock()
                 frame.rect.centerx = 50  # Default center x
                 frame.rect.centery = 50  # Default center y
                 frame.rect.width = FRAME_SIZE
@@ -141,7 +139,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -167,8 +165,8 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene with proper canvas dimensions
-        mock_scene = Mock()
-        mock_scene.canvas = Mock()
+        mock_scene = self._mocker.Mock()
+        mock_scene.canvas = self._mocker.Mock()
         mock_scene.canvas.pixels_across = 32
         mock_scene.canvas.pixels_tall = 32
         film_strip.parent_scene = mock_scene
@@ -197,7 +195,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -213,7 +211,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
             assert result
 
     @pytest.mark.skip(reason="Frame insertion functionality not implemented")
-    def test_frame_insertion_via_tab(self):
+    def test_frame_insertion_via_tab(self, mocker):
         """Test that clicking a tab inserts a new frame."""
         # Create a mock animated sprite with frames using centralized mocks
         mock_sprite = self._create_mock_sprite_with_frames()
@@ -225,7 +223,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -236,18 +234,18 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
             first_tab = film_strip.film_tabs[0]
 
             # Mock the add_frame method
-            with patch.object(mock_sprite, "add_frame") as mock_add_frame:
-                # Simulate frame insertion
-                film_strip._insert_frame_at_tab(first_tab)
+            mock_add_frame = mocker.patch.object(mock_sprite, "add_frame")
+            # Simulate frame insertion
+            film_strip._insert_frame_at_tab(first_tab)
 
-                # Verify that add_frame was called
-                mock_add_frame.assert_called_once()
+            # Verify that add_frame was called
+            mock_add_frame.assert_called_once()
 
-                # Check that the call was made with correct parameters
-                call_args = mock_add_frame.call_args
-                assert call_args[0][0] == "idle"  # animation name
-                assert isinstance(call_args[0][1], SpriteFrame)  # new frame
-                assert call_args[0][2] >= 0  # insertion index
+            # Check that the call was made with correct parameters
+            call_args = mock_add_frame.call_args
+            assert call_args[0][0] == "idle"  # animation name
+            assert isinstance(call_args[0][1], SpriteFrame)  # new frame
+            assert call_args[0][2] >= 0  # insertion index
 
     def test_film_tab_rendering(self):
         """Test that film tabs are rendered correctly."""
@@ -261,7 +259,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -299,7 +297,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -350,7 +348,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -401,7 +399,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -452,7 +450,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -496,7 +494,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create frame layouts
@@ -553,7 +551,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         film_strip.current_frame = 0
 
         # Mock parent scene
-        mock_scene = Mock()
+        mock_scene = self._mocker.Mock()
         film_strip.parent_scene = mock_scene
 
         # Update layout to create frame layouts

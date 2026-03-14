@@ -209,12 +209,18 @@ class MockFactory:
             pixel_count = frame_size[0] * frame_size[1]
             mock_frame.get_pixel_data.return_value = [frame_color] * pixel_count
 
-            # Create frame image with proper methods
-            mock_frame_image = Mock()
-            mock_frame_image.get_width.return_value = frame_size[0]
-            mock_frame_image.get_height.return_value = frame_size[1]
-            mock_frame_image.get_size.return_value = frame_size
-            mock_frame.image = mock_frame_image
+            # Create frame image - use real pygame Surface when pygame is initialized
+            # so that film strip rendering (pygame.transform.scale, etc.) works
+            if pygame.get_init():
+                real_surface = pygame.Surface(frame_size, pygame.SRCALPHA)
+                real_surface.fill(frame_color[:3])
+                mock_frame.image = real_surface
+            else:
+                mock_frame_image = Mock()
+                mock_frame_image.get_width.return_value = frame_size[0]
+                mock_frame_image.get_height.return_value = frame_size[1]
+                mock_frame_image.get_size.return_value = frame_size
+                mock_frame.image = mock_frame_image
 
             # Add frame_index for sequence testing
             mock_frame.frame_index = frame_idx
@@ -677,12 +683,18 @@ class MockFactory:
         pixel_count = size[0] * size[1]
         mock_frame.get_pixel_data.return_value = [pixel_color] * pixel_count
 
-        # Create frame image with proper methods
-        mock_frame_image = Mock()
-        mock_frame_image.get_width.return_value = size[0]
-        mock_frame_image.get_height.return_value = size[1]
-        mock_frame_image.get_size.return_value = size
-        mock_frame.image = mock_frame_image
+        # Create frame image - use real pygame Surface when pygame is initialized
+        # so that film strip rendering (pygame.transform.scale, etc.) works
+        if pygame.get_init():
+            real_surface = pygame.Surface(size, pygame.SRCALPHA)
+            real_surface.fill(pixel_color[:3])
+            mock_frame.image = real_surface
+        else:
+            mock_frame_image = Mock()
+            mock_frame_image.get_width.return_value = size[0]
+            mock_frame_image.get_height.return_value = size[1]
+            mock_frame_image.get_size.return_value = size
+            mock_frame.image = mock_frame_image
 
         # Add duration attribute for animation timing
         mock_frame.duration = 1.0  # 1 second duration

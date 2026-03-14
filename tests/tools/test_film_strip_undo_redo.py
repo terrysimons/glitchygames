@@ -12,7 +12,6 @@ Tests complex scenarios involving:
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch
 
 from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
 from glitchygames.tools.operation_history import (

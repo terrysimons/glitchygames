@@ -12,7 +12,14 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from glitchygames.scenes import Scene, SceneManager  # noqa: I001
+from glitchygames.events import ResourceManager  # noqa: I001
+from glitchygames.fonts import FontManager
+from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sprites import (
+    FocusableSingletonBitmappySprite,
+    Singleton,
+    SingletonBitmappySprite,
+)
 from tests.mocks import MockFactory
 
 
@@ -52,14 +59,37 @@ def setup_conditional_pygame_mocks(request, mocker):
         yield {}
 
 
+def _reset_all_singleton_instances():
+    """Reset all singleton class instances to prevent test contamination.
+
+    Singleton instances (SceneManager, MenuBar, etc.) persist across tests
+    and can carry stale state from mocked pygame environments into tests
+    that need real pygame. This resets both parent and subclass __instance__
+    attributes since Python sets cls.__instance__ on the subclass, not the parent.
+    """
+    SceneManager._reset()
+
+    # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
+    ResourceManager.__instances__.clear()
+
+    # Reset FontManager class-level caches that may hold mock objects
+    FontManager._font_cache.clear()
+    FontManager.OPTIONS.clear()
+
+    # Reset all singleton base classes and their subclasses
+    for singleton_base in (Singleton, SingletonBitmappySprite, FocusableSingletonBitmappySprite):
+        singleton_base.__instance__ = None
+        for subclass in singleton_base.__subclasses__():
+            if hasattr(subclass, '__instance__'):
+                subclass.__instance__ = None
+
+
 @pytest.fixture(autouse=True)
-def reset_scene_manager_singleton():
-    """Reset SceneManager singleton before each test to prevent contamination."""
-    # Reset singleton state for clean test isolation
-    SceneManager._reset()
+def reset_singletons():
+    """Reset all singletons before each test to prevent contamination."""
+    _reset_all_singleton_instances()
     yield
-    # Clean up after test
-    SceneManager._reset()
+    _reset_all_singleton_instances()
 
 
 @pytest.fixture

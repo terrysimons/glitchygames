@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from unittest.mock import Mock
-
 from glitchygames.scenes import SceneManager
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -33,10 +31,10 @@ class FakeTimer:
         return deadline_ns
 
 
-def test_scene_manager_uses_timer_for_pacing(monkeypatch):
+def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     sm = SceneManager()
     fake_timer = FakeTimer()
-    engine_mock = Mock()
+    engine_mock = mocker.Mock()
     engine_mock.OPTIONS = {
         "update_type": "update",
         "fps_log_interval_ms": 1000,

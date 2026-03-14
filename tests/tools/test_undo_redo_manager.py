@@ -2,7 +2,6 @@
 """Tests for the core UndoRedoManager functionality."""
 
 import pytest
-from unittest.mock import Mock
 
 from glitchygames.tools.undo_redo_manager import (
     UndoRedoManager, OperationType, Operation
@@ -44,10 +43,10 @@ class TestUndoRedoManager:
         assert not self.manager.can_redo()
         assert self.manager.get_undo_description() == "Test pixel change"
     
-    def test_undo_operation(self):
+    def test_undo_operation(self, mocker):
         """Test undoing operations."""
         # Mock the callback to return True
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
         
         self.manager.add_operation(
@@ -64,10 +63,10 @@ class TestUndoRedoManager:
         assert not self.manager.can_undo()
         assert self.manager.can_redo()
     
-    def test_redo_operation(self):
+    def test_redo_operation(self, mocker):
         """Test redoing operations."""
         # Mock the callback to return True
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
         
         self.manager.add_operation(
@@ -88,10 +87,10 @@ class TestUndoRedoManager:
         assert self.manager.can_undo()
         assert not self.manager.can_redo()
     
-    def test_add_operation_clears_redo_stack(self):
+    def test_add_operation_clears_redo_stack(self, mocker):
         """Test that adding new operation clears redo stack."""
         # Mock the callback to return True
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
         
         # Add initial operation
@@ -178,10 +177,10 @@ class TestUndoRedoManager:
         assert info["next_redo"] is None
         assert info["max_history"] == 5
     
-    def test_operation_with_failed_callback(self):
+    def test_operation_with_failed_callback(self, mocker):
         """Test handling of failed callbacks."""
         # Mock a callback that returns False
-        mock_callback = Mock(return_value=False)
+        mock_callback = mocker.Mock(return_value=False)
         self.manager.set_pixel_change_callback(mock_callback)
         
         # Add operation

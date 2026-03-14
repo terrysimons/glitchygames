@@ -1,9 +1,8 @@
 """Film strip sprite wrapper tests."""
 
 import sys
-import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -13,20 +12,13 @@ from glitchygames.tools import bitmappy, film_strip
 from tests.mocks.test_mock_factory import MockFactory
 
 
-class TestFilmStripSprite(unittest.TestCase):
+class TestFilmStripSprite:
     """Test FilmStripSprite wrapper functionality."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Set up pygame mocks for all tests."""
-        cls.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in cls.patchers:
-            patcher.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        """Tear down pygame mocks."""
-        MockFactory.teardown_pygame_mocks(cls.patchers)
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        self._mocker = mocker
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_film_strip_sprite_initialization(self):
         """Test film strip sprite initialization."""
@@ -101,7 +93,7 @@ class TestFilmStripSprite(unittest.TestCase):
         sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (50, 50)  # Within sprite bounds
 
         # Test click handling
@@ -116,7 +108,7 @@ class TestFilmStripSprite(unittest.TestCase):
         sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event outside bounds
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (500, 500)  # Outside sprite bounds
 
         # Test click handling
@@ -146,11 +138,11 @@ class TestFilmStripSprite(unittest.TestCase):
         sprite = bitmappy.FilmStripSprite(film_strip_widget)
 
         # Test setting parent canvas
-        mock_canvas = Mock()
+        mock_canvas = self._mocker.Mock()
         sprite.set_parent_canvas(mock_canvas)
         assert sprite.parent_canvas == mock_canvas
 
-    def test_film_strip_sprite_click_with_parent_canvas(self):
+    def test_film_strip_sprite_click_with_parent_canvas(self, mocker):
         """Test film strip sprite click with parent canvas."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = bitmappy.FilmStripSprite(film_strip_widget)
@@ -160,39 +152,39 @@ class TestFilmStripSprite(unittest.TestCase):
         film_strip_widget.set_animated_sprite(mock_sprite)
 
         # Set parent canvas
-        mock_canvas = Mock()
+        mock_canvas = self._mocker.Mock()
         sprite.set_parent_canvas(mock_canvas)
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (50, 50)
 
         # Mock the handle_click to return a frame
-        with patch.object(film_strip_widget, "handle_click", return_value=("idle", 0)):
-            sprite.on_left_mouse_button_down_event(mock_event)
+        mocker.patch.object(film_strip_widget, "handle_click", return_value=("idle", 0))
+        sprite.on_left_mouse_button_down_event(mock_event)
 
-            # Should call parent canvas show_frame
-            mock_canvas.show_frame.assert_called_once_with("idle", 0)
+        # Should call parent canvas show_frame
+        mock_canvas.show_frame.assert_called_once_with("idle", 0)
 
-    def test_film_strip_sprite_click_no_frame_selected(self):
+    def test_film_strip_sprite_click_no_frame_selected(self, mocker):
         """Test film strip sprite click when no frame is selected."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = bitmappy.FilmStripSprite(film_strip_widget)
 
         # Set parent canvas
-        mock_canvas = Mock()
+        mock_canvas = self._mocker.Mock()
         sprite.set_parent_canvas(mock_canvas)
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (50, 50)
 
         # Mock the handle_click to return None
-        with patch.object(film_strip_widget, "handle_click", return_value=None):
-            sprite.on_left_mouse_button_down_event(mock_event)
+        mocker.patch.object(film_strip_widget, "handle_click", return_value=None)
+        sprite.on_left_mouse_button_down_event(mock_event)
 
-            # Should not call parent canvas show_frame
-            mock_canvas.show_frame.assert_not_called()
+        # Should not call parent canvas show_frame
+        mock_canvas.show_frame.assert_not_called()
 
     def test_film_strip_sprite_continuous_redraw_with_animations(self):
         """Test that film strip sprite continuously redraws when animations are present."""
@@ -227,24 +219,24 @@ class TestFilmStripSprite(unittest.TestCase):
         assert hasattr(sprite.rect, "width")
         assert hasattr(sprite.rect, "height")
 
-    def test_film_strip_sprite_coordinate_conversion(self):
+    def test_film_strip_sprite_coordinate_conversion(self, mocker):
         """Test film strip sprite coordinate conversion."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (50, 70)  # Screen coordinates
 
         # Test coordinate conversion
-        with patch.object(film_strip_widget, "handle_click") as mock_handle_click:
-            # Configure mock to return proper tuple
-            mock_handle_click.return_value = ("idle", 0)
-            sprite.on_left_mouse_button_down_event(mock_event)
+        mock_handle_click = mocker.patch.object(film_strip_widget, "handle_click")
+        # Configure mock to return proper tuple
+        mock_handle_click.return_value = ("idle", 0)
+        sprite.on_left_mouse_button_down_event(mock_event)
 
-            # Should convert screen coordinates to film strip coordinates
-            # Sprite is at (10, 20), so (50, 70) - (10, 20) = (40, 50)
-            mock_handle_click.assert_called_once_with((40, 50))
+        # Should convert screen coordinates to film strip coordinates
+        # Sprite is at (10, 20), so (50, 70) - (10, 20) = (40, 50)
+        mock_handle_click.assert_called_once_with((40, 50))
 
     def test_film_strip_sprite_edge_cases(self):
         """Test film strip sprite edge cases."""
@@ -255,7 +247,7 @@ class TestFilmStripSprite(unittest.TestCase):
         sprite.parent_canvas = None
 
         # Create mock event
-        mock_event = Mock()
+        mock_event = self._mocker.Mock()
         mock_event.pos = (50, 50)
 
         # Should not crash when parent canvas is None
@@ -264,7 +256,3 @@ class TestFilmStripSprite(unittest.TestCase):
         # Test with no film strip widget
         sprite.film_strip_widget = None
         sprite.on_left_mouse_button_down_event(mock_event)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -11,7 +11,7 @@ Run benchmarks:
 from pathlib import Path
 
 import pygame
-
+import pytest
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.controller_selection import ControllerSelection
@@ -39,18 +39,13 @@ DT_60FPS = 1.0 / 60.0
 class TestBallPhysicsBenchmarks:
     """Benchmark BallSprite physics operations."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up pygame mocks for ball creation."""
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up mocks."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _create_ball_at_center(self):
         """Create a ball positioned at center with diagonal velocity."""
@@ -109,18 +104,13 @@ class TestBallPhysicsBenchmarks:
 class TestAnimatedSpriteBenchmarks:
     """Benchmark AnimatedSprite operations."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up pygame mocks."""
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up mocks."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _create_multi_frame_sprite(self, frame_count):
         """Create an AnimatedSprite with the given number of frames."""

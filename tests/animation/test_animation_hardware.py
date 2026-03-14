@@ -8,8 +8,6 @@ where rendering problems occur in the pipeline.
 import sys
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pytest
 import pygame
 from glitchygames.scenes import Scene
@@ -175,23 +173,17 @@ class HardwareAnimationTestScene(Scene):
 class TestAnimationHardware:
     """Test hardware-level animation rendering and display buffer verification."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks for pygame initialization
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
 
         # Load the colors.toml animation for testing
         self.animation_file = get_resource_path("colors.toml")
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        # Teardown the centralized mocks
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_hardware_display_buffer_access(self):
         """Test that we can access the hardware display buffer."""

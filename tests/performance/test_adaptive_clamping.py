@@ -2,7 +2,6 @@
 
 import pytest
 import time
-from unittest.mock import patch, MagicMock
 
 from glitchygames.performance.adaptive_clamping import AdaptiveClamping, performance_manager
 
@@ -423,31 +422,29 @@ class TestAdaptiveDeltaTime:
         
         assert len(self.instance._dt_history) == 60
     
-    @patch('time.perf_counter')
-    def test_get_adaptive_dt_logging_interval(self, mock_time):
+    def test_get_adaptive_dt_logging_interval(self, mocker):
         """Test that performance adjustments are logged at the correct interval."""
         # Start with time 0
-        mock_time.return_value = 0.0
-        
+        mock_time = mocker.patch('time.perf_counter', return_value=0.0)
+
         # Add sufficient history with a very large dt to ensure significant adjustment
         for i in range(10):
             self.instance.get_adaptive_dt(1.0)  # Very large dt to ensure significant adjustment
-        
+
         # Reset the last log time to ensure we can log
         self.instance._last_performance_log_time = 0.0
-        
+
         # Temporarily lower the logging threshold to ensure we trigger logging
-        original_threshold = 0.0001
-        with patch.object(self.instance, '_fps_log_interval_ms', 0.0):  # No interval restriction
-            with patch('builtins.print') as mock_print:
-                # Manually set a large adjustment to ensure logging
-                adjusted_dt = self.instance.get_adaptive_dt(1.0)
-                # Check if the adjustment is significant enough
-                if abs(adjusted_dt - 1.0) > 0.0001:
-                    mock_print.assert_called_once()
-                else:
-                    # If adjustment is too small, just verify the method works
-                    assert adjusted_dt != 1.0  # Should be adjusted
+        mocker.patch.object(self.instance, '_fps_log_interval_ms', 0.0)  # No interval restriction
+        mock_print = mocker.patch('builtins.print')
+        # Manually set a large adjustment to ensure logging
+        adjusted_dt = self.instance.get_adaptive_dt(1.0)
+        # Check if the adjustment is significant enough
+        if abs(adjusted_dt - 1.0) > 0.0001:
+            mock_print.assert_called_once()
+        else:
+            # If adjustment is too small, just verify the method works
+            assert adjusted_dt != 1.0  # Should be adjusted
 
 
 class TestEdgeCases:

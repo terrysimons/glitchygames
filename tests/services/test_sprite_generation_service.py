@@ -1,7 +1,5 @@
 """Tests for sprite generation service."""
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 from glitchygames.services.config import ServiceConfig
 from glitchygames.services.exceptions import AIProviderError
@@ -58,18 +56,18 @@ class TestSpriteGenerationService:
         assert service.config is not None
         assert service._client is None  # Lazy initialization
 
-    def test_ensure_client_no_aisuite(self):
+    def test_ensure_client_no_aisuite(self, mocker):
         """Test that AIProviderError is raised when aisuite is not available."""
         service = SpriteGenerationService()
 
-        with patch.dict("sys.modules", {"aisuite": None}):
-            # This should raise an error on import attempt
-            with pytest.raises(AIProviderError):
-                # Mock import to fail
-                with patch(
-                    "builtins.__import__", side_effect=ImportError("No module named 'aisuite'")
-                ):
-                    service._ensure_client()
+        mocker.patch.dict("sys.modules", {"aisuite": None})
+        # This should raise an error on import attempt
+        with pytest.raises(AIProviderError):
+            # Mock import to fail
+            mocker.patch(
+                "builtins.__import__", side_effect=ImportError("No module named 'aisuite'")
+            )
+            service._ensure_client()
 
     def test_is_animation_request_true(self):
         """Test animation detection for animation keywords."""

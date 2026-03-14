@@ -2,7 +2,8 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
+import pygame
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -31,21 +32,20 @@ MIN_HEIGHT_OFFSET = 20
 class FilmStripTestBase:
     """Base class for film strip tests with optimized setup and caching."""
 
-    @classmethod
-    def setup_class(cls):
-        """Set up pygame mocks and cached objects for all tests."""
-        cls.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in cls.patchers:
-            patcher.start()
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        # Use real pygame initialization since BitmapEditorScene requires it
+        pygame.init()
+        pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
 
         # Pre-create commonly used objects for performance
-        cls._setup_cached_objects()
+        self._setup_cached_objects()
+        # Store mocker for use in subclasses
+        self._mocker = mocker
 
-    @classmethod
-    def teardown_class(cls):
-        """Tear down pygame mocks and clear cache."""
-        MockFactory.teardown_pygame_mocks(cls.patchers)
-        MockFactory.clear_cache()
+        yield
+
+        pygame.quit()
 
     @classmethod
     def _setup_cached_objects(cls):
@@ -58,6 +58,10 @@ class FilmStripTestBase:
             use_cache=True
         )
 
+        # Replace mock frame images with real pygame Surfaces so that
+        # film strip rendering (pygame.transform.scale, etc.) works correctly
+        cls._replace_mock_images_with_real_surfaces(cls.cached_sprite)
+
         # Create cached scene mock
         cls.cached_scene_mock = MockFactory.create_optimized_scene_mock(
             pixels_across=PIXELS_ACROSS,
@@ -66,7 +70,25 @@ class FilmStripTestBase:
             use_cache=True
         )
 
-    def create_optimized_scene(self, options=None):
+    @staticmethod
+    def _replace_mock_images_with_real_surfaces(mock_sprite):
+        """Replace mock frame images with real pygame Surfaces.
+
+        The MockFactory creates Mock() objects for frame images, but film strip
+        rendering needs real pygame Surfaces for operations like
+        pygame.transform.scale(). This method replaces them after pygame.init().
+        """
+        for animation_name, frames in mock_sprite._animations.items():
+            for frame in frames:
+                frame_size = frame.get_size()
+                real_surface = pygame.Surface(frame_size, pygame.SRCALPHA)
+                # Fill with the frame's pixel color if available
+                pixel_data = frame.get_pixel_data()
+                if pixel_data:
+                    real_surface.fill(pixel_data[0][:3])
+                frame.image = real_surface
+
+    def create_optimized_scene(self, options=None, mocker=None):
         """Create an optimized scene with minimal overhead."""
         if options is None:
             options = {
@@ -75,22 +97,19 @@ class FilmStripTestBase:
                 "pixel_size": PIXEL_SIZE
             }
 
-        with patch("pygame.display.get_surface") as mock_display:
-            mock_display.return_value = Mock()
-            mock_display.return_value.get_width.return_value = DISPLAY_WIDTH
-            mock_display.return_value.get_height.return_value = DISPLAY_HEIGHT
-
-            return bitmappy.BitmapEditorScene(options=options)
+        return bitmappy.BitmapEditorScene(options=options)
 
     def create_optimized_sprite(self, animation_name="idle", **kwargs):
         """Create an optimized sprite using cached objects."""
-        return MockFactory.create_animated_sprite_mock(
+        sprite = MockFactory.create_animated_sprite_mock(
             animation_name=animation_name,
             frame_size=(FRAME_SIZE, FRAME_SIZE),
             pixel_color=MAGENTA_PIXELS,
             use_cache=True,
             **kwargs
         )
+        self._replace_mock_images_with_real_surfaces(sprite)
+        return sprite
 
     def setup_scene_with_sprite(self, sprite=None, options=None):
         """Set up a scene with a sprite loaded, optimized for performance."""

@@ -6,9 +6,6 @@ to verify graceful degradation when speech recognition is not available.
 """
 
 import contextlib
-import unittest
-from unittest.mock import Mock, patch
-
 import pytest
 from glitchygames.events.voice import VoiceEventManager, SPEECH_RECOGNITION_AVAILABLE
 from glitchygames.tools.bitmappy import BitmapEditorScene
@@ -22,165 +19,151 @@ TIMEOUT_2_SECONDS = 2
 pytestmark = pytest.mark.usefixtures("mock_pygame_patches")
 
 
-class TestVoiceRecognitionManagerNegative(unittest.TestCase):
+class TestVoiceRecognitionManagerNegative:
     """Test VoiceRecognitionManager when speech recognition is NOT available."""
 
-    def setUp(self):
-        """Set up per-test state (centralized mocks applied via fixture)."""
-        pass
-
-    def tearDown(self):
-        """Clean up per-test state."""
-        pass
-
-    def test_initialization_without_speech_recognition(self):
+    def test_initialization_without_speech_recognition(self, mocker):
         """Test that VoiceRecognitionManager initializes gracefully without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
 
-            # Should initialize without errors
-            assert manager is not None
-            assert manager.recognizer is None
-            assert manager.microphone is None
-            assert not manager.is_available()
-            assert not manager.is_listening
+        # Should initialize without errors
+        assert manager is not None
+        assert manager.recognizer is None
+        assert manager.microphone is None
+        assert not manager.is_available()
+        assert not manager.is_listening
 
-    def test_register_command_without_speech_recognition(self):
+    def test_register_command_without_speech_recognition(self, mocker):
         """Test that commands can still be registered without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
-            callback = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Should be able to register commands even without speech recognition
-            manager.register_command("test command", callback)
+        # Should be able to register commands even without speech recognition
+        manager.register_command("test command", callback)
 
-            # Verify command was registered
-            assert "test command" in manager.commands
-            assert manager.commands["test command"] == callback
+        # Verify command was registered
+        assert "test command" in manager.commands
+        assert manager.commands["test command"] == callback
 
-    def test_start_listening_without_speech_recognition(self):
+    def test_start_listening_without_speech_recognition(self, mocker):
         """Test that start_listening fails gracefully without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
 
-            # Should not start listening without speech recognition
-            manager.start_listening()
-            assert not manager.is_listening
+        # Should not start listening without speech recognition
+        manager.start_listening()
+        assert not manager.is_listening
 
-    def test_stop_listening_without_speech_recognition(self):
+    def test_stop_listening_without_speech_recognition(self, mocker):
         """Test that stop_listening works without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
 
-            # Should be able to stop listening even if not started
-            manager.stop_listening()
-            assert not manager.is_listening
+        # Should be able to stop listening even if not started
+        manager.stop_listening()
+        assert not manager.is_listening
 
-    def test_process_command_without_speech_recognition(self):
+    def test_process_command_without_speech_recognition(self, mocker):
         """Test that process_command works without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
-            callback = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register a command
-            manager.register_command("test command", callback)
+        # Register a command
+        manager.register_command("test command", callback)
 
-            # Should be able to process commands even without speech recognition
-            manager._process_command("test command")
+        # Should be able to process commands even without speech recognition
+        manager._process_command("test command")
 
-            # Verify callback was called
-            callback.assert_called_once()
+        # Verify callback was called
+        callback.assert_called_once()
 
-    def test_get_available_commands_without_speech_recognition(self):
+    def test_get_available_commands_without_speech_recognition(self, mocker):
         """Test that get_available_commands works without speech recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
-            callback = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register some commands
-            manager.register_command("command one", callback)
-            manager.register_command("command two", callback)
+        # Register some commands
+        manager.register_command("command one", callback)
+        manager.register_command("command two", callback)
 
-            # Should be able to get commands even without speech recognition
-            commands = manager.get_available_commands()
+        # Should be able to get commands even without speech recognition
+        commands = manager.get_available_commands()
 
-            # Verify commands list
-            assert len(commands) == TIMEOUT_2_SECONDS
-            assert "command one" in commands
-            assert "command two" in commands
+        # Verify commands list
+        assert len(commands) == TIMEOUT_2_SECONDS
+        assert "command one" in commands
+        assert "command two" in commands
 
 
-class TestVoiceRecognitionManagerWithMicrophoneFailure(unittest.TestCase):
+class TestVoiceRecognitionManagerWithMicrophoneFailure:
     """Test VoiceRecognitionManager when speech recognition is available but microphone fails."""
 
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_initialization_with_microphone_failure(self):
+    def test_initialization_with_microphone_failure(self, mocker):
         """Test that VoiceRecognitionManager handles microphone initialization failure."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock(side_effect=Exception("Microphone not found"))
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock(side_effect=Exception("Microphone not found"))
 
-            # Use pytest logger wrapper to suppress logs during successful runs
-            with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
-                mock_log = Mock()
-                mock_get_logger.return_value = mock_log
+        # Use pytest logger wrapper to suppress logs during successful runs
+        mock_get_logger = mocker.patch("glitchygames.events.voice.logging.getLogger")
+        mock_log = mocker.Mock()
+        mock_get_logger.return_value = mock_log
 
-                manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-                # Should initialize without errors but without microphone
-                assert manager is not None
-                assert manager.recognizer is not None
-                assert manager.microphone is None
-                assert not manager.is_available()
-                assert not manager.is_listening
+        # Should initialize without errors but without microphone
+        assert manager is not None
+        assert manager.recognizer is not None
+        assert manager.microphone is None
+        assert not manager.is_available()
+        assert not manager.is_listening
 
-                # Verify the ERROR log message was called
-                mock_log.error.assert_called_once()
-                # Check that the log message contains the expected content
-                call_args = mock_log.error.call_args[0][0]
-                assert "Failed to initialize microphone" in call_args
+        # Verify the ERROR log message was called
+        mock_log.error.assert_called_once()
+        # Check that the log message contains the expected content
+        call_args = mock_log.error.call_args[0][0]
+        assert "Failed to initialize microphone" in call_args
 
-    def test_start_listening_with_microphone_failure(self):
+    def test_start_listening_with_microphone_failure(self, mocker):
         """Test that start_listening fails when microphone is not available."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock(side_effect=Exception("Microphone not found"))
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock(side_effect=Exception("Microphone not found"))
 
-            # Use pytest logger wrapper to suppress logs during successful runs
-            with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
-                mock_log = Mock()
-                mock_get_logger.return_value = mock_log
+        # Use pytest logger wrapper to suppress logs during successful runs
+        mock_get_logger = mocker.patch("glitchygames.events.voice.logging.getLogger")
+        mock_log = mocker.Mock()
+        mock_get_logger.return_value = mock_log
 
-                manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-                # Should not start listening without microphone
-                manager.start_listening()
-                assert not manager.is_listening
+        # Should not start listening without microphone
+        manager.start_listening()
+        assert not manager.is_listening
 
-                # Verify the ERROR log messages were called (should be called twice)
-                assert mock_log.error.call_count == 2
-                # Check that both log messages contain the expected content
-                call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-                assert any("Failed to initialize microphone" in msg for msg in call_args_list)
-                assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
+        # Verify the ERROR log messages were called (should be called twice)
+        assert mock_log.error.call_count == 2
+        # Check that both log messages contain the expected content
+        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        assert any("Failed to initialize microphone" in msg for msg in call_args_list)
+        assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
 
 
-class TestVoiceRecognitionManagerPositive(unittest.TestCase):
+class TestVoiceRecognitionManagerPositive:
     """Test VoiceRecognitionManager when speech recognition IS available."""
 
-    def setUp(self):
+    def setup_method(self):
         self.voice_managers = []  # Track voice managers for cleanup
 
-    def tearDown(self):
+    def teardown_method(self):
         """Clean up test fixtures."""
         # Clean up any voice managers that were created
         for manager in self.voice_managers:
@@ -189,24 +172,22 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
                     manager.stop_listening()  # Ignore cleanup errors
         self.voice_managers.clear()
 
-        pass
-
-    def test_voice_manager_initialization(self):
+    def test_voice_manager_initialization(self, mocker):
         """Test that VoiceRecognitionManager initializes correctly."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-            # Should initialize without errors
-            assert manager is not None
-            assert manager.recognizer is not None
-            assert manager.commands == {}
-            assert not manager.is_listening
+        # Should initialize without errors
+        assert manager is not None
+        assert manager.recognizer is not None
+        assert manager.commands == {}
+        assert not manager.is_listening
 
     @pytest.mark.skipif(not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed")
     def test_voice_manager_initialization_with_real_speech_recognition(self):
@@ -282,447 +263,435 @@ class TestVoiceRecognitionManagerPositive(unittest.TestCase):
         assert not manager.is_available(), "Voice recognition should not be available"
         assert manager.recognizer is None, "Recognizer should be None when speech recognition is not available"
 
-    def test_voice_manager_without_microphone(self):
+    def test_voice_manager_without_microphone(self, mocker):
         """Test VoiceRecognitionManager when microphone is not available."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock(side_effect=Exception("No microphone"))
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock(side_effect=Exception("No microphone"))
 
-            # Use pytest logger wrapper to suppress logs during successful runs
-            with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
-                mock_log = Mock()
-                mock_get_logger.return_value = mock_log
+        # Use pytest logger wrapper to suppress logs during successful runs
+        mock_get_logger = mocker.patch("glitchygames.events.voice.logging.getLogger")
+        mock_log = mocker.Mock()
+        mock_get_logger.return_value = mock_log
 
-                manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-                # Should handle missing microphone gracefully
-                assert manager is not None
-                assert manager.microphone is None
-                assert not manager.is_available()
+        # Should handle missing microphone gracefully
+        assert manager is not None
+        assert manager.microphone is None
+        assert not manager.is_available()
 
-                # Verify the ERROR log message was called
-                mock_log.error.assert_called_once()
-                # Check that the log message contains the expected content
-                call_args = mock_log.error.call_args[0][0]
-                assert "Failed to initialize microphone" in call_args
+        # Verify the ERROR log message was called
+        mock_log.error.assert_called_once()
+        # Check that the log message contains the expected content
+        call_args = mock_log.error.call_args[0][0]
+        assert "Failed to initialize microphone" in call_args
 
-    def test_voice_manager_without_speech_recognition(self):
+    def test_voice_manager_without_speech_recognition(self, mocker):
         """Test VoiceRecognitionManager when speech recognition is not available."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
-            manager = VoiceEventManager()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
+        manager = VoiceEventManager()
 
-            # Should handle missing speech recognition gracefully
-            assert manager is not None
-            assert manager.recognizer is None
-            assert manager.microphone is None
-            assert not manager.is_available()
+        # Should handle missing speech recognition gracefully
+        assert manager is not None
+        assert manager.recognizer is None
+        assert manager.microphone is None
+        assert not manager.is_available()
 
-    def test_register_command(self):
+    def test_register_command(self, mocker):
         """Test registering voice commands."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback = Mock()
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register a command
-            manager.register_command("test command", callback)
+        # Register a command
+        manager.register_command("test command", callback)
 
-            # Verify command was registered
-            assert "test command" in manager.commands
-            assert manager.commands["test command"] == callback
+        # Verify command was registered
+        assert "test command" in manager.commands
+        assert manager.commands["test command"] == callback
 
-    def test_register_multiple_commands(self):
+    def test_register_multiple_commands(self, mocker):
         """Test registering multiple voice commands."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback1 = Mock()
-            callback2 = Mock()
+        manager = VoiceEventManager()
+        callback1 = mocker.Mock()
+        callback2 = mocker.Mock()
 
-            # Register multiple commands
-            manager.register_command("command one", callback1)
-            manager.register_command("command two", callback2)
+        # Register multiple commands
+        manager.register_command("command one", callback1)
+        manager.register_command("command two", callback2)
 
-            # Verify both commands were registered
-            assert len(manager.commands) == TIMEOUT_2_SECONDS
-            assert "command one" in manager.commands
-            assert "command two" in manager.commands
-            assert manager.commands["command one"] == callback1
-            assert manager.commands["command two"] == callback2
+        # Verify both commands were registered
+        assert len(manager.commands) == TIMEOUT_2_SECONDS
+        assert "command one" in manager.commands
+        assert "command two" in manager.commands
+        assert manager.commands["command one"] == callback1
+        assert manager.commands["command two"] == callback2
 
-    def test_get_available_commands(self):
+    def test_get_available_commands(self, mocker):
         """Test getting list of available commands."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback = Mock()
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register some commands
-            manager.register_command("command one", callback)
-            manager.register_command("command two", callback)
+        # Register some commands
+        manager.register_command("command one", callback)
+        manager.register_command("command two", callback)
 
-            # Get available commands
-            commands = manager.get_available_commands()
+        # Get available commands
+        commands = manager.get_available_commands()
 
-            # Verify commands list
-            assert len(commands) == TIMEOUT_2_SECONDS
-            assert "command one" in commands
-            assert "command two" in commands
+        # Verify commands list
+        assert len(commands) == TIMEOUT_2_SECONDS
+        assert "command one" in commands
+        assert "command two" in commands
 
-    def test_start_listening_without_microphone(self):
+    def test_start_listening_without_microphone(self, mocker):
         """Test starting listening when microphone is not available."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock(side_effect=Exception("No microphone"))
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock(side_effect=Exception("No microphone"))
 
-            # Use pytest logger wrapper to suppress logs during successful runs
-            with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
-                mock_log = Mock()
-                mock_get_logger.return_value = mock_log
+        # Use pytest logger wrapper to suppress logs during successful runs
+        mock_get_logger = mocker.patch("glitchygames.events.voice.logging.getLogger")
+        mock_log = mocker.Mock()
+        mock_get_logger.return_value = mock_log
 
-                manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-                # Should not start listening without microphone
-                manager.start_listening()
-                assert not manager.is_listening
+        # Should not start listening without microphone
+        manager.start_listening()
+        assert not manager.is_listening
 
-                # Verify the ERROR log messages were called (should be called twice)
-                assert mock_log.error.call_count == 2
-                # Check that both log messages contain the expected content
-                call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-                assert any("Failed to initialize microphone" in msg for msg in call_args_list)
-                assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
+        # Verify the ERROR log messages were called (should be called twice)
+        assert mock_log.error.call_count == 2
+        # Check that both log messages contain the expected content
+        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        assert any("Failed to initialize microphone" in msg for msg in call_args_list)
+        assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
 
-    def test_stop_listening(self):
+    def test_stop_listening(self, mocker):
         """Test stopping voice recognition."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
+        manager = VoiceEventManager()
 
-            # Stop listening (even if not started)
-            manager.stop_listening()
-            assert not manager.is_listening
+        # Stop listening (even if not started)
+        manager.stop_listening()
+        assert not manager.is_listening
 
-    def test_process_command_exact_match(self):
+    def test_process_command_exact_match(self, mocker):
         """Test processing voice commands with exact matches."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback = Mock()
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register a command
-            manager.register_command("clear the ai sprite box", callback)
+        # Register a command
+        manager.register_command("clear the ai sprite box", callback)
 
-            # Process exact match
-            manager._process_command("clear the ai sprite box")
+        # Process exact match
+        manager._process_command("clear the ai sprite box")
 
-            # Verify callback was called
-            callback.assert_called_once()
+        # Verify callback was called
+        callback.assert_called_once()
 
-    def test_process_command_partial_match(self):
+    def test_process_command_partial_match(self, mocker):
         """Test processing voice commands with partial matches."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback = Mock()
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register a command
-            manager.register_command("clear ai sprite box", callback)
+        # Register a command
+        manager.register_command("clear ai sprite box", callback)
 
-            # Process partial match
-            manager._process_command("please clear ai sprite box now")
+        # Process partial match
+        manager._process_command("please clear ai sprite box now")
 
-            # Verify callback was called
-            callback.assert_called_once()
+        # Verify callback was called
+        callback.assert_called_once()
 
-    def test_process_command_no_match(self):
+    def test_process_command_no_match(self, mocker):
         """Test processing voice commands with no matches."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            manager = VoiceEventManager()
-            callback = Mock()
+        manager = VoiceEventManager()
+        callback = mocker.Mock()
 
-            # Register a command
-            manager.register_command("clear ai sprite box", callback)
+        # Register a command
+        manager.register_command("clear ai sprite box", callback)
 
-            # Process non-matching text
-            manager._process_command("hello world")
+        # Process non-matching text
+        manager._process_command("hello world")
 
-            # Verify callback was not called
-            callback.assert_not_called()
+        # Verify callback was not called
+        callback.assert_not_called()
 
-    def test_process_command_callback_error(self):
+    def test_process_command_callback_error(self, mocker):
         """Test handling errors in command callbacks."""
-        with patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True), \
-             patch("glitchygames.events.voice.sr") as mock_sr:
-            # Mock the speech recognition module
-            mock_sr.Recognizer = Mock()
-            mock_sr.Microphone = Mock()
-            mock_sr.Microphone.return_value = Mock()
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=True)
+        mock_sr = mocker.patch("glitchygames.events.voice.sr")
+        # Mock the speech recognition module
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
+        mock_sr.Microphone.return_value = mocker.Mock()
 
-            # Use pytest logger wrapper to suppress logs during successful runs
-            with patch("glitchygames.events.voice.logging.getLogger") as mock_get_logger:
-                mock_log = Mock()
-                mock_get_logger.return_value = mock_log
+        # Use pytest logger wrapper to suppress logs during successful runs
+        mock_get_logger = mocker.patch("glitchygames.events.voice.logging.getLogger")
+        mock_log = mocker.Mock()
+        mock_get_logger.return_value = mock_log
 
-                manager = VoiceEventManager()
-                callback = Mock(side_effect=Exception("Callback error"))
+        manager = VoiceEventManager()
+        callback = mocker.Mock(side_effect=Exception("Callback error"))
 
-                # Register a command that will raise an error
-                manager.register_command("test command", callback)
+        # Register a command that will raise an error
+        manager.register_command("test command", callback)
 
-                # Process command - should not raise exception
-                manager._process_command("test command")
+        # Process command - should not raise exception
+        manager._process_command("test command")
 
-                # Verify callback was called despite error
-                callback.assert_called_once()
+        # Verify callback was called despite error
+        callback.assert_called_once()
 
-                # Verify the ERROR log message was called
-                mock_log.error.assert_called_once()
-                # Check that the log message contains the expected content
-                call_args = mock_log.error.call_args[0][0]
-                assert "Error executing voice command 'test command'" in call_args
+        # Verify the ERROR log message was called
+        mock_log.error.assert_called_once()
+        # Check that the log message contains the expected content
+        call_args = mock_log.error.call_args[0][0]
+        assert "Error executing voice command 'test command'" in call_args
 
 
-class TestBitmapEditorSceneVoiceIntegrationNegative(unittest.TestCase):
+class TestBitmapEditorSceneVoiceIntegrationNegative:
     """Test voice recognition integration with BitmapEditorScene when speech recognition is NOT available."""  # noqa: E501
 
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_voice_recognition_setup_without_speech_recognition(self):
+    def test_voice_recognition_setup_without_speech_recognition(self, mocker):
         """Test that voice recognition setup fails gracefully without speech recognition."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None), \
-             patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False):
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mocker.patch("glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE", new=False)
 
-            # Create scene instance
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
+        # Create scene instance
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
 
-            # Call the setup method
-            scene._setup_voice_recognition()
+        # Call the setup method
+        scene._setup_voice_recognition()
 
-            # Should handle missing speech recognition gracefully
-            assert scene.voice_manager is None
+        # Should handle missing speech recognition gracefully
+        assert scene.voice_manager is None
 
-    def test_clear_ai_sprite_box_without_voice_recognition(self):
+    def test_clear_ai_sprite_box_without_voice_recognition(self, mocker):
         """Test that clear AI sprite box works without voice recognition."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            scene.debug_text = Mock()
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        scene.debug_text = mocker.Mock()
 
-            # Call the clear command
-            scene._clear_ai_sprite_box()
+        # Call the clear command
+        scene._clear_ai_sprite_box()
 
-            # Should work even without voice recognition
-            scene.debug_text.text = ""
-            scene.log.info.assert_called_with("AI sprite box cleared via voice command")
+        # Should work even without voice recognition
+        scene.debug_text.text = ""
+        scene.log.info.assert_called_with("AI sprite box cleared via voice command")
 
-    def test_voice_recognition_cleanup_without_manager(self):
+    def test_voice_recognition_cleanup_without_manager(self, mocker):
         """Test voice recognition cleanup when no manager exists."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            # No voice_manager attribute
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        # No voice_manager attribute
 
-            # Call cleanup - should not raise exception
-            scene._cleanup_voice_recognition()
+        # Call cleanup - should not raise exception
+        scene._cleanup_voice_recognition()
 
-            # No assertions needed - just ensure no exception is raised
+        # No assertions needed - just ensure no exception is raised
 
 
-class TestBitmapEditorSceneVoiceIntegrationPositive(unittest.TestCase):
+class TestBitmapEditorSceneVoiceIntegrationPositive:
     """Test voice recognition integration with BitmapEditorScene when speech recognition IS available."""  # noqa: E501
 
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
     @pytest.mark.skipif(not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed")
-    def test_voice_recognition_setup_with_real_dependencies(self):
+    def test_voice_recognition_setup_with_real_dependencies(self, mocker):
         """Test that voice recognition setup works with real speech recognition dependencies.
 
         This test will FAIL until speech recognition dependencies are installed.
         """
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            # Create scene instance
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        # Create scene instance
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
 
-            try:
-                # Call the setup method
-                scene._setup_voice_recognition()
+        try:
+            # Call the setup method
+            scene._setup_voice_recognition()
 
-                if not scene.voice_manager or not scene.voice_manager.has_microphone():
-                    pytest.skip("Microphone backend not available; skipping")
-                assert scene.voice_manager is not None
-                assert scene.voice_manager.is_available()
+            if not scene.voice_manager or not scene.voice_manager.has_microphone():
+                pytest.skip("Microphone backend not available; skipping")
+            assert scene.voice_manager is not None
+            assert scene.voice_manager.is_available()
 
-            except ImportError:
-                # This is expected when speech recognition is not installed
-                pytest.fail("Speech recognition dependencies not installed - this test should fail")
+        except ImportError:
+            # This is expected when speech recognition is not installed
+            pytest.fail("Speech recognition dependencies not installed - this test should fail")
 
-    def test_voice_recognition_setup_without_speech_recognition_expected(self):
+    def test_voice_recognition_setup_without_speech_recognition_expected(self, mocker):
         """Test that voice recognition setup handles missing speech recognition gracefully.
 
         This test should pass when speech recognition is not available.
         """
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            # Create scene instance
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        # Create scene instance
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
 
-            # Call the setup method
-            scene._setup_voice_recognition()
+        # Call the setup method
+        scene._setup_voice_recognition()
 
-            # Should handle missing speech recognition gracefully
-            assert scene.voice_manager is None, "Voice manager should be None when speech recognition is not available"
+        # Should handle missing speech recognition gracefully
+        assert scene.voice_manager is None, "Voice manager should be None when speech recognition is not available"
 
-    def test_voice_recognition_setup(self):
+    def test_voice_recognition_setup(self, mocker):
         """Test that voice recognition is set up correctly in BitmapEditorScene."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None), \
-             patch("glitchygames.tools.bitmappy.VoiceEventManager") as mock_voice_class:
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mock_voice_class = mocker.patch("glitchygames.tools.bitmappy.VoiceEventManager")
 
-            # Mock the voice manager
-            mock_voice_manager = Mock()
-            mock_voice_manager.is_available.return_value = True
-            mock_voice_class.return_value = mock_voice_manager
+        # Mock the voice manager
+        mock_voice_manager = mocker.Mock()
+        mock_voice_manager.is_available.return_value = True
+        mock_voice_class.return_value = mock_voice_manager
 
-            # Create scene instance
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
+        # Create scene instance
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
 
-            # Call the setup method
-            scene._setup_voice_recognition()
+        # Call the setup method
+        scene._setup_voice_recognition()
 
-            # Verify voice manager was created and configured
-            mock_voice_class.assert_called_once_with(logger=scene.log)
-            mock_voice_manager.register_command.assert_called()
-            mock_voice_manager.start_listening.assert_called_once()
-            assert scene.voice_manager == mock_voice_manager
+        # Verify voice manager was created and configured
+        mock_voice_class.assert_called_once_with(logger=scene.log)
+        mock_voice_manager.register_command.assert_called()
+        mock_voice_manager.start_listening.assert_called_once()
+        assert scene.voice_manager == mock_voice_manager
 
-    def test_voice_recognition_setup_no_microphone(self):
+    def test_voice_recognition_setup_no_microphone(self, mocker):
         """Test voice recognition setup when microphone is not available."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None), \
-             patch("glitchygames.tools.bitmappy.VoiceEventManager") as mock_voice_class:
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mock_voice_class = mocker.patch("glitchygames.tools.bitmappy.VoiceEventManager")
 
-            # Mock the voice manager without microphone
-            mock_voice_manager = Mock()
-            mock_voice_manager.is_available.return_value = False
-            mock_voice_class.return_value = mock_voice_manager
+        # Mock the voice manager without microphone
+        mock_voice_manager = mocker.Mock()
+        mock_voice_manager.is_available.return_value = False
+        mock_voice_class.return_value = mock_voice_manager
 
-            # Create scene instance
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
+        # Create scene instance
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
 
-            # Call the setup method
-            scene._setup_voice_recognition()
+        # Call the setup method
+        scene._setup_voice_recognition()
 
-            # Verify voice manager was created but not started
-            mock_voice_class.assert_called_once_with(logger=scene.log)
-            mock_voice_manager.register_command.assert_not_called()
-            mock_voice_manager.start_listening.assert_not_called()
-            assert scene.voice_manager is None
+        # Verify voice manager was created but not started
+        mock_voice_class.assert_called_once_with(logger=scene.log)
+        mock_voice_manager.register_command.assert_not_called()
+        mock_voice_manager.start_listening.assert_not_called()
+        assert scene.voice_manager is None
 
-    def test_clear_ai_sprite_box_command(self):
+    def test_clear_ai_sprite_box_command(self, mocker):
         """Test the clear AI sprite box voice command."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            scene.debug_text = Mock()
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        scene.debug_text = mocker.Mock()
 
-            # Call the clear command
-            scene._clear_ai_sprite_box()
+        # Call the clear command
+        scene._clear_ai_sprite_box()
 
-            # Verify text was cleared
-            scene.debug_text.text = ""
-            scene.log.info.assert_called_with("AI sprite box cleared via voice command")
+        # Verify text was cleared
+        scene.debug_text.text = ""
+        scene.log.info.assert_called_with("AI sprite box cleared via voice command")
 
-    def test_clear_ai_sprite_box_no_debug_text(self):
+    def test_clear_ai_sprite_box_no_debug_text(self, mocker):
         """Test clear AI sprite box when debug_text is not available."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            # No debug_text attribute
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        # No debug_text attribute
 
-            # Call the clear command
-            scene._clear_ai_sprite_box()
+        # Call the clear command
+        scene._clear_ai_sprite_box()
 
-            # Verify warning was logged
-            scene.log.warning.assert_called_with("Cannot clear AI sprite box - debug_text not available")  # noqa: E501
+        # Verify warning was logged
+        scene.log.warning.assert_called_with("Cannot clear AI sprite box - debug_text not available")  # noqa: E501
 
-    def test_voice_recognition_cleanup(self):
+    def test_voice_recognition_cleanup(self, mocker):
         """Test voice recognition cleanup."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            mock_voice_manager = Mock()
-            scene.voice_manager = mock_voice_manager
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        mock_voice_manager = mocker.Mock()
+        scene.voice_manager = mock_voice_manager
 
-            # Call cleanup
-            scene._cleanup_voice_recognition()
+        # Call cleanup
+        scene._cleanup_voice_recognition()
 
-            # Verify voice manager was stopped before being set to None
-            mock_voice_manager.stop_listening.assert_called_once()
-            assert scene.voice_manager is None
+        # Verify voice manager was stopped before being set to None
+        mock_voice_manager.stop_listening.assert_called_once()
+        assert scene.voice_manager is None
 
-    def test_voice_recognition_cleanup_no_manager(self):
+    def test_voice_recognition_cleanup_no_manager(self, mocker):
         """Test voice recognition cleanup when no manager exists."""
-        with patch.object(BitmapEditorScene, "__init__", return_value=None):
-            scene = BitmapEditorScene({})
-            scene.log = Mock()
-            # No voice_manager attribute
+        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        scene = BitmapEditorScene({})
+        scene.log = mocker.Mock()
+        # No voice_manager attribute
 
-            # Call cleanup - should not raise exception
-            scene._cleanup_voice_recognition()
+        # Call cleanup - should not raise exception
+        scene._cleanup_voice_recognition()
 
-            # No assertions needed - just ensure no exception is raised
+        # No assertions needed - just ensure no exception is raised
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__, "-v"])

@@ -5,9 +5,7 @@ mouse interactions, and visual state changes.
 """
 
 import sys
-import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -34,139 +32,135 @@ class TestButtonSpriteFunctionality:
         """Create a mock event using MockFactory."""
         return MockFactory.create_pygame_event_mock()
 
-    def test_button_mouse_down_up_changes_background(self, mock_pygame_patches):
+    def test_button_mouse_down_up_changes_background(self, mock_pygame_patches, mocker):
         """Test that button background changes on mouse down/up events."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickMe")
-            assert btn.background_color == btn.inactive_color
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickMe")
+        assert btn.background_color == btn.inactive_color
 
-            # Act: simulate mouse down
-            event = self._create_mock_event()
-            btn.on_left_mouse_button_down_event(event)
+        # Act: simulate mouse down
+        event = self._create_mock_event()
+        btn.on_left_mouse_button_down_event(event)
 
-            # Assert
-            assert btn.background_color == btn.active_color
+        # Assert
+        assert btn.background_color == btn.active_color
 
-            # Act: simulate mouse up
-            btn.on_left_mouse_button_up_event(event)
+        # Act: simulate mouse up
+        btn.on_left_mouse_button_up_event(event)
 
-            # Assert
-            assert btn.background_color == btn.inactive_color
+        # Assert
+        assert btn.background_color == btn.inactive_color
 
-    def test_button_hover_state_changes(self, mock_pygame_patches):
+    def test_button_hover_state_changes(self, mock_pygame_patches, mocker):
         """Test that button changes appearance on hover."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="HoverButton")
-            initial_color = btn.background_color
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="HoverButton")
+        initial_color = btn.background_color
 
-            # Act: simulate mouse enter
-            event = self._create_mock_event()
-            btn.on_mouse_enter_event(event)
+        # Act: simulate mouse enter
+        event = self._create_mock_event()
+        btn.on_mouse_enter_event(event)
 
-            # Assert: ButtonSprite doesn't change color on hover, only on click
-            assert btn.background_color == btn.inactive_color
+        # Assert: ButtonSprite doesn't change color on hover, only on click
+        assert btn.background_color == btn.inactive_color
 
-            # Act: simulate mouse exit (ButtonSprite doesn't have on_mouse_leave_event)
-            btn.on_mouse_exit_event(event)
+        # Act: simulate mouse exit (ButtonSprite doesn't have on_mouse_leave_event)
+        btn.on_mouse_exit_event(event)
 
-            # Assert: should return to initial color
-            assert btn.background_color == initial_color
+        # Assert: should return to initial color
+        assert btn.background_color == initial_color
 
-    def test_button_click_behavior(self, mock_pygame_patches):
+    def test_button_click_behavior(self, mock_pygame_patches, mocker):
         """Test that button changes color on click."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickButton")
-            assert btn.background_color == btn.inactive_color
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickButton")
+        assert btn.background_color == btn.inactive_color
 
-            # Act: simulate click
-            event = self._create_mock_event()
-            btn.on_left_mouse_button_down_event(event)
+        # Act: simulate click
+        event = self._create_mock_event()
+        btn.on_left_mouse_button_down_event(event)
 
-            # Assert: should change to active color
-            assert btn.background_color == btn.active_color
+        # Assert: should change to active color
+        assert btn.background_color == btn.active_color
 
-            btn.on_left_mouse_button_up_event(event)
+        btn.on_left_mouse_button_up_event(event)
 
-            # Assert: should return to inactive color
-            assert btn.background_color == btn.inactive_color
+        # Assert: should return to inactive color
+        assert btn.background_color == btn.inactive_color
 
-    def test_button_initialization(self, mock_pygame_patches):
+    def test_button_initialization(self, mock_pygame_patches, mocker):
         """Test ButtonSprite initialization."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            # Act
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TestButton")
+        # Act
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TestButton")
 
-            # Assert
-            assert btn.rect.x == BUTTON_X
-            assert btn.rect.y == BUTTON_Y
-            assert btn.rect.width == BUTTON_WIDTH
-            assert btn.rect.height == BUTTON_HEIGHT
-            assert btn.name == "TestButton"
-            assert btn.background_color is not None
-            assert btn.active_color is not None
-            assert btn.inactive_color is not None
-            assert btn.border_color is not None
+        # Assert
+        assert btn.rect.x == BUTTON_X
+        assert btn.rect.y == BUTTON_Y
+        assert btn.rect.width == BUTTON_WIDTH
+        assert btn.rect.height == BUTTON_HEIGHT
+        assert btn.name == "TestButton"
+        assert btn.background_color is not None
+        assert btn.active_color is not None
+        assert btn.inactive_color is not None
+        assert btn.border_color is not None
 
-    def test_button_text_rendering(self, mock_pygame_patches):
+    def test_button_text_rendering(self, mock_pygame_patches, mocker):
         """Test that button text is rendered correctly."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            # Act
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TextButton")
+        # Act
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TextButton")
 
-            # Assert - ButtonSprite creates a TextSprite internally, so we check that it exists
-            assert btn.text is not None
-            # TextSprite name is set to the button's name
-            assert btn.text.name == "TextButton"
+        # Assert - ButtonSprite creates a TextSprite internally, so we check that it exists
+        assert btn.text is not None
+        # TextSprite name is set to the button's name
+        assert btn.text.name == "TextButton"
 
-    def test_button_disabled_state(self, mock_pygame_patches):
+    def test_button_disabled_state(self, mock_pygame_patches, mocker):
         """Test button disabled state functionality."""
-        with patch("glitchygames.ui.FontManager.get_font") as mock_get_font:
-            # Arrange
-            font = self._create_mock_font()
-            mock_get_font.return_value = font
+        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        # Arrange
+        font = self._create_mock_font()
+        mock_get_font.return_value = font
 
-            btn = ButtonSprite(x=10, y=20, width=100, height=40, name="DisabledButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="DisabledButton")
 
-            # Test that button can be created and has expected properties
-            assert btn is not None
-            assert btn.name == "DisabledButton"
+        # Test that button can be created and has expected properties
+        assert btn is not None
+        assert btn.name == "DisabledButton"
 
-            # Test that button responds to mouse events
-            event = self._create_mock_event()
-            initial_color = btn.background_color
+        # Test that button responds to mouse events
+        event = self._create_mock_event()
+        initial_color = btn.background_color
 
-            # Act: simulate mouse down
-            btn.on_left_mouse_button_down_event(event)
+        # Act: simulate mouse down
+        btn.on_left_mouse_button_down_event(event)
 
-            # Assert: background color should change
-            assert btn.background_color != initial_color
+        # Assert: background color should change
+        assert btn.background_color != initial_color
 
-            # Act: simulate mouse up
-            btn.on_left_mouse_button_up_event(event)
+        # Act: simulate mouse up
+        btn.on_left_mouse_button_up_event(event)
 
-            # Assert: background color should return to inactive
-            assert btn.background_color == btn.inactive_color
-
-
-if __name__ == "__main__":
-    unittest.main()
+        # Assert: background color should return to inactive
+        assert btn.background_color == btn.inactive_color

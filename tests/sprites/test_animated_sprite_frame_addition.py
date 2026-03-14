@@ -1,6 +1,7 @@
 """Tests for AnimatedSprite frame addition functionality."""
 
 import pygame
+import pytest
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from tests.mocks import MockFactory
@@ -13,15 +14,15 @@ TEST_SIZE_3 = 3
 class TestAnimatedSpriteFrameAddition:
     """Test frame addition behavior in AnimatedSprite."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
-
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
 
         self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
         self.surface1.fill((255, 0, 0))  # Red
@@ -35,7 +36,6 @@ class TestAnimatedSpriteFrameAddition:
     def teardown_method(self):
         """Clean up after tests."""
         pygame.quit()
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_single_frame_animation_stays_static(self):
         """Test that single-frame animations remain static."""

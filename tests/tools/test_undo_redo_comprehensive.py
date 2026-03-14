@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Comprehensive tests for the updated undo/redo system with frame-specific operations."""
 
-import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
 
-from glitchygames.tools.undo_redo_manager import (
-    UndoRedoManager, OperationType, Operation
-)
+import pytest
 from glitchygames.tools.operation_history import (
-    CanvasOperationTracker, FilmStripOperationTracker, CrossAreaOperationTracker,
-    PixelChange
+    CanvasOperationTracker,
+    CrossAreaOperationTracker,
+    FilmStripOperationTracker,
+    PixelChange,
 )
+from glitchygames.tools.undo_redo_manager import Operation, OperationType, UndoRedoManager
 
 
 class TestUndoRedoManagerBasic:
@@ -49,10 +48,10 @@ class TestUndoRedoManagerBasic:
         assert not self.manager.can_redo()
         assert self.manager.get_undo_description() == "Test pixel change"
 
-    def test_undo_operation(self):
+    def test_undo_operation(self, mocker):
         """Test undoing operations."""
         # Mock the callback to return True
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         self.manager.add_operation(
@@ -69,10 +68,10 @@ class TestUndoRedoManagerBasic:
         assert not self.manager.can_undo()
         assert self.manager.can_redo()
 
-    def test_redo_operation(self):
+    def test_redo_operation(self, mocker):
         """Test redoing operations."""
         # Mock the callback to return True
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         self.manager.add_operation(
@@ -162,10 +161,10 @@ class TestFrameSpecificUndoRedo:
         assert not self.manager.can_redo_frame("run_animation", 1)  # Different animation
         assert not self.manager.can_redo_frame("walk_animation", 2)  # Different frame
 
-    def test_undo_frame(self):
+    def test_undo_frame(self, mocker):
         """Test frame-specific undo."""
         # Mock the callback
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         # Add frame operation
@@ -187,10 +186,10 @@ class TestFrameSpecificUndoRedo:
         assert len(self.manager.frame_redo_stacks[frame_key]) == 1
         mock_callback.assert_called_once()
 
-    def test_redo_frame(self):
+    def test_redo_frame(self, mocker):
         """Test frame-specific redo."""
         # Mock the callback
-        mock_callback = Mock(return_value=True)
+        mock_callback = mocker.Mock(return_value=True)
         self.manager.set_pixel_change_callback(mock_callback)
 
         # Add frame operation and undo it
@@ -341,15 +340,17 @@ class TestFilmStripOperationTracker:
 class TestUndoRedoCallbacks:
     """Test undo/redo callback functionality."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
         """Set up test fixtures."""
+        self._mocker = mocker
         self.manager = UndoRedoManager()
-        self.mock_pixel_callback = Mock(return_value=True)
-        self.mock_add_frame_callback = Mock(return_value=True)
-        self.mock_delete_frame_callback = Mock(return_value=True)
-        self.mock_reorder_frame_callback = Mock(return_value=True)
-        self.mock_add_animation_callback = Mock(return_value=True)
-        self.mock_delete_animation_callback = Mock(return_value=True)
+        self.mock_pixel_callback = mocker.Mock(return_value=True)
+        self.mock_add_frame_callback = mocker.Mock(return_value=True)
+        self.mock_delete_frame_callback = mocker.Mock(return_value=True)
+        self.mock_reorder_frame_callback = mocker.Mock(return_value=True)
+        self.mock_add_animation_callback = mocker.Mock(return_value=True)
+        self.mock_delete_animation_callback = mocker.Mock(return_value=True)
 
         self.manager.set_pixel_change_callback(self.mock_pixel_callback)
         self.manager.set_film_strip_callbacks(
@@ -429,20 +430,20 @@ class TestIntegrationScenarios:
         self.canvas_tracker = CanvasOperationTracker(self.manager)
         self.film_tracker = FilmStripOperationTracker(self.manager)
 
-    def test_mixed_operations_undo_sequence(self):
+    def test_mixed_operations_undo_sequence(self, mocker):
         """Test undoing a sequence of mixed canvas and film strip operations."""
         # Set up callbacks
-        mock_pixel_callback = Mock(return_value=True)
-        mock_add_frame_callback = Mock(return_value=True)
-        mock_delete_frame_callback = Mock(return_value=True)
+        mock_pixel_callback = mocker.Mock(return_value=True)
+        mock_add_frame_callback = mocker.Mock(return_value=True)
+        mock_delete_frame_callback = mocker.Mock(return_value=True)
 
         self.manager.set_pixel_change_callback(mock_pixel_callback)
         self.manager.set_film_strip_callbacks(
             add_frame_callback=mock_add_frame_callback,
             delete_frame_callback=mock_delete_frame_callback,
-            reorder_frame_callback=Mock(return_value=True),
-            add_animation_callback=Mock(return_value=True),
-            delete_animation_callback=Mock(return_value=True)
+            reorder_frame_callback=mocker.Mock(return_value=True),
+            add_animation_callback=mocker.Mock(return_value=True),
+            delete_animation_callback=mocker.Mock(return_value=True)
         )
 
         # Add canvas operation
@@ -571,10 +572,10 @@ class TestEdgeCases:
         assert len(self.manager.undo_stack) == 0
         assert len(self.manager.redo_stack) == 0
 
-    def test_operation_with_failed_callback(self):
+    def test_operation_with_failed_callback(self, mocker):
         """Test handling of failed callbacks."""
         # Mock a callback that returns False
-        mock_callback = Mock(return_value=False)
+        mock_callback = mocker.Mock(return_value=False)
         self.manager.set_pixel_change_callback(mock_callback)
 
         # Add operation

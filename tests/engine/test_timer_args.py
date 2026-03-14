@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -15,7 +14,7 @@ class DummyGame(Scene):
         return parser
 
 
-def test_timer_args_defaults(monkeypatch):
+def test_timer_args_defaults(monkeypatch, mocker):
     # Build a fake argparse result with required fields
     ns = SimpleNamespace(
         log_level="INFO",
@@ -33,15 +32,15 @@ def test_timer_args_defaults(monkeypatch):
         log_timer_jitter=False,
         profile=False,
     )
-    with patch("argparse.ArgumentParser.parse_args", return_value=ns):
-        opts = GameEngine.initialize_arguments(DummyGame)
-        assert opts["timer_backend"] == "pygame"
-        assert opts["sleep_granularity_ns"] == 1_000_000
-        assert opts["windows_timer_1ms"] is False
-        assert opts["log_timer_jitter"] is False
+    mocker.patch("argparse.ArgumentParser.parse_args", return_value=ns)
+    opts = GameEngine.initialize_arguments(DummyGame)
+    assert opts["timer_backend"] == "pygame"
+    assert opts["sleep_granularity_ns"] == 1_000_000
+    assert opts["windows_timer_1ms"] is False
+    assert opts["log_timer_jitter"] is False
 
 
-def test_timer_args_overrides(monkeypatch):
+def test_timer_args_overrides(monkeypatch, mocker):
     ns = SimpleNamespace(
         log_level="INFO",
         target_fps=60.0,
@@ -57,10 +56,9 @@ def test_timer_args_overrides(monkeypatch):
         log_timer_jitter=True,
         profile=False,
     )
-    with patch("argparse.ArgumentParser.parse_args", return_value=ns):
-        opts = GameEngine.initialize_arguments(DummyGame)
-        assert opts["timer_backend"] == "fast"
-        assert opts["sleep_granularity_ns"] == 0
-        assert opts["windows_timer_1ms"] is True
-        assert opts["log_timer_jitter"] is True
-
+    mocker.patch("argparse.ArgumentParser.parse_args", return_value=ns)
+    opts = GameEngine.initialize_arguments(DummyGame)
+    assert opts["timer_backend"] == "fast"
+    assert opts["sleep_granularity_ns"] == 0
+    assert opts["windows_timer_1ms"] is True
+    assert opts["log_timer_jitter"] is True

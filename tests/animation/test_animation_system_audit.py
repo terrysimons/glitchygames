@@ -6,8 +6,6 @@ in the animation system before implementing fixes.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 from glitchygames.sprites import SpriteFactory
@@ -38,20 +36,14 @@ def get_resource_path(filename: str) -> str:
 class TestAnimationSystemAudit:
     """Test cases that expose animation system issues."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks for pygame initialization
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        # Teardown the centralized mocks
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_frame_interval_bug_exposure(self):
         """Test that exposes the frame_interval property bug.

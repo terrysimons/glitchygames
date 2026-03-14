@@ -8,7 +8,6 @@ This module tests the film strip selection system to ensure that:
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -34,36 +33,36 @@ class TestFilmStripSelection:
         return MockFactory.create_pygame_surface_mock()
 
     @pytest.fixture
-    def mock_pygame_patches(self):
+    def mock_pygame_patches(self, mocker):
         """Mock pygame modules for testing."""
-        with patch("pygame.display") as mock_display, \
-             patch("pygame.font") as mock_font, \
-             patch("pygame.draw") as mock_draw, \
-             patch("pygame.Surface") as mock_surface:
-            yield {
-                "display": mock_display,
-                "font": mock_font,
-                "draw": mock_draw,
-                "surface": mock_surface
-            }
+        mock_display = mocker.patch("pygame.display")
+        mock_font = mocker.patch("pygame.font")
+        mock_draw = mocker.patch("pygame.draw")
+        mock_surface = mocker.patch("pygame.Surface")
+        return {
+            "display": mock_display,
+            "font": mock_font,
+            "draw": mock_draw,
+            "surface": mock_surface
+        }
 
     @pytest.fixture
-    def sample_animated_sprite(self):
+    def sample_animated_sprite(self, mocker):
         """Create a sample animated sprite with 4 frames."""
-        sprite = Mock(spec=AnimatedSprite)
+        sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {
             "walk": [
-                Mock(spec=SpriteFrame, duration=0.5),
-                Mock(spec=SpriteFrame, duration=0.5),
-                Mock(spec=SpriteFrame, duration=0.5),
-                Mock(spec=SpriteFrame, duration=0.5)
+                mocker.Mock(spec=SpriteFrame, duration=0.5),
+                mocker.Mock(spec=SpriteFrame, duration=0.5),
+                mocker.Mock(spec=SpriteFrame, duration=0.5),
+                mocker.Mock(spec=SpriteFrame, duration=0.5)
             ]
         }
         sprite._animation_order = ["walk"]
         return sprite
 
     @pytest.fixture
-    def film_strip_widget(self, mock_pygame_patches, sample_animated_sprite):
+    def film_strip_widget(self, mock_pygame_patches, sample_animated_sprite, mocker):
         """Create a film strip widget for testing."""
         widget = FilmStripWidget(0, 0, 400, 100)
         widget.animated_sprite = sample_animated_sprite
@@ -72,7 +71,7 @@ class TestFilmStripSelection:
         widget.current_frame = 0
 
         # Mock the parent scene
-        widget.parent_scene = Mock(spec=BitmapEditorScene)
+        widget.parent_scene = mocker.Mock(spec=BitmapEditorScene)
         widget.parent_scene.selected_frame = 0
         widget.parent_scene.selected_animation = "walk"
 
@@ -136,7 +135,7 @@ class TestFilmStripSelection:
         # The film strip widget should also be updated
         assert film_strip_widget.selected_frame == 0
 
-    def test_strip_switching_preserves_individual_selections(self, film_strip_widget):
+    def test_strip_switching_preserves_individual_selections(self, film_strip_widget, mocker):
         """Test that switching strips preserves individual strip selections."""
         # Set up initial state: frame 2 is selected in current strip
         film_strip_widget.selected_frame = 2
@@ -155,8 +154,8 @@ class TestFilmStripSelection:
             "run": second_strip
         }
         film_strip_widget.parent_scene.film_strip_sprites = {
-            "walk": Mock(),
-            "run": Mock()
+            "walk": mocker.Mock(),
+            "run": mocker.Mock()
         }
 
         # Mock the _update_film_strip_selection_state method
@@ -237,7 +236,7 @@ class TestFilmStripSelection:
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
     def test_multiple_strips_independent_selections(
-        self, mock_pygame_patches, sample_animated_sprite
+        self, mock_pygame_patches, sample_animated_sprite, mocker
     ):
         """Test that multiple strips maintain independent selections."""
         # Create two strips
@@ -252,9 +251,9 @@ class TestFilmStripSelection:
         strip2.selected_frame = 1
 
         # Create a scene with both strips
-        scene = Mock(spec=BitmapEditorScene)
+        scene = mocker.Mock(spec=BitmapEditorScene)
         scene.film_strips = {"walk": strip1, "run": strip2}
-        scene.film_strip_sprites = {"walk": Mock(), "run": Mock()}
+        scene.film_strip_sprites = {"walk": mocker.Mock(), "run": mocker.Mock()}
         scene.selected_animation = "walk"
         scene.selected_frame = 2
 
@@ -367,12 +366,12 @@ class TestFilmStripSelection:
         # Verify the strip's selected_frame is updated to match the global selection
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
-    def test_triangle_indicator_draws_below_frame(self, film_strip_widget, mock_pygame_patches):
+    def test_triangle_indicator_draws_below_frame(self, film_strip_widget, mock_pygame_patches, mocker):
         """Test that the triangle indicator is drawn below the active animation frame."""
         # Set up: frame 2 is the active animation frame
         film_strip_widget.current_animation = "walk"
         # Mock get_current_preview_frame to return frame 2
-        film_strip_widget.get_current_preview_frame = Mock(return_value=2)
+        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=2)
 
         # Mock pygame.draw.polygon to track calls
         mock_draw = mock_pygame_patches["draw"]
@@ -389,12 +388,12 @@ class TestFilmStripSelection:
         # Verify it was called twice (filled triangle + border)
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
-    def test_triangle_indicator_uses_correct_colors(self, film_strip_widget, mock_pygame_patches):
+    def test_triangle_indicator_uses_correct_colors(self, film_strip_widget, mock_pygame_patches, mocker):
         """Test that the triangle indicator uses the correct colors."""
         # Set up: frame 0 is the active animation frame
         film_strip_widget.current_animation = "walk"
         # Mock get_current_preview_frame to return frame 0
-        film_strip_widget.get_current_preview_frame = Mock(return_value=0)
+        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=0)
 
         # Mock pygame.draw.polygon to track calls
         mock_draw = mock_pygame_patches["draw"]
@@ -408,12 +407,12 @@ class TestFilmStripSelection:
         # Verify pygame.draw.polygon was called twice (filled + border)
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
-    def test_triangle_indicator_size_and_position(self, film_strip_widget, mock_pygame_patches):
+    def test_triangle_indicator_size_and_position(self, film_strip_widget, mock_pygame_patches, mocker):
         """Test that the triangle indicator has the correct size and position."""
         # Set up: frame 1 is the active animation frame
         film_strip_widget.current_animation = "walk"
         # Mock get_current_preview_frame to return frame 1
-        film_strip_widget.get_current_preview_frame = Mock(return_value=1)
+        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=1)
 
         # Mock pygame.draw.polygon to track calls
         mock_draw = mock_pygame_patches["draw"]
@@ -477,7 +476,7 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_draws_when_frame_not_found(
-        self, film_strip_widget, mock_pygame_patches
+        self, film_strip_widget, mock_pygame_patches, mocker
     ):
         """Test that triangle indicator is drawn at default position.
 
@@ -486,7 +485,7 @@ class TestFilmStripSelection:
         # Set up: frame layout doesn't exist
         film_strip_widget.current_animation = "walk"
         # Mock get_current_preview_frame to return frame 5 (doesn't exist in frame_layouts)
-        film_strip_widget.get_current_preview_frame = Mock(return_value=5)
+        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=5)
 
         # Mock pygame.draw.polygon to track calls
         mock_draw = mock_pygame_patches["draw"]

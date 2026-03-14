@@ -3,9 +3,7 @@
 import configparser
 import json
 import sys
-import unittest
 from pathlib import Path
-from unittest.mock import mock_open, patch
 
 import pytest
 from pygame import Color
@@ -31,7 +29,7 @@ from glitchygames.color import (
 from glitchygames.color.palette import ColorPalette, PaletteUtility, System, Vga
 
 
-class TestColorConstantsCoverage(unittest.TestCase):
+class TestColorConstantsCoverage:
     """Test coverage for color constants and imports."""
 
     def test_color_constants_import(self):
@@ -68,7 +66,7 @@ class TestColorConstantsCoverage(unittest.TestCase):
         assert default.RED is not None
 
 
-class TestColorPaletteCoverage(unittest.TestCase):
+class TestColorPaletteCoverage:
     """Comprehensive test coverage for ColorPalette class."""
 
     def test_color_palette_initialization_with_colors(self):
@@ -79,16 +77,16 @@ class TestColorPaletteCoverage(unittest.TestCase):
         assert palette._colors == colors
         assert palette._size == 2  # len(colors) - 1  # noqa: PLR2004
 
-    def test_color_palette_initialization_with_filename(self):
+    def test_color_palette_initialization_with_filename(self, mocker):
         """Test ColorPalette initialization with filename."""
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("glitchygames.color.palette.PaletteUtility.load_palette_from_file") as mock_load:
-            mock_load.return_value = [(255, 0, 0), (0, 255, 0)]
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mock_load = mocker.patch("glitchygames.color.palette.PaletteUtility.load_palette_from_file")
+        mock_load.return_value = [(255, 0, 0), (0, 255, 0)]
 
-            palette = ColorPalette(colors=None, filename="test")
+        palette = ColorPalette(colors=None, filename="test")
 
-            assert palette._colors == [(255, 0, 0), (0, 255, 0)]
-            assert palette._size == 1
+        assert palette._colors == [(255, 0, 0), (0, 255, 0)]
+        assert palette._size == 1
 
     def test_color_palette_initialization_empty(self):
         """Test ColorPalette initialization with no colors or filename."""
@@ -145,7 +143,7 @@ class TestColorPaletteCoverage(unittest.TestCase):
         assert len(palette._colors) == 3  # noqa: PLR2004
 
 
-class TestPaletteUtilityCoverage(unittest.TestCase):
+class TestPaletteUtilityCoverage:
     """Comprehensive test coverage for PaletteUtility class."""
 
     def test_load_palette_from_config(self):
@@ -181,7 +179,7 @@ class TestPaletteUtilityCoverage(unittest.TestCase):
         assert colors[0].b == 192  # noqa: PLR2004
         assert colors[0].a == 255  # Default alpha  # noqa: PLR2004
 
-    def test_load_palette_from_file(self):
+    def test_load_palette_from_file(self, mocker):
         """Test load_palette_from_file method."""
         config_content = """[default]
 colors = 2
@@ -199,68 +197,68 @@ blue = 0
 alpha = 128
 """
 
-        with patch("pathlib.Path.open", mock_open(read_data=config_content)), \
-             patch("configparser.ConfigParser.read_file"), \
-             patch(
-                 "glitchygames.color.palette.PaletteUtility.load_palette_from_config"
-             ) as mock_load:
-            mock_load.return_value = [(255, 0, 0), (0, 255, 0)]
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=config_content))
+        mocker.patch("configparser.ConfigParser.read_file")
+        mock_load = mocker.patch(
+            "glitchygames.color.palette.PaletteUtility.load_palette_from_config"
+        )
+        mock_load.return_value = [(255, 0, 0), (0, 255, 0)]
 
-            PaletteUtility.load_palette_from_file(
-                Path("test.palette")
-            )
-            mock_load.assert_called_once()
+        PaletteUtility.load_palette_from_file(
+            Path("test.palette")
+        )
+        mock_load.assert_called_once()
 
-    def test_write_palette_to_file(self):
+    def test_write_palette_to_file(self, mocker):
         """Test write_palette_to_file method."""
         config_data = {"test": "data"}
         output_file = Path("test_output.palette")
 
-        with patch("pathlib.Path.open", mock_open()) as mock_file:
-            PaletteUtility.write_palette_to_file(config_data, output_file)
+        mock_file = mocker.patch("pathlib.Path.open", mocker.mock_open())
+        PaletteUtility.write_palette_to_file(config_data, output_file)
 
-            # Verify Path.open was called correctly
-            mock_file.assert_called_once_with(output_file, "w")
-            mock_file().write.assert_called_once_with(
-                json.dumps(config_data)
-            )
+        # Verify Path.open was called correctly
+        mock_file.assert_called_once_with(output_file, "w")
+        mock_file().write.assert_called_once_with(
+            json.dumps(config_data)
+        )
 
-    def test_parse_rgb_data_in_file(self):
+    def test_parse_rgb_data_in_file(self, mocker):
         """Test parse_rgb_data_in_file method."""
         rgb_content = "255,0,0\n0,255,0\n0,0,255\n255,0,0\n"  # Last line is duplicate
 
-        with patch("builtins.open", mock_open(read_data=rgb_content)), \
-             patch("pathlib.Path.open", mock_open(read_data=rgb_content)):
-            colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
+        mocker.patch("builtins.open", mocker.mock_open(read_data=rgb_content))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=rgb_content))
+        colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
 
-            assert len(colors) == 3  # Duplicate should be removed  # noqa: PLR2004
-            assert colors[0].r == 255  # noqa: PLR2004
-            assert colors[0].g == 0
-            assert colors[0].b == 0
-            assert colors[1].r == 0
-            assert colors[1].g == 255  # noqa: PLR2004
-            assert colors[1].b == 0
-            assert colors[2].r == 0
-            assert colors[2].g == 0
-            assert colors[2].b == 255  # noqa: PLR2004
+        assert len(colors) == 3  # Duplicate should be removed  # noqa: PLR2004
+        assert colors[0].r == 255  # noqa: PLR2004
+        assert colors[0].g == 0
+        assert colors[0].b == 0
+        assert colors[1].r == 0
+        assert colors[1].g == 255  # noqa: PLR2004
+        assert colors[1].b == 0
+        assert colors[2].r == 0
+        assert colors[2].g == 0
+        assert colors[2].b == 255  # noqa: PLR2004
 
-    def test_parse_rgb_data_in_file_with_alpha(self):
+    def test_parse_rgb_data_in_file_with_alpha(self, mocker):
         """Test parse_rgb_data_in_file method with alpha values."""
         rgb_content = "255,0,0,128\n0,255,0,64\n"
 
-        with patch("builtins.open", mock_open(read_data=rgb_content)), \
-             patch("pathlib.Path.open", mock_open(read_data=rgb_content)):
-            colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
+        mocker.patch("builtins.open", mocker.mock_open(read_data=rgb_content))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=rgb_content))
+        colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
 
-            assert len(colors) == 2  # noqa: PLR2004
-            assert colors[0].r == 255  # noqa: PLR2004
-            assert colors[0].g == 0
-            assert colors[0].b == 0
-            assert colors[0].a == 128  # noqa: PLR2004
-            assert colors[1].r == 0
-            assert colors[1].g == 255  # noqa: PLR2004
-            assert colors[1].b == 0
-            assert colors[1].a == 64  # noqa: PLR2004
+        assert len(colors) == 2  # noqa: PLR2004
+        assert colors[0].r == 255  # noqa: PLR2004
+        assert colors[0].g == 0
+        assert colors[0].b == 0
+        assert colors[0].a == 128  # noqa: PLR2004
+        assert colors[1].r == 0
+        assert colors[1].g == 255  # noqa: PLR2004
+        assert colors[1].b == 0
+        assert colors[1].a == 64  # noqa: PLR2004
 
     def test_create_palette_data(self):
         """Test create_palette_data method."""
@@ -279,76 +277,76 @@ alpha = 128
         assert config["1"]["alpha"] == "128"
 
 
-class TestSystemPaletteCoverage(unittest.TestCase):
+class TestSystemPaletteCoverage:
     """Test coverage for System palette class."""
 
-    def test_system_palette_initialization(self):
+    def test_system_palette_initialization(self, mocker):
         """Test System palette initialization."""
-        with patch("glitchygames.color.palette.ColorPalette.__init__") as mock_init, \
-             patch("glitchygames.color.palette.ColorPalette.get_color") as mock_get_color:
-            mock_init.return_value = None
-            mock_get_color.return_value = (0, 0, 0)  # Mock color return
+        mock_init = mocker.patch("glitchygames.color.palette.ColorPalette.__init__")
+        mock_get_color = mocker.patch("glitchygames.color.palette.ColorPalette.get_color")
+        mock_init.return_value = None
+        mock_get_color.return_value = (0, 0, 0)  # Mock color return
 
-            system = System()
+        system = System()
 
-            # Manually set the _size attribute that would be set by parent __init__
-            system._size = 0
+        # Manually set the _size attribute that would be set by parent __init__
+        system._size = 0
 
-            mock_init.assert_called_once_with(filename=SYSTEM)
-            assert isinstance(system, ColorPalette)
+        mock_init.assert_called_once_with(filename=SYSTEM)
+        assert isinstance(system, ColorPalette)
 
-    def test_system_palette_colors(self):
+    def test_system_palette_colors(self, mocker):
         """Test System palette color properties."""
-        with patch("glitchygames.color.palette.ColorPalette.__init__") as mock_init, \
-             patch("glitchygames.color.palette.ColorPalette.get_color") as mock_get_color:
-            mock_get_color.return_value = (255, 0, 0)
-            mock_init.return_value = None
+        mock_init = mocker.patch("glitchygames.color.palette.ColorPalette.__init__")
+        mock_get_color = mocker.patch("glitchygames.color.palette.ColorPalette.get_color")
+        mock_get_color.return_value = (255, 0, 0)
+        mock_init.return_value = None
 
-            system = System()
+        system = System()
 
-            # Test that color properties are set
-            assert isinstance(system.BLACK, tuple)
-            assert isinstance(system.MAROON, tuple)
-            assert isinstance(system.GREEN, tuple)
-            assert isinstance(system.OLIVE, tuple)
-            assert isinstance(system.NAVY, tuple)
-            assert isinstance(system.PURPLE, tuple)
-            assert isinstance(system.TEAL, tuple)
-            assert isinstance(system.SILVER, tuple)
-            assert isinstance(system.GREY, tuple)
-            assert isinstance(system.RED, tuple)
-            assert isinstance(system.LIME, tuple)
-            assert isinstance(system.YELLOW, tuple)
-            assert isinstance(system.BLUE, tuple)
-            assert isinstance(system.MAGENTA, tuple)
-            assert isinstance(system.CYAN, tuple)
-            assert isinstance(system.WHITE, tuple)
+        # Test that color properties are set
+        assert isinstance(system.BLACK, tuple)
+        assert isinstance(system.MAROON, tuple)
+        assert isinstance(system.GREEN, tuple)
+        assert isinstance(system.OLIVE, tuple)
+        assert isinstance(system.NAVY, tuple)
+        assert isinstance(system.PURPLE, tuple)
+        assert isinstance(system.TEAL, tuple)
+        assert isinstance(system.SILVER, tuple)
+        assert isinstance(system.GREY, tuple)
+        assert isinstance(system.RED, tuple)
+        assert isinstance(system.LIME, tuple)
+        assert isinstance(system.YELLOW, tuple)
+        assert isinstance(system.BLUE, tuple)
+        assert isinstance(system.MAGENTA, tuple)
+        assert isinstance(system.CYAN, tuple)
+        assert isinstance(system.WHITE, tuple)
 
 
-class TestVgaPaletteCoverage(unittest.TestCase):
+class TestVgaPaletteCoverage:
     """Test coverage for Vga palette class."""
 
-    def test_vga_palette_initialization(self):
+    def test_vga_palette_initialization(self, mocker):
         """Test Vga palette initialization."""
-        with patch("glitchygames.color.palette.ColorPalette.__init__") as mock_init:
-            mock_init.return_value = None
+        mock_init = mocker.patch("glitchygames.color.palette.ColorPalette.__init__")
+        mock_init.return_value = None
 
-            vga = Vga()
+        vga = Vga()
 
-            mock_init.assert_called_once_with(filename=VGA)
-            assert isinstance(vga, ColorPalette)
+        mock_init.assert_called_once_with(filename=VGA)
+        assert isinstance(vga, ColorPalette)
 
 
-class TestColorPaletteEdgeCasesCoverage(unittest.TestCase):
+class TestColorPaletteEdgeCasesCoverage:
     """Edge cases and error handling for Color/Palette module."""
 
-    def test_color_palette_file_not_found(self):
+    def test_color_palette_file_not_found(self, mocker):
         """Test ColorPalette when palette file is not found."""
-        with patch("pathlib.Path.exists", return_value=False):
-            palette = ColorPalette(colors=None, filename="nonexistent")
+        mocker.patch("pathlib.Path.exists", return_value=False)
+        palette = ColorPalette(colors=None, filename="nonexistent")
 
-            assert palette._colors is None
-            assert palette._size == 0
+        assert palette._colors is None
+        assert palette._size == 0
 
     def test_get_color_boundary_conditions(self):
         """Test get_color with boundary conditions."""
@@ -377,21 +375,21 @@ class TestColorPaletteEdgeCasesCoverage(unittest.TestCase):
         assert palette._colors[2] == (64, 64, 64)  # Appends at index 2
         assert len(palette._colors) == 3  # noqa: PLR2004
 
-    def test_parse_rgb_data_with_empty_file(self):
+    def test_parse_rgb_data_with_empty_file(self, mocker):
         """Test parse_rgb_data_in_file with empty file."""
-        with patch("builtins.open", mock_open(read_data="")), \
-             patch("pathlib.Path.open", mock_open(read_data="")):
-            colors = PaletteUtility.parse_rgb_data_in_file(Path("empty.txt"))
+        mocker.patch("builtins.open", mocker.mock_open(read_data=""))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=""))
+        colors = PaletteUtility.parse_rgb_data_in_file(Path("empty.txt"))
 
-            assert len(colors) == 0
+        assert len(colors) == 0
 
-    def test_parse_rgb_data_with_malformed_line(self):
+    def test_parse_rgb_data_with_malformed_line(self, mocker):
         """Test parse_rgb_data_in_file with malformed data."""
         rgb_content = "255,0,0\ninvalid_line\n0,255,0\n"
 
-        with patch("builtins.open", mock_open(read_data=rgb_content)), \
-             patch("pathlib.Path.open", mock_open(read_data=rgb_content)), \
-             pytest.raises(ValueError, match="invalid literal"):
+        mocker.patch("builtins.open", mocker.mock_open(read_data=rgb_content))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=rgb_content))
+        with pytest.raises(ValueError, match="invalid literal"):
             # This should raise a ValueError due to invalid int conversion
             PaletteUtility.parse_rgb_data_in_file(Path("malformed.txt"))
 
@@ -403,17 +401,17 @@ class TestColorPaletteEdgeCasesCoverage(unittest.TestCase):
         assert config["default"]["colors"] == "0"
         assert len(config.sections()) == 1  # Only 'default' section
 
-    def test_color_palette_with_none_colors_and_filename(self):
+    def test_color_palette_with_none_colors_and_filename(self, mocker):
         """Test ColorPalette with both colors=None and filename."""
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("glitchygames.color.palette.PaletteUtility.load_palette_from_file") as mock_load:
-            mock_load.return_value = [(255, 0, 0)]
+        mocker.patch("pathlib.Path.exists", return_value=True)
+        mock_load = mocker.patch("glitchygames.color.palette.PaletteUtility.load_palette_from_file")
+        mock_load.return_value = [(255, 0, 0)]
 
-            palette = ColorPalette(colors=None, filename="test")
+        palette = ColorPalette(colors=None, filename="test")
 
-            # Should use filename since colors is None
-            assert palette._colors == [(255, 0, 0)]
-            assert palette._size == 0
+        # Should use filename since colors is None
+        assert palette._colors == [(255, 0, 0)]
+        assert palette._size == 0
 
     def test_color_palette_with_colors_and_filename(self):
         """Test ColorPalette with both colors and filename provided."""
@@ -426,4 +424,4 @@ class TestColorPaletteEdgeCasesCoverage(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__])

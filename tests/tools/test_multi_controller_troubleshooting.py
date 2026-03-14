@@ -7,7 +7,6 @@ and the fixes that were implemented.
 
 import pytest
 import pygame
-from unittest.mock import Mock, patch, MagicMock
 from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
 from glitchygames.tools.controller_selection import ControllerSelection
 from tests.mocks import MockFactory
@@ -68,55 +67,55 @@ class TestDuplicateMethodIssue:
 class TestButtonMappingIssues:
     """Test button mapping issues that were encountered."""
     
-    def test_joystick_button_9_mapping(self):
+    def test_joystick_button_9_mapping(self, mocker):
         """Test that joystick button 9 doesn't reset controller."""
         # Mock joystick event
-        mock_event = Mock()
+        mock_event = mocker.Mock()
         mock_event.type = pygame.JOYBUTTONUP
         mock_event.button = 9  # Left shoulder button
         mock_event.instance_id = 0
-        
+
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
-        with patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate') as mock_activate:
-            # Simulate the event handling logic
-            if mock_event.button == 9:
-                # Should be unhandled (no action taken)
-                pass
-            else:
-                mock_activate(mock_event.instance_id)
-            
-            # Should not have called activate
-            mock_activate.assert_not_called()
+        mock_activate = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate')
+        # Simulate the event handling logic
+        if mock_event.button == 9:
+            # Should be unhandled (no action taken)
+            pass
+        else:
+            mock_activate(mock_event.instance_id)
+
+        # Should not have called activate
+        mock_activate.assert_not_called()
     
-    def test_shoulder_button_correct_mapping(self):
+    def test_shoulder_button_correct_mapping(self, mocker):
         """Test that shoulder buttons are correctly mapped to navigation."""
         # Mock controller events
-        left_shoulder_event = Mock()
+        left_shoulder_event = mocker.Mock()
         left_shoulder_event.type = pygame.CONTROLLERBUTTONUP
         left_shoulder_event.button = pygame.CONTROLLER_BUTTON_LEFTSHOULDER
         left_shoulder_event.instance_id = 0
-        
-        right_shoulder_event = Mock()
+
+        right_shoulder_event = mocker.Mock()
         right_shoulder_event.type = pygame.CONTROLLERBUTTONUP
         right_shoulder_event.button = pygame.CONTROLLER_BUTTON_RIGHTSHOULDER
         right_shoulder_event.instance_id = 0
-        
+
         # Mock the navigation methods
-        with patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame') as mock_prev, \
-             patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame') as mock_next:
-            
-            # Simulate left shoulder button press
-            if left_shoulder_event.button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
-                mock_prev(left_shoulder_event.instance_id)
-            
-            # Simulate right shoulder button press
-            if right_shoulder_event.button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
-                mock_next(right_shoulder_event.instance_id)
-            
-            # Verify correct methods were called
-            mock_prev.assert_called_once_with(0)
-            mock_next.assert_called_once_with(0)
+        mock_prev = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame')
+        mock_next = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame')
+
+        # Simulate left shoulder button press
+        if left_shoulder_event.button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
+            mock_prev(left_shoulder_event.instance_id)
+
+        # Simulate right shoulder button press
+        if right_shoulder_event.button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
+            mock_next(right_shoulder_event.instance_id)
+
+        # Verify correct methods were called
+        mock_prev.assert_called_once_with(0)
+        mock_next.assert_called_once_with(0)
 
 
 class TestSelectionBoxRegression:
@@ -176,30 +175,30 @@ class TestSelectionBoxRegression:
 class TestFilmStripDirtyMarking:
     """Test that film strips are marked dirty when colors change."""
     
-    def test_film_strip_dirty_marking_on_color_assignment(self):
+    def test_film_strip_dirty_marking_on_color_assignment(self, mocker):
         """Test that film strips are marked dirty when controller colors are assigned."""
         # Mock film strip
-        mock_film_strip = Mock()
-        mock_film_strip.mark_dirty = Mock()
-        
+        mock_film_strip = mocker.Mock()
+        mock_film_strip.mark_dirty = mocker.Mock()
+
         # Mock film strip sprites
-        mock_film_strip_sprite = Mock()
+        mock_film_strip_sprite = mocker.Mock()
         mock_film_strip_sprite.dirty = 0
-        
+
         # Mock the scene with film strips
-        mock_scene = Mock()
+        mock_scene = mocker.Mock()
         mock_scene.film_strips = {'test_animation': mock_film_strip}
         mock_scene.film_strip_sprites = {'test_animation': mock_film_strip_sprite}
-        
+
         # Simulate color assignment
-        with patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip}):
-            with patch.object(mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite}):
-                # Mark film strips as dirty
-                for film_strip in mock_scene.film_strips.values():
-                    film_strip.mark_dirty()
-                for film_strip_sprite in mock_scene.film_strip_sprites.values():
-                    film_strip_sprite.dirty = 1
-        
+        mocker.patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip})
+        mocker.patch.object(mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite})
+        # Mark film strips as dirty
+        for film_strip in mock_scene.film_strips.values():
+            film_strip.mark_dirty()
+        for film_strip_sprite in mock_scene.film_strip_sprites.values():
+            film_strip_sprite.dirty = 1
+
         # Verify dirty marking was called
         mock_film_strip.mark_dirty.assert_called()
         assert mock_film_strip_sprite.dirty == 1
@@ -267,25 +266,25 @@ class TestControllerActivationFlow:
 class TestDebugOutputCleanup:
     """Test that debug output is properly controlled."""
     
-    def test_debug_output_control(self):
+    def test_debug_output_control(self, mocker):
         """Test that debug output can be controlled."""
         # Mock print statements
-        with patch('builtins.print') as mock_print:
-            # Simulate debug output
-            print("DEBUG: Controller 0 activated")
-            print("DEBUG: Controller 1 activated")
-            
-            # Verify debug output
-            assert mock_print.call_count == 2
-            assert "Controller 0 activated" in str(mock_print.call_args_list[0])
-            assert "Controller 1 activated" in str(mock_print.call_args_list[1])
+        mock_print = mocker.patch('builtins.print')
+        # Simulate debug output
+        print("DEBUG: Controller 0 activated")
+        print("DEBUG: Controller 1 activated")
+
+        # Verify debug output
+        assert mock_print.call_count == 2
+        assert "Controller 0 activated" in str(mock_print.call_args_list[0])
+        assert "Controller 1 activated" in str(mock_print.call_args_list[1])
     
-    def test_logging_integration(self):
+    def test_logging_integration(self, mocker):
         """Test that logging is properly integrated."""
         import logging
-        
+
         # Mock logger
-        mock_logger = Mock()
+        mock_logger = mocker.Mock()
         
         # Simulate logging calls
         mock_logger.debug("Controller 0 activated")

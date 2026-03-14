@@ -8,7 +8,6 @@ including controller-based painting and navigation.
 import pytest
 import pygame
 import time
-from unittest.mock import Mock, patch, MagicMock
 
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.visual_collision_manager import LocationType
@@ -17,40 +16,41 @@ from glitchygames.tools.visual_collision_manager import LocationType
 class TestCanvasInputHandling:
     """Test canvas input handling for Plan C."""
     
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         pygame.init()
         self.mode_switcher = ModeSwitcher()
         self.controller_id = 0
-        
+
         # Mock scene with canvas input handling
-        self.mock_scene = Mock()
+        self.mock_scene = mocker.Mock()
         self.mock_scene.mode_switcher = self.mode_switcher
         self.mock_scene.controller_selections = {}
-        self.mock_scene.multi_controller_manager = Mock()
+        self.mock_scene.multi_controller_manager = mocker.Mock()
         self.mock_scene.controller_drags = {}
-        
+
         # Mock controller info
-        self.mock_controller_info = Mock()
+        self.mock_controller_info = mocker.Mock()
         self.mock_controller_info.color = (255, 0, 0)
         self.mock_scene.multi_controller_manager.get_controller_info.return_value = self.mock_controller_info
-        
+
         # Mock canvas sprite
-        self.mock_canvas_sprite = Mock()
+        self.mock_canvas_sprite = mocker.Mock()
         self.mock_canvas_sprite.pixels_across = 32
         self.mock_canvas_sprite.pixels_tall = 32
         self.mock_canvas_sprite.pixel_width = 8
         self.mock_canvas_sprite.pixel_height = 8
         self.mock_canvas_sprite.rect = pygame.Rect(0, 0, 256, 256)
         self.mock_canvas_sprite.parent_scene = self.mock_scene
-        
+
         # Mock canvas interface
-        self.mock_canvas_interface = Mock()
+        self.mock_canvas_interface = mocker.Mock()
         self.mock_canvas_sprite.canvas_interface = self.mock_canvas_interface
-        
+
         # Mock active color
         self.mock_canvas_sprite.active_color = (255, 255, 255)
-        
+
         # Mock selected frame visibility
         self.mock_scene.selected_frame_visible = True
     

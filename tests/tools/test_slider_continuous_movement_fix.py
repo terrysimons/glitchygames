@@ -6,7 +6,6 @@ This test ensures that the fix for the slider issue is working correctly.
 
 import pytest
 import time
-from unittest.mock import Mock, patch
 from glitchygames.tools.bitmappy import BitmapEditorScene
 
 
@@ -14,16 +13,16 @@ class TestSliderContinuousMovementFix:
     """Test that slider continuous movement doesn't interfere with undo/redo."""
     
     @pytest.fixture
-    def mock_scene(self):
+    def mock_scene(self, mocker):
         """Create a mock BitmapEditorScene for testing."""
-        scene = Mock(spec=BitmapEditorScene)
+        scene = mocker.Mock(spec=BitmapEditorScene)
         scene.canvas_continuous_movements = {}
         scene.slider_continuous_adjustments = {}
-        scene.controller_position_operation_tracker = Mock()
-        scene.mode_switcher = Mock()
-        scene.mode_switcher.get_controller_position.return_value = Mock()
+        scene.controller_position_operation_tracker = mocker.Mock()
+        scene.mode_switcher = mocker.Mock()
+        scene.mode_switcher.get_controller_position.return_value = mocker.Mock()
         scene.mode_switcher.get_controller_position.return_value.position = (5, 5)
-        scene.mode_switcher.get_controller_mode.return_value = Mock()
+        scene.mode_switcher.get_controller_mode.return_value = mocker.Mock()
         scene.mode_switcher.get_controller_mode.return_value.value = "canvas"
         scene._applying_undo_redo = False
         return scene

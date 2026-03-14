@@ -6,10 +6,10 @@ and verifies they work correctly with the TOML-only implementation.
 
 import tempfile
 import time
-import unittest
 from pathlib import Path
 
 import pygame
+import pytest
 from glitchygames.sprites import SpriteFactory
 
 # Constants for test thresholds
@@ -21,10 +21,10 @@ MAX_LOAD_TIME = 1.0
 MAX_RENDER_TIME = 0.1
 
 
-class TestExamplesSprites(unittest.TestCase):
+class TestExamplesSprites:
     """Test example sprites from the glitchygames/examples/resources/sprites directory."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
         pygame.init()
         pygame.display.set_mode((800, 600))
@@ -40,14 +40,14 @@ class TestExamplesSprites(unittest.TestCase):
             for file_path in self.sprites_dir.glob("*.toml"):
                 self.toml_files.append(file_path)
 
-    def tearDown(self):
+    def teardown_method(self):
         """Clean up test fixtures."""
         # pygame.quit() is handled by MockFactory teardown
 
     def test_load_all_toml_sprites(self):
         """Test that all TOML sprite files can be loaded."""
         if not self.sprites_dir.exists():
-            self.skipTest(f"Sprites directory {self.sprites_dir} not found")
+            pytest.skip(f"Sprites directory {self.sprites_dir} not found")
 
         loaded_count = 0
         failed_count = 0
@@ -80,7 +80,7 @@ class TestExamplesSprites(unittest.TestCase):
                 results.append((sprite_file.name, "FAILED", str(e)))
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
-                self.fail(f"Unexpected error loading sprite {sprite_file.name}: {e}")
+                pytest.fail(f"Unexpected error loading sprite {sprite_file.name}: {e}")
 
         # Verify we loaded at least some sprites
         assert loaded_count > 0, "Should load at least one example sprite"
@@ -88,7 +88,7 @@ class TestExamplesSprites(unittest.TestCase):
     def test_sprite_pixel_integrity(self):
         """Test pixel data integrity for a sample of sprites."""
         if not self.sprites_dir.exists():
-            self.skipTest(f"Sprites directory {self.sprites_dir} not found")
+            pytest.skip(f"Sprites directory {self.sprites_dir} not found")
 
         # Test a sample of sprites for pixel integrity
         test_sprites = [
@@ -136,12 +136,12 @@ class TestExamplesSprites(unittest.TestCase):
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
-                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
+                pytest.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_sprite_dimensions_consistency(self):
         """Test that sprite dimensions are consistent and reasonable."""
         if not self.sprites_dir.exists():
-            self.skipTest(f"Sprites directory {self.sprites_dir} not found")
+            pytest.skip(f"Sprites directory {self.sprites_dir} not found")
 
         # Test a sample of sprites
         test_sprites = [
@@ -184,12 +184,12 @@ class TestExamplesSprites(unittest.TestCase):
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
-                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
+                pytest.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_animated_sprites(self):
         """Test animated sprites in the examples directory."""
         if not self.sprites_dir.exists():
-            self.skipTest(f"Sprites directory {self.sprites_dir} not found")
+            pytest.skip(f"Sprites directory {self.sprites_dir} not found")
 
         # Look for animated sprites (colors.toml is known to be animated)
         animated_sprites = ["colors.toml"]
@@ -233,12 +233,12 @@ class TestExamplesSprites(unittest.TestCase):
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
-                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
+                pytest.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     def test_sprite_performance(self):
         """Test sprite loading and rendering performance."""
         if not self.sprites_dir.exists():
-            self.skipTest(f"Sprites directory {self.sprites_dir} not found")
+            pytest.skip(f"Sprites directory {self.sprites_dir} not found")
 
         # Test a sample of sprites for performance
         test_sprites = [
@@ -280,7 +280,7 @@ class TestExamplesSprites(unittest.TestCase):
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
-                self.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
+                pytest.fail(f"Unexpected error processing sprite {sprite_file.name}: {e}")
 
     @staticmethod
     def _extract_pixel_data(surface):
@@ -299,4 +299,4 @@ class TestExamplesSprites(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__, "-v"])

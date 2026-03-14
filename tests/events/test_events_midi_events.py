@@ -6,7 +6,6 @@ This module tests MIDI event interfaces, stubs, and event handling.
 import argparse
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pygame
 import pytest
@@ -34,7 +33,7 @@ class TestMidiEvents:
         assert hasattr(MidiEvents, "on_midi_in_event")
         assert hasattr(MidiEvents, "on_midi_out_event")
 
-    def test_midi_event_stubs_implementation(self, mock_pygame_patches):
+    def test_midi_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test MidiEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
@@ -44,16 +43,16 @@ class TestMidiEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127)
         # Use pytest logger wrapper to suppress logs during successful runs
-        with patch("glitchygames.events.LOG") as mock_log:
-            with pytest.raises(UnhandledEventError):
-                scene.on_midi_in_event(event)
-            # Expected to call unhandled_event and raise UnhandledEventError
+        mock_log = mocker.patch("glitchygames.events.LOG")
+        with pytest.raises(UnhandledEventError):
+            scene.on_midi_in_event(event)
+        # Expected to call unhandled_event and raise UnhandledEventError
 
-            # Verify the ERROR log message was called
-            mock_log.error.assert_called_once()
-            # Check that the log message contains the expected content
-            call_args = mock_log.error.call_args[0][0]
-            assert "Unhandled Event: args: MidiIn" in call_args
+        # Verify the ERROR log message was called
+        mock_log.error.assert_called_once()
+        # Check that the log message contains the expected content
+        call_args = mock_log.error.call_args[0][0]
+        assert "Unhandled Event: args: MidiIn" in call_args
 
     def test_midi_in_event(self, mock_pygame_patches):
         """Test MIDI input event handling."""
@@ -135,48 +134,43 @@ class TestMidiEvents:
             assert scene.midi_events_received[0][1].data2 == 0
             scene.midi_events_received.clear()
 
-    def test_midi_control_change_events(self, mock_pygame_patches):
+    def test_midi_control_change_events(self, mock_pygame_patches, mocker):
         """Test MIDI control change events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test control change events (status 176 = 0xB0)
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for controller in range(1, 128):  # All MIDI controllers
             event = HashableEvent(
                 pygame.MIDIIN, device_id=1, status=176, data1=controller, data2=64
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_program_change_events(self, mock_pygame_patches):
+    def test_midi_program_change_events(self, mock_pygame_patches, mocker):
         """Test MIDI program change events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test program change events (status 192 = 0xC0)
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for program in range(128):  # All MIDI programs
             event = HashableEvent(
                 pygame.MIDIIN, device_id=1, status=192, data1=program, data2=0
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_pitch_bend_events(self, mock_pygame_patches):
+    def test_midi_pitch_bend_events(self, mock_pygame_patches, mocker):
         """Test MIDI pitch bend events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test pitch bend events (status 224 = 0xE0)
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for bend in range(0, 16384, 1024):  # Various pitch bend values
             event = HashableEvent(
                 pygame.MIDIIN,
@@ -185,52 +179,45 @@ class TestMidiEvents:
                 data1=bend & 0x7F,
                 data2=(bend >> 7) & 0x7F,
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_aftertouch_events(self, mock_pygame_patches):
+    def test_midi_aftertouch_events(self, mock_pygame_patches, mocker):
         """Test MIDI aftertouch events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test aftertouch events (status 208 = 0xD0)
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for pressure in range(128):  # All pressure values
             event = HashableEvent(
                 pygame.MIDIIN, device_id=1, status=208, data1=pressure, data2=0
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_polyphonic_aftertouch_events(self, mock_pygame_patches):
+    def test_midi_polyphonic_aftertouch_events(self, mock_pygame_patches, mocker):
         """Test MIDI polyphonic aftertouch events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test polyphonic aftertouch events (status 160 = 0xA0)
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for note in range(60, 72):  # C4 to C5
             for pressure in range(0, 128, 16):  # Various pressure values
                 event = HashableEvent(
                     pygame.MIDIIN, device_id=1, status=160, data1=note, data2=pressure
                 )
-                with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                    with pytest.raises(UnhandledEventError):
-                        stub.on_midi_in_event(event)
+                with pytest.raises(UnhandledEventError):
+                    stub.on_midi_in_event(event)
                 # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_system_events(self, mock_pygame_patches):
+    def test_midi_system_events(self, mock_pygame_patches, mocker):
         """Test MIDI system events."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test system events (status 240-255 = 0xF0-0xFF)
         system_events = [
@@ -246,60 +233,55 @@ class TestMidiEvents:
             (255, 0, 0),    # System Reset
         ]
 
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for status, data1, data2 in system_events:
             event = HashableEvent(
                 pygame.MIDIIN, device_id=1, status=status, data1=data1, data2=data2
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_multiple_devices(self, mock_pygame_patches):
+    def test_midi_multiple_devices(self, mock_pygame_patches, mocker):
         """Test MIDI events with multiple devices."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test multiple MIDI devices
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for device_id in range(5):
             # Test MIDI input
             event = HashableEvent(
                 pygame.MIDIIN, device_id=device_id, status=144, data1=60, data2=127
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
             # Test MIDI output
             event = HashableEvent(
                 pygame.MIDIOUT, device_id=device_id, status=144, data1=60, data2=127
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_out_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_out_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_midi_velocity_variations(self, mock_pygame_patches):
+    def test_midi_velocity_variations(self, mock_pygame_patches, mocker):
         """Test MIDI events with different velocity values."""
-        from unittest.mock import patch
-
         stub = MidiEventStubs()
-        scene_mock = self._setup_mock_scene_for_stub(stub)
+        self._setup_mock_scene_for_stub(stub)
 
         # Test different velocity values
         velocities = [0, 32, 64, 96, 127]  # Various velocity levels
 
+        mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for velocity in velocities:
             # Test note on with different velocities
             event = HashableEvent(
                 pygame.MIDIIN, device_id=1, status=144, data1=60, data2=velocity
             )
-            with patch("glitchygames.events.LOG.error"):  # Suppress log messages
-                with pytest.raises(UnhandledEventError):
-                    stub.on_midi_in_event(event)
+            with pytest.raises(UnhandledEventError):
+                stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
     def _setup_mock_scene_for_stub(self, stub):
@@ -321,9 +303,9 @@ class TestMidiEvents:
 class TestMidiEventManagerCoverage:
     """Test coverage for MIDI manager functionality."""
 
-    def test_midi_manager_initialization(self, mock_pygame_patches):
+    def test_midi_manager_initialization(self, mock_pygame_patches, mocker):
         """Test MidiEventManager initialization."""
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = MidiEventManager(game=mock_game)
 
         assert manager.game == mock_game

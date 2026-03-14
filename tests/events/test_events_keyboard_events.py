@@ -5,8 +5,6 @@ This module tests keyboard event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pygame
 import pytest
 
@@ -34,7 +32,7 @@ class TestKeyboardEvents:
         assert hasattr(KeyboardEvents, "on_key_chord_up_event")
         assert hasattr(KeyboardEvents, "on_key_chord_down_event")
 
-    def test_keyboard_event_stubs_implementation(self, mock_pygame_patches):
+    def test_keyboard_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test KeyboardEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = KeyboardEventStubs()
@@ -49,9 +47,9 @@ class TestKeyboardEvents:
         # Test method calls
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        with patch("glitchygames.events.LOG.error"):
-            with pytest.raises(UnhandledEventError):
-                stub.on_key_down_event(event)
+        mocker.patch("glitchygames.events.LOG.error")
+        with pytest.raises(UnhandledEventError):
+            stub.on_key_down_event(event)
         # Expected to call unhandled_event
         # Exception was raised as expected
 
@@ -286,22 +284,22 @@ class TestKeyboardEvents:
 class TestKeyboardManager:
     """Test KeyboardEventManager in isolation."""
 
-    def test_keyboard_manager_initialization(self, mock_pygame_patches):
+    def test_keyboard_manager_initialization(self, mock_pygame_patches, mocker):
         """Test KeyboardEventManager initializes correctly."""
         from glitchygames.events.keyboard import KeyboardEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = KeyboardEventManager(game=mock_game)
 
         assert manager.game == mock_game
         assert hasattr(manager, "on_key_down_event")
         assert hasattr(manager, "on_key_up_event")
 
-    def test_keyboard_manager_events(self, mock_pygame_patches):
+    def test_keyboard_manager_events(self, mock_pygame_patches, mocker):
         """Test keyboard event handling through manager."""
         from glitchygames.events.keyboard import KeyboardEventManager
 
-        mock_game = Mock()
+        mock_game = mocker.Mock()
         manager = KeyboardEventManager(game=mock_game)
 
         # Test key down

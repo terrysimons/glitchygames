@@ -10,7 +10,6 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
-from unittest.mock import Mock
 
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.controller_selection import ControllerSelection
@@ -337,12 +336,12 @@ class TestMemoryAndPerformanceEdgeCases:
         self.visual_manager = VisualCollisionManager()
         self.controller_selections: Dict[int, ControllerSelection] = {}
     
-    def test_memory_usage_with_many_controllers(self):
+    def test_memory_usage_with_many_controllers(self, mocker):
         """Test memory usage with many controllers."""
         # Add many controllers
         for i in range(50):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
@@ -359,14 +358,14 @@ class TestMemoryAndPerformanceEdgeCases:
         assert len(self.manager.controllers) == 50
         assert len(self.visual_manager.indicators) == 50
     
-    def test_memory_cleanup_under_stress(self):
+    def test_memory_cleanup_under_stress(self, mocker):
         """Test memory cleanup under stress conditions."""
         # Rapidly add and remove controllers
         for cycle in range(100):
             # Add controllers
             for i in range(3):
                 instance_id = i + cycle * 3
-                self.manager.controllers[instance_id] = Mock()
+                self.manager.controllers[instance_id] = mocker.Mock()
                 self.manager.assigned_controllers[instance_id] = i
                 
                 self.visual_manager.add_controller_indicator(
@@ -390,12 +389,12 @@ class TestMemoryAndPerformanceEdgeCases:
         assert len(self.manager.controllers) == 0
         assert len(self.visual_manager.indicators) == 0
     
-    def test_performance_with_extreme_operations(self):
+    def test_performance_with_extreme_operations(self, mocker):
         """Test performance with extreme operation counts."""
         # Set up controllers
         for i in range(10):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
@@ -418,12 +417,12 @@ class TestMemoryAndPerformanceEdgeCases:
         # Should complete within reasonable time
         assert end_time - start_time < 10.0  # Should complete in under 10 seconds
     
-    def test_concurrent_access_patterns(self):
+    def test_concurrent_access_patterns(self, mocker):
         """Test concurrent access patterns that could cause issues."""
         # Set up controllers
         for i in range(5):
             instance_id = i
-            self.manager.controllers[instance_id] = Mock()
+            self.manager.controllers[instance_id] = mocker.Mock()
             self.manager.assigned_controllers[instance_id] = i
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
