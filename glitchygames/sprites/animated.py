@@ -81,7 +81,7 @@ def _needs_alpha_channel(pixels: list[tuple[int, int, int] | tuple[int, int, int
     for pixel in pixels:
         if len(pixel) == RGBA_COMPONENT_COUNT:
             # RGBA format - check if alpha is not 255 (fully opaque)
-            r, g, b, a = pixel
+            _r, _g, _b, a = pixel
             if a != MAX_COLOR_CHANNEL_VALUE:
                 return True
         elif len(pixel) == RGB_COMPONENT_COUNT:

@@ -674,7 +674,7 @@ class UndoRedoManager:
                 pixels = operation.undo_data.get("pixels", [])
                 success = True
                 for pixel_data in pixels:
-                    x, y, new_color, old_color = pixel_data  # Fixed: unpack 4 values, not 3
+                    x, y, _new_color, old_color = pixel_data  # Fixed: unpack 4 values, not 3
                     if not self._apply_pixel_change(x, y, old_color):
                         success = False
                 return success
@@ -797,7 +797,7 @@ class UndoRedoManager:
                 pixels = operation.redo_data.get("pixels", [])
                 success = True
                 for pixel_data in pixels:
-                    x, y, old_color, new_color = pixel_data  # Fixed: unpack 4 values, not 3
+                    x, y, _old_color, new_color = pixel_data  # Fixed: unpack 4 values, not 3
                     if not self._apply_pixel_change(x, y, new_color):
                         success = False
                 return success

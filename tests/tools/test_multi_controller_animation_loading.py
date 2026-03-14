@@ -372,7 +372,7 @@ class TestMultiControllerAnimationLoading:
         for controller_id, selection in self.controller_selections.items():
             if selection.is_active():
                 # Simulate position update based on new animation
-                animation, frame = selection.get_selection()
+                _animation, frame = selection.get_selection()
                 position = (100 + controller_id * 50, 100 + frame * 20)
                 self.visual_manager.update_controller_position(controller_id, position)
 

@@ -521,7 +521,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         # Position 0 is first 'a', position 3 is second 'a'
         for position in range(7):  # 0-6 inclusive
             textbox.cursor_pos = position
-            line, column = textbox._get_cursor_line_and_column_in_wrapped_text(position)
+            _line, column = textbox._get_cursor_line_and_column_in_wrapped_text(position)
             assert column == position, (
                 f"Position {position} should have column {position}, got {column}"
             )
@@ -545,7 +545,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         # Test all positions work
         for position in range(6):  # 0-5 inclusive
             textbox.cursor_pos = position
-            line, column = textbox._get_cursor_line_and_column_in_wrapped_text(position)
+            _line, column = textbox._get_cursor_line_and_column_in_wrapped_text(position)
             assert column == position, (
                 f"Position {position} should have column {position}, got {column}"
             )
@@ -572,7 +572,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
         # Cursor at start of long text (position 2)
         textbox.cursor_pos = 2
-        line, column = textbox._get_cursor_line_and_column_in_wrapped_text(2)
+        line, _column = textbox._get_cursor_line_and_column_in_wrapped_text(2)
         assert line >= 1, f"Position 2 should be on line >= 1, got {line}"
 
     def test_multiple_explicit_newlines_in_sequence(self, mocker):

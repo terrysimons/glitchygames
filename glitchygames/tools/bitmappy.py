@@ -736,7 +736,7 @@ def load_ai_training_data():
                                 # Check if any pixel has alpha != 255 (non-opaque)
                                 for pixel in pixels:
                                     if len(pixel) == RGBA_COMPONENT_COUNT:
-                                        r, g, b, a = pixel
+                                        _r, _g, _b, a = pixel
                                         if a != MAX_COLOR_CHANNEL_VALUE:
                                             has_alpha = True
                                             break
@@ -798,7 +798,7 @@ def load_ai_training_data():
                         if hasattr(sprite, "pixels"):
                             for pixel in sprite.pixels:
                                 if len(pixel) == RGBA_COMPONENT_COUNT:
-                                    r, g, b, a = pixel
+                                    _r, _g, _b, a = pixel
                                     if a != MAX_COLOR_CHANNEL_VALUE:
                                         has_alpha = True
                                         break
@@ -14585,7 +14585,7 @@ pixels = \"\"\"
             return
 
         controller_selection = self.controller_selections[controller_id]
-        current_animation, current_frame = controller_selection.get_selection()
+        current_animation, _current_frame = controller_selection.get_selection()
 
         if not hasattr(self, "film_strips") or not self.film_strips:
             self.log.debug(
@@ -14640,7 +14640,7 @@ pixels = \"\"\"
             return
 
         controller_selection = self.controller_selections[controller_id]
-        current_animation, current_frame = controller_selection.get_selection()
+        current_animation, _current_frame = controller_selection.get_selection()
 
         if not hasattr(self, "film_strips") or not self.film_strips:
             self.log.debug(
@@ -14694,7 +14694,7 @@ pixels = \"\"\"
             return
 
         controller_selection = self.controller_selections[controller_id]
-        animation, frame = controller_selection.get_selection()
+        animation, _frame = controller_selection.get_selection()
 
         if not animation or animation not in self.film_strips:
             return

@@ -1600,7 +1600,7 @@ class FilmStripWidget:
                     else:
                         rgba_surface.set_at((x, y), (r, g, b, 255))  # Full opacity other colors
                 else:  # Already RGBA
-                    r, g, b, a = color
+                    r, g, b, _a = color
                     if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
                         rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
                     else:
