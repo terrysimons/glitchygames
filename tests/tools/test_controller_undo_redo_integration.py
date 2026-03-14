@@ -6,10 +6,10 @@ functionality for film strip operations, ensuring that controller inputs properl
 trigger undo/redo operations for frame management.
 """
 
-import pytest
 import pygame
-from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
-from glitchygames.tools.operation_history import FilmStripOperationTracker, CanvasOperationTracker
+import pytest
+from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
+from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
 
 
 class TestControllerUndoRedoIntegration:
@@ -33,7 +33,7 @@ class TestControllerUndoRedoIntegration:
                 if button == pygame.CONTROLLER_BUTTON_B:
                     scene._handle_undo()
                 elif button == pygame.CONTROLLER_BUTTON_X:
-                    if getattr(scene, 'selected_frame_visible', True):
+                    if getattr(scene, "selected_frame_visible", True):
                         scene._handle_redo()
             except Exception:
                 # Controller handler should handle exceptions gracefully

@@ -8,17 +8,17 @@ This module tests the complete Plan C workflow including:
 - Controller collaboration scenarios
 """
 
-import pytest
 import time
 
-from glitchygames.tools.controller_mode_system import (
-    ControllerMode, ModeSwitcher, TriggerDetector
-)
-from glitchygames.tools.visual_collision_manager import (
-    VisualCollisionManager, LocationType, IndicatorShape
-)
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
+import pytest
+from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher, TriggerDetector
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
+from glitchygames.tools.visual_collision_manager import (
+    IndicatorShape,
+    LocationType,
+    VisualCollisionManager,
+)
 
 
 class TestPlanCIntegration:

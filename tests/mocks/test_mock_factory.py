@@ -4,8 +4,8 @@ This module provides reusable mock factories for creating consistent test object
 across all test files, reducing code duplication and ensuring proper mock configuration.
 """
 
-from typing import ClassVar
 import os
+from typing import ClassVar
 from unittest.mock import Mock, patch
 
 import pygame
@@ -781,6 +781,7 @@ class MockFactory:
             
         Returns:
             Mock: A mock that returns a list of key states
+
         """
         mock_key_state = [False] * 512
         if shift_pressed:

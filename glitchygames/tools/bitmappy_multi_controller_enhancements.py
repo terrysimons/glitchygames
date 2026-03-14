@@ -8,10 +8,10 @@ user experience.
 
 import time
 from typing import Dict, List, Optional, Tuple
-import pygame
 
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
+import pygame
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 
@@ -23,6 +23,7 @@ class BitmappyMultiControllerEnhancements:
         
         Args:
             bitmappy_scene: The bitmappy scene instance
+
         """
         self.scene = bitmappy_scene
         self.manager = bitmappy_scene.multi_controller_manager
@@ -48,6 +49,7 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             bool: True if activation successful
+
         """
         if controller_id not in self.controller_selections:
             return False
@@ -60,17 +62,17 @@ class BitmappyMultiControllerEnhancements:
         
         # Set up visual customizations
         self.visual_customizations[controller_id] = {
-            'size': 12,
-            'shape': 'triangle',
-            'pulse': False,
-            'trail': False
+            "size": 12,
+            "shape": "triangle",
+            "pulse": False,
+            "trail": False
         }
         
         # Update visual indicator with enhanced features
         self._update_enhanced_visual_indicator(controller_id)
         
         # Record activation in history
-        self._record_controller_action(controller_id, 'activate', {})
+        self._record_controller_action(controller_id, "activate", {})
         
         return True
     
@@ -84,6 +86,7 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             bool: True if navigation successful
+
         """
         if controller_id not in self.controller_selections:
             return False
@@ -91,14 +94,14 @@ class BitmappyMultiControllerEnhancements:
         controller_selection = self.controller_selections[controller_id]
         current_animation, current_frame = controller_selection.get_selection()
         
-        if direction == 'frame':
+        if direction == "frame":
             new_frame = max(0, current_frame + amount)
             if current_animation in self.scene.film_strips:
                 max_frames = len(self.scene.film_strips[current_animation].frames)
                 new_frame = min(new_frame, max_frames - 1)
             controller_selection.set_selection(current_animation, new_frame)
             
-        elif direction == 'animation':
+        elif direction == "animation":
             animations = list(self.scene.film_strips.keys())
             if animations:
                 current_index = animations.index(current_animation) if current_animation in animations else 0
@@ -118,10 +121,10 @@ class BitmappyMultiControllerEnhancements:
         self._update_enhanced_visual_indicator(controller_id)
         
         # Record navigation in history
-        self._record_controller_action(controller_id, 'navigate', {
-            'direction': direction,
-            'amount': amount,
-            'result': controller_selection.get_selection()
+        self._record_controller_action(controller_id, "navigate", {
+            "direction": direction,
+            "amount": amount,
+            "result": controller_selection.get_selection()
         })
         
         return True
@@ -131,6 +134,7 @@ class BitmappyMultiControllerEnhancements:
         
         Args:
             controller_id: Controller ID
+
         """
         if controller_id not in self.controller_selections:
             return
@@ -154,7 +158,7 @@ class BitmappyMultiControllerEnhancements:
             self.visual_manager.update_controller_position(controller_id, position)
         
         # Update performance metrics
-        self._update_performance_metrics('visual_update', time.time())
+        self._update_performance_metrics("visual_update", time.time())
     
     def _calculate_enhanced_position(self, controller_id: int, animation: str, frame: int) -> Tuple[int, int]:
         """Calculate enhanced position for visual indicator.
@@ -166,6 +170,7 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             Tuple[int, int]: Calculated position
+
         """
         # Use cached position if available and recent
         if controller_id in self.position_cache:
@@ -200,6 +205,7 @@ class BitmappyMultiControllerEnhancements:
         Args:
             controller_id: Controller ID
             position: Position for indicator
+
         """
         # Get controller info
         controller_info = None
@@ -227,6 +233,7 @@ class BitmappyMultiControllerEnhancements:
         
         Args:
             controller_id: Controller ID
+
         """
         if controller_id not in self.visual_customizations:
             return
@@ -237,15 +244,15 @@ class BitmappyMultiControllerEnhancements:
             indicator = self.visual_manager.indicators[controller_id]
             
             # Apply size customization
-            if 'size' in customizations:
-                indicator.size = customizations['size']
+            if "size" in customizations:
+                indicator.size = customizations["size"]
             
             # Apply shape customization
-            if 'shape' in customizations:
+            if "shape" in customizations:
                 from glitchygames.tools.visual_collision_manager import IndicatorShape
-                if customizations['shape'] == 'circle':
+                if customizations["shape"] == "circle":
                     indicator.shape = IndicatorShape.CIRCLE
-                elif customizations['shape'] == 'square':
+                elif customizations["shape"] == "square":
                     indicator.shape = IndicatorShape.SQUARE
                 else:
                     indicator.shape = IndicatorShape.TRIANGLE
@@ -255,6 +262,7 @@ class BitmappyMultiControllerEnhancements:
         
         Args:
             controller_id: Controller ID
+
         """
         # Throttle updates for performance
         current_time = time.time()
@@ -273,14 +281,15 @@ class BitmappyMultiControllerEnhancements:
             controller_id: Controller ID
             action: Action performed
             data: Action data
+
         """
         if controller_id not in self.controller_history:
             self.controller_history[controller_id] = []
         
         action_record = {
-            'timestamp': time.time(),
-            'action': action,
-            'data': data
+            "timestamp": time.time(),
+            "action": action,
+            "data": data
         }
         
         self.controller_history[controller_id].append(action_record)
@@ -295,6 +304,7 @@ class BitmappyMultiControllerEnhancements:
         Args:
             operation: Operation name
             timestamp: Timestamp
+
         """
         if operation not in self.performance_metrics:
             self.performance_metrics[operation] = timestamp
@@ -311,19 +321,20 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             Dict: Performance statistics
+
         """
         stats = {
-            'controller_id': controller_id,
-            'history_length': len(self.controller_history.get(controller_id, [])),
-            'last_action': None,
-            'performance_metrics': self.performance_metrics.copy()
+            "controller_id": controller_id,
+            "history_length": len(self.controller_history.get(controller_id, [])),
+            "last_action": None,
+            "performance_metrics": self.performance_metrics.copy()
         }
         
         if controller_id in self.controller_history and self.controller_history[controller_id]:
             last_action = self.controller_history[controller_id][-1]
-            stats['last_action'] = {
-                'action': last_action['action'],
-                'timestamp': last_action['timestamp']
+            stats["last_action"] = {
+                "action": last_action["action"],
+                "timestamp": last_action["timestamp"]
             }
         
         return stats
@@ -337,6 +348,7 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             bool: True if group created successfully
+
         """
         # Validate controller IDs
         for controller_id in controller_ids:
@@ -356,18 +368,19 @@ class BitmappyMultiControllerEnhancements:
             
         Returns:
             bool: True if action executed successfully
+
         """
         if group_name not in self.controller_groups:
             return False
         
         success = True
         for controller_id in self.controller_groups[group_name]:
-            if action == 'navigate':
-                direction = kwargs.get('direction', 'frame')
-                amount = kwargs.get('amount', 1)
+            if action == "navigate":
+                direction = kwargs.get("direction", "frame")
+                amount = kwargs.get("amount", 1)
                 if not self.enhanced_navigation(controller_id, direction, amount):
                     success = False
-            elif action == 'activate':
+            elif action == "activate":
                 if not self.enhanced_controller_activation(controller_id):
                     success = False
         
@@ -378,24 +391,25 @@ class BitmappyMultiControllerEnhancements:
         
         Returns:
             Dict: Status summary
+
         """
         summary = {
-            'total_controllers': len(self.controller_selections),
-            'active_controllers': 0,
-            'controller_groups': len(self.controller_groups),
-            'performance_metrics': self.performance_metrics.copy(),
-            'controllers': {}
+            "total_controllers": len(self.controller_selections),
+            "active_controllers": 0,
+            "controller_groups": len(self.controller_groups),
+            "performance_metrics": self.performance_metrics.copy(),
+            "controllers": {}
         }
         
         for controller_id, selection in self.controller_selections.items():
             if selection.is_active():
-                summary['active_controllers'] += 1
+                summary["active_controllers"] += 1
             
-            summary['controllers'][controller_id] = {
-                'active': selection.is_active(),
-                'selection': selection.get_selection(),
-                'history_length': len(self.controller_history.get(controller_id, [])),
-                'customizations': self.visual_customizations.get(controller_id, {})
+            summary["controllers"][controller_id] = {
+                "active": selection.is_active(),
+                "selection": selection.get_selection(),
+                "history_length": len(self.controller_history.get(controller_id, [])),
+                "customizations": self.visual_customizations.get(controller_id, {})
             }
         
         return summary
@@ -405,6 +419,7 @@ class BitmappyMultiControllerEnhancements:
         
         Returns:
             int: Number of controllers cleaned up
+
         """
         cleaned_count = 0
         
@@ -444,26 +459,27 @@ class BitmappyMultiControllerEnhancements:
         
         Returns:
             Dict: Optimization results
+
         """
         optimization_results = {
-            'controllers_cleaned': 0,
-            'cache_cleared': 0,
-            'performance_improved': False
+            "controllers_cleaned": 0,
+            "cache_cleared": 0,
+            "performance_improved": False
         }
         
         # Clean up inactive controllers
-        optimization_results['controllers_cleaned'] = self.cleanup_inactive_controllers()
+        optimization_results["controllers_cleaned"] = self.cleanup_inactive_controllers()
         
         # Clear old position cache
         old_cache_size = len(self.position_cache)
         self.position_cache.clear()
-        optimization_results['cache_cleared'] = old_cache_size
+        optimization_results["cache_cleared"] = old_cache_size
         
         # Optimize visual manager
         self.visual_manager.optimize_positioning()
         
         # Check if performance improved
-        if optimization_results['controllers_cleaned'] > 0 or optimization_results['cache_cleared'] > 0:
-            optimization_results['performance_improved'] = True
+        if optimization_results["controllers_cleaned"] > 0 or optimization_results["cache_cleared"] > 0:
+            optimization_results["performance_improved"] = True
         
         return optimization_results

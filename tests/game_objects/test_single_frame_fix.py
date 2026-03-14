@@ -5,15 +5,18 @@ This script demonstrates the fix for the issue where single-frame animations
 would stop playing after the first frame advance.
 """
 
-import pygame
-import sys
 import os
+import sys
+
+import pygame
 
 # Add the glitchygames package to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'glitchygames'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "glitchygames"))
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+
 from tests.mocks import MockFactory
+
 
 def test_single_frame_animation():
     """Test that single-frame animations continue playing."""

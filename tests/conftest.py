@@ -80,7 +80,7 @@ def _reset_all_singleton_instances():
     for singleton_base in (Singleton, SingletonBitmappySprite, FocusableSingletonBitmappySprite):
         singleton_base.__instance__ = None
         for subclass in singleton_base.__subclasses__():
-            if hasattr(subclass, '__instance__'):
+            if hasattr(subclass, "__instance__"):
                 subclass.__instance__ = None
 
 

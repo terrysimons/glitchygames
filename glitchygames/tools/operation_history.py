@@ -33,6 +33,7 @@ class CanvasOperationTracker:
         
         Args:
             pixels: List of (x, y, old_color, new_color) tuples
+
         """
         if not pixels:
             return
@@ -72,6 +73,7 @@ class CanvasOperationTracker:
             y: Y coordinate of the pixel
             old_color: Previous color of the pixel
             new_color: New color of the pixel
+
         """
         # Use the new method for consistency
         self.add_pixel_changes([(x, y, old_color, new_color)])
@@ -94,6 +96,7 @@ class CanvasOperationTracker:
             y: Y coordinate of the pixel
             old_color: Previous color of the pixel
             new_color: New color of the pixel
+
         """
         self._current_brush_pixels.append((x, y, old_color, new_color))
         LOG.debug(f"Added pixel to brush stroke: ({x}, {y})")
@@ -120,6 +123,7 @@ class CanvasOperationTracker:
             old_color: Color that was replaced
             new_color: Color that was filled
             affected_pixels: List of all pixels that were changed
+
         """
         undo_data = {
             "start_pos": (x, y),
@@ -151,6 +155,7 @@ class CanvasOperationTracker:
             animation: Name of the animation
             frame: Frame index
             pixels: List of pixel changes (can be PixelChange objects or tuples)
+
         """
         if not pixels:
             return
@@ -204,6 +209,7 @@ class FilmStripOperationTracker:
             frame_index: Index where the frame was added
             animation_name: Name of the animation
             frame_data: Data about the added frame
+
         """
         undo_data = {
             "frame_index": frame_index,
@@ -236,6 +242,7 @@ class FilmStripOperationTracker:
             frame_index: Index of the deleted frame
             animation_name: Name of the animation
             frame_data: Data about the deleted frame
+
         """
         undo_data = {
             "frame_index": frame_index,
@@ -267,6 +274,7 @@ class FilmStripOperationTracker:
             old_index: Original index of the frame
             new_index: New index of the frame
             animation_name: Name of the animation
+
         """
         undo_data = {
             "old_index": old_index,
@@ -298,6 +306,7 @@ class FilmStripOperationTracker:
         Args:
             animation_name: Name of the animation that was added
             animation_data: Data about the added animation
+
         """
         undo_data = {
             "animation_name": animation_name,
@@ -326,6 +335,7 @@ class FilmStripOperationTracker:
         Args:
             animation_name: Name of the animation that was deleted
             animation_data: Data about the deleted animation
+
         """
         undo_data = {
             "animation_name": animation_name,
@@ -354,11 +364,12 @@ class FilmStripOperationTracker:
         Args:
             animation: Name of the animation being selected
             frame: Frame index being selected
+
         """
         # Get the previous frame selection from the undo/redo manager
         previous_animation = None
         previous_frame = None
-        if hasattr(self.undo_redo_manager, 'current_frame') and self.undo_redo_manager.current_frame:
+        if hasattr(self.undo_redo_manager, "current_frame") and self.undo_redo_manager.current_frame:
             previous_animation, previous_frame = self.undo_redo_manager.current_frame
         
         # Only track if we're actually changing selection
@@ -412,6 +423,7 @@ class CrossAreaOperationTracker:
             source_frame: Index of the source frame
             source_animation: Name of the source animation
             frame_data: Data about the copied frame
+
         """
         undo_data = {
             "source_frame": source_frame,
@@ -444,6 +456,7 @@ class CrossAreaOperationTracker:
             target_frame: Index of the target frame
             target_animation: Name of the target animation
             frame_data: Data about the pasted frame
+
         """
         undo_data = {
             "target_frame": target_frame,
@@ -487,6 +500,7 @@ class ControllerPositionOperationTracker:
             new_position: New position (x, y)
             old_mode: Previous mode (optional)
             new_mode: New mode (optional)
+
         """
         undo_data = {
             "controller_id": controller_id,
@@ -517,6 +531,7 @@ class ControllerPositionOperationTracker:
             controller_id: ID of the controller
             old_mode: Previous mode
             new_mode: New mode
+
         """
         undo_data = {
             "controller_id": controller_id,

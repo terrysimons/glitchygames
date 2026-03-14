@@ -5,10 +5,10 @@ Tests the canvas input handling functionality for Plan C mode switching,
 including controller-based painting and navigation.
 """
 
-import pytest
-import pygame
 import time
 
+import pygame
+import pytest
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.visual_collision_manager import LocationType
 

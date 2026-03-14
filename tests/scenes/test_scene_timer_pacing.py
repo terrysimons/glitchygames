@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from glitchygames.scenes import SceneManager
+
 from tests.mocks.test_mock_factory import MockFactory
 
 

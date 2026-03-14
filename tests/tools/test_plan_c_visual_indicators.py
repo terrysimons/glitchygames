@@ -5,16 +5,16 @@ Tests the visual indicator system for Plan C mode switching,
 including canvas indicators, multi-location support, and collision avoidance.
 """
 
-import pytest
-import pygame
 import time
 
+import pygame
+import pytest
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.visual_collision_manager import (
-    VisualCollisionManager, 
-    VisualIndicator, 
-    LocationType, 
-    IndicatorShape
+    IndicatorShape,
+    LocationType,
+    VisualCollisionManager,
+    VisualIndicator,
 )
 
 

@@ -12,7 +12,6 @@ import math
 import random
 
 import pygame
-
 from glitchygames.game_objects.ball import BallSprite
 
 # Number of frames to suppress re-detection of the same ball pair after a collision.

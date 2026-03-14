@@ -2,11 +2,12 @@
 """Integration tests for undo/redo workflows and edge cases."""
 
 import pytest
-
-from glitchygames.tools.undo_redo_manager import UndoRedoManager
 from glitchygames.tools.operation_history import (
-    CanvasOperationTracker, FilmStripOperationTracker, PixelChange
+    CanvasOperationTracker,
+    FilmStripOperationTracker,
+    PixelChange,
 )
+from glitchygames.tools.undo_redo_manager import UndoRedoManager
 
 
 class TestUndoRedoCallbacks:

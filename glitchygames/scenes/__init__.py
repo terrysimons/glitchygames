@@ -502,7 +502,7 @@ class SceneManager(SceneInterface, events.EventManager):
             from glitchygames.performance import performance_manager
             current_fps = self.clock.get_fps()
             # Calculate actual frame time for spare time calculation
-            frame_time = self.dt if hasattr(self, 'dt') else 0.0
+            frame_time = self.dt if hasattr(self, "dt") else 0.0
             if frame_time > 0:  # Debug: only print occasionally
                 print(f"DEBUG: frame_time={frame_time*1000:.1f}ms, fps={current_fps:.1f}")
             performance_manager.track_fps_from_event(current_fps, frame_time)
@@ -2181,6 +2181,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         
         Returns:
             None
+
         """
         from .builtin_scenes.pause_scene import PauseScene
         
@@ -2200,6 +2201,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         
         Returns:
             None
+
         """
         if self.scene_manager.previous_scene:
             self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
@@ -2215,6 +2217,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         
         Returns:
             None
+
         """
         from .builtin_scenes.game_over_scene import GameOverScene
         

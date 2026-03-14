@@ -12,8 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import pygame  # pragma: no cover
 
 import pygame
-from glitchygames.events import WINDOW_EVENTS
-from glitchygames.events import ResourceManager, WindowEvents
+from glitchygames.events import WINDOW_EVENTS, ResourceManager, WindowEvents
 
 LOG = logging.getLogger("game.window")
 LOG.addHandler(logging.NullHandler())

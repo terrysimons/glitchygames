@@ -5,6 +5,7 @@ This module tests the full event flow: Engine -> Managers -> Scene -> Stubs.
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 

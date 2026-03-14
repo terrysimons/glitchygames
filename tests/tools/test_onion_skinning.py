@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Tests for onion skinning functionality."""
 
-import pytest
 import pygame
-
+import pytest
 from glitchygames.tools.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 
 

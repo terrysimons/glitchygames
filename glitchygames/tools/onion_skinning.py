@@ -7,7 +7,7 @@ while editing the current frame.
 """
 
 import logging
-from typing import Dict, Set, Tuple, Optional, Any
+from typing import Any, Dict, Optional, Set, Tuple
 
 LOG = logging.getLogger("game.tools.onion_skinning")
 LOG.addHandler(logging.NullHandler())
@@ -43,6 +43,7 @@ class OnionSkinningManager:
             
         Returns:
             bool: New onion skinning state for the frame
+
         """
         if animation not in self.onion_skinning_enabled:
             self.onion_skinning_enabled[animation] = {}
@@ -63,6 +64,7 @@ class OnionSkinningManager:
             
         Returns:
             bool: True if onion skinning is enabled for this frame
+
         """
         if not self.global_onion_skinning_enabled:
             return False
@@ -79,6 +81,7 @@ class OnionSkinningManager:
             
         Returns:
             Set[int]: Set of frame indices that should be onion skinned
+
         """
         if not self.global_onion_skinning_enabled:
             return set()
@@ -92,6 +95,7 @@ class OnionSkinningManager:
         
         Returns:
             bool: New global onion skinning state
+
         """
         self.global_onion_skinning_enabled = not self.global_onion_skinning_enabled
         LOG.debug(f"Global onion skinning toggled: {self.global_onion_skinning_enabled}")
@@ -102,6 +106,7 @@ class OnionSkinningManager:
         
         Returns:
             bool: True if global onion skinning is enabled
+
         """
         return self.global_onion_skinning_enabled
     
@@ -110,6 +115,7 @@ class OnionSkinningManager:
         
         Args:
             transparency: Transparency level (0.0 = transparent, 1.0 = opaque)
+
         """
         self.onion_transparency = max(0.0, min(1.0, transparency))
         LOG.debug(f"Onion transparency set to: {self.onion_transparency}")
@@ -119,6 +125,7 @@ class OnionSkinningManager:
         
         Args:
             animation: Name of the animation
+
         """
         if animation in self.onion_skinning_enabled:
             self.onion_skinning_enabled[animation].clear()
@@ -132,6 +139,7 @@ class OnionSkinningManager:
             
         Returns:
             Dict[int, bool]: Frame index to onion skinning state mapping
+
         """
         return self.onion_skinning_enabled.get(animation, {}).copy()
     
@@ -141,6 +149,7 @@ class OnionSkinningManager:
         Args:
             animation: Name of the animation
             frame_states: Frame index to onion skinning state mapping
+
         """
         self.onion_skinning_enabled[animation] = frame_states.copy()
         LOG.debug(f"Set onion skinning state for animation {animation}: {frame_states}")
@@ -155,5 +164,6 @@ def get_onion_skinning_manager() -> OnionSkinningManager:
     
     Returns:
         OnionSkinningManager: The global onion skinning manager
+
     """
     return onion_skinning_manager

@@ -6,6 +6,7 @@ in the animation system before implementing fixes.
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 from glitchygames.sprites import SpriteFactory

@@ -5,11 +5,11 @@ This module tests the integration between controller position tracking and the u
 system, ensuring that controller movements and mode changes can be undone and redone.
 """
 
-import pytest
 import pygame
-from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
-from glitchygames.tools.operation_history import ControllerPositionOperationTracker
+import pytest
 from glitchygames.tools.controller_mode_system import ControllerMode
+from glitchygames.tools.operation_history import ControllerPositionOperationTracker
+from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
 
 
 class TestControllerPositionUndoRedo:

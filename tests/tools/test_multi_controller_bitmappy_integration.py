@@ -5,12 +5,12 @@ This module provides integration tests for the multi-controller system
 with the actual bitmappy tool, testing real-world scenarios.
 """
 
-import pytest
-import pygame
 from typing import Dict, List
 
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
+import pygame
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 
@@ -263,7 +263,7 @@ class TestBitmappyMultiControllerIntegration:
         for event in invalid_events:
             try:
                 # Simulate event processing
-                if hasattr(event, 'instance_id') and event.instance_id is not None:
+                if hasattr(event, "instance_id") and event.instance_id is not None:
                     if event.instance_id in self.scene.controller_selections:
                         # Process event
                         pass

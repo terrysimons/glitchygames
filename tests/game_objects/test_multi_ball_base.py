@@ -13,7 +13,6 @@ import random
 import time
 
 import pygame
-
 from glitchygames.game_objects.ball import BallSprite
 
 # Number of frames to suppress re-detection of the same ball pair after a collision.
@@ -149,6 +148,7 @@ class MultiBallTestBase:
 
         Returns:
             True if collision was resolved, False if balls were separating.
+
         """
         if distance < 0.001:
             return False
@@ -300,7 +300,7 @@ class MultiBallTestBase:
 
     def print_results(self, total_time, frame_count, final_alive, wall_bounces, ball_collisions):
         """Print test results."""
-        print(f"\n=== FINAL RESULTS ===")
+        print("\n=== FINAL RESULTS ===")
         print(f"Total time: {total_time:.2f} seconds")
         print(f"Frames processed: {frame_count:,}")
         print(f"Balls still alive: {final_alive}")
@@ -310,13 +310,13 @@ class MultiBallTestBase:
         # Energy conservation check
         final_energy = self._compute_total_energy()
         energy_drift = abs(final_energy - self.initial_energy)
-        print(f"\n=== ENERGY ANALYSIS ===")
+        print("\n=== ENERGY ANALYSIS ===")
         print(f"  Initial energy: {self.initial_energy:.6f}")
         print(f"  Final energy:   {final_energy:.6f}")
         print(f"  Drift:          {energy_drift:.2e}")
 
         # Per-ball speed magnitude analysis
-        print(f"\n=== SPEED MAGNITUDE ANALYSIS ===")
+        print("\n=== SPEED MAGNITUDE ANALYSIS ===")
         for i, ball in enumerate(self.balls):
             if ball.alive() and self.speed_magnitude_samples[i]:
                 magnitudes = self.speed_magnitude_samples[i]
@@ -330,7 +330,7 @@ class MultiBallTestBase:
                 )
 
         # Overall analysis
-        print(f"\n=== OVERALL ANALYSIS ===")
+        print("\n=== OVERALL ANALYSIS ===")
         if final_alive == self.num_balls:
             print(f"  All {self.num_balls} balls survived")
         else:

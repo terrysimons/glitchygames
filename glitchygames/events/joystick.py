@@ -10,8 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.events import JOYSTICK_EVENTS
-from glitchygames.events import JoystickEvents, ResourceManager
+from glitchygames.events import JOYSTICK_EVENTS, JoystickEvents, ResourceManager
 
 LOG = logging.getLogger("game.joysticks")
 LOG.addHandler(logging.NullHandler())

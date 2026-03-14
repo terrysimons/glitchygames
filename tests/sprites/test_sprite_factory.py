@@ -2,18 +2,19 @@
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
 from glitchygames.sprites import SpriteFactory
 
 from tests.mocks.test_mock_factory import MockFactory
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
 original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 
 

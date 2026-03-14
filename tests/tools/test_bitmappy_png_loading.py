@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+
 import pytest
 import toml
 from glitchygames.tools.bitmappy import (

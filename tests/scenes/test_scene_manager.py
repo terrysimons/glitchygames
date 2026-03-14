@@ -3,6 +3,7 @@
 import contextlib
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 

@@ -3,10 +3,11 @@
 
 import tempfile
 from pathlib import Path
-import pytest
 
+import pytest
 from glitchygames.tools.bitmappy import FilmStripSprite
 from glitchygames.tools.film_strip import FilmStripWidget
+
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -40,11 +41,11 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, "_convert_image_to_sprite_frame", return_value=mock_frame
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        self._mocker.patch("pygame.mouse.get_pos", return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:
@@ -94,11 +95,11 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, "_convert_image_to_sprite_frame", return_value=mock_frame
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        self._mocker.patch("pygame.mouse.get_pos", return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:
@@ -197,11 +198,11 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, "_convert_image_to_sprite_frame", return_value=mock_frame
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        self._mocker.patch("pygame.mouse.get_pos", return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as test_file:

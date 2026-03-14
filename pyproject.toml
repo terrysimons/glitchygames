@@ -1,93 +1,84 @@
-[tool.poetry]
+[project]
 name = "glitchygames"
 version = "1.0.0"
 description = "Glitchy Games and Tools for Pygame and Python 3"
 authors = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
+    {name = "Terry Simons", email = "terry.simons@gmail.com"},
+    {name = "Rich Saupe", email = "sabadam32@gmail.com"},
 ]
 maintainers = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
+    {name = "Terry Simons", email = "terry.simons@gmail.com"},
+    {name = "Rich Saupe", email = "sabadam32@gmail.com"},
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
+requires-python = ">=3.13"
 classifiers = [
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent"
 ]
-include = [
-  'glitchygames/assets',
-  'glitchygames/config',
-  'glitchygames/resources',
-  'glitchygames/fonts',
-  'glitchygames/tools'
+dependencies = [
+    "toml",
+    "pygame",
+    "future",
+    "cookiecutter",
+    "pyperclip",
+    "aisuite[all]",
+    "numpy",
+    "miniaudio",
+    "speechrecognition",
 ]
 
-[tool.poetry.urls]
+[project.urls]
 "Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
 "homepage" = "https://glitchygames.ai/"
 "Documentation" = "https://glitchygames.ai/documentation/"
 
-[tool.poetry.scripts]
+[project.scripts]
 bitmappy = "glitchygames.tools.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
 
-[tool.poetry.dependencies]
-# keep your python version here, e.g.:
-python = ">=3.13.0,<4.0"
-toml = "*"
-pygame = "*"
-future = "*"
-cookiecutter = "*"
-pyperclip = "*"
-aisuite = {extras = ["all"], version = "*"}
-numpy = "*"
-miniaudio = "*"
-speechrecognition = "*"
+[project.optional-dependencies]
+docs = [
+    "mkdocs",
+    "mkdocstrings[crystal,python]",
+    "mkdocs-material",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+    "pymdown-extensions",
+    "mkdocs-autorefs",
+    "mkdocs-macros-plugin",
+    "mkdocstrings-python",
+]
+dev = [
+    "nox[uv]",
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-benchmark",
+    "pytest-mock",
+    "coverage",
+    "bandit",
+    "safety",
+    "ruff",
+    "pre-commit",
+    "pyright",
+    "pillow",
+]
+api = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "httpx",
+    "apng",
+    "pillow",
+]
 
-# --- docs extras as optional main deps ---
-mkdocs = { version = "*", optional = true }
-mkdocstrings = { version = "*", optional = true, extras = ["crystal", "python"] }
-mkdocs-material = { version = "*", optional = true }
-mkdocs-gen-files = { version = "*", optional = true }
-mkdocs-literate-nav = { version = "*", optional = true }
-mkdocs-section-index = { version = "*", optional = true }
-pymdown-extensions = { version = "*", optional = true }
-mkdocs-autorefs = { version = "*", optional = true }
-mkdocs-macros-plugin = { version = "*", optional = true }
-mkdocstrings-python = { version = "*", optional = true }
-
-# --- api extras as optional main deps ---
-fastapi = { version = "*", optional = true }
-uvicorn = { version = "*", optional = true }
-pydantic = { version = "*", optional = true }
-httpx = { version = "*", optional = true }
-apng = { version = "*", optional = true }  # pyAPNG (MIT license)
-pillow = { version = "*", optional = true }  # For uncompressed PNG output
-
-# --- dev extras as optional main deps ---
-nox = { version = "*", optional = true }
-nox-poetry = { version = "*", optional = true }
-pytest = { version = "*", optional = true }
-pytest-cov = { version = "*", optional = true }
-pytest-xdist = { version = "*", optional = true }
-pytest-benchmark = { version = "*", optional = true }
-coverage = { version = "*", optional = true }
-bandit = { version = "*", optional = true }
-safety = { version = "*", optional = true }
-ruff = { version = "*", optional = true }
-pre-commit = { version = "*", optional = true }
-poetry-plugin-export = { version = "*", optional = true }
-pyright = { version = "*", optional = true }
-pytest-mock = { version = "*", optional = true }
-
-[tool.poetry.extras]
-docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "pytest-mock", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export", "pillow"]
-api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
+[tool.hatch.build.targets.wheel]
+packages = ["glitchygames"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -232,10 +223,5 @@ reportRedeclaration = false
 reportPrivateImportUsage = false
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[dependency-groups]
-dev = [
-    "pytest-mock (>=3.15.1,<4.0.0)",
-]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

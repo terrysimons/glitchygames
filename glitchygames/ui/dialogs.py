@@ -8,10 +8,10 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Self
 
-import sys
 import pygame
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
@@ -33,6 +33,7 @@ def _process_example_filename(filename: str) -> tuple[str, bool]:
     Returns:
         tuple: (cleaned_filename, is_example) where is_example is True if
                the filename had 'example:' or 'examples:' prefix
+
     """
     is_example = False
     cleaned_filename = filename.strip()
@@ -54,6 +55,7 @@ def _get_examples_dir() -> Path:
     
     Returns:
         Path: Path to the examples sprites directory
+
     """
     # Use the same logic as resource_path but defined here to avoid circular imports
     if hasattr(sys, "_MEIPASS"):
@@ -77,6 +79,7 @@ def _get_save_path(filename: str) -> Path:
         
     Returns:
         Path: Full path where the file should be saved
+
     """
     cleaned_filename, is_example = _process_example_filename(filename)
     
@@ -100,6 +103,7 @@ def _get_load_path(filename: str) -> Path:
         
     Returns:
         Path: Full path where the file should be loaded from
+
     """
     cleaned_filename, is_example = _process_example_filename(filename)
     
@@ -541,6 +545,7 @@ class DeleteAnimationDialogScene(Scene):
             on_cancel_callback: Function to call when user cancels (optional)
             options: Options for the scene
             groups: Sprite groups
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -655,6 +660,7 @@ class DeleteFrameDialogScene(Scene):
             on_cancel_callback: Function to call when user cancels (optional)
             options: Options for the scene
             groups: Sprite groups
+
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()

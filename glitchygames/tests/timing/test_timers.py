@@ -2,7 +2,6 @@
 import time
 
 import pytest
-
 from glitchygames.timing import FastTimer, PygameTimer
 
 

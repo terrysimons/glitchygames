@@ -12,10 +12,11 @@ Features:
 - Controller-specific positioning
 """
 
-import pygame
-from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+import pygame
 
 
 class IndicatorShape(Enum):
@@ -107,6 +108,7 @@ class VisualCollisionManager:
             
         Returns:
             VisualIndicator object
+
         """
         # Set appropriate shape and transparency based on location type
         if location_type == LocationType.CANVAS:
@@ -157,6 +159,7 @@ class VisualCollisionManager:
         
         Args:
             controller_id: Controller ID to remove
+
         """
         if controller_id in self.indicators:
             # Get the location type before removing
@@ -183,6 +186,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID to remove
             location_type: Location type to remove from
+
         """
         # Remove from location-specific dictionary
         if location_type == LocationType.FILM_STRIP and controller_id in self.film_strip_indicators:
@@ -205,6 +209,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID
             new_position: New position (x, y)
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].position = new_position
@@ -220,6 +225,7 @@ class VisualCollisionManager:
             
         Returns:
             VisualIndicator if found, None otherwise
+
         """
         return self.indicators.get(controller_id)
     
@@ -234,6 +240,7 @@ class VisualCollisionManager:
             
         Returns:
             List of indicators at the position
+
         """
         indicators = []
         
@@ -317,6 +324,7 @@ class VisualCollisionManager:
             position: Base position
             controller_ids: List of controller IDs at this position
             location_type: Location type for the indicators
+
         """
         if len(controller_ids) <= 1:
             return
@@ -359,6 +367,7 @@ class VisualCollisionManager:
             
         Returns:
             List of offset tuples
+
         """
         if count <= 1:
             return [(0, 0)]
@@ -390,6 +399,7 @@ class VisualCollisionManager:
             
         Returns:
             Final position (x, y)
+
         """
         if controller_id not in self.indicators:
             return (0, 0)
@@ -406,6 +416,7 @@ class VisualCollisionManager:
         
         Returns:
             List of all indicators
+
         """
         return list(self.indicators.values())
     
@@ -415,6 +426,7 @@ class VisualCollisionManager:
         
         Returns:
             List of visible indicators
+
         """
         return [indicator for indicator in self.indicators.values() if indicator.is_visible]
     
@@ -425,6 +437,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID
             visible: Visibility state
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].is_visible = visible
@@ -438,6 +451,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID
             color: RGB color tuple
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].color = color
@@ -450,6 +464,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID
             shape: Indicator shape
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].shape = shape
@@ -462,6 +477,7 @@ class VisualCollisionManager:
         Args:
             controller_id: Controller ID
             size: Indicator size
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].size = size
@@ -480,17 +496,18 @@ class VisualCollisionManager:
         
         Returns:
             Dictionary with collision information
+
         """
         summary = {
-            'total_indicators': len(self.indicators),
-            'collision_groups': len(self.collision_groups),
-            'groups_with_collisions': 0,
-            'position_cache_size': len(self.position_cache)
+            "total_indicators": len(self.indicators),
+            "collision_groups": len(self.collision_groups),
+            "groups_with_collisions": 0,
+            "position_cache_size": len(self.position_cache)
         }
         
         for position, controller_ids in self.collision_groups.items():
             if len(controller_ids) > 1:
-                summary['groups_with_collisions'] += 1
+                summary["groups_with_collisions"] += 1
         
         return summary
     
@@ -503,23 +520,24 @@ class VisualCollisionManager:
             
         Returns:
             Dictionary of controller_id -> VisualIndicator
+
         """
         if location_type == LocationType.FILM_STRIP:
             # Suppress debug output during pytest runs
             import sys
-            if 'pytest' not in sys.modules:
+            if "pytest" not in sys.modules:
                 print(f"DEBUG: get_indicators_by_location FILM_STRIP - {len(self.film_strip_indicators)} indicators")
             return self.film_strip_indicators
         elif location_type == LocationType.CANVAS:
             # Suppress debug output during pytest runs
             import sys
-            if 'pytest' not in sys.modules:
+            if "pytest" not in sys.modules:
                 print(f"DEBUG: get_indicators_by_location CANVAS - {len(self.canvas_indicators)} indicators")
             return self.canvas_indicators
         elif location_type == LocationType.SLIDER:
             # Suppress debug output during pytest runs
             import sys
-            if 'pytest' not in sys.modules:
+            if "pytest" not in sys.modules:
                 print(f"DEBUG: get_indicators_by_location SLIDER - {len(self.slider_indicators)} indicators")
             return self.slider_indicators
         else:

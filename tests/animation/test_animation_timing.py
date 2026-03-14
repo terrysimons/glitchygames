@@ -7,6 +7,7 @@ and that the animation system respects individual frame intervals.
 import sys
 import time
 from pathlib import Path
+
 import pygame
 import pytest
 from glitchygames.sprites import SpriteFactory

@@ -10,8 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.events import KEYBOARD_EVENTS
-from glitchygames.events import KeyboardEvents, ResourceManager
+from glitchygames.events import KEYBOARD_EVENTS, KeyboardEvents, ResourceManager
 
 log = logging.getLogger("game.keyboard")
 log.addHandler(logging.NullHandler())

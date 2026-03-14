@@ -276,6 +276,7 @@ class AnimatedCanvasInterface:
             y: Y coordinate
             color: Color tuple
             skip_drag_ops: If True, skip expensive operations during drag (used for optimization)
+
         """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
@@ -313,7 +314,7 @@ class AnimatedCanvasInterface:
                 hasattr(self.canvas_sprite.parent_scene, "controller_drags")):
                 # Check if any controller has an active drag with multiple pixels
                 for controller_id, drag_info in self.canvas_sprite.parent_scene.controller_drags.items():
-                    if drag_info.get('active', False) and len(drag_info.get('pixels_drawn', [])) > 0:
+                    if drag_info.get("active", False) and len(drag_info.get("pixels_drawn", [])) > 0:
                         controller_drag_active = True
                         print(f"DEBUG: Controller drag active with pixels for controller {controller_id}, skipping canvas interface tracking")
                         break
@@ -374,10 +375,10 @@ class AnimatedCanvasInterface:
                 if len(self.canvas_sprite.parent_scene._current_pixel_changes_dict) == 1:
                     import time
                     self.canvas_sprite.parent_scene._pixel_change_timer = time.time()
-                    LOG.debug(f"Canvas interface started pixel change timer for single click")
+                    LOG.debug("Canvas interface started pixel change timer for single click")
             elif controller_drag_active:
                 # Controller drag is active with pixels, don't collect pixels in canvas interface
-                print(f"DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection")
+                print("DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection")
                 # But still update the frame data - don't return early
 
             if hasattr(self.canvas_sprite, "animated_sprite"):
@@ -576,16 +577,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 # Finally, blit the selected frame at 100% opacity (skip 255,0,255 pixels)
                 # Check if selected frame should be visible (for comparison mode)
                 selected_frame_visible = True
-                if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
-                    selected_frame_visible = getattr(self.canvas_sprite.parent_scene, 'selected_frame_visible', True)
+                if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
+                    selected_frame_visible = getattr(self.canvas_sprite.parent_scene, "selected_frame_visible", True)
 
                 # Always get frame data for controller indicators, even if frame is hidden
                 frame = frames[current_animation][current_frame]
 
                 # Use panned pixel data if panning is active, otherwise use original frame data
-                if (hasattr(self.canvas_sprite, '_panning_active') and
+                if (hasattr(self.canvas_sprite, "_panning_active") and
                     self.canvas_sprite._panning_active and
-                    hasattr(self.canvas_sprite, 'pixels')):
+                    hasattr(self.canvas_sprite, "pixels")):
                     frame_pixels = self.canvas_sprite.pixels
                     LOG.debug(f"DEBUG: Using panned canvas pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
                 else:
@@ -799,7 +800,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     )
 
         # Draw hover effect for the hovered pixel (white border to match keyboard selector)
-        if (hasattr(self.canvas_sprite, 'hovered_pixel') and
+        if (hasattr(self.canvas_sprite, "hovered_pixel") and
             self.canvas_sprite.hovered_pixel is not None):
             hover_x, hover_y = self.canvas_sprite.hovered_pixel
             pixel_x = hover_x * self.canvas_sprite.pixel_width
@@ -814,7 +815,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             )
 
         # Draw canvas hover border (1px white border around entire canvas perimeter)
-        if (hasattr(self.canvas_sprite, 'is_hovered') and
+        if (hasattr(self.canvas_sprite, "is_hovered") and
             self.canvas_sprite.is_hovered):
             # Draw white border around the entire canvas perimeter
             pygame.draw.rect(
@@ -835,15 +836,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
         Returns:
             True if any controller is active in canvas mode, False otherwise
+
         """
         # Get the parent scene to access controller data
-        if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
+        if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
             scene = self.canvas_sprite.parent_scene
-            if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
+            if hasattr(scene, "controller_selections") and hasattr(scene, "mode_switcher"):
                 # Check if any controller is active in canvas mode
                 for controller_id, controller_selection in scene.controller_selections.items():
                     controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
-                    if controller_mode and controller_mode.value == 'canvas':
+                    if controller_mode and controller_mode.value == "canvas":
                         # Get controller position
                         position = scene.mode_switcher.get_controller_position(controller_id)
                         if position and position.is_valid:
@@ -856,13 +858,13 @@ class AnimatedCanvasRenderer(CanvasRenderer):
     def _get_controller_indicator_for_pixel(self, pixel_index: int) -> Optional[tuple[int, int, int]]:
         """Check if any controller is active on this pixel and return indicator color."""
         # Get the parent scene to access controller data
-        if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
+        if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
             scene = self.canvas_sprite.parent_scene
-            if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
+            if hasattr(scene, "controller_selections") and hasattr(scene, "mode_switcher"):
                 # Check all controllers for canvas mode
                 for controller_id, controller_selection in scene.controller_selections.items():
                     controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
-                    if controller_mode and controller_mode.value == 'canvas':
+                    if controller_mode and controller_mode.value == "canvas":
                         # Get controller position
                         position = scene.mode_switcher.get_controller_position(controller_id)
                         if position and position.is_valid:
@@ -872,7 +874,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 controller_pixel_index = y * self.canvas_sprite.pixels_across + x
                                 if controller_pixel_index == pixel_index:
                                     # Get controller color
-                                    if hasattr(scene, 'multi_controller_manager'):
+                                    if hasattr(scene, "multi_controller_manager"):
                                         controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
                                         if controller_info:
                                             return controller_info.color
@@ -902,7 +904,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
     def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
         """Get the pixel color at the specified position."""
-        if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
+        if hasattr(self, "canvas_sprite") and self.canvas_sprite:
             if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
                 pixel_index = y * self.canvas_sprite.pixels_across + x
                 if pixel_index < len(self.canvas_sprite.pixels):

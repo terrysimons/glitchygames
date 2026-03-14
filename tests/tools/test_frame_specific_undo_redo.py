@@ -2,10 +2,7 @@
 """Tests for frame-specific undo/redo functionality."""
 
 import pytest
-
-from glitchygames.tools.undo_redo_manager import (
-    UndoRedoManager, OperationType, Operation
-)
+from glitchygames.tools.undo_redo_manager import Operation, OperationType, UndoRedoManager
 
 
 class TestFrameSpecificUndoRedo:

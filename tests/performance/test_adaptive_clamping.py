@@ -1,8 +1,8 @@
 """Tests for the adaptive clamping system."""
 
-import pytest
 import time
 
+import pytest
 from glitchygames.performance.adaptive_clamping import AdaptiveClamping, performance_manager
 
 
@@ -425,7 +425,7 @@ class TestAdaptiveDeltaTime:
     def test_get_adaptive_dt_logging_interval(self, mocker):
         """Test that performance adjustments are logged at the correct interval."""
         # Start with time 0
-        mock_time = mocker.patch('time.perf_counter', return_value=0.0)
+        mock_time = mocker.patch("time.perf_counter", return_value=0.0)
 
         # Add sufficient history with a very large dt to ensure significant adjustment
         for i in range(10):
@@ -435,8 +435,8 @@ class TestAdaptiveDeltaTime:
         self.instance._last_performance_log_time = 0.0
 
         # Temporarily lower the logging threshold to ensure we trigger logging
-        mocker.patch.object(self.instance, '_fps_log_interval_ms', 0.0)  # No interval restriction
-        mock_print = mocker.patch('builtins.print')
+        mocker.patch.object(self.instance, "_fps_log_interval_ms", 0.0)  # No interval restriction
+        mock_print = mocker.patch("builtins.print")
         # Manually set a large adjustment to ensure logging
         adjusted_dt = self.instance.get_adaptive_dt(1.0)
         # Check if the adjustment is significant enough
@@ -525,14 +525,14 @@ class TestPerformanceManagerGlobal:
         # Test that the global performance_manager is also a singleton
         from glitchygames.performance import performance_manager
         assert performance_manager is not None
-        assert hasattr(performance_manager, '_initialized')
+        assert hasattr(performance_manager, "_initialized")
     
     def test_performance_manager_initialized(self):
         """Test that performance_manager is properly initialized."""
         from glitchygames.performance import performance_manager
         
         assert performance_manager._initialized is True
-        assert hasattr(performance_manager, '_dt_history')
-        assert hasattr(performance_manager, '_scene_data')
-        assert hasattr(performance_manager, '_current_scene')
-        assert hasattr(performance_manager, '_target_fps')
+        assert hasattr(performance_manager, "_dt_history")
+        assert hasattr(performance_manager, "_scene_data")
+        assert hasattr(performance_manager, "_current_scene")
+        assert hasattr(performance_manager, "_target_fps")

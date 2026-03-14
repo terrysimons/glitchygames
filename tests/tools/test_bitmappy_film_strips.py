@@ -6,6 +6,7 @@ and integration with the bitmap editor scene.
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 

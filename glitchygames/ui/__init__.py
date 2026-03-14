@@ -2060,11 +2060,11 @@ class SliderSprite(BitmappySprite):
 
     def _draw_slider_visual_indicators(self):
         """Draw visual indicators for multi-controller system on sliders."""
-        if not hasattr(self, 'parent') or not self.parent:
+        if not hasattr(self, "parent") or not self.parent:
             return
 
         # Check if parent has visual collision manager
-        if not hasattr(self.parent, 'visual_collision_manager'):
+        if not hasattr(self.parent, "visual_collision_manager"):
             return
 
         from glitchygames.tools.visual_collision_manager import LocationType
@@ -2833,6 +2833,7 @@ class Scrollbar:
             total_items: Total number of items (e.g., total lines)
             visible_items: Number of visible items (e.g., visible lines)
             scroll_offset: Current scroll position (0 to max_scroll)
+
         """
         self.x = x
         self.y = y
@@ -2892,6 +2893,7 @@ class Scrollbar:
             total_items: New total items count
             visible_items: New visible items count
             scroll_offset: New scroll offset
+
         """
         self.total_items = total_items
         self.visible_items = visible_items
@@ -2905,6 +2907,7 @@ class Scrollbar:
 
         Returns:
             True if event was handled
+
         """
         if not self.is_visible:
             return False
@@ -2942,6 +2945,7 @@ class Scrollbar:
 
         Returns:
             True if event was handled
+
         """
         if self.is_dragging:
             self.is_dragging = False
@@ -2956,6 +2960,7 @@ class Scrollbar:
 
         Returns:
             True if event was handled
+
         """
         if not self.is_visible:
             self.is_hovering = False
@@ -2983,6 +2988,7 @@ class Scrollbar:
 
         Args:
             surface: Surface to draw on (parent widget's image)
+
         """
         if not self.is_visible:
             return
@@ -3727,10 +3733,10 @@ class MultiLineTextBox(BitmappySprite):
         # Scroll by 3 lines per wheel notch
         scroll_amount = 3
 
-        if hasattr(event, 'y'):
+        if hasattr(event, "y"):
             # pygame 2.0+ style
             self.scroll_offset -= event.y * scroll_amount
-        elif hasattr(event, 'button'):
+        elif hasattr(event, "button"):
             # pygame 1.9 style (button 4 = up, button 5 = down)
             if event.button == 4:  # Scroll up
                 self.scroll_offset -= scroll_amount
@@ -3760,6 +3766,7 @@ class ConfirmDialog(BitmappySprite):
             width: Dialog width
             height: Dialog height
             groups: Sprite groups
+
         """
         super().__init__(x, y, width, height, groups)
         
@@ -3875,6 +3882,7 @@ class ConfirmDialog(BitmappySprite):
 
         Returns:
             True if event was handled
+
         """
         if self.yes_button_rect.collidepoint(pos):
             # User confirmed

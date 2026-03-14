@@ -5,14 +5,14 @@ This module provides specific edge case tests for hotplug scenarios,
 navigation boundaries, collision edge cases, and race conditions.
 """
 
-import pytest
-import time
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
 
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 
@@ -192,7 +192,7 @@ class TestNavigationBoundaryCases:
         
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
+            assert history[i]["timestamp"] <= history[i + 1]["timestamp"]
     
     def test_concurrent_navigation(self):
         """Test concurrent navigation operations."""

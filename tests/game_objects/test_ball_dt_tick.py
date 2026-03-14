@@ -2,10 +2,13 @@
 """Test script to verify ball dt_tick method works correctly."""
 
 import math
+
 import pytest
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
+
 from tests.mocks.test_mock_factory import MockFactory
+
 
 class TestBallDtTick:
     """Test ball dt_tick method for consistent movement."""

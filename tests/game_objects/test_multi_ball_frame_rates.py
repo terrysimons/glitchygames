@@ -2,7 +2,9 @@
 """Multi-ball tests at different frame rates."""
 
 import time
+
 from tests.game_objects.test_multi_ball_base import MultiBallTestBase
+
 
 def run_frame_rate_tests():
     """Run multi-ball tests at different frame rates."""
@@ -15,7 +17,7 @@ def run_frame_rate_tests():
         (30, 60, "30 FPS @ 60 seconds"),
         (60, 120, "60 FPS @ 120 seconds"), 
         (120, 240, "120 FPS @ 240 seconds"),
-        (float('inf'), 300, "Infinite FPS @ 300 seconds")
+        (float("inf"), 300, "Infinite FPS @ 300 seconds")
     ]
     
     # Test scenarios
@@ -52,13 +54,13 @@ def run_frame_rate_tests():
             
             # Store results
             result = {
-                'scenario': scenario_name,
-                'fps': fps,
-                'duration': duration,
-                'alive': alive,
-                'wall_bounces': wall_bounces,
-                'ball_collisions': ball_collisions,
-                'test_time': test_time
+                "scenario": scenario_name,
+                "fps": fps,
+                "duration": duration,
+                "alive": alive,
+                "wall_bounces": wall_bounces,
+                "ball_collisions": ball_collisions,
+                "test_time": test_time
             }
             scenario_results.append(result)
             all_results.append(result)
@@ -70,7 +72,7 @@ def run_frame_rate_tests():
         # Print scenario summary
         print(f"\n📈 {scenario_name} Results Summary:")
         for result in scenario_results:
-            fps_str = f"{result['fps']:.0f}" if result['fps'] != float('inf') else "∞"
+            fps_str = f"{result['fps']:.0f}" if result["fps"] != float("inf") else "∞"
             print(f"  {fps_str} FPS: {result['alive']}/5 alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions")
     
     # Print overall summary
@@ -80,10 +82,10 @@ def run_frame_rate_tests():
     
     for scenario_name, _, _ in scenarios:
         print(f"\n{scenario_name}:")
-        scenario_data = [r for r in all_results if r['scenario'] == scenario_name]
+        scenario_data = [r for r in all_results if r["scenario"] == scenario_name]
         
         for result in scenario_data:
-            fps_str = f"{result['fps']:.0f}" if result['fps'] != float('inf') else "∞"
+            fps_str = f"{result['fps']:.0f}" if result["fps"] != float("inf") else "∞"
             print(f"  {fps_str} FPS: {result['alive']}/5 alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions")
     
     return all_results
@@ -92,17 +94,17 @@ if __name__ == "__main__":
     results = run_frame_rate_tests()
     
     # Final analysis
-    print(f"\n🎯 FINAL ANALYSIS:")
+    print("\n🎯 FINAL ANALYSIS:")
     print(f"Total tests run: {len(results)}")
     
     # Check for any failures
-    failures = [r for r in results if r['alive'] < 5]
+    failures = [r for r in results if r["alive"] < 5]
     if failures:
         print(f"⚠️  {len(failures)} tests had ball deaths")
         for failure in failures:
-            fps_str = f"{failure['fps']:.0f}" if failure['fps'] != float('inf') else "∞"
+            fps_str = f"{failure['fps']:.0f}" if failure["fps"] != float("inf") else "∞"
             print(f"  - {failure['scenario']} @ {fps_str} FPS: {failure['alive']}/5 balls alive")
     else:
-        print(f"✅ All tests passed - all balls survived in all scenarios!")
+        print("✅ All tests passed - all balls survived in all scenarios!")
     
-    print(f"\n🏁 Frame rate testing completed!")
+    print("\n🏁 Frame rate testing completed!")

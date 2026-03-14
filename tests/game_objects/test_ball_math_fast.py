@@ -4,6 +4,7 @@
 import math
 import time
 
+
 def test_ball_math_fast():
     """Test ball mathematical stability with direct calculations."""
     print("=== FAST BALL MATHEMATICAL STABILITY TEST ===")
@@ -22,7 +23,7 @@ def test_ball_math_fast():
     speed_y = 125.0
     dt = 1.0/60.0  # 60 FPS
     
-    print(f"Initial state:")
+    print("Initial state:")
     print(f"  Position: ({x:.3f}, {y:.3f})")
     print(f"  Speed: ({speed_x:.6f}, {speed_y:.6f})")
     print(f"  Speed magnitude: {math.sqrt(speed_x**2 + speed_y**2):.6f}")
@@ -116,7 +117,7 @@ def test_ball_math_fast():
     
     total_time = time.time() - start_time
     
-    print(f"\n=== FINAL RESULTS ===")
+    print("\n=== FINAL RESULTS ===")
     print(f"Total bounces: {bounce_count:,}")
     print(f"X bounces: {x_bounces:,}")
     print(f"Y bounces: {y_bounces:,}")
@@ -136,7 +137,7 @@ def test_ball_math_fast():
         avg_magnitude = sum(magnitude_samples) / len(magnitude_samples)
         magnitude_drift = max_magnitude - min_magnitude
         
-        print(f"\nSpeed magnitude analysis:")
+        print("\nSpeed magnitude analysis:")
         print(f"  Initial: {initial_magnitude:.6f}")
         print(f"  Samples: {len(magnitude_samples)}")
         print(f"  Min: {min_magnitude:.6f}")
@@ -145,34 +146,34 @@ def test_ball_math_fast():
         print(f"  Drift: {magnitude_drift:.6f}")
         
         if magnitude_drift > 1.0:
-            print(f"  WARNING: Significant speed magnitude drift detected!")
+            print("  WARNING: Significant speed magnitude drift detected!")
         else:
-            print(f"  Speed magnitude is stable.")
+            print("  Speed magnitude is stable.")
     
     # Check for mathematical issues
-    print(f"\nMathematical stability check:")
+    print("\nMathematical stability check:")
     final_magnitude = math.sqrt(speed_x**2 + speed_y**2)
     magnitude_change = abs(final_magnitude - initial_magnitude)
     print(f"  Speed magnitude change: {magnitude_change:.6f}")
     
     if magnitude_change < 0.01:
-        print(f"  ✅ Speed magnitude is stable")
+        print("  ✅ Speed magnitude is stable")
     else:
-        print(f"  ⚠️  Speed magnitude has drifted")
+        print("  ⚠️  Speed magnitude has drifted")
     
     # Check position bounds
     expected_min_x, expected_max_x = 1, screen_width - ball_width - 1
     expected_min_y, expected_max_y = 1, screen_height - ball_height - 1
     
     if min_x >= expected_min_x and max_x <= expected_max_x and min_y >= expected_min_y and max_y <= expected_max_y:
-        print(f"  ✅ Position bounds are correct")
+        print("  ✅ Position bounds are correct")
     else:
-        print(f"  ⚠️  Position bounds issue detected")
+        print("  ⚠️  Position bounds issue detected")
         print(f"    Expected X: [{expected_min_x}-{expected_max_x}], got [{min_x:.1f}-{max_x:.1f}]")
         print(f"    Expected Y: [{expected_min_y}-{expected_max_y}], got [{min_y:.1f}-{max_y:.1f}]")
     
     # Check for floating-point precision issues
-    print(f"\nFloating-point precision check:")
+    print("\nFloating-point precision check:")
     print(f"  Speed X precision: {speed_x:.10f}")
     print(f"  Speed Y precision: {speed_y:.10f}")
     print(f"  Position X precision: {x:.10f}")
@@ -180,13 +181,13 @@ def test_ball_math_fast():
     
     # Check for NaN or infinity
     if math.isnan(speed_x) or math.isnan(speed_y) or math.isnan(x) or math.isnan(y):
-        print(f"  ❌ NaN values detected!")
+        print("  ❌ NaN values detected!")
         assert False, "NaN values detected in ball calculations"
     elif math.isinf(speed_x) or math.isinf(speed_y) or math.isinf(x) or math.isinf(y):
-        print(f"  ❌ Infinity values detected!")
+        print("  ❌ Infinity values detected!")
         assert False, "Infinity values detected in ball calculations"
     else:
-        print(f"  ✅ All values are finite")
+        print("  ✅ All values are finite")
     
     # Assert that the test completed successfully
     assert bounce_count >= 0, "Bounce count should be non-negative"
@@ -197,7 +198,7 @@ def test_ball_math_fast():
         drift = max(magnitude_samples) - min(magnitude_samples)
         assert drift < 0.01, f"Mathematical drift too high: {drift:.6f}"
     
-    print(f"\n✅ Test completed successfully")
+    print("\n✅ Test completed successfully")
 
 if __name__ == "__main__":
     test_ball_math_fast()

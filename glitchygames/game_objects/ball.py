@@ -628,6 +628,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         # Track if any collision occurred for corner detection
         collision_occurred = False
@@ -664,6 +665,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         if hasattr(self, "snd") and self.snd is not None:
             self.snd.play()
@@ -694,6 +696,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         if hasattr(self, "snd") and self.snd is not None:
             self.snd.play()
@@ -724,6 +727,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         if hasattr(self, "snd") and self.snd is not None:
             self.snd.play()
@@ -754,6 +758,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         if hasattr(self, "snd") and self.snd is not None:
             self.snd.play()
@@ -784,6 +789,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         # Check if ball is in a corner position - include boundary contact
         in_top_left = self.rect.y <= 0 and self.rect.x <= 0
@@ -834,6 +840,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         # Visual feedback implementation
         # This could include:
@@ -863,14 +870,15 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         # Get all paddle sprites from the same groups as this ball
         paddle_sprites = []
         for group in self.groups():
             for sprite in group:
                 # Check if this is a paddle (has snd attribute or is a paddle type)
-                if (hasattr(sprite, 'snd') or 
-                    sprite.__class__.__name__.lower().find('paddle') != -1) and sprite != self:
+                if (hasattr(sprite, "snd") or 
+                    sprite.__class__.__name__.lower().find("paddle") != -1) and sprite != self:
                     paddle_sprites.append(sprite)
         
         # Check collision with each paddle
@@ -887,6 +895,7 @@ class BallSprite(Sprite):
             
         Returns:
             None
+
         """
         # Determine which side of the paddle the ball is on
         ball_center_x = self.rect.centerx
@@ -904,7 +913,7 @@ class BallSprite(Sprite):
             self.speed.x = abs(self.speed.x)
         
         # Play collision sound if paddle has one
-        if hasattr(paddle, 'snd') and paddle.snd:
+        if hasattr(paddle, "snd") and paddle.snd:
             paddle.snd.play()
         
         # Check for paddle bounce speed-up (this triggers ball spawn)
@@ -920,7 +929,7 @@ class BallSprite(Sprite):
             self.speed.y *= scale_factor
         
         # Notify the game that a paddle collision occurred (for ball spawn)
-        if hasattr(self, 'on_paddle_collision'):
+        if hasattr(self, "on_paddle_collision"):
             self.on_paddle_collision(self)
         
         # Mark ball as dirty for redraw

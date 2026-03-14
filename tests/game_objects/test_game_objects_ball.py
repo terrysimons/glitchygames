@@ -2,8 +2,8 @@
 
 import sys
 from pathlib import Path
-import pytest
 
+import pytest
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
 

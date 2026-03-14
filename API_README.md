@@ -16,7 +16,7 @@ The API consists of two components:
 The API requires the `api` extra:
 
 ```bash
-poetry install -E api
+uv sync --extra api
 ```
 
 This installs: `fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`.
@@ -24,7 +24,7 @@ This installs: `fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`.
 For development (running tests):
 
 ```bash
-poetry install -E api -E dev
+uv sync --extra api -E dev
 ```
 
 ### Configure AI Provider
@@ -66,13 +66,13 @@ export SPRITE_AI_MODEL="llama3"
 
 ```bash
 # Using the entry point
-poetry run glitchygames-server
+uv run glitchygames-server
 
 # Using uvicorn directly (with auto-reload for development)
-poetry run uvicorn glitchygames.api.main:app --reload
+uv run uvicorn glitchygames.api.main:app --reload
 
 # Custom host and port
-GLITCHYGAMES_HOST=127.0.0.1 GLITCHYGAMES_PORT=9000 poetry run glitchygames-server
+GLITCHYGAMES_HOST=127.0.0.1 GLITCHYGAMES_PORT=9000 uv run glitchygames-server
 ```
 
 On startup, the server initializes pygame in headless mode (SDL_VIDEODRIVER=dummy) for sprite rendering.
@@ -255,13 +255,13 @@ Each `ApngFrameInfo` contains:
 
 ```bash
 # Generate a static sprite (prints TOML to stdout)
-poetry run glitchygames-client "16x16 red heart"
+uv run glitchygames-client "16x16 red heart"
 
 # Generate and save to a directory
-poetry run glitchygames-client "16x16 red heart" -o ./sprites
+uv run glitchygames-client "16x16 red heart" -o ./sprites
 
 # Generate with specific output formats
-poetry run glitchygames-client "16x16 red heart" -f toml -f png -o ./sprites
+uv run glitchygames-client "16x16 red heart" -f toml -f png -o ./sprites
 ```
 
 ### All Options
@@ -300,41 +300,41 @@ Options:
 **Static sprite with custom dimensions:**
 
 ```bash
-poetry run glitchygames-client "sword with a blue gem in the hilt" \
+uv run glitchygames-client "sword with a blue gem in the hilt" \
   --width 16 --height 32 -o ./sprites
 ```
 
 **Animated sprite:**
 
 ```bash
-poetry run glitchygames-client "16x16 slime bouncing" \
+uv run glitchygames-client "16x16 slime bouncing" \
   --frame-count 8 --animation-duration 1.0 -o ./sprites
 ```
 
 **Multi-animation sprite:**
 
 ```bash
-poetry run glitchygames-client "16x16 character" \
+uv run glitchygames-client "16x16 character" \
   --frame-count 4 --film-strip-count 3 -o ./sprites
 ```
 
 **Using a different AI model:**
 
 ```bash
-poetry run glitchygames-client "16x16 treasure chest" \
+uv run glitchygames-client "16x16 treasure chest" \
   --animation-language-model "openai:gpt-4o" -o ./sprites
 ```
 
 **Extract frames from an existing APNG:**
 
 ```bash
-poetry run glitchygames-client --extract-frames sprite.apng -o ./extracted
+uv run glitchygames-client --extract-frames sprite.apng -o ./extracted
 ```
 
 **Lower extract scale for smaller files:**
 
 ```bash
-poetry run glitchygames-client "16x16 mushroom" \
+uv run glitchygames-client "16x16 mushroom" \
   --frame-count 4 -o ./sprites --extract-scale 2
 ```
 
@@ -434,11 +434,11 @@ glitchygames/services/
 
 ```bash
 # All API and service tests
-poetry run python -m pytest tests/api/ tests/services/ -v --no-cov
+uv run python -m pytest tests/api/ tests/services/ -v --no-cov
 
 # Just API route tests
-poetry run python -m pytest tests/api/ -v --no-cov
+uv run python -m pytest tests/api/ -v --no-cov
 
 # Just service tests
-poetry run python -m pytest tests/services/ -v --no-cov
+uv run python -m pytest tests/services/ -v --no-cov
 ```

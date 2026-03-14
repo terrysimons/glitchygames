@@ -64,6 +64,7 @@ def _needs_alpha_channel(pixels: list[tuple[int, int, int] | tuple[int, int, int
         
     Returns:
         True if any pixel has non-opaque alpha or if pixels are RGBA format
+
     """
     for pixel in pixels:
         if len(pixel) == 4:
@@ -86,6 +87,7 @@ def _convert_pixels_to_rgb_if_possible(pixels: list[tuple[int, int, int] | tuple
         
     Returns:
         List of RGB tuples, converting RGBA to RGB if all alphas are opaque
+
     """
     # Check if we need alpha
     if not _needs_alpha_channel(pixels):
@@ -115,6 +117,7 @@ def _convert_pixels_to_rgba_if_needed(pixels: list[tuple[int, int, int] | tuple[
         
     Returns:
         List of RGBA tuples
+
     """
     rgba_pixels = []
     for pixel in pixels:
@@ -894,9 +897,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # Pad shorter rows with first character (usually transparency)
             # Find the most common character to use as padding (likely transparency)
             from collections import Counter
-            all_chars = ''.join(pixel_rows)
+            all_chars = "".join(pixel_rows)
             char_counts = Counter(all_chars)
-            pad_char = char_counts.most_common(1)[0][0] if char_counts else ' '
+            pad_char = char_counts.most_common(1)[0][0] if char_counts else " "
 
             # Pad rows to consistent width
             pixel_rows = [row.ljust(width, pad_char) for row in pixel_rows]
@@ -956,6 +959,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                    color_map maps char->color,
                    color_order preserves the order colors appeared in the file,
                    original_alpha_values maps char->alpha_value for colors that had alpha=0-254 (per-pixel)
+
         """
         color_map = {}
         color_order = []  # Preserve order of colors as they appear in file
@@ -1248,6 +1252,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         
         Returns:
             Total frame count across all animations. Returns 0 if no animations exist.
+
         """
         total_frames = 0
         for frames in self._animations.values():
@@ -1262,6 +1267,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         
         Returns:
             True if sprite has exactly 1 frame, False otherwise
+
         """
         return self.get_total_frame_count() == 1
     
@@ -1693,6 +1699,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             data: TOML data structure
             color_order: Optional list of characters in the order they should be written.
                         If None, uses dictionary iteration order.
+
         """
         if data["colors"]:
             f.write("[colors]\n")

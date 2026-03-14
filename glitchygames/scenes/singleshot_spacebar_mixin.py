@@ -1,6 +1,7 @@
 """Mixin for handling spacebar press/release pattern."""
 
 from typing import Self
+
 import pygame
 
 
@@ -25,6 +26,7 @@ class SpacebarMixin:
         
         Args:
             event: The key down event.
+
         """
         if event.key == pygame.K_SPACE:
             # Track that spacebar is pressed (but don't act on it yet)
@@ -38,6 +40,7 @@ class SpacebarMixin:
         
         Args:
             event: The key up event.
+
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - trigger action

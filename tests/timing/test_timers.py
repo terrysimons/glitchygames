@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
+import os
 import time
 
-import os
 import pytest
-
 from glitchygames.timing import FastTimer, PygameTimer
 
 

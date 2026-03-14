@@ -4,6 +4,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
 import pygame
 import pytest
 from glitchygames.sprites import (
@@ -20,8 +22,6 @@ from scripts.sprite_stack import (
 
 from tests.mocks.test_mock_factory import MockFactory
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
 original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 
 

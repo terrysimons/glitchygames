@@ -12,10 +12,11 @@ Features:
 - Visual indicator management per mode
 """
 
-import pygame
-from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+import pygame
 from glitchygames.tools.visual_collision_manager import LocationType
 
 
@@ -130,11 +131,12 @@ class TriggerDetector:
             
         Returns:
             True if trigger was pressed (crossed threshold)
+
         """
         # Initialize controller state if needed
         if controller_id not in self.last_trigger_states:
-            self.last_trigger_states[controller_id] = {'L2': 0.0, 'R2': 0.0}
-            self.last_trigger_times[controller_id] = {'L2': 0.0, 'R2': 0.0}
+            self.last_trigger_states[controller_id] = {"L2": 0.0, "R2": 0.0}
+            self.last_trigger_times[controller_id] = {"L2": 0.0, "R2": 0.0}
         
         # Check if trigger crossed threshold
         last_value = self.last_trigger_states[controller_id][trigger_type]
@@ -218,15 +220,16 @@ class ModeSwitcher:
             
         Returns:
             New mode if switched, None otherwise
+
         """
         if controller_id not in self.controller_modes:
             return None
         
         # Check for trigger presses
         l2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, l2_value, 'L2', current_time)
+            controller_id, l2_value, "L2", current_time)
         r2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, r2_value, 'R2', current_time)
+            controller_id, r2_value, "R2", current_time)
         
         if not (l2_pressed or r2_pressed):
             return None

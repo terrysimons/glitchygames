@@ -50,9 +50,9 @@ class TestRootSprite:
         assert len(sprite.groups()) == 1
         # Check that the group has the expected methods (works with centralized mocks)
         group = sprite.groups()[0]
-        assert hasattr(group, 'add')
-        assert hasattr(group, 'remove')
-        assert hasattr(group, 'draw')
+        assert hasattr(group, "add")
+        assert hasattr(group, "remove")
+        assert hasattr(group, "draw")
 
 
 class TestSpriteInitialization:

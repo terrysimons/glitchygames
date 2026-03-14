@@ -2,9 +2,9 @@
 
 import sys
 from pathlib import Path
-import pytest
 
 import pygame
+import pytest
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
 

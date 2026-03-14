@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Self
+
 import pygame
 from glitchygames.events import MIDI_EVENTS
-from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import argparse

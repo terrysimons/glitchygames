@@ -7,6 +7,7 @@ EventManager, ResourceManager, and utility functions.
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
+
 import pygame
 import pytest
 

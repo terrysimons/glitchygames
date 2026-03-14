@@ -1,20 +1,16 @@
 # ruff: noqa: D100, D103
 
-from nox_poetry import Session, session
+import nox
+
+# Use uv as the venv backend so nox sessions get their own isolated venvs
+# managed by uv, without touching the project's .venv.
+nox.options.default_venv_backend = "uv"
 
 
-# @session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
-@session(python=["3.13"], reuse_venv=False)
-def lint_and_test(session: Session) -> None:
-    session.run(
-        "poetry",
-        "install",
-        "--extras",
-        "dev",
-        "--extras",
-        "docs",
-        external=True,
-    )
+# @nox.session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
+@nox.session(python=["3.13"], reuse_venv=False)
+def lint_and_test(session: nox.Session) -> None:
+    session.install(".[api,dev,docs]")
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
@@ -24,7 +20,6 @@ def lint_and_test(session: Session) -> None:
         "--cov=glitchygames",
         "--cov-report=term-missing",
         "--cov-report=html",
-        external=True,
     )
 
     # Sort imports (not supported by ruff format yet)
@@ -35,7 +30,6 @@ def lint_and_test(session: Session) -> None:
         "I",
         "--fix",
         "noxfile.py",
-        external=True
     )
     session.run(
         "ruff",
@@ -44,7 +38,6 @@ def lint_and_test(session: Session) -> None:
         "I",
         "--fix",
         "glitchygames",
-        external=True,
     )
     session.run(
         "ruff",
@@ -53,7 +46,6 @@ def lint_and_test(session: Session) -> None:
         "I",
         "--fix",
         "scripts",
-        external=True,
     )
     session.run(
         "ruff",
@@ -62,12 +54,10 @@ def lint_and_test(session: Session) -> None:
         "I",
         "--fix",
         "tests",
-        external=True,
     )
 
     session.run(
         "pyright",
-        external=True,
     )
 
     # Format code (ruff format is mostly black style)
@@ -75,25 +65,21 @@ def lint_and_test(session: Session) -> None:
         "ruff",
         "format",
         "noxfile.py",
-        external=True,
     )
     session.run(
         "ruff",
         "format",
         "glitchygames",
-        external=True,
     )
     session.run(
         "ruff",
         "format",
         "scripts",
-        external=True,
     )
     session.run(
         "ruff",
         "format",
         "tests",
-        external=True,
     )
 
     # Lint code
@@ -101,25 +87,21 @@ def lint_and_test(session: Session) -> None:
         "ruff",
         "check",
         "noxfile.py",
-        external=True,
     )
     session.run(
         "ruff",
         "check",
         "glitchygames",
-        external=True,
     )
     session.run(
         "ruff",
         "check",
         "scripts",
-        external=True,
     )
     session.run(
         "ruff",
         "check",
         "tests",
-        external=True
     )
 
     # Lint docs
@@ -127,20 +109,13 @@ def lint_and_test(session: Session) -> None:
         "mkdocs",
         "build",
         "--strict",
-        external=True
     )
 
 
-@session(python=["3.13"], reuse_venv=False)
-def security_scan(session: Session) -> None:
+@nox.session(python=["3.13"], reuse_venv=False)
+def security_scan(session: nox.Session) -> None:
     """Run security scanning tools."""
-    session.run(
-        "poetry",
-        "install",
-        "--extras",
-        "dev",
-        external=True,
-    )
+    session.install(".[dev,docs,api]")
 
     # Run bandit security scan
     session.run(
@@ -151,13 +126,11 @@ def security_scan(session: Session) -> None:
         "json",
         "-o",
         "bandit-report.json",
-        external=True,
     )
     session.run(
         "bandit",
         "-r",
         "glitchygames",
-        external=True
     )
 
     # Run safety check for known vulnerabilities
@@ -165,25 +138,17 @@ def security_scan(session: Session) -> None:
         "safety",
         "check",
         "--json",
-        external=True,
     )
     session.run(
         "safety",
         "check",
-        external=True,
     )
 
 
-@session(python=["3.13"], reuse_venv=False)
-def performance_test(session: Session) -> None:
+@nox.session(python=["3.13"], reuse_venv=False)
+def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
-    session.run(
-        "poetry",
-        "install",
-        "--extras",
-        "dev",
-        external=True,
-    )
+    session.install(".[dev,docs,api]")
 
     # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
@@ -193,20 +158,13 @@ def performance_test(session: Session) -> None:
         "--benchmark-only",
         "--benchmark-save=baseline",
         "tests/",
-        external=True
     )
 
 
-@session(python=["3.13"], reuse_venv=False)
-def coverage_report(session: Session) -> None:
+@nox.session(python=["3.13"], reuse_venv=False)
+def coverage_report(session: nox.Session) -> None:
     """Generate detailed coverage report."""
-    session.run(
-        "poetry",
-        "install",
-        "--extras",
-        "dev",
-        external=True,
-    )
+    session.install(".[dev,docs,api]")
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
@@ -216,7 +174,6 @@ def coverage_report(session: Session) -> None:
         "--cov=glitchygames",
         "--cov-report=html",
         "--cov-report=term-missing",
-        external=True,
     )
 
     # Generate coverage report
@@ -224,10 +181,8 @@ def coverage_report(session: Session) -> None:
         "coverage",
         "report",
         "--show-missing",
-        external=True,
     )
     session.run(
         "coverage",
         "html",
-        external=True,
     )

@@ -3,6 +3,7 @@
 
 import math
 
+
 def test_collision_physics():
     """Test collision physics with various velocity combinations."""
     print("Testing collision physics with zero velocity components...")
@@ -29,7 +30,7 @@ def test_collision_physics():
     
     print(f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})")
     print(f"  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})")
-    print(f"  Expected: ball1 should stop, ball2 should move right")
+    print("  Expected: ball1 should stop, ball2 should move right")
     
     # Test case 2: One ball moving vertically, one stationary
     print("\nTest 2: Vertical vs Stationary")
@@ -51,7 +52,7 @@ def test_collision_physics():
     
     print(f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})")
     print(f"  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})")
-    print(f"  Expected: ball1 should stop, ball2 should move down")
+    print("  Expected: ball1 should stop, ball2 should move down")
     
     # Test case 3: Diagonal collision with zero components
     print("\nTest 3: Diagonal vs Stationary")
@@ -73,7 +74,7 @@ def test_collision_physics():
     
     print(f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})")
     print(f"  After:  ball1=({new_ball1_x:.1f}, {new_ball1_y:.1f}), ball2=({new_ball2_x:.1f}, {new_ball2_y:.1f})")
-    print(f"  Expected: ball1 should stop, ball2 should move diagonally")
+    print("  Expected: ball1 should stop, ball2 should move diagonally")
 
 if __name__ == "__main__":
     test_collision_physics()

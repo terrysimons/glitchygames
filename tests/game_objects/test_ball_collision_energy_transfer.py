@@ -9,17 +9,17 @@ This test specifically addresses the reported issues:
 """
 
 import math
-import sys
 import os
+import sys
 
 import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+import pygame
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-import pygame
 
 
 class TestBallCollisionEnergyTransfer:
@@ -128,7 +128,7 @@ class TestBallCollisionEnergyTransfer:
         ball2.rect.centerx = ball1.rect.centerx - 15  # 15px apart (radius=10 each)
         ball2.rect.centery = ball1.rect.centery  # Same Y coordinate
 
-        print(f"Before collision:")
+        print("Before collision:")
         print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
         print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
 
@@ -145,7 +145,7 @@ class TestBallCollisionEnergyTransfer:
         print(f"Collision occurred: {collision_occurred}")
 
         if collision_occurred:
-            print(f"After collision:")
+            print("After collision:")
             print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
             print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
 
@@ -190,7 +190,7 @@ class TestBallCollisionEnergyTransfer:
         ball2.rect.centerx = ball1.rect.centerx  # Same X coordinate
         ball2.rect.centery = ball1.rect.centery - 15  # 15px apart (radius=10 each)
 
-        print(f"Before collision:")
+        print("Before collision:")
         print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
         print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
 
@@ -207,7 +207,7 @@ class TestBallCollisionEnergyTransfer:
         print(f"Collision occurred: {collision_occurred}")
 
         if collision_occurred:
-            print(f"After collision:")
+            print("After collision:")
             print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
             print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
 
@@ -246,7 +246,7 @@ class TestBallCollisionEnergyTransfer:
         ball1 = self._create_ball(100, 200, 100, 0)  # Moving right
         ball2 = self._create_ball(115, 200, -100, 0)  # Moving left, close to ball1
 
-        print(f"Before collision:")
+        print("Before collision:")
         print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
         print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
 
@@ -263,7 +263,7 @@ class TestBallCollisionEnergyTransfer:
         print(f"Collision occurred: {collision_occurred}")
 
         if collision_occurred:
-            print(f"After collision:")
+            print("After collision:")
             print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
             print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
 
@@ -307,7 +307,7 @@ class TestBallCollisionEnergyTransfer:
         ball1 = self._create_ball(100, 100, 100, 100)  # Moving down-right
         ball2 = self._create_ball(110, 110, -50, -50)  # Moving up-left, very close to ball1
 
-        print(f"Before collision:")
+        print("Before collision:")
         print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
         print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
 
@@ -324,7 +324,7 @@ class TestBallCollisionEnergyTransfer:
         print(f"Collision occurred: {collision_occurred}")
 
         if collision_occurred:
-            print(f"After collision:")
+            print("After collision:")
             print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
             print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
 
@@ -358,7 +358,7 @@ class TestBallCollisionEnergyTransfer:
         ball1 = self._create_ball(100, 200, 100, 0)
         ball2 = self._create_ball(300, 200, 50, 0)  # 200px apart
 
-        print(f"Balls far apart:")
+        print("Balls far apart:")
         print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
         print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
 
@@ -399,5 +399,5 @@ class TestBallCollisionEnergyTransfer:
         assert collision_occurred, "Collision should have occurred"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

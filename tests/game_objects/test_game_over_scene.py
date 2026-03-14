@@ -2,14 +2,14 @@
 
 import sys
 from pathlib import Path
+
 import pygame
-from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+import pytest
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 
 from tests.mocks.test_mock_factory import MockFactory
-
-import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

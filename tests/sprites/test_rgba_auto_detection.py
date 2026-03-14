@@ -3,9 +3,9 @@
 
 import tempfile
 from pathlib import Path
+
 import pygame
 import pytest
-
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
@@ -291,22 +291,22 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 content = f.read()
 
             # Should contain RGB colors only
-            assert 'red = 255' in content
-            assert 'green = 255' in content
-            assert 'blue = 255' in content
+            assert "red = 255" in content
+            assert "green = 255" in content
+            assert "blue = 255" in content
             # Should not contain alpha
-            assert 'alpha =' not in content
+            assert "alpha =" not in content
 
         finally:
             Path(temp_path).unlink()
@@ -324,20 +324,20 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 content = f.read()
 
             # Should contain alpha values
-            assert 'alpha = 255' in content
-            assert 'alpha = 128' in content
-            assert 'alpha = 0' in content
+            assert "alpha = 255" in content
+            assert "alpha = 128" in content
+            assert "alpha = 0" in content
 
         finally:
             Path(temp_path).unlink()
@@ -358,22 +358,22 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 content = f.read()
 
             # Should contain RGB colors only
-            assert 'red = 255' in content
-            assert 'green = 255' in content
-            assert 'blue = 255' in content
+            assert "red = 255" in content
+            assert "green = 255" in content
+            assert "blue = 255" in content
             # Should not contain alpha
-            assert 'alpha =' not in content
+            assert "alpha =" not in content
 
         finally:
             Path(temp_path).unlink()
@@ -394,21 +394,21 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            with open(temp_path, 'r') as f:
+            with open(temp_path, "r") as f:
                 content = f.read()
 
             # Should contain per-pixel alpha values (0-254) only
             # alpha=255 (opaque) is omitted as an optimization since it's the default
-            assert 'alpha = 255' not in content
-            assert 'alpha = 128' in content
-            assert 'alpha = 0' in content
+            assert "alpha = 255" not in content
+            assert "alpha = 128" in content
+            assert "alpha = 0" in content
 
         finally:
             Path(temp_path).unlink()
@@ -428,7 +428,7 @@ R = { red = 255, green = 0, blue = 0 }
 G = { red = 0, green = 255, blue = 0 }
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -445,12 +445,12 @@ G = { red = 0, green = 255, blue = 0 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
+            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should load RGB colors
-            assert sprite._color_map['R'] == (255, 0, 0)
-            assert sprite._color_map['G'] == (0, 255, 0)
+            assert sprite._color_map["R"] == (255, 0, 0)
+            assert sprite._color_map["G"] == (0, 255, 0)
 
         finally:
             Path(temp_path).unlink()
@@ -471,7 +471,7 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255, alpha = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -488,14 +488,14 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
+            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should load RGBA colors appropriately
             # Explicit alpha=255 in TOML is preserved as RGBA 4-tuple
-            assert sprite._color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
-            assert sprite._color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
-            assert sprite._color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+            assert sprite._color_map["R"] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
+            assert sprite._color_map["G"] == (0, 255, 0, 128)  # Transparent -> RGBA
+            assert sprite._color_map["B"] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
 
         finally:
             Path(temp_path).unlink()
@@ -516,7 +516,7 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -533,13 +533,13 @@ B = { red = 0, green = 0, blue = 255 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
+            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should handle mixed formats correctly
-            assert sprite._color_map['R'] == (255, 0, 0)  # RGB
-            assert sprite._color_map['G'] == (0, 255, 0, 128)  # RGBA
-            assert sprite._color_map['B'] == (0, 0, 255)  # RGB
+            assert sprite._color_map["R"] == (255, 0, 0)  # RGB
+            assert sprite._color_map["G"] == (0, 255, 0, 128)  # RGBA
+            assert sprite._color_map["B"] == (0, 0, 255)  # RGB
 
         finally:
             Path(temp_path).unlink()
@@ -569,7 +569,7 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -588,7 +588,7 @@ class TestRGBRGBAIntegration:
                 return mock_surface
 
             # Load with mock surface
-            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
+            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
             loaded_sprite = AnimatedSprite(temp_path)
 
             # Should maintain RGB format
@@ -617,7 +617,7 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             temp_path = f.name
 
         try:
@@ -636,7 +636,7 @@ class TestRGBRGBAIntegration:
                 return mock_surface
 
             # Load with mock surface
-            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
+            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
             loaded_sprite = AnimatedSprite(temp_path)
 
             # Should maintain RGBA format with transparency
@@ -674,10 +674,10 @@ class TestRGBRGBAIntegration:
         rgba_sprite._animations = {"test": [rgba_frame]}
         rgba_sprite.name = "rgba_sprite"
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as rgb_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as rgb_file:
             rgb_path = rgb_file.name
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as rgba_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as rgba_file:
             rgba_path = rgba_file.name
 
         try:

@@ -13,9 +13,8 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.events import CONTROLLER_EVENTS
 import pygame._sdl2.controller
-from glitchygames.events import ControllerEvents, ResourceManager
+from glitchygames.events import CONTROLLER_EVENTS, ControllerEvents, ResourceManager
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
 pygame.controller = pygame._sdl2.controller

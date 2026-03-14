@@ -4,8 +4,9 @@ import logging
 from typing import Self
 
 import pygame
-from .. import Scene
 from glitchygames.sprites import Sprite
+
+from .. import Scene
 
 log = logging.getLogger("game")
 
@@ -121,6 +122,7 @@ class GameOverScene(Scene):
         
         Returns:
             None
+
         """
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:

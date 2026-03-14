@@ -4,12 +4,14 @@
 import math
 import sys
 from pathlib import Path
+
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pygame
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
+
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -271,7 +273,7 @@ class TestBallBoundaryPhysics:
             speed_up_mode=SpeedUpMode.NONE
         )
 
-        mock_logger = mocker.patch('logging.getLogger')
+        mock_logger = mocker.patch("logging.getLogger")
         mock_log = mocker.Mock()
         mock_logger.return_value = mock_log
 
@@ -282,6 +284,6 @@ class TestBallBoundaryPhysics:
         assert mock_log.debug.called
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import pytest
     pytest.main([__file__])

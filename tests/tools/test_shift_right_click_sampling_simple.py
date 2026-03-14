@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy, film_strip
+
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -56,7 +57,7 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return False for shift keys
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=False)
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -79,7 +80,7 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return True for left shift key
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=True)
-        mock_get_pressed = mocker.patch('glitchygames.tools.bitmappy.pygame.key.get_pressed', return_value=mock_key_state)
+        mock_get_pressed = mocker.patch("glitchygames.tools.bitmappy.pygame.key.get_pressed", return_value=mock_key_state)
 
         # Debug: Check the mock key state
         print(f"Mock key state: {mock_key_state}")
@@ -186,7 +187,7 @@ class TestShiftRightClickSamplingSimple:
         # Mock pygame key state to return True for shift key
         mock_key_state = [False] * 512
         mock_key_state[304] = True  # Left shift pressed
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -203,7 +204,7 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return False for shift keys
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=False)
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -227,7 +228,7 @@ class TestShiftRightClickSamplingSimple:
         # Mock pygame key state to return True for shift key
         mock_key_state = [False] * 512
         mock_key_state[304] = True  # Left shift pressed
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
 
         # Call the event handler - should not crash
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)

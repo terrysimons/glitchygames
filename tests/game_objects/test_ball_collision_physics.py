@@ -2,11 +2,12 @@
 """Test comprehensive ball collision physics scenarios."""
 
 import math
-import pytest
 
-from tests.mocks.test_mock_factory import MockFactory
+import pytest
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
+
+from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestBallCollisionPhysics:

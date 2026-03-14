@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite
+
 from tests.mocks.test_mock_factory import MockFactory
 
 

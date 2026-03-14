@@ -5,21 +5,18 @@ This module provides comprehensive tests for edge cases, error handling,
 performance scenarios, and integration scenarios for the multi-controller system.
 """
 
-import pytest
 import time
-import pygame
 from typing import Dict, List
 
-from glitchygames.tools.multi_controller_manager import (
-    MultiControllerManager, 
-    ControllerInfo, 
-    ControllerStatus
-)
+import pygame
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.visual_collision_manager import (
-    VisualCollisionManager, 
-    IndicatorShape
+from glitchygames.tools.multi_controller_manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
 )
+from glitchygames.tools.visual_collision_manager import IndicatorShape, VisualCollisionManager
 
 
 class TestMultiControllerEdgeCases:
@@ -278,7 +275,7 @@ class TestControllerSelectionEdgeCases:
         
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
+            assert history[i]["timestamp"] <= history[i + 1]["timestamp"]
     
     def test_state_cloning_edge_cases(self):
         """Test state cloning with various scenarios."""

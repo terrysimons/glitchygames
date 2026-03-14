@@ -2,10 +2,11 @@
 """Tests for exponential speed-up modes in BallSprite."""
 
 import math
+
 import pytest
+from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
 from tests.mocks.test_mock_factory import MockFactory
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
 
 class TestBallExponentialSpeedUp:

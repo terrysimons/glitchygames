@@ -20,15 +20,15 @@ import pygame
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
-from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
-from glitchygames.game_objects.ball import SpeedUpMode, BallSpawnMode
+from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger("game")
@@ -553,6 +553,7 @@ class Game(Scene):
 
         Returns:
             None
+
         """
         # Check if spawning is enabled
         if self.ball_spawn_mode == BallSpawnMode.NO_SPAWNING:
@@ -586,6 +587,7 @@ class Game(Scene):
 
         Returns:
             float: The cooldown time in seconds
+
         """
         if self.ball_spawn_mode & BallSpawnMode.FREQUENT:
             return 0.5

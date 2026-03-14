@@ -24,10 +24,10 @@ class TestSceneFix:
         scene.scene_manager = scene_manager
         
         # Test that the methods exist on the Scene object
-        assert hasattr(scene, '_get_collided_sprites')
-        assert hasattr(scene, '_get_focusable_sprites')
-        assert hasattr(scene, '_get_focused_sprites')
-        assert hasattr(scene, '_has_focusable_sprites')
+        assert hasattr(scene, "_get_collided_sprites")
+        assert hasattr(scene, "_get_focusable_sprites")
+        assert hasattr(scene, "_get_focused_sprites")
+        assert hasattr(scene, "_has_focusable_sprites")
         
         # Test that Scene can call these methods directly
         # This should not raise an AttributeError
@@ -36,4 +36,4 @@ class TestSceneFix:
         
         # Test that Scene can access SceneManager through scene_manager property
         assert scene.scene_manager is not None
-        assert hasattr(scene.scene_manager, 'all_sprites')
+        assert hasattr(scene.scene_manager, "all_sprites")

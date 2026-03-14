@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Pause scene for paddleslap game."""
 
-import pygame
 from typing import Self
 
-from .. import Scene
-from glitchygames.sprites import Sprite
+import pygame
 from glitchygames.color import WHITE
+from glitchygames.sprites import Sprite
+
+from .. import Scene
 
 
 class PauseOverlay(Sprite):
@@ -18,6 +19,7 @@ class PauseOverlay(Sprite):
         Args:
             game: The game instance
             screenshot: Screenshot of the game when paused
+
         """
         # Initialize the sprite with the screenshot dimensions
         super().__init__(
@@ -57,6 +59,7 @@ class PauseScene(Scene):
         
         Args:
             **kwargs: Additional keyword arguments.
+
         """
         super().__init__(**kwargs)
         self.overlay = None
@@ -91,6 +94,7 @@ class PauseScene(Scene):
             
         Returns:
             None
+
         """
         if event.key == pygame.K_SPACE:
             # Track that spacebar is pressed (but don't act on it yet)
@@ -109,6 +113,7 @@ class PauseScene(Scene):
             
         Returns:
             None
+
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - resume the game

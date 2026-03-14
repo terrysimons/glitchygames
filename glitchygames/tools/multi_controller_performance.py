@@ -5,12 +5,12 @@ This module provides performance optimizations for the multi-controller system,
 including caching, memory management, and performance monitoring.
 """
 
-import time
 import threading
-from typing import Dict, List, Optional, Tuple, Any
+import time
+import weakref
 from collections import deque
 from dataclasses import dataclass
-import weakref
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -20,7 +20,7 @@ class PerformanceMetrics:
     total_time: float = 0.0
     average_time: float = 0.0
     max_time: float = 0.0
-    min_time: float = float('inf')
+    min_time: float = float("inf")
     last_operation: float = 0.0
 
 
@@ -39,6 +39,7 @@ class PerformanceMonitor:
         Args:
             operation: Operation name
             duration: Operation duration in seconds
+
         """
         with self.lock:
             if operation not in self.metrics:
@@ -64,6 +65,7 @@ class PerformanceMonitor:
             
         Returns:
             PerformanceMetrics or None if operation not found
+
         """
         with self.lock:
             return self.metrics.get(operation)
@@ -73,6 +75,7 @@ class PerformanceMonitor:
         
         Returns:
             Dict of operation names to performance metrics
+
         """
         with self.lock:
             return self.metrics.copy()
@@ -82,6 +85,7 @@ class PerformanceMonitor:
         
         Args:
             operation: Specific operation to reset, or None for all
+
         """
         with self.lock:
             if operation:
@@ -102,6 +106,7 @@ class CachedPositionManager:
         
         Args:
             cache_size: Maximum cache size
+
         """
         self.cache: Dict[Tuple[int, int, int], Tuple[int, int]] = {}
         self.cache_size = cache_size
@@ -118,6 +123,7 @@ class CachedPositionManager:
             
         Returns:
             Cached position or None if not found
+
         """
         key = (controller_id, hash(animation), frame)
         
@@ -136,6 +142,7 @@ class CachedPositionManager:
             animation: Animation name
             frame: Frame number
             position: Position to cache
+
         """
         key = (controller_id, hash(animation), frame)
         
@@ -167,12 +174,13 @@ class CachedPositionManager:
         
         Returns:
             Dict with cache statistics
+
         """
         with self.lock:
             return {
-                'cache_size': len(self.cache),
-                'max_cache_size': self.cache_size,
-                'cache_utilization': len(self.cache) / self.cache_size
+                "cache_size": len(self.cache),
+                "max_cache_size": self.cache_size,
+                "cache_utilization": len(self.cache) / self.cache_size
             }
 
 
@@ -191,6 +199,7 @@ class MemoryManager:
         Args:
             obj_id: Object ID
             obj: Object to register
+
         """
         self.weak_refs[obj_id] = weakref.ref(obj)
     
@@ -199,6 +208,7 @@ class MemoryManager:
         
         Returns:
             Number of objects cleaned up
+
         """
         cleaned_count = 0
         dead_objects = []
@@ -218,11 +228,12 @@ class MemoryManager:
         
         Returns:
             Dict with memory statistics
+
         """
         return {
-            'registered_objects': len(self.weak_refs),
-            'cleanup_threshold': self.cleanup_threshold,
-            'needs_cleanup': len(self.weak_refs) > self.cleanup_threshold
+            "registered_objects": len(self.weak_refs),
+            "cleanup_threshold": self.cleanup_threshold,
+            "needs_cleanup": len(self.weak_refs) > self.cleanup_threshold
         }
 
 
@@ -234,6 +245,7 @@ class OptimizedVisualCollisionManager:
         
         Args:
             base_manager: Base visual collision manager
+
         """
         self.base_manager = base_manager
         self.position_cache = CachedPositionManager()
@@ -258,6 +270,7 @@ class OptimizedVisualCollisionManager:
             instance_id: Instance ID
             color: Color tuple
             position: Position tuple
+
         """
         start_time = time.time()
         
@@ -270,7 +283,7 @@ class OptimizedVisualCollisionManager:
         
         # Record performance
         duration = time.time() - start_time
-        self.performance_monitor.record_operation('add_controller_indicator', duration)
+        self.performance_monitor.record_operation("add_controller_indicator", duration)
     
     def update_controller_position(self, controller_id: int, position: Tuple[int, int]) -> None:
         """Update controller position with performance optimization.
@@ -278,6 +291,7 @@ class OptimizedVisualCollisionManager:
         Args:
             controller_id: Controller ID
             position: New position
+
         """
         start_time = time.time()
         
@@ -305,13 +319,14 @@ class OptimizedVisualCollisionManager:
         
         # Record performance
         duration = time.time() - start_time
-        self.performance_monitor.record_operation('update_controller_position', duration)
+        self.performance_monitor.record_operation("update_controller_position", duration)
     
     def optimize_positioning(self) -> None:
         """Optimize positioning with performance monitoring.
         
         Returns:
             Optimization results
+
         """
         start_time = time.time()
         
@@ -319,25 +334,26 @@ class OptimizedVisualCollisionManager:
         self.base_manager.optimize_positioning()
         
         # Clean up memory if needed
-        if self.memory_manager.get_memory_stats()['needs_cleanup']:
+        if self.memory_manager.get_memory_stats()["needs_cleanup"]:
             cleaned = self.memory_manager.cleanup_dead_objects()
             print(f"DEBUG: Cleaned up {cleaned} dead objects")
         
         # Record performance
         duration = time.time() - start_time
-        self.performance_monitor.record_operation('optimize_positioning', duration)
+        self.performance_monitor.record_operation("optimize_positioning", duration)
     
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics.
         
         Returns:
             Dict with performance statistics
+
         """
         stats = {
-            'performance_metrics': self.performance_monitor.get_all_stats(),
-            'cache_stats': self.position_cache.get_cache_stats(),
-            'memory_stats': self.memory_manager.get_memory_stats(),
-            'pending_updates': len(self.pending_updates)
+            "performance_metrics": self.performance_monitor.get_all_stats(),
+            "cache_stats": self.position_cache.get_cache_stats(),
+            "memory_stats": self.memory_manager.get_memory_stats(),
+            "pending_updates": len(self.pending_updates)
         }
         
         return stats
@@ -356,6 +372,7 @@ class OptimizedVisualCollisionManager:
             enable_caching: Enable position caching
             enable_optimization: Enable optimization features
             update_throttle: Update throttle in seconds
+
         """
         self.enable_caching = enable_caching
         self.enable_optimization = enable_optimization
@@ -372,6 +389,7 @@ class MultiControllerPerformanceOptimizer:
             manager: MultiControllerManager instance
             visual_manager: VisualCollisionManager instance
             controller_selections: Controller selections dict
+
         """
         self.manager = manager
         self.visual_manager = visual_manager
@@ -391,35 +409,36 @@ class MultiControllerPerformanceOptimizer:
         
         Returns:
             Dict with optimization results
+
         """
         start_time = time.time()
         results = {
-            'controllers_cleaned': 0,
-            'memory_cleaned': 0,
-            'cache_cleared': 0,
-            'performance_improved': False
+            "controllers_cleaned": 0,
+            "memory_cleaned": 0,
+            "cache_cleared": 0,
+            "performance_improved": False
         }
         
         # Clean up inactive controllers
-        results['controllers_cleaned'] = self._cleanup_inactive_controllers()
+        results["controllers_cleaned"] = self._cleanup_inactive_controllers()
         
         # Clean up memory
-        results['memory_cleaned'] = self.memory_manager.cleanup_dead_objects()
+        results["memory_cleaned"] = self.memory_manager.cleanup_dead_objects()
         
         # Clear old caches
         self.optimized_visual_manager.position_cache.clear_cache()
-        results['cache_cleared'] = 1
+        results["cache_cleared"] = 1
         
         # Optimize visual manager
         self.optimized_visual_manager.optimize_positioning()
         
         # Check if performance improved
-        if any(results[key] > 0 for key in ['controllers_cleaned', 'memory_cleaned', 'cache_cleared']):
-            results['performance_improved'] = True
+        if any(results[key] > 0 for key in ["controllers_cleaned", "memory_cleaned", "cache_cleared"]):
+            results["performance_improved"] = True
         
         # Record performance
         duration = time.time() - start_time
-        self.performance_monitor.record_operation('optimize_system', duration)
+        self.performance_monitor.record_operation("optimize_system", duration)
         
         return results
     
@@ -428,6 +447,7 @@ class MultiControllerPerformanceOptimizer:
         
         Returns:
             Number of controllers cleaned up
+
         """
         cleaned_count = 0
         inactive_controllers = []
@@ -453,13 +473,14 @@ class MultiControllerPerformanceOptimizer:
         
         Returns:
             Dict with system performance statistics
+
         """
         return {
-            'performance_metrics': self.performance_monitor.get_all_stats(),
-            'visual_manager_stats': self.optimized_visual_manager.get_performance_stats(),
-            'memory_stats': self.memory_manager.get_memory_stats(),
-            'controller_count': len(self.controller_selections),
-            'active_controllers': sum(1 for s in self.controller_selections.values() if s.is_active())
+            "performance_metrics": self.performance_monitor.get_all_stats(),
+            "visual_manager_stats": self.optimized_visual_manager.get_performance_stats(),
+            "memory_stats": self.memory_manager.get_memory_stats(),
+            "controller_count": len(self.controller_selections),
+            "active_controllers": sum(1 for s in self.controller_selections.values() if s.is_active())
         }
     
     def auto_optimize_if_needed(self) -> bool:
@@ -467,6 +488,7 @@ class MultiControllerPerformanceOptimizer:
         
         Returns:
             True if optimization was performed
+
         """
         current_time = time.time()
         

@@ -2,10 +2,12 @@
 """Multi-ball test with bouncing enabled to verify clean trajectories."""
 
 import math
-import pygame
-import time
 import random
+import time
+
+import pygame
 from glitchygames.game_objects.ball import BallSprite
+
 
 def test_multi_ball_bounce_trajectories():
     """Test multiple balls with bouncing enabled to verify clean trajectories."""
@@ -33,7 +35,7 @@ def test_multi_ball_bounce_trajectories():
         balls.append(ball)
     
     print(f"Created {num_balls} balls with bouncing enabled")
-    print(f"Initial ball states:")
+    print("Initial ball states:")
     for i, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         print(f"  Ball {i+1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}")
@@ -96,7 +98,7 @@ def test_multi_ball_bounce_trajectories():
     total_time = time.time() - start_time
     final_alive = sum(1 for ball in balls if ball.alive())
     
-    print(f"\n=== FINAL RESULTS ===")
+    print("\n=== FINAL RESULTS ===")
     print(f"Total time: {total_time:.2f} seconds")
     print(f"Frames processed: {frame_count:,}")
     print(f"Balls still alive: {final_alive}")
@@ -105,7 +107,7 @@ def test_multi_ball_bounce_trajectories():
     print(f"Y bounces: {y_bounces}")
     
     # Analyze trajectory data
-    print(f"\n=== TRAJECTORY ANALYSIS ===")
+    print("\n=== TRAJECTORY ANALYSIS ===")
     for i, ball in enumerate(balls):
         if ball.alive() and trajectory_data[i]:
             positions = trajectory_data[i]
@@ -127,9 +129,9 @@ def test_multi_ball_bounce_trajectories():
             y_drift = max_y - min_y
             
             if x_drift > 50 or y_drift > 50:
-                print(f"  ⚠️  Significant position drift detected")
+                print("  ⚠️  Significant position drift detected")
             else:
-                print(f"  ✅ Position is stable")
+                print("  ✅ Position is stable")
             
             # Check speed magnitude stability
             if speed_magnitude_samples[i]:
@@ -141,12 +143,12 @@ def test_multi_ball_bounce_trajectories():
                 print(f"  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}")
                 
                 if drift < 0.01:
-                    print(f"  ✅ Speed magnitude is stable")
+                    print("  ✅ Speed magnitude is stable")
                 else:
-                    print(f"  ⚠️  Speed magnitude drift detected")
+                    print("  ⚠️  Speed magnitude drift detected")
     
     # Check for ball-to-ball interactions
-    print(f"\n=== BALL INTERACTION ANALYSIS ===")
+    print("\n=== BALL INTERACTION ANALYSIS ===")
     interactions = 0
     for i in range(len(balls)):
         for j in range(i+1, len(balls)):
@@ -163,19 +165,19 @@ def test_multi_ball_bounce_trajectories():
     if interactions > 0:
         print(f"  Found {interactions} ball interactions")
     else:
-        print(f"  No ball interactions detected")
+        print("  No ball interactions detected")
     
     # Overall analysis
-    print(f"\n=== OVERALL ANALYSIS ===")
+    print("\n=== OVERALL ANALYSIS ===")
     if final_alive == num_balls:
-        print(f"  ✅ All balls survived with bouncing enabled")
+        print("  ✅ All balls survived with bouncing enabled")
     else:
         print(f"  ⚠️  Only {final_alive}/{num_balls} balls survived")
     
     if total_bounces > 0:
         print(f"  ✅ Bouncing is working ({total_bounces} total bounces)")
     else:
-        print(f"  ❌ No bounces detected - bouncing may be disabled")
+        print("  ❌ No bounces detected - bouncing may be disabled")
     
     pygame.quit()
     
@@ -183,7 +185,7 @@ def test_multi_ball_bounce_trajectories():
     assert final_alive > 0, "At least one ball should survive"
     assert total_bounces > 0, "Bouncing should be working"
     
-    print(f"\n✅ Test completed successfully")
+    print("\n✅ Test completed successfully")
 
 if __name__ == "__main__":
     test_multi_ball_bounce_trajectories()

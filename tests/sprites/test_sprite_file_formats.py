@@ -7,6 +7,8 @@ and properly rejects YAML/INI formats after the cleanup.
 import tempfile
 from pathlib import Path
 
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
 import pygame
 import pytest
 from glitchygames.sprites import BitmappySprite, SpriteFactory
@@ -14,8 +16,6 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from tests.mocks.test_mock_factory import MockFactory
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
 original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 
 # Constants for magic values

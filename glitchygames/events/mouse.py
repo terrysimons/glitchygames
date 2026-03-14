@@ -10,8 +10,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.events import MOUSE_EVENTS
-from glitchygames.events import MouseEvents, ResourceManager
+from glitchygames.events import MOUSE_EVENTS, MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
 

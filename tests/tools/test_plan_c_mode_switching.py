@@ -5,12 +5,15 @@ This module tests the controller mode switching functionality including
 trigger detection, mode transitions, and position tracking.
 """
 
-import pytest
 import time
 
+import pytest
 from glitchygames.tools.controller_mode_system import (
-    ControllerMode, ModePosition, ControllerModeState, 
-    TriggerDetector, ModeSwitcher
+    ControllerMode,
+    ControllerModeState,
+    ModePosition,
+    ModeSwitcher,
+    TriggerDetector,
 )
 
 

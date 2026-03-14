@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import os
 import contextlib
 import cProfile
 import importlib
 import logging
 import multiprocessing
+import os
 import platform
 import time
 from pathlib import Path
@@ -31,8 +31,8 @@ from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.timing import create_timer
 from glitchygames.sprites import Sprite
+from glitchygames.timing import create_timer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -818,26 +818,26 @@ class GameEngine(events.EventManager):
                 pass
             self.scene_manager.start()
         except Exception:
-            current_scene = getattr(self.scene_manager, 'current_scene', None)
+            current_scene = getattr(self.scene_manager, "current_scene", None)
             if current_scene:
-                scene_name = getattr(current_scene, 'NAME', None)
+                scene_name = getattr(current_scene, "NAME", None)
                 # If NAME is None, use the class name
                 if scene_name is None:
                     scene_name = current_scene.__class__.__name__
             else:
                 # If current scene is None, try to get the previous scene
-                previous_scene = getattr(self.scene_manager, 'previous_scene', None)
+                previous_scene = getattr(self.scene_manager, "previous_scene", None)
                 if previous_scene:
-                    scene_name = getattr(previous_scene, 'NAME', None)
+                    scene_name = getattr(previous_scene, "NAME", None)
                     # If NAME is None, use the class name
                     if scene_name is None:
                         scene_name = previous_scene.__class__.__name__
                 else:
-                    scene_name = 'None'
+                    scene_name = "None"
             # In test environments, use debug level to avoid cluttering test output
             # In production, log exceptions normally
             import sys
-            if 'pytest' in sys.modules or 'unittest' in sys.modules:
+            if "pytest" in sys.modules or "unittest" in sys.modules:
                 self.log.debug(f"Runtime error during game execution @ scene '{scene_name}'")
             else:
                 self.log.exception(f"Runtime error during game execution @ scene '{scene_name}'")

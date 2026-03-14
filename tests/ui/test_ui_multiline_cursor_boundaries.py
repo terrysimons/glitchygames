@@ -13,7 +13,6 @@ from glitchygames.ui import MultiLineTextBox
 
 from tests.mocks import MockFactory
 
-
 # Test constants to avoid magic values
 TEST_TEXTBOX_X = 10
 TEST_TEXTBOX_Y = 10
@@ -51,6 +50,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
         Returns:
             Configured MultiLineTextBox instance
+
         """
         mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
@@ -75,6 +75,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             textbox: The textbox to send the event to
             key: pygame key constant (e.g., pygame.K_RIGHT)
             unicode_char: Unicode character for text input events
+
         """
         mock_event = mocker.Mock()
         mock_event.key = key
@@ -89,6 +90,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             textbox: The textbox to click on
             x_offset: X offset from textbox left edge
             y_offset: Y offset from textbox top edge
+
         """
         mock_event = mocker.Mock()
         mock_event.pos = (textbox.rect.x + x_offset, textbox.rect.y + y_offset)

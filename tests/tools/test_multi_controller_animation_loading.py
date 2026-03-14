@@ -5,12 +5,16 @@ This module tests the scenario where animations are loaded while controllers
 are active, ensuring proper state management and visual indicator updates.
 """
 
-import pytest
 import time
 from typing import Dict
 
-from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 
@@ -277,7 +281,7 @@ class TestMultiControllerAnimationLoading:
         )
 
         # Simulate loading animation with error
-        mocker.patch.object(self.scene, '_on_sprite_loaded', side_effect=Exception("Loading error"))
+        mocker.patch.object(self.scene, "_on_sprite_loaded", side_effect=Exception("Loading error"))
         try:
             self._simulate_animation_loading("error_animation")
         except Exception:
@@ -337,6 +341,7 @@ class TestMultiControllerAnimationLoading:
 
         Args:
             animation_name: Name of the animation to load
+
         """
         # Simulate adding new animation to film strips
         self.scene.film_strips[animation_name] = self._mocker.Mock()

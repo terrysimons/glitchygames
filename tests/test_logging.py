@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Test script to verify the logging is working."""
 
-import sys
 import os
+import sys
 
 import pygame
 
 # Add the glitchygames directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'glitchygames'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "glitchygames"))
 
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
+
 
 def test_logging():
     """Test the logging functionality."""

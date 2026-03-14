@@ -1204,6 +1204,7 @@ class FilmStripWidget:
 
         Returns:
             Tuple of (animation_name, frame_idx) if a removal button is found, None otherwise
+
         """
         if not hasattr(self, "removal_button_layouts") or not self.removal_button_layouts:
             return None
@@ -1240,6 +1241,7 @@ class FilmStripWidget:
 
         Returns:
             True if the event was handled, False otherwise
+
         """
         # Only handle keyboard input if we're in edit mode
         if not self.editing_animation:
@@ -1255,16 +1257,16 @@ class FilmStripWidget:
                 if new_name and new_name != self.original_animation_name:
                     # Notify parent scene to handle the rename
                     if hasattr(self, "parent_scene") and self.parent_scene:
-                        LOG.debug(f"FilmStripWidget: Calling parent_scene.on_animation_rename")
+                        LOG.debug("FilmStripWidget: Calling parent_scene.on_animation_rename")
                         self.parent_scene.on_animation_rename(
                             self.original_animation_name, new_name
                         )
                     else:
                         LOG.warning(
-                            f"FilmStripWidget: No parent_scene found! Cannot rename animation."
+                            "FilmStripWidget: No parent_scene found! Cannot rename animation."
                         )
                 else:
-                    LOG.debug(f"FilmStripWidget: Name unchanged or empty, not renaming")
+                    LOG.debug("FilmStripWidget: Name unchanged or empty, not renaming")
             else:
                 LOG.debug(
                     f"FilmStripWidget: editing_text='{self.editing_text}', original_animation_name='{self.original_animation_name}'"
@@ -2790,7 +2792,7 @@ class FilmStripWidget:
             else:
                 # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
                 self.current_frame = 0
-                LOG.debug(f"FilmStripWidget: Stayed at frame 0 after deleting frame 0")
+                LOG.debug("FilmStripWidget: Stayed at frame 0 after deleting frame 0")
 
         # Ensure the current frame is within bounds after deletion
         if (

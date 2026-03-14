@@ -13,11 +13,12 @@ Features:
 - Visual collision management
 """
 
-import pygame
 import time
-from typing import Dict, Optional, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+import pygame
 
 
 class ControllerStatus(Enum):
@@ -84,7 +85,7 @@ class MultiControllerManager:
         
         # Suppress debug output during pytest runs
         import sys
-        if 'pytest' not in sys.modules:
+        if "pytest" not in sys.modules:
             print("DEBUG: MultiControllerManager singleton initialized")
     
     @classmethod
@@ -100,6 +101,7 @@ class MultiControllerManager:
         
         Returns:
             List of controller instance IDs that are connected
+
         """
         current_time = time.time()
         if current_time - self.last_scan_time < self.scan_interval:
@@ -195,6 +197,7 @@ class MultiControllerManager:
             
         Returns:
             Controller ID if assignment successful, None otherwise
+
         """
         if instance_id not in self.controllers:
             return None
@@ -225,6 +228,7 @@ class MultiControllerManager:
             
         Returns:
             True if activation successful, False otherwise
+
         """
         if instance_id not in self.assigned_controllers:
             return False
@@ -245,6 +249,7 @@ class MultiControllerManager:
             
         Returns:
             ControllerInfo if found, None otherwise
+
         """
         return self.controllers.get(instance_id)
     
@@ -257,6 +262,7 @@ class MultiControllerManager:
             
         Returns:
             Controller ID if assigned, None otherwise
+
         """
         return self.assigned_controllers.get(instance_id)
     
@@ -269,6 +275,7 @@ class MultiControllerManager:
             
         Returns:
             RGB color tuple if found, None otherwise
+
         """
         if instance_id in self.controllers:
             return self.controllers[instance_id].color
@@ -283,6 +290,7 @@ class MultiControllerManager:
             
         Returns:
             True if controller is active, False otherwise
+
         """
         if instance_id not in self.controllers:
             return False
@@ -294,6 +302,7 @@ class MultiControllerManager:
         
         Args:
             instance_id: The controller instance ID
+
         """
         if instance_id in self.controllers:
             self.controllers[instance_id].last_activity = time.time()
@@ -304,6 +313,7 @@ class MultiControllerManager:
         
         Returns:
             List of active controller instance IDs
+
         """
         active_controllers = []
         for instance_id, controller_info in self.controllers.items():
@@ -317,6 +327,7 @@ class MultiControllerManager:
         
         Returns:
             List of assigned controller instance IDs
+
         """
         return list(self.assigned_controllers.keys())
     
@@ -346,21 +357,22 @@ class MultiControllerManager:
         
         Returns:
             Dictionary with controller status information
+
         """
         summary = {
-            'total_connected': len(self.controllers),
-            'total_assigned': len(self.assigned_controllers),
-            'active_controllers': len(self.get_active_controllers()),
-            'controllers': {}
+            "total_connected": len(self.controllers),
+            "total_assigned": len(self.assigned_controllers),
+            "active_controllers": len(self.get_active_controllers()),
+            "controllers": {}
         }
         
         for instance_id, controller_info in self.controllers.items():
-            summary['controllers'][instance_id] = {
-                'controller_id': controller_info.controller_id,
-                'status': controller_info.status.value,
-                'color': controller_info.color,
-                'assigned_time': controller_info.assigned_time,
-                'last_activity': controller_info.last_activity
+            summary["controllers"][instance_id] = {
+                "controller_id": controller_info.controller_id,
+                "status": controller_info.status.value,
+                "color": controller_info.color,
+                "assigned_time": controller_info.assigned_time,
+                "last_activity": controller_info.last_activity
             }
             
         return summary

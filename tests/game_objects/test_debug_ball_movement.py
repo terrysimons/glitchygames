@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Set up debug logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout)
     ]

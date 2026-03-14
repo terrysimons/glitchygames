@@ -3,6 +3,7 @@
 
 import math
 
+
 def test_edge_cases():
     """Test edge cases that could cause balls to get stuck or behave weirdly."""
     print("Testing collision physics edge cases...")

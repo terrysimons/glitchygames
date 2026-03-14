@@ -5,8 +5,9 @@ animation strip as context when generating sprites.
 """
 
 from pathlib import Path
-import pytest
+
 import pygame
+import pytest
 from glitchygames.tools.bitmappy import BitmapEditorScene
 
 from tests.mocks import MockFactory

@@ -11,7 +11,6 @@ from pathlib import Path
 import httpx
 import toml
 from apng import APNG, PNG
-
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
 LOG = logging.getLogger("glitchygames.api.client")

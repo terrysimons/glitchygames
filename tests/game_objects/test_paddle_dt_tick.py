@@ -2,9 +2,11 @@
 """Test script to verify paddle movement works correctly."""
 
 import math
+
 import pygame
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.movement import Speed
+
 
 def test_paddle_movement():
     """Test paddle movement for consistent behavior."""

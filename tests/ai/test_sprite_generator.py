@@ -1,7 +1,6 @@
 """Tests for AI sprite generation functionality."""
 
 import pytest
-
 from glitchygames.ai.sprite_generator import (
     build_refinement_messages,
     build_sprite_generation_messages,

@@ -5,14 +5,15 @@ This module provides enhanced error handling, logging, and configuration
 options for the multi-controller system.
 """
 
+import json
 import logging
+import os
 import time
 import traceback
-from typing import Dict, List, Optional, Any, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-import json
-import os
+from typing import Any, Dict, List, Optional
 
 
 class ErrorSeverity(Enum):
@@ -43,8 +44,9 @@ class MultiControllerErrorHandler:
         
         Args:
             log_level: Logging level
+
         """
-        self.logger = logging.getLogger('multi_controller')
+        self.logger = logging.getLogger("multi_controller")
         self.logger.setLevel(log_level)
         
         # Error tracking
@@ -76,6 +78,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if error was handled successfully
+
         """
         # Create error info
         error_info = ErrorInfo(
@@ -111,6 +114,7 @@ class MultiControllerErrorHandler:
         
         Args:
             error_info: Error information
+
         """
         log_message = f"Controller {error_info.controller_id}: {error_info.error_type} - {error_info.message}"
         
@@ -131,6 +135,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if recovery was successful
+
         """
         error_key = f"{error_info.error_type}_{error_info.operation}"
         
@@ -161,6 +166,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if recovery was successful
+
         """
         if error_info.error_type == "KeyError":
             # Try to recreate missing key
@@ -182,6 +188,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if recovery was successful
+
         """
         # This would need to be implemented based on specific error context
         self.logger.info(f"Attempting to recover from missing key: {error_info.message}")
@@ -195,6 +202,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if recovery was successful
+
         """
         self.logger.info(f"Attempting to recover from missing attribute: {error_info.message}")
         return True
@@ -207,6 +215,7 @@ class MultiControllerErrorHandler:
             
         Returns:
             True if recovery was successful
+
         """
         self.logger.info(f"Attempting to recover from invalid value: {error_info.message}")
         return True
@@ -217,6 +226,7 @@ class MultiControllerErrorHandler:
         Args:
             error_type: Error type to handle
             handler: Handler function
+
         """
         self.error_handlers[error_type] = handler
     
@@ -226,6 +236,7 @@ class MultiControllerErrorHandler:
         Args:
             error_key: Error key to handle
             handler: Recovery handler function
+
         """
         self.recovery_handlers[error_key] = handler
     
@@ -234,18 +245,19 @@ class MultiControllerErrorHandler:
         
         Returns:
             Dict with error statistics
+
         """
         return {
-            'total_errors': len(self.error_history),
-            'error_counts': self.error_counts.copy(),
-            'recovery_attempts': self.recovery_attempts.copy(),
-            'recent_errors': [
+            "total_errors": len(self.error_history),
+            "error_counts": self.error_counts.copy(),
+            "recovery_attempts": self.recovery_attempts.copy(),
+            "recent_errors": [
                 {
-                    'type': error.error_type,
-                    'message': error.message,
-                    'severity': error.severity.value,
-                    'timestamp': error.timestamp,
-                    'controller_id': error.controller_id
+                    "type": error.error_type,
+                    "message": error.message,
+                    "severity": error.severity.value,
+                    "timestamp": error.timestamp,
+                    "controller_id": error.controller_id
                 }
                 for error in self.error_history[-10:]  # Last 10 errors
             ]
@@ -288,7 +300,7 @@ class MultiControllerConfig:
     enable_navigation_history: bool = True
     
     @classmethod
-    def from_file(cls, config_file: str) -> 'MultiControllerConfig':
+    def from_file(cls, config_file: str) -> "MultiControllerConfig":
         """Load configuration from file.
         
         Args:
@@ -296,12 +308,13 @@ class MultiControllerConfig:
             
         Returns:
             MultiControllerConfig instance
+
         """
         if not os.path.exists(config_file):
             return cls()
         
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 config_data = json.load(f)
             
             return cls(**config_data)
@@ -317,32 +330,33 @@ class MultiControllerConfig:
             
         Returns:
             True if save was successful
+
         """
         try:
             config_data = {
-                'max_controllers': self.max_controllers,
-                'controller_timeout': self.controller_timeout,
-                'auto_cleanup_interval': self.auto_cleanup_interval,
-                'collision_offset_distance': self.collision_offset_distance,
-                'visual_indicator_size': self.visual_indicator_size,
-                'visual_indicator_shape': self.visual_indicator_shape,
-                'enable_caching': self.enable_caching,
-                'enable_optimization': self.enable_optimization,
-                'update_throttle': self.update_throttle,
-                'error_logging_enabled': self.error_logging_enabled,
-                'auto_recovery_enabled': self.auto_recovery_enabled,
-                'max_error_history': self.max_error_history,
-                'max_recovery_attempts': self.max_recovery_attempts,
-                'navigation_history_limit': self.navigation_history_limit,
-                'enable_navigation_history': self.enable_navigation_history
+                "max_controllers": self.max_controllers,
+                "controller_timeout": self.controller_timeout,
+                "auto_cleanup_interval": self.auto_cleanup_interval,
+                "collision_offset_distance": self.collision_offset_distance,
+                "visual_indicator_size": self.visual_indicator_size,
+                "visual_indicator_shape": self.visual_indicator_shape,
+                "enable_caching": self.enable_caching,
+                "enable_optimization": self.enable_optimization,
+                "update_throttle": self.update_throttle,
+                "error_logging_enabled": self.error_logging_enabled,
+                "auto_recovery_enabled": self.auto_recovery_enabled,
+                "max_error_history": self.max_error_history,
+                "max_recovery_attempts": self.max_recovery_attempts,
+                "navigation_history_limit": self.navigation_history_limit,
+                "enable_navigation_history": self.enable_navigation_history
             }
             
-            with open(config_file, 'w') as f:
+            with open(config_file, "w") as f:
                 json.dump(config_data, f, indent=2)
             
             return True
         except Exception as e:
-            logging.error(f"Failed to save config to {config_file}: {e}")
+            logging.exception(f"Failed to save config to {config_file}: {e}")
             return False
 
 
@@ -354,9 +368,10 @@ class MultiControllerLogger:
         
         Args:
             config: Multi-controller configuration
+
         """
         self.config = config
-        self.logger = logging.getLogger('multi_controller')
+        self.logger = logging.getLogger("multi_controller")
         
         # Setup logging
         if config.error_logging_enabled:
@@ -366,7 +381,7 @@ class MultiControllerLogger:
         """Setup logging configuration."""
         # Create formatter
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         
         # Create console handler
@@ -375,7 +390,7 @@ class MultiControllerLogger:
         self.logger.addHandler(console_handler)
         
         # Create file handler
-        file_handler = logging.FileHandler('multi_controller.log')
+        file_handler = logging.FileHandler("multi_controller.log")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
     
@@ -386,6 +401,7 @@ class MultiControllerLogger:
             controller_id: Controller ID
             event: Event name
             data: Event data
+
         """
         self.logger.info(f"Controller {controller_id}: {event} - {data}")
     
@@ -395,6 +411,7 @@ class MultiControllerLogger:
         Args:
             operation: Operation name
             duration: Operation duration
+
         """
         self.logger.debug(f"Performance: {operation} took {duration:.4f}s")
     
@@ -403,6 +420,7 @@ class MultiControllerLogger:
         
         Args:
             status: System status dictionary
+
         """
         self.logger.info(f"System status: {status}")
 
@@ -415,6 +433,7 @@ class MultiControllerValidator:
         
         Args:
             config: Multi-controller configuration
+
         """
         self.config = config
     
@@ -426,6 +445,7 @@ class MultiControllerValidator:
             
         Returns:
             True if valid
+
         """
         return 0 <= controller_id < self.config.max_controllers
     
@@ -437,6 +457,7 @@ class MultiControllerValidator:
             
         Returns:
             True if valid
+
         """
         if not isinstance(position, tuple) or len(position) != 2:
             return False
@@ -452,6 +473,7 @@ class MultiControllerValidator:
             
         Returns:
             True if valid
+
         """
         if not isinstance(color, tuple) or len(color) != 3:
             return False
@@ -467,6 +489,7 @@ class MultiControllerValidator:
             
         Returns:
             True if valid
+
         """
         return isinstance(animation_name, str) and len(animation_name) > 0
     
@@ -478,5 +501,6 @@ class MultiControllerValidator:
             
         Returns:
             True if valid
+
         """
         return isinstance(frame_index, int) and frame_index >= 0

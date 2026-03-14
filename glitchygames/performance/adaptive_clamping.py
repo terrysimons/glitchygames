@@ -48,6 +48,7 @@ class AdaptiveClamping:
             
         Returns:
             float: The adjusted delta time.
+
         """
         # Track recent delta times for performance analysis
         self._dt_history.append(dt)
@@ -90,6 +91,7 @@ class AdaptiveClamping:
         
         Args:
             interval_ms (float): Log interval in milliseconds.
+
         """
         self._fps_log_interval_ms = interval_ms
     
@@ -98,6 +100,7 @@ class AdaptiveClamping:
         
         Args:
             target_fps (float): Target FPS (0 means unlimited).
+
         """
         self._target_fps = target_fps
 
@@ -106,6 +109,7 @@ class AdaptiveClamping:
         
         Args:
             percent (float): Percentage in [0, 50). 0 disables trimming.
+
         """
         if percent < 0:
             percent = 0.0
@@ -119,21 +123,22 @@ class AdaptiveClamping:
         
         Args:
             scene_name (str): Name of the current scene.
+
         """
         if scene_name != self._current_scene:
             # Initialize new scene data if it doesn't exist
             if scene_name not in self._scene_data:
                 self._scene_data[scene_name] = {
-                    'fps_history': [],
-                    'fps_histogram': {},
-                    'frame_times': [],
-                    'statistical_aggregates': {
-                        'total_samples': 0,
-                        'sum_fps': 0.0,
-                        'sum_squared_fps': 0.0,
-                        'min_fps': float('inf'),
-                        'max_fps': 0.0,
-                        'sampled_fps_history': []  # Keep last 100k samples for sliding window
+                    "fps_history": [],
+                    "fps_histogram": {},
+                    "frame_times": [],
+                    "statistical_aggregates": {
+                        "total_samples": 0,
+                        "sum_fps": 0.0,
+                        "sum_squared_fps": 0.0,
+                        "min_fps": float("inf"),
+                        "max_fps": 0.0,
+                        "sampled_fps_history": []  # Keep last 100k samples for sliding window
                     }
                 }
             
@@ -145,42 +150,43 @@ class AdaptiveClamping:
         Args:
             fps (float): The current FPS value from pygame.clock.get_fps().
             frame_time (float, optional): Actual frame time in seconds for spare time calculation.
+
         """
         # Track data for the current scene
         if self._current_scene and self._current_scene in self._scene_data:
             scene_data = self._scene_data[self._current_scene]
-            stats = scene_data['statistical_aggregates']
+            stats = scene_data["statistical_aggregates"]
             
             # Update statistical aggregates for 5 9s reliability
-            stats['total_samples'] += 1
-            stats['sum_fps'] += fps
-            stats['sum_squared_fps'] += fps * fps
-            stats['min_fps'] = min(stats['min_fps'], fps)
-            stats['max_fps'] = max(stats['max_fps'], fps)
+            stats["total_samples"] += 1
+            stats["sum_fps"] += fps
+            stats["sum_squared_fps"] += fps * fps
+            stats["min_fps"] = min(stats["min_fps"], fps)
+            stats["max_fps"] = max(stats["max_fps"], fps)
             
             # Sliding window: keep last 100k samples in memory
-            scene_data['fps_history'].append(fps)
-            if len(scene_data['fps_history']) > self._max_fps_history:
-                scene_data['fps_history'].pop(0)
+            scene_data["fps_history"].append(fps)
+            if len(scene_data["fps_history"]) > self._max_fps_history:
+                scene_data["fps_history"].pop(0)
             
             # Statistical sampling: sample every Nth frame for detailed analysis
-            if stats['total_samples'] % self._sampling_interval == 0:
-                stats['sampled_fps_history'].append(fps)
-                if len(stats['sampled_fps_history']) > self._max_fps_history:
-                    stats['sampled_fps_history'].pop(0)
+            if stats["total_samples"] % self._sampling_interval == 0:
+                stats["sampled_fps_history"].append(fps)
+                if len(stats["sampled_fps_history"]) > self._max_fps_history:
+                    stats["sampled_fps_history"].pop(0)
             
             # Track frame times for spare time calculation (only for capped FPS)
             if frame_time is not None and self._target_fps > 0:
-                scene_data['frame_times'].append(frame_time)
-                if len(scene_data['frame_times']) > 1000:  # Keep last 1000 frame times
-                    scene_data['frame_times'].pop(0)
+                scene_data["frame_times"].append(frame_time)
+                if len(scene_data["frame_times"]) > 1000:  # Keep last 1000 frame times
+                    scene_data["frame_times"].pop(0)
             
             # Track histogram
             fps_int = int(round(fps))
-            if fps_int in scene_data['fps_histogram']:
-                scene_data['fps_histogram'][fps_int] += 1
+            if fps_int in scene_data["fps_histogram"]:
+                scene_data["fps_histogram"][fps_int] += 1
             else:
-                scene_data['fps_histogram'][fps_int] = 1
+                scene_data["fps_histogram"][fps_int] = 1
     
     def get_statistical_aggregates(self: Self, scene_name: str = None) -> dict:
         """Get statistical aggregates for 5 9s reliability analysis.
@@ -190,61 +196,62 @@ class AdaptiveClamping:
         
         Returns:
             dict: Statistical aggregates including mean, variance, and confidence intervals.
+
         """
         if scene_name:
             # Get stats for specific scene
             if scene_name not in self._scene_data:
                 return {"message": "Scene not found"}
-            stats = self._scene_data[scene_name]['statistical_aggregates']
+            stats = self._scene_data[scene_name]["statistical_aggregates"]
         else:
             # Aggregate stats from all scenes
             total_samples = 0
             sum_fps = 0.0
             sum_squared_fps = 0.0
-            min_fps = float('inf')
+            min_fps = float("inf")
             max_fps = 0.0
             
             for scene_data in self._scene_data.values():
-                stats = scene_data['statistical_aggregates']
-                total_samples += stats['total_samples']
-                sum_fps += stats['sum_fps']
-                sum_squared_fps += stats['sum_squared_fps']
-                min_fps = min(min_fps, stats['min_fps'])
-                max_fps = max(max_fps, stats['max_fps'])
+                stats = scene_data["statistical_aggregates"]
+                total_samples += stats["total_samples"]
+                sum_fps += stats["sum_fps"]
+                sum_squared_fps += stats["sum_squared_fps"]
+                min_fps = min(min_fps, stats["min_fps"])
+                max_fps = max(max_fps, stats["max_fps"])
             
             stats = {
-                'total_samples': total_samples,
-                'sum_fps': sum_fps,
-                'sum_squared_fps': sum_squared_fps,
-                'min_fps': min_fps,
-                'max_fps': max_fps
+                "total_samples": total_samples,
+                "sum_fps": sum_fps,
+                "sum_squared_fps": sum_squared_fps,
+                "min_fps": min_fps,
+                "max_fps": max_fps
             }
         
-        if stats['total_samples'] == 0:
+        if stats["total_samples"] == 0:
             return {"message": "No data available"}
         
         # Calculate statistical measures
-        mean_fps = stats['sum_fps'] / stats['total_samples']
-        variance = (stats['sum_squared_fps'] / stats['total_samples']) - (mean_fps ** 2)
+        mean_fps = stats["sum_fps"] / stats["total_samples"]
+        variance = (stats["sum_squared_fps"] / stats["total_samples"]) - (mean_fps ** 2)
         std_dev = variance ** 0.5 if variance > 0 else 0.0
         
         # 5 9s confidence interval (99.999% confidence)
         # Z-score for 99.999% confidence is approximately 4.265
         z_score = 4.265
-        margin_of_error = z_score * (std_dev / (stats['total_samples'] ** 0.5))
+        margin_of_error = z_score * (std_dev / (stats["total_samples"] ** 0.5))
         
         return {
-            "total_samples": stats['total_samples'],
+            "total_samples": stats["total_samples"],
             "mean_fps": mean_fps,
             "std_deviation": std_dev,
-            "min_fps": stats['min_fps'],
-            "max_fps": stats['max_fps'],
+            "min_fps": stats["min_fps"],
+            "max_fps": stats["max_fps"],
             "confidence_interval_99_999": {
                 "lower": mean_fps - margin_of_error,
                 "upper": mean_fps + margin_of_error,
                 "margin_of_error": margin_of_error
             },
-            "reliability_level": "5 9s (99.999%)" if stats['total_samples'] >= 1000000 else f"Limited ({stats['total_samples']:,} samples)"
+            "reliability_level": "5 9s (99.999%)" if stats["total_samples"] >= 1000000 else f"Limited ({stats['total_samples']:,} samples)"
         }
     
     def _track_fps(self: Self, fps: float) -> None:
@@ -252,6 +259,7 @@ class AdaptiveClamping:
         
         Args:
             fps (float): The current FPS value.
+
         """
         # Also keep recent FPS for immediate stats
         self._fps_history.append(fps)
@@ -263,6 +271,7 @@ class AdaptiveClamping:
         
         Returns:
             dict: Performance statistics including average FPS and history.
+
         """
         if len(self._dt_history) < 2:
             return {"avg_fps": 60.0, "history_length": 0}
@@ -288,11 +297,12 @@ class AdaptiveClamping:
         
         Returns:
             dict: Complete performance statistics with histogram data.
+
         """
         # Aggregate all scene data for global report
         all_fps_history = []
         for scene_name, scene_data in self._scene_data.items():
-            all_fps_history.extend(scene_data['fps_history'])
+            all_fps_history.extend(scene_data["fps_history"])
         
         if not all_fps_history:
             return {"message": "Not enough data"}
@@ -344,16 +354,17 @@ class AdaptiveClamping:
         
         Returns:
             dict: Per-scene performance statistics with histogram data.
+
         """
         per_scene_stats = {}
         
         for scene_name, scene_data in self._scene_data.items():
             # Filter out "Unknown" scenes
             if scene_name == "Unknown":
-                print(f"PERFORMANCE: Filtering out Unknown scene from per-scene stats")
+                print("PERFORMANCE: Filtering out Unknown scene from per-scene stats")
                 continue
-            fps_history = scene_data['fps_history']
-            fps_histogram = scene_data['fps_histogram']
+            fps_history = scene_data["fps_history"]
+            fps_histogram = scene_data["fps_histogram"]
             
             if not fps_history:
                 per_scene_stats[scene_name] = {"message": "Not enough data"}
@@ -410,6 +421,7 @@ class AdaptiveClamping:
             
         Returns:
             str: Performance grade (A+, A, B, C, D, F).
+
         """
         if not fps_values:
             return "N/A"
@@ -455,6 +467,7 @@ class AdaptiveClamping:
         
         Returns:
             dict: Spare time statistics including average spare time and capacity.
+
         """
         if self._target_fps == 0:
             return {"message": "Not applicable for unlimited FPS"}
@@ -463,14 +476,14 @@ class AdaptiveClamping:
             # Get frame times for specific scene
             if scene_name not in self._scene_data:
                 return {"message": "Scene not found"}
-            frame_times = self._scene_data[scene_name]['frame_times']
+            frame_times = self._scene_data[scene_name]["frame_times"]
             if not frame_times:
                 return {"message": "No frame time data for this scene"}
         else:
             # Aggregate frame times from all scenes for global report
             frame_times = []
             for scene_name, scene_data in self._scene_data.items():
-                frame_times.extend(scene_data['frame_times'])
+                frame_times.extend(scene_data["frame_times"])
             if not frame_times:
                 return {"message": "No frame time data available"}
         
@@ -521,17 +534,17 @@ class AdaptiveClamping:
             print(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
         
         # Print FPS histogram (horizontal)
-        if stats['fps_histogram']:
-            print(f"\n📊 FPS Distribution:")
-            max_count = max(stats['fps_histogram'].values())
+        if stats["fps_histogram"]:
+            print("\n📊 FPS Distribution:")
+            max_count = max(stats["fps_histogram"].values())
             max_bar_length = 30  # Maximum bar length for 80-char display
             
             # Show all 20 buckets, arranged in bell curve shape by frame count
             all_buckets = []
             
-            for bucket in stats['fps_histogram'].keys():
-                count = stats['fps_histogram'][bucket]
-                percentage = (count / stats['trimmed_frames']) * 100 if stats['trimmed_frames'] > 0 else 0
+            for bucket in stats["fps_histogram"].keys():
+                count = stats["fps_histogram"][bucket]
+                percentage = (count / stats["trimmed_frames"]) * 100 if stats["trimmed_frames"] > 0 else 0
                 all_buckets.append((bucket, count, percentage))
             
             # Sort by frame count to create bell curve arrangement
@@ -630,17 +643,17 @@ class AdaptiveClamping:
                 print(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
             
             # Print FPS histogram for this scene
-            if stats['fps_histogram']:
-                print(f"\n📊 FPS Distribution:")
-                max_count = max(stats['fps_histogram'].values())
+            if stats["fps_histogram"]:
+                print("\n📊 FPS Distribution:")
+                max_count = max(stats["fps_histogram"].values())
                 max_bar_length = 30
                 
                 # Show all buckets, arranged in bell curve shape by frame count
                 all_buckets = []
                 
-                for bucket in stats['fps_histogram'].keys():
-                    count = stats['fps_histogram'][bucket]
-                    percentage = (count / stats['trimmed_frames']) * 100 if stats['trimmed_frames'] > 0 else 0
+                for bucket in stats["fps_histogram"].keys():
+                    count = stats["fps_histogram"][bucket]
+                    percentage = (count / stats["trimmed_frames"]) * 100 if stats["trimmed_frames"] > 0 else 0
                     all_buckets.append((bucket, count, percentage))
                 
                 # Sort by frame count to create bell curve arrangement

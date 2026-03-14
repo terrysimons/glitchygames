@@ -5,6 +5,7 @@ This module tests GameEngine event handling, event processing, and event manager
 
 import sys
 from pathlib import Path
+
 import pygame
 
 # Add project root so direct imports work in isolated runs

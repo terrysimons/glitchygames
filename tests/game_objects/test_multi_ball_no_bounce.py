@@ -2,10 +2,12 @@
 """Multi-ball test with bouncing disabled (Paddle Slap style)."""
 
 import math
-import pygame
-import time
 import random
+import time
+
+import pygame
 from glitchygames.game_objects.ball import BallSprite
+
 
 def test_multi_ball_no_bounce():
     """Test multiple balls with bouncing disabled."""
@@ -33,7 +35,7 @@ def test_multi_ball_no_bounce():
         balls.append(ball)
     
     print(f"Created {num_balls} balls with bouncing disabled")
-    print(f"Initial ball states:")
+    print("Initial ball states:")
     for i, ball in enumerate(balls):
         print(f"  Ball {i+1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f})")
     
@@ -75,7 +77,7 @@ def test_multi_ball_no_bounce():
     total_time = time.time() - start_time
     final_alive = sum(1 for ball in balls if ball.alive())
     
-    print(f"\n=== FINAL RESULTS ===")
+    print("\n=== FINAL RESULTS ===")
     print(f"Total time: {total_time:.2f} seconds")
     print(f"Frames processed: {frame_count:,}")
     print(f"Balls that died: {balls_died}")
@@ -89,20 +91,20 @@ def test_multi_ball_no_bounce():
             print(f"    Bounce settings: top/bottom={ball.bounce_top_bottom}, left/right={ball.bounce_left_right}")
     
     # Analyze results
-    print(f"\nAnalysis:")
+    print("\nAnalysis:")
     if balls_died == num_balls:
-        print(f"  ✅ All balls died as expected (no bouncing)")
+        print("  ✅ All balls died as expected (no bouncing)")
     elif balls_died > 0:
         print(f"  ⚠️  Only {balls_died}/{num_balls} balls died")
     else:
-        print(f"  ❌ No balls died - bouncing may be enabled incorrectly")
+        print("  ❌ No balls died - bouncing may be enabled incorrectly")
     
     pygame.quit()
     
     # Assert that the test completed successfully
     assert balls_died > 0, "At least some balls should die when bouncing is disabled"
     
-    print(f"\n✅ Test completed successfully")
+    print("\n✅ Test completed successfully")
 
 if __name__ == "__main__":
     test_multi_ball_no_bounce()

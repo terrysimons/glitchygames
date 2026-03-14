@@ -6,12 +6,21 @@ including controller assignment, selection management, visual collision avoidanc
 and integration with the bitmappy tool.
 """
 
-import pytest
-import pygame
 import time
-from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
+
+import pygame
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager, VisualIndicator, IndicatorShape
+from glitchygames.tools.multi_controller_manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
+from glitchygames.tools.visual_collision_manager import (
+    IndicatorShape,
+    VisualCollisionManager,
+    VisualIndicator,
+)
 
 
 class TestMultiControllerManager:
@@ -44,8 +53,8 @@ class TestMultiControllerManager:
         mock_joystick = mocker.Mock()
         mock_joystick.get_init.return_value = True
         mock_joystick.get_instance_id.return_value = 0
-        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
-        mocker.patch('pygame.joystick.get_count', return_value=1)
+        mocker.patch("pygame.joystick.Joystick", return_value=mock_joystick)
+        mocker.patch("pygame.joystick.get_count", return_value=1)
 
         # Test scanning
         connected_ids = self.manager.scan_for_controllers()
@@ -268,10 +277,10 @@ class TestControllerSelection:
         assert len(history) == 2  # Two transitions
         
         # Check history content
-        assert history[0]['animation'] == "animation1"
-        assert history[0]['frame'] == 0
-        assert history[1]['animation'] == "animation2"
-        assert history[1]['frame'] == 1
+        assert history[0]["animation"] == "animation1"
+        assert history[0]["frame"] == 0
+        assert history[1]["animation"] == "animation2"
+        assert history[1]["frame"] == 1
     
     def test_state_reset(self):
         """Test state reset."""
@@ -541,10 +550,10 @@ class TestMultiControllerIntegration:
         # Check navigation history
         history = controller_selection.get_navigation_history()
         assert len(history) == 2
-        assert history[0]['animation'] == "animation1"
-        assert history[0]['frame'] == 3
-        assert history[1]['animation'] == "animation2"
-        assert history[1]['frame'] == 1
+        assert history[0]["animation"] == "animation1"
+        assert history[0]["frame"] == 3
+        assert history[1]["animation"] == "animation2"
+        assert history[1]["frame"] == 1
         
         # Test frame preservation
         target_frame = controller_selection.preserve_frame_for_animation("animation1", 2)

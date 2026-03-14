@@ -368,8 +368,9 @@ class TestApngExtractFramesEndpoint:
     def test_extract_frames_success(self, client):
         """Test extracting frames from a valid APNG."""
         import base64
-        from apng import APNG, PNG
         from io import BytesIO
+
+        from apng import APNG, PNG
 
         # Create a simple APNG with 2 frames
         apng = APNG()

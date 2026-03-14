@@ -1,9 +1,9 @@
 """Test ball paddle collision detection and clipping prevention."""
 
 import pytest
-
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
+
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,7 +28,7 @@ class TestBallPaddleCollision:
         ball.rect.y = 75  # Within paddle's y range
 
         # Mock the paddle detection
-        mock_adjust = mocker.patch.object(ball, '_adjust_position_for_paddle_collision')
+        mock_adjust = mocker.patch.object(ball, "_adjust_position_for_paddle_collision")
         ball._check_paddle_collisions()
         mock_adjust.assert_called_once_with(paddle)
 
@@ -88,7 +88,7 @@ class TestBallPaddleCollision:
         ball.rect.y = 75
 
         # Mock the paddle detection
-        mock_adjust = mocker.patch.object(ball, '_adjust_position_for_paddle_collision')
+        mock_adjust = mocker.patch.object(ball, "_adjust_position_for_paddle_collision")
         ball._check_paddle_collisions()
         mock_adjust.assert_not_called()
 

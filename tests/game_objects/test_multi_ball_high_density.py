@@ -2,7 +2,9 @@
 """High-density multi-ball test with many balls."""
 
 import time
+
 from tests.game_objects.test_multi_ball_base import MultiBallTestBase
+
 
 def run_high_density_tests():
     """Run multi-ball tests with high ball density."""
@@ -53,14 +55,14 @@ def run_high_density_tests():
             
             # Store results
             result = {
-                'scenario': scenario_name,
-                'num_balls': num_balls,
-                'fps': fps,
-                'duration': duration,
-                'alive': alive,
-                'wall_bounces': wall_bounces,
-                'ball_collisions': ball_collisions,
-                'test_time': test_time
+                "scenario": scenario_name,
+                "num_balls": num_balls,
+                "fps": fps,
+                "duration": duration,
+                "alive": alive,
+                "wall_bounces": wall_bounces,
+                "ball_collisions": ball_collisions,
+                "test_time": test_time
             }
             scenario_results.append(result)
             all_results.append(result)
@@ -82,7 +84,7 @@ def run_high_density_tests():
     
     for scenario_name, _, _ in scenarios:
         print(f"\n{scenario_name}:")
-        scenario_data = [r for r in all_results if r['scenario'] == scenario_name]
+        scenario_data = [r for r in all_results if r["scenario"] == scenario_name]
         
         for result in scenario_data:
             print(f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions")
@@ -93,30 +95,30 @@ if __name__ == "__main__":
     results = run_high_density_tests()
     
     # Final analysis
-    print(f"\n🎯 FINAL HIGH-DENSITY ANALYSIS:")
+    print("\n🎯 FINAL HIGH-DENSITY ANALYSIS:")
     print(f"Total tests run: {len(results)}")
     
     # Check for any failures
-    failures = [r for r in results if r['alive'] < r['num_balls']]
+    failures = [r for r in results if r["alive"] < r["num_balls"]]
     if failures:
         print(f"⚠️  {len(failures)} tests had ball deaths")
         for failure in failures:
             print(f"  - {failure['scenario']} with {failure['num_balls']} balls: {failure['alive']}/{failure['num_balls']} balls alive")
     else:
-        print(f"✅ All tests passed - all balls survived in all scenarios!")
+        print("✅ All tests passed - all balls survived in all scenarios!")
     
     # Performance analysis
-    print(f"\n🚀 PERFORMANCE ANALYSIS:")
+    print("\n🚀 PERFORMANCE ANALYSIS:")
     scenarios = [
         ("Wall Bounce Only", False, False),
         ("Wall Bounce + Ball Collision Bounce", True, True),
         ("Wall Bounce + Ball Collision Clip", True, False)
     ]
     for scenario_name, _, _ in scenarios:
-        scenario_data = [r for r in results if r['scenario'] == scenario_name]
+        scenario_data = [r for r in results if r["scenario"] == scenario_name]
         print(f"\n{scenario_name}:")
         for result in scenario_data:
-            balls_per_second = result['num_balls'] / result['test_time']
+            balls_per_second = result["num_balls"] / result["test_time"]
             print(f"  {result['num_balls']} balls: {balls_per_second:.1f} balls/second processing")
     
-    print(f"\n🏁 High-density testing completed!")
+    print("\n🏁 High-density testing completed!")

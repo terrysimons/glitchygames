@@ -13,7 +13,6 @@ import math
 import random
 
 import pygame
-
 from glitchygames.game_objects.ball import BallSprite
 
 # Tolerance for floating-point energy comparison.
@@ -54,6 +53,7 @@ def _handle_elastic_collision(ball1, ball2):
 
     Returns:
         True if collision was resolved, False if balls were separating.
+
     """
     # Use center positions for accurate collision normal
     dx = ball2.rect.centerx - ball1.rect.centerx

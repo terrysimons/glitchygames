@@ -9,8 +9,7 @@ import logging
 from typing import Self
 
 import pygame
-from glitchygames.events import AUDIO_EVENTS
-from glitchygames.events import AudioEvents, ResourceManager
+from glitchygames.events import AUDIO_EVENTS, AudioEvents, ResourceManager
 
 log = logging.getLogger("game.audio")
 log.addHandler(logging.NullHandler())

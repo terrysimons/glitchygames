@@ -1,6 +1,7 @@
 """Test coverage for SpriteInterface."""
 
 import inspect
+
 import pygame
 from glitchygames.interfaces import SpriteInterface
 

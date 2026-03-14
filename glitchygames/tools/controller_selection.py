@@ -12,9 +12,9 @@ Features:
 - Selection state management
 """
 
-from typing import Optional, Dict, Any
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -51,6 +51,7 @@ class ControllerSelection:
         Args:
             controller_id: Unique controller ID (0-3)
             instance_id: Pygame controller instance ID
+
         """
         self.controller_id = controller_id
         self.instance_id = instance_id
@@ -66,13 +67,14 @@ class ControllerSelection:
         
         Args:
             animation_name: Name of the animation strip
+
         """
         if self.state.selected_animation != animation_name:
             # Preserve frame index when switching animations
             self.state.navigation_history.append({
-                'animation': self.state.selected_animation,
-                'frame': self.state.selected_frame,
-                'timestamp': time.time()
+                "animation": self.state.selected_animation,
+                "frame": self.state.selected_frame,
+                "timestamp": time.time()
             })
             
             self.state.selected_animation = animation_name
@@ -86,6 +88,7 @@ class ControllerSelection:
         
         Args:
             frame_index: Index of the frame
+
         """
         if self.state.selected_frame != frame_index:
             self.state.selected_frame = frame_index
@@ -100,6 +103,7 @@ class ControllerSelection:
         Args:
             animation_name: Name of the animation strip
             frame_index: Index of the frame
+
         """
         animation_changed = self.state.selected_animation != animation_name
         frame_changed = self.state.selected_frame != frame_index
@@ -109,9 +113,9 @@ class ControllerSelection:
             if animation_changed and self.state.selected_animation:
                 # Preserve frame index when switching animations
                 self.state.navigation_history.append({
-                    'animation': self.state.selected_animation,
-                    'frame': self.state.selected_frame,
-                    'timestamp': time.time()
+                    "animation": self.state.selected_animation,
+                    "frame": self.state.selected_frame,
+                    "timestamp": time.time()
                 })
             
             self.state.selected_animation = animation_name
@@ -126,6 +130,7 @@ class ControllerSelection:
         
         Returns:
             Tuple of (animation_name, frame_index)
+
         """
         return (self.state.selected_animation, self.state.selected_frame)
     
@@ -135,6 +140,7 @@ class ControllerSelection:
         
         Returns:
             Current animation name
+
         """
         return self.state.selected_animation
     
@@ -144,6 +150,7 @@ class ControllerSelection:
         
         Returns:
             Current frame index
+
         """
         return self.state.selected_frame
     
@@ -153,6 +160,7 @@ class ControllerSelection:
         
         Args:
             slider_name: Name of the slider (R, G, or B)
+
         """
         if slider_name in ["R", "G", "B"] and self.state.selected_slider != slider_name:
             self.state.selected_slider = slider_name
@@ -166,6 +174,7 @@ class ControllerSelection:
         
         Returns:
             Name of the selected slider (R, G, or B)
+
         """
         return self.state.selected_slider
     
@@ -175,6 +184,7 @@ class ControllerSelection:
         
         Args:
             direction: "HORIZONTAL" or "VERTICAL"
+
         """
         if direction in ["HORIZONTAL", "VERTICAL"]:
             self.state.controller_fill_direction = direction
@@ -189,6 +199,7 @@ class ControllerSelection:
         
         Returns:
             Current fill direction ("HORIZONTAL" or "VERTICAL")
+
         """
         return self.state.controller_fill_direction
     
@@ -211,6 +222,7 @@ class ControllerSelection:
         
         Returns:
             True if active, False otherwise
+
         """
         return self.state.is_active
     
@@ -224,6 +236,7 @@ class ControllerSelection:
             
         Returns:
             Preserved frame index (clamped to available range)
+
         """
         # Try to preserve the current frame index
         target_frame = self.state.selected_frame
@@ -236,9 +249,9 @@ class ControllerSelection:
             
         # Check if we have a previous selection for this animation
         for history_entry in reversed(self.state.navigation_history):
-            if history_entry['animation'] == new_animation:
+            if history_entry["animation"] == new_animation:
                 # Use the frame from the last time we were on this animation
-                target_frame = history_entry['frame']
+                target_frame = history_entry["frame"]
                 if target_frame >= available_frames:
                     target_frame = max(0, available_frames - 1)
                 elif target_frame < 0:
@@ -257,6 +270,7 @@ class ControllerSelection:
         
         Returns:
             Age in seconds since last activity
+
         """
         return time.time() - self.state.last_update_time
     
@@ -266,6 +280,7 @@ class ControllerSelection:
         
         Returns:
             List of navigation history entries
+
         """
         return self.state.navigation_history.copy()
     
@@ -279,17 +294,18 @@ class ControllerSelection:
         
         Returns:
             Dictionary with state information
+
         """
         return {
-            'controller_id': self.controller_id,
-            'instance_id': self.instance_id,
-            'selected_animation': self.state.selected_animation,
-            'selected_frame': self.state.selected_frame,
-            'is_active': self.state.is_active,
-            'last_update_time': self.state.last_update_time,
-            'activity_age': self.get_activity_age(),
-            'navigation_history_count': len(self.state.navigation_history),
-            'creation_time': self.creation_time
+            "controller_id": self.controller_id,
+            "instance_id": self.instance_id,
+            "selected_animation": self.state.selected_animation,
+            "selected_frame": self.state.selected_frame,
+            "is_active": self.state.is_active,
+            "last_update_time": self.state.last_update_time,
+            "activity_age": self.get_activity_age(),
+            "navigation_history_count": len(self.state.navigation_history),
+            "creation_time": self.creation_time
         }
     
     def reset_to_default(self) -> None:
@@ -301,12 +317,13 @@ class ControllerSelection:
         self.state.navigation_history.clear()
         print(f"DEBUG: Controller {self.controller_id} reset to default state")
     
-    def clone_state_to(self, target_controller: 'ControllerSelection') -> None:
+    def clone_state_to(self, target_controller: "ControllerSelection") -> None:
         """
         Clone this controller's state to another controller.
         
         Args:
             target_controller: Controller to clone state to
+
         """
         target_controller.set_selection(
             self.state.selected_animation,

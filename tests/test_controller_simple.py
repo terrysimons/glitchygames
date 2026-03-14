@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Simple test script to debug controller hotplug with and without joystick event blocking."""
 
-import pygame
-import pygame._sdl2.controller
 import time
 
+import pygame
+import pygame._sdl2.controller
 
 # These are typical joystick events for pygame 2.x:
 # You may update these according to your pygame version if necessary
@@ -54,23 +54,23 @@ def dump_event(event):
         print(f"   Raw event: {event}")
 
         # Get event attributes safely
-        attrs = [attr for attr in dir(event) if not attr.startswith('_')]
+        attrs = [attr for attr in dir(event) if not attr.startswith("_")]
         print(f"   Event attributes: {attrs}")
 
         # Print specific attributes if they exist
-        if hasattr(event, 'which'):
+        if hasattr(event, "which"):
             print(f"   Event which: {event.which}")
-        if hasattr(event, 'button'):
+        if hasattr(event, "button"):
             print(f"   Event button: {event.button}")
-        if hasattr(event, 'axis'):
+        if hasattr(event, "axis"):
             print(f"   Event axis: {event.axis}")
-        if hasattr(event, 'value'):
+        if hasattr(event, "value"):
             print(f"   Event value: {event.value}")
-        if hasattr(event, 'instance_id'):
+        if hasattr(event, "instance_id"):
             print(f"   Event instance_id: {event.instance_id}")
-        if hasattr(event, 'device_index'):
+        if hasattr(event, "device_index"):
             print(f"   Event device_index: {event.device_index}")
-        if hasattr(event, 'guid'):
+        if hasattr(event, "guid"):
             print(f"   Event guid: {event.guid}")
 
 
@@ -97,7 +97,7 @@ def process_events():
         print(f"⚠️  Error getting events: {e}")
 
     current_count = pygame._sdl2.controller.get_count()
-    if current_count != getattr(process_events, 'last_count', 0):
+    if current_count != getattr(process_events, "last_count", 0):
         print(f"📊 Controller count changed: {getattr(process_events, 'last_count', 0)} → {current_count}")
         process_events.last_count = current_count
 

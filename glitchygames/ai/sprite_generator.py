@@ -145,6 +145,7 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
 
     Returns:
         Formatted TOML string for AI context
+
     """
     try:
         # Extract key information
@@ -277,6 +278,7 @@ def build_sprite_generation_messages(
 
     Returns:
         List of message dicts for AI API
+
     """
     # Build context from examples
     example_context = ""
@@ -335,6 +337,7 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
 
     Returns:
         Tuple of (is_valid, error_message)
+
     """
     if not content or not content.strip():
         return False, "Empty response"
@@ -368,7 +371,7 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         if unclosed:
             # Check if last line is incomplete (much shorter than expected)
             last_block = unclosed[0]
-            lines = last_block.strip().split('\n')
+            lines = last_block.strip().split("\n")
             if lines and len(lines) > 1:
                 # Compare last line length to previous line
                 last_line = lines[-1].strip()
@@ -406,7 +409,7 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
                 return False, "Mixed static and animated format (invalid)"
 
     # Check for comma-separated color values (common mistake)
-    if re.search(r'(red|green|blue)\s*=\s*\d+\s*,', content):
+    if re.search(r"(red|green|blue)\s*=\s*\d+\s*,", content):
         return False, "Color values contain commas (should be separate fields)"
 
     return True, ""
@@ -420,6 +423,7 @@ def clean_ai_response(content: str) -> str:
 
     Returns:
         Cleaned TOML content
+
     """
     if not content:
         return content
@@ -464,9 +468,10 @@ def get_sprite_size_hint(request: str) -> tuple[int, int] | None:
 
     Returns:
         Tuple of (width, height) if found, None otherwise
+
     """
     # Look for patterns like "16x16", "32x32", "8x8"
-    size_pattern = r'(\d{1,3})\s*[x×]\s*(\d{1,3})'
+    size_pattern = r"(\d{1,3})\s*[x×]\s*(\d{1,3})"
     match = re.search(size_pattern, request, re.IGNORECASE)
 
     if match:
@@ -488,6 +493,7 @@ def detect_animation_request(request: str) -> bool:
 
     Returns:
         True if animation keywords detected
+
     """
     request_lower = request.lower()
 
@@ -508,6 +514,7 @@ def detect_refinement_request(request: str) -> bool:
 
     Returns:
         True if refinement keywords detected
+
     """
     request_lower = request.lower()
 
@@ -547,6 +554,7 @@ def build_refinement_messages(
 
     Returns:
         List of message dicts for AI API
+
     """
     # Start with base system message and format spec
     messages = [

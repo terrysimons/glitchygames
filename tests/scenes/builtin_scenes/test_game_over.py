@@ -3,14 +3,16 @@
 Test script to verify Game Over functionality.
 """
 
-import sys
 import os
+import sys
+
 import pygame
 
 # Add the glitchygames package to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../glitchygames'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../glitchygames"))
 
 from glitchygames.examples.paddleslap import Game
+
 
 def test_game_over_condition():
     """Test that Game Over is triggered when all balls are dead."""

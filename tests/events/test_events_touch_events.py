@@ -5,6 +5,7 @@ This module tests touch event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 

@@ -5,6 +5,7 @@ This module tests sound loading, SFX constants, and sound-related functionality.
 
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add project root so direct imports work in isolated runs

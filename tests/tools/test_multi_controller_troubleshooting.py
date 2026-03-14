@@ -5,10 +5,15 @@ This module tests specific issues that were encountered during development
 and the fixes that were implemented.
 """
 
-import pytest
 import pygame
-from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
+
 from tests.mocks import MockFactory
 
 
@@ -77,7 +82,7 @@ class TestButtonMappingIssues:
 
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
-        mock_activate = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate')
+        mock_activate = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate")
         # Simulate the event handling logic
         if mock_event.button == 9:
             # Should be unhandled (no action taken)
@@ -102,8 +107,8 @@ class TestButtonMappingIssues:
         right_shoulder_event.instance_id = 0
 
         # Mock the navigation methods
-        mock_prev = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame')
-        mock_next = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame')
+        mock_prev = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame")
+        mock_next = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame")
 
         # Simulate left shoulder button press
         if left_shoulder_event.button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -125,22 +130,22 @@ class TestSelectionBoxRegression:
         """Test that selection boxes are drawn for controller selections."""
         # Mock controller selection
         controller_selection = {
-            'controller_id': 0,
-            'animation': 'test_animation',
-            'frame': 2,
-            'color': (255, 0, 0)  # Red
+            "controller_id": 0,
+            "animation": "test_animation",
+            "frame": 2,
+            "color": (255, 0, 0)  # Red
         }
         
         # Mock frame selection
         frame_selection = {
-            'animation': 'test_animation',
-            'frame': 2
+            "animation": "test_animation",
+            "frame": 2
         }
         
         # Should draw selection box for controller
         should_draw_box = (
-            controller_selection['animation'] == frame_selection['animation'] and
-            controller_selection['frame'] == frame_selection['frame']
+            controller_selection["animation"] == frame_selection["animation"] and
+            controller_selection["frame"] == frame_selection["frame"]
         )
         
         assert should_draw_box is True
@@ -150,26 +155,26 @@ class TestSelectionBoxRegression:
         # Mock selections with different colors
         selections = [
             {
-                'type': 'keyboard',
-                'color': (255, 255, 255),  # White
-                'frame': 0
+                "type": "keyboard",
+                "color": (255, 255, 255),  # White
+                "frame": 0
             },
             {
-                'type': 'controller_0',
-                'color': (255, 0, 0),      # Red
-                'frame': 0
+                "type": "controller_0",
+                "color": (255, 0, 0),      # Red
+                "frame": 0
             },
             {
-                'type': 'controller_1',
-                'color': (0, 255, 0),      # Green
-                'frame': 0
+                "type": "controller_1",
+                "color": (0, 255, 0),      # Green
+                "frame": 0
             },
         ]
         
         # Each selection box should match its indicator color
         for selection in selections:
-            expected_box_color = selection['color']
-            assert selection['color'] == expected_box_color
+            expected_box_color = selection["color"]
+            assert selection["color"] == expected_box_color
 
 
 class TestFilmStripDirtyMarking:
@@ -187,12 +192,12 @@ class TestFilmStripDirtyMarking:
 
         # Mock the scene with film strips
         mock_scene = mocker.Mock()
-        mock_scene.film_strips = {'test_animation': mock_film_strip}
-        mock_scene.film_strip_sprites = {'test_animation': mock_film_strip_sprite}
+        mock_scene.film_strips = {"test_animation": mock_film_strip}
+        mock_scene.film_strip_sprites = {"test_animation": mock_film_strip_sprite}
 
         # Simulate color assignment
-        mocker.patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip})
-        mocker.patch.object(mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite})
+        mocker.patch.object(mock_scene, "film_strips", {"test_animation": mock_film_strip})
+        mocker.patch.object(mock_scene, "film_strip_sprites", {"test_animation": mock_film_strip_sprite})
         # Mark film strips as dirty
         for film_strip in mock_scene.film_strips.values():
             film_strip.mark_dirty()
@@ -269,7 +274,7 @@ class TestDebugOutputCleanup:
     def test_debug_output_control(self, mocker):
         """Test that debug output can be controlled."""
         # Mock print statements
-        mock_print = mocker.patch('builtins.print')
+        mock_print = mocker.patch("builtins.print")
         # Simulate debug output
         print("DEBUG: Controller 0 activated")
         print("DEBUG: Controller 1 activated")

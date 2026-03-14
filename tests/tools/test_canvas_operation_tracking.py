@@ -2,11 +2,8 @@
 """Tests for canvas operation tracking."""
 
 import pytest
-
+from glitchygames.tools.operation_history import CanvasOperationTracker, PixelChange
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
-from glitchygames.tools.operation_history import (
-    CanvasOperationTracker, PixelChange
-)
 
 
 class TestCanvasOperationTracker:

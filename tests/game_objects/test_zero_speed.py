@@ -35,7 +35,7 @@ def test_zero_speed_scenarios(mocker):
     # Try to trigger speed-up
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: Ball remains stationary (no movement)\n")
+    print("   Result: Ball remains stationary (no movement)\n")
 
     print("2. Only X speed is 0, Y speed is non-zero:")
     ball.speed = Speed(0.0, 100.0)
@@ -43,7 +43,7 @@ def test_zero_speed_scenarios(mocker):
 
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: X remains 0, Y unchanged (X-only speedup doesn't affect Y)\n")
+    print("   Result: X remains 0, Y unchanged (X-only speedup doesn't affect Y)\n")
 
     print("3. Only Y speed is 0, X speed is non-zero:")
     ball.speed = Speed(100.0, 0.0)
@@ -51,7 +51,7 @@ def test_zero_speed_scenarios(mocker):
 
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: X speed increases, Y remains 0\n")
+    print("   Result: X speed increases, Y remains 0\n")
 
     print("4. Test with Y-only speedup mode:")
     ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
@@ -60,7 +60,7 @@ def test_zero_speed_scenarios(mocker):
 
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: X unchanged, Y remains 0 (Y-only speedup doesn't affect X)\n")
+    print("   Result: X unchanged, Y remains 0 (Y-only speedup doesn't affect X)\n")
 
     print("5. Test with both X and Y speeds 0 and Y-only speedup:")
     ball.speed = Speed(0.0, 0.0)
@@ -68,7 +68,7 @@ def test_zero_speed_scenarios(mocker):
 
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: Ball remains stationary\n")
+    print("   Result: Ball remains stationary\n")
 
     print("6. Test movement calculation with zero speed:")
     ball.speed = Speed(0.0, 0.0)
@@ -76,7 +76,7 @@ def test_zero_speed_scenarios(mocker):
     move_x = ball.speed.x * dt
     move_y = ball.speed.y * dt
     print(f"   Movement calculation: move_x={move_x}, move_y={move_y}")
-    print(f"   Result: No movement occurs (0 * dt = 0)\n")
+    print("   Result: No movement occurs (0 * dt = 0)\n")
 
     print("7. Test with very small speeds (near zero):")
     ball.speed = Speed(0.001, 0.001)
@@ -84,7 +84,7 @@ def test_zero_speed_scenarios(mocker):
 
     ball.on_paddle_bounce()
     print(f"   After paddle bounce: ({ball.speed.x}, {ball.speed.y})")
-    print(f"   Result: X speed increases slightly, Y unchanged\n")
+    print("   Result: X speed increases slightly, Y unchanged\n")
 
     print("8. Test continuous speed-up with zero initial speed over many iterations:")
     ball.speed_up_mode = SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
@@ -100,7 +100,7 @@ def test_zero_speed_scenarios(mocker):
         print(f"   Iteration {i+1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
         time.sleep(0.1)  # Small delay to see progression
 
-    print(f"   Result: X speed remains 0, Y speed remains 0 (no movement)\n")
+    print("   Result: X speed remains 0, Y speed remains 0 (no movement)\n")
 
     print("9. Test with non-zero initial speed and continuous speed-up:")
     ball.speed = Speed(10.0, 5.0)
@@ -111,7 +111,7 @@ def test_zero_speed_scenarios(mocker):
         print(f"   Iteration {i+1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
         time.sleep(0.1)  # Small delay to see progression
 
-    print(f"   Result: X speed increases over time, Y speed unchanged\n")
+    print("   Result: X speed increases over time, Y speed unchanged\n")
 
     print("10. Test movement over many iterations with zero speed:")
     ball.speed = Speed(0.0, 0.0)
@@ -124,7 +124,7 @@ def test_zero_speed_scenarios(mocker):
         print(f"   Iteration {i+1}: position=({ball.rect.x}, {ball.rect.y}), speed=({ball.speed.x}, {ball.speed.y})")
         time.sleep(0.05)  # Small delay
 
-    print(f"   Result: Position never changes (no movement with zero speed)\n")
+    print("   Result: Position never changes (no movement with zero speed)\n")
 
     print("=== COMPREHENSIVE DIRECTIONAL ZERO SPEED TESTS ===\n")
 
@@ -152,13 +152,13 @@ def test_zero_speed_scenarios(mocker):
 
         # Analyze the result
         if x_speed == 0.0 and y_speed == 0.0:
-            print(f"   Result: Both speeds remain 0 (stationary ball)\n")
+            print("   Result: Both speeds remain 0 (stationary ball)\n")
         elif x_speed == 0.0:
-            print(f"   Result: X remains 0, Y unchanged (X-only speedup doesn't affect Y)\n")
+            print("   Result: X remains 0, Y unchanged (X-only speedup doesn't affect Y)\n")
         elif y_speed == 0.0:
-            print(f"   Result: X speed increases, Y remains 0 (X-only speedup affects X)\n")
+            print("   Result: X speed increases, Y remains 0 (X-only speedup affects X)\n")
         else:
-            print(f"   Result: X speed increases, Y unchanged (X-only speedup affects X only)\n")
+            print("   Result: X speed increases, Y unchanged (X-only speedup affects X only)\n")
 
     # Test with Y-only speedup
     print("=== TESTING Y-ONLY SPEEDUP ===\n")
@@ -174,13 +174,13 @@ def test_zero_speed_scenarios(mocker):
 
         # Analyze the result
         if x_speed == 0.0 and y_speed == 0.0:
-            print(f"   Result: Both speeds remain 0 (stationary ball)\n")
+            print("   Result: Both speeds remain 0 (stationary ball)\n")
         elif x_speed == 0.0:
-            print(f"   Result: X remains 0, Y speed increases (Y-only speedup affects Y)\n")
+            print("   Result: X remains 0, Y speed increases (Y-only speedup affects Y)\n")
         elif y_speed == 0.0:
-            print(f"   Result: X unchanged, Y remains 0 (Y-only speedup doesn't affect X)\n")
+            print("   Result: X unchanged, Y remains 0 (Y-only speedup doesn't affect X)\n")
         else:
-            print(f"   Result: X unchanged, Y speed increases (Y-only speedup affects Y only)\n")
+            print("   Result: X unchanged, Y speed increases (Y-only speedup affects Y only)\n")
 
     # Test with both X and Y speedup
     print("=== TESTING BOTH X AND Y SPEEDUP ===\n")
@@ -196,13 +196,13 @@ def test_zero_speed_scenarios(mocker):
 
         # Analyze the result
         if x_speed == 0.0 and y_speed == 0.0:
-            print(f"   Result: Both speeds remain 0 (stationary ball)\n")
+            print("   Result: Both speeds remain 0 (stationary ball)\n")
         elif x_speed == 0.0:
-            print(f"   Result: X remains 0, Y speed increases (both speedup affects Y)\n")
+            print("   Result: X remains 0, Y speed increases (both speedup affects Y)\n")
         elif y_speed == 0.0:
-            print(f"   Result: X speed increases, Y remains 0 (both speedup affects X)\n")
+            print("   Result: X speed increases, Y remains 0 (both speedup affects X)\n")
         else:
-            print(f"   Result: Both X and Y speeds increase (both speedup affects both)\n")
+            print("   Result: Both X and Y speeds increase (both speedup affects both)\n")
 
     # Test continuous speed-up with various zero combinations
     print("=== TESTING CONTINUOUS SPEEDUP WITH ZERO COMBINATIONS ===\n")

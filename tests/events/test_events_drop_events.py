@@ -6,6 +6,7 @@ This module tests drop event interfaces, stubs, and event handling.
 import argparse
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 

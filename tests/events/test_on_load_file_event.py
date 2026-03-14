@@ -7,6 +7,7 @@ the on_load_file_event method that handles loading animated sprites from files.
 import sys
 import tempfile
 from pathlib import Path
+
 import pygame
 import pytest
 

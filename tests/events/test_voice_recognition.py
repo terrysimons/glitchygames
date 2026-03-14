@@ -6,8 +6,9 @@ to verify graceful degradation when speech recognition is not available.
 """
 
 import contextlib
+
 import pytest
-from glitchygames.events.voice import VoiceEventManager, SPEECH_RECOGNITION_AVAILABLE
+from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
 from glitchygames.tools.bitmappy import BitmapEditorScene
 
 from tests.mocks import MockFactory

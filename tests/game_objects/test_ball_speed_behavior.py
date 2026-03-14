@@ -6,7 +6,6 @@ import time
 
 import pygame
 import pytest
-
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
 

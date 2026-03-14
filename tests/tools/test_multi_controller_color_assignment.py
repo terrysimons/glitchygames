@@ -6,10 +6,15 @@ activation order rather than controller ID, and the color-based sorting of
 controller indicators.
 """
 
-import pytest
 import pygame
-from glitchygames.tools.multi_controller_manager import MultiControllerManager, ControllerInfo, ControllerStatus
+import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
+
 from tests.mocks import MockFactory
 
 
@@ -123,7 +128,7 @@ class TestColorBasedSorting:
 
         # Test color priority function
         def get_color_priority(selection):
-            color = selection['color']
+            color = selection["color"]
             if color == (255, 0, 0):    # Red
                 return 0
             elif color == (0, 255, 0):  # Green
@@ -137,10 +142,10 @@ class TestColorBasedSorting:
 
         # Test different colors
         selections = [
-            {'color': (0, 0, 255)},      # Blue
-            {'color': (255, 0, 0)},      # Red
-            {'color': (255, 255, 0)},    # Yellow
-            {'color': (0, 255, 0)},      # Green
+            {"color": (0, 0, 255)},      # Blue
+            {"color": (255, 0, 0)},      # Red
+            {"color": (255, 255, 0)},    # Yellow
+            {"color": (0, 255, 0)},      # Green
         ]
 
         # Sort by color priority
@@ -155,50 +160,50 @@ class TestColorBasedSorting:
         ]
 
         for i, selection in enumerate(selections):
-            assert selection['color'] == expected_order[i]
+            assert selection["color"] == expected_order[i]
 
     def test_controller_selection_color_priority(self):
         """Test controller selection color priority assignment."""
         # Mock controller selections with different colors
         controller_selections = [
             {
-                'controller_id': 2,
-                'color': (0, 0, 255),    # Blue
-                'frame': 0
+                "controller_id": 2,
+                "color": (0, 0, 255),    # Blue
+                "frame": 0
             },
             {
-                'controller_id': 0,
-                'color': (255, 0, 0),    # Red
-                'frame': 0
+                "controller_id": 0,
+                "color": (255, 0, 0),    # Red
+                "frame": 0
             },
             {
-                'controller_id': 3,
-                'color': (255, 255, 0),  # Yellow
-                'frame': 0
+                "controller_id": 3,
+                "color": (255, 255, 0),  # Yellow
+                "frame": 0
             },
             {
-                'controller_id': 1,
-                'color': (0, 255, 0),    # Green
-                'frame': 0
+                "controller_id": 1,
+                "color": (0, 255, 0),    # Green
+                "frame": 0
             },
         ]
 
         # Calculate color-based priority
         for selection in controller_selections:
-            color = selection['color']
+            color = selection["color"]
             if color == (255, 0, 0):    # Red
-                selection['priority'] = 0
+                selection["priority"] = 0
             elif color == (0, 255, 0):  # Green
-                selection['priority'] = 1
+                selection["priority"] = 1
             elif color == (0, 0, 255):  # Blue
-                selection['priority'] = 2
+                selection["priority"] = 2
             elif color == (255, 255, 0): # Yellow
-                selection['priority'] = 3
+                selection["priority"] = 3
             else:
-                selection['priority'] = 999
+                selection["priority"] = 999
 
         # Sort by priority
-        controller_selections.sort(key=lambda x: x['priority'])
+        controller_selections.sort(key=lambda x: x["priority"])
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [
@@ -209,8 +214,8 @@ class TestColorBasedSorting:
         ]
 
         for i, selection in enumerate(controller_selections):
-            assert selection['color'] == expected_order[i]
-            assert selection['priority'] == i
+            assert selection["color"] == expected_order[i]
+            assert selection["priority"] == i
 
 
 class TestShoulderButtonFunctionality:
@@ -225,7 +230,7 @@ class TestShoulderButtonFunctionality:
     def test_left_shoulder_button_behavior(self, mocker):
         """Test that left shoulder button moves indicator left."""
         # Mock the _multi_controller_previous_frame method
-        mock_prev = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame')
+        mock_prev = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame")
         # Simulate left shoulder button press
         controller_id = 0
         mock_prev.return_value = None
@@ -239,7 +244,7 @@ class TestShoulderButtonFunctionality:
     def test_right_shoulder_button_behavior(self, mocker):
         """Test that right shoulder button moves indicator right."""
         # Mock the _multi_controller_next_frame method
-        mock_next = mocker.patch('glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame')
+        mock_next = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame")
         # Simulate right shoulder button press
         controller_id = 0
         mock_next.return_value = None
@@ -274,58 +279,58 @@ class TestSelectionBoxColorMatching:
         """Test that keyboard selection box is white."""
         # Mock keyboard selection
         keyboard_selection = {
-            'type': 'keyboard',
-            'color': (255, 255, 255),  # White
-            'frame': 0
+            "type": "keyboard",
+            "color": (255, 255, 255),  # White
+            "frame": 0
         }
 
         # The selection box should match the indicator color
         expected_box_color = (255, 255, 255)  # White
-        assert keyboard_selection['color'] == expected_box_color
+        assert keyboard_selection["color"] == expected_box_color
 
     def test_controller_selection_box_color(self):
         """Test that controller selection box matches controller color."""
         # Mock controller selections with different colors
         controller_selections = [
             {
-                'type': 'controller_0',
-                'color': (255, 0, 0),    # Red
-                'frame': 0
+                "type": "controller_0",
+                "color": (255, 0, 0),    # Red
+                "frame": 0
             },
             {
-                'type': 'controller_1',
-                'color': (0, 255, 0),    # Green
-                'frame': 0
+                "type": "controller_1",
+                "color": (0, 255, 0),    # Green
+                "frame": 0
             },
         ]
 
         # Each selection box should match its indicator color
         for selection in controller_selections:
-            expected_box_color = selection['color']
-            assert selection['color'] == expected_box_color
+            expected_box_color = selection["color"]
+            assert selection["color"] == expected_box_color
 
     def test_selection_box_color_priority(self):
         """Test that selection box color is determined by selection type."""
         # Mock mixed selections
         selections = [
             {
-                'type': 'keyboard',
-                'color': (255, 255, 255),  # White
-                'frame': 0
+                "type": "keyboard",
+                "color": (255, 255, 255),  # White
+                "frame": 0
             },
             {
-                'type': 'controller_0',
-                'color': (255, 0, 0),      # Red
-                'frame': 0
+                "type": "controller_0",
+                "color": (255, 0, 0),      # Red
+                "frame": 0
             },
         ]
 
         # Keyboard should have white box, controller should have red box
         for selection in selections:
-            if selection['type'] == 'keyboard':
-                assert selection['color'] == (255, 255, 255)
-            elif selection['type'].startswith('controller'):
-                assert selection['color'] in [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            if selection["type"] == "keyboard":
+                assert selection["color"] == (255, 255, 255)
+            elif selection["type"].startswith("controller"):
+                assert selection["color"] in [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
 
 
 class TestFilmStripScrolling:

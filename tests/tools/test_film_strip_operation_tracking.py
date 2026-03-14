@@ -2,9 +2,8 @@
 """Tests for film strip operation tracking."""
 
 import pytest
-
-from glitchygames.tools.undo_redo_manager import UndoRedoManager
 from glitchygames.tools.operation_history import FilmStripOperationTracker
+from glitchygames.tools.undo_redo_manager import UndoRedoManager
 
 
 class TestFilmStripOperationTracker:

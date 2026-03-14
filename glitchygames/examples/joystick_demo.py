@@ -5,25 +5,24 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from pathlib import Path
 import multiprocessing
+from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import argparse
 
+import glitchygames
 import pygame
 import pygame._sdl2.controller
-
-import glitchygames
 from glitchygames.color import BLACK, BLUE, GREEN, PURPLE, WHITE, YELLOW
 from glitchygames.engine import GameEngine
-from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.events.controller import ControllerEventManager
+from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.fonts import FontManager
-from glitchygames.ui import TabControlSprite
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
+from glitchygames.ui import TabControlSprite
 from pygame import Rect
 
 LOG = logging.getLogger("game")
@@ -274,7 +273,7 @@ class TextSprite(Sprite):
 
         # Use the game engine's controller manager instead of creating a new one
         # This ensures we get hotplug events from the engine
-        if hasattr(game, 'controller_manager'):
+        if hasattr(game, "controller_manager"):
             self.controller_manager = game.controller_manager
         else:
             # Fallback: create our own if the game doesn't have one
@@ -284,7 +283,7 @@ class TextSprite(Sprite):
         # Track previous button states to detect changes
         self._previous_button_states = {}
         for joystick_id, joystick in self.joystick_manager.joysticks.items():
-            if hasattr(joystick, '_buttons'):
+            if hasattr(joystick, "_buttons"):
                 self._previous_button_states[joystick_id] = joystick._buttons.copy()
 
         # Initial render using the textbox implementation
@@ -305,6 +304,7 @@ class TextSprite(Sprite):
         Args:
             filter_controller_index (int | None): If set, only show info for this controller index
             input_mode (str | None): The input mode ("joystick" or "controller")
+
         """
         self.image.fill(self.background_color)
 
@@ -346,11 +346,11 @@ class TextSprite(Sprite):
         # Removed border to maximize text space
 
         self.text_box.reset()
-        self.text_box.print(self.image, f'{Game.NAME} version {Game.VERSION}')
+        self.text_box.print(self.image, f"{Game.NAME} version {Game.VERSION}")
 
-        self.text_box.print(self.image, f'CPUs: {multiprocessing.cpu_count()}')
+        self.text_box.print(self.image, f"CPUs: {multiprocessing.cpu_count()}")
 
-        self.text_box.print(self.image, f'FPS: {Game.FPS:.0f}')
+        self.text_box.print(self.image, f"FPS: {Game.FPS:.0f}")
 
         # Show controller information - either filtered or all
         # Use passed input_mode or default to joystick
@@ -359,7 +359,7 @@ class TextSprite(Sprite):
 
         if filter_controller_index is not None:
             # Show only the selected controller
-            self.text_box.print(self.image, f'Showing {input_mode.title()} {filter_controller_index}')
+            self.text_box.print(self.image, f"Showing {input_mode.title()} {filter_controller_index}")
             active = []
 
             # Use the correct manager based on input mode
@@ -374,10 +374,10 @@ class TextSprite(Sprite):
             for joystick_id, proxy in devices.items():
                 # Check for the correct attribute based on input mode
                 if input_mode == "controller":
-                    has_device = hasattr(proxy, 'controller') and proxy.controller is not None
+                    has_device = hasattr(proxy, "controller") and proxy.controller is not None
                     device_obj = proxy.controller if has_device else None
                 else:
-                    has_device = hasattr(proxy, 'joystick') and proxy.joystick is not None
+                    has_device = hasattr(proxy, "joystick") and proxy.joystick is not None
                     device_obj = proxy.joystick if has_device else None
 
                 if has_device and device_obj is not None:
@@ -401,7 +401,7 @@ class TextSprite(Sprite):
                         break
         else:
             # Show all controllers (original working behavior)
-            self.text_box.print(self.image, f'Showing all {input_mode.title()}s')
+            self.text_box.print(self.image, f"Showing all {input_mode.title()}s")
             active = []
 
             # Use the correct manager based on input mode
@@ -416,10 +416,10 @@ class TextSprite(Sprite):
             for joystick_id, proxy in devices.items():
                 # Check for the correct attribute based on input mode
                 if input_mode == "controller":
-                    has_device = hasattr(proxy, 'controller') and proxy.controller is not None
+                    has_device = hasattr(proxy, "controller") and proxy.controller is not None
                     device_obj = proxy.controller if has_device else None
                 else:
-                    has_device = hasattr(proxy, 'joystick') and proxy.joystick is not None
+                    has_device = hasattr(proxy, "joystick") and proxy.joystick is not None
                     device_obj = proxy.joystick if has_device else None
 
                 if has_device and device_obj is not None:
@@ -450,70 +450,70 @@ class TextSprite(Sprite):
                 if input_mode == "controller":
                     device_id = joystick_id
                 else:
-                    device_id = proxy._device_id if hasattr(proxy, '_device_id') else joystick_id
+                    device_id = proxy._device_id if hasattr(proxy, "_device_id") else joystick_id
                 instance_id = joystick.get_instance_id() if \
                     hasattr(joystick, "get_instance_id") \
                         else None
 
                 device_type = input_mode.title()
-                self.text_box.print(self.image, f'{device_type} {device_id} (id={joystick_id})')
+                self.text_box.print(self.image, f"{device_type} {device_id} (id={joystick_id})")
 
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
                 # Display the proxy name explicitly; this is expected to be specific (e.g., "Xbox 360 Controller")
-                self.text_box.print(self.image, f'{device_type} name: {proxy_name}')
+                self.text_box.print(self.image, f"{device_type} name: {proxy_name}")
 
                 # Display the GUID/UUID
                 if joystick_guid:
-                    self.text_box.print(self.image, f'{device_type} GUID: {joystick_guid}')
+                    self.text_box.print(self.image, f"{device_type} GUID: {joystick_guid}")
                 elif input_mode == "controller":
-                    self.text_box.print(self.image, f'{device_type} GUID: N/A (Controller mode)')
+                    self.text_box.print(self.image, f"{device_type} GUID: N/A (Controller mode)")
 
                 # Display ID and instance ID
                 try:
                     device_id = joystick.get_id()
-                    self.text_box.print(self.image, f'Device ID: {device_id}')
+                    self.text_box.print(self.image, f"Device ID: {device_id}")
                 except Exception:
                     pass
 
                 try:
                     instance_id = joystick.get_instance_id()
-                    self.text_box.print(self.image, f'Instance ID: {instance_id}')
+                    self.text_box.print(self.image, f"Instance ID: {instance_id}")
                 except Exception:
                     pass
 
                 # Handle axes and buttons based on input mode
                 if input_mode == "controller":
                     # Controllers have a different API
-                    axes = len(proxy.AXIS) if hasattr(proxy, 'AXIS') else 0
-                    self.text_box.print(self.image, f'Number of axes: {axes}')
+                    axes = len(proxy.AXIS) if hasattr(proxy, "AXIS") else 0
+                    self.text_box.print(self.image, f"Number of axes: {axes}")
 
                     self.text_box.indent()
                     for j in range(axes):
                         try:
                             axis_value = joystick.get_axis(j)
                             self.text_box.print(
-                                self.image, f'Axis {j} value: {axis_value:>6.3f}'
+                                self.image, f"Axis {j} value: {axis_value:>6.3f}"
                             )
                         except Exception:
                             self.text_box.print(
-                                self.image, f'Axis {j} value: N/A'
+                                self.image, f"Axis {j} value: N/A"
                             )
                     self.text_box.unindent()
 
-                    buttons = len(proxy.BUTTONS) if hasattr(proxy, 'BUTTONS') else 0
-                    self.text_box.print(self.image, f'Number of buttons: {buttons}')
+                    buttons = len(proxy.BUTTONS) if hasattr(proxy, "BUTTONS") else 0
+                    self.text_box.print(self.image, f"Number of buttons: {buttons}")
 
                     self.text_box.indent()
                     for j in range(buttons):
                         try:
                             button_value = joystick.get_button(j)
                             self.text_box.print(
-                                self.image, f'Button {j:>2} value: {button_value}'
+                                self.image, f"Button {j:>2} value: {button_value}"
                             )
                         except Exception:
                             self.text_box.print(
-                                self.image, f'Button {j:>2} value: N/A'
+                                self.image, f"Button {j:>2} value: N/A"
                             )
                     self.text_box.unindent()
 
@@ -522,37 +522,37 @@ class TextSprite(Sprite):
                 else:
                     # Joysticks use the normal API
                     axes = joystick.get_numaxes()
-                    self.text_box.print(self.image, f'Number of axes: {axes}')
+                    self.text_box.print(self.image, f"Number of axes: {axes}")
 
                     self.text_box.indent()
                     for j in range(axes):
                            self.text_box.print(
-                                self.image, f'Axis {j} value: {joystick.get_axis(j):>6.3f}'
+                                self.image, f"Axis {j} value: {joystick.get_axis(j):>6.3f}"
                             )
                     self.text_box.unindent()
 
                     buttons = joystick.get_numbuttons()
-                    self.text_box.print(self.image, f'Number of buttons: {buttons}')
+                    self.text_box.print(self.image, f"Number of buttons: {buttons}")
 
                     self.text_box.indent()
                     for j in range(buttons):
                         self.text_box.print(
-                            self.image, f'Button {j:>2} value: {joystick.get_button(j)}'
+                            self.image, f"Button {j:>2} value: {joystick.get_button(j)}"
                         )
                     self.text_box.unindent()
 
                     # Hat switch. All or nothing for direction, not like joysticks.
                     # Value comes back in an array.
                     hats = joystick.get_numhats()
-                self.text_box.print(self.image, f'Number of hats: {hats}')
+                self.text_box.print(self.image, f"Number of hats: {hats}")
 
                 if hats > 0:
                     self.text_box.indent()
                     for j in range(hats):
                         try:
-                            self.text_box.print(self.image, f'Hat {j} value: {str(joystick.get_hat(j))}')
+                            self.text_box.print(self.image, f"Hat {j} value: {str(joystick.get_hat(j))}")
                         except Exception:
-                            self.text_box.print(self.image, f'Hat {j} value: N/A')
+                            self.text_box.print(self.image, f"Hat {j} value: N/A")
                 self.text_box.unindent()
                 self.text_box.unindent()
 
@@ -653,6 +653,7 @@ class JoystickScene(Scene):
 
         Returns:
             pygame.Surface | None: Loaded surface or None on failure.
+
         """
         # Only attempt to load common image types
         if resource.suffix.lower() not in {".png", ".jpg", ".jpeg", ".bmp", ".gif"}:
@@ -702,14 +703,14 @@ class JoystickScene(Scene):
         device_manager = None
         if input_mode == "controller":
             # Always prefer the game engine's controller manager for hotplug events
-            if hasattr(self, 'game') and hasattr(self.game, 'controller_manager'):
+            if hasattr(self, "game") and hasattr(self.game, "controller_manager"):
                 device_manager = self.game.controller_manager
-            elif hasattr(self, 'text_sprite') and hasattr(self.text_sprite, 'controller_manager'):
+            elif hasattr(self, "text_sprite") and hasattr(self.text_sprite, "controller_manager"):
                 device_manager = self.text_sprite.controller_manager
         else:  # joystick mode
-            if hasattr(self, 'game') and hasattr(self.game, 'joystick_manager'):
+            if hasattr(self, "game") and hasattr(self.game, "joystick_manager"):
                 device_manager = self.game.joystick_manager
-            elif hasattr(self, 'text_sprite') and hasattr(self.text_sprite, 'joystick_manager'):
+            elif hasattr(self, "text_sprite") and hasattr(self.text_sprite, "joystick_manager"):
                 device_manager = self.text_sprite.joystick_manager
 
         # Force cleanup of stale entries in device_manager
@@ -732,7 +733,7 @@ class JoystickScene(Scene):
                 # Remove any device_manager entries that don't match current pygame joysticks
                 stale_ids = []
                 for joystick_id, proxy in devices.items():
-                    if hasattr(proxy, 'joystick') and proxy.joystick is not None:
+                    if hasattr(proxy, "joystick") and proxy.joystick is not None:
                         try:
                             instance_id = proxy.joystick.get_instance_id()
                             if instance_id not in current_instance_ids:
@@ -773,7 +774,7 @@ class JoystickScene(Scene):
 
                 stale_ids = []
                 for controller_id, proxy in devices.items():
-                    has_device = hasattr(proxy, 'controller') and proxy.controller is not None
+                    has_device = hasattr(proxy, "controller") and proxy.controller is not None
 
                     if not has_device:
                         stale_ids.append(controller_id)
@@ -811,10 +812,10 @@ class JoystickScene(Scene):
             for joystick_id, proxy in devices.items():
                 # Check for the correct attribute based on input mode
                 if input_mode == "controller":
-                    has_device = hasattr(proxy, 'controller') and proxy.controller is not None
+                    has_device = hasattr(proxy, "controller") and proxy.controller is not None
                     device_obj = proxy.controller if has_device else None
                 else:
-                    has_device = hasattr(proxy, 'joystick') and proxy.joystick is not None
+                    has_device = hasattr(proxy, "joystick") and proxy.joystick is not None
                     device_obj = proxy.joystick if has_device else None
 
                 if has_device and device_obj is not None:

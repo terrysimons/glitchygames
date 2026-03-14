@@ -1,11 +1,10 @@
 """App event manager for application lifecycle events."""
 
 import logging
-import pygame
-from glitchygames.events import APP_EVENTS
 from typing import Self
 
-from glitchygames.events import AppEvents, HashableEvent, ResourceManager
+import pygame
+from glitchygames.events import APP_EVENTS, AppEvents, HashableEvent, ResourceManager
 
 LOG = logging.getLogger(__name__)
 

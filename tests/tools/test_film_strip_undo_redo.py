@@ -10,16 +10,15 @@ Tests complex scenarios involving:
 - Mixed undo/redo operations
 """
 
-import pytest
 import pygame
-
-from glitchygames.tools.undo_redo_manager import UndoRedoManager, OperationType
+import pytest
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker,
+    CrossAreaOperationTracker,
     FilmStripOperationTracker,
-    CrossAreaOperationTracker
 )
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
 
 
 class TestFilmStripUndoRedo:

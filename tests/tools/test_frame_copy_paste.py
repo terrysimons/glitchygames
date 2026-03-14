@@ -7,16 +7,16 @@ including keyboard shortcuts, undo/redo integration, and clipboard management.
 
 import sys
 from pathlib import Path
-import pygame
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.sprites.animated import SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.undo_redo_manager import OperationType
-from glitchygames.sprites.animated import SpriteFrame
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -373,7 +373,7 @@ class TestFrameCopyPaste:
         # Verify operation was added with correct type
         scene.undo_redo_manager.add_operation.assert_called_once()
         call_args = scene.undo_redo_manager.add_operation.call_args
-        assert call_args[1]['operation_type'] == OperationType.FRAME_PASTE
+        assert call_args[1]["operation_type"] == OperationType.FRAME_PASTE
 
     def test_apply_frame_paste_for_undo_redo(self):
         """Test the frame paste application method for undo/redo."""

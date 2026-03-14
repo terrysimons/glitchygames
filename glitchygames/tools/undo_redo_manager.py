@@ -8,10 +8,10 @@ canvas (pixel-level) and film strip (frame-level) operations.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-import time
 
 LOG = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class UndoRedoManager:
         
         Args:
             max_history: Maximum number of operations to keep in history
+
         """
         self.max_history = max_history
         self.undo_stack: List[Operation] = []
@@ -110,6 +111,7 @@ class UndoRedoManager:
         
         Returns:
             True if undo is available, False otherwise
+
         """
         return len(self.undo_stack) > 0 and not self.is_undoing
     
@@ -119,6 +121,7 @@ class UndoRedoManager:
         Args:
             animation: Name of the animation
             frame: Frame index
+
         """
         self.current_frame = (animation, frame)
         LOG.debug(f"Current frame set to: {animation}[{frame}]")
@@ -128,6 +131,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function to call for frame selection operations
+
         """
         self.frame_selection_callback = callback
         LOG.debug("Frame selection callback set")
@@ -145,6 +149,7 @@ class UndoRedoManager:
             reorder_frame_callback: Function to call for reordering frames
             add_animation_callback: Function to call for adding animations
             delete_animation_callback: Function to call for deleting animations
+
         """
         if add_frame_callback:
             self.add_frame_callback = add_frame_callback
@@ -163,6 +168,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function to call for pixel change operations
+
         """
         self.pixel_change_callback = callback
         LOG.debug("Pixel change callback set")
@@ -172,6 +178,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function to call for controller position operations
+
         """
         self.controller_position_callback = callback
         LOG.debug("Controller position callback set")
@@ -181,6 +188,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function to call for controller mode operations
+
         """
         self.controller_mode_callback = callback
         LOG.debug("Controller mode callback set")
@@ -190,6 +198,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function to call for frame paste operations
+
         """
         self.frame_paste_callback = callback
         LOG.debug("Frame paste callback set")
@@ -203,6 +212,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo is available for this frame, False otherwise
+
         """
         frame_key = (animation, frame)
         return (frame_key in self.frame_undo_stacks and 
@@ -218,6 +228,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo is available for this frame, False otherwise
+
         """
         frame_key = (animation, frame)
         return (frame_key in self.frame_redo_stacks and 
@@ -229,6 +240,7 @@ class UndoRedoManager:
         
         Returns:
             True if redo is available, False otherwise
+
         """
         return len(self.redo_stack) > 0 and not self.is_redoing
     
@@ -237,6 +249,7 @@ class UndoRedoManager:
         
         Returns:
             Description of the next undo operation, or None if not available
+
         """
         if not self.can_undo():
             return None
@@ -247,6 +260,7 @@ class UndoRedoManager:
         
         Returns:
             Description of the next redo operation, or None if not available
+
         """
         if not self.can_redo():
             return None
@@ -263,6 +277,7 @@ class UndoRedoManager:
             undo_data: Data needed to undo the operation
             redo_data: Data needed to redo the operation
             context: Additional context information
+
         """
         if self.is_undoing or self.is_redoing:
             LOG.debug("Skipping operation addition during undo/redo")
@@ -344,6 +359,7 @@ class UndoRedoManager:
             description: Human-readable description
             undo_data: Data needed to undo the operation
             redo_data: Data needed to redo the operation
+
         """
         frame_key = (animation, frame)
         
@@ -384,6 +400,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         frame_key = (animation, frame)
         
@@ -429,6 +446,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         frame_key = (animation, frame)
         
@@ -470,6 +488,7 @@ class UndoRedoManager:
         
         Returns:
             True if undo was successful, False otherwise
+
         """
         if not self.can_undo():
             LOG.debug("Cannot undo: no operations available")
@@ -505,6 +524,7 @@ class UndoRedoManager:
         
         Returns:
             True if redo was successful, False otherwise
+
         """
         if not self.can_redo():
             LOG.debug("Cannot redo: no operations available")
@@ -544,6 +564,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if operation.operation_type in [
@@ -590,6 +611,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if operation.operation_type in [
@@ -636,6 +658,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
@@ -683,6 +706,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
@@ -732,6 +756,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FRAME_PASTE:
@@ -761,6 +786,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
@@ -806,6 +832,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
@@ -855,6 +882,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FRAME_PASTE:
@@ -884,6 +912,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             # Get the previous frame selection from undo_data
@@ -921,6 +950,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             # Get the frame selection from redo_data
@@ -961,6 +991,7 @@ class UndoRedoManager:
         
         Returns:
             Dictionary with history information
+
         """
         return {
             "undo_count": len(self.undo_stack),
@@ -977,6 +1008,7 @@ class UndoRedoManager:
         
         Args:
             callback: Function that takes (x, y, color) and applies the pixel change
+
         """
         self.pixel_change_callback = callback
         LOG.debug("Pixel change callback set")
@@ -994,6 +1026,7 @@ class UndoRedoManager:
             reorder_frame_callback: Function that takes (old_index, new_index, animation_name) and reorders frames
             add_animation_callback: Function that takes (animation_name, animation_data) and adds an animation
             delete_animation_callback: Function that takes (animation_name) and deletes an animation
+
         """
         self.add_frame_callback = add_frame_callback
         self.delete_frame_callback = delete_frame_callback
@@ -1012,6 +1045,7 @@ class UndoRedoManager:
             
         Returns:
             True if the change was applied successfully, False otherwise
+
         """
         if self.pixel_change_callback:
             try:
@@ -1038,6 +1072,7 @@ class UndoRedoManager:
             
         Returns:
             True if the frame was added successfully, False otherwise
+
         """
         if self.add_frame_callback:
             return self.add_frame_callback(frame_index, animation_name, frame_data)
@@ -1054,6 +1089,7 @@ class UndoRedoManager:
             
         Returns:
             True if the frame was deleted successfully, False otherwise
+
         """
         if self.delete_frame_callback:
             return self.delete_frame_callback(frame_index, animation_name)
@@ -1071,6 +1107,7 @@ class UndoRedoManager:
             
         Returns:
             True if the frame was reordered successfully, False otherwise
+
         """
         if self.reorder_frame_callback:
             return self.reorder_frame_callback(old_index, new_index, animation_name)
@@ -1086,6 +1123,7 @@ class UndoRedoManager:
             
         Returns:
             True if the animation was deleted successfully, False otherwise
+
         """
         if self.delete_animation_callback:
             return self.delete_animation_callback(animation_name)
@@ -1102,6 +1140,7 @@ class UndoRedoManager:
             
         Returns:
             True if the animation was added successfully, False otherwise
+
         """
         if self.add_animation_callback:
             return self.add_animation_callback(animation_name, animation_data)
@@ -1117,6 +1156,7 @@ class UndoRedoManager:
             
         Returns:
             True if the animation was deleted successfully, False otherwise
+
         """
         if self.delete_animation_callback:
             return self.delete_animation_callback(animation_name)
@@ -1132,6 +1172,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             # Get the previous frame selection from undo_data
@@ -1169,6 +1210,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             # Get the frame selection from redo_data
@@ -1205,6 +1247,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
@@ -1293,6 +1336,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
@@ -1381,6 +1425,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if self.controller_position_callback:
@@ -1408,6 +1453,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if self.controller_position_callback:
@@ -1435,6 +1481,7 @@ class UndoRedoManager:
             
         Returns:
             True if undo was successful, False otherwise
+
         """
         try:
             if self.controller_mode_callback:
@@ -1461,6 +1508,7 @@ class UndoRedoManager:
             
         Returns:
             True if redo was successful, False otherwise
+
         """
         try:
             if self.controller_mode_callback:

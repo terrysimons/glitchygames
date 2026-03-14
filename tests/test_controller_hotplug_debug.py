@@ -9,11 +9,10 @@ Run directly with: python tests/test_controller_hotplug_debug.py
 import sys
 import time
 
+import glitchygames.events
 import pygame
 import pygame._sdl2.controller
 import pytest
-
-import glitchygames.events
 
 # Skip this entire module when stdin is not a TTY (non-interactive pytest runs)
 pytestmark = pytest.mark.skipif(
@@ -60,7 +59,7 @@ def test_controller_hotplug():
                 print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
-        if current_count != getattr(test_controller_hotplug, 'last_count', 0):
+        if current_count != getattr(test_controller_hotplug, "last_count", 0):
             print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
@@ -84,7 +83,7 @@ def test_controller_hotplug():
                 print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
-        if current_count != getattr(test_controller_hotplug, 'last_count', 0):
+        if current_count != getattr(test_controller_hotplug, "last_count", 0):
             print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
@@ -114,7 +113,7 @@ def test_controller_hotplug():
                 print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
-        if current_count != getattr(test_controller_hotplug, 'last_count', 0):
+        if current_count != getattr(test_controller_hotplug, "last_count", 0):
             print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
@@ -138,7 +137,7 @@ def test_controller_hotplug():
                 print(f"Controller event {event.type}: {pygame.event.event_name(event.type)}")
 
         current_count = pygame._sdl2.controller.get_count()
-        if current_count != getattr(test_controller_hotplug, 'last_count', 0):
+        if current_count != getattr(test_controller_hotplug, "last_count", 0):
             print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 

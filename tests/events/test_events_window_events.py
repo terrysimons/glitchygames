@@ -5,6 +5,7 @@ This module tests window event interfaces, stubs, and event handling.
 
 import sys
 from pathlib import Path
+
 import pygame
 import pytest
 
