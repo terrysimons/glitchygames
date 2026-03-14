@@ -186,9 +186,6 @@ lint.ignore = [
   "ARG001", # unused-function-argument
   "ARG005", # unused-lambda-argument
 
-  # --- Path handling (os.path is fine) ---
-  "PTH", # All pathlib rules
-
   # --- Unused variables (many are pytest mock side effects) ---
   "F841", # unused-variable
   "RUF059", # unused-unpacked-variable

@@ -9,14 +9,14 @@ This module tests the hover functionality for all film strip button types:
 All buttons should invert their colors on hover (black background, white border).
 """
 
-import os
 import sys
+from pathlib import Path
 
 import pygame
 import pytest
 
 # Add the project root to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, str(Path(__file__).parent / ".." / ".."))
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.film_strip import (

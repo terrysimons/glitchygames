@@ -6,13 +6,13 @@ would stop playing after the first frame advance.
 """
 
 import logging
-import os
 import sys
+from pathlib import Path
 
 import pygame
 
 # Add the glitchygames package to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "glitchygames"))
+sys.path.insert(0, str(Path(__file__).parent / "glitchygames"))
 
 from glitchygames.sprites.animated import SpriteFrame
 

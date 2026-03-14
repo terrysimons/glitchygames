@@ -26,7 +26,7 @@ for path in sorted(Path(src / "glitchygames").rglob("*.py")):
     LOG.info(f"Doc path: {doc_path}")
 
     # TODO: This is a hack to fix the path for the docs.  It should be fixed in the future.
-    full_doc_path: Path = Path("") / doc_path
+    full_doc_path: Path = Path(doc_path)
     LOG.info(f"Full doc path: {full_doc_path}")
 
     parts = tuple(module_path.parts)

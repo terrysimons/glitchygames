@@ -6,12 +6,12 @@ options for the multi-controller system.
 
 import json
 import logging
-import os
 import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 from typing import Any
@@ -320,11 +320,12 @@ class MultiControllerConfig:
             MultiControllerConfig instance
 
         """
-        if not os.path.exists(config_file):
+        config_path = Path(config_file)
+        if not config_path.exists():
             return cls()
 
         try:
-            with open(config_file) as f:
+            with config_path.open() as f:
                 config_data = json.load(f)
 
             return cls(**config_data)
@@ -361,7 +362,7 @@ class MultiControllerConfig:
                 "enable_navigation_history": self.enable_navigation_history,
             }
 
-            with open(config_file, "w") as f:
+            with Path(config_file).open("w") as f:
                 json.dump(config_data, f, indent=2)
 
             return True

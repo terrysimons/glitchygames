@@ -8863,7 +8863,7 @@ class BitmapEditorScene(Scene):
 
                 # Clean up temp file
                 try:
-                    os.unlink(temp_path)
+                    Path(temp_path).unlink()
                 except OSError:
                     pass
 
@@ -9627,7 +9627,7 @@ pixels = \"\"\"
             pixels_data = pixels_data.removesuffix("\n")
 
             # Load the TOML file for other data (colors, etc.)
-            with open(temp_toml_path, encoding="utf-8") as f:
+            with Path(temp_toml_path).open(encoding="utf-8") as f:
                 config_data = toml.load(f)
 
             # Convert to training example format
@@ -9639,10 +9639,8 @@ pixels = \"\"\"
             }
 
             # Clean up temporary file
-            import os
-
             try:
-                os.unlink(temp_toml_path)
+                Path(temp_toml_path).unlink()
                 self.log.debug(f"Cleaned up temporary file: {temp_toml_path}")
             except OSError as cleanup_error:
                 self.log.warning(f"Failed to clean up temp file {temp_toml_path}: {cleanup_error}")
