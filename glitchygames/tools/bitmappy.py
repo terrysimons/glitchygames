@@ -37,6 +37,8 @@ try:
 except ImportError:
     VoiceEventManager = None
 
+from http import HTTPStatus
+
 from glitchygames import events
 from glitchygames.ai import (
     build_refinement_messages,
@@ -46,6 +48,13 @@ from glitchygames.ai import (
 )
 from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
+)
+from glitchygames.color import (
+    ALPHA_TRANSPARENCY_THRESHOLD,
+    MAX_COLOR_CHANNEL_VALUE,
+    MAX_PER_PIXEL_ALPHA,
+    RGB_COMPONENT_COUNT,
+    RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
@@ -75,6 +84,33 @@ from glitchygames.ui.dialogs import (
 # Constants
 MAGENTA_TRANSPARENT = (255, 0, 255)  # Magenta color used for transparency
 TRANSPARENT_GLYPH = "█"  # Block character used for transparent pixels
+
+# Bitmappy-specific constants
+LARGE_SPRITE_DIMENSION = 128  # Sprites this size or larger get special handling
+MIN_PIXEL_DISPLAY_SIZE = 2  # Minimum pixel display size for large sprites
+MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS = 60  # AI model response time threshold
+PIXEL_CHANGE_DEBOUNCE_SECONDS = 0.1  # Debounce timer for auto-submit
+SPRITE_ASPECT_RATIO_TOLERANCE = 0.2  # Tolerance for AI training aspect ratio matching
+COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD = 1000  # Squared Euclidean distance for color grouping
+DEBUG_LOG_FIRST_N_PIXELS = 5  # How many non-magenta pixels to log for debugging
+MIN_FILM_STRIPS_FOR_PANEL_POSITIONING = 2  # Minimum film strips before AI panel positioning
+MAX_COLORS_FOR_AI_TRAINING = 64  # Max unique colors before quantization
+PROGRESS_LOG_MIN_HEIGHT = 32  # Minimum image height to trigger progress logging
+CONTROLLER_ACCEL_LEVEL1_TIME = 0.8  # Acceleration timing thresholds
+CONTROLLER_ACCEL_LEVEL2_TIME = 1.5
+CONTROLLER_ACCEL_LEVEL3_TIME = 2.5
+CONTROLLER_ACCEL_JUMP_LEVEL1 = 2  # Pixel jump sizes at acceleration levels
+CONTROLLER_ACCEL_JUMP_LEVEL2 = 4
+CONTROLLER_ACCEL_JUMP_LEVEL3 = 8
+HAT_INPUT_MAGNITUDE_THRESHOLD = 0.5  # Joystick hat dead zone
+AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT = 2  # Threshold for single-frame sprite shortcut
+JOYSTICK_LEFT_SHOULDER_BUTTON = 9  # Joystick button mapping for left shoulder
+JOYSTICK_HAT_RIGHT = 2  # Joystick hat bitmask for right direction
+JOYSTICK_HAT_DOWN = 4  # Joystick hat bitmask for down direction
+JOYSTICK_HAT_LEFT = 8  # Joystick hat bitmask for left direction
+MIN_COLOR_FIELD_VALUES_FOR_GREEN = 2  # Minimum parsed color field values for green
+MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blue
+AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
 
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
@@ -205,7 +241,7 @@ def _composite_frames_with_alpha(frames: list, additional_alpha: float = 0.5) ->
                 src_a = 255
 
             # Skip magenta transparency color (255, 0, 255)
-            if src_r == 255 and src_g == 0 and src_b == 255:
+            if src_r == MAX_COLOR_CHANNEL_VALUE and src_g == 0 and src_b == MAX_COLOR_CHANNEL_VALUE:
                 continue
 
             # Apply additional alpha reduction (50% by default)
@@ -405,7 +441,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
         char_index = 0
         for pixel in pixels:
             # Normalize to RGB for color mapping (ignore alpha for color matching)
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 rgb = pixel[:3]
             else:
                 rgb = pixel
@@ -430,7 +466,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
                 if idx < len(pixels):
                     pixel = pixels[idx]
                     # Normalize to RGB for mapping
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         rgb = pixel[:3]
                     else:
                         rgb = pixel
@@ -449,7 +485,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
             # Find a pixel with this RGB to get alpha value
             alpha = 255  # Default to opaque
             for pixel in pixels:
-                if len(pixel) == 4:
+                if len(pixel) == RGBA_COMPONENT_COUNT:
                     if pixel[:3] == rgb:
                         alpha = pixel[3]
                         break
@@ -490,13 +526,13 @@ def _detect_alpha_channel(colors: dict) -> bool:
             if "alpha" in color_data or "a" in color_data:
                 return True
             # Check if we have 4 values (RGBA) instead of 3 (RGB)
-            if len(color_data) == 4:
+            if len(color_data) == RGBA_COMPONENT_COUNT:
                 return True
             # Check for magenta transparency (255, 0, 255)
             r = color_data.get("red", color_data.get("r", 0))
             g = color_data.get("green", color_data.get("g", 0))
             b = color_data.get("blue", color_data.get("b", 0))
-            if r == 255 and g == 0 and b == 255:
+            if r == MAX_COLOR_CHANNEL_VALUE and g == 0 and b == MAX_COLOR_CHANNEL_VALUE:
                 return True
     return False
 
@@ -572,7 +608,7 @@ def _convert_colors_to_rgba(colors: dict) -> dict:
             b = color_data.get("blue", color_data.get("b", 0))
 
             # Check for magenta transparency (255, 0, 255) = alpha 0
-            if r == 255 and g == 0 and b == 255:
+            if r == MAX_COLOR_CHANNEL_VALUE and g == 0 and b == MAX_COLOR_CHANNEL_VALUE:
                 a = 0  # Fully transparent
             else:
                 a = color_data.get("alpha", color_data.get("a", 255))  # Default to opaque
@@ -699,9 +735,9 @@ def load_ai_training_data():
                                 pixels = frame.get_pixel_data()
                                 # Check if any pixel has alpha != 255 (non-opaque)
                                 for pixel in pixels:
-                                    if len(pixel) == 4:
+                                    if len(pixel) == RGBA_COMPONENT_COUNT:
                                         r, g, b, a = pixel
-                                        if a != 255:
+                                        if a != MAX_COLOR_CHANNEL_VALUE:
                                             has_alpha = True
                                             break
                                 if has_alpha:
@@ -761,9 +797,9 @@ def load_ai_training_data():
                         has_alpha = False
                         if hasattr(sprite, "pixels"):
                             for pixel in sprite.pixels:
-                                if len(pixel) == 4:
+                                if len(pixel) == RGBA_COMPONENT_COUNT:
                                     r, g, b, a = pixel
-                                    if a != 255:
+                                    if a != MAX_COLOR_CHANNEL_VALUE:
                                         has_alpha = True
                                         break
 
@@ -785,9 +821,15 @@ def load_ai_training_data():
                     alpha_type = "indexed"  # Default
                     if hasattr(sprite, "color_map"):
                         for color_name, color_value in sprite.color_map.items():
-                            if isinstance(color_value, (list, tuple)) and len(color_value) >= 4:
+                            if (
+                                isinstance(color_value, (list, tuple))
+                                and len(color_value) >= RGBA_COMPONENT_COUNT
+                            ):
                                 alpha = color_value[3]
-                                if isinstance(alpha, (int, float)) and 0 <= alpha <= 254:
+                                if (
+                                    isinstance(alpha, (int, float))
+                                    and 0 <= alpha <= MAX_PER_PIXEL_ALPHA
+                                ):
                                     alpha_type = "per-pixel"
                                     break
 
@@ -916,7 +958,7 @@ class BitmapPixelSprite(BitmappySprite):
 
         """
         # Convert RGB to RGBA if needed
-        if len(new_pixel_color) == 3:
+        if len(new_pixel_color) == RGB_COMPONENT_COUNT:
             self._pixel_color = (new_pixel_color[0], new_pixel_color[1], new_pixel_color[2], 255)
         else:
             self._pixel_color = new_pixel_color
@@ -1226,7 +1268,7 @@ def _check_ollama_model_status(log: logging.Logger) -> dict:
 
         # Check if model exists locally
         response = requests.get("http://localhost:11434/api/tags", timeout=10)
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             models = response.json().get("models", [])
             for model in models:
                 if model_name in model.get("name", ""):
@@ -1298,7 +1340,7 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
         duration = end_time - start_time
 
         log.info(f"Model capability query completed in {duration:.2f} seconds")
-        if duration > 60:
+        if duration > MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS:
             log.info("Model was likely downloaded during this request")
 
         if hasattr(response, "choices") and response.choices:
@@ -1310,7 +1352,7 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
                 # Try to parse comma-separated values first
                 if "," in content.strip():
                     parts = content.strip().split(",")
-                    if len(parts) == 2:
+                    if len(parts) == AI_CAPABILITY_RESPONSE_FIELD_COUNT:
                         context_size = int(parts[0].strip())
                         output_limit = int(parts[1].strip())
                         capabilities = {
@@ -1593,7 +1635,10 @@ def _select_relevant_training_examples(
                 ):
                     score += 3
                 # Same aspect ratio (+1)
-                elif abs((req_width / req_height) - (ex_width / ex_height)) < 0.2:
+                elif (
+                    abs((req_width / req_height) - (ex_width / ex_height))
+                    < SPRITE_ASPECT_RATIO_TOLERANCE
+                ):
                     score += 1
 
         # Name keyword matching (+5 per matching word)
@@ -1940,9 +1985,9 @@ def _fix_color_format_in_toml_data(data: dict, log: logging.Logger) -> dict:
                             # Map the values to red, green, blue
                             if field_name == "red" and len(values) >= 1:
                                 fixed_color["red"] = values[0]
-                                if len(values) >= 2:
+                                if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
                                     fixed_color["green"] = values[1]
-                                if len(values) >= 3:
+                                if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
                                     fixed_color["blue"] = values[2]
                                 log.warning(
                                     f"Fixed comma-separated color format for '{color_key}': {field_value} -> separate fields"
@@ -2450,7 +2495,7 @@ class FilmStripSprite(BitmappySprite):
                 color = pixel_data[pixel_num]
 
                 # Handle both RGB and RGBA pixel formats
-                if len(color) == 4:
+                if len(color) == RGBA_COMPONENT_COUNT:
                     red, green, blue, alpha = color
                 else:
                     red, green, blue = color
@@ -2936,10 +2981,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         self.animated_sprite = animated_sprite
         # Use the sprite's current animation if set and not empty, otherwise start empty
-        if (
-            hasattr(animated_sprite, "current_animation")
-            and animated_sprite.current_animation
-        ):
+        if hasattr(animated_sprite, "current_animation") and animated_sprite.current_animation:
             self.current_animation = animated_sprite.current_animation
         else:
             self.current_animation = ""  # Start with empty animation
@@ -2977,8 +3019,14 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         # Disable borders for very small pixels (2x2 or smaller) or very large sprites (128x128)
         should_disable_borders = (
-            (self.pixel_width <= 2 and self.pixel_height <= 2)  # Very small pixels
-            or (self.pixels_across >= 128 or self.pixels_tall >= 128)  # Very large sprites
+            (
+                self.pixel_width <= MIN_PIXEL_DISPLAY_SIZE
+                and self.pixel_height <= MIN_PIXEL_DISPLAY_SIZE
+            )  # Very small pixels
+            or (
+                self.pixels_across >= LARGE_SPRITE_DIMENSION
+                or self.pixels_tall >= LARGE_SPRITE_DIMENSION
+            )  # Very large sprites
         )
 
         old_border_thickness = getattr(self, "border_thickness", 1)
@@ -3260,7 +3308,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         # Ensure all pixels are RGBA format
         rgba_pixels = []
         for pixel in pixels:
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 rgba_pixels.append(pixel)
             else:
                 # Convert RGB to RGBA with full opacity
@@ -3821,7 +3869,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         if i < width * height:
                             x = i % width
                             y = i // width
-                            if len(pixel) == 4:
+                            if len(pixel) == RGBA_COMPONENT_COUNT:
                                 self._drag_frame._image.set_at((x, y), pixel)
                             else:
                                 self._drag_frame._image.set_at((x, y), pixel)
@@ -3923,7 +3971,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         if i < width * height:
                             x = i % width
                             y = i // width
-                            if len(pixel) == 4:
+                            if len(pixel) == RGBA_COMPONENT_COUNT:
                                 self._drag_frame._image.set_at((x, y), pixel)
                             else:
                                 self._drag_frame._image.set_at((x, y), pixel)
@@ -4371,8 +4419,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         LOG.debug(f"320x320 constraint: {320 // max(sprite_width, sprite_height)}")
 
         # For large sprites (128x128), ensure we get at least 2x2 pixel size
-        if sprite_width >= 128 and sprite_height >= 128:
-            pixel_size = 2  # Force 2x2 pixel size for 128x128
+        if sprite_width >= LARGE_SPRITE_DIMENSION and sprite_height >= LARGE_SPRITE_DIMENSION:
+            pixel_size = MIN_PIXEL_DISPLAY_SIZE  # Force 2x2 pixel size for 128x128
             LOG.debug("*** FORCING 2x2 pixel size for 128x128 sprite ***")
         else:
             pixel_size = min(
@@ -5096,8 +5144,10 @@ class BitmapEditorScene(Scene):
         LOG.debug(f"Calculated pixel_size: {pixel_size}")
 
         # For very large sprites, ensure we get at least 2x2 pixel size
-        if pixel_size < 2:
-            pixel_size = 2  # Force minimum 2x2 pixel size for very large sprites
+        if pixel_size < MIN_PIXEL_DISPLAY_SIZE:
+            pixel_size = (
+                MIN_PIXEL_DISPLAY_SIZE  # Force minimum 2x2 pixel size for very large sprites
+            )
             LOG.debug("*** FORCING minimum 2x2 pixel size for large sprite ***")
 
         LOG.debug(f"Final pixel_size: {pixel_size}")
@@ -5867,7 +5917,7 @@ class BitmapEditorScene(Scene):
                             film_strip_sprite.dirty = 1
 
                 # Ensure we show up to 2 strips after deletion
-                if len(remaining_animations) <= 2:
+                if len(remaining_animations) <= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING:
                     # If we have 2 or fewer strips, show them all starting from index 0
                     self.film_strip_scroll_offset = 0
                 # If we deleted the last strip, show the previous 2 strips
@@ -6303,14 +6353,20 @@ class BitmapEditorScene(Scene):
         debug_width = self.screen_width - debug_x  # Extend to right edge of screen
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
+        if (
+            hasattr(self, "film_strips")
+            and self.film_strips
+            and len(self.film_strips) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING
+        ):
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
             # Safely get the second film strip to handle race conditions during sprite loading
             try:
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
-                if len(film_strip_list) >= 2 and hasattr(film_strip_list[1], "rect"):
+                if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
+                    film_strip_list[1], "rect"
+                ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except (IndexError, KeyError, AttributeError):
                 # Handle race condition where film strips are in transition
@@ -6370,14 +6426,20 @@ class BitmapEditorScene(Scene):
         debug_width = self.screen_width - debug_x  # Extend to right edge of screen
 
         # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if hasattr(self, "film_strips") and self.film_strips and len(self.film_strips) >= 2:
+        if (
+            hasattr(self, "film_strips")
+            and self.film_strips
+            and len(self.film_strips) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING
+        ):
             # Find the bottom of the 2nd film strip
             second_strip_bottom = 0
             # Safely get the second film strip to handle race conditions during sprite loading
             try:
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
-                if len(film_strip_list) >= 2 and hasattr(film_strip_list[1], "rect"):
+                if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
+                    film_strip_list[1], "rect"
+                ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except (IndexError, KeyError, AttributeError):
                 # Handle race condition where film strips are in transition
@@ -7878,7 +7940,7 @@ class BitmapEditorScene(Scene):
             color = self.screen.get_at(screen_pos)
 
             # Handle both RGB and RGBA screen formats
-            if len(color) == 4:
+            if len(color) == RGBA_COMPONENT_COUNT:
                 red, green, blue, _ = color  # Ignore alpha from screen
             else:
                 red, green, blue = color
@@ -8012,7 +8074,7 @@ class BitmapEditorScene(Scene):
                     color = self.canvas.pixels[pixel_num]
 
                     # Handle both RGB and RGBA pixel formats
-                    if len(color) == 4:
+                    if len(color) == RGBA_COMPONENT_COUNT:
                         red, green, blue, alpha = color
                     else:
                         red, green, blue = color
@@ -8039,7 +8101,7 @@ class BitmapEditorScene(Scene):
         # Fallback to screen sampling (RGB only)
         try:
             color = self.screen.get_at(event.pos)
-            if len(color) == 4:
+            if len(color) == RGBA_COMPONENT_COUNT:
                 red, green, blue, _ = color  # Ignore alpha from screen
             else:
                 red, green, blue = color
@@ -8125,7 +8187,7 @@ class BitmapEditorScene(Scene):
                             # No hex characters, parse as decimal
                             new_value = int(text)
 
-                        if 0 <= new_value <= 255:
+                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                             self.red_slider.value = new_value
                             # Update original value for future validations
                             self.red_slider.original_value = new_value
@@ -8175,7 +8237,7 @@ class BitmapEditorScene(Scene):
                             # No hex characters, parse as decimal
                             new_value = int(text)
 
-                        if 0 <= new_value <= 255:
+                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                             self.green_slider.value = new_value
                             # Update original value for future validations
                             self.green_slider.original_value = new_value
@@ -8218,7 +8280,7 @@ class BitmapEditorScene(Scene):
                             # No hex characters, parse as decimal
                             new_value = int(text)
 
-                        if 0 <= new_value <= 255:
+                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                             self.blue_slider.value = new_value
                             # Update original value for future validations
                             self.blue_slider.original_value = new_value
@@ -8792,7 +8854,7 @@ class BitmapEditorScene(Scene):
             if examples:
                 # Check if we have only one film strip with one frame - if so, just send the frame
                 if (
-                    len(examples) == 2
+                    len(examples) == AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT
                     and hasattr(self, "canvas")
                     and self.canvas
                     and hasattr(self.canvas, "animated_sprite")
@@ -9289,10 +9351,12 @@ class BitmapEditorScene(Scene):
                 # Check if any pixel is not magenta (255, 0, 255)
                 non_magenta_count = 0
                 for i, pixel in enumerate(pixels):
-                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                    if isinstance(pixel, tuple) and len(pixel) >= RGB_COMPONENT_COUNT:
                         if pixel[:3] != (255, 0, 255):
                             non_magenta_count += 1
-                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                            if (
+                                non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS
+                            ):  # Log first few non-magenta pixels
                                 self.log.debug(f"Found non-magenta pixel {i}: {pixel[:3]}")
                     elif isinstance(pixel, int):
                         # Convert integer color to RGB
@@ -9301,7 +9365,9 @@ class BitmapEditorScene(Scene):
                         b = pixel & 0xFF
                         if (r, g, b) != (255, 0, 255):
                             non_magenta_count += 1
-                            if non_magenta_count <= 5:  # Log first few non-magenta pixels
+                            if (
+                                non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS
+                            ):  # Log first few non-magenta pixels
                                 self.log.debug(f"Found non-magenta pixel {i}: ({r}, {g}, {b})")
 
                 self.log.debug(
@@ -9434,32 +9500,32 @@ class BitmapEditorScene(Scene):
             )
             self.log.info(f"DEBUG: Current frame: {getattr(self.canvas, 'current_frame', 'N/A')}")
             for i, pixel in enumerate(pixels):
-                if isinstance(pixel, tuple) and len(pixel) >= 3:
+                if isinstance(pixel, tuple) and len(pixel) >= RGB_COMPONENT_COUNT:
                     color = pixel[:3]
-                    if i < 5:  # Debug first few pixels
+                    if i < DEBUG_LOG_FIRST_N_PIXELS:  # Debug first few pixels
                         self.log.debug(f"DEBUG: Pixel {i}: tuple {pixel} -> color {color}")
                 elif isinstance(pixel, int):
                     r = (pixel >> 16) & 0xFF
                     g = (pixel >> 8) & 0xFF
                     b = pixel & 0xFF
                     color = (r, g, b)
-                    if i < 5:  # Debug first few pixels
+                    if i < DEBUG_LOG_FIRST_N_PIXELS:  # Debug first few pixels
                         self.log.debug(f"DEBUG: Pixel {i}: int {pixel} -> color {color}")
                 else:
                     color = (255, 0, 255)  # Default magenta
-                    if i < 5:  # Debug first few pixels
+                    if i < DEBUG_LOG_FIRST_N_PIXELS:  # Debug first few pixels
                         self.log.debug(
                             f"DEBUG: Pixel {i}: unknown type {type(pixel)} value {pixel} -> default magenta"
                         )
                 unique_colors.add(color)
 
             # If forcing single-char glyphs and we have too many colors, quantize
-            if force_single_char_glyphs and len(unique_colors) > 64:
+            if force_single_char_glyphs and len(unique_colors) > MAX_COLORS_FOR_AI_TRAINING:
                 self.log.info(f"Quantizing {len(unique_colors)} colors down to 64 for AI training")
                 # Use simple color quantization: pick the 64 most common colors
                 color_counts = {}
                 for pixel in pixels:
-                    if isinstance(pixel, tuple) and len(pixel) >= 3:
+                    if isinstance(pixel, tuple) and len(pixel) >= RGB_COMPONENT_COUNT:
                         color = pixel[:3]
                     elif isinstance(pixel, int):
                         r = (pixel >> 16) & 0xFF
@@ -9508,7 +9574,7 @@ class BitmapEditorScene(Scene):
                         pixel = pixels[pixel_index]
 
                         # Convert pixel to color tuple
-                        if isinstance(pixel, tuple) and len(pixel) >= 3:
+                        if isinstance(pixel, tuple) and len(pixel) >= RGB_COMPONENT_COUNT:
                             color = pixel[:3]
                         elif isinstance(pixel, int):
                             r = (pixel >> 16) & 0xFF
@@ -9550,7 +9616,7 @@ class BitmapEditorScene(Scene):
             # Generate color definitions using the consistent mapping
             color_definitions = ""
             for color in sorted_colors:
-                if isinstance(color, tuple) and len(color) >= 3:
+                if isinstance(color, tuple) and len(color) >= RGB_COMPONENT_COUNT:
                     r, g, b = color[:3]
                     glyph = color_to_glyph[color]
                     color_definitions += (
@@ -11321,7 +11387,7 @@ pixels = \"\"\"
 
             current_time = time.time()
             # If more than 0.1 seconds have passed since the first pixel change, submit it
-            if current_time - self._pixel_change_timer > 0.1:
+            if current_time - self._pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:
                 self._submit_pixel_changes_if_ready()
                 self._pixel_change_timer = None
 
@@ -11493,7 +11559,9 @@ pixels = \"\"\"
                     if has_transparency:
                         # Get the original pixel with alpha
                         original_pixel = original_image.get_at((x, y))
-                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                        if (
+                            original_pixel.a < ALPHA_TRANSPARENCY_THRESHOLD
+                        ):  # Semi-transparent or fully transparent
                             transparent_pixels += 1
                             # Map transparent pixels to magenta
                             unique_colors.discard(color)  # Remove the current color
@@ -11532,7 +11600,8 @@ pixels = \"\"\"
 
                     # If no close group exists and we have space, create new group
                     if (
-                        closest_group is None or min_distance > 1000
+                        closest_group is None
+                        or min_distance > COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD
                     ):  # Lower threshold for better color separation
                         if len(color_groups) < available_colors:
                             color_groups[color] = [color]
@@ -11614,7 +11683,9 @@ pixels = \"\"\"
                     # Handle transparency - check if this pixel should be transparent
                     if has_transparency:
                         original_pixel = original_image.get_at((x, y))
-                        if original_pixel.a < 128:  # Semi-transparent or fully transparent
+                        if (
+                            original_pixel.a < ALPHA_TRANSPARENCY_THRESHOLD
+                        ):  # Semi-transparent or fully transparent
                             color_key = (255, 0, 255)  # Use magenta for transparency
 
                     # If color is not in mapping, find closest mapped color
@@ -11640,7 +11711,7 @@ pixels = \"\"\"
                     pixel_string += "\n"
 
                 # Log progress for large images
-                if height > 32 and y % (height // 10) == 0:
+                if height > PROGRESS_LOG_MIN_HEIGHT and y % (height // 10) == 0:
                     self.log.info(f"Progress: {y}/{height} rows processed")
 
             # Generate TOML content
@@ -11793,7 +11864,7 @@ pixels = \"\"\"
                                         for x in range(frame_width):
                                             color = frame_surface.get_at((x, y))
                                             # Handle transparency key specially - keep it opaque for canvas
-                                            if len(color) == 4:
+                                            if len(color) == RGBA_COMPONENT_COUNT:
                                                 r, g, b, a = color
                                                 if (r, g, b) == (255, 0, 255) and a == 0:
                                                     # Transparent magenta should be opaque magenta for canvas
@@ -12933,13 +13004,13 @@ pixels = \"\"\"
             # 0.8-1.5s: level 1 (2 ticks per 0.1s)
             # 1.5-2.5s: level 2 (4 ticks per 0.05s)
             # 2.5s+: level 3 (8 ticks per 0.025s)
-            if time_since_start < 0.8:
+            if time_since_start < CONTROLLER_ACCEL_LEVEL1_TIME:
                 acceleration_level = 0
                 interval = 0.15  # ~6.7 ticks per second
-            elif time_since_start < 1.5:
+            elif time_since_start < CONTROLLER_ACCEL_LEVEL2_TIME:
                 acceleration_level = 1
                 interval = 0.1  # 10 ticks per second
-            elif time_since_start < 2.5:
+            elif time_since_start < CONTROLLER_ACCEL_LEVEL3_TIME:
                 acceleration_level = 2
                 interval = 0.05  # 20 ticks per second
             else:
@@ -13055,13 +13126,13 @@ pixels = \"\"\"
             time_since_last = current_time - movement_data["last_movement"]
 
             # Calculate acceleration level (same as sliders)
-            if time_since_start < 0.8:
+            if time_since_start < CONTROLLER_ACCEL_LEVEL1_TIME:
                 acceleration_level = 0
                 interval = 0.15  # ~6.7 movements per second
-            elif time_since_start < 1.5:
+            elif time_since_start < CONTROLLER_ACCEL_LEVEL2_TIME:
                 acceleration_level = 1
                 interval = 0.1  # 10 movements per second
-            elif time_since_start < 2.5:
+            elif time_since_start < CONTROLLER_ACCEL_LEVEL3_TIME:
                 acceleration_level = 2
                 interval = 0.05  # 20 movements per second
             else:
@@ -13388,7 +13459,7 @@ pixels = \"\"\"
 
         # Map joystick buttons to controller actions
         # Button 9 is likely LEFT SHOULDER button, not START
-        if event.button == 9:  # LEFT SHOULDER button
+        if event.button == JOYSTICK_LEFT_SHOULDER_BUTTON:  # LEFT SHOULDER button
             # print("DEBUG: Joystick LEFT SHOULDER button pressed - UNHANDLED")
             # Left shoulder button: Currently unhandled to prevent reset behavior
             # controller_id = getattr(event, 'instance_id', 0)
@@ -13435,11 +13506,11 @@ pixels = \"\"\"
         if isinstance(event.value, tuple):
             # For tuple, calculate magnitude
             hat_magnitude = (event.value[0] ** 2 + event.value[1] ** 2) ** 0.5
-            if hat_magnitude < 0.5:
+            if hat_magnitude < HAT_INPUT_MAGNITUDE_THRESHOLD:
                 LOG.debug("DEBUG: Joystick hat motion below threshold, ignoring")
                 return
         # For integer bitmask, use abs
-        elif abs(event.value) < 0.5:
+        elif abs(event.value) < HAT_INPUT_MAGNITUDE_THRESHOLD:
             LOG.debug("DEBUG: Joystick hat motion below threshold, ignoring")
             return
 
@@ -13448,15 +13519,15 @@ pixels = \"\"\"
             LOG.debug("DEBUG: Joystick hat up - DISABLED (use multi-controller system)")
             # OLD SYSTEM DISABLED - Use multi-controller system instead
             return
-        if event.value == 2:  # Right
+        if event.value == JOYSTICK_HAT_RIGHT:  # Right
             LOG.debug("DEBUG: Joystick hat right - DISABLED (use multi-controller system)")
             # OLD SYSTEM DISABLED - Use multi-controller system instead
             return
-        if event.value == 4:  # Down
+        if event.value == JOYSTICK_HAT_DOWN:  # Down
             LOG.debug("DEBUG: Joystick hat down - DISABLED (use multi-controller system)")
             # OLD SYSTEM DISABLED - Use multi-controller system instead
             return
-        if event.value == 8:  # Left
+        if event.value == JOYSTICK_HAT_LEFT:  # Left
             LOG.debug("DEBUG: Joystick hat left - DISABLED (use multi-controller system)")
             # OLD SYSTEM DISABLED - Use multi-controller system instead
             return

@@ -11,6 +11,7 @@ from typing import Any, Protocol
 import pygame
 
 # Import the default file format constant
+from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
 LOG = logging.getLogger("game.tools.canvas_interfaces")
@@ -155,7 +156,7 @@ class StaticCanvasInterface:
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             pixel = self.canvas_sprite.pixels[pixel_num]
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 return pixel
             return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
@@ -241,7 +242,7 @@ class AnimatedCanvasInterface:
         # Ensure all pixels are RGBA format
         rgba_pixels = []
         for pixel in pixels:
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 rgba_pixels.append(pixel)
             else:
                 # Convert RGB to RGBA with full opacity
@@ -291,11 +292,11 @@ class AnimatedCanvasInterface:
                         current_frame_index
                     ]
                     pixel = frame.get_pixel_data()[pixel_num]
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         return pixel
                     return (pixel[0], pixel[1], pixel[2], 255)
             pixel = self.canvas_sprite.pixels[pixel_num]
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 return pixel
             return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
@@ -648,7 +649,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 alpha = int(255 * onion_manager.onion_transparency)
 
                                 # Handle both RGB and RGBA pixels
-                                if len(pixel) == 4:
+                                if len(pixel) == RGBA_COMPONENT_COUNT:
                                     # Already RGBA - combine with onion transparency
                                     r, g, b, pixel_alpha = pixel
                                     combined_alpha = int((pixel_alpha * alpha) / 255)
@@ -749,7 +750,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
                         if controller_indicator_color:
                             # Draw normal pixel first with alpha blending if RGBA
-                            if len(pixel) == 4:
+                            if len(pixel) == RGBA_COMPONENT_COUNT:
                                 # RGBA pixel - use alpha blending
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
@@ -784,7 +785,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 self.canvas_sprite.pixel_height,
                             )
                         # Draw normal pixel with alpha blending if RGBA
-                        elif len(pixel) == 4:
+                        elif len(pixel) == RGBA_COMPONENT_COUNT:
                             # RGBA pixel - use alpha blending
                             pygame.draw.rect(
                                 self.canvas_sprite.image,

@@ -14,6 +14,12 @@ from glitchygames.color import WHITE
 from glitchygames.movement import Speed
 from glitchygames.sprites import Sprite
 
+# Threshold below which speed changes are considered noise
+SPEED_CHANGE_NOISE_FLOOR = 0.001
+
+# Minimum Y movement to be considered significant for logging
+SIGNIFICANT_MOVEMENT_THRESHOLD = 0.1
+
 
 class BallSpawnMode:
     """Bitwise flags for ball spawn behavior."""
@@ -561,7 +567,10 @@ class BallSprite(Sprite):
         self._check_continuous_speed_up(current_time)
 
         # Check if speed changed unexpectedly
-        if abs(self.speed.x - old_speed_x) > 0.001 or abs(self.speed.y - old_speed_y) > 0.001:
+        if (
+            abs(self.speed.x - old_speed_x) > SPEED_CHANGE_NOISE_FLOOR
+            or abs(self.speed.y - old_speed_y) > SPEED_CHANGE_NOISE_FLOOR
+        ):
             new_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             log.debug(
                 f"BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) "
@@ -579,7 +588,7 @@ class BallSprite(Sprite):
         log = logging.getLogger("game")
 
         # Check for weird upward curving behavior
-        if abs(move_y) > 0.1:  # Only log significant Y movement
+        if abs(move_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f"BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} "
                 f"move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) "
@@ -596,7 +605,7 @@ class BallSprite(Sprite):
         delta_y = self.rect.y - old_y
 
         # Check for weird curving behavior
-        if abs(delta_y) > 0.1:  # Only log significant Y movement
+        if abs(delta_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f"BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) "
                 f"delta=({delta_x},{delta_y}) "

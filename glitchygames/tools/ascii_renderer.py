@@ -7,6 +7,8 @@ BitmappySprite objects with colorized terminal output.
 
 from typing import Any
 
+from glitchygames.color import ALPHA_TRANSPARENCY_THRESHOLD, MAX_COLOR_CHANNEL_VALUE
+
 from .terminal_utils import ColorMapper, TerminalDetector
 
 
@@ -72,7 +74,7 @@ class ASCIIRenderer:
                     b = int(value["blue"])
 
                     # Check for magenta transparency (255, 0, 255) = alpha 0
-                    if r == 255 and g == 0 and b == 255:
+                    if r == MAX_COLOR_CHANNEL_VALUE and g == 0 and b == MAX_COLOR_CHANNEL_VALUE:
                         a = 0  # Fully transparent
                     else:
                         # Default alpha to 255 (opaque) if not specified
@@ -135,9 +137,9 @@ class ASCIIRenderer:
                         display_char = self._get_transparency_char()
                         # Use light grey background (192, 192, 192) for better contrast
                         color_code = self.color_mapper.get_color_code(192, 192, 192)
-                    elif a < 255:
+                    elif a < MAX_COLOR_CHANNEL_VALUE:
                         # Semi-transparent - use a lighter version or special character
-                        if a < 128:  # Very transparent
+                        if a < ALPHA_TRANSPARENCY_THRESHOLD:  # Very transparent
                             display_char = self._get_transparency_char()
                         else:  # Semi-transparent
                             display_char = self._get_pixel_char(char)

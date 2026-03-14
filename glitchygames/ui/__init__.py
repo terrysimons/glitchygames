@@ -14,7 +14,7 @@ except ImportError:
 
 import pygame
 from glitchygames import events
-from glitchygames.color import WHITE
+from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT, WHITE
 from glitchygames.events.mouse import MousePointer
 from glitchygames.fonts import FontManager
 from glitchygames.sprites import (
@@ -29,6 +29,12 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger("game.ui")
 LOG.addHandler(logging.NullHandler())
+
+CURSOR_BLINK_FRAME_INTERVAL = 30
+CURSOR_BLINK_HALF_SECOND = 0.5
+PYGAME_MOUSE_SCROLL_UP_BUTTON = 4
+PYGAME_MOUSE_SCROLL_DOWN_BUTTON = 5
+MAX_COLOR_TEXT_INPUT_LENGTH = 3
 
 
 class MenuBar(FocusableSingletonBitmappySprite):
@@ -908,7 +914,7 @@ class TextSprite(BitmappySprite):
             old_visible = self._cursor_visible
             self._cursor_timer += 1
             # Blink every 30 frames (0.5 seconds at 60fps)
-            if self._cursor_timer >= 30:
+            if self._cursor_timer >= CURSOR_BLINK_FRAME_INTERVAL:
                 self._cursor_visible = not self._cursor_visible
                 self._cursor_timer = 0
                 # Force redraw when cursor visibility changes
@@ -1376,7 +1382,7 @@ class InputBox(Sprite):
         pygame.draw.rect(self.image, self.color, (0, 0, self.rect.width, self.rect.height), 1)
 
         # Blit the  cursor
-        if time.time() % 1 > 0.5 and self.active:
+        if time.time() % 1 > CURSOR_BLINK_HALF_SECOND and self.active:
             self.cursor_rect = self.text_image.get_rect(topleft=(5, 2))
 
             self.cursor.midleft = self.cursor_rect.midright
@@ -1740,7 +1746,7 @@ class SliderSprite(BitmappySprite):
                                 # Decimal input
                                 new_value = int(text)
 
-                            if 0 <= new_value <= 255:
+                            if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                                 # Valid value, update slider
                                 self.value = new_value
 
@@ -1790,8 +1796,8 @@ class SliderSprite(BitmappySprite):
                         self.text_sprite.text += event.unicode.lower()
 
                     # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
-                    if len(self.text_sprite.text) > 3:
-                        self.text_sprite.text = self.text_sprite.text[:3]
+                    if len(self.text_sprite.text) > MAX_COLOR_TEXT_INPUT_LENGTH:
+                        self.text_sprite.text = self.text_sprite.text[:MAX_COLOR_TEXT_INPUT_LENGTH]
 
                     # Force text sprite to update and redraw
                     self.text_sprite.update_text(self.text_sprite.text)
@@ -2202,7 +2208,7 @@ class ColorWellSprite(BitmappySprite):
         self.green = active_color[1]
         self.blue = active_color[2]
         # Handle both RGB and RGBA tuples
-        if len(active_color) == 4:
+        if len(active_color) == RGBA_COMPONENT_COUNT:
             self.alpha = active_color[3]
         else:
             self.alpha = 255  # Default to fully opaque if not specified
@@ -3557,9 +3563,9 @@ class MultiLineTextBox(BitmappySprite):
             self.scroll_offset -= event.y * scroll_amount
         elif hasattr(event, "button"):
             # pygame 1.9 style (button 4 = up, button 5 = down)
-            if event.button == 4:  # Scroll up
+            if event.button == PYGAME_MOUSE_SCROLL_UP_BUTTON:  # Scroll up
                 self.scroll_offset -= scroll_amount
-            elif event.button == 5:  # Scroll down
+            elif event.button == PYGAME_MOUSE_SCROLL_DOWN_BUTTON:  # Scroll down
                 self.scroll_offset += scroll_amount
 
         # Clamp scroll offset

@@ -45,6 +45,10 @@ PACKAGE_PATH: Path = Path(__file__).parent
 ASSET_PATH: Path = Path(__file__).parent / "assets"
 TEST_MODE = False
 
+PYGAME_MIN_MAJOR_VERSION = 2
+PYGAME_MIN_MINOR_VERSION = 2
+UNKNOWN_SDL2_EVENT_TYPE_1543 = 1543
+
 
 class GameEngine(events.EventManager):
     """Glitchy Games' Game engine.
@@ -329,7 +333,10 @@ class GameEngine(events.EventManager):
         # For compatibility with older versions of pygame, use fast events
         #
         # For versions >= 2.2, we can use the new event loop
-        if pygame.version.vernum[0] < 2 and pygame.version.vernum[1] < 2:
+        if (
+            pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
+            and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
+        ):
             self.USE_FASTEVENTS = True
 
         # Ensure Linux/X11 sends DOWN on focus clicks
@@ -1411,7 +1418,7 @@ class GameEngine(events.EventManager):
 
         """
         # Debug: Special handling for event type 1543
-        if event.type == 1543:
+        if event.type == UNKNOWN_SDL2_EVENT_TYPE_1543:
             event_name = pygame.event.event_name(event.type)
             LOG.debug(
                 "process_unimplemented_event received event type %s (%s): %s",

@@ -11,8 +11,12 @@ from copy import deepcopy
 from typing import ClassVar
 
 import pygame
+from glitchygames.color import RGB_COMPONENT_COUNT
 from glitchygames.fonts import FontManager
 from glitchygames.sprites import AnimatedSprite
+
+ANIMATION_NAME_MAX_LENGTH = 50
+CURSOR_BLINK_INTERVAL_MS = 530
 
 LOG = logging.getLogger("game.tools.film_strip")
 LOG.addHandler(logging.NullHandler())
@@ -1341,7 +1345,7 @@ class FilmStripWidget:
         # Handle printable characters
         if hasattr(event, "unicode") and event.unicode and event.unicode.isprintable():
             # Limit length to prevent overflow
-            if len(self.editing_text) < 50:  # Reasonable limit
+            if len(self.editing_text) < ANIMATION_NAME_MAX_LENGTH:  # Reasonable limit
                 self.editing_text += event.unicode
                 # Reset cursor blink to show cursor after typing
                 self.cursor_blink_time = pygame.time.get_ticks()
@@ -1589,7 +1593,7 @@ class FilmStripWidget:
         for y in range(scaled_image.get_height()):
             for x in range(scaled_image.get_width()):
                 color = scaled_image.get_at((x, y))
-                if len(color) == 3:  # RGB
+                if len(color) == RGB_COMPONENT_COUNT:  # RGB
                     r, g, b = color
                     if (r, g, b) == (255, 0, 255):  # Magenta - make transparent
                         rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
@@ -1852,7 +1856,9 @@ class FilmStripWidget:
             if self.editing_animation == anim_name:
                 # Update cursor blink state
                 current_time = pygame.time.get_ticks()
-                if current_time - self.cursor_blink_time > 530:  # Blink every 530ms
+                if (
+                    current_time - self.cursor_blink_time > CURSOR_BLINK_INTERVAL_MS
+                ):  # Blink every 530ms
                     self.cursor_visible = not self.cursor_visible
                     self.cursor_blink_time = current_time
 

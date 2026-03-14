@@ -16,6 +16,10 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 from typing import Any
 
+from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGB_COMPONENT_COUNT
+
+POSITION_TUPLE_LENGTH = 2
+
 
 class ErrorSeverity(Enum):
     """Error severity levels."""
@@ -468,7 +472,7 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(position, tuple) or len(position) != 2:
+        if not isinstance(position, tuple) or len(position) != POSITION_TUPLE_LENGTH:
             return False
 
         x, y = position
@@ -484,11 +488,11 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(color, tuple) or len(color) != 3:
+        if not isinstance(color, tuple) or len(color) != RGB_COMPONENT_COUNT:
             return False
 
         r, g, b = color
-        return all(0 <= c <= 255 for c in [r, g, b])
+        return all(0 <= c <= MAX_COLOR_CHANNEL_VALUE for c in [r, g, b])
 
     def validate_animation_name(self, animation_name: str) -> bool:
         """Validate animation name.

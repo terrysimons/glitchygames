@@ -26,6 +26,8 @@ from glitchygames.services import (
 
 LOG = logging.getLogger("glitchygames.api.sprites")
 
+PNG_IHDR_MINIMUM_BYTES = 24
+
 router = APIRouter(prefix="/sprites", tags=["sprites"])
 
 
@@ -411,7 +413,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
                     import struct
 
                     # PNG dimensions are in the IHDR chunk at bytes 16-24
-                    if len(frame_bytes) >= 24:
+                    if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
                         frame_width = struct.unpack(">I", frame_bytes[16:20])[0]
                         frame_height = struct.unpack(">I", frame_bytes[20:24])[0]
                 except (struct.error, IndexError, ValueError) as dimension_error:

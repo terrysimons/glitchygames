@@ -8,6 +8,12 @@ for the BitmappySprite ASCII renderer.
 import os
 import sys
 
+# Threshold to map RGB channels to 8-color ANSI palette (below = off, above = on).
+ANSI_COLOR_CHANNEL_MIDPOINT = 128
+
+# Threshold for grayscale ramp detection in 256-color mode.
+ANSI_256_GRAYSCALE_RAMP_THRESHOLD = 8
+
 
 class TerminalCapability:
     """Terminal color capability levels."""
@@ -111,19 +117,47 @@ class ColorMapper:
 
         """
         # Map to closest 8-color palette
-        if r < 128 and g < 128 and b < 128:
+        if (
+            r < ANSI_COLOR_CHANNEL_MIDPOINT
+            and g < ANSI_COLOR_CHANNEL_MIDPOINT
+            and b < ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[30m"  # Black
-        if r >= 128 and g < 128 and b < 128:
+        if (
+            r >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and g < ANSI_COLOR_CHANNEL_MIDPOINT
+            and b < ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[31m"  # Red
-        if r < 128 and g >= 128 and b < 128:
+        if (
+            r < ANSI_COLOR_CHANNEL_MIDPOINT
+            and g >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and b < ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[32m"  # Green
-        if r >= 128 and g >= 128 and b < 128:
+        if (
+            r >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and g >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and b < ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[33m"  # Yellow
-        if r < 128 and g < 128 and b >= 128:
+        if (
+            r < ANSI_COLOR_CHANNEL_MIDPOINT
+            and g < ANSI_COLOR_CHANNEL_MIDPOINT
+            and b >= ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[34m"  # Blue
-        if r >= 128 and g < 128 and b >= 128:
+        if (
+            r >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and g < ANSI_COLOR_CHANNEL_MIDPOINT
+            and b >= ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[35m"  # Magenta
-        if r < 128 and g >= 128 and b >= 128:
+        if (
+            r < ANSI_COLOR_CHANNEL_MIDPOINT
+            and g >= ANSI_COLOR_CHANNEL_MIDPOINT
+            and b >= ANSI_COLOR_CHANNEL_MIDPOINT
+        ):
             return "\033[36m"  # Cyan
         return "\033[37m"  # White
 
@@ -135,11 +169,11 @@ class ColorMapper:
 
         """
         # Use 6x6x6 color cube (216 colors) + 16 basic colors
-        if r == g == b and r < 8:
+        if r == g == b and r < ANSI_256_GRAYSCALE_RAMP_THRESHOLD:
             # Grayscale ramp
             gray_index = 232 + int((r / 255) * 23)
             return f"\033[38;5;{gray_index}m"
-        if r == g == b and r >= 8:
+        if r == g == b and r >= ANSI_256_GRAYSCALE_RAMP_THRESHOLD:
             # Extended grayscale
             gray_index = 232 + int((r / 255) * 23)
             return f"\033[38;5;{gray_index}m"

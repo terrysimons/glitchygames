@@ -107,7 +107,9 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         mock_sr = mocker.patch("glitchygames.events.voice.sr")
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
-        mock_sr.Microphone = mocker.Mock(side_effect=AttributeError("Could not find PyAudio; check installation"))
+        mock_sr.Microphone = mocker.Mock(
+            side_effect=AttributeError("Could not find PyAudio; check installation")
+        )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch("glitchygames.events.voice.get_microphone_backend", return_value=None)
 
@@ -137,7 +139,9 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         mock_sr = mocker.patch("glitchygames.events.voice.sr")
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
-        mock_sr.Microphone = mocker.Mock(side_effect=AttributeError("Could not find PyAudio; check installation"))
+        mock_sr.Microphone = mocker.Mock(
+            side_effect=AttributeError("Could not find PyAudio; check installation")
+        )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch("glitchygames.events.voice.get_microphone_backend", return_value=None)
 
@@ -285,7 +289,9 @@ class TestVoiceRecognitionManagerPositive:
         mock_sr = mocker.patch("glitchygames.events.voice.sr")
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
-        mock_sr.Microphone = mocker.Mock(side_effect=AttributeError("Could not find PyAudio; check installation"))
+        mock_sr.Microphone = mocker.Mock(
+            side_effect=AttributeError("Could not find PyAudio; check installation")
+        )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch("glitchygames.events.voice.get_microphone_backend", return_value=None)
 
@@ -394,7 +400,9 @@ class TestVoiceRecognitionManagerPositive:
         mock_sr = mocker.patch("glitchygames.events.voice.sr")
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
-        mock_sr.Microphone = mocker.Mock(side_effect=AttributeError("Could not find PyAudio; check installation"))
+        mock_sr.Microphone = mocker.Mock(
+            side_effect=AttributeError("Could not find PyAudio; check installation")
+        )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch("glitchygames.events.voice.get_microphone_backend", return_value=None)
 

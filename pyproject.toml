@@ -158,7 +158,6 @@ lint.ignore = [
   "ANN", # All annotation rules — pyright is authoritative
 
   # --- Code complexity (game logic is inherently complex) ---
-  "PLR2004", # magic-value-comparison (pixel coords, colors, event codes)
   "PLR1702", # too-many-nested-blocks
   "PLR0912", # too-many-branches
   "PLR0915", # too-many-statements
@@ -282,6 +281,10 @@ lint.fixable = [
 ]
 lint.unfixable = []
 target-version = "py313"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["PLR2004"]
+"glitchygames/tests/**/*.py" = ["PLR2004"]
 
 [tool.ruff.format]
 docstring-code-format = true

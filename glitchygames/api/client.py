@@ -18,6 +18,8 @@ LOG = logging.getLogger("glitchygames.api.client")
 DEFAULT_SERVER_URL = "http://localhost:8000"
 DEFAULT_OUTPUT_FORMATS = ["toml", "png"]
 
+MAX_FILE_NUMBERING_ATTEMPTS = 1000
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI client.
@@ -324,7 +326,7 @@ def find_available_path(base_path: Path) -> Path:
     parent = base_path.parent
 
     counter = 1
-    while counter < 1000:  # Safety limit
+    while counter < MAX_FILE_NUMBERING_ATTEMPTS:  # Safety limit
         new_path = parent / f"{stem}_{counter:03d}{suffix}"
         if not new_path.exists():
             return new_path
@@ -354,7 +356,7 @@ def find_available_directory(base_dir: Path) -> Path:
     parent = base_dir.parent
 
     counter = 1
-    while counter < 1000:  # Safety limit
+    while counter < MAX_FILE_NUMBERING_ATTEMPTS:  # Safety limit
         new_dir = parent / f"{name}-{counter:03d}"
         if not new_dir.exists():
             return new_dir

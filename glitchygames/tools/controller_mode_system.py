@@ -16,6 +16,8 @@ from enum import Enum
 
 from glitchygames.tools.visual_collision_manager import LocationType
 
+MAX_MODE_HISTORY_SIZE = 10
+
 
 class ControllerMode(Enum):
     """Controller mode types."""
@@ -77,8 +79,8 @@ class ControllerModeState:
         self.last_mode_switch_time = current_time
 
         # Limit history size
-        if len(self.mode_history) > 10:
-            self.mode_history = self.mode_history[-10:]
+        if len(self.mode_history) > MAX_MODE_HISTORY_SIZE:
+            self.mode_history = self.mode_history[-MAX_MODE_HISTORY_SIZE:]
 
     def save_current_position(
         self, position: tuple[int, int] = None, frame: int = None, animation: str = None

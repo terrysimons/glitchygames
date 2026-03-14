@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 LOG = logging.getLogger("game.scenes")
 LOG.addHandler(logging.NullHandler())
 
+JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
+
 
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
@@ -213,8 +215,8 @@ class SceneManager(SceneInterface, events.EventManager):
                             self._jitter_interval_start_ns = now_init
                             self._jitter_late_frames = 0
                         buf.append(jitter_ns)
-                        if len(buf) > 512:
-                            del buf[: len(buf) - 512]
+                        if len(buf) > JITTER_SAMPLE_BUFFER_MAX_SIZE:
+                            del buf[: len(buf) - JITTER_SAMPLE_BUFFER_MAX_SIZE]
                         # Late frame if jitter > 0
                         if jitter_ns > 0:
                             self._jitter_late_frames = getattr(self, "_jitter_late_frames", 0) + 1

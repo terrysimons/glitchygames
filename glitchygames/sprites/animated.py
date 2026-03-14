@@ -17,6 +17,14 @@ import toml
 
 # YAML support removed - TOML only
 # Import constants
+from glitchygames.color import (
+    MAGENTA_TRANSPARENCY_KEY,
+    MAX_COLOR_CHANNEL_VALUE,
+    MAX_PER_PIXEL_ALPHA,
+    RGB_COMPONENT_COUNT,
+    RGBA_COMPONENT_COUNT,
+)
+
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 # Import detect_file_format function
@@ -71,14 +79,14 @@ def _needs_alpha_channel(pixels: list[tuple[int, int, int] | tuple[int, int, int
 
     """
     for pixel in pixels:
-        if len(pixel) == 4:
+        if len(pixel) == RGBA_COMPONENT_COUNT:
             # RGBA format - check if alpha is not 255 (fully opaque)
             r, g, b, a = pixel
-            if a != 255:
+            if a != MAX_COLOR_CHANNEL_VALUE:
                 return True
-        elif len(pixel) == 3:
+        elif len(pixel) == RGB_COMPONENT_COUNT:
             # RGB format - check if it's the transparent color (255, 0, 255)
-            if pixel == (255, 0, 255):
+            if pixel == MAGENTA_TRANSPARENCY_KEY:
                 return True
     return False
 
@@ -100,13 +108,13 @@ def _convert_pixels_to_rgb_if_possible(
         # Convert RGBA to RGB, keeping only opaque pixels
         rgb_pixels = []
         for pixel in pixels:
-            if len(pixel) == 4:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
                 r, g, b, a = pixel
-                if a == 255:  # Only keep fully opaque pixels
+                if a == MAX_COLOR_CHANNEL_VALUE:  # Only keep fully opaque pixels
                     rgb_pixels.append((r, g, b))
                 else:
                     # Use magenta for transparent pixels
-                    rgb_pixels.append((255, 0, 255))
+                    rgb_pixels.append(MAGENTA_TRANSPARENCY_KEY)
             else:
                 rgb_pixels.append(pixel)
         return rgb_pixels
@@ -128,7 +136,7 @@ def _convert_pixels_to_rgba_if_needed(
     """
     rgba_pixels = []
     for pixel in pixels:
-        if len(pixel) == 3:
+        if len(pixel) == RGB_COMPONENT_COUNT:
             r, g, b = pixel
             if pixel == (255, 0, 255):
                 # Transparency key - keep it opaque for proper handling
@@ -448,10 +456,10 @@ class SpriteFrame:
         for y in range(height):
             for x in range(width):
                 color = self._image.get_at((x, y))
-                if len(color) == 4:
+                if len(color) == RGBA_COMPONENT_COUNT:
                     pixels.append((color.r, color.g, color.b, color.a))
                 else:
-                    pixels.append((color.r, color.g, color.b, 255))
+                    pixels.append((color.r, color.g, color.b, MAX_COLOR_CHANNEL_VALUE))
         return pixels
 
     def set_pixel_data(
@@ -465,7 +473,7 @@ class SpriteFrame:
             if i < width * height:
                 x = i % width
                 y = i // width
-                if len(pixel) == 4:
+                if len(pixel) == RGBA_COMPONENT_COUNT:
                     # RGBA pixel
                     self._image.set_at((x, y), pixel)
                 else:
@@ -588,7 +596,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 if i < width * height:
                     x = i % width
                     y = i // width
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         # RGBA pixel
                         surface.set_at((x, y), pixel)
                     else:
@@ -1053,7 +1061,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         frame.pixels = []
 
         # Check if any colors in the color map have alpha values
-        has_alpha = any(len(color) == 4 for color in color_map.values())
+        has_alpha = any(len(color) == RGBA_COMPONENT_COUNT for color in color_map.values())
 
         for y in range(height):
             for x in range(width):
@@ -1101,7 +1109,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # Check if 'alpha' was explicitly in the original file
             if "alpha" in color_data:
                 a = color_data["alpha"]
-                if 0 <= a <= 254:
+                if 0 <= a <= MAX_PER_PIXEL_ALPHA:
                     # Has per-pixel alpha (0-254) - store the original value for preservation
                     color_map[char] = (r, g, b, a)
                     original_alpha_values[char] = a
@@ -1310,9 +1318,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     if x < width and y < height:
                         color = color_map.get(char, (255, 0, 255))  # Default to magenta
                         # Ensure color is RGBA for alpha surface
-                        if len(color) == 3:
-                            color = (color[0], color[1], color[2], 255)  # Add full alpha
-                        elif len(color) == 4 and color == (255, 0, 255, 255):
+                        if len(color) == RGB_COMPONENT_COUNT:
+                            color = (
+                                color[0],
+                                color[1],
+                                color[2],
+                                MAX_COLOR_CHANNEL_VALUE,
+                            )  # Add full alpha
+                        elif len(color) == RGBA_COMPONENT_COUNT and color == (255, 0, 255, 255):
                             color = (255, 0, 255, 255)  # Keep magenta opaque for transparency key
                         surface.set_at((x, y), color)
         else:
@@ -1325,9 +1338,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     if x < width and y < height:
                         color = color_map.get(char, (255, 0, 255))  # Default to magenta
                         # Convert to RGB for indexed transparency
-                        if len(color) == 4:
+                        if len(color) == RGBA_COMPONENT_COUNT:
                             r, g, b, a = color
-                            if a == 255:  # Only keep fully opaque pixels
+                            if a == MAX_COLOR_CHANNEL_VALUE:  # Only keep fully opaque pixels
                                 surface.set_at((x, y), (r, g, b))
                             else:
                                 surface.set_at((x, y), (255, 0, 255))  # Transparent
@@ -1510,7 +1523,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             # Write colors section
             f.write("[colors]\n")
             for color_tuple, char in color_map.items():
-                if len(color_tuple) == 4:
+                if len(color_tuple) == RGBA_COMPONENT_COUNT:
                     r, g, b, a = color_tuple
                     f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b}, alpha = {a} }}\n')
                 else:
@@ -1565,12 +1578,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             for char, color in self._color_map.items():
                 used_chars.add(char)
                 # Normalize color to match how we'll look it up
-                if len(color) == 4:
+                if len(color) == RGBA_COMPONENT_COUNT:
                     r, g, b, a = color
-                    if (r, g, b) == (255, 0, 255):
+                    if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
                         # Magenta - always use RGBA format
                         original_color_to_char[255, 0, 255, 255] = char
-                    elif a == 255:
+                    elif a == MAX_COLOR_CHANNEL_VALUE:
                         # Opaque RGBA - can match as RGB or RGBA
                         original_color_to_char[color] = char  # RGBA key
                         original_color_to_char[r, g, b] = char  # RGB key too
@@ -1592,12 +1605,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             for frame in frames:
                 pixels = frame.get_pixel_data()
                 for pixel in pixels:
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         r, g, b, a = pixel
-                        if (r, g, b) == (255, 0, 255):
+                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
                             has_magenta = True
                             break
-                    elif pixel == (255, 0, 255):
+                    elif pixel == MAGENTA_TRANSPARENCY_KEY:
                         has_magenta = True
                         break
                 if has_magenta:
@@ -1622,17 +1635,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 needs_alpha = _needs_alpha_channel(pixels)
 
                 for pixel in pixels:
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         # RGBA pixel
                         r, g, b, a = pixel
                         # Normalize magenta to always use RGBA format (255, 0, 255, 255)
-                        if (r, g, b) == (255, 0, 255):
+                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
                             color_tuple = (255, 0, 255, 255)
                         elif needs_alpha:
                             # Use RGBA tuple for alpha-aware sprites
                             color_tuple = (r, g, b, a)
                         # Convert to RGB for non-alpha sprites (but not magenta)
-                        elif a == 255:
+                        elif a == MAX_COLOR_CHANNEL_VALUE:
                             color_tuple = (r, g, b)
                         else:
                             color_tuple = (255, 0, 255, 255)  # Transparent -> magenta RGBA
@@ -1705,16 +1718,19 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     "blue": b,
                     "alpha": original_alpha_values[char],
                 }
-            elif needs_per_pixel_alpha and len(color_tuple) == 4:
+            elif needs_per_pixel_alpha and len(color_tuple) == RGBA_COMPONENT_COUNT:
                 # Sprite has pixels with alpha 0-254, and this color has RGBA - write the alpha value
                 a = color_tuple[3]
-                if 0 <= a <= 254:
+                if 0 <= a <= MAX_PER_PIXEL_ALPHA:
                     # Per-pixel alpha value - write it
                     data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": a}
                 else:
                     # Alpha=255 (opaque) - write RGB only (indexed color)
                     data["colors"][char] = {"red": r, "green": g, "blue": b}
-            elif len(color_tuple) == 4 and color_tuple[3] != 255:
+            elif (
+                len(color_tuple) == RGBA_COMPONENT_COUNT
+                and color_tuple[3] != MAX_COLOR_CHANNEL_VALUE
+            ):
                 # New color with non-opaque alpha - write alpha field
                 data["colors"][char] = {"red": r, "green": g, "blue": b, "alpha": color_tuple[3]}
             else:
@@ -1782,7 +1798,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         pixel_chars = []
         # Determine whether the color map expects RGBA or RGB tuples
         # If any key in the color_map has length 4, we assume alpha-aware mapping
-        map_uses_alpha = any(len(k) == 4 for k in color_map) if color_map else False
+        map_uses_alpha = (
+            any(len(k) == RGBA_COMPONENT_COUNT for k in color_map) if color_map else False
+        )
         for y in range(height):
             row = []
             for x in range(width):
@@ -1791,10 +1809,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     pixel = pixels[pixel_idx]
                     # Normalize pixel tuple to match color_map key style
                     color_char = None
-                    if len(pixel) == 4:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
                         r, g, b, a = pixel
                         # Normalize magenta to always use RGBA format (255, 0, 255, 255)
-                        if (r, g, b) == (255, 0, 255):
+                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
                             lookup = (255, 0, 255, 255)
                             if lookup not in color_map:
                                 raise KeyError(
@@ -1805,7 +1823,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                         elif map_uses_alpha:
                             # Map has some RGBA keys (magenta), but may have RGB keys for other colors
                             # If pixel is opaque (alpha=255), try RGB first, then RGBA
-                            if a == 255:
+                            if a == MAX_COLOR_CHANNEL_VALUE:
                                 # Try RGB version first
                                 lookup_rgb = (r, g, b)
                                 if lookup_rgb in color_map:
@@ -1829,7 +1847,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                                 color_char = color_map[lookup]
                         else:
                             # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
-                            lookup = (r, g, b) if a == 255 else (255, 0, 255, 255)
+                            lookup = (
+                                (r, g, b) if a == MAX_COLOR_CHANNEL_VALUE else (255, 0, 255, 255)
+                            )
                             if lookup not in color_map:
                                 raise KeyError(
                                     f"Color {lookup} not found in color map. "
@@ -2105,7 +2125,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             if i < width * height:
                 x = i % width
                 y = i // width
-                if len(pixel) == 4:
+                if len(pixel) == RGBA_COMPONENT_COUNT:
                     # RGBA pixel
                     surface.set_at((x, y), pixel)
                 else:

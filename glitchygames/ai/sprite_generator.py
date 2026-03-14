@@ -8,7 +8,12 @@ import logging
 import re
 from typing import Any
 
+from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
+
 LOG = logging.getLogger("game.ai.sprite_generator")
+
+MIN_VALID_PIXEL_LINE_LENGTH = 16
+MAX_SPRITE_DIMENSION = 64
 
 
 class SpriteGenerationPrompt:
@@ -203,7 +208,7 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
             lines.append(f"red = {color_data.get('red', 0)}")
             lines.append(f"green = {color_data.get('green', 0)}")
             lines.append(f"blue = {color_data.get('blue', 0)}")
-            if "alpha" in color_data and color_data["alpha"] != 255:
+            if "alpha" in color_data and color_data["alpha"] != MAX_COLOR_CHANNEL_VALUE:
                 lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")
 
@@ -262,7 +267,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
             lines.append(f"red = {color_data.get('red', 0)}")
             lines.append(f"green = {color_data.get('green', 0)}")
             lines.append(f"blue = {color_data.get('blue', 0)}")
-            if "alpha" in color_data and color_data["alpha"] != 255:
+            if "alpha" in color_data and color_data["alpha"] != MAX_COLOR_CHANNEL_VALUE:
                 lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")
 
@@ -387,7 +392,7 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
                     return False, "Response appears truncated (incomplete pixel data)"
 
                 # Or if last line is very short (< 16 chars) for pixel data
-                if len(last_line) < 16:
+                if len(last_line) < MIN_VALID_PIXEL_LINE_LENGTH:
                     return False, "Response appears truncated (incomplete pixel data)"
 
     # Check for basic TOML structure
@@ -484,7 +489,7 @@ def get_sprite_size_hint(request: str) -> tuple[int, int] | None:
         height = int(match.group(2))
 
         # Validate reasonable sizes (1-64 pixels)
-        if 1 <= width <= 64 and 1 <= height <= 64:
+        if 1 <= width <= MAX_SPRITE_DIMENSION and 1 <= height <= MAX_SPRITE_DIMENSION:
             return (width, height)
 
     return None

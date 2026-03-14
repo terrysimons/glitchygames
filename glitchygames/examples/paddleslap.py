@@ -33,6 +33,21 @@ from glitchygames.sprites import Sprite
 log = logging.getLogger("game")
 log.setLevel(logging.DEBUG)  # Enable debug logging to catch weird ball movement
 
+# Threshold below which speed changes are considered noise
+SPEED_CHANGE_NOISE_FLOOR = 0.001
+
+# Minimum direction component to be considered significant for separation
+SIGNIFICANT_DIRECTION_THRESHOLD = 0.1
+
+# Number of recent positions to keep for trajectory analysis
+DEBUG_TRAJECTORY_HISTORY_SIZE = 10
+
+# Minimum number of positions needed to detect a curve
+MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
+
+# Y trend threshold for detecting significant upward movement (negative = upward)
+UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
 
 class TextSprite(Sprite):
     """A sprite class for displaying text."""
@@ -330,18 +345,18 @@ class Game(Scene):
 
                 ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))
 
-                # Keep only last 10 positions for trajectory analysis
-                if len(ball._debug_positions) > 10:
+                # Keep only last positions for trajectory analysis
+                if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:
                     ball._debug_positions.pop(0)
 
                 # Check for upward curving pattern
-                if len(ball._debug_positions) >= 5:
+                if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:
                     positions = ball._debug_positions
                     # Calculate if ball is curving upward
                     y_positions = [pos[1] for pos in positions]
                     if len(set(y_positions)) > 1:  # Only if Y is changing
                         y_trend = y_positions[-1] - y_positions[0]
-                        if y_trend < -5:  # Moving upward significantly
+                        if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                             log.debug(
                                 f"BALL {i + 1} UPWARD CURVE DETECTED: "
                                 f"y_trend={y_trend:.1f} positions={y_positions[-3:]} "
@@ -599,7 +614,7 @@ class Game(Scene):
                 collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
 
                 # Skip if balls are too far apart or at exact same position
-                if distance > collision_distance or distance < 0.001:
+                if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
                     continue
 
                 # Play collision sound
@@ -676,9 +691,15 @@ class Game(Scene):
 
                 # Ensure at least 1 pixel separation in each significant direction
                 min_pixel_separation = 1.0
-                if abs(nx) > 0.1 and abs(separation_x) < min_pixel_separation:
+                if (
+                    abs(nx) > SIGNIFICANT_DIRECTION_THRESHOLD
+                    and abs(separation_x) < min_pixel_separation
+                ):
                     separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
-                if abs(ny) > 0.1 and abs(separation_y) < min_pixel_separation:
+                if (
+                    abs(ny) > SIGNIFICANT_DIRECTION_THRESHOLD
+                    and abs(separation_y) < min_pixel_separation
+                ):
                     separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
                 ball1.rect.x -= round(separation_x)

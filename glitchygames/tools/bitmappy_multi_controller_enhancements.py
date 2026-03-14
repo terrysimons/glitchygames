@@ -7,6 +7,8 @@ user experience.
 
 import time
 
+MAX_CONTROLLER_ACTION_HISTORY = 100
+
 
 class BitmappyMultiControllerEnhancements:
     """Enhanced multi-controller features for bitmappy."""
@@ -295,8 +297,10 @@ class BitmappyMultiControllerEnhancements:
         self.controller_history[controller_id].append(action_record)
 
         # Limit history size
-        if len(self.controller_history[controller_id]) > 100:
-            self.controller_history[controller_id] = self.controller_history[controller_id][-100:]
+        if len(self.controller_history[controller_id]) > MAX_CONTROLLER_ACTION_HISTORY:
+            self.controller_history[controller_id] = self.controller_history[controller_id][
+                -MAX_CONTROLLER_ACTION_HISTORY:
+            ]
 
     def _update_performance_metrics(self, operation: str, timestamp: float) -> None:
         """Update performance metrics.

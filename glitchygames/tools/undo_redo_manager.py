@@ -15,6 +15,8 @@ from typing import Any
 
 LOG = logging.getLogger(__name__)
 
+MIN_UNDO_STACK_SIZE_FOR_COLLAPSE = 2
+
 
 class OperationType(Enum):
     """Types of operations that can be undone/redone."""
@@ -305,7 +307,7 @@ class UndoRedoManager:
 
         And they're for the same frame, remove both operations since frame creation implies selection.
         """
-        if len(self.undo_stack) < 2:
+        if len(self.undo_stack) < MIN_UNDO_STACK_SIZE_FOR_COLLAPSE:
             return
 
         # Get the last two operations

@@ -6,6 +6,36 @@ from typing import Self
 
 LOG = logging.getLogger(__name__)
 
+# FPS grade thresholds (absolute grading when target FPS is unlimited)
+FPS_GRADE_EXCELLENT = 120
+FPS_GRADE_VERY_GOOD = 60
+FPS_GRADE_GOOD = 45
+FPS_GRADE_FAIR = 30
+FPS_GRADE_POOR = 20
+
+# FPS ratio thresholds (relative grading when target FPS is set)
+FPS_RATIO_EXCELLENT = 0.95
+FPS_RATIO_VERY_GOOD = 0.90
+FPS_RATIO_GOOD = 0.80
+FPS_RATIO_POOR = 0.70
+
+# Delta time history and averaging
+DT_HISTORY_WINDOW = 60
+MIN_HISTORY_FOR_AVERAGING = 10
+DT_ADJUSTMENT_LOG_THRESHOLD = 0.0001
+MIN_DT_HISTORY_FOR_STATS = 2
+RECENT_DT_SAMPLE_COUNT = 5
+
+# Scene frame time and FPS history limits
+MAX_SCENE_FRAME_TIME_HISTORY = 1000
+FPS_HISTORY_MAX_SIZE = 10000
+
+# Trim percent ceiling (must be below 50% to avoid trimming all data)
+MAX_TRIM_PERCENT = 50.0
+
+# Reliability: minimum samples for "5 nines" (99.999%) confidence
+RELIABILITY_MIN_SAMPLES = 1000000
+
 
 class AdaptiveClamping:
     """Singleton class for performance-based delta time adjustment.
@@ -55,14 +85,14 @@ class AdaptiveClamping:
         """
         # Track recent delta times for performance analysis
         self._dt_history.append(dt)
-        if len(self._dt_history) > 60:  # Keep last 60 frames
+        if len(self._dt_history) > DT_HISTORY_WINDOW:  # Keep last 60 frames
             self._dt_history.pop(0)
 
         # Note: FPS tracking is now handled by FPS events, not here
         # This prevents double-counting and ensures we use the accurate FPS from pygame.clock
 
         # Calculate average performance
-        if len(self._dt_history) >= 10:
+        if len(self._dt_history) >= MIN_HISTORY_FOR_AVERAGING:
             avg_dt = sum(self._dt_history) / len(self._dt_history)
             avg_fps = 1.0 / avg_dt if avg_dt > 0 else 60
 
@@ -83,7 +113,7 @@ class AdaptiveClamping:
             )
             log_interval_seconds = interval_ms / 1000.0
             if (
-                abs(adjusted_dt - dt) > 0.0001
+                abs(adjusted_dt - dt) > DT_ADJUSTMENT_LOG_THRESHOLD
                 and current_time - self._last_performance_log_time >= log_interval_seconds
             ):
                 LOG.info(
@@ -122,7 +152,7 @@ class AdaptiveClamping:
         """
         if percent < 0:
             percent = 0.0
-        if percent >= 50.0:
+        if percent >= MAX_TRIM_PERCENT:
             # Prevent trimming away all data; clamp just below 50%
             percent = 49.9
         self._trim_percent = float(percent)
@@ -187,7 +217,9 @@ class AdaptiveClamping:
             # Track frame times for spare time calculation (only for capped FPS)
             if frame_time is not None and self._target_fps > 0:
                 scene_data["frame_times"].append(frame_time)
-                if len(scene_data["frame_times"]) > 1000:  # Keep last 1000 frame times
+                if (
+                    len(scene_data["frame_times"]) > MAX_SCENE_FRAME_TIME_HISTORY
+                ):  # Keep last 1000 frame times
                     scene_data["frame_times"].pop(0)
 
             # Track histogram
@@ -261,7 +293,7 @@ class AdaptiveClamping:
                 "margin_of_error": margin_of_error,
             },
             "reliability_level": "5 9s (99.999%)"
-            if stats["total_samples"] >= 1000000
+            if stats["total_samples"] >= RELIABILITY_MIN_SAMPLES
             else f"Limited ({stats['total_samples']:,} samples)",
         }
 
@@ -275,7 +307,7 @@ class AdaptiveClamping:
         # Also keep recent FPS for immediate stats
         self._fps_history.append(fps)
         if (
-            len(self._fps_history) > 10000
+            len(self._fps_history) > FPS_HISTORY_MAX_SIZE
         ):  # Keep last 10,000 FPS readings (~83s at 120fps, ~42s at 240fps)
             self._fps_history.pop(0)
 
@@ -286,7 +318,7 @@ class AdaptiveClamping:
             dict: Performance statistics including average FPS and history.
 
         """
-        if len(self._dt_history) < 2:
+        if len(self._dt_history) < MIN_DT_HISTORY_FOR_STATS:
             return {"avg_fps": 60.0, "history_length": 0}
 
         avg_dt = sum(self._dt_history) / len(self._dt_history)
@@ -295,7 +327,9 @@ class AdaptiveClamping:
         return {
             "avg_fps": avg_fps,
             "history_length": len(self._dt_history),
-            "recent_dt": self._dt_history[-5:] if len(self._dt_history) >= 5 else self._dt_history,
+            "recent_dt": self._dt_history[-RECENT_DT_SAMPLE_COUNT:]
+            if len(self._dt_history) >= RECENT_DT_SAMPLE_COUNT
+            else self._dt_history,
         }
 
     def reset(self: Self) -> None:
@@ -453,15 +487,15 @@ class AdaptiveClamping:
 
         # If target FPS is 0 (unlimited), use absolute grading
         if self._target_fps == 0:
-            if avg_fps >= 120:
+            if avg_fps >= FPS_GRADE_EXCELLENT:
                 return "A+ (Excellent)"
-            if avg_fps >= 60:
+            if avg_fps >= FPS_GRADE_VERY_GOOD:
                 return "A (Very Good)"
-            if avg_fps >= 45:
+            if avg_fps >= FPS_GRADE_GOOD:
                 return "B (Good)"
-            if avg_fps >= 30:
+            if avg_fps >= FPS_GRADE_FAIR:
                 return "C (Fair)"  # 30 FPS is playable but not great
-            if avg_fps >= 20:
+            if avg_fps >= FPS_GRADE_POOR:
                 return "D (Poor)"
             return "F (Very Poor)"
 
@@ -470,13 +504,13 @@ class AdaptiveClamping:
 
         if fps_ratio >= 1.0:
             return "A+ (Excellent)"  # Meeting or exceeding target
-        if fps_ratio >= 0.95:
+        if fps_ratio >= FPS_RATIO_EXCELLENT:
             return "A (Very Good)"  # 95%+ of target
-        if fps_ratio >= 0.90:
+        if fps_ratio >= FPS_RATIO_VERY_GOOD:
             return "B (Good)"  # 90%+ of target
-        if fps_ratio >= 0.80:
+        if fps_ratio >= FPS_RATIO_GOOD:
             return "C (Fair)"  # 80%+ of target
-        if fps_ratio >= 0.70:
+        if fps_ratio >= FPS_RATIO_POOR:
             return "D (Poor)"  # 70%+ of target
         return "F (Very Poor)"  # <70% of target
 
