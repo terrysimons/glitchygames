@@ -37,6 +37,7 @@ class TestBallSpriteInitialization:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_sprite_initialization_defaults(self):
@@ -55,7 +56,7 @@ class TestBallSpriteInitialization:
         # Speed is calculated from random direction in reset(), so we can't predict exact values
         # But we can test that it's a reasonable speed magnitude
         # (around 250.0 based on current implementation)
-        speed_magnitude = (ball.speed.x**2 + ball.speed.y**2)**0.5
+        speed_magnitude = (ball.speed.x**2 + ball.speed.y**2) ** 0.5
         min_speed_magnitude = 240.0
         max_speed_magnitude = 260.0
         # Should be around 250.0 (current implementation uses fixed speed_magnitude = 250.0)
@@ -67,12 +68,7 @@ class TestBallSpriteInitialization:
         groups = mocker.Mock()
         mocker.patch("pygame.mixer.Sound")
         ball = BallSprite(
-            x=100,
-            y=200,
-            width=30,
-            height=30,
-            groups=groups,
-            collision_sound="test.wav"
+            x=100, y=200, width=30, height=30, groups=groups, collision_sound="test.wav"
         )
 
         # Position is set by reset() during initialization, so it will be random
@@ -117,6 +113,7 @@ class TestBallSpriteColor:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_color_getter(self):
@@ -139,13 +136,7 @@ class TestBallSpriteColor:
         # draw.circle is called twice - once during initialization and once in setter
         assert mock_draw_circle.call_count == SPEED_2
         # Check the last call (the setter call)
-        mock_draw_circle.assert_any_call(
-            ball.image,
-            (0, 255, 0),
-            (10, 10),
-            5,
-            0
-        )
+        mock_draw_circle.assert_any_call(ball.image, (0, 255, 0), (10, 10), 5, 0)
 
 
 class TestBallSpriteBounce:
@@ -153,6 +144,7 @@ class TestBallSpriteBounce:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_do_bounce_top_wall(self, mocker):
@@ -218,6 +210,7 @@ class TestBallSpriteReset:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_reset_position(self, mocker):
@@ -264,6 +257,7 @@ class TestBallSpriteBounceMethod:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_bounce_direction_change(self, mocker):
@@ -311,6 +305,7 @@ class TestBallSpriteUpdate:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_update_movement(self, mocker):
@@ -404,6 +399,7 @@ class TestBallSpriteIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_full_game_cycle(self, mocker):
@@ -451,6 +447,6 @@ class TestBallSpriteIntegration:
             ball.bounce(0)
 
         # Speed should be significantly higher (1.1^3 = 1.331)
-        expected_speed = original_speed * (1.1 ** 3)
+        expected_speed = original_speed * (1.1**3)
         floating_point_tolerance = 1e-10  # Use approximate equality for floating point
         assert abs(ball.speed.x - expected_speed) < floating_point_tolerance

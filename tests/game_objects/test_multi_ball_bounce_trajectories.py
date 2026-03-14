@@ -13,19 +13,19 @@ def test_multi_ball_bounce_trajectories():
     """Test multiple balls with bouncing enabled to verify clean trajectories."""
     print("=== MULTI-BALL BOUNCE TRAJECTORY TEST ===")
     print("Testing multiple balls with bouncing enabled for clean trajectories...")
-    
+
     # Initialize pygame
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
-    
+
     # Create multiple balls with bouncing enabled
     num_balls = 5
     balls = []
-    
+
     for i in range(num_balls):
         ball = BallSprite(
-            bounce_top_bottom=True,   # Enable bouncing
-            bounce_left_right=True
+            bounce_top_bottom=True,  # Enable bouncing
+            bounce_left_right=True,
         )
         # Randomize starting position and speed
         ball.rect.x = random.randint(50, 750)
@@ -33,71 +33,75 @@ def test_multi_ball_bounce_trajectories():
         ball.speed.x = random.uniform(-200, 200)
         ball.speed.y = random.uniform(-200, 200)
         balls.append(ball)
-    
+
     print(f"Created {num_balls} balls with bouncing enabled")
     print("Initial ball states:")
     for i, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        print(f"  Ball {i+1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}")
-    
+        print(
+            f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
+        )
+
     # Track statistics
     start_time = time.time()
     total_bounces = 0
     x_bounces = 0
     y_bounces = 0
     frame_count = 0
-    
+
     # Track trajectory data
     trajectory_data = [[] for _ in range(num_balls)]
     speed_magnitude_samples = [[] for _ in range(num_balls)]
-    
+
     # Simulate movement
-    dt = 1.0/60.0  # 60 FPS
+    dt = 1.0 / 60.0  # 60 FPS
     max_frames = 1800  # 30 seconds at 60 FPS
-    
-    print(f"\nRunning simulation for {max_frames} frames ({max_frames/60:.1f} seconds)...")
-    
+
+    print(f"\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...")
+
     while frame_count < max_frames and any(ball.alive() for ball in balls):
         for i, ball in enumerate(balls):
             if ball.alive():
                 old_x, old_y = ball.rect.x, ball.rect.y
                 old_speed_x, old_speed_y = ball.speed.x, ball.speed.y
-                
+
                 ball.dt_tick(dt)
-                
+
                 new_x, new_y = ball.rect.x, ball.rect.y
                 new_speed_x, new_speed_y = ball.speed.x, ball.speed.y
-                
+
                 # Track trajectory
                 trajectory_data[i].append((new_x, new_y))
-                
+
                 # Check for bounces
                 if old_x != new_x and (new_x <= 1 or new_x >= 800 - ball.width - 1):
                     x_bounces += 1
                     total_bounces += 1
-                    print(f"  Ball {i+1} X bounce at x={new_x}")
-                
+                    print(f"  Ball {i + 1} X bounce at x={new_x}")
+
                 if old_y != new_y and (new_y <= 1 or new_y >= 600 - ball.height - 1):
                     y_bounces += 1
                     total_bounces += 1
-                    print(f"  Ball {i+1} Y bounce at y={new_y}")
-                
+                    print(f"  Ball {i + 1} Y bounce at y={new_y}")
+
                 # Sample speed magnitude every 60 frames (1 second)
                 if frame_count % 60 == 0:
                     current_magnitude = math.sqrt(new_speed_x**2 + new_speed_y**2)
                     speed_magnitude_samples[i].append(current_magnitude)
-        
+
         frame_count += 1
-        
+
         # Report progress every 300 frames (5 seconds)
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             elapsed = time.time() - start_time
-            print(f"  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces")
-    
+            print(
+                f"  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces"
+            )
+
     total_time = time.time() - start_time
     final_alive = sum(1 for ball in balls if ball.alive())
-    
+
     print("\n=== FINAL RESULTS ===")
     print(f"Total time: {total_time:.2f} seconds")
     print(f"Frames processed: {frame_count:,}")
@@ -105,7 +109,7 @@ def test_multi_ball_bounce_trajectories():
     print(f"Total bounces: {total_bounces}")
     print(f"X bounces: {x_bounces}")
     print(f"Y bounces: {y_bounces}")
-    
+
     # Analyze trajectory data
     print("\n=== TRAJECTORY ANALYSIS ===")
     for i, ball in enumerate(balls):
@@ -113,79 +117,80 @@ def test_multi_ball_bounce_trajectories():
             positions = trajectory_data[i]
             x_positions = [pos[0] for pos in positions]
             y_positions = [pos[1] for pos in positions]
-            
+
             # Check position bounds
             min_x, max_x = min(x_positions), max(x_positions)
             min_y, max_y = min(y_positions), max(y_positions)
-            
-            print(f"Ball {i+1} trajectory:")
+
+            print(f"Ball {i + 1} trajectory:")
             print(f"  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]")
             print(f"  Final position: ({ball.rect.x}, {ball.rect.y})")
             print(f"  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})")
             print(f"  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}")
-            
+
             # Check for trajectory issues
             x_drift = max_x - min_x
             y_drift = max_y - min_y
-            
+
             if x_drift > 50 or y_drift > 50:
                 print("  ⚠️  Significant position drift detected")
             else:
                 print("  ✅ Position is stable")
-            
+
             # Check speed magnitude stability
             if speed_magnitude_samples[i]:
                 magnitudes = speed_magnitude_samples[i]
                 min_mag = min(magnitudes)
                 max_mag = max(magnitudes)
                 drift = max_mag - min_mag
-                
+
                 print(f"  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}")
-                
+
                 if drift < 0.01:
                     print("  ✅ Speed magnitude is stable")
                 else:
                     print("  ⚠️  Speed magnitude drift detected")
-    
+
     # Check for ball-to-ball interactions
     print("\n=== BALL INTERACTION ANALYSIS ===")
     interactions = 0
     for i in range(len(balls)):
-        for j in range(i+1, len(balls)):
+        for j in range(i + 1, len(balls)):
             if balls[i].alive() and balls[j].alive():
                 # Check if balls are close
                 dx = balls[i].rect.x - balls[j].rect.x
                 dy = balls[i].rect.y - balls[j].rect.y
-                distance = math.sqrt(dx*dx + dy*dy)
-                
+                distance = math.sqrt(dx * dx + dy * dy)
+
                 if distance < 50:  # Balls are close
                     interactions += 1
-                    print(f"  Balls {i+1} and {j+1} are close: distance={distance:.1f}")
-    
+                    print(f"  Balls {i + 1} and {j + 1} are close: distance={distance:.1f}")
+
     if interactions > 0:
         print(f"  Found {interactions} ball interactions")
     else:
         print("  No ball interactions detected")
-    
+
     # Overall analysis
     print("\n=== OVERALL ANALYSIS ===")
     if final_alive == num_balls:
         print("  ✅ All balls survived with bouncing enabled")
     else:
         print(f"  ⚠️  Only {final_alive}/{num_balls} balls survived")
-    
+
     if total_bounces > 0:
         print(f"  ✅ Bouncing is working ({total_bounces} total bounces)")
     else:
         print("  ❌ No bounces detected - bouncing may be disabled")
-    
+
     pygame.quit()
-    
+
     # Assert that the test completed successfully
     assert final_alive > 0, "At least one ball should survive"
     assert total_bounces > 0, "Bouncing should be working"
-    
+
     print("\n✅ Test completed successfully")
+
 
 if __name__ == "__main__":
     test_multi_ball_bounce_trajectories()

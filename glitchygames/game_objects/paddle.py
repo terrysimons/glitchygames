@@ -48,9 +48,6 @@ class BasePaddle(Sprite):
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -75,9 +72,6 @@ class BasePaddle(Sprite):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self.rect.x += self._move.current_speed
         self.dirty = 1
@@ -86,9 +80,6 @@ class BasePaddle(Sprite):
         """Move the paddle vertically.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -168,9 +159,6 @@ class HorizontalPaddle(BasePaddle):
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -193,9 +181,6 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         if self.is_at_left_of_screen():
             self.rect.x = 0
@@ -212,9 +197,6 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.left()
         self.dirty = 1
@@ -223,9 +205,6 @@ class HorizontalPaddle(BasePaddle):
         """Move right.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -238,9 +217,6 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.stop()
         self.dirty = 1
@@ -249,9 +225,6 @@ class HorizontalPaddle(BasePaddle):
         """Speed up.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -264,16 +237,13 @@ class HorizontalPaddle(BasePaddle):
         Args:
             dt (float): The delta time.
 
-        Returns:
-            None
-
         """
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
-        
+
         # Use proper rounding to avoid precision loss from integer truncation
         self.rect.x += round(movement)
-        
+
         self.dirty = 1
 
 
@@ -301,9 +271,6 @@ class VerticalPaddle(BasePaddle):
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -327,9 +294,6 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Movement is now handled in dt_tick() for frame-rate independence
         # Constrain position at boundaries AND stop movement to prevent bouncing
@@ -346,9 +310,6 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.up()
         self.dirty = 1
@@ -357,9 +318,6 @@ class VerticalPaddle(BasePaddle):
         """Move down.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -372,9 +330,6 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.stop()
         self.dirty = 1
@@ -383,9 +338,6 @@ class VerticalPaddle(BasePaddle):
         """Speed up.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -398,18 +350,16 @@ class VerticalPaddle(BasePaddle):
         Args:
             dt (float): The delta time.
 
-        Returns:
-            None
-
         """
         # Use centralized performance manager for adaptive clamping
         from glitchygames.performance import performance_manager
+
         dt = performance_manager.get_adaptive_dt(dt)
-        
+
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
-        
+
         # Use proper rounding to avoid precision loss from integer truncation
         self.rect.y += round(movement)
-        
+
         self.dirty = 1

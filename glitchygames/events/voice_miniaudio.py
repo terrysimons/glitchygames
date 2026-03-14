@@ -78,6 +78,12 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         chunk_size: int = 1024,
         sample_width: int = 2,
     ) -> None:
+        """Initialize the miniaudio microphone capture device.
+
+        Raises:
+            RuntimeError: If miniaudio is not installed.
+
+        """
         if mi is None:
             raise RuntimeError("miniaudio is not installed")
         self.device_index = device_index
@@ -88,7 +94,13 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.stream: _BlockingByteStream | None = None
         self._device: mi.CaptureDevice | None = None
 
-    def __enter__(self) -> "MiniaudioMicrophone":
+    def __enter__(self) -> MiniaudioMicrophone:
+        """Enter the context manager, starting audio capture.
+
+        Returns:
+            MiniaudioMicrophone: The result.
+
+        """
         self.stream = _BlockingByteStream()
 
         def _callback(frames: bytes) -> None:
@@ -107,7 +119,8 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self._device.start()
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+    def __exit__(self, exc_type, exc, tb) -> None:
+        """Exit the context manager, stopping audio capture and cleaning up."""
         try:
             if self._device is not None:
                 self._device.stop()
@@ -115,5 +128,3 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
             if self.stream is not None:
                 self.stream.close()
             self._device = None
-
-

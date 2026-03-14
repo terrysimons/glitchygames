@@ -30,7 +30,12 @@ class SpriteStackInterface(abc.ABC):
 
     @classmethod
     def __subclasshook__(cls: Self, subclass: object) -> bool:
-        """Override the default __subclasshook__ to create an interface."""
+        """Override the default __subclasshook__ to create an interface.
+
+        Returns:
+            bool: True if the condition is met, False otherwise.
+
+        """
         # Note: This accounts for under/dunder methods in addition to regular methods.
         interface_attributes = set(cls.__abstractmethods__)
 
@@ -141,19 +146,39 @@ class SpriteStack(SpriteStackInterface):
         self.stack[self.frame_index].rect = new_rect
 
     def __getitem__(self: Self, index: int) -> "SpriteFrame":
-        """Return a sprite from the stack."""
+        """Return a sprite from the stack.
+
+        Returns:
+            'SpriteFrame': The item at the given index.
+
+        """
         return self.stack[index]
 
     def get_size(self: Self) -> tuple[int, int]:
-        """Return the size of the surface."""
+        """Return the size of the surface.
+
+        Returns:
+            tuple[int, int]: The size.
+
+        """
         return self.stack[self.frame_index].get_size()
 
     def get_alpha(self: Self) -> int:
-        """Return the alpha value of the surface."""
+        """Return the alpha value of the surface.
+
+        Returns:
+            int: The alpha.
+
+        """
         return self.stack[self.frame_index].get_alpha()
 
     def get_colorkey(self: Self) -> int | None:
-        """Return the colorkey of the surface."""
+        """Return the colorkey of the surface.
+
+        Returns:
+            int | None: The colorkey.
+
+        """
         return self.stack[self.frame_index].get_colorkey()
 
 

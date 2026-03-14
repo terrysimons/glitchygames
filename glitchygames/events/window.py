@@ -30,9 +30,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 game (object): The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
@@ -45,9 +42,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_close_event(event)
 
@@ -56,9 +50,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_enter_event(event)
@@ -69,9 +60,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_exposed_event(event)
 
@@ -80,9 +68,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_focus_gained_event(event)
@@ -93,9 +78,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_focus_lost_event(event)
 
@@ -104,9 +86,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_hidden_event(event)
@@ -117,9 +96,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_hit_test_event(event)
 
@@ -128,9 +104,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_leave_event(event)
@@ -141,9 +114,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_maximized_event(event)
 
@@ -152,9 +122,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_minimized_event(event)
@@ -165,9 +132,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_moved_event(event)
 
@@ -176,9 +140,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_resized_event(event)
@@ -189,9 +150,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_restored_event(event)
 
@@ -200,9 +158,6 @@ class WindowEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_window_shown_event(event)
@@ -213,9 +168,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_size_changed_event(event)
 
@@ -225,9 +177,6 @@ class WindowEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_window_take_focus_event(event)
 
@@ -236,9 +185,6 @@ class WindowEventManager(ResourceManager):
 
         Args:
             game (object): The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -259,6 +205,6 @@ class WindowEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Window Options")  # noqa: F841
+        group = parser.add_argument_group("Window Options")
 
         return parser

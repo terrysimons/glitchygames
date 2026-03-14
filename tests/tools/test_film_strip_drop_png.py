@@ -16,6 +16,7 @@ class TestFilmStripDropPNG:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
@@ -28,7 +29,9 @@ class TestFilmStripDropPNG:
         film_strip_widget.animated_sprite._animations = {
             "test_animation": [self._mocker.Mock(), self._mocker.Mock()]
         }
-        film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=("test_animation", 0))
+        film_strip_widget.get_frame_at_position = self._mocker.Mock(
+            return_value=("test_animation", 0)
+        )
         film_strip_widget.mark_dirty = self._mocker.Mock()
 
         # Create film strip sprite
@@ -75,10 +78,10 @@ class TestFilmStripDropPNG:
         film_strip_widget = self._mocker.Mock(spec=FilmStripWidget)
         film_strip_widget.current_animation = "test_animation"
         film_strip_widget.animated_sprite = self._mocker.Mock()
-        film_strip_widget.animated_sprite._animations = {
-            "test_animation": [self._mocker.Mock()]
-        }
-        film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=None)  # No frame clicked
+        film_strip_widget.animated_sprite._animations = {"test_animation": [self._mocker.Mock()]}
+        film_strip_widget.get_frame_at_position = self._mocker.Mock(
+            return_value=None
+        )  # No frame clicked
         film_strip_widget.mark_dirty = self._mocker.Mock()
         film_strip_widget.set_current_frame = self._mocker.Mock()
 
@@ -158,7 +161,9 @@ class TestFilmStripDropPNG:
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
         film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=False)  # Outside bounds
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(
+            return_value=False
+        )  # Outside bounds
 
         # Create mock drop event
         class MockEvent:
@@ -180,9 +185,7 @@ class TestFilmStripDropPNG:
         film_strip_widget = self._mocker.Mock(spec=FilmStripWidget)
         film_strip_widget.current_animation = "test_animation"
         film_strip_widget.animated_sprite = self._mocker.Mock()
-        film_strip_widget.animated_sprite._animations = {
-            "test_animation": [self._mocker.Mock()]
-        }
+        film_strip_widget.animated_sprite._animations = {"test_animation": [self._mocker.Mock()]}
         film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=None)
         film_strip_widget.mark_dirty = self._mocker.Mock()
         film_strip_widget.set_current_frame = self._mocker.Mock()

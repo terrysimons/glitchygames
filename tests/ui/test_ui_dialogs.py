@@ -28,6 +28,7 @@ class TestInputConfirmationDialogScene:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -47,10 +48,7 @@ class TestInputConfirmationDialogScene:
         mock_input_dialog.return_value = mock_dialog
 
         # Act
-        scene = InputConfirmationDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Assert
         assert scene is not None
@@ -69,10 +67,7 @@ class TestInputConfirmationDialogScene:
         mock_dialog.dialog_text_sprite = mocker.Mock()
         mock_input_dialog.return_value = mock_dialog
 
-        scene = InputConfirmationDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate text submission
         scene.on_text_submit_event("Submitted Text")
@@ -93,10 +88,7 @@ class TestInputConfirmationDialogScene:
         mock_dialog.dialog_text_sprite = mocker.Mock()
         mock_input_dialog.return_value = mock_dialog
 
-        scene = InputConfirmationDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate cancellation via key down event
         event = mocker.Mock()
@@ -112,6 +104,7 @@ class TestLoadDialogScene:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -124,10 +117,7 @@ class TestLoadDialogScene:
         mock_layered_dirty.return_value = mock_groups
 
         # Act
-        scene = LoadDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = LoadDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Assert
         assert scene is not None
@@ -142,10 +132,7 @@ class TestLoadDialogScene:
         mock_previous_scene = mocker.Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
 
-        scene = LoadDialogScene(
-            previous_scene=mock_previous_scene,
-            groups=mock_groups
-        )
+        scene = LoadDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
 
         # Act: simulate file selection via confirm event
         event = mocker.Mock()
@@ -165,10 +152,7 @@ class TestLoadDialogScene:
         mock_previous_scene = mocker.Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
 
-        scene = LoadDialogScene(
-            previous_scene=mock_previous_scene,
-            groups=mock_groups
-        )
+        scene = LoadDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
 
         # Act: simulate cancellation via key down event
         event = mocker.Mock()
@@ -185,6 +169,7 @@ class TestSaveDialogScene:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -197,10 +182,7 @@ class TestSaveDialogScene:
         mock_layered_dirty.return_value = mock_groups
 
         # Act
-        scene = SaveDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Assert
         assert scene is not None
@@ -212,10 +194,7 @@ class TestSaveDialogScene:
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
 
-        scene = SaveDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate filename input
         scene.on_text_input_event("n")
@@ -240,10 +219,7 @@ class TestSaveDialogScene:
         mock_previous_scene = mocker.Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
 
-        scene = SaveDialogScene(
-            previous_scene=mock_previous_scene,
-            groups=mock_groups
-        )
+        scene = SaveDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
 
         # Act: simulate save confirmation via confirm event
         event = mocker.Mock()
@@ -259,6 +235,7 @@ class TestNewCanvasDialogScene:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -271,10 +248,7 @@ class TestNewCanvasDialogScene:
         mock_layered_dirty.return_value = mock_groups
 
         # Act
-        scene = NewCanvasDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Assert
         assert scene is not None
@@ -286,10 +260,7 @@ class TestNewCanvasDialogScene:
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
 
-        scene = NewCanvasDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate dimension input
         scene.on_text_input_event("1")
@@ -310,10 +281,7 @@ class TestNewCanvasDialogScene:
         mock_previous_scene = mocker.Mock()
         mock_previous_scene.all_sprites = []  # Empty list is iterable
 
-        scene = NewCanvasDialogScene(
-            previous_scene=mock_previous_scene,
-            groups=mock_groups
-        )
+        scene = NewCanvasDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
 
         # Act: simulate creation confirmation via confirm event
         event = mocker.Mock()
@@ -330,10 +298,7 @@ class TestNewCanvasDialogScene:
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
 
-        scene = NewCanvasDialogScene(
-            previous_scene=mocker.Mock(),
-            groups=mock_groups
-        )
+        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: test valid dimensions by setting input box text
         scene.dialog.input_box.text = "1024x768"

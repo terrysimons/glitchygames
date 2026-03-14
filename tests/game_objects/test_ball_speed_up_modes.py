@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
-from glitchygames.movement import Speed
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -35,7 +34,7 @@ def test_speed_up_modes(mocker):
     ball2 = BallSprite(
         speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
         speed_up_multiplier=1.05,  # 5% logarithmic increase
-        speed_up_interval=0.1  # Every 0.1 seconds
+        speed_up_interval=0.1,  # Every 0.1 seconds
     )
     print(f"   Initial speed: {ball2.speed.x:.2f}")
 
@@ -50,7 +49,7 @@ def test_speed_up_modes(mocker):
         speed_up_mode=SpeedUpMode.WALL_ONLY_LOGARITHMIC_X,
         speed_up_multiplier=1.1,  # 10% logarithmic increase
         bounce_top_bottom=True,
-        bounce_left_right=True
+        bounce_left_right=True,
     )
     print(f"   Initial speed: {ball3.speed.x:.2f}")
 
@@ -67,7 +66,7 @@ def test_speed_up_modes(mocker):
     print("\n4. PADDLE BOUNCE LOGARITHMIC SPEED-UP MODE")
     ball4 = BallSprite(
         speed_up_mode=SpeedUpMode.PADDLE_ONLY_LOGARITHMIC_X,
-        speed_up_multiplier=1.15  # 15% logarithmic increase
+        speed_up_multiplier=1.15,  # 15% logarithmic increase
     )
     print(f"   Initial speed: {ball4.speed.x:.2f}")
 
@@ -78,10 +77,11 @@ def test_speed_up_modes(mocker):
     # Test 5: Combined logarithmic modes
     print("\n5. COMBINED LOGARITHMIC MODES")
     ball5 = BallSprite(
-        speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
+        speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
+        | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
         speed_up_multiplier=1.02,  # 2% logarithmic increase
         speed_up_interval=0.2,  # Every 0.2 seconds
-        bounce_top_bottom=True
+        bounce_top_bottom=True,
     )
     print(f"   Initial speed: {ball5.speed.x:.2f}")
 
@@ -96,11 +96,11 @@ def test_speed_up_modes(mocker):
     # Test 6: All logarithmic modes combined
     print("\n6. ALL LOGARITHMIC MODES COMBINED")
     ball6 = BallSprite(
-            speed_up_mode=SpeedUpMode.ALL_LOGARITHMIC_X,
+        speed_up_mode=SpeedUpMode.ALL_LOGARITHMIC_X,
         speed_up_multiplier=1.01,  # 1% logarithmic increase
         speed_up_interval=0.1,
         bounce_top_bottom=True,
-        bounce_left_right=True
+        bounce_left_right=True,
     )
     print(f"   Initial speed: {ball6.speed.x:.2f}")
 
@@ -142,9 +142,12 @@ def test_speed_up_modes(mocker):
     print("You can combine logarithmic modes using bitwise OR:")
     print("  SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X")
     print("  SpeedUpMode.WALL_ONLY_LOGARITHMIC_X | SpeedUpMode.PADDLE_ONLY_LOGARITHMIC_X")
-    print("  SpeedUpMode.ALL_LOGARITHMIC & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X  # All except continuous")
+    print(
+        "  SpeedUpMode.ALL_LOGARITHMIC & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X  # All except continuous"
+    )
 
     print("\nAll speed-up modes tested successfully!")
+
 
 if __name__ == "__main__":
     test_speed_up_modes()

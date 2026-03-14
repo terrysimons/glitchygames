@@ -33,9 +33,6 @@ class Game(Scene):
             options (dict): The options passed to the game.
             groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.Group()
@@ -58,9 +55,6 @@ class Game(Scene):
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
@@ -74,9 +68,6 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Do your updates here
         super().update()
@@ -86,9 +77,6 @@ class Game(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.info(f"Left Mouse Up: {event}")

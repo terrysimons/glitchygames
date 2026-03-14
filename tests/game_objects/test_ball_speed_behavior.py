@@ -27,9 +27,10 @@ class TestBallSpeedBehavior:
         ball = BallSprite(
             bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
+            | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Get speed after reset() has been called
@@ -44,21 +45,24 @@ class TestBallSpeedBehavior:
 
         # Speed should increase significantly with capped exponential
         # With capped exponent (max 2.0), speed can grow substantially but not runaway
-        assert final_magnitude > initial_magnitude * 2, \
+        assert final_magnitude > initial_magnitude * 2, (
             "Speed should increase significantly with exponential speed-up"
+        )
 
         # Speed should not exceed 100x initial speed (safety check for capped exponential)
-        assert final_magnitude < initial_magnitude * 100, \
+        assert final_magnitude < initial_magnitude * 100, (
             "Speed should not grow more than 100x initial speed with capped exponential"
+        )
 
     def test_logarithmic_speedup_behavior(self):
         """Test that logarithmic speed-up works correctly."""
         ball = BallSprite(
             bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
+            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Get speed after reset() has been called
@@ -76,8 +80,9 @@ class TestBallSpeedBehavior:
         final_magnitude = math.sqrt(final_x**2 + final_y**2)
 
         # Speed should have increased significantly
-        assert final_magnitude > initial_magnitude * 1.5, \
+        assert final_magnitude > initial_magnitude * 1.5, (
             "Speed should increase significantly with logarithmic speed-up"
+        )
 
         # Direction should be preserved (signs should match)
         if initial_x != 0:
@@ -92,7 +97,7 @@ class TestBallSpeedBehavior:
             bounce_left_right=False,
             speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Get speed after reset() has been called
@@ -111,8 +116,9 @@ class TestBallSpeedBehavior:
         assert initial_direction == pytest.approx(final_direction, abs=1e-5)
 
         # Speed should have increased significantly
-        assert final_magnitude > initial_magnitude * 1.2, \
+        assert final_magnitude > initial_magnitude * 1.2, (
             "Speed should increase significantly with linear speed-up"
+        )
 
     def test_continuous_speedup_respects_interval(self):
         """Test that continuous speed-up respects the interval."""
@@ -121,7 +127,7 @@ class TestBallSpeedBehavior:
             bounce_left_right=False,
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1  # Speed up every 0.1 seconds (shorter interval for testing)
+            speed_up_interval=0.1,  # Speed up every 0.1 seconds (shorter interval for testing)
         )
 
         # Get speed after reset() has been called
@@ -136,7 +142,9 @@ class TestBallSpeedBehavior:
             ball.dt_tick(0.05)
 
         expected_x = initial_x * 1.1
-        assert ball.speed.x == pytest.approx(expected_x, abs=abs(expected_x) * 0.1)  # More tolerant delta
+        assert ball.speed.x == pytest.approx(
+            expected_x, abs=abs(expected_x) * 0.1
+        )  # More tolerant delta
 
     def test_bounce_speedup_triggers(self):
         """Test that bounce-triggered speed-up works."""
@@ -144,7 +152,7 @@ class TestBallSpeedBehavior:
             bounce_top_bottom=True,
             bounce_left_right=True,
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.1
+            speed_up_multiplier=1.1,
         )
 
         # Get initial speed after reset() has been called
@@ -159,7 +167,9 @@ class TestBallSpeedBehavior:
 
         # Speed magnitude should have increased due to wall bounce
         final_x = abs(ball.speed.x)
-        assert final_x > initial_x, f"Speed magnitude should increase on wall bounce: {initial_x:.3f} -> {final_x:.3f}"
+        assert final_x > initial_x, (
+            f"Speed magnitude should increase on wall bounce: {initial_x:.3f} -> {final_x:.3f}"
+        )
 
     def test_speedup_mode_none_no_speedup(self):
         """Test that SpeedUpMode.NONE prevents any speed-up."""
@@ -168,7 +178,7 @@ class TestBallSpeedBehavior:
             bounce_left_right=False,
             speed_up_mode=SpeedUpMode.NONE,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Get speed after reset() has been called
@@ -188,9 +198,10 @@ class TestBallSpeedBehavior:
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
+            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Very frequent speed-up
+            speed_up_interval=0.01,  # Very frequent speed-up
         )
 
         initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
@@ -202,8 +213,9 @@ class TestBallSpeedBehavior:
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
         # Speed should not grow more than 100x initial speed (safety check)
-        assert final_magnitude < initial_magnitude * 100, \
+        assert final_magnitude < initial_magnitude * 100, (
             f"Speed magnitude {final_magnitude:.3f} should not exceed 100x initial"
+        )
 
     def test_exponential_vs_logarithmic_comparison(self):
         """Test that both exponential and logarithmic speed-up modes work correctly."""
@@ -211,13 +223,13 @@ class TestBallSpeedBehavior:
         exp_ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         log_ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Simulate speed-ups for both with small delays
@@ -231,8 +243,12 @@ class TestBallSpeedBehavior:
         log_final = abs(log_ball.speed.x)
 
         # Both modes should show significant speed increase
-        assert exp_final > 50, f"Exponential speed-up should show significant increase, got {exp_final:.3f}"
-        assert log_final > 50, f"Logarithmic speed-up should show significant increase, got {log_final:.3f}"
+        assert exp_final > 50, (
+            f"Exponential speed-up should show significant increase, got {exp_final:.3f}"
+        )
+        assert log_final > 50, (
+            f"Logarithmic speed-up should show significant increase, got {log_final:.3f}"
+        )
 
         # Both should be reasonable (not runaway)
         assert exp_final < 10000, f"Exponential speed-up should not be runaway, got {exp_final:.3f}"
@@ -245,7 +261,7 @@ class TestBallSpeedBehavior:
             bounce_left_right=False,
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,  # Only X component
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Get speed after reset() has been called
@@ -266,9 +282,10 @@ class TestBallSpeedBehavior:
         ball = BallSprite(
             bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
+            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.01  # Much shorter interval for testing
+            speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
         # Set negative speeds (after reset() has been called)

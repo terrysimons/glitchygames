@@ -2,7 +2,6 @@
 
 import os
 
-import pytest
 from glitchygames.services.config import ServiceConfig
 
 

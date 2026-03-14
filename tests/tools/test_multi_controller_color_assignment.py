@@ -1,12 +1,10 @@
-"""
-Test suite for multi-controller color assignment and ordering.
+"""Test suite for multi-controller color assignment and ordering.
 
 This module tests the color assignment system that assigns colors based on
 activation order rather than controller ID, and the color-based sorting of
 controller indicators.
 """
 
-import pygame
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
@@ -45,13 +43,13 @@ class TestColorAssignmentOrder:
             controller_id=0,
             instance_id=0,
             status=ControllerStatus.CONNECTED,
-            color=(128, 128, 128)  # Default gray
+            color=(128, 128, 128),  # Default gray
         )
         self.manager.controllers[1] = ControllerInfo(
             controller_id=1,
             instance_id=1,
             status=ControllerStatus.CONNECTED,
-            color=(128, 128, 128)  # Default gray
+            color=(128, 128, 128),  # Default gray
         )
 
         # Activate controller 1 first (should get red)
@@ -72,15 +70,15 @@ class TestColorAssignmentOrder:
                 controller_id=i,
                 instance_id=i,
                 status=ControllerStatus.CONNECTED,
-                color=(128, 128, 128)  # Default gray
+                color=(128, 128, 128),  # Default gray
             )
 
         # Activate in random order: 2, 0, 3, 1
         activation_order = [2, 0, 3, 1]
         expected_colors = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
             (255, 255, 0),  # Yellow
         ]
 
@@ -102,10 +100,7 @@ class TestColorAssignmentOrder:
         """Test that color assignment resets properly."""
         # Add controller and assign color
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0,
-            instance_id=0,
-            status=ControllerStatus.CONNECTED,
-            color=(128, 128, 128)
+            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128)
         )
         self.manager.assign_color_to_controller(0)
 
@@ -129,23 +124,22 @@ class TestColorBasedSorting:
         # Test color priority function
         def get_color_priority(selection):
             color = selection["color"]
-            if color == (255, 0, 0):    # Red
+            if color == (255, 0, 0):  # Red
                 return 0
-            elif color == (0, 255, 0):  # Green
+            if color == (0, 255, 0):  # Green
                 return 1
-            elif color == (0, 0, 255):  # Blue
+            if color == (0, 0, 255):  # Blue
                 return 2
-            elif color == (255, 255, 0): # Yellow
+            if color == (255, 255, 0):  # Yellow
                 return 3
-            else:
-                return 999  # Unknown colors go last
+            return 999  # Unknown colors go last
 
         # Test different colors
         selections = [
-            {"color": (0, 0, 255)},      # Blue
-            {"color": (255, 0, 0)},      # Red
-            {"color": (255, 255, 0)},    # Yellow
-            {"color": (0, 255, 0)},      # Green
+            {"color": (0, 0, 255)},  # Blue
+            {"color": (255, 0, 0)},  # Red
+            {"color": (255, 255, 0)},  # Yellow
+            {"color": (0, 255, 0)},  # Green
         ]
 
         # Sort by color priority
@@ -153,9 +147,9 @@ class TestColorBasedSorting:
 
         # Should be sorted: Red, Green, Blue, Yellow
         expected_order = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
             (255, 255, 0),  # Yellow
         ]
 
@@ -168,36 +162,36 @@ class TestColorBasedSorting:
         controller_selections = [
             {
                 "controller_id": 2,
-                "color": (0, 0, 255),    # Blue
-                "frame": 0
+                "color": (0, 0, 255),  # Blue
+                "frame": 0,
             },
             {
                 "controller_id": 0,
-                "color": (255, 0, 0),    # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
             {
                 "controller_id": 3,
                 "color": (255, 255, 0),  # Yellow
-                "frame": 0
+                "frame": 0,
             },
             {
                 "controller_id": 1,
-                "color": (0, 255, 0),    # Green
-                "frame": 0
+                "color": (0, 255, 0),  # Green
+                "frame": 0,
             },
         ]
 
         # Calculate color-based priority
         for selection in controller_selections:
             color = selection["color"]
-            if color == (255, 0, 0):    # Red
+            if color == (255, 0, 0):  # Red
                 selection["priority"] = 0
             elif color == (0, 255, 0):  # Green
                 selection["priority"] = 1
             elif color == (0, 0, 255):  # Blue
                 selection["priority"] = 2
-            elif color == (255, 255, 0): # Yellow
+            elif color == (255, 255, 0):  # Yellow
                 selection["priority"] = 3
             else:
                 selection["priority"] = 999
@@ -207,9 +201,9 @@ class TestColorBasedSorting:
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
             (255, 255, 0),  # Yellow
         ]
 
@@ -230,7 +224,9 @@ class TestShoulderButtonFunctionality:
     def test_left_shoulder_button_behavior(self, mocker):
         """Test that left shoulder button moves indicator left."""
         # Mock the _multi_controller_previous_frame method
-        mock_prev = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame")
+        mock_prev = mocker.patch(
+            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame"
+        )
         # Simulate left shoulder button press
         controller_id = 0
         mock_prev.return_value = None
@@ -244,7 +240,9 @@ class TestShoulderButtonFunctionality:
     def test_right_shoulder_button_behavior(self, mocker):
         """Test that right shoulder button moves indicator right."""
         # Mock the _multi_controller_next_frame method
-        mock_next = mocker.patch("glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame")
+        mock_next = mocker.patch(
+            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame"
+        )
         # Simulate right shoulder button press
         controller_id = 0
         mock_next.return_value = None
@@ -281,7 +279,7 @@ class TestSelectionBoxColorMatching:
         keyboard_selection = {
             "type": "keyboard",
             "color": (255, 255, 255),  # White
-            "frame": 0
+            "frame": 0,
         }
 
         # The selection box should match the indicator color
@@ -294,13 +292,13 @@ class TestSelectionBoxColorMatching:
         controller_selections = [
             {
                 "type": "controller_0",
-                "color": (255, 0, 0),    # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
             {
                 "type": "controller_1",
-                "color": (0, 255, 0),    # Green
-                "frame": 0
+                "color": (0, 255, 0),  # Green
+                "frame": 0,
             },
         ]
 
@@ -316,12 +314,12 @@ class TestSelectionBoxColorMatching:
             {
                 "type": "keyboard",
                 "color": (255, 255, 255),  # White
-                "frame": 0
+                "frame": 0,
             },
             {
                 "type": "controller_0",
-                "color": (255, 0, 0),      # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
         ]
 
@@ -389,11 +387,11 @@ class TestFilmStripScrolling:
 
         for i, selection in enumerate(controller_selections):
             selection.activate()
-            selection.set_selection(f"animation{i+1}", i)
+            selection.set_selection(f"animation{i + 1}", i)
 
         # Each controller should trigger scrolling for its animation
         for i, selection in enumerate(controller_selections):
-            animation = f"animation{i+1}"
+            animation = f"animation{i + 1}"
             frame = i
             mock_film_strips[animation].update_scroll_for_frame(animation, frame)
             mock_film_strips[animation].update_scroll_for_frame.assert_called_with(animation, frame)

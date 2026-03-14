@@ -304,9 +304,9 @@ class TestFilmStripFunctionality:
 
         # Simulate a click that should cycle the color
         # This would normally happen through handle_click, but we'll test the cycling logic directly
-        strip.background_color_index = (
-            strip.background_color_index + 1
-        ) % len(strip.BACKGROUND_COLORS)
+        strip.background_color_index = (strip.background_color_index + 1) % len(
+            strip.BACKGROUND_COLORS
+        )
         strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
         # Verify the color changed
@@ -317,9 +317,9 @@ class TestFilmStripFunctionality:
         colors_seen = set()
         for _ in range(len(strip.BACKGROUND_COLORS)):
             colors_seen.add(strip.background_color)
-            strip.background_color_index = (
-                strip.background_color_index + 1
-            ) % len(strip.BACKGROUND_COLORS)
+            strip.background_color_index = (strip.background_color_index + 1) % len(
+                strip.BACKGROUND_COLORS
+            )
             strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
         # Should have seen all colors
@@ -330,7 +330,12 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test that cyan is still in the list (RGBA format)
-        assert (0, COLOR_COMPONENT_MAX, COLOR_COMPONENT_MAX, COLOR_COMPONENT_MAX) in strip.BACKGROUND_COLORS  # Cyan
+        assert (
+            0,
+            COLOR_COMPONENT_MAX,
+            COLOR_COMPONENT_MAX,
+            COLOR_COMPONENT_MAX,
+        ) in strip.BACKGROUND_COLORS  # Cyan
 
         # Test that gray is in the list (RGBA format)
         assert (128, 128, 128, COLOR_COMPONENT_MAX) in strip.BACKGROUND_COLORS  # Gray

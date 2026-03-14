@@ -58,7 +58,10 @@ class TestMidiEvents:
         """Test MIDI input event handling."""
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_midi_in_event": lambda event: (scene.midi_events_received.append(("midi_in", event)), True)[1]
+                "on_midi_in_event": lambda event: (
+                    scene.midi_events_received.append(("midi_in", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -78,7 +81,10 @@ class TestMidiEvents:
         """Test MIDI output event handling."""
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_midi_out_event": lambda event: (scene.midi_events_received.append(("midi_out", event)), True)[1]
+                "on_midi_out_event": lambda event: (
+                    scene.midi_events_received.append(("midi_out", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -98,7 +104,10 @@ class TestMidiEvents:
         """Test MIDI note on events."""
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_midi_in_event": lambda event: (scene.midi_events_received.append(("note_on", event)), True)[1]
+                "on_midi_in_event": lambda event: (
+                    scene.midi_events_received.append(("note_on", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -118,7 +127,10 @@ class TestMidiEvents:
         """Test MIDI note off events."""
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_midi_in_event": lambda event: (scene.midi_events_received.append(("note_off", event)), True)[1]
+                "on_midi_in_event": lambda event: (
+                    scene.midi_events_received.append(("note_off", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -157,9 +169,7 @@ class TestMidiEvents:
         # Test program change events (status 192 = 0xC0)
         mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for program in range(128):  # All MIDI programs
-            event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=192, data1=program, data2=0
-            )
+            event = HashableEvent(pygame.MIDIIN, device_id=1, status=192, data1=program, data2=0)
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
@@ -191,9 +201,7 @@ class TestMidiEvents:
         # Test aftertouch events (status 208 = 0xD0)
         mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for pressure in range(128):  # All pressure values
-            event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=208, data1=pressure, data2=0
-            )
+            event = HashableEvent(pygame.MIDIIN, device_id=1, status=208, data1=pressure, data2=0)
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
@@ -221,16 +229,16 @@ class TestMidiEvents:
 
         # Test system events (status 240-255 = 0xF0-0xFF)
         system_events = [
-            (240, 0, 0),    # System Exclusive start
-            (247, 0, 0),    # System Exclusive end
-            (248, 0, 0),    # Timing Clock
-            (249, 0, 0),    # Undefined
-            (250, 0, 0),    # Start
-            (251, 0, 0),    # Continue
-            (252, 0, 0),    # Stop
-            (253, 0, 0),    # Undefined
-            (254, 0, 0),    # Active Sensing
-            (255, 0, 0),    # System Reset
+            (240, 0, 0),  # System Exclusive start
+            (247, 0, 0),  # System Exclusive end
+            (248, 0, 0),  # Timing Clock
+            (249, 0, 0),  # Undefined
+            (250, 0, 0),  # Start
+            (251, 0, 0),  # Continue
+            (252, 0, 0),  # Stop
+            (253, 0, 0),  # Undefined
+            (254, 0, 0),  # Active Sensing
+            (255, 0, 0),  # System Reset
         ]
 
         mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
@@ -277,22 +285,25 @@ class TestMidiEvents:
         mocker.patch("glitchygames.events.LOG.error")  # Suppress log messages
         for velocity in velocities:
             # Test note on with different velocities
-            event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=144, data1=60, data2=velocity
-            )
+            event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=velocity)
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
             # Expected to call unhandled_event and raise UnhandledEventError
 
     def _setup_mock_scene_for_stub(self, stub):
-        """Set up mock scene object for event stubs using centralized mocks."""
+        """Set up mock scene object for event stubs using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
-                "no_unhandled_events": True  # This will cause UnhandledEventError to be raised
+                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
             },
-            event_handlers={}  # Empty handlers to trigger unhandled_event fallback
+            event_handlers={},  # Empty handlers to trigger unhandled_event fallback
         )
 
         # Set the options on the stub so unhandled_event can access them

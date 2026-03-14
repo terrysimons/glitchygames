@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-import pygame
 import pytest
 from glitchygames.sprites import SpriteFactory
 
@@ -19,7 +18,12 @@ from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
         / "glitchygames"
@@ -45,6 +49,7 @@ class TestAnimationTiming:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -256,7 +261,12 @@ class TestAnimationTiming:
 
     @staticmethod
     def _extract_pixel_data(surface):
-        """Extract pixel data from a pygame surface as RGB tuples."""
+        """Extract pixel data from a pygame surface as RGB tuples.
+
+        Returns:
+            object: The result.
+
+        """
         width, height = surface.get_size()
         pixels = []
 

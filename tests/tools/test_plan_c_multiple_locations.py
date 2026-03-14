@@ -1,18 +1,16 @@
-"""
-Tests for Plan C multiple location support in VisualCollisionManager.
+"""Tests for Plan C multiple location support in VisualCollisionManager.
 
 This module tests the extended VisualCollisionManager that supports
 multiple location types (FILM_STRIP, CANVAS, SLIDER) with different
 visual properties and collision handling.
 """
 
-import pygame
-import pytest
+import math
+
 from glitchygames.tools.visual_collision_manager import (
     IndicatorShape,
     LocationType,
     VisualCollisionManager,
-    VisualIndicator,
 )
 
 
@@ -36,14 +34,14 @@ class TestMultipleLocationSupport:
             instance_id=0,
             color=(255, 0, 0),
             position=(10, 20),
-            location_type=LocationType.FILM_STRIP
+            location_type=LocationType.FILM_STRIP,
         )
 
         assert indicator.controller_id == 0
         assert indicator.position == (10, 20)
         assert indicator.color == (255, 0, 0)
         assert indicator.shape == IndicatorShape.TRIANGLE
-        assert indicator.transparency == 1.0
+        assert math.isclose(indicator.transparency, 1.0)
         assert indicator.location_type == LocationType.FILM_STRIP
 
     def test_add_canvas_indicator(self):
@@ -53,14 +51,14 @@ class TestMultipleLocationSupport:
             instance_id=1,
             color=(0, 255, 0),
             position=(30, 40),
-            location_type=LocationType.CANVAS
+            location_type=LocationType.CANVAS,
         )
 
         assert indicator.controller_id == 1
         assert indicator.position == (30, 40)
         assert indicator.color == (0, 255, 0)
         assert indicator.shape == IndicatorShape.SQUARE
-        assert indicator.transparency == 0.5
+        assert math.isclose(indicator.transparency, 0.5)
         assert indicator.location_type == LocationType.CANVAS
 
     def test_add_slider_indicator(self):
@@ -70,14 +68,14 @@ class TestMultipleLocationSupport:
             instance_id=2,
             color=(0, 0, 255),
             position=(50, 60),
-            location_type=LocationType.SLIDER
+            location_type=LocationType.SLIDER,
         )
 
         assert indicator.controller_id == 2
         assert indicator.position == (50, 60)
         assert indicator.color == (0, 0, 255)
         assert indicator.shape == IndicatorShape.CIRCLE
-        assert indicator.transparency == 0.8
+        assert math.isclose(indicator.transparency, 0.8)
         assert indicator.location_type == LocationType.SLIDER
 
     def test_location_specific_tracking(self):
@@ -145,7 +143,7 @@ class TestMultipleLocationSupport:
         # Check that film strip indicators have collision avoidance
         film_indicators = self.visual_manager.get_indicators_by_location(LocationType.FILM_STRIP)
         assert len(film_indicators) == 2
-        
+
         # First indicator should have no offset
         assert film_indicators[0].offset == (0, 0)
         # Second indicator should have offset
@@ -231,9 +229,9 @@ class TestMultipleLocationSupport:
         assert canvas_indicators[1].shape == IndicatorShape.SQUARE
         assert slider_indicators[2].shape == IndicatorShape.CIRCLE
 
-        assert film_indicators[0].transparency == 1.0
-        assert canvas_indicators[1].transparency == 0.5
-        assert slider_indicators[2].transparency == 0.8
+        assert math.isclose(film_indicators[0].transparency, 1.0)
+        assert math.isclose(canvas_indicators[1].transparency, 0.5)
+        assert math.isclose(slider_indicators[2].transparency, 0.8)
 
     def test_get_indicators_for_position_with_location_filter(self):
         """Test getting indicators for a position with location filtering."""
@@ -264,7 +262,7 @@ class TestMultipleLocationSupport:
         locations = [
             (LocationType.FILM_STRIP, IndicatorShape.TRIANGLE, 1.0),
             (LocationType.CANVAS, IndicatorShape.SQUARE, 0.5),
-            (LocationType.SLIDER, IndicatorShape.CIRCLE, 0.8)
+            (LocationType.SLIDER, IndicatorShape.CIRCLE, 0.8),
         ]
 
         for i, (location_type, expected_shape, expected_transparency) in enumerate(locations):

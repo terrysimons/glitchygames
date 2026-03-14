@@ -1,4 +1,4 @@
-# ruff: noqa: D100, D103
+"""Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
 import nox
 
@@ -10,13 +10,15 @@ nox.options.default_venv_backend = "uv"
 # @nox.session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
 @nox.session(python=["3.13"], reuse_venv=False)
 def lint_and_test(session: nox.Session) -> None:
+    """Run linting and tests with coverage."""
     session.install(".[api,dev,docs]")
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
         "pytest",
-        "-o", "addopts=",
+        "-o",
+        "addopts=",
         "--cov=glitchygames",
         "--cov-report=term-missing",
         "--cov-report=html",
@@ -154,7 +156,8 @@ def performance_test(session: nox.Session) -> None:
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         "pytest",
-        "-o", "addopts=",
+        "-o",
+        "addopts=",
         "--benchmark-only",
         "--benchmark-save=baseline",
         "tests/",
@@ -170,7 +173,8 @@ def coverage_report(session: nox.Session) -> None:
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
         "pytest",
-        "-o", "addopts=",
+        "-o",
+        "addopts=",
         "--cov=glitchygames",
         "--cov-report=html",
         "--cov-report=term-missing",

@@ -27,9 +27,6 @@ class AudioEventManager(ResourceManager):
             Args:
                 game: The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
@@ -42,9 +39,6 @@ class AudioEventManager(ResourceManager):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_audio_device_added_event(event)
 
@@ -54,9 +48,6 @@ class AudioEventManager(ResourceManager):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_audio_device_removed_event(event)
 
@@ -65,9 +56,6 @@ class AudioEventManager(ResourceManager):
 
         Args:
             game: The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -101,8 +89,6 @@ class AudioEventManager(ResourceManager):
             The argument parser.
 
         """
-        group: argparse._ArgumentGroup = parser.add_argument_group(  # noqa: F841
-            "Sound Mixer Options"
-        )
+        group: argparse._ArgumentGroup = parser.add_argument_group("Sound Mixer Options")
 
         return parser

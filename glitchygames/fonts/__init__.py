@@ -57,9 +57,6 @@ class FontManager(ResourceManager):
             Args:
                 game (object): The game object.
 
-            Returns:
-                None
-
             """
             super().__init__(game=game)
             self.game = game
@@ -71,9 +68,6 @@ class FontManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_font_changed_event(event)
 
@@ -83,9 +77,6 @@ class FontManager(ResourceManager):
         Args:
             game (object): The game object.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
 
@@ -93,7 +84,9 @@ class FontManager(ResourceManager):
         try:
             pygame.freetype.init()
             log.info(f"Freetype Font Cache Size: {pygame.freetype.get_cache_size()}")
-            log.info(f"Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}")
+            log.info(
+                f"Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}"
+            )
         except AttributeError:
             log.warning("pygame.freetype not available, using pygame.font instead")
             pygame.font.init()

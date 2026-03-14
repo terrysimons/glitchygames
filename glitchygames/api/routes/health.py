@@ -12,6 +12,10 @@ async def health_check() -> HealthResponse:
     """Check the health status of the API.
 
     Returns service status, version, and configuration information.
+
+    Returns:
+        HealthResponse: The result.
+
     """
     config = ServiceConfig.from_env()
 
@@ -29,7 +33,12 @@ async def health_check() -> HealthResponse:
 
 @router.get("/")
 async def root() -> dict:
-    """Root endpoint with API information."""
+    """Root endpoint with API information.
+
+    Returns:
+        dict: The result.
+
+    """
     return {
         "name": "GlitchyGames Sprite Generation API",
         "version": "1.0.0",

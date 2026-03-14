@@ -202,7 +202,7 @@ alpha = 255
 
     def test_create_palette_data(self):
         """Test creating palette data from colors."""
-        from pygame import Color  # noqa: PLC0415
+        from pygame import Color
 
         # Use pygame Color objects instead of tuples
         colors = [Color(255, 0, 0), Color(0, 255, 0)]
@@ -220,7 +220,7 @@ class TestSystemPaletteCoverage:
 
     def test_system_palette_initialization(self, mocker):
         """Test System palette initialization and color access."""
-        from glitchygames.color.palette import ColorPalette, System  # noqa: PLC0415
+        from glitchygames.color.palette import ColorPalette, System
 
         # Mock the parent class __init__ and get_color method to avoid the bug
         mocker.patch.object(ColorPalette, "__init__", return_value=None)
@@ -250,7 +250,7 @@ class TestVgaPaletteCoverage:
 
     def test_vga_palette_initialization(self, mocker):
         """Test Vga palette initialization."""
-        from glitchygames.color.palette import ColorPalette, Vga  # noqa: PLC0415
+        from glitchygames.color.palette import ColorPalette, Vga
 
         # Mock the parent class __init__ to avoid the bug
         mocker.patch.object(ColorPalette, "__init__", return_value=None)

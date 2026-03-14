@@ -57,7 +57,7 @@ class TestFilmStripScrolling:
             "anim1": [self._mocker.Mock()],
             "anim2": [self._mocker.Mock()],
             "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()]
+            "anim4": [self._mocker.Mock()],
         }
 
         # Scroll down
@@ -86,7 +86,7 @@ class TestFilmStripScrolling:
             "anim1": [self._mocker.Mock()],
             "anim2": [self._mocker.Mock()],
             "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()]
+            "anim4": [self._mocker.Mock()],
         }
 
         # Set scroll offset to maximum
@@ -107,7 +107,7 @@ class TestFilmStripScrolling:
             "anim1": [self._mocker.Mock()],
             "anim2": [self._mocker.Mock()],
             "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()]
+            "anim4": [self._mocker.Mock()],
         }
         self.scene.canvas.current_animation = "anim4"  # Last animation (index 3)
 
@@ -116,13 +116,13 @@ class TestFilmStripScrolling:
             "anim1": self._mocker.Mock(),
             "anim2": self._mocker.Mock(),
             "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock()
+            "anim4": self._mocker.Mock(),
         }
         self.scene.film_strip_sprites = {
             "anim1": self._mocker.Mock(),
             "anim2": self._mocker.Mock(),
             "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock()
+            "anim4": self._mocker.Mock(),
         }
 
         # Mock the update methods
@@ -145,7 +145,7 @@ class TestFilmStripScrolling:
             "anim1": [self._mocker.Mock()],
             "anim2": [self._mocker.Mock()],
             "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()]
+            "anim4": [self._mocker.Mock()],
         }
         # Second animation (index 1, should be visible)
         self.scene.canvas.current_animation = "anim2"
@@ -155,13 +155,13 @@ class TestFilmStripScrolling:
             "anim1": self._mocker.Mock(),
             "anim2": self._mocker.Mock(),
             "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock()
+            "anim4": self._mocker.Mock(),
         }
         self.scene.film_strip_sprites = {
             "anim1": self._mocker.Mock(),
             "anim2": self._mocker.Mock(),
             "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock()
+            "anim4": self._mocker.Mock(),
         }
 
         # Set scroll offset to show first 2 animations
@@ -181,14 +181,8 @@ class TestFilmStripScrolling:
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
         # Set up film strips
-        self.scene.film_strips = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock()
-        }
-        self.scene.film_strip_sprites = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock()
-        }
+        self.scene.film_strips = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
+        self.scene.film_strip_sprites = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
 
         # Set up canvas
         self.scene.canvas = self._mocker.Mock()
@@ -206,14 +200,8 @@ class TestFilmStripScrolling:
     def test_dirty_marking_on_switch(self):
         """Test that switching film strips marks sprites as dirty."""
         # Set up film strips
-        self.scene.film_strips = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock()
-        }
-        self.scene.film_strip_sprites = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock()
-        }
+        self.scene.film_strips = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
+        self.scene.film_strip_sprites = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
 
         # Set up canvas
         self.scene.canvas = self._mocker.Mock()

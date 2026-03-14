@@ -1,1 +1,1 @@
-# ruff: noqa: D104
+"""Example games and demos for the GlitchyGames engine."""

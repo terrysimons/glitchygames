@@ -11,7 +11,12 @@ class BasePaddleTest:
     """Base test class with common helper methods for paddle tests."""
 
     def _create_mock_screen(self, left=0, right=800, top=0, bottom=600):
-        """Create a mock screen using MockFactory."""
+        """Create a mock screen using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_screen = MockFactory.create_pygame_surface_mock()
         mock_screen.left = left
         mock_screen.right = right
@@ -321,7 +326,9 @@ class TestHorizontalPaddle(BasePaddleTest):
 
         assert groups in paddle.groups()
 
-    def test_horizontal_paddle_initialization_with_collision_sound(self, mock_pygame_patches, mocker):
+    def test_horizontal_paddle_initialization_with_collision_sound(
+        self, mock_pygame_patches, mocker
+    ):
         """Test HorizontalPaddle initialization with collision sound."""
         mock_load_sound = mocker.patch("glitchygames.game_objects.paddle.load_sound")
         mock_sound = MockFactory.create_pygame_surface_mock()

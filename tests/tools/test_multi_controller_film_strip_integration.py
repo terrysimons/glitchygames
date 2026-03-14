@@ -1,5 +1,4 @@
-"""
-Test suite for multi-controller film strip integration.
+"""Test suite for multi-controller film strip integration.
 
 This module tests the integration between the multi-controller system
 and the film strip widget, including color-based sorting and visual indicators.
@@ -9,13 +8,6 @@ import pygame
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.film_strip import FilmStripWidget
-from glitchygames.tools.multi_controller_manager import (
-    ControllerInfo,
-    ControllerStatus,
-    MultiControllerManager,
-)
-
-from tests.mocks import MockFactory
 
 
 class TestFilmStripColorBasedSorting:
@@ -27,25 +19,25 @@ class TestFilmStripColorBasedSorting:
 
     def test_color_priority_function(self):
         """Test the color priority function for sorting."""
+
         def get_color_priority(selection):
             color = selection["color"]
-            if color == (255, 0, 0):    # Red
+            if color == (255, 0, 0):  # Red
                 return 0
-            elif color == (0, 255, 0):  # Green
+            if color == (0, 255, 0):  # Green
                 return 1
-            elif color == (0, 0, 255):  # Blue
+            if color == (0, 0, 255):  # Blue
                 return 2
-            elif color == (255, 255, 0): # Yellow
+            if color == (255, 255, 0):  # Yellow
                 return 3
-            else:
-                return 999  # Unknown colors go last
+            return 999  # Unknown colors go last
 
         # Test different colors
         selections = [
-            {"color": (0, 0, 255)},      # Blue
-            {"color": (255, 0, 0)},      # Red
-            {"color": (255, 255, 0)},    # Yellow
-            {"color": (0, 255, 0)},      # Green
+            {"color": (0, 0, 255)},  # Blue
+            {"color": (255, 0, 0)},  # Red
+            {"color": (255, 255, 0)},  # Yellow
+            {"color": (0, 255, 0)},  # Green
         ]
 
         # Sort by color priority
@@ -53,9 +45,9 @@ class TestFilmStripColorBasedSorting:
 
         # Should be sorted: Red, Green, Blue, Yellow
         expected_order = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
             (255, 255, 0),  # Yellow
         ]
 
@@ -68,36 +60,36 @@ class TestFilmStripColorBasedSorting:
         controller_selections = [
             {
                 "controller_id": 2,
-                "color": (0, 0, 255),    # Blue
-                "frame": 0
+                "color": (0, 0, 255),  # Blue
+                "frame": 0,
             },
             {
                 "controller_id": 0,
-                "color": (255, 0, 0),    # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
             {
                 "controller_id": 3,
                 "color": (255, 255, 0),  # Yellow
-                "frame": 0
+                "frame": 0,
             },
             {
                 "controller_id": 1,
-                "color": (0, 255, 0),    # Green
-                "frame": 0
+                "color": (0, 255, 0),  # Green
+                "frame": 0,
             },
         ]
 
         # Calculate color-based priority
         for selection in controller_selections:
             color = selection["color"]
-            if color == (255, 0, 0):    # Red
+            if color == (255, 0, 0):  # Red
                 selection["priority"] = 0
             elif color == (0, 255, 0):  # Green
                 selection["priority"] = 1
             elif color == (0, 0, 255):  # Blue
                 selection["priority"] = 2
-            elif color == (255, 255, 0): # Yellow
+            elif color == (255, 255, 0):  # Yellow
                 selection["priority"] = 3
             else:
                 selection["priority"] = 999
@@ -107,9 +99,9 @@ class TestFilmStripColorBasedSorting:
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
             (255, 255, 0),  # Yellow
         ]
 
@@ -123,27 +115,27 @@ class TestFilmStripColorBasedSorting:
         all_selections = [
             {
                 "type": "controller_2",
-                "color": (0, 0, 255),    # Blue
+                "color": (0, 0, 255),  # Blue
                 "frame": 0,
-                "priority": 2
+                "priority": 2,
             },
             {
                 "type": "keyboard",
-                "color": (255, 255, 255), # White
+                "color": (255, 255, 255),  # White
                 "frame": 0,
-                "priority": 0
+                "priority": 0,
             },
             {
                 "type": "controller_0",
-                "color": (255, 0, 0),    # Red
+                "color": (255, 0, 0),  # Red
                 "frame": 0,
-                "priority": 0
+                "priority": 0,
             },
             {
                 "type": "controller_1",
-                "color": (0, 255, 0),    # Green
+                "color": (0, 255, 0),  # Green
                 "frame": 0,
-                "priority": 1
+                "priority": 1,
             },
         ]
 
@@ -166,9 +158,9 @@ class TestFilmStripColorBasedSorting:
 
         # Controllers should be sorted: Red, Green, Blue
         expected_controller_order = [
-            (255, 0, 0),    # Red
-            (0, 255, 0),    # Green
-            (0, 0, 255),    # Blue
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
         ]
 
         for i, selection in enumerate(controller_selections):
@@ -190,16 +182,16 @@ class TestFilmStripIndicatorDrawing:
         # Mock selections with different colors
         selections = [
             {
-                "color": (255, 0, 0),    # Red
-                "priority": 0
+                "color": (255, 0, 0),  # Red
+                "priority": 0,
             },
             {
-                "color": (0, 255, 0),    # Green
-                "priority": 1
+                "color": (0, 255, 0),  # Green
+                "priority": 1,
             },
             {
-                "color": (0, 0, 255),    # Blue
-                "priority": 2
+                "color": (0, 0, 255),  # Blue
+                "priority": 2,
             },
         ]
 
@@ -230,8 +222,8 @@ class TestFilmStripIndicatorDrawing:
         # Single indicator should be centered
         selections = [
             {
-                "color": (255, 0, 0),    # Red
-                "priority": 0
+                "color": (255, 0, 0),  # Red
+                "priority": 0,
             }
         ]
 
@@ -256,13 +248,13 @@ class TestFilmStripIndicatorDrawing:
         # Two indicators should be offset left and right
         selections = [
             {
-                "color": (255, 0, 0),    # Red
-                "priority": 0
+                "color": (255, 0, 0),  # Red
+                "priority": 0,
             },
             {
-                "color": (0, 255, 0),    # Green
-                "priority": 1
-            }
+                "color": (0, 255, 0),  # Green
+                "priority": 1,
+            },
         ]
 
         # Calculate positioning
@@ -274,7 +266,7 @@ class TestFilmStripIndicatorDrawing:
         # Two indicators should be offset by 4 pixels each from center
         expected_positions = [
             (frame_rect.centerx - 4, frame_rect.top - 4),
-            (frame_rect.centerx + 4, frame_rect.top - 4)
+            (frame_rect.centerx + 4, frame_rect.top - 4),
         ]
 
         assert start_x == frame_rect.centerx - 4
@@ -333,13 +325,13 @@ class TestFilmStripScrollingIntegration:
 
         for i, selection in enumerate(controller_selections):
             selection.activate()
-            selection.set_selection(f"animation{i+1}", i)
+            selection.set_selection(f"animation{i + 1}", i)
 
         # Mock film strip scrolling
         mock_scroll = mocker.patch.object(self.film_strip, "update_scroll_for_frame")
         # Each controller should trigger scrolling for its animation
         for i, selection in enumerate(controller_selections):
-            animation = f"animation{i+1}"
+            animation = f"animation{i + 1}"
             frame = i
             mock_scroll(animation, frame)
             mock_scroll.assert_called_with(animation, frame)
@@ -358,7 +350,7 @@ class TestSelectionBoxColorMatching:
         keyboard_selection = {
             "type": "keyboard",
             "color": (255, 255, 255),  # White
-            "frame": 0
+            "frame": 0,
         }
 
         # The selection box should match the indicator color
@@ -371,13 +363,13 @@ class TestSelectionBoxColorMatching:
         controller_selections = [
             {
                 "type": "controller_0",
-                "color": (255, 0, 0),    # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
             {
                 "type": "controller_1",
-                "color": (0, 255, 0),    # Green
-                "frame": 0
+                "color": (0, 255, 0),  # Green
+                "frame": 0,
             },
         ]
 
@@ -393,12 +385,12 @@ class TestSelectionBoxColorMatching:
             {
                 "type": "keyboard",
                 "color": (255, 255, 255),  # White
-                "frame": 0
+                "frame": 0,
             },
             {
                 "type": "controller_0",
-                "color": (255, 0, 0),      # Red
-                "frame": 0
+                "color": (255, 0, 0),  # Red
+                "frame": 0,
             },
         ]
 
@@ -466,18 +458,16 @@ class TestFilmStripLayoutCalculation:
         for frame_data in frames:
             frame_key = (frame_data["animation"], frame_data["frame"])
             frame_rect = pygame.Rect(
-                x, 0,
-                self.film_strip.frame_width,
-                self.film_strip.frame_height
+                x, 0, self.film_strip.frame_width, self.film_strip.frame_height
             )
             frame_layouts[frame_key] = frame_rect
             x += self.film_strip.frame_width + self.film_strip.frame_spacing
 
         # Verify layout
         assert len(frame_layouts) == 3
-        assert frame_layouts[("test_animation", 0)].x == 0
-        assert frame_layouts[("test_animation", 1)].x == 72  # 64 + 8
-        assert frame_layouts[("test_animation", 2)].x == 144  # 64 + 8 + 64 + 8
+        assert frame_layouts["test_animation", 0].x == 0
+        assert frame_layouts["test_animation", 1].x == 72  # 64 + 8
+        assert frame_layouts["test_animation", 2].x == 144  # 64 + 8 + 64 + 8
 
     def test_scroll_offset_calculation(self):
         """Test scroll offset calculation."""

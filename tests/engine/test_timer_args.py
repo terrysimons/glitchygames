@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Tests for timer-related command-line argument parsing."""
+
 from types import SimpleNamespace
 
 from glitchygames.engine import GameEngine
@@ -6,15 +8,24 @@ from glitchygames.scenes import Scene
 
 
 class DummyGame(Scene):
+    """Minimal Scene subclass for testing argument parsing."""
+
     NAME = "Dummy"
     VERSION = "0.0"
 
     @classmethod
     def args(cls, parser):  # passthrough
+        """Pass through the argument parser without adding arguments.
+
+        Returns:
+            The argument parser, unmodified.
+
+        """
         return parser
 
 
 def test_timer_args_defaults(monkeypatch, mocker):
+    """Test that default timer arguments are parsed correctly."""
     # Build a fake argparse result with required fields
     ns = SimpleNamespace(
         log_level="INFO",
@@ -41,6 +52,7 @@ def test_timer_args_defaults(monkeypatch, mocker):
 
 
 def test_timer_args_overrides(monkeypatch, mocker):
+    """Test that overridden timer arguments are parsed correctly."""
     ns = SimpleNamespace(
         log_level="INFO",
         target_fps=60.0,

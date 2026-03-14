@@ -20,9 +20,6 @@ class Vertical:
         Args:
             speed (Speed): The speed object to move at.
 
-        Returns:
-            None
-
         """
         self.speed = speed
         self.current_speed = self.speed.y
@@ -33,9 +30,6 @@ class Vertical:
         Args:
             value (int): The value to change the speed by.
 
-        Returns:
-            None
-
         """
         self.current_speed = value
 
@@ -43,9 +37,6 @@ class Vertical:
         """Move up.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -57,9 +48,6 @@ class Vertical:
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._change_speed(self.speed.y)
 
@@ -67,9 +55,6 @@ class Vertical:
         """Stop moving.
 
         Args:
-            None
-
-        Returns:
             None
 
         """

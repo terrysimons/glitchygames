@@ -33,9 +33,6 @@ class DropEventManager(ResourceManager):
             Args:
                 game: The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
@@ -48,9 +45,6 @@ class DropEventManager(ResourceManager):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_drop_begin_event(event)
 
@@ -59,9 +53,6 @@ class DropEventManager(ResourceManager):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             self.game.on_drop_complete_event(event)
@@ -72,9 +63,6 @@ class DropEventManager(ResourceManager):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_drop_file_event(event)
 
@@ -83,9 +71,6 @@ class DropEventManager(ResourceManager):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             self.game.on_drop_text_event(event)
@@ -101,7 +86,7 @@ class DropEventManager(ResourceManager):
             The argument parser.
 
         """
-        group = parser.add_argument_group("Drop Options")  # noqa: F841
+        group = parser.add_argument_group("Drop Options")
 
         return parser
 
@@ -110,9 +95,6 @@ class DropEventManager(ResourceManager):
 
         Args:
             game: The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)

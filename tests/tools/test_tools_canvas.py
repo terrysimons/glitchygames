@@ -15,7 +15,12 @@ class TestCanvasInterfaces:
     """Test canvas interfaces functionality."""
 
     def _create_mock_sprite(self):
-        """Create a mock sprite using MockFactory."""
+        """Create a mock sprite using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         return MockFactory.create_animated_sprite_mock()
 
     def test_canvas_interface_protocol(self, mock_pygame_patches):
@@ -121,4 +126,3 @@ class TestCanvasInterfaces:
         # Test basic properties - StaticSpriteSerializer doesn't have canvas_sprite attribute
         # It's an abstract base class, so we just verify it can be instantiated
         assert serializer is not None
-

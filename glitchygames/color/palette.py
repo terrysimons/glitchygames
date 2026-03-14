@@ -75,9 +75,6 @@ class ColorPalette:
             palette_index: The index of the color to set.
             new_color: A PyGame Color object in the format tuple[R: int, G: int, B: int]
 
-        Returns:
-            None
-
         """
         if palette_index < self._size:
             self._colors[palette_index] = new_color
@@ -137,9 +134,6 @@ class PaletteUtility:
             config_data: A ConfigParser object containing palette data.
             output_file: The path to the palette file to write.
 
-        Returns:
-            None
-
         """
         with Path.open(Path(output_file), "w") as file_obj:
             file_obj.write(json.dumps(config_data))
@@ -193,12 +187,7 @@ class Default(ColorPalette):
     """A default set of colors used for Glitchy Games Examples."""
 
     def __init__(self: Self) -> None:
-        """Create a default color palette object.
-
-        Returns:
-            None
-
-        """
+        """Create a default color palette object."""
         super().__init__(colors=[], filename="default")
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
@@ -215,12 +204,7 @@ class System(ColorPalette):
     """A palette representing the 16 default system colors."""
 
     def __init__(self: Self) -> None:
-        """Create a system color palette object.
-
-        Returns:
-            None
-
-        """
+        """Create a system color palette object."""
         super().__init__(filename=SYSTEM)
         self.BLACK = self.get_color(0)
         self.MAROON = self.get_color(1)
@@ -244,12 +228,7 @@ class Vga(ColorPalette):
     """The 256 VGA color palette."""
 
     def __init__(self: Self) -> None:
-        """Create a VGA color palette object.
-
-        Returns:
-            None
-
-        """
+        """Create a VGA color palette object."""
         super().__init__(filename=VGA)
         # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)
         # https://glitchy-games.atlassian.net/browse/GG-21

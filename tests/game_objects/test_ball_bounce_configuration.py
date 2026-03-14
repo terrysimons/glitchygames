@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test coverage for BallSprite bounce configuration."""
 
-import math
 import sys
 from pathlib import Path
 
@@ -9,8 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite
-
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestBallBounceConfiguration:
@@ -126,7 +123,7 @@ class TestBallBounceConfiguration:
         assert ball.alive()
 
         # dt_tick should kill the ball
-        ball.dt_tick(1.0/60.0)
+        ball.dt_tick(1.0 / 60.0)
 
         # Should be dead after dt_tick
         assert not ball.alive()
@@ -143,7 +140,7 @@ class TestBallBounceConfiguration:
         assert ball.alive()
 
         # dt_tick should bounce, not kill
-        ball.dt_tick(1.0/60.0)
+        ball.dt_tick(1.0 / 60.0)
 
         # Should still be alive after dt_tick
         assert ball.alive()

@@ -28,9 +28,6 @@ class KeyboardEventManager(ResourceManager):
             Args:
                 game (object): The game object.
 
-            Returns:
-                None
-
             """
             super().__init__(game=game)
             self.keys = {}
@@ -42,9 +39,6 @@ class KeyboardEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # The KEYUP and KEYDOWN events are
@@ -71,9 +65,6 @@ class KeyboardEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # This makes it possible to use
             # a dictionary as a key, which is
@@ -88,9 +79,6 @@ class KeyboardEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             keys_down: tuple = (
@@ -107,9 +95,6 @@ class KeyboardEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             keys_down: tuple = (
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
@@ -122,9 +107,6 @@ class KeyboardEventManager(ResourceManager):
 
         Args:
             game (object): The game object.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -148,6 +130,6 @@ class KeyboardEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Keyboard Options")  # noqa: F841
+        group = parser.add_argument_group("Keyboard Options")
 
         return parser

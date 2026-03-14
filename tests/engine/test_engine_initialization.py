@@ -19,7 +19,12 @@ class TestEngineInitialization:
     """Test GameEngine initialization functionality."""
 
     def _create_mock_args(self, mocker):
-        """Create mock command line arguments."""
+        """Create mock command line arguments.
+
+        Returns:
+            object: The result.
+
+        """
         mock_args = mocker.Mock()
         mock_args.fps = 60
         mock_args.resolution = (800, 600)
@@ -46,7 +51,7 @@ class TestEngineInitialization:
         # Test the class method
         GameEngine.initialize_icon(mock_icon)
 
-        # Verify the icon was set (it will be the result of pygame.image.load, which is our mock)  # noqa: E501
+        # Verify the icon was set (it will be the result of pygame.image.load, which is our mock)
         assert GameEngine.icon == mock_icon
 
     def test_game_engine_initialize_icon_with_path(self, mocker):
@@ -190,7 +195,16 @@ class TestEngineInitialization:
     def test_set_cursor_basic(self, mocker):
         """Test GameEngine.set_cursor with basic cursor."""
         # Use cursor data that's divisible by 8
-        cursor_data = ["........", "XXXXXXXX", "........", "........", "........", "........", "........", "........"]  # noqa: E501
+        cursor_data = [
+            "........",
+            "XXXXXXXX",
+            "........",
+            "........",
+            "........",
+            "........",
+            "........",
+            "........",
+        ]
 
         # Mock pygame.mouse.set_cursor to avoid video system initialization
         mock_set_cursor = mocker.patch("pygame.mouse.set_cursor")
@@ -203,15 +217,21 @@ class TestEngineInitialization:
     def test_set_cursor_with_colors(self, mocker):
         """Test GameEngine.set_cursor with custom colors."""
         # Use cursor data that's divisible by 8
-        cursor_data = ["BBBBBBBB", "WWWWWWWW", "OOOOOOOO", "BBBBBBBB", "WWWWWWWW", "OOOOOOOO", "BBBBBBBB", "WWWWWWWW"]  # noqa: E501
+        cursor_data = [
+            "BBBBBBBB",
+            "WWWWWWWW",
+            "OOOOOOOO",
+            "BBBBBBBB",
+            "WWWWWWWW",
+            "OOOOOOOO",
+            "BBBBBBBB",
+            "WWWWWWWW",
+        ]
 
         # Mock pygame.mouse.set_cursor to avoid video system initialization
         mock_set_cursor = mocker.patch("pygame.mouse.set_cursor")
         result = GameEngine.set_cursor(
-            cursor_data,
-            cursor_black="B",
-            cursor_white="W",
-            cursor_xor="O"
+            cursor_data, cursor_black="B", cursor_white="W", cursor_xor="O"
         )
 
         # Verify cursor was set with custom colors

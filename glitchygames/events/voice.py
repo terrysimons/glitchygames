@@ -23,6 +23,7 @@ LOG.addHandler(logging.NullHandler())
 # Try to import speech recognition, but don't fail if it's not available
 try:
     import speech_recognition as sr
+
     SPEECH_RECOGNITION_AVAILABLE = True
 except ImportError:
     sr = None
@@ -38,17 +39,21 @@ class VoiceEventManager(ResourceManager):
         log: logging.Logger = LOG
 
         def __init__(self, game: "VoiceEventManager") -> None:
+            """Initialize the voice event proxy with a voice event manager."""
             super().__init__(game)
             self.game = game
             self.proxies = [self.game]
 
         def start_listening(self) -> None:
+            """Delegate start_listening to the voice event manager."""
             self.game.start_listening()
 
         def stop_listening(self) -> None:
+            """Delegate stop_listening to the voice event manager."""
             self.game.stop_listening()
 
         def register_command(self, phrase: str, callback: Callable[[], None]) -> None:
+            """Delegate register_command to the voice event manager."""
             self.game.register_command(phrase, callback)
 
     def __init__(self, logger: logging.Logger | None = None):
@@ -248,7 +253,12 @@ class VoiceEventManager(ResourceManager):
         return SPEECH_RECOGNITION_AVAILABLE and self.microphone is not None
 
     def has_microphone(self) -> bool:
-        """Check if a microphone device is available/initialized."""
+        """Check if a microphone device is available/initialized.
+
+        Returns:
+            bool: True if has microphone, False otherwise.
+
+        """
         return self.microphone is not None
 
     def get_available_commands(self) -> list[str]:

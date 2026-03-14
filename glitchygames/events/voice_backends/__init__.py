@@ -7,16 +7,18 @@ preferring miniaudio and falling back to PortAudio (via speech_recognition).
 
 from __future__ import annotations
 
-from typing import Type
 
-
-def get_microphone_backend() -> Type[object] | None:
+def get_microphone_backend() -> type[object] | None:
     """Return an AudioSource-like microphone class or None.
 
     Priority order:
     1) MiniaudioMicrophone (if importable)
     2) PortAudioMicrophone (wrapper around speech_recognition.Microphone)
     3) None
+
+    Returns:
+        type[object] | None: The microphone backend.
+
     """
     # Prefer miniaudio backend
     try:
@@ -24,7 +26,7 @@ def get_microphone_backend() -> Type[object] | None:
 
         # Light probe: try to instantiate; if fails, skip
         try:
-            _ = MiniaudioMicrophone()  # noqa: F841
+            _ = MiniaudioMicrophone()
             return MiniaudioMicrophone
         except Exception:
             pass
@@ -36,7 +38,7 @@ def get_microphone_backend() -> Type[object] | None:
         from .voice_portaudio import PortAudioMicrophone
 
         try:
-            _ = PortAudioMicrophone()  # noqa: F841
+            _ = PortAudioMicrophone()
             return PortAudioMicrophone
         except Exception:
             pass
@@ -44,5 +46,3 @@ def get_microphone_backend() -> Type[object] | None:
         pass
 
     return None
-
-

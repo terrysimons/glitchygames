@@ -8,8 +8,6 @@ from tests.mocks.test_mock_factory import MockFactory
 # Import constants from base class
 from tests.tools.test_film_strip_base import (
     CLICK_OFFSET,
-    DISPLAY_HEIGHT,
-    DISPLAY_WIDTH,
     FRAME_DURATION,
     FRAME_INDEX_2,
     FRAME_SIZE,
@@ -95,8 +93,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -107,8 +108,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Height should be reasonable for the number of animations
         assert film_strip.rect.height > 0
         # Height should be at least the minimum for one animation
-        min_height = (film_strip.animation_label_height +
-                     film_strip.frame_height + MIN_HEIGHT_OFFSET)
+        min_height = film_strip.animation_label_height + film_strip.frame_height + MIN_HEIGHT_OFFSET
         assert film_strip.rect.height >= min_height
 
     def test_film_strip_frame_selection_integration(self):
@@ -118,9 +118,12 @@ class TestFilmStripIntegration(FilmStripTestBase):
         mock_sprite.current_animation = ""
         canvas = bitmappy.AnimatedCanvasSprite(
             animated_sprite=mock_sprite,
-            x=0, y=0,
-            pixels_across=PIXELS_ACROSS, pixels_tall=PIXELS_TALL,
-            pixel_width=PIXEL_SIZE, pixel_height=PIXEL_SIZE
+            x=0,
+            y=0,
+            pixels_across=PIXELS_ACROSS,
+            pixels_tall=PIXELS_TALL,
+            pixel_width=PIXEL_SIZE,
+            pixel_height=PIXEL_SIZE,
         )
 
         # Test initial state
@@ -140,8 +143,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -151,8 +157,10 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create mock click event
         mock_event = self._mocker.Mock()
-        mock_event.pos = (film_strip_sprite.rect.x + CLICK_OFFSET,
-                         film_strip_sprite.rect.y + CLICK_OFFSET)
+        mock_event.pos = (
+            film_strip_sprite.rect.x + CLICK_OFFSET,
+            film_strip_sprite.rect.y + CLICK_OFFSET,
+        )
 
         # Get the actual animation name from the mock sprite
         animation_name = next(iter(mock_sprite._animations.keys()))
@@ -171,8 +179,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -206,9 +217,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
             return frame
 
         # Add frames to the animated sprite
-        frames = [create_mock_frame(FRAME_DURATION),
-                 create_mock_frame(FRAME_DURATION),
-                 create_mock_frame(FRAME_DURATION)]
+        frames = [
+            create_mock_frame(FRAME_DURATION),
+            create_mock_frame(FRAME_DURATION),
+            create_mock_frame(FRAME_DURATION),
+        ]
         animated_sprite._animations = {"test_anim": frames}
         animated_sprite._animation_order = ["test_anim"]
 
@@ -254,7 +267,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
             "test_anim": [
                 create_mock_frame(FRAME_DURATION),
                 create_mock_frame(FRAME_DURATION),
-                create_mock_frame(FRAME_DURATION)
+                create_mock_frame(FRAME_DURATION),
             ]
         }
         animated_sprite._animation_order = ["test_anim"]
@@ -298,9 +311,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
             frame.pixels = [MAGENTA_PIXELS] * (FRAME_SIZE * FRAME_SIZE)
             return frame
 
-        frames = [create_mock_frame(FRAME_DURATION),
-                 create_mock_frame(FRAME_DURATION),
-                 create_mock_frame(FRAME_DURATION)]
+        frames = [
+            create_mock_frame(FRAME_DURATION),
+            create_mock_frame(FRAME_DURATION),
+            create_mock_frame(FRAME_DURATION),
+        ]
         animated_sprite._animations = {"test_anim": frames}
         animated_sprite._animation_order = ["test_anim"]
 
@@ -337,8 +352,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -360,8 +378,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -379,8 +400,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -397,8 +421,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -418,8 +445,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -446,8 +476,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
 
         # Use centralized mock factory to create a proper canvas
@@ -479,8 +512,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(empty_sprite)
 
@@ -494,8 +530,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
-            options={"pixels_across": PIXELS_ACROSS, "pixels_tall": PIXELS_TALL,
-                    "pixel_size": PIXEL_SIZE}
+            options={
+                "pixels_across": PIXELS_ACROSS,
+                "pixels_tall": PIXELS_TALL,
+                "pixel_size": PIXEL_SIZE,
+            }
         )
         scene._on_sprite_loaded(mock_sprite)
 
@@ -505,17 +544,18 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Create mock event
         mock_event = self._mocker.Mock()
-        mock_event.pos = (film_strip_sprite.rect.x + CLICK_OFFSET,
-                         film_strip_sprite.rect.y + CLICK_OFFSET)
+        mock_event.pos = (
+            film_strip_sprite.rect.x + CLICK_OFFSET,
+            film_strip_sprite.rect.y + CLICK_OFFSET,
+        )
 
         # Test coordinate conversion
-        mock_handle_click = mocker.patch.object(film_strip_widget, "handle_click",
-                        return_value=("idle", 1))
+        mock_handle_click = mocker.patch.object(
+            film_strip_widget, "handle_click", return_value=("idle", 1)
+        )
         film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 
         # Should convert screen coordinates to film strip coordinates
         expected_x = mock_event.pos[0] - film_strip_sprite.rect.x
         expected_y = mock_event.pos[1] - film_strip_sprite.rect.y
-        mock_handle_click.assert_called_once_with(
-            (expected_x, expected_y), is_shift_click=False
-        )
+        mock_handle_click.assert_called_once_with((expected_x, expected_y), is_shift_click=False)

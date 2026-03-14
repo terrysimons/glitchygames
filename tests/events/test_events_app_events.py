@@ -58,6 +58,7 @@ class TestAppEvents:
 
     def test_app_did_enter_background_event(self, mock_pygame_patches):
         """Test app did enter background event."""
+
         # Use centralized mock for scene with event handlers
         def app_did_enter_background_handler(event):
             scene.game_events_received.append(("app_did_enter_background", event))
@@ -78,6 +79,7 @@ class TestAppEvents:
 
     def test_app_did_enter_foreground_event(self, mock_pygame_patches):
         """Test app did enter foreground event."""
+
         # Use centralized mock for scene with event handlers
         def app_did_enter_foreground_handler(event):
             scene.game_events_received.append(("app_did_enter_foreground", event))
@@ -98,6 +100,7 @@ class TestAppEvents:
 
     def test_app_will_enter_background_event(self, mock_pygame_patches):
         """Test app will enter background event."""
+
         # Use centralized mock for scene with event handlers
         def app_will_enter_background_handler(event):
             scene.game_events_received.append(("app_will_enter_background", event))
@@ -118,6 +121,7 @@ class TestAppEvents:
 
     def test_app_will_enter_foreground_event(self, mock_pygame_patches):
         """Test app will enter foreground event."""
+
         # Use centralized mock for scene with event handlers
         def app_will_enter_foreground_handler(event):
             scene.game_events_received.append(("app_will_enter_foreground", event))
@@ -138,6 +142,7 @@ class TestAppEvents:
 
     def test_app_low_memory_event(self, mock_pygame_patches):
         """Test app low memory event."""
+
         # Use centralized mock for scene with event handlers
         def app_low_memory_handler(event):
             scene.game_events_received.append(("app_low_memory", event))
@@ -158,6 +163,7 @@ class TestAppEvents:
 
     def test_app_terminating_event(self, mock_pygame_patches):
         """Test app terminating event."""
+
         # Use centralized mock for scene with event handlers
         def app_terminating_handler(event):
             scene.game_events_received.append(("app_terminating", event))
@@ -185,7 +191,9 @@ class TestAppEventFlow:
         # Create a mock scene with app event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_app_did_enter_background_event": lambda event: scene.game_events_received.append(("app_did_enter_background", event)) or True
+                "on_app_did_enter_background_event": lambda event: (
+                    scene.game_events_received.append(("app_did_enter_background", event)) or True
+                )
             }
         )
 
@@ -199,7 +207,7 @@ class TestAppEventFlow:
             "use_gfxdraw": False,
             "windowed": True,
             "resolution": "800x600",
-            "fps_refresh_rate": 1.0
+            "fps_refresh_rate": 1.0,
         }
 
         # Create engine with the scene
@@ -207,6 +215,7 @@ class TestAppEventFlow:
 
         # Initialize the app manager manually since start() isn't called
         from glitchygames.events.app import AppEventManager
+
         engine.app_manager = AppEventManager(game=scene)
 
         # Also initialize event handlers manually

@@ -32,9 +32,6 @@ class BitmappySprite(Sprite):
             filename (str): The filename to load.
             **kwargs: Keyword arguments to pass to the parent class.
 
-        Returns:
-            Self
-
         """
         super().__init__(*args, pos=(0, 0), size=(0, 0), **kwargs)
         self.image = None
@@ -106,8 +103,8 @@ class BitmappySprite(Sprite):
         Args:
             buffer (list): The buffer to read from.
 
-        Returns:
-            iter[tuple[int, int, int]]: An iterator of RGB triplets.
+        Yields:
+            tuple[int, int, int]: An RGB triplet.
 
         """
         iterator = iter(buffer)
@@ -152,9 +149,6 @@ class BitmappySprite(Sprite):
 
         Args:
             filename (str): The filename to save to.
-
-        Returns:
-            None
 
         """
         config = self.deflate()
@@ -264,9 +258,6 @@ class GameScene(Scene):
         Args:
             filename (str): The filename to load.
 
-        Returns:
-            None
-
         """
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -294,9 +285,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            None
-
         """
         super().__init__(options=options)
         self.filename = options.get("filename")
@@ -309,9 +297,6 @@ class Game(Scene):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
 
         """
         parser.add_argument(

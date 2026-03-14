@@ -31,6 +31,7 @@ class TestRootSprite:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_root_sprite_initialization_with_groups(self):
@@ -60,6 +61,7 @@ class TestSpriteInitialization:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_initialization_with_all_parameters(self):
@@ -67,8 +69,13 @@ class TestSpriteInitialization:
         # Create proper pygame sprite group
         groups = pygame.sprite.LayeredDirty()
         sprite = Sprite(
-            x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT,
-            name="test_sprite", parent=None, groups=groups
+            x=SPRITE_X,
+            y=SPRITE_Y,
+            width=SPRITE_WIDTH,
+            height=SPRITE_HEIGHT,
+            name="test_sprite",
+            parent=None,
+            groups=groups,
         )
 
         assert sprite.rect.x == SPRITE_X
@@ -136,6 +143,7 @@ class TestSpriteProperties:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_width_property_getter(self):

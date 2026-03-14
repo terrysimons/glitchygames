@@ -142,8 +142,13 @@ GAME_EVENTS = list(
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 
 
-def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[..., None]:  # noqa: ARG001
-    """Dump the cache info for a function."""
+def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[..., None]:
+    """Dump the cache info for a function.
+
+    Returns:
+        Callable[..., None]: The result.
+
+    """
 
     def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
         cache_info: Any = func.cache_info()
@@ -170,11 +175,8 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
         *args: The positional arguments.
         **kwargs: The keyword arguments.
 
-    Returns:
-        None
-
     Raises:
-        AttributeError: If the event is not handled.
+        UnhandledEventError: If no_unhandled_events is enabled and the event is not handled.
 
     """
     debug_events: bool | None = game.options.get("debug_events", None)
@@ -194,7 +196,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
             f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
         )
         raise UnhandledEventError(f"Unhandled event: {pygame.event.event_name(event.type)} {event}")
-    elif no_unhandled_events is None:
+    if no_unhandled_events is None:
         LOG.error(
             "Error: no_unhandled_events is missing from the game options. "
             "This shouldn't be possible."
@@ -249,9 +251,6 @@ class ResourceManager:
         Returns:
             The new instance of the class.
 
-        Raises:
-            AttributeError: If the event is not handled by any proxy.
-
         """
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
@@ -266,9 +265,6 @@ class ResourceManager:
 
         Args:
             game: The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__()
@@ -341,11 +337,21 @@ class HashableEvent(collections.UserDict):
         self.__dict__[key] = item
 
     def __getitem__(self: Self, key: str) -> object:
-        """Get an item from the object."""
+        """Get an item from the object.
+
+        Returns:
+            object: The item at the given index.
+
+        """
         return self.__dict__[key]
 
     def __len__(self: Self) -> int:
-        """Return the length of the object."""
+        """Return the length of the object.
+
+        Returns:
+            int: The number of items.
+
+        """
         return len(self.__dict__)
 
     def __delitem__(self: Self, key: str) -> NoReturn:
@@ -357,11 +363,21 @@ class HashableEvent(collections.UserDict):
         return self.__dict__.clear()
 
     def copy(self: Self) -> Self:
-        """Shallow copy the object."""
+        """Shallow copy the object.
+
+        Returns:
+            Self: The result.
+
+        """
         return self.__dict__.copy()
 
     def has_key(self: Self, k: str) -> bool:
-        """Return True if the key is in the object."""
+        """Return True if the key is in the object.
+
+        Returns:
+            bool: True if has key, False otherwise.
+
+        """
         return k in self.__dict__
 
     def update(self: Self, *args: list, **kwargs: dict) -> None:
@@ -369,43 +385,93 @@ class HashableEvent(collections.UserDict):
         return self.__dict__.update(*args, **kwargs)
 
     def keys(self: Self) -> list:
-        """Return the keys of the object."""
+        """Return the keys of the object.
+
+        Returns:
+            list: The result.
+
+        """
         return self.__dict__.keys()
 
     def values(self: Self) -> list:
-        """Return the values of the object."""
+        """Return the values of the object.
+
+        Returns:
+            list: The result.
+
+        """
         return self.__dict__.values()
 
     def __hash__(self: Self) -> int:
-        """Return the hash of the object."""
+        """Return the hash of the object.
+
+        Returns:
+            int: The hash value.
+
+        """
         return self.__hash
 
     def __eq__(self: Self, other: Self) -> bool:
-        """Return True if the objects are equal."""
+        """Return True if the objects are equal.
+
+        Returns:
+            bool: The comparison result.
+
+        """
         return self.type == other.type and self.__dict__ == other.__dict__
 
     def __ne__(self: Self, other: Self) -> bool:
-        """Return the opposite of __eq__."""
+        """Return the opposite of __eq__.
+
+        Returns:
+            bool: The comparison result.
+
+        """
         return not self.__eq__(other)
 
     def __repr__(self: Self) -> str:
-        """Return a string representation of the object."""
+        """Return a string representation of the object.
+
+        Returns:
+            str: The string representation.
+
+        """
         return f"{self.__class__.__name__}({self.__dict__})"
 
     def __str__(self: Self) -> str:
-        """Return a string representation of the object."""
+        """Return a string representation of the object.
+
+        Returns:
+            str: The string representation.
+
+        """
         return f"{self.__class__.__name__}({self.__dict__})"
 
     def __copy__(self: Self) -> Self:
-        """Shallow copy the object."""
+        """Shallow copy the object.
+
+        Returns:
+            Self: The result.
+
+        """
         return self.__class__(**self.__dict__)
 
     def __deepcopy__(self: Self, memo: dict) -> Self:
-        """Deep copy the object."""
+        """Deep copy the object.
+
+        Returns:
+            Self: The result.
+
+        """
         return self.__copy__()
 
     def __reduce__(self: Self) -> tuple:
-        """Reduce the object to a picklable form."""
+        """Reduce the object to a picklable form.
+
+        Returns:
+            tuple: The result.
+
+        """
         return (self.__class__, (), self.__dict__)
 
     def __setstate__(self: Self, state: dict) -> None:
@@ -420,7 +486,12 @@ class EventInterface(abc.ABC):  # noqa: B024
 
     @classmethod
     def __subclasshook__(cls, subclass: object) -> bool:
-        """Override the default __subclasshook__ to create an interface."""
+        """Override the default __subclasshook__ to create an interface.
+
+        Returns:
+            bool: True if the condition is met, False otherwise.
+
+        """
         # Note: This accounts for under/dunder methods in addition to regular methods.
         interface_attributes = set(cls.__abstractmethods__)
         subclass_attributes = set(subclass.__abstractmethods__)
@@ -459,9 +530,6 @@ class AudioEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # AUDIODEVICEADDED   which, iscapture
 
@@ -471,9 +539,6 @@ class AudioEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # AUDIODEVICEREMOVED which, iscapture
@@ -490,9 +555,6 @@ class AudioEventStubs(AudioEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # AUDIODEVICEADDED   which, iscapture
         return unhandled_event(self, event)
@@ -503,9 +565,6 @@ class AudioEventStubs(AudioEvents):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # AUDIODEVICEREMOVED which, iscapture
@@ -523,9 +582,6 @@ class ControllerEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERAXISMOTION joy, axis, value
 
@@ -535,9 +591,6 @@ class ControllerEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERBUTTONDOWN joy, button
@@ -549,9 +602,6 @@ class ControllerEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERBUTTONUP   joy, button
 
@@ -561,9 +611,6 @@ class ControllerEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERDEVICEADDED device_index, guid
@@ -575,9 +622,6 @@ class ControllerEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERDEVICEREMAPPED device_index
 
@@ -587,9 +631,6 @@ class ControllerEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERDEVICEREMOVED device_index
@@ -601,9 +642,6 @@ class ControllerEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERTOUCHPADDOWN joy, touchpad
 
@@ -614,9 +652,6 @@ class ControllerEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERTOUCHPADMOTION joy, touchpad
 
@@ -626,9 +661,6 @@ class ControllerEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
@@ -644,9 +676,6 @@ class ControllerEventStubs(ControllerEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERAXISMOTION joy, axis, value
         unhandled_event(self, event)
@@ -657,9 +686,6 @@ class ControllerEventStubs(ControllerEvents):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERBUTTONDOWN joy, button
@@ -672,9 +698,6 @@ class ControllerEventStubs(ControllerEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERBUTTONUP   joy, button
         unhandled_event(self, event)
@@ -685,9 +708,6 @@ class ControllerEventStubs(ControllerEvents):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERDEVICEADDED device_index, guid
@@ -700,9 +720,6 @@ class ControllerEventStubs(ControllerEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERDEVICEREMAPPED device_index
         unhandled_event(self, event)
@@ -713,9 +730,6 @@ class ControllerEventStubs(ControllerEvents):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERDEVICEREMOVED device_index
@@ -728,9 +742,6 @@ class ControllerEventStubs(ControllerEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERTOUCHPADDOWN joy, touchpad
         unhandled_event(self, event)
@@ -742,9 +753,6 @@ class ControllerEventStubs(ControllerEvents):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERTOUCHPADMOTION joy, touchpad
         unhandled_event(self, event)
@@ -755,9 +763,6 @@ class ControllerEventStubs(ControllerEvents):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
@@ -775,9 +780,6 @@ class DropEvents(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # DROPBEGIN        none
 
@@ -787,9 +789,6 @@ class DropEvents(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # DROPFILE         file
@@ -801,9 +800,6 @@ class DropEvents(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # DROPTEXT         text
 
@@ -813,9 +809,6 @@ class DropEvents(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # DROPCOMPLETE     none
@@ -832,9 +825,6 @@ class DropEventStubs(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # DROPBEGIN        none
         unhandled_event(self, event)
@@ -845,9 +835,6 @@ class DropEventStubs(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # DROPFILE         file
@@ -860,9 +847,6 @@ class DropEventStubs(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # DROPTEXT         text
         unhandled_event(self, event)
@@ -873,9 +857,6 @@ class DropEventStubs(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # DROPCOMPLETE     none
@@ -893,9 +874,6 @@ class TouchEvents(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
 
@@ -905,9 +883,6 @@ class TouchEvents(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
@@ -919,9 +894,6 @@ class TouchEvents(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # FINGERUP         finger_id, x, y, dx, dy, pressure
 
@@ -931,9 +903,6 @@ class TouchEvents(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
@@ -945,9 +914,6 @@ class TouchEvents(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
 
@@ -957,9 +923,6 @@ class TouchEvents(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
@@ -976,9 +939,6 @@ class TouchEventStubs(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -989,9 +949,6 @@ class TouchEventStubs(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
@@ -1004,9 +961,6 @@ class TouchEventStubs(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # FINGERUP         finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -1017,9 +971,6 @@ class TouchEventStubs(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
@@ -1032,9 +983,6 @@ class TouchEventStubs(EventInterface):
         Args:
             event: The pygame event.
 
-        Returns:
-            None
-
         """
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
@@ -1045,9 +993,6 @@ class TouchEventStubs(EventInterface):
 
         Args:
             event: The pygame event.
-
-        Returns:
-            None
 
         """
         # MULTIFINGERUP    touch_id, x, y, dx, dy, pressure
@@ -1075,9 +1020,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # ACTIVEEVENT      gain, state
 
@@ -1087,9 +1029,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
@@ -1101,9 +1040,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # GAMEEVENT is pygame.USEREVENT + 2
 
@@ -1113,9 +1049,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MENUEVENT is pygame.USEREVENT + 3
@@ -1127,9 +1060,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # SYSWMEVENT
 
@@ -1139,9 +1069,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # USEREVENT        code
@@ -1153,9 +1080,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # VIDEOEXPOSE      none
 
@@ -1165,9 +1089,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # VIDEORESIZE      size, w, h
@@ -1179,9 +1100,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # QUIT             none
 
@@ -1191,9 +1109,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # RENDER_DEVICE_RESET
@@ -1205,9 +1120,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # RENDER_TARGETS_RESET
 
@@ -1218,9 +1130,6 @@ class GameEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CLIPBOARDUPDATE
 
@@ -1230,9 +1139,6 @@ class GameEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # LOCALECHANGED
@@ -1255,9 +1161,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # ACTIVEEVENT      gain, state
         unhandled_event(self, event)
@@ -1268,9 +1171,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
@@ -1283,9 +1183,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # GAMEEVENT is pygame.USEREVENT + 2
         unhandled_event(self, event)
@@ -1296,9 +1193,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MENUEVENT is pygame.USEREVENT + 3
@@ -1311,9 +1205,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # SYSWMEVENT
         unhandled_event(self, event)
@@ -1324,9 +1215,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # USEREVENT        code
@@ -1339,9 +1227,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # VIDEOEXPOSE      none
         unhandled_event(self, event)
@@ -1352,9 +1237,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # VIDEORESIZE      size, w, h
@@ -1367,9 +1249,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # QUIT             none
         unhandled_event(self, event)
@@ -1380,9 +1259,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # RENDER_DEVICE_RESET
@@ -1395,9 +1271,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # RENDER_TARGETS_RESET
         unhandled_event(self, event)
@@ -1409,9 +1282,6 @@ class GameEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # CLIPBOARDUPDATE
         unhandled_event(self, event)
@@ -1422,9 +1292,6 @@ class GameEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # LOCALECHANGED
@@ -1549,9 +1416,6 @@ class FontEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # FONTS_CHANGED
 
@@ -1566,9 +1430,6 @@ class FontEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # FONTS_CHANGED
@@ -1586,9 +1447,6 @@ class KeyboardEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # KEYDOWN          unicode, key, mod
 
@@ -1598,9 +1456,6 @@ class KeyboardEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # KEYUP            key, mod
@@ -1613,9 +1468,6 @@ class KeyboardEvents(EventInterface):
             event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -1626,9 +1478,6 @@ class KeyboardEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -1645,9 +1494,6 @@ class KeyboardEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # KEYDOWN          unicode, key, mod
         unhandled_event(self, event)
@@ -1658,9 +1504,6 @@ class KeyboardEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # KEYUP            key, mod
@@ -1674,9 +1517,6 @@ class KeyboardEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, keys)
@@ -1688,9 +1528,6 @@ class KeyboardEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             keys (list): The keys in the chord.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -1708,9 +1545,6 @@ class JoystickEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYAXISMOTION    joy, axis, value
 
@@ -1720,9 +1554,6 @@ class JoystickEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYBUTTONDOWN    joy, button
@@ -1734,9 +1565,6 @@ class JoystickEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBUTTONUP      joy, button
 
@@ -1746,9 +1574,6 @@ class JoystickEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYHATMOTION     joy, hat, value
@@ -1760,9 +1585,6 @@ class JoystickEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBALLMOTION    joy, ball, rel
 
@@ -1773,9 +1595,6 @@ class JoystickEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYDEVICEADDED device_index, guid
 
@@ -1785,9 +1604,6 @@ class JoystickEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYDEVICEREMOVED device_index
@@ -1804,9 +1620,6 @@ class JoystickEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYAXISMOTION    joy, axis, value
         unhandled_event(self, event)
@@ -1817,9 +1630,6 @@ class JoystickEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYBUTTONDOWN    joy, button
@@ -1832,9 +1642,6 @@ class JoystickEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBUTTONUP      joy, button
         unhandled_event(self, event)
@@ -1845,9 +1652,6 @@ class JoystickEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYHATMOTION     joy, hat, value
@@ -1860,9 +1664,6 @@ class JoystickEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBALLMOTION    joy, ball, rel
         unhandled_event(self, event)
@@ -1874,9 +1675,6 @@ class JoystickEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYDEVICEADDED device_index, guid
         unhandled_event(self, event)
@@ -1887,9 +1685,6 @@ class JoystickEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYDEVICEREMOVED device_index
@@ -1907,9 +1702,6 @@ class MidiEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # MIDIIN           device_id, status, data1, data2
 
@@ -1919,9 +1711,6 @@ class MidiEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MIDIOUT          device_id, status, data1, data2
@@ -1937,9 +1726,6 @@ class MidiEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         unhandled_event(self, event)
 
@@ -1948,9 +1734,6 @@ class MidiEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         unhandled_event(self, event)
@@ -1967,9 +1750,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEMOTION      pos, rel, buttons
 
@@ -1980,9 +1760,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -1995,9 +1772,6 @@ class MouseEvents(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -2008,9 +1782,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2023,9 +1794,6 @@ class MouseEvents(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -2036,9 +1804,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2051,9 +1816,6 @@ class MouseEvents(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -2064,9 +1826,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2079,9 +1838,6 @@ class MouseEvents(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -2092,9 +1848,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             entering_focus (object): The object that is entering focus.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2107,9 +1860,6 @@ class MouseEvents(EventInterface):
             event (HashableEvent): The event to handle.
             leaving_focus (object): The object that is leaving focus.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
 
@@ -2119,9 +1869,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -2133,9 +1880,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Left Mouse Button Up pos, button
 
@@ -2145,9 +1889,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # Middle Mouse Button Up pos, button
@@ -2159,9 +1900,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Right Mouse Button Up pos, button
 
@@ -2171,9 +1909,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -2185,9 +1920,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Left Mouse Button Down pos, button
 
@@ -2197,9 +1929,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # Middle Mouse Button Down pos, button
@@ -2211,9 +1940,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Right Mouse Button Down pos, button
 
@@ -2223,9 +1949,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # This is a synthesized event.
@@ -2237,9 +1960,6 @@ class MouseEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # This is a synthesized event.
 
@@ -2249,9 +1969,6 @@ class MouseEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEWHEEL flipped, y, x, touch, window
@@ -2268,9 +1985,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEMOTION      pos, rel, buttons
         unhandled_event(self, event)
@@ -2282,9 +1996,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2298,9 +2009,6 @@ class MouseEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -2312,9 +2020,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2328,9 +2033,6 @@ class MouseEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -2342,9 +2044,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2358,9 +2057,6 @@ class MouseEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -2372,9 +2068,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2388,9 +2081,6 @@ class MouseEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
@@ -2402,9 +2092,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
             entering_focus (object): The object that is entering focus.
-
-        Returns:
-            None
 
         """
         # Synthesized event.
@@ -2418,9 +2105,6 @@ class MouseEventStubs(EventInterface):
             event (HashableEvent): The event to handle.
             leaving_focus (object): The object that is leaving focus.
 
-        Returns:
-            None
-
         """
         # Synthesized event.
         unhandled_event(self, event, leaving_focus)
@@ -2431,9 +2115,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -2446,9 +2127,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Left Mouse Button Up pos, button
         unhandled_event(self, event)
@@ -2459,9 +2137,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # Middle Mouse Button Up pos, button
@@ -2474,9 +2149,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Right Mouse Button Up pos, button
         unhandled_event(self, event)
@@ -2487,9 +2159,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -2502,9 +2171,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Left Mouse Button Down pos, button
         unhandled_event(self, event)
@@ -2515,9 +2181,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # Middle Mouse Button Down pos, button
@@ -2530,9 +2193,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # Right Mouse Button Down pos, button
         unhandled_event(self, event)
@@ -2543,9 +2203,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # This is a synthesized event.
@@ -2558,9 +2215,6 @@ class MouseEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # This is a synthesized event.
         unhandled_event(self, event)
@@ -2571,9 +2225,6 @@ class MouseEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEWHEEL flipped, y, x, touch, window
@@ -2590,9 +2241,6 @@ class TextEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # TEXTEDITING      text, start, length
 
@@ -2602,9 +2250,6 @@ class TextEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # TEXTINPUT        text
@@ -2620,9 +2265,6 @@ class TextEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # TEXTEDITING      text, start, length
         unhandled_event(self, event)
@@ -2633,9 +2275,6 @@ class TextEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # TEXTINPUT        text
@@ -2652,9 +2291,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWCLOSE      none
 
@@ -2664,9 +2300,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWENTER      none
@@ -2678,9 +2311,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWEXPOSED    none
 
@@ -2690,9 +2320,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWFOCUSGAINED none
@@ -2704,9 +2331,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWFOCUSLOST  none
 
@@ -2716,9 +2340,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWHIDDEN     none
@@ -2730,9 +2351,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWHITTEST    none
 
@@ -2742,9 +2360,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWLEAVE      none
@@ -2756,9 +2371,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWMAXIMIZED  none
 
@@ -2768,9 +2380,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWMINIMIZED  none
@@ -2782,9 +2391,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWMOVED      none
 
@@ -2794,9 +2400,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWRESIZED    size, w, h
@@ -2808,9 +2411,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWRESTORED   none
 
@@ -2820,9 +2420,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWSHOWN      none
@@ -2834,9 +2431,6 @@ class WindowEvents(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWSIZECHANGED size, w, h
 
@@ -2846,9 +2440,6 @@ class WindowEvents(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWTAKEFOCUS  none
@@ -2864,9 +2455,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWCLOSE      none
         unhandled_event(self, event)
@@ -2877,9 +2465,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWENTER      none
@@ -2892,9 +2477,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWEXPOSED    none
         unhandled_event(self, event)
@@ -2905,9 +2487,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWFOCUSGAINED none
@@ -2920,9 +2499,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWFOCUSLOST  none
         unhandled_event(self, event)
@@ -2933,9 +2509,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWHIDDEN     none
@@ -2948,9 +2521,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWHITTEST    none
         unhandled_event(self, event)
@@ -2961,9 +2531,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWLEAVE      none
@@ -2976,9 +2543,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWMAXIMIZED  none
         unhandled_event(self, event)
@@ -2989,9 +2553,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWMINIMIZED  none
@@ -3004,9 +2565,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWMOVED      none
         unhandled_event(self, event)
@@ -3017,9 +2575,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWRESIZED    size, w, h
@@ -3032,9 +2587,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWRESTORED   none
         unhandled_event(self, event)
@@ -3045,9 +2597,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWSHOWN      none
@@ -3060,9 +2609,6 @@ class WindowEventStubs(EventInterface):
         Args:
             event (HashableEvent): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWSIZECHANGED size, w, h
         unhandled_event(self, event)
@@ -3073,9 +2619,6 @@ class WindowEventStubs(EventInterface):
 
         Args:
             event (HashableEvent): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWTAKEFOCUS  none
@@ -3140,9 +2683,6 @@ class EventManager(ResourceManager):
             Args:
                 event_source: The event source.
 
-            Returns:
-                None
-
             """
             super().__init__()
             # No proxies for the root class.
@@ -3161,9 +2701,6 @@ class EventManager(ResourceManager):
             Args:
                 *args: The positional arguments.
                 **kwargs: The keyword arguments.
-
-            Returns:
-                None
 
             """
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
@@ -3197,9 +2734,6 @@ class EventManager(ResourceManager):
 
         Args:
             game: The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__(game)

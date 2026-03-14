@@ -32,12 +32,12 @@ def _compute_kinetic_energy(balls):
 
     Returns sum of speed_magnitude^2 for all alive balls.
     For equal-mass balls, this is proportional to total kinetic energy.
+
+    Returns:
+        object: The result.
+
     """
-    return sum(
-        ball.speed.x ** 2 + ball.speed.y ** 2
-        for ball in balls
-        if ball.alive()
-    )
+    return sum(ball.speed.x**2 + ball.speed.y**2 for ball in balls if ball.alive())
 
 
 def _handle_elastic_collision(ball1, ball2):
@@ -69,10 +69,9 @@ def _handle_elastic_collision(ball1, ball2):
     ny = dy / distance
 
     # Check if balls are approaching along the collision normal
-    relative_velocity_along_normal = (
-        (ball2.speed.x - ball1.speed.x) * nx
-        + (ball2.speed.y - ball1.speed.y) * ny
-    )
+    relative_velocity_along_normal = (ball2.speed.x - ball1.speed.x) * nx + (
+        ball2.speed.y - ball1.speed.y
+    ) * ny
 
     # If relative velocity along normal is positive, balls are separating
     collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
@@ -157,10 +156,7 @@ def test_multi_ball_ball_collision_bounce():
     collision_cooldowns = {}
 
     # Track per-ball speed magnitude history for stability analysis
-    initial_magnitudes = [
-        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
-        for ball in balls
-    ]
+    initial_magnitudes = [math.sqrt(ball.speed.x**2 + ball.speed.y**2) for ball in balls]
     # Track which balls have been involved in collisions
     collision_participants = set()
 
@@ -170,9 +166,7 @@ def test_multi_ball_ball_collision_bounce():
 
     while frame_count < max_frames and any(ball.alive() for ball in balls):
         # Tick cooldowns at start of each frame
-        expired_pairs = [
-            pair for pair, remaining in collision_cooldowns.items() if remaining <= 1
-        ]
+        expired_pairs = [pair for pair, remaining in collision_cooldowns.items() if remaining <= 1]
         for pair in expired_pairs:
             del collision_cooldowns[pair]
         for pair in collision_cooldowns:
@@ -211,15 +205,13 @@ def test_multi_ball_ball_collision_bounce():
                 ball.dt_tick(dt)
 
                 # Detect wall bounces by checking if speed direction flipped
-                if (
-                    old_speed_x * ball.speed.x < 0
-                    and (ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1)
+                if old_speed_x * ball.speed.x < 0 and (
+                    ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1
                 ):
                     wall_bounces += 1
 
-                if (
-                    old_speed_y * ball.speed.y < 0
-                    and (ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1)
+                if old_speed_y * ball.speed.y < 0 and (
+                    ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1
                 ):
                     wall_bounces += 1
 
@@ -230,10 +222,7 @@ def test_multi_ball_ball_collision_bounce():
     final_alive = sum(1 for ball in balls if ball.alive())
 
     # Compute per-ball magnitude drift
-    final_magnitudes = [
-        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
-        for ball in balls
-    ]
+    final_magnitudes = [math.sqrt(ball.speed.x**2 + ball.speed.y**2) for ball in balls]
 
     pygame.quit()
 

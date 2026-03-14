@@ -134,7 +134,7 @@ class SpriteGenerationService:
         client = self._ensure_client()
 
         # Determine which model to use
-        model_string = model if model else self.config.get_ai_model_string()
+        model_string = model or self.config.get_ai_model_string()
 
         # Build enhanced prompt with all hints
         enhanced_prompt = prompt

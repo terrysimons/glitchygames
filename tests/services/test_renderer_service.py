@@ -3,7 +3,6 @@
 import os
 
 import pytest
-from glitchygames.services.config import ServiceConfig
 from glitchygames.services.renderer_service import RendererService, RenderResult
 
 
@@ -42,7 +41,12 @@ class TestRendererService:
 
     @pytest.fixture
     def sample_static_toml(self):
-        """Provide sample static sprite TOML."""
+        """Provide sample static sprite TOML.
+
+        Returns:
+            object: The result.
+
+        """
         return """
 [sprite]
 name = "test_heart"
@@ -67,7 +71,12 @@ blue = 255
 
     @pytest.fixture
     def sample_animated_toml(self):
-        """Provide sample animated sprite TOML."""
+        """Provide sample animated sprite TOML.
+
+        Returns:
+            object: The result.
+
+        """
         return """
 [sprite]
 name = "test_blink"

@@ -4,7 +4,6 @@ This module provides reusable mock factories for creating consistent test object
 across all test files, reducing code duplication and ensuring proper mock configuration.
 """
 
-import os
 from typing import ClassVar
 from unittest.mock import Mock, patch
 
@@ -32,8 +31,11 @@ class MockSurface(pygame.Surface):
             min_args_for_tuple = 1
             min_args_for_separate = 2
             default_surface_size = 32
-            if (len(args) >= min_args_for_tuple and isinstance(args[0], tuple)
-                and len(args[0]) >= min_args_for_separate):
+            if (
+                len(args) >= min_args_for_tuple
+                and isinstance(args[0], tuple)
+                and len(args[0]) >= min_args_for_separate
+            ):
                 # Case: pygame.Surface((width, height))
                 width, height = args[0]
                 # Allow 0x0 surfaces for testing empty surface scenarios
@@ -52,23 +54,40 @@ class MockSurface(pygame.Surface):
         self._mock_path = "/mock/surface/path.png"  # Default mock path for PathLike protocol
 
     def convert(self, *args, **kwargs):
-        """Mock convert method that returns self."""
+        """Mock convert method that returns self.
+
+        Returns:
+            object: The result.
+
+        """
         return self
 
     def convert_alpha(self, *args, **kwargs):
-        """Mock convert_alpha method that returns self."""
+        """Mock convert_alpha method that returns self.
+
+        Returns:
+            object: The result.
+
+        """
         return self
 
     def blit(self, source, dest, area=None, special_flags=0):
-        """Delegate blit to the parent surface."""
+        """Delegate blit to the parent surface.
+
+        Returns:
+            object: The result.
+
+        """
         # Handle MockSurface sources by extracting their real surface
         if hasattr(source, "_surface"):
             source = source._surface
 
         # If source is still a mock, create a real surface for it
-        if (hasattr(source, "_spec_class") or
-            str(type(source)).find("Mock") != -1 or
-            str(type(source)).find("MockSurface") != -1):
+        if (
+            hasattr(source, "_spec_class")
+            or str(type(source)).find("Mock") != -1
+            or str(type(source)).find("MockSurface") != -1
+        ):
             # Create a real pygame surface for the mock by calling the real constructor
             real_source = pygame.surface.Surface((32, 32))
             real_source.fill((255, 255, 255))  # White background
@@ -81,19 +100,39 @@ class MockSurface(pygame.Surface):
         return super().blit(source, dest, area, special_flags)
 
     def fill(self, color, rect=None, special_flags=0):
-        """Delegate fill to the parent surface."""
+        """Delegate fill to the parent surface.
+
+        Returns:
+            object: The result.
+
+        """
         return super().fill(color, rect, special_flags)
 
     def copy(self):
-        """Return a copy of this surface."""
+        """Return a copy of this surface.
+
+        Returns:
+            object: The result.
+
+        """
         return self
 
     def set_at(self, pos, color):
-        """Set pixel color at position."""
+        """Set pixel color at position.
+
+        Returns:
+            object: The result.
+
+        """
         return super().set_at(pos, color)
 
     def get_at(self, pos):
-        """Get pixel color at position."""
+        """Get pixel color at position.
+
+        Returns:
+            object: The at.
+
+        """
         # Get the color from the parent surface and ensure it's a pygame.Color object
         color = super().get_at(pos)
         # If it's a tuple, convert it to pygame.Color
@@ -102,18 +141,33 @@ class MockSurface(pygame.Surface):
         return color
 
     def get_pixel_data(self):
-        """Get pixel data for this surface."""
+        """Get pixel data for this surface.
+
+        Returns:
+            object: The pixel data.
+
+        """
         width, height = self.get_size()
         # Return different pixel data based on the surface content
         # This simulates different frame content
         return [(255, 0, 0)] * (width * height)  # Red pixels for testing
 
     def get_rect(self, **kwargs):
-        """Get rect for this surface."""
+        """Get rect for this surface.
+
+        Returns:
+            object: The rect.
+
+        """
         return super().get_rect(**kwargs)
 
     def __fspath__(self):
-        """Implement PathLike protocol for MockSurface."""
+        """Implement PathLike protocol for MockSurface.
+
+        Returns:
+            object: The result.
+
+        """
         return self._mock_path
 
 
@@ -127,13 +181,22 @@ class MockFactory:
 
     @staticmethod
     def _copy_mock_sprite(original_sprite: Mock) -> Mock:
-        """Create a copy of a mock sprite to avoid test interference."""
+        """Create a copy of a mock sprite to avoid test interference.
+
+        Returns:
+            Mock: The result.
+
+        """
         # Create a new Mock instead of deep copying to avoid infinite recursion
         new_sprite = Mock(spec=type(original_sprite))
 
         # Copy essential attributes manually to avoid circular references
         for attr_name in [
-            "_animations", "current_animation", "current_frame", "is_playing", "_is_looping"
+            "_animations",
+            "current_animation",
+            "current_frame",
+            "is_playing",
+            "_is_looping",
         ]:
             if hasattr(original_sprite, attr_name):
                 setattr(new_sprite, attr_name, getattr(original_sprite, attr_name))
@@ -153,7 +216,7 @@ class MockFactory:
         MockFactory._cached_frames.clear()
 
     @staticmethod
-    def create_animated_sprite_mock(  # noqa: PLR0915
+    def create_animated_sprite_mock(
         animation_name: str = "idle",
         frame_size: tuple = (8, 8),
         pixel_color: tuple = (255, 0, 0),
@@ -161,7 +224,7 @@ class MockFactory:
         *,
         is_playing: bool = False,
         is_looping: bool = True,
-        use_cache: bool = True  # noqa: FBT001, FBT002, ARG004  # noqa: ARG004
+        use_cache: bool = True,  # noqa: ARG004  # noqa: ARG004
     ) -> Mock:
         """Create a properly configured AnimatedSprite mock.
 
@@ -204,7 +267,7 @@ class MockFactory:
             frame_color = (
                 (pixel_color[0] + frame_idx * 20) % 256,
                 (pixel_color[1] + frame_idx * 30) % 256,
-                (pixel_color[2] + frame_idx * 40) % 256
+                (pixel_color[2] + frame_idx * 40) % 256,
             )
             pixel_count = frame_size[0] * frame_size[1]
             mock_frame.get_pixel_data.return_value = [frame_color] * pixel_count
@@ -242,7 +305,7 @@ class MockFactory:
             animation_name: mock_frames,
             "timing_demo": mock_frames,  # Add timing_demo animation for tests
         }
-        
+
         # Only add "idle" if it's specifically requested
         if animation_name == "idle":
             mock_sprite._animations["idle"] = mock_frames
@@ -270,26 +333,31 @@ class MockFactory:
         # Add missing methods and attributes for comprehensive testing
         def mock_play():
             mock_sprite.is_playing = True
+
         mock_sprite.play = mock_play
 
         def mock_pause():
             mock_sprite.is_playing = False
+
         mock_sprite.pause = mock_pause
 
         def mock_stop():
             mock_sprite.is_playing = False
             mock_sprite.current_frame = 0
+
         mock_sprite.stop = mock_stop
 
         def mock_set_animation(animation_name):
             mock_sprite.current_animation = animation_name
+
         mock_sprite.set_animation = mock_set_animation
 
         def mock_set_frame(frame_idx):
             mock_sprite.current_frame = frame_idx
             # Update the sprite's image and rect to match the current frame
-            if (mock_sprite.current_animation in mock_sprite._animations and
-                frame_idx < len(mock_sprite._animations[mock_sprite.current_animation])):
+            if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
+                mock_sprite._animations[mock_sprite.current_animation]
+            ):
                 current_frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
                 mock_sprite.image = current_frame.image
                 # Create a new rect with proper attributes
@@ -299,52 +367,63 @@ class MockFactory:
                 new_rect.left = 0
                 new_rect.right = frame_size[0]
                 mock_sprite.rect = new_rect
+
         mock_sprite.set_frame = mock_set_frame
 
         def mock_get_pixel_data():
             # Return pixel data for the current frame
             current_anim = mock_sprite.current_animation
             current_frame = mock_sprite.current_frame
-            if (current_anim in mock_sprite._animations and
-                current_frame < len(mock_sprite._animations[current_anim])):
+            if current_anim in mock_sprite._animations and current_frame < len(
+                mock_sprite._animations[current_anim]
+            ):
                 frame = mock_sprite._animations[current_anim][current_frame]
                 return frame.get_pixel_data()
             return [pixel_color] * pixel_count
+
         mock_sprite.get_pixel_data = mock_get_pixel_data
 
         # Also add a method to get pixel data for a specific frame
         def mock_get_frame_pixel_data(frame_idx):
-            if (mock_sprite.current_animation in mock_sprite._animations and
-                frame_idx < len(mock_sprite._animations[mock_sprite.current_animation])):
+            if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
+                mock_sprite._animations[mock_sprite.current_animation]
+            ):
                 frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
                 return frame.get_pixel_data()
             return [pixel_color] * pixel_count
+
         mock_sprite.get_frame_pixel_data = mock_get_frame_pixel_data
 
         def mock_add_animation(name, frames):
             mock_sprite._animations[name] = frames
+
         mock_sprite.add_animation = mock_add_animation
 
         def mock_remove_animation(name):
             if name in mock_sprite._animations:
                 del mock_sprite._animations[name]
+
         mock_sprite.remove_animation = mock_remove_animation
 
         def mock_set_looping(looping):
             mock_sprite._is_looping = looping
+
         mock_sprite.set_looping = mock_set_looping
 
         def mock_clear_surface_cache():
             mock_sprite._surface_cache.clear()
+
         mock_sprite.clear_surface_cache = mock_clear_surface_cache
 
         def mock_add_frame_observer(observer):
             mock_sprite._frame_manager._observers.append(observer)
+
         mock_sprite.add_frame_observer = mock_add_frame_observer
 
         def mock_remove_frame_observer(observer):
             if observer in mock_sprite._frame_manager._observers:
                 mock_sprite._frame_manager._observers.remove(observer)
+
         mock_sprite.remove_frame_observer = mock_remove_frame_observer
 
         # Add get_frame method with error handling
@@ -352,8 +431,11 @@ class MockFactory:
             if animation_name not in mock_sprite._animations:
                 raise ValueError(f"Animation '{animation_name}' not found")
             if frame_idx < 0 or frame_idx >= len(mock_sprite._animations[animation_name]):
-                raise IndexError(f"Frame index {frame_idx} out of range for animation '{animation_name}'")
+                raise IndexError(
+                    f"Frame index {frame_idx} out of range for animation '{animation_name}'"
+                )
             return mock_sprite._animations[animation_name][frame_idx]
+
         mock_sprite.get_frame = mock_get_frame
 
         # Add get_animation_metadata method
@@ -365,8 +447,9 @@ class MockFactory:
                 "name": animation_name,
                 "frame_count": len(frames),
                 "total_duration": sum(frame.duration for frame in frames),
-                "is_looping": mock_sprite._is_looping
+                "is_looping": mock_sprite._is_looping,
             }
+
         mock_sprite.get_animation_metadata = mock_get_animation_metadata
 
         mock_sprite.get_current_surface = Mock(return_value=Mock())
@@ -378,25 +461,25 @@ class MockFactory:
         mock_sprite._frame_manager = Mock()
         mock_sprite._frame_manager._observers = []
         mock_sprite._frame_manager.animated_sprite = mock_sprite
-        
+
         # Add frame_manager with current_animation and current_frame properties
         mock_sprite.frame_manager = Mock()
         mock_sprite.frame_manager.current_animation = animation_name
         mock_sprite.frame_manager.current_frame = current_frame
-        
+
         # Add animation_count property
         mock_sprite.animation_count = len(mock_frames)
-        
+
         # Add current_animation_frame_count property
         mock_sprite.current_animation_frame_count = len(mock_frames)
-        
+
         # Add current_animation_total_duration property
         total_duration = sum(frame.duration for frame in mock_frames)
         mock_sprite.current_animation_total_duration = total_duration
-        
+
         # Add animation_names property
         mock_sprite.animation_names = list(mock_sprite._animations.keys())
-        
+
         # Add frame_interval property (simulate timing)
         mock_sprite.frame_interval = 1.0  # Default 1 second interval
 
@@ -411,7 +494,7 @@ class MockFactory:
         pixels_across: int = 32,
         pixels_tall: int = 32,
         pixel_size: int = 16,
-        use_cache: bool = True  # noqa: FBT001, FBT002, ARG004
+        use_cache: bool = True,  # noqa: ARG004
     ) -> Mock:
         """Create an optimized scene mock with caching for performance.
 
@@ -457,7 +540,7 @@ class MockFactory:
     def create_event_test_scene_mock(
         options: dict = None,
         event_handlers: dict = None,
-        use_cache: bool = True  # noqa: FBT001, FBT002, ARG004
+        use_cache: bool = True,  # noqa: ARG004
     ) -> Mock:
         """Create a scene mock for event testing.
 
@@ -473,7 +556,7 @@ class MockFactory:
         if options is None:
             options = {
                 "debug_events": False,
-                "no_unhandled_events": True  # Enable globally to catch unhandled events as bugs
+                "no_unhandled_events": True,  # Enable globally to catch unhandled events as bugs
             }
 
         # Create scene mock
@@ -505,6 +588,7 @@ class MockFactory:
             # Explicitly empty event_handlers - add unhandled_event fallback for stub testing
             def unhandled_event_fallback(event):
                 unhandled_event(scene_mock, event)
+
             scene_mock.on_controller_axis_motion_event = unhandled_event_fallback
             scene_mock.on_audio_device_added_event = unhandled_event_fallback
             scene_mock.on_font_changed_event = unhandled_event_fallback
@@ -538,80 +622,113 @@ class MockFactory:
         else:
             # Add default event handlers if not provided
             if event_handlers is None or "on_audio_device_added_event" not in event_handlers:
+
                 def default_audio_handler(event):
                     scene_mock.audio_events_received.append(event)
                     return True
+
                 scene_mock.on_audio_device_added_event = default_audio_handler
 
             if event_handlers is None or "on_controller_axis_motion_event" not in event_handlers:
+
                 def default_controller_handler(event):
                     scene_mock.controller_events_received.append(event)
                     return True
+
                 scene_mock.on_controller_axis_motion_event = default_controller_handler
 
             if event_handlers is None or "on_text_input_event" not in event_handlers:
+
                 def default_text_input_handler(event):
                     scene_mock.text_events_received.append(event)
                     return True
+
                 scene_mock.on_text_input_event = default_text_input_handler
 
             if event_handlers is None or "on_text_editing_event" not in event_handlers:
+
                 def default_text_editing_handler(event):
                     scene_mock.text_events_received.append(event)
                     return True
+
                 scene_mock.on_text_editing_event = default_text_editing_handler
 
             if event_handlers is None or "on_render_device_reset_event" not in event_handlers:
+
                 def default_render_device_reset_handler(event):
                     scene_mock.game_events_received.append(("render_device_reset", event))
+
                 scene_mock.on_render_device_reset_event = default_render_device_reset_handler
 
             if event_handlers is None or "on_render_targets_reset_event" not in event_handlers:
+
                 def default_render_targets_reset_handler(event):
                     scene_mock.game_events_received.append(("render_targets_reset", event))
+
                 scene_mock.on_render_targets_reset_event = default_render_targets_reset_handler
 
             if event_handlers is None or "on_app_did_enter_background_event" not in event_handlers:
+
                 def default_app_did_enter_background_handler(event):
                     scene_mock.game_events_received.append(("app_did_enter_background", event))
-                scene_mock.on_app_did_enter_background_event = default_app_did_enter_background_handler
 
-            if (event_handlers is None or
-                "on_app_did_enter_foreground_event" not in event_handlers):
+                scene_mock.on_app_did_enter_background_event = (
+                    default_app_did_enter_background_handler
+                )
+
+            if event_handlers is None or "on_app_did_enter_foreground_event" not in event_handlers:
+
                 def default_app_did_enter_foreground_handler(event):
                     scene_mock.game_events_received.append(("app_did_enter_foreground", event))
-                scene_mock.on_app_did_enter_foreground_event = default_app_did_enter_foreground_handler
 
-            if (event_handlers is None or
-                "on_app_will_enter_background_event" not in event_handlers):
+                scene_mock.on_app_did_enter_foreground_event = (
+                    default_app_did_enter_foreground_handler
+                )
+
+            if event_handlers is None or "on_app_will_enter_background_event" not in event_handlers:
+
                 def default_app_will_enter_background_handler(event):
                     scene_mock.game_events_received.append(("app_will_enter_background", event))
-                scene_mock.on_app_will_enter_background_event = default_app_will_enter_background_handler
 
-            if (event_handlers is None or
-                "on_app_will_enter_foreground_event" not in event_handlers):
+                scene_mock.on_app_will_enter_background_event = (
+                    default_app_will_enter_background_handler
+                )
+
+            if event_handlers is None or "on_app_will_enter_foreground_event" not in event_handlers:
+
                 def default_app_will_enter_foreground_handler(event):
                     scene_mock.game_events_received.append(("app_will_enter_foreground", event))
-                scene_mock.on_app_will_enter_foreground_event = default_app_will_enter_foreground_handler
+
+                scene_mock.on_app_will_enter_foreground_event = (
+                    default_app_will_enter_foreground_handler
+                )
 
             if event_handlers is None or "on_app_low_memory_event" not in event_handlers:
+
                 def default_app_low_memory_handler(event):
                     scene_mock.game_events_received.append(("app_low_memory", event))
+
                 scene_mock.on_app_low_memory_event = default_app_low_memory_handler
 
             if event_handlers is None or "on_app_terminating_event" not in event_handlers:
+
                 def default_app_terminating_handler(event):
                     scene_mock.game_events_received.append(("app_terminating", event))
+
                 scene_mock.on_app_terminating_event = default_app_terminating_handler
 
             if event_handlers is None or "on_clipboard_update_event" not in event_handlers:
+
                 def default_clipboard_update_handler(event):
                     scene_mock.game_events_received.append(("clipboard_update", event))
+
                 scene_mock.on_clipboard_update_event = default_clipboard_update_handler
 
             if event_handlers is None or "on_locale_changed_event" not in event_handlers:
+
                 def default_locale_changed_handler(event):
                     scene_mock.game_events_received.append(("locale_changed", event))
+
                 scene_mock.on_locale_changed_event = default_locale_changed_handler
 
         return scene_mock
@@ -648,7 +765,7 @@ class MockFactory:
         mock_canvas.rect.x = 0
         mock_canvas.rect.y = 0
         mock_canvas.rect.width = pixels_across * 16  # pixel_size * pixels_across
-        mock_canvas.rect.height = pixels_tall * 16   # pixel_size * pixels_tall
+        mock_canvas.rect.height = pixels_tall * 16  # pixel_size * pixels_tall
         mock_canvas.rect.right = mock_canvas.rect.x + mock_canvas.rect.width
         mock_canvas.rect.y = 0
 
@@ -664,10 +781,7 @@ class MockFactory:
         return mock_canvas
 
     @staticmethod
-    def create_sprite_frame_mock(
-        size: tuple = (8, 8),
-        pixel_color: tuple = (255, 0, 0)
-    ) -> Mock:
+    def create_sprite_frame_mock(size: tuple = (8, 8), pixel_color: tuple = (255, 0, 0)) -> Mock:
         """Create a properly configured SpriteFrame mock.
 
         Args:
@@ -721,14 +835,24 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_surface_mock(width: int = 8, height: int = 8):
-        """Create a pygame.Surface-like mock suitable for Sprite tests."""
+        """Create a pygame.Surface-like mock suitable for Sprite tests.
+
+        Returns:
+            object: The newly created pygame surface mock.
+
+        """
         # Use the MockSurface class that inherits from pygame.Surface
         # This ensures it's recognized as a pygame.Surface instance
         return MockSurface((width, height))
 
     @staticmethod
     def create_pygame_surface_mock_object(width: int = 8, height: int = 8):
-        """Create a Mock object that can have its methods mocked (for tests that need to set return_value)."""
+        """Create a Mock object that can have its methods mocked (for tests that need to set return_value).
+
+        Returns:
+            object: The newly created pygame surface mock object.
+
+        """
         mock_surface = Mock()
         mock_surface.get_width.return_value = width
         mock_surface.get_height.return_value = height
@@ -741,8 +865,14 @@ class MockFactory:
 
     @staticmethod
     def create_real_pygame_surface(width: int = 8, height: int = 8):
-        """Create a real pygame.Surface for tests that need actual pygame functionality."""
-        import pygame  # noqa: PLC0415
+        """Create a real pygame.Surface for tests that need actual pygame functionality.
+
+        Returns:
+            object: The newly created real pygame surface.
+
+        """
+        import pygame
+
         # Initialize pygame if not already initialized
         if not pygame.get_init():
             pygame.init()
@@ -750,7 +880,12 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_font_mock():
-        """Create a mock pygame font for testing."""
+        """Create a mock pygame font for testing.
+
+        Returns:
+            object: The newly created pygame font mock.
+
+        """
         mock_font = Mock()
         rendered_surface = Mock()
         rendered_surface.get_rect.return_value = Mock()
@@ -762,7 +897,12 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_event_mock():
-        """Create a mock pygame event for testing."""
+        """Create a mock pygame event for testing.
+
+        Returns:
+            object: The newly created pygame event mock.
+
+        """
         mock_event = Mock()
         mock_event.type = 0
         mock_event.pos = (0, 0)
@@ -775,10 +915,10 @@ class MockFactory:
     @staticmethod
     def create_pygame_key_mock(shift_pressed=False):
         """Create a mock pygame key state for testing.
-        
+
         Args:
             shift_pressed (bool): Whether shift keys should be pressed
-            
+
         Returns:
             Mock: A mock that returns a list of key states
 
@@ -791,7 +931,12 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_joystick_mock():
-        """Create a mock pygame joystick for testing."""
+        """Create a mock pygame joystick for testing.
+
+        Returns:
+            object: The newly created pygame joystick mock.
+
+        """
         mock_joystick = Mock()
         mock_joystick.get_name.return_value = "Mock Joystick"
         mock_joystick.get_numaxes.return_value = 2
@@ -804,7 +949,12 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_sprite_group_mock():
-        """Create a mock pygame sprite group for testing."""
+        """Create a mock pygame sprite group for testing.
+
+        Returns:
+            object: The newly created pygame sprite group mock.
+
+        """
         mock_group = Mock()
         mock_group.add = Mock()
         mock_group.remove = Mock()
@@ -817,7 +967,12 @@ class MockFactory:
 
     @staticmethod
     def create_game_mock():
-        """Create a mock game for testing."""
+        """Create a mock game for testing.
+
+        Returns:
+            object: The newly created game mock.
+
+        """
         mock_game = Mock()
         mock_game.NAME = "MockGame"
         mock_game.VERSION = "1.0"
@@ -853,13 +1008,22 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_surface_class_mock():
-        """Create a pygame.Surface class mock that works with isinstance checks."""
+        """Create a pygame.Surface class mock that works with isinstance checks.
+
+        Returns:
+            object: The newly created pygame surface class mock.
+
+        """
+
         # Create a mock class that can be used with isinstance
         class MockSurfaceClass:
             def __init__(self, *args, **kwargs):
                 # Extract dimensions from constructor arguments
                 if len(args) >= 1:
-                    if isinstance(args[0], (tuple, list)) and len(args[0]) >= MIN_ARGS_FOR_DIMENSIONS:  # noqa: E501
+                    if (
+                        isinstance(args[0], (tuple, list))
+                        and len(args[0]) >= MIN_ARGS_FOR_DIMENSIONS
+                    ):
                         width, height = args[0][0], args[0][1]
                     elif len(args) >= MIN_ARGS_FOR_DIMENSIONS:
                         width, height = args[0], args[1]
@@ -886,7 +1050,12 @@ class MockFactory:
 
     @staticmethod
     def create_display_mock(width: int = 800, height: int = 600) -> MockSurface:
-        """Create a mock for pygame.display.get_surface()."""
+        """Create a mock for pygame.display.get_surface().
+
+        Returns:
+            MockSurface: The newly created display mock.
+
+        """
         # Create a MockSurface that behaves like a pygame.Surface
         screen = MockSurface((width, height))
 
@@ -918,7 +1087,7 @@ class MockFactory:
         return screen
 
     @staticmethod
-    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211,ARG004,PLR0915
+    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211, ARG004
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed
@@ -995,7 +1164,7 @@ class MockFactory:
         # Add common UI component attributes that might be accessed
         # Note: TextSprite manages its own text property, so we don't set self.text here
 
-        # For ButtonSprite, we need to ensure that when TextSprite is created, it has the right attributes  # noqa: E501
+        # For ButtonSprite, we need to ensure that when TextSprite is created, it has the right attributes
         # This will be handled by the TextSprite mock constructor
 
         # Add x and y properties for TextSprite compatibility
@@ -1015,7 +1184,7 @@ class MockFactory:
         self.blendmode = 0  # pygame.BLEND_NORMAL
 
         # Now set basic attributes - use private attributes to avoid triggering property setters
-        # that might reference attributes not yet initialized (e.g., ButtonSprite.x setter references self.text)  # noqa: E501
+        # that might reference attributes not yet initialized (e.g., ButtonSprite.x setter references self.text)
         self._x = x
         self._y = y
         self._width = width
@@ -1036,7 +1205,12 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_display_mock() -> Mock:
-        """Create a comprehensive pygame.display mock with initialization."""
+        """Create a comprehensive pygame.display mock with initialization.
+
+        Returns:
+            Mock: The newly created pygame display mock.
+
+        """
         display_mock = Mock()
         display_mock.init.return_value = None
         display_mock.quit.return_value = None
@@ -1081,11 +1255,13 @@ class MockFactory:
 
         # Only patch display-related functions
         display_patcher = patch("pygame.display", display_mock)
-        display_get_surface_patcher = patch("pygame.display.get_surface", return_value=display_surface)
+        display_get_surface_patcher = patch(
+            "pygame.display.get_surface", return_value=display_surface
+        )
 
         return (display_patcher, display_get_surface_patcher)
 
-    def setup_pygame_mocks():  # noqa: PLR0915,PLR0914
+    def setup_pygame_mocks():
         """Set up comprehensive pygame mocks for testing.
 
         Returns:
@@ -1104,7 +1280,9 @@ class MockFactory:
         # Set up patches
         display_patcher = patch("pygame.display", display_mock)
         # Also patch pygame.display.get_surface directly to ensure it returns the same mock
-        display_get_surface_patcher = patch("pygame.display.get_surface", return_value=display_surface)
+        display_get_surface_patcher = patch(
+            "pygame.display.get_surface", return_value=display_surface
+        )
 
         # Display info mock is now included in display_mock
 
@@ -1122,7 +1300,12 @@ class MockFactory:
 
         # Sprite group mocking - create proper mocks for LayeredDirty and other sprite groups
         def mock_layered_dirty_constructor(*args, **kwargs):
-            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock."""
+            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
+
+            Returns:
+                object: The result.
+
+            """
             mock_group = Mock()
             mock_group._spritelist = []
             mock_group._old_rect = {}
@@ -1164,29 +1347,47 @@ class MockFactory:
 
             return mock_group
 
-        layered_dirty_patcher = patch("pygame.sprite.LayeredDirty", side_effect=mock_layered_dirty_constructor)
-        sprite_group_patcher = patch("pygame.sprite.Group", side_effect=mock_layered_dirty_constructor)
+        layered_dirty_patcher = patch(
+            "pygame.sprite.LayeredDirty", side_effect=mock_layered_dirty_constructor
+        )
+        sprite_group_patcher = patch(
+            "pygame.sprite.Group", side_effect=mock_layered_dirty_constructor
+        )
 
         # Mock SpriteFactory.load_sprite to return our mocked animated sprite
         def mock_sprite_factory_load_sprite(*, filename: str = None):
-            """Mock SpriteFactory.load_sprite to return a mocked animated sprite."""
+            """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
+
+            Returns:
+                object: The result.
+
+            """
             return MockFactory.create_animated_sprite_mock(
                 animation_name="idle",
                 frame_size=(8, 8),
                 pixel_color=(255, 0, 0),
                 current_frame=0,
                 is_playing=True,
-                is_looping=True
+                is_looping=True,
             )
 
-        sprite_factory_patcher = patch("glitchygames.sprites.SpriteFactory.load_sprite", side_effect=mock_sprite_factory_load_sprite)
+        sprite_factory_patcher = patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            side_effect=mock_sprite_factory_load_sprite,
+        )
 
         # Draw function mocking - create mocks that handle MockSurface objects
-        import pygame  # noqa: PLC0415
+        import pygame
+
         original_draw_polygon = pygame.draw.polygon
 
         def mock_draw_polygon(surface, color, points, width=0):
-            """Mock pygame.draw.polygon that handles MockSurface objects."""
+            """Mock pygame.draw.polygon that handles MockSurface objects.
+
+            Returns:
+                object: The result.
+
+            """
             if hasattr(surface, "_surface"):
                 # Use the original pygame.draw.polygon directly to avoid recursion
                 return original_draw_polygon(surface._surface, color, points, width)
@@ -1211,11 +1412,18 @@ class MockFactory:
 
         # Transform mocking - create a mock that returns a real surface
         def mock_transform_scale(surface, size):
-            """Mock pygame.transform.scale that returns a real surface."""
-            import pygame  # noqa: PLC0415
+            """Mock pygame.transform.scale that returns a real surface.
+
+            Returns:
+                object: The result.
+
+            """
+            import pygame
+
             # Use surface to avoid unused argument warning
             _ = surface
             return pygame.Surface(size)
+
         transform_scale_patcher = patch("pygame.transform.scale", side_effect=mock_transform_scale)
 
         # Surface mocking - use the mock surface class instead of real surfaces
@@ -1230,7 +1438,8 @@ class MockFactory:
             text = str(args[0]) if len(args) >= 1 else "Mock"
 
             # Create a real surface for text rendering
-            import pygame  # noqa: PLC0415
+            import pygame
+
             if not pygame.get_init():
                 pygame.init()
 
@@ -1261,7 +1470,12 @@ class MockFactory:
 
         # Image module mock - create a mock for pygame.image.tostring
         def mock_image_tostring(surface, format_str):
-            """Mock pygame.image.tostring that returns mock pixel data."""
+            """Mock pygame.image.tostring that returns mock pixel data.
+
+            Returns:
+                object: The result.
+
+            """
             # Use format_str to avoid unused argument warning
             _ = format_str
             # Return mock pixel data based on surface size
@@ -1291,10 +1505,13 @@ class MockFactory:
                         pixel_data.extend([r, g, b])
                 return bytes(pixel_data)
             return b"\x00" * 100  # Default mock data
+
         image_tostring_patcher = patch("pygame.image.tostring", side_effect=mock_image_tostring)
         mock_font.get_linesize.return_value = 24  # Default line height
         mock_font.size = 24  # For freetype fonts
-        font_manager_patcher = patch("glitchygames.fonts.FontManager.get_font", return_value=mock_font)  # noqa: E501
+        font_manager_patcher = patch(
+            "glitchygames.fonts.FontManager.get_font", return_value=mock_font
+        )
 
         # Enhanced pygame mocks for edge cases
         # Clock mocking
@@ -1310,8 +1527,10 @@ class MockFactory:
         event_post_patcher = patch("pygame.event.post", event_post_mock)
         event_event_patcher = patch("pygame.event.Event", event_event_mock)
 
-        # Sprite class mocking - patch the BitmappySprite constructor to handle pygame.display.get_surface()  # noqa: E501
-        sprite_patcher = patch("glitchygames.sprites.BitmappySprite.__init__", MockFactory._mock_sprite_init)  # noqa: E501
+        # Sprite class mocking - patch the BitmappySprite constructor to handle pygame.display.get_surface()
+        sprite_patcher = patch(
+            "glitchygames.sprites.BitmappySprite.__init__", MockFactory._mock_sprite_init
+        )
 
         # Key constants mocking
         key_constants_patcher = patch("pygame.K_q", 113)
@@ -1347,12 +1566,22 @@ class MockFactory:
         joystick_device_removed_patcher = patch("pygame.JOYDEVICEREMOVED", pygame.JOYDEVICEREMOVED)
 
         # Controller events
-        controller_axis_motion_patcher = patch("pygame.CONTROLLERAXISMOTION", pygame.CONTROLLERAXISMOTION)
-        controller_button_down_patcher = patch("pygame.CONTROLLERBUTTONDOWN", pygame.CONTROLLERBUTTONDOWN)
+        controller_axis_motion_patcher = patch(
+            "pygame.CONTROLLERAXISMOTION", pygame.CONTROLLERAXISMOTION
+        )
+        controller_button_down_patcher = patch(
+            "pygame.CONTROLLERBUTTONDOWN", pygame.CONTROLLERBUTTONDOWN
+        )
         controller_button_up_patcher = patch("pygame.CONTROLLERBUTTONUP", pygame.CONTROLLERBUTTONUP)
-        controller_device_added_patcher = patch("pygame.CONTROLLERDEVICEADDED", pygame.CONTROLLERDEVICEADDED)
-        controller_device_removed_patcher = patch("pygame.CONTROLLERDEVICEREMOVED", pygame.CONTROLLERDEVICEREMOVED)
-        controller_device_remapped_patcher = patch("pygame.CONTROLLERDEVICEREMAPPED", pygame.CONTROLLERDEVICEREMAPPED)
+        controller_device_added_patcher = patch(
+            "pygame.CONTROLLERDEVICEADDED", pygame.CONTROLLERDEVICEADDED
+        )
+        controller_device_removed_patcher = patch(
+            "pygame.CONTROLLERDEVICEREMOVED", pygame.CONTROLLERDEVICEREMOVED
+        )
+        controller_device_remapped_patcher = patch(
+            "pygame.CONTROLLERDEVICEREMAPPED", pygame.CONTROLLERDEVICEREMAPPED
+        )
 
         # Drop events
         drop_begin_patcher = patch("pygame.DROPBEGIN", pygame.DROPBEGIN)
@@ -1368,44 +1597,143 @@ class MockFactory:
 
         # Return patchers without starting them - let the test files start them
 
-        return (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
-                event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-                draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher, transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-                sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
-                mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
-                mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
-                touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,  # noqa: E501
-                window_focus_gained_patcher, window_focus_lost_patcher, audio_device_added_patcher, audio_device_removed_patcher,  # noqa: E501
-                joystick_axis_motion_patcher, joystick_ball_motion_patcher,  # noqa: E501
-                joystick_button_down_patcher, joystick_button_up_patcher, joystick_hat_motion_patcher,  # noqa: E501
-                joystick_device_added_patcher, joystick_device_removed_patcher, controller_axis_motion_patcher,  # noqa: E501
-                controller_button_down_patcher, controller_button_up_patcher, controller_device_added_patcher,  # noqa: E501
-                controller_device_removed_patcher, controller_device_remapped_patcher, drop_begin_patcher,  # noqa: E501
-                drop_complete_patcher, drop_file_patcher, drop_text_patcher, midi_in_patcher, user_event_patcher)  # noqa: E501
+        return (
+            display_patcher,
+            display_get_surface_patcher,
+            surface_patcher,
+            event_patcher,
+            event_blocked_patcher,
+            event_post_patcher,
+            event_event_patcher,
+            draw_circle_patcher,
+            draw_line_patcher,
+            draw_rect_patcher,
+            draw_polygon_patcher,
+            layered_dirty_patcher,
+            sprite_group_patcher,
+            sprite_factory_patcher,
+            mixer_patcher,
+            mixer_sound_patcher,
+            key_patcher,
+            transform_scale_patcher,
+            image_tostring_patcher,
+            font_manager_patcher,
+            clock_patcher,
+            sprite_patcher,
+            key_constants_patcher,
+            key_escape_patcher,
+            key_lshift_patcher,
+            key_rshift_patcher,
+            key_down_patcher,
+            key_up_patcher,
+            mouse_button_down_patcher,
+            mouse_button_up_patcher,
+            mouse_motion_patcher,
+            mouse_wheel_patcher,
+            quit_event_patcher,
+            text_input_patcher,
+            touch_down_patcher,
+            touch_up_patcher,
+            touch_motion_patcher,
+            window_resized_patcher,
+            window_restored_patcher,
+            window_focus_gained_patcher,
+            window_focus_lost_patcher,
+            audio_device_added_patcher,
+            audio_device_removed_patcher,
+            joystick_axis_motion_patcher,
+            joystick_ball_motion_patcher,
+            joystick_button_down_patcher,
+            joystick_button_up_patcher,
+            joystick_hat_motion_patcher,
+            joystick_device_added_patcher,
+            joystick_device_removed_patcher,
+            controller_axis_motion_patcher,
+            controller_button_down_patcher,
+            controller_button_up_patcher,
+            controller_device_added_patcher,
+            controller_device_removed_patcher,
+            controller_device_remapped_patcher,
+            drop_begin_patcher,
+            drop_complete_patcher,
+            drop_file_patcher,
+            drop_text_patcher,
+            midi_in_patcher,
+            user_event_patcher,
+        )
 
     @staticmethod
-    def teardown_pygame_mocks(patchers):  # noqa: PLR0915,PLR0914
+    def teardown_pygame_mocks(patchers):
         """Tear down pygame mocks to prevent test interference.
 
         Args:
             patchers: Tuple of patchers returned by setup_pygame_mocks()
 
         """
-        (display_patcher, display_get_surface_patcher, surface_patcher, event_patcher, event_blocked_patcher,  # noqa: E501
-         event_post_patcher, event_event_patcher, draw_circle_patcher, draw_line_patcher,
-         draw_rect_patcher, draw_polygon_patcher, layered_dirty_patcher, sprite_group_patcher, sprite_factory_patcher, mixer_patcher, mixer_sound_patcher, key_patcher,  # noqa: E501
-         transform_scale_patcher, image_tostring_patcher, font_manager_patcher, clock_patcher,  # noqa: E501
-         sprite_patcher, key_constants_patcher, key_escape_patcher, key_lshift_patcher, key_rshift_patcher, key_down_patcher, key_up_patcher,  # noqa: E501
-         mouse_button_down_patcher, mouse_button_up_patcher, mouse_motion_patcher,
-         mouse_wheel_patcher, quit_event_patcher, text_input_patcher, touch_down_patcher,
-         touch_up_patcher, touch_motion_patcher, window_resized_patcher, window_restored_patcher,
-         window_focus_gained_patcher, window_focus_lost_patcher, audio_device_added_patcher, audio_device_removed_patcher,
-         joystick_axis_motion_patcher, joystick_ball_motion_patcher,
-         joystick_button_down_patcher, joystick_button_up_patcher, joystick_hat_motion_patcher,
-         joystick_device_added_patcher, joystick_device_removed_patcher, controller_axis_motion_patcher,  # noqa: E501
-         controller_button_down_patcher, controller_button_up_patcher, controller_device_added_patcher,  # noqa: E501
-         controller_device_removed_patcher, controller_device_remapped_patcher, drop_begin_patcher,
-         drop_complete_patcher, drop_file_patcher, drop_text_patcher, midi_in_patcher, user_event_patcher) = patchers  # noqa: E501
+        (
+            display_patcher,
+            display_get_surface_patcher,
+            surface_patcher,
+            event_patcher,
+            event_blocked_patcher,
+            event_post_patcher,
+            event_event_patcher,
+            draw_circle_patcher,
+            draw_line_patcher,
+            draw_rect_patcher,
+            draw_polygon_patcher,
+            layered_dirty_patcher,
+            sprite_group_patcher,
+            sprite_factory_patcher,
+            mixer_patcher,
+            mixer_sound_patcher,
+            key_patcher,
+            transform_scale_patcher,
+            image_tostring_patcher,
+            font_manager_patcher,
+            clock_patcher,
+            sprite_patcher,
+            key_constants_patcher,
+            key_escape_patcher,
+            key_lshift_patcher,
+            key_rshift_patcher,
+            key_down_patcher,
+            key_up_patcher,
+            mouse_button_down_patcher,
+            mouse_button_up_patcher,
+            mouse_motion_patcher,
+            mouse_wheel_patcher,
+            quit_event_patcher,
+            text_input_patcher,
+            touch_down_patcher,
+            touch_up_patcher,
+            touch_motion_patcher,
+            window_resized_patcher,
+            window_restored_patcher,
+            window_focus_gained_patcher,
+            window_focus_lost_patcher,
+            audio_device_added_patcher,
+            audio_device_removed_patcher,
+            joystick_axis_motion_patcher,
+            joystick_ball_motion_patcher,
+            joystick_button_down_patcher,
+            joystick_button_up_patcher,
+            joystick_hat_motion_patcher,
+            joystick_device_added_patcher,
+            joystick_device_removed_patcher,
+            controller_axis_motion_patcher,
+            controller_button_down_patcher,
+            controller_button_up_patcher,
+            controller_device_added_patcher,
+            controller_device_removed_patcher,
+            controller_device_remapped_patcher,
+            drop_begin_patcher,
+            drop_complete_patcher,
+            drop_file_patcher,
+            drop_text_patcher,
+            midi_in_patcher,
+            user_event_patcher,
+        ) = patchers
 
         # Stop all patches
         display_patcher.stop()
@@ -1471,7 +1799,7 @@ class MockFactory:
         user_event_patcher.stop()
 
     @staticmethod
-    def setup_pygame_mocks_with_mocker(mocker):  # noqa: PLR0915,PLR0914
+    def setup_pygame_mocks_with_mocker(mocker):
         """Set up comprehensive pygame mocks using pytest-mock's mocker fixture.
 
         Unlike setup_pygame_mocks(), this method uses mocker.patch() which
@@ -1512,7 +1840,12 @@ class MockFactory:
 
         # Sprite group mocking - create proper mocks for LayeredDirty and other sprite groups
         def mock_layered_dirty_constructor(*args, **kwargs):
-            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock."""
+            """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
+
+            Returns:
+                object: The result.
+
+            """
             mock_group = Mock()
             mock_group._spritelist = []
             mock_group._old_rect = {}
@@ -1560,7 +1893,12 @@ class MockFactory:
 
         # Mock SpriteFactory.load_sprite to return our mocked animated sprite
         def mock_sprite_factory_load_sprite(*, filename: str = None):
-            """Mock SpriteFactory.load_sprite to return a mocked animated sprite."""
+            """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
+
+            Returns:
+                object: The result.
+
+            """
             return MockFactory.create_animated_sprite_mock(
                 animation_name="idle",
                 frame_size=(8, 8),
@@ -1576,19 +1914,22 @@ class MockFactory:
         )
 
         # Draw function mocking - create mocks that handle MockSurface objects
-        import pygame  # noqa: PLC0415
+        import pygame
 
         original_draw_polygon = pygame.draw.polygon
 
         def mock_draw_polygon(surface, color, points, width=0):
-            """Mock pygame.draw.polygon that handles MockSurface objects."""
+            """Mock pygame.draw.polygon that handles MockSurface objects.
+
+            Returns:
+                object: The result.
+
+            """
             if hasattr(surface, "_surface"):
                 return original_draw_polygon(surface._surface, color, points, width)
             return None
 
-        mocks["draw_polygon"] = mocker.patch(
-            "pygame.draw.polygon", side_effect=mock_draw_polygon
-        )
+        mocks["draw_polygon"] = mocker.patch("pygame.draw.polygon", side_effect=mock_draw_polygon)
 
         # Sound/mixer mocking
         mixer_mock = Mock()
@@ -1606,8 +1947,13 @@ class MockFactory:
 
         # Transform mocking
         def mock_transform_scale(surface, size):
-            """Mock pygame.transform.scale that returns a real surface."""
-            import pygame  # noqa: PLC0415
+            """Mock pygame.transform.scale that returns a real surface.
+
+            Returns:
+                object: The result.
+
+            """
+            import pygame
 
             _ = surface
             return pygame.Surface(size)
@@ -1620,10 +1966,15 @@ class MockFactory:
         mock_font = Mock()
 
         def mock_render(*args, **kwargs):
-            """Mock font render that creates real surfaces."""
+            """Mock font render that creates real surfaces.
+
+            Returns:
+                object: The result.
+
+            """
             text = str(args[0]) if len(args) >= 1 else "Mock"
 
-            import pygame  # noqa: PLC0415
+            import pygame
 
             if not pygame.get_init():
                 pygame.init()
@@ -1646,7 +1997,12 @@ class MockFactory:
 
         # Image module mock
         def mock_image_tostring(surface, format_str):
-            """Mock pygame.image.tostring that returns mock pixel data."""
+            """Mock pygame.image.tostring that returns mock pixel data.
+
+            Returns:
+                object: The result.
+
+            """
             _ = format_str
             if hasattr(surface, "get_width") and hasattr(surface, "get_height"):
                 width = surface.get_width()
@@ -1709,12 +2065,8 @@ class MockFactory:
         mocks["WINDOWFOCUSGAINED"] = mocker.patch(
             "pygame.WINDOWFOCUSGAINED", pygame.WINDOWFOCUSGAINED
         )
-        mocks["WINDOWFOCUSLOST"] = mocker.patch(
-            "pygame.WINDOWFOCUSLOST", pygame.WINDOWFOCUSLOST
-        )
-        mocks["AUDIODEVICEADDED"] = mocker.patch(
-            "pygame.AUDIODEVICEADDED", pygame.AUDIODEVICEADDED
-        )
+        mocks["WINDOWFOCUSLOST"] = mocker.patch("pygame.WINDOWFOCUSLOST", pygame.WINDOWFOCUSLOST)
+        mocks["AUDIODEVICEADDED"] = mocker.patch("pygame.AUDIODEVICEADDED", pygame.AUDIODEVICEADDED)
         mocks["AUDIODEVICEREMOVED"] = mocker.patch(
             "pygame.AUDIODEVICEREMOVED", pygame.AUDIODEVICEREMOVED
         )
@@ -1726,9 +2078,7 @@ class MockFactory:
         mocks["JOYBUTTONUP"] = mocker.patch("pygame.JOYBUTTONUP", pygame.JOYBUTTONUP)
         mocks["JOYHATMOTION"] = mocker.patch("pygame.JOYHATMOTION", pygame.JOYHATMOTION)
         mocks["JOYDEVICEADDED"] = mocker.patch("pygame.JOYDEVICEADDED", pygame.JOYDEVICEADDED)
-        mocks["JOYDEVICEREMOVED"] = mocker.patch(
-            "pygame.JOYDEVICEREMOVED", pygame.JOYDEVICEREMOVED
-        )
+        mocks["JOYDEVICEREMOVED"] = mocker.patch("pygame.JOYDEVICEREMOVED", pygame.JOYDEVICEREMOVED)
 
         # Controller events
         mocks["CONTROLLERAXISMOTION"] = mocker.patch(
@@ -1767,37 +2117,49 @@ class MockFactory:
 
 # Convenience functions for common use cases
 def create_8x8_sprite_mock(animation_name: str = "idle") -> Mock:
-    """Create a standard 8x8 sprite mock."""
-    return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name,
-        frame_size=(8, 8)
-    )
+    """Create a standard 8x8 sprite mock.
+
+    Returns:
+        Mock: The newly created 8x8 sprite mock.
+
+    """
+    return MockFactory.create_animated_sprite_mock(animation_name=animation_name, frame_size=(8, 8))
 
 
 def create_10x10_sprite_mock(animation_name: str = "idle") -> Mock:
-    """Create a 10x10 sprite mock for dimension testing."""
+    """Create a 10x10 sprite mock for dimension testing.
+
+    Returns:
+        Mock: The newly created 10x10 sprite mock.
+
+    """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name,
-        frame_size=(10, 10)
+        animation_name=animation_name, frame_size=(10, 10)
     )
 
 
 def create_custom_sprite_mock(
-    animation_name: str,
-    frame_size: tuple,
-    pixel_color: tuple = (255, 0, 0)
+    animation_name: str, frame_size: tuple, pixel_color: tuple = (255, 0, 0)
 ) -> Mock:
-    """Create a custom sprite mock with specified parameters."""
+    """Create a custom sprite mock with specified parameters.
+
+    Returns:
+        Mock: The newly created custom sprite mock.
+
+    """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name,
-        frame_size=frame_size,
-        pixel_color=pixel_color
+        animation_name=animation_name, frame_size=frame_size, pixel_color=pixel_color
     )
 
 
 # Template-related mock functions
 def create_template_path_mock(template_name: str = "test_template") -> Mock:
-    """Create a mock Path object for template testing."""
+    """Create a mock Path object for template testing.
+
+    Returns:
+        Mock: The newly created template path mock.
+
+    """
     mock_path = Mock()
     mock_path.name = template_name
     mock_path.__truediv__ = Mock(return_value=mock_path)
@@ -1828,8 +2190,13 @@ def create_template_path_mock(template_name: str = "test_template") -> Mock:
     return MockPath(template_name)
 
 
-def create_template_repo_file_mock(repo_url: str = None) -> Mock:  # noqa: RUF013
-    """Create a mock .repo file for template testing."""
+def create_template_repo_file_mock(repo_url: str = None) -> Mock:
+    """Create a mock .repo file for template testing.
+
+    Returns:
+        Mock: The newly created template repo file mock.
+
+    """
     mock_file = Mock()
     mock_file.__enter__ = Mock(return_value=mock_file)
     mock_file.__exit__ = Mock(return_value=None)
@@ -1840,8 +2207,13 @@ def create_template_repo_file_mock(repo_url: str = None) -> Mock:  # noqa: RUF01
     return mock_file
 
 
-def create_template_directory_mock(template_names: list = None) -> Mock:  # noqa: RUF013
-    """Create a mock template directory with specified templates."""
+def create_template_directory_mock(template_names: list = None) -> Mock:
+    """Create a mock template directory with specified templates.
+
+    Returns:
+        Mock: The newly created template directory mock.
+
+    """
     if template_names is None:
         template_names = ["template1", "template2"]
 

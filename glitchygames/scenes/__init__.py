@@ -38,12 +38,7 @@ class SceneManager(SceneInterface, events.EventManager):
         return cls._instance
 
     def __init__(self: Self) -> None:
-        """Initialize the scene manager.
-
-        Returns:
-            None
-
-        """
+        """Initialize the scene manager."""
         # Prevent re-initialization of singleton
         if hasattr(self, "_initialized"):
             return
@@ -114,10 +109,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info(f"Screen update type: {self.update_type}")
         self.log.info(f"FPS Log Interval: {self.fps_log_interval_ms}ms")
         self.log.info(f"Target FPS: {self.target_fps}")
-        
+
         # Configure performance manager with the same log interval and target FPS
         try:
             from glitchygames.performance import performance_manager
+
             performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
             performance_manager.set_target_fps(self.target_fps)
         except ImportError:
@@ -144,9 +140,6 @@ class SceneManager(SceneInterface, events.EventManager):
         Args:
             next_scene (Scene): The next scene to switch to.
 
-        Returns:
-            None
-
         """
         if next_scene != self.active_scene:
             # Track the previous scene BEFORE any cleanup or setup
@@ -158,10 +151,11 @@ class SceneManager(SceneInterface, events.EventManager):
             self._log_blocked_events(next_scene)
             self.active_scene = next_scene
             self._configure_active_scene()
-            
+
             # Update performance manager with current scene
             try:
                 from glitchygames.performance import performance_manager
+
                 if next_scene:  # Only track performance for real scenes, not None
                     performance_manager.set_current_scene(next_scene.NAME)
             except ImportError:
@@ -172,12 +166,7 @@ class SceneManager(SceneInterface, events.EventManager):
         return self.start()
 
     def start(self: Self) -> None:
-        """Start the scene manager.
-
-        Returns:
-            None
-
-        """
+        """Start the scene manager."""
         previous_time: float = time.perf_counter()
         previous_fps_time: float = previous_time
         current_time: float = previous_time
@@ -198,7 +187,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
             # Start timing ONLY the actual processing (after tick_clock)
             processing_start = time.perf_counter()
-            
+
             self._update_scene()
             self._process_events()
             self._render_scene()
@@ -241,7 +230,9 @@ class SceneManager(SceneInterface, events.EventManager):
                                 p99 = data[int(0.99 * (count - 1))]
                                 p100 = data[-1]
                                 # Compute avg FPS and late-frame percentage over interval
-                                span_ns = max(1, now_ns - getattr(self, "_jitter_interval_start_ns", now_ns))
+                                span_ns = max(
+                                    1, now_ns - getattr(self, "_jitter_interval_start_ns", now_ns)
+                                )
                                 avg_fps = (count * 1_000_000_000) / span_ns
                                 late = getattr(self, "_jitter_late_frames", 0)
                                 late_pct = (late / count) * 100.0
@@ -253,20 +244,20 @@ class SceneManager(SceneInterface, events.EventManager):
                             self._jitter_late_frames = 0
                     except Exception:
                         pass
+            # Fallback to pygame clock for FPS measurement if no timer
+            elif self.target_fps > 0:
+                self.clock.tick(self.target_fps)
             else:
-                # Fallback to pygame clock for FPS measurement if no timer
-                if self.target_fps > 0:
-                    self.clock.tick(self.target_fps)
-                else:
-                    self.clock.tick()
-            
+                self.clock.tick()
+
             # End timing the actual processing
             processing_end = time.perf_counter()
             actual_processing_time = processing_end - processing_start
-            
+
             # Feed FPS data to performance manager with actual processing time
             try:
                 from glitchygames.performance import performance_manager
+
                 # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
                 if timer is not None and period_ns > 0:
                     current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
@@ -311,30 +302,15 @@ class SceneManager(SceneInterface, events.EventManager):
         return self.terminate()
 
     def terminate(self: Self) -> None:
-        """Terminate the scene manager.
-
-        Returns:
-            None
-
-        """
+        """Terminate the scene manager."""
         self.switch_to_scene(None)
 
     def quit(self: Self) -> None:
-        """Quit the game.
-
-        Returns:
-            None
-
-        """
+        """Quit the game."""
         return self.quit_game()
 
     def quit_game(self: Self) -> None:
-        """Quit the game.
-
-        Returns:
-            None
-
-        """
+        """Quit the game."""
         # put a quit event in the event queue.
         self.log.info("POSTING QUIT EVENT")
         pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
@@ -344,9 +320,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # QUIT             none
@@ -358,9 +331,6 @@ class SceneManager(SceneInterface, events.EventManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # FPSEVENT is pygame.USEREVENT + 1
         if self.active_scene:
@@ -371,9 +341,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -395,9 +362,6 @@ class SceneManager(SceneInterface, events.EventManager):
             event_type (pygame.event.EventType): The event type to register.
             callback (Callable): The callback to call when the event is triggered.
 
-        Returns:
-            None
-
         """
         self.game_engine.register_game_event(event_type=event_type, callback=callback)
 
@@ -417,6 +381,9 @@ class SceneManager(SceneInterface, events.EventManager):
         Returns:
             Callable: The callable object.
 
+        Raises:
+            AttributeError: If the attribute is not an on_*_event method.
+
         """
         # Attempt to proxy the call to the active scene.
         if attr.startswith("on_") and attr.endswith("_event"):
@@ -434,9 +401,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # Check for focused sprites first
@@ -484,9 +448,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # Prefer dt-derived FPS when available (fast timer path); fallback to clock
         fps_value = 1.0 / self.dt if hasattr(self, "dt") and self.dt > 0 else self.clock.get_fps()
 
-        pygame.event.post(
-            pygame.event.Event(events.FPSEVENT, {"fps": fps_value})
-        )
+        pygame.event.post(pygame.event.Event(events.FPSEVENT, {"fps": fps_value}))
 
     def _tick_clock(self) -> None:
         """Tick the clock for FPS control."""
@@ -496,15 +458,16 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             # For unlimited FPS, just tick without limiting
             self.clock.tick()
-        
+
         # Feed FPS data directly to performance manager for accurate tracking
         try:
             from glitchygames.performance import performance_manager
+
             current_fps = self.clock.get_fps()
             # Calculate actual frame time for spare time calculation
             frame_time = self.dt if hasattr(self, "dt") else 0.0
             if frame_time > 0:  # Debug: only print occasionally
-                print(f"DEBUG: frame_time={frame_time*1000:.1f}ms, fps={current_fps:.1f}")
+                print(f"DEBUG: frame_time={frame_time * 1000:.1f}ms, fps={current_fps:.1f}")
             performance_manager.track_fps_from_event(current_fps, frame_time)
         except ImportError:
             pass  # Performance module not available
@@ -676,15 +639,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             options (dict | None): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if options is None:
-            options = {
-                "debug_events": False,
-                "no_unhandled_events": False
-            }
+            options = {"debug_events": False, "no_unhandled_events": False}
 
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -767,29 +724,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             new_color (tuple): The new background color.
 
-        Returns:
-            None
-
         """
         self._background_color = new_color
         self.background.fill(self.background_color)
         self.all_sprites.clear(self.screen, self.background)
 
     def setup(self: Self) -> None:
-        """Set up the scene.
-
-        Returns:
-            None
-
-        """
+        """Set up the scene."""
 
     def cleanup(self: Self) -> None:
-        """Cleanup the scene.
-
-        Returns:
-            None
-
-        """
+        """Cleanup the scene."""
 
     def dt_tick(self: Self, dt: float) -> None:
         """Update the scene's delta time.
@@ -797,20 +741,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             dt (float): The delta time to update.
 
-        Returns:
-            None
-
         """
         self.dt = dt
         self.dt_timer += self.dt
 
     def update(self: Self) -> None:
-        """Update the active scene.
-
-        Returns:
-            None
-
-        """
+        """Update the active scene."""
         # Tweak to enable compound sprites to manage their own subsprites dirty states
         #
         # Ideally we'd just make dirty a property with a setter and getter on each
@@ -847,9 +783,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             screen (pygame.Surface): The screen to render to.
-
-        Returns:
-            None
 
         """
         # Use LayeredDirty's clear method for proper background clearing and dirty rect management
@@ -915,9 +848,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             True if any sprite is focusable, False otherwise
 
         """
-        return any(
-            hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites
-        )
+        return any(hasattr(sprite, "focusable") and sprite.focusable for sprite in collided_sprites)
 
     def _unfocus_sprites(self, focused_sprites: list) -> None:
         """Unfocus the given sprites.
@@ -971,9 +902,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # AUDIODEVICEADDED which, iscapture
         self.log.debug(f"{type(self)}: On Audio Device Added Event {event}")
@@ -983,9 +911,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # AUDIODEVICEREMOVED which, iscapture
@@ -1009,9 +934,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERBUTTONDOWN which, button
         self.log.debug(f"{type(self)}: On Controller Button Down Event {event}")
@@ -1021,9 +943,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERBUTTONUP which, button
@@ -1197,9 +1116,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f"{type(self)}: On Joy Button Down Event {event}")
@@ -1209,9 +1125,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYBUTTONUP      joy, button
@@ -1270,9 +1183,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: On Key Up Event {event}")
 
@@ -1313,9 +1223,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MENUITEM         menu, item
         self.log.debug(f"{type(self)}: On Menu Item Event {event}")
@@ -1325,9 +1232,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug("=== Scene: Mouse Button Down ===")
@@ -1377,9 +1281,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} {trigger}")
         # Optimized: Skip expensive collision detection for drag events
@@ -1404,9 +1305,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Drop Event: {event} {trigger}")
@@ -1434,9 +1332,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Left Mouse Drag Event: {event} {trigger}")
         collided_sprites: list | None = self.sprites_at_position(pos=event.pos)
@@ -1450,9 +1345,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Left Mouse Drop Event: {event} {trigger}")
@@ -1470,9 +1362,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
 
-        Returns:
-            None
-
         """
         self.log.info(f"{type(self)}: Middle Mouse Drag Event: {event} {trigger}")
         collided_sprites = self.sprites_at_position(pos=event.pos)
@@ -1489,9 +1378,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
 
-        Returns:
-            None
-
         """
         self.log.info(f"{type(self)}: Middle Mouse Drop Event: {event} {trigger}")
         collided_sprites = self.sprites_at_position(pos=event.pos)
@@ -1505,9 +1391,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
-
-        Returns:
-            None
 
         """
         self.log.info(f"{type(self)}: Right Mouse Drag Event: {event} {trigger}")
@@ -1523,9 +1406,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
             trigger (object): The event trigger.
 
-        Returns:
-            None
-
         """
         self.log.info(f"{type(self)}: Right Mouse Drop Event: {event} {trigger}")
         collided_sprites = self.sprites_at_position(pos=event.pos)
@@ -1538,9 +1418,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -1557,9 +1434,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f"{type(self)}: Middle Mouse Button Up Event: {event}")
@@ -1575,9 +1449,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONUP    pos, button
         self.log.info(f"{type(self)}: Right Mouse Button Up Event: {event}")
@@ -1592,9 +1463,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug("=== Scene: Left Mouse Button Down ===")
@@ -1624,9 +1492,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONDOWN    pos, button
         self.log.debug(f"{type(self)}: Middle Mouse Button Down Event: {event}")
@@ -1641,9 +1506,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -1753,9 +1615,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Sys WM Event: {event}")
 
@@ -1764,9 +1623,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Text Editing Event: {event}")
@@ -1777,9 +1633,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Text Input Event: {event}")
 
@@ -1788,9 +1641,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # TOUCHBUTTONDOWN  touch, pos, button
@@ -1802,9 +1652,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # TOUCHMOTION      touch, pos
         self.log.debug(f"{type(self)}: Touch Motion Event: {event}")
@@ -1814,9 +1661,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # TOUCHBUTTONUP    touch, pos
@@ -1828,9 +1672,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # USEREVENT        code
         self.log.debug(f"{type(self)}: User Event: {event}")
@@ -1840,9 +1681,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # VIDEOEXPOSE      none
@@ -1854,9 +1692,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # VIDEORESIZE      size, w, h
         self.log.debug(f"{type(self)}: Video Resize Event: {event}")
@@ -1866,9 +1701,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWCLOSE      none
@@ -1880,9 +1712,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWENTER      none
         self.log.debug(f"{type(self)}: Window Enter Event: {event}")
@@ -1892,9 +1721,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWEXPOSED    none
@@ -1906,9 +1732,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWFOCUSGAINED none
         self.log.debug(f"{type(self)}: Window Focus Gained Event: {event}")
@@ -1918,9 +1741,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWFOCUSLOST  none
@@ -1932,9 +1752,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWHIDDEN     none
         self.log.debug(f"{type(self)}: Window Hidden Event: {event}")
@@ -1944,9 +1761,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWHITTEST    pos
@@ -1958,9 +1772,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWLEAVE      none
         self.log.debug(f"{type(self)}: Window Leave Event: {event}")
@@ -1970,9 +1781,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWMAXIMIZED  none
@@ -1984,9 +1792,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWMINIMIZED  none
         self.log.debug(f"{type(self)}: Window Minimized Event: {event}")
@@ -1996,9 +1801,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWMOVED      pos
@@ -2010,9 +1812,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWRESIZED    size, w, h
         self.log.debug(f"{type(self)}: Window Resized Event: {event}")
@@ -2022,9 +1821,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWRESTORED   none
@@ -2036,9 +1832,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWSHOWN      none
         self.log.debug(f"{type(self)}: Window Shown Event: {event}")
@@ -2048,9 +1841,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # WINDOWSIZECHANGED size, w, h
@@ -2062,9 +1852,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # WINDOWTAKEFOCUS  none
         self.log.debug(f"{type(self)}: Window Take Focus Event: {event}")
@@ -2075,9 +1862,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # QUIT             none
         self.log.debug(f"{type(self)}: {event}")
@@ -2087,9 +1871,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
@@ -2107,12 +1888,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.fps = event.fps
 
     def load_resources(self: Self) -> None:
-        """Load the scene's resources.
-
-        Returns:
-            None
-
-        """
+        """Load the scene's resources."""
         self.log.debug(f"Implement load_resource() in {type(self)}.")
 
     def on_key_down_event(self, event: events.HashableEvent) -> None:
@@ -2167,40 +1943,31 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         Args:
             text (str): The submitted text.
 
-        Returns:
-            None
-
         """
         self.log.info(f"Text submitted: '{text}'")
 
     def pause(self: Self) -> None:
         """Pause the current scene.
-        
+
         Default implementation switches to a PauseScene.
         Scenes can override this method to provide custom pause behavior.
-        
-        Returns:
-            None
 
         """
         from .builtin_scenes.pause_scene import PauseScene
-        
+
         # Create the pause scene
         pause_scene = PauseScene(options=self.options)
-        
+
         # Switch to the pause scene
         self.scene_manager.switch_to_scene(pause_scene)
-        
+
         self.log.info("Scene paused")
 
     def resume(self: Self) -> None:
         """Resume the current scene.
-        
+
         Default implementation switches back to the previous scene.
         Scenes can override this method to provide custom resume behavior.
-        
-        Returns:
-            None
 
         """
         if self.scene_manager.previous_scene:
@@ -2211,20 +1978,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def game_over(self: Self) -> None:
         """Handle game over for the current scene.
-        
+
         Default implementation switches to a GameOverScene.
         Scenes can override this method to provide custom game over behavior.
-        
-        Returns:
-            None
 
         """
         from .builtin_scenes.game_over_scene import GameOverScene
-        
+
         # Create the game over scene
         game_over_scene = GameOverScene(options=self.options)
-        
+
         # Switch to the game over scene
         self.scene_manager.switch_to_scene(game_over_scene)
-        
+
         self.log.info("Game over")

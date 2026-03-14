@@ -25,11 +25,21 @@ class TestButtonSpriteFunctionality:
     """Test ButtonSprite functionality."""
 
     def _create_mock_font(self):
-        """Create a mock font using MockFactory."""
+        """Create a mock font using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         return MockFactory.create_pygame_font_mock()
 
     def _create_mock_event(self):
-        """Create a mock event using MockFactory."""
+        """Create a mock event using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         return MockFactory.create_pygame_event_mock()
 
     def test_button_mouse_down_up_changes_background(self, mock_pygame_patches, mocker):

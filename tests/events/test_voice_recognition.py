@@ -11,8 +11,6 @@ import pytest
 from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
 from glitchygames.tools.bitmappy import BitmapEditorScene
 
-from tests.mocks import MockFactory
-
 # Constants for magic values
 TIMEOUT_2_SECONDS = 2
 
@@ -155,13 +153,16 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         # Check that both log messages contain the expected content
         call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any("Failed to initialize microphone" in msg for msg in call_args_list)
-        assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
+        assert any(
+            "Cannot start listening: microphone not available" in msg for msg in call_args_list
+        )
 
 
 class TestVoiceRecognitionManagerPositive:
     """Test VoiceRecognitionManager when speech recognition IS available."""
 
     def setup_method(self):
+        """Initialize voice manager tracking list for cleanup."""
         self.voice_managers = []  # Track voice managers for cleanup
 
     def teardown_method(self):
@@ -190,7 +191,9 @@ class TestVoiceRecognitionManagerPositive:
         assert manager.commands == {}
         assert not manager.is_listening
 
-    @pytest.mark.skipif(not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed")
+    @pytest.mark.skipif(
+        not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed"
+    )
     def test_voice_manager_initialization_with_real_speech_recognition(self):
         """Test that VoiceRecognitionManager initializes correctly with real speech recognition.
 
@@ -225,10 +228,14 @@ class TestVoiceRecognitionManagerPositive:
 
         # Should handle missing speech recognition gracefully
         assert manager is not None
-        assert manager.recognizer is None, "Recognizer should be None when speech recognition is not available"
+        assert manager.recognizer is None, (
+            "Recognizer should be None when speech recognition is not available"
+        )
         assert not manager.is_available(), "Voice recognition should not be available"
 
-    @pytest.mark.skipif(not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed")
+    @pytest.mark.skipif(
+        not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed"
+    )
     def test_start_listening_with_real_speech_recognition(self):
         """Test that speech recognition is available and can be initialized.
 
@@ -262,7 +269,9 @@ class TestVoiceRecognitionManagerPositive:
         # Should handle missing speech recognition gracefully
         assert manager is not None
         assert not manager.is_available(), "Voice recognition should not be available"
-        assert manager.recognizer is None, "Recognizer should be None when speech recognition is not available"
+        assert manager.recognizer is None, (
+            "Recognizer should be None when speech recognition is not available"
+        )
 
     def test_voice_manager_without_microphone(self, mocker):
         """Test VoiceRecognitionManager when microphone is not available."""
@@ -392,7 +401,9 @@ class TestVoiceRecognitionManagerPositive:
         # Check that both log messages contain the expected content
         call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any("Failed to initialize microphone" in msg for msg in call_args_list)
-        assert any("Cannot start listening: microphone not available" in msg for msg in call_args_list)
+        assert any(
+            "Cannot start listening: microphone not available" in msg for msg in call_args_list
+        )
 
     def test_stop_listening(self, mocker):
         """Test stopping voice recognition."""
@@ -506,7 +517,7 @@ class TestVoiceRecognitionManagerPositive:
 
 
 class TestBitmapEditorSceneVoiceIntegrationNegative:
-    """Test voice recognition integration with BitmapEditorScene when speech recognition is NOT available."""  # noqa: E501
+    """Test voice recognition integration with BitmapEditorScene when speech recognition is NOT available."""
 
     def test_voice_recognition_setup_without_speech_recognition(self, mocker):
         """Test that voice recognition setup fails gracefully without speech recognition."""
@@ -551,9 +562,11 @@ class TestBitmapEditorSceneVoiceIntegrationNegative:
 
 
 class TestBitmapEditorSceneVoiceIntegrationPositive:
-    """Test voice recognition integration with BitmapEditorScene when speech recognition IS available."""  # noqa: E501
+    """Test voice recognition integration with BitmapEditorScene when speech recognition IS available."""
 
-    @pytest.mark.skipif(not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed")
+    @pytest.mark.skipif(
+        not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed"
+    )
     def test_voice_recognition_setup_with_real_dependencies(self, mocker):
         """Test that voice recognition setup works with real speech recognition dependencies.
 
@@ -591,7 +604,9 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         scene._setup_voice_recognition()
 
         # Should handle missing speech recognition gracefully
-        assert scene.voice_manager is None, "Voice manager should be None when speech recognition is not available"
+        assert scene.voice_manager is None, (
+            "Voice manager should be None when speech recognition is not available"
+        )
 
     def test_voice_recognition_setup(self, mocker):
         """Test that voice recognition is set up correctly in BitmapEditorScene."""
@@ -664,7 +679,9 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         scene._clear_ai_sprite_box()
 
         # Verify warning was logged
-        scene.log.warning.assert_called_with("Cannot clear AI sprite box - debug_text not available")  # noqa: E501
+        scene.log.warning.assert_called_with(
+            "Cannot clear AI sprite box - debug_text not available"
+        )
 
     def test_voice_recognition_cleanup(self, mocker):
         """Test voice recognition cleanup."""

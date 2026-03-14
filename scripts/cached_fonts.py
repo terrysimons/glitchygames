@@ -33,9 +33,6 @@ class GameScene(Scene):
         Args:
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -64,9 +61,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            None
-
         """
         super().__init__(options=options)
 
@@ -81,9 +75,6 @@ class Game(Scene):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
 
         """
         parser.add_argument(

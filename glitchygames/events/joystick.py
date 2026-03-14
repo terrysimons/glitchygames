@@ -32,15 +32,15 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         log = LOG
 
-        def __init__(self: Self, game: object = None, joystick_id: int = -1, instance_id: int | None = None) -> None:
+        def __init__(
+            self: Self, game: object = None, joystick_id: int = -1, instance_id: int | None = None
+        ) -> None:
             """Initialize the joystick event proxy.
 
             Args:
                 game (object): The game object.
                 joystick_id (int): The joystick id.
-
-            Returns:
-                None
+                instance_id (int | None): The instance id.
 
             """
             # Prefer stable instance_id when available
@@ -48,7 +48,9 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             # Store the device index for reference
             self._device_id = joystick_id
             try:
-                if instance_id is not None and hasattr(pygame.joystick.Joystick, "from_instance_id"):
+                if instance_id is not None and hasattr(
+                    pygame.joystick.Joystick, "from_instance_id"
+                ):
                     self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)
                 else:
                     self.joystick = pygame.joystick.Joystick(joystick_id)
@@ -93,9 +95,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # JOYAXISMOTION    joy, axis, value
             self._axes[event.axis] = event.value
@@ -106,9 +105,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # JOYBUTTONDOWN    joy, button
@@ -126,9 +122,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # JOYBUTTONUP      joy, button
             if event.button < 0:
@@ -144,9 +137,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # JOYHATMOTION     joy, hat, value
             self._hats[event.hat] = event.value
@@ -157,9 +147,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # JOYBALLMOTION    joy, ball, rel
@@ -172,9 +159,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # JOYDEVICEADDED device_index, guid
             self.game.on_joy_device_added_event(event)
@@ -184,9 +168,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # JOYDEVICEREMOVED device_index
@@ -286,9 +267,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         Args:
             game (object): The game object.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
         try:
@@ -318,7 +296,9 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except Exception:
                 idx_get_id = None
             try:
-                idx_instance = joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
+                idx_instance = (
+                    joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
+                )
             except Exception:
                 idx_instance = None
             try:
@@ -360,7 +340,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Joystick Options")  # noqa: F841
+        group = parser.add_argument_group("Joystick Options")
 
         return parser
 
@@ -374,9 +354,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYAXISMOTION    joy, axis, value
@@ -394,9 +371,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBUTTONDOWN    joy, button
         try:
@@ -412,9 +386,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYBUTTONUP      joy, button
@@ -432,9 +403,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYHATMOTION     joy, hat, value
         try:
@@ -451,9 +419,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBALLMOTION    joy, ball, rel
         try:
@@ -469,9 +434,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYDEVICEADDED device_index, guid
@@ -509,7 +471,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         try:
             js_inst = pygame.joystick.Joystick(event.device_index)
             js_inst.init()
-            instance_id = js_inst.get_instance_id() if hasattr(js_inst, "get_instance_id") else event.device_index
+            instance_id = (
+                js_inst.get_instance_id()
+                if hasattr(js_inst, "get_instance_id")
+                else event.device_index
+            )
         except Exception:
             instance_id = event.device_index
 
@@ -521,7 +487,9 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         joystick_proxy = JoystickEventManager.JoystickEventProxy(
             joystick_id=event.device_index, instance_id=instance_id, game=self.game
         )
-        self.log.debug(f"Created JoystickProxy with device_index={event.device_index}, instance_id={instance_id}, _device_id={joystick_proxy._device_id}")
+        self.log.debug(
+            f"Created JoystickProxy with device_index={event.device_index}, instance_id={instance_id}, _device_id={joystick_proxy._device_id}"
+        )
         self.joysticks[instance_id] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
@@ -531,19 +499,15 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # Need to notify the game after the joystick exists, using stable instance_id
         if instance_id in self.joysticks:
             self.joysticks[instance_id].on_joy_device_added_event(event)
-        else:
-            # Fallback safety: if instance_id could not be derived, try device_index
-            if hasattr(event, "device_index") and event.device_index in self.joysticks:
-                self.joysticks[event.device_index].on_joy_device_added_event(event)
+        # Fallback safety: if instance_id could not be derived, try device_index
+        elif hasattr(event, "device_index") and event.device_index in self.joysticks:
+            self.joysticks[event.device_index].on_joy_device_added_event(event)
 
     def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
         """Handle joystick device removed events.
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYDEVICEREMOVED instance_id

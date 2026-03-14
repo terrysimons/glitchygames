@@ -45,6 +45,7 @@ class TestSliderSpriteFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -61,11 +62,7 @@ class TestSliderSpriteFunctionality:
 
         # Act
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Assert
@@ -90,11 +87,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Act
@@ -115,11 +108,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Act - set value below minimum
@@ -145,11 +134,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Create mock event
@@ -173,11 +158,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Start dragging
@@ -205,11 +186,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Start dragging
@@ -236,11 +213,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Create mock event for text box click
@@ -266,11 +239,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Activate text input
@@ -300,11 +269,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         original_value = slider.value
@@ -336,11 +301,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         original_value = slider.value
@@ -372,11 +333,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Activate text input
@@ -405,11 +362,7 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Activate text input
@@ -433,6 +386,7 @@ class TestColorWellSpriteFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -445,7 +399,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Assert
@@ -463,7 +417,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act
@@ -482,7 +436,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
         color_well.active_color = (100, 150, 200)
 
@@ -503,7 +457,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act - set values outside valid range
@@ -522,7 +476,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act
@@ -539,7 +493,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act
@@ -556,7 +510,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act
@@ -573,7 +527,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
         color_well.active_color = (255, 0, 0)  # Red color
 
@@ -593,7 +547,7 @@ class TestColorWellSpriteFunctionality:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Assert - should have default color values
@@ -610,6 +564,7 @@ class TestSliderColorWellIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -626,11 +581,7 @@ class TestSliderColorWellIntegration:
 
         # Create slider and color well
         slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestSlider"
         )
 
         # Act - change slider value
@@ -652,11 +603,7 @@ class TestSliderColorWellIntegration:
 
         # Create RGB sliders
         red_slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="RedSlider"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="RedSlider"
         )
         red_slider.value = 255
 
@@ -665,16 +612,12 @@ class TestSliderColorWellIntegration:
             y=TEST_Y_POS + 30,
             width=TEST_WIDTH,
             height=TEST_HEIGHT,
-            name="GreenSlider"
+            name="GreenSlider",
         )
         green_slider.value = 128
 
         blue_slider = SliderSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS + 60,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="BlueSlider"
+            x=TEST_X_POS, y=TEST_Y_POS + 60, width=TEST_WIDTH, height=TEST_HEIGHT, name="BlueSlider"
         )
         blue_slider.value = 64
 
@@ -683,7 +626,7 @@ class TestSliderColorWellIntegration:
             y=TEST_COLOR_WELL_Y,
             width=TEST_COLOR_WELL_WIDTH,
             height=TEST_COLOR_WELL_HEIGHT,
-            name="TestColorWell"
+            name="TestColorWell",
         )
 
         # Act - set color well based on slider values

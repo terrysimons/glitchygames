@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Tests for canvas panning functionality."""
 
+import math
+
 import pygame
 import pytest
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from glitchygames.sprites.animated import SpriteFrame
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
 
 from tests.mocks.test_mock_factory import MockFactory
@@ -25,7 +27,7 @@ class TestCanvasPanning:
             animation_name="test_animation",
             frame_size=(8, 8),
             pixel_color=(255, 0, 0),
-            current_frame=0
+            current_frame=0,
         )
 
         # Create canvas sprite
@@ -34,7 +36,7 @@ class TestCanvasPanning:
             pixels_across=8,
             pixels_tall=8,
             pixel_width=16,
-            pixel_height=16
+            pixel_height=16,
         )
 
     def teardown_method(self):
@@ -150,11 +152,7 @@ class TestCanvasPanning:
         self.canvas.save_animated_sprite("test.toml")
 
         # Check that normal saving was called
-        mock_save.assert_called_once_with(
-            self.canvas.animated_sprite,
-            "test.toml",
-            "toml"
-        )
+        mock_save.assert_called_once_with(self.canvas.animated_sprite, "test.toml", "toml")
 
     def test_viewport_frame_creation(self, mocker):
         """Test creating viewport frames from original frames."""
@@ -173,7 +171,7 @@ class TestCanvasPanning:
         # Check that viewport frame was created
         assert viewport_frame is not None
         assert hasattr(viewport_frame, "duration")
-        assert viewport_frame.duration == 0.5
+        assert math.isclose(viewport_frame.duration, 0.5)
 
     def test_get_viewport_pixels_from_frame(self, mocker):
         """Test extracting viewport pixels from a frame."""
@@ -222,7 +220,7 @@ class TestCanvasPanning:
             pixels_across=16,
             pixels_tall=16,
             pixel_width=8,
-            pixel_height=8
+            pixel_height=8,
         )
 
         # Test panning
@@ -423,7 +421,9 @@ class TestPanningKeyboardHandling:
         }
 
         # Mock the _update_film_strips_for_animated_sprite_update method
-        mock_update_film = mocker.patch.object(self.real_scene, "_update_film_strips_for_animated_sprite_update")
+        mock_update_film = mocker.patch.object(
+            self.real_scene, "_update_film_strips_for_animated_sprite_update"
+        )
         # Now release the key
         event_up = self._mocker.Mock()
         event_up.key = pygame.K_LEFT

@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import pygame
 from glitchygames.fonts import FontManager
-from glitchygames.sprites import AnimatedSprite, SpriteFrame
+from glitchygames.sprites import AnimatedSprite
 
 LOG = logging.getLogger("game.tools.film_strip")
 LOG.addHandler(logging.NullHandler())
@@ -432,6 +432,10 @@ class FilmStripWidget:
         - If frames don't change, verify update_animations() is being called
         - If animations skip frames, check frame_durations are correct
         - If animations don't loop, verify total_duration calculation
+
+        Returns:
+            int: The current preview frame.
+
         """
         if (
             anim_name not in self.preview_animation_times
@@ -469,7 +473,12 @@ class FilmStripWidget:
 
     @staticmethod
     def _get_frame_image(frame) -> pygame.Surface:
-        """Get the image surface for a frame."""
+        """Get the image surface for a frame.
+
+        Returns:
+            pygame.Surface: The frame image.
+
+        """
         # If frame.image is marked as stale (during drag), prefer pixels over cached image
         # This ensures film strip sees real-time updates during drag operations
         if hasattr(frame, "_image_stale") and frame._image_stale:
@@ -602,6 +611,10 @@ class FilmStripWidget:
         """Calculate the scroll offset to center a frame.
 
         Returns the scroll offset that centers the specified frame.
+
+        Returns:
+            int: The resulting integer value.
+
         """
         frame_width = self.frame_width + self.frame_spacing
         selected_frame_x = frame_index * frame_width
@@ -1052,7 +1065,12 @@ class FilmStripWidget:
                 y_offset += self.animation_label_height + self.frame_height + 20
 
     def get_frame_at_position(self, pos: tuple[int, int]) -> tuple[str, int] | None:
-        """Get the animation and frame at the given position."""
+        """Get the animation and frame at the given position.
+
+        Returns:
+            tuple[str, int] | None: The frame at position.
+
+        """
         LOG.debug(
             f"FilmStripWidget: Checking position {pos} against {len(self.frame_layouts)} frame layouts"
         )
@@ -1065,14 +1083,24 @@ class FilmStripWidget:
         return None
 
     def get_animation_at_position(self, pos: tuple[int, int]) -> str | None:
-        """Get the animation at the given position."""
+        """Get the animation at the given position.
+
+        Returns:
+            str | None: The animation at position.
+
+        """
         for anim_name, anim_rect in self.animation_layouts.items():
             if anim_rect.collidepoint(pos):
                 return anim_name
         return None
 
     def get_preview_at_position(self, pos: tuple[int, int]) -> str | None:
-        """Get the preview animation at the given position."""
+        """Get the preview animation at the given position.
+
+        Returns:
+            str | None: The preview at position.
+
+        """
         for anim_name, preview_rect in self.preview_rects.items():
             if preview_rect.collidepoint(pos):
                 return anim_name
@@ -1101,7 +1129,12 @@ class FilmStripWidget:
     def handle_click(
         self, pos: tuple[int, int], *, is_right_click: bool = False, is_shift_click: bool = False
     ) -> tuple[str, int] | None:
-        """Handle a click on the film strip."""
+        """Handle a click on the film strip.
+
+        Returns:
+            tuple[str, int] | None: The result.
+
+        """
         LOG.debug(
             f"FilmStripWidget: handle_click called with position {pos}, right_click={is_right_click}, shift_click={is_shift_click}"
         )
@@ -1215,7 +1248,12 @@ class FilmStripWidget:
         return None
 
     def handle_preview_click(self, pos: tuple[int, int]) -> tuple[str, int] | None:
-        """Handle mouse click on the preview area (right side). Returns (animation, frame_idx) if click was handled."""
+        """Handle mouse click on the preview area (right side). Returns (animation, frame_idx) if click was handled.
+
+        Returns:
+            tuple[str, int] | None: The result.
+
+        """
         # Check if click is on the animated preview frame (right side)
         for anim_name, preview_rect in self.preview_rects.items():
             if preview_rect.collidepoint(pos):
@@ -1322,7 +1360,12 @@ class FilmStripWidget:
         frame_index: int = 0,
         animation_name: str = "",
     ) -> pygame.Surface:
-        """Render a single frame thumbnail with 3D beveled border."""
+        """Render a single frame thumbnail with 3D beveled border.
+
+        Returns:
+            pygame.Surface: The rendered frame thumbnail surface.
+
+        """
         frame_surface = self._create_frame_surface()
 
         # Fill with cycling background color (with alpha support)
@@ -1398,7 +1441,12 @@ class FilmStripWidget:
         return frame_surface
 
     def _create_frame_surface(self) -> pygame.Surface:
-        """Create the base frame surface with transparent background."""
+        """Create the base frame surface with transparent background.
+
+        Returns:
+            pygame.Surface: The result.
+
+        """
         # No background fill - transparent so only the 3D beveled border shows
         return pygame.Surface((self.frame_width, self.frame_height), pygame.SRCALPHA)
 
@@ -1495,7 +1543,12 @@ class FilmStripWidget:
             LOG.exception("Failed to toggle onion skinning")
 
     def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
-        """Get the appropriate frame image for rendering."""
+        """Get the appropriate frame image for rendering.
+
+        Returns:
+            object: The frame image for rendering.
+
+        """
         # Always use the actual animation frame data, not canvas content
         if hasattr(frame, "image") and frame.image:
             # Use stored frame data for all frames
@@ -1574,7 +1627,12 @@ class FilmStripWidget:
         )
 
     def _create_selection_border(self, frame_surface: pygame.Surface) -> pygame.Surface:
-        """Create a selection border for the selected frame."""
+        """Create a selection border for the selected frame.
+
+        Returns:
+            pygame.Surface: The result.
+
+        """
         # Yellow film leader color for selection
         selection_border = pygame.Surface(
             (self.frame_width + 4, self.frame_height + 4), pygame.SRCALPHA
@@ -1602,7 +1660,12 @@ class FilmStripWidget:
         )
 
     def render_sprocket_separator(self, x: int, y: int, height: int) -> pygame.Surface:
-        """Render a sprocket separator between animations."""
+        """Render a sprocket separator between animations.
+
+        Returns:
+            pygame.Surface: The result.
+
+        """
         separator = pygame.Surface((self.sprocket_width, height), pygame.SRCALPHA)
         separator.fill(self.film_background)
 
@@ -1819,19 +1882,18 @@ class FilmStripWidget:
                             (cursor_x, cursor_y + cursor_height // 2),
                             2,
                         )
-                else:
-                    # No text yet - show blinking cursor at center
-                    if self.cursor_visible:
-                        cursor_x = anim_rect.width // 2
-                        cursor_y = anim_rect.height // 2
-                        cursor_height = 12
-                        pygame.draw.line(
-                            label_surface,
-                            text_color,
-                            (cursor_x, cursor_y - cursor_height // 2),
-                            (cursor_x, cursor_y + cursor_height // 2),
-                            2,
-                        )
+                # No text yet - show blinking cursor at center
+                elif self.cursor_visible:
+                    cursor_x = anim_rect.width // 2
+                    cursor_y = anim_rect.height // 2
+                    cursor_height = 12
+                    pygame.draw.line(
+                        label_surface,
+                        text_color,
+                        (cursor_x, cursor_y - cursor_height // 2),
+                        (cursor_x, cursor_y + cursor_height // 2),
+                        2,
+                    )
 
                 # Add edit mode highlight - subtle cyan border
                 pygame.draw.rect(
@@ -1925,7 +1987,6 @@ class FilmStripWidget:
 
     def _draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
         """Draw multi-controller indicators using the controller selections system."""
-
         # Check if this film strip has any selections
         if not self.animated_sprite or not self.current_animation:
             return
@@ -2025,7 +2086,6 @@ class FilmStripWidget:
         controller_selections: list,
     ) -> None:
         """Draw indicators for keyboard and multiple controllers with collision avoidance."""
-
         # Collect all selections for this animation
         all_selections = []
 
@@ -2079,7 +2139,6 @@ class FilmStripWidget:
         self, surface: pygame.Surface, frame_rect: pygame.Rect, selections: list
     ) -> None:
         """Draw indicators for a specific frame with collision avoidance."""
-
         # Unified positioning for all scenarios
         self._draw_unified_indicators(surface, frame_rect, selections)
 
@@ -2087,7 +2146,6 @@ class FilmStripWidget:
         self, surface: pygame.Surface, frame_rect: pygame.Rect, selections: list
     ) -> None:
         """Unified positioning for all scenarios with proper centering."""
-
         # Separate keyboard from controllers
         keyboard_selection = None
         controller_selections = []
@@ -2103,14 +2161,13 @@ class FilmStripWidget:
             color = selection["color"]
             if color == (255, 0, 0):  # Red
                 return 0
-            elif color == (0, 255, 0):  # Green
+            if color == (0, 255, 0):  # Green
                 return 1
-            elif color == (0, 0, 255):  # Blue
+            if color == (0, 0, 255):  # Blue
                 return 2
-            elif color == (255, 255, 0):  # Yellow
+            if color == (255, 255, 0):  # Yellow
                 return 3
-            else:
-                return 999  # Unknown colors go last
+            return 999  # Unknown colors go last
 
         controller_selections.sort(key=get_color_priority)
 
@@ -2346,7 +2403,12 @@ class FilmStripWidget:
                     pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
     def _calculate_frames_width(self) -> int:
-        """Calculate the total width needed for all frames and sprockets."""
+        """Calculate the total width needed for all frames and sprockets.
+
+        Returns:
+            int: The resulting integer value.
+
+        """
         frames_width = 0
         animation_names = list(self.animated_sprite._animations.keys())
         for i, (_, frames) in enumerate(self.animated_sprite._animations.items()):
@@ -2357,7 +2419,12 @@ class FilmStripWidget:
         return frames_width
 
     def get_total_width(self) -> int:
-        """Get the total width needed for the film strip."""
+        """Get the total width needed for the film strip.
+
+        Returns:
+            int: The total width.
+
+        """
         if not self.animated_sprite:
             return 0
 
@@ -2386,6 +2453,10 @@ class FilmStripWidget:
         """Find which frame was clicked at the given coordinates.
 
         Returns (animation, frame) if a frame was clicked, None otherwise.
+
+        Returns:
+            tuple[str, int] | None: The result.
+
         """
         for (anim_name, frame_idx), frame_rect in self.frame_layouts.items():
             if frame_rect.collidepoint(local_x, local_y):
@@ -2396,6 +2467,10 @@ class FilmStripWidget:
         """Handle mouse click on the film strip.
 
         Returns (animation, frame) if a frame was clicked.
+
+        Returns:
+            tuple[str, int] | None: The result.
+
         """
         if not self.animated_sprite:
             return None

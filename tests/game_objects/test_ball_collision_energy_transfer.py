@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test ball-to-ball collision energy transfer issues.
+"""Test ball-to-ball collision energy transfer issues.
 
 This test specifically addresses the reported issues:
 1. Balls going the same horizontal direction not transferring energy
@@ -18,8 +17,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import pygame
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
-from glitchygames.movement import Speed
+from glitchygames.game_objects.ball import BallSprite
 
 
 class TestBallCollisionEnergyTransfer:
@@ -34,12 +32,19 @@ class TestBallCollisionEnergyTransfer:
             pygame.display.set_mode((800, 600))
 
     def _create_ball(self, x, y, speed_x, speed_y, radius=10):
-        """Create a ball sprite for testing."""
+        """Create a ball sprite for testing.
+
+        Returns:
+            object: The result.
+
+        """
         ball = BallSprite(
-            x=0, y=0,  # Will be overridden after reset()
-            width=radius*2, height=radius*2,
+            x=0,
+            y=0,  # Will be overridden after reset()
+            width=radius * 2,
+            height=radius * 2,
             bounce_top_bottom=True,
-            bounce_left_right=False
+            bounce_left_right=False,
         )
         # Set position after reset() has been called
         ball.rect.centerx = x
@@ -51,7 +56,12 @@ class TestBallCollisionEnergyTransfer:
         return ball
 
     def _simulate_collision(self, ball1, ball2):
-        """Simulate collision between two balls using the actual game physics."""
+        """Simulate collision between two balls using the actual game physics.
+
+        Returns:
+            object: The result.
+
+        """
         # Calculate distance between ball centers
         dx = ball2.rect.centerx - ball1.rect.centerx
         dy = ball2.rect.centery - ball1.rect.centery
@@ -85,7 +95,9 @@ class TestBallCollisionEnergyTransfer:
             # or if there's a significant speed difference
             if distance >= collision_distance:
                 if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
-                    speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(ball1_speed_magnitude, ball2_speed_magnitude)
+                    speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(
+                        ball1_speed_magnitude, ball2_speed_magnitude
+                    )
                     if speed_ratio < 1.2:  # Lower threshold for more collisions
                         return False  # Skip if speeds are too similar and balls aren't overlapping
                 else:
@@ -129,15 +141,21 @@ class TestBallCollisionEnergyTransfer:
         ball2.rect.centery = ball1.rect.centery  # Same Y coordinate
 
         print("Before collision:")
-        print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
-        print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
+        print(
+            f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})"
+        )
+        print(
+            f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})"
+        )
 
         # Calculate initial energy
         initial_energy1 = ball1.speed.x**2 + ball1.speed.y**2
         initial_energy2 = ball2.speed.x**2 + ball2.speed.y**2
         total_initial_energy = initial_energy1 + initial_energy2
 
-        print(f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}")
+        print(
+            f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}"
+        )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
@@ -146,15 +164,21 @@ class TestBallCollisionEnergyTransfer:
 
         if collision_occurred:
             print("After collision:")
-            print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
-            print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
+            print(
+                f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})"
+            )
+            print(
+                f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})"
+            )
 
             # Calculate final energy
             final_energy1 = ball1.speed.x**2 + ball1.speed.y**2
             final_energy2 = ball2.speed.x**2 + ball2.speed.y**2
             total_final_energy = final_energy1 + final_energy2
 
-            print(f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}")
+            print(
+                f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}"
+            )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
@@ -166,8 +190,9 @@ class TestBallCollisionEnergyTransfer:
             assert collision_occurred, "Collision should have occurred"
             assert energy_change1 != 0, "Ball 1 energy should have changed"
             assert energy_change2 != 0, "Ball 2 energy should have changed"
-            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), \
+            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), (
                 "Total energy should be conserved"
+            )
 
             # The faster ball should have lost energy, slower ball should have gained energy
             if initial_energy1 > initial_energy2:
@@ -191,15 +216,21 @@ class TestBallCollisionEnergyTransfer:
         ball2.rect.centery = ball1.rect.centery - 15  # 15px apart (radius=10 each)
 
         print("Before collision:")
-        print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
-        print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
+        print(
+            f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})"
+        )
+        print(
+            f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})"
+        )
 
         # Calculate initial energy
         initial_energy1 = ball1.speed.x**2 + ball1.speed.y**2
         initial_energy2 = ball2.speed.x**2 + ball2.speed.y**2
         total_initial_energy = initial_energy1 + initial_energy2
 
-        print(f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}")
+        print(
+            f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}"
+        )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
@@ -208,15 +239,21 @@ class TestBallCollisionEnergyTransfer:
 
         if collision_occurred:
             print("After collision:")
-            print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
-            print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
+            print(
+                f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})"
+            )
+            print(
+                f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})"
+            )
 
             # Calculate final energy
             final_energy1 = ball1.speed.x**2 + ball1.speed.y**2
             final_energy2 = ball2.speed.x**2 + ball2.speed.y**2
             total_final_energy = final_energy1 + final_energy2
 
-            print(f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}")
+            print(
+                f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}"
+            )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
@@ -228,8 +265,9 @@ class TestBallCollisionEnergyTransfer:
             assert collision_occurred, "Collision should have occurred"
             assert energy_change1 != 0, "Ball 1 energy should have changed"
             assert energy_change2 != 0, "Ball 2 energy should have changed"
-            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), \
+            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), (
                 "Total energy should be conserved"
+            )
 
             # The faster ball should have lost energy, slower ball should have gained energy
             if initial_energy1 > initial_energy2:
@@ -247,15 +285,21 @@ class TestBallCollisionEnergyTransfer:
         ball2 = self._create_ball(115, 200, -100, 0)  # Moving left, close to ball1
 
         print("Before collision:")
-        print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
-        print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
+        print(
+            f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})"
+        )
+        print(
+            f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})"
+        )
 
         # Calculate initial energy
         initial_energy1 = ball1.speed.x**2 + ball1.speed.y**2
         initial_energy2 = ball2.speed.x**2 + ball2.speed.y**2
         total_initial_energy = initial_energy1 + initial_energy2
 
-        print(f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}")
+        print(
+            f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}"
+        )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
@@ -264,15 +308,21 @@ class TestBallCollisionEnergyTransfer:
 
         if collision_occurred:
             print("After collision:")
-            print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
-            print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
+            print(
+                f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})"
+            )
+            print(
+                f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})"
+            )
 
             # Calculate final energy
             final_energy1 = ball1.speed.x**2 + ball1.speed.y**2
             final_energy2 = ball2.speed.x**2 + ball2.speed.y**2
             total_final_energy = final_energy1 + final_energy2
 
-            print(f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}")
+            print(
+                f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}"
+            )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
@@ -284,14 +334,17 @@ class TestBallCollisionEnergyTransfer:
             assert collision_occurred, "Collision should have occurred"
             # For head-on collision with equal masses and speeds, balls exchange velocities
             # so individual energies change but total energy is conserved
-            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), \
+            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), (
                 "Total energy should be conserved"
+            )
 
             # For head-on collision, balls should exchange velocities
-            assert final_energy1 == pytest.approx(initial_energy2, abs=0.1), \
+            assert final_energy1 == pytest.approx(initial_energy2, abs=0.1), (
                 "Ball 1 should have ball 2's initial energy"
-            assert final_energy2 == pytest.approx(initial_energy1, abs=0.1), \
+            )
+            assert final_energy2 == pytest.approx(initial_energy1, abs=0.1), (
                 "Ball 2 should have ball 1's initial energy"
+            )
 
             # Verify that velocities have actually changed (even if energies are the same)
             assert ball1.speed.x != 100, "Ball 1 X speed should change"
@@ -308,15 +361,21 @@ class TestBallCollisionEnergyTransfer:
         ball2 = self._create_ball(110, 110, -50, -50)  # Moving up-left, very close to ball1
 
         print("Before collision:")
-        print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
-        print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
+        print(
+            f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})"
+        )
+        print(
+            f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})"
+        )
 
         # Calculate initial energy
         initial_energy1 = ball1.speed.x**2 + ball1.speed.y**2
         initial_energy2 = ball2.speed.x**2 + ball2.speed.y**2
         total_initial_energy = initial_energy1 + initial_energy2
 
-        print(f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}")
+        print(
+            f"  Initial energies: Ball1={initial_energy1:.1f}, Ball2={initial_energy2:.1f}, Total={total_initial_energy:.1f}"
+        )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
@@ -325,15 +384,21 @@ class TestBallCollisionEnergyTransfer:
 
         if collision_occurred:
             print("After collision:")
-            print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})")
-            print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})")
+            print(
+                f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})"
+            )
+            print(
+                f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})"
+            )
 
             # Calculate final energy
             final_energy1 = ball1.speed.x**2 + ball1.speed.y**2
             final_energy2 = ball2.speed.x**2 + ball2.speed.y**2
             total_final_energy = final_energy1 + final_energy2
 
-            print(f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}")
+            print(
+                f"  Final energies: Ball1={final_energy1:.1f}, Ball2={final_energy2:.1f}, Total={total_final_energy:.1f}"
+            )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
@@ -345,8 +410,9 @@ class TestBallCollisionEnergyTransfer:
             assert collision_occurred, "Collision should have occurred"
             assert energy_change1 != 0, "Ball 1 energy should have changed"
             assert energy_change2 != 0, "Ball 2 energy should have changed"
-            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), \
+            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), (
                 "Total energy should be conserved"
+            )
         else:
             pytest.fail("Collision should have occurred for diagonal collision")
 
@@ -359,8 +425,12 @@ class TestBallCollisionEnergyTransfer:
         ball2 = self._create_ball(300, 200, 50, 0)  # 200px apart
 
         print("Balls far apart:")
-        print(f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})")
-        print(f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})")
+        print(
+            f"  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery}) speed=({ball1.speed.x},{ball1.speed.y})"
+        )
+        print(
+            f"  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery}) speed=({ball2.speed.x},{ball2.speed.y})"
+        )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
@@ -378,8 +448,12 @@ class TestBallCollisionEnergyTransfer:
         ball1 = self._create_ball(100, 200, 100, 0)
         ball2 = self._create_ball(120, 200, 50, 0)  # 20px apart, radius=10 each
 
-        print(f"Ball1 rect: x={ball1.rect.x}, y={ball1.rect.y}, centerx={ball1.rect.centerx}, centery={ball1.rect.centery}")
-        print(f"Ball2 rect: x={ball2.rect.x}, y={ball2.rect.y}, centerx={ball2.rect.centerx}, centery={ball2.rect.centery}")
+        print(
+            f"Ball1 rect: x={ball1.rect.x}, y={ball1.rect.y}, centerx={ball1.rect.centerx}, centery={ball1.rect.centery}"
+        )
+        print(
+            f"Ball2 rect: x={ball2.rect.x}, y={ball2.rect.y}, centerx={ball2.rect.centerx}, centery={ball2.rect.centery}"
+        )
 
         # Calculate distance
         dx = ball2.rect.centerx - ball1.rect.centerx

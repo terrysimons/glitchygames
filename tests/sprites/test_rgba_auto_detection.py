@@ -8,7 +8,6 @@ import pygame
 import pytest
 from glitchygames.sprites.animated import (
     AnimatedSprite,
-    SpriteFrame,
     _convert_pixels_to_rgb_if_possible,
     _convert_pixels_to_rgba_if_needed,
     _needs_alpha_channel,
@@ -108,6 +107,7 @@ class TestAnimatedSpriteRGBRGBA:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -132,7 +132,7 @@ class TestAnimatedSpriteRGBRGBA:
         assert (255, 0, 0) in color_map
         assert (0, 255, 0) in color_map
         assert (0, 0, 255) in color_map
-        assert len(color_map[(255, 0, 0)]) == 1  # Character mapping
+        assert len(color_map[255, 0, 0]) == 1  # Character mapping
 
     def test_build_toml_color_map_rgba_with_transparency(self, mocker):
         """Test color map building with RGBA pixels that have transparency."""
@@ -270,6 +270,7 @@ class TestSpriteSaveLoadRGBRGBA:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -298,8 +299,7 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            with open(temp_path, "r") as f:
-                content = f.read()
+            content = Path(temp_path).read_text()
 
             # Should contain RGB colors only
             assert "red = 255" in content
@@ -331,8 +331,7 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            with open(temp_path, "r") as f:
-                content = f.read()
+            content = Path(temp_path).read_text()
 
             # Should contain alpha values
             assert "alpha = 255" in content
@@ -365,8 +364,7 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            with open(temp_path, "r") as f:
-                content = f.read()
+            content = Path(temp_path).read_text()
 
             # Should contain RGB colors only
             assert "red = 255" in content
@@ -401,8 +399,7 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            with open(temp_path, "r") as f:
-                content = f.read()
+            content = Path(temp_path).read_text()
 
             # Should contain per-pixel alpha values (0-254) only
             # alpha=255 (opaque) is omitted as an optimization since it's the default
@@ -435,7 +432,12 @@ G = { red = 0, green = 255, blue = 0 }
         try:
             # Create a simple mock surface that doesn't require video mode
             def mock_surface_constructor(*args, **kwargs):
-                """Mock pygame.Surface constructor that returns a mock surface."""
+                """Mock pygame.Surface constructor that returns a mock surface.
+
+                Returns:
+                    object: The result.
+
+                """
                 mock_surface = mocker.Mock()
                 mock_surface.convert.return_value = mock_surface
                 mock_surface.convert_alpha.return_value = mock_surface
@@ -478,7 +480,12 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
         try:
             # Create a simple mock surface that doesn't require video mode
             def mock_surface_constructor(*args, **kwargs):
-                """Mock pygame.Surface constructor that returns a mock surface."""
+                """Mock pygame.Surface constructor that returns a mock surface.
+
+                Returns:
+                    object: The result.
+
+                """
                 mock_surface = mocker.Mock()
                 mock_surface.convert.return_value = mock_surface
                 mock_surface.convert_alpha.return_value = mock_surface
@@ -523,7 +530,12 @@ B = { red = 0, green = 0, blue = 255 }
         try:
             # Create a simple mock surface that doesn't require video mode
             def mock_surface_constructor(*args, **kwargs):
-                """Mock pygame.Surface constructor that returns a mock surface."""
+                """Mock pygame.Surface constructor that returns a mock surface.
+
+                Returns:
+                    object: The result.
+
+                """
                 mock_surface = mocker.Mock()
                 mock_surface.convert.return_value = mock_surface
                 mock_surface.convert_alpha.return_value = mock_surface
@@ -550,6 +562,7 @@ class TestRGBRGBAIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -578,7 +591,12 @@ class TestRGBRGBAIntegration:
 
             # Create a simple mock surface that doesn't require video mode
             def mock_surface_constructor(*args, **kwargs):
-                """Mock pygame.Surface constructor that returns a mock surface."""
+                """Mock pygame.Surface constructor that returns a mock surface.
+
+                Returns:
+                    object: The result.
+
+                """
                 mock_surface = mocker.Mock()
                 mock_surface.convert.return_value = mock_surface
                 mock_surface.convert_alpha.return_value = mock_surface
@@ -626,7 +644,12 @@ class TestRGBRGBAIntegration:
 
             # Create a simple mock surface that doesn't require video mode
             def mock_surface_constructor(*args, **kwargs):
-                """Mock pygame.Surface constructor that returns a mock surface."""
+                """Mock pygame.Surface constructor that returns a mock surface.
+
+                Returns:
+                    object: The result.
+
+                """
                 mock_surface = mocker.Mock()
                 mock_surface.convert.return_value = mock_surface
                 mock_surface.convert_alpha.return_value = mock_surface
@@ -669,7 +692,12 @@ class TestRGBRGBAIntegration:
         # Create RGBA sprite
         rgba_sprite = AnimatedSprite()
         rgba_frame = MockFactory.create_sprite_frame_mock()
-        rgba_frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255), (128, 128, 128, 0)]
+        rgba_frame.pixels = [
+            (255, 0, 0, 255),
+            (0, 255, 0, 128),
+            (0, 0, 255, 255),
+            (128, 128, 128, 0),
+        ]
         rgba_frame.get_pixel_data.return_value = rgba_frame.pixels
         rgba_sprite._animations = {"test": [rgba_frame]}
         rgba_sprite.name = "rgba_sprite"
@@ -689,7 +717,9 @@ class TestRGBRGBAIntegration:
             rgb_size = Path(rgb_path).stat().st_size
             rgba_size = Path(rgba_path).stat().st_size
 
-            assert rgb_size < rgba_size, f"RGB file ({rgb_size}) should be smaller than RGBA file ({rgba_size})"
+            assert rgb_size < rgba_size, (
+                f"RGB file ({rgb_size}) should be smaller than RGBA file ({rgba_size})"
+            )
 
         finally:
             Path(rgb_path).unlink()

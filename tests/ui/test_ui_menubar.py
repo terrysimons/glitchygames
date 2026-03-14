@@ -31,6 +31,7 @@ class TestMenuBarFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker, mock_pygame_patches):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -60,7 +61,7 @@ class TestMenuBarFunctionality:
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
             name="test_menubar",
-            groups=groups
+            groups=groups,
         )
 
         # Create a mock MenuItem
@@ -105,7 +106,7 @@ class TestMenuBarFunctionality:
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
             name="test_menubar",
-            groups=groups
+            groups=groups,
         )
 
         # Create a mock MenuItem with proper attributes
@@ -137,7 +138,7 @@ class TestMenuBarFunctionality:
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
             name="test_menubar",
-            groups=groups
+            groups=groups,
         )
 
         # Test initial focus state
@@ -162,7 +163,7 @@ class TestMenuBarFunctionality:
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
             name="test_menubar",
-            groups=groups
+            groups=groups,
         )
 
         # Test mouse button down event
@@ -182,7 +183,7 @@ class TestMenuBarFunctionality:
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
             name="test_menubar",
-            groups=groups
+            groups=groups,
         )
 
         # Test that menubar was created successfully

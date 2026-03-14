@@ -87,7 +87,15 @@ class SpriteGenerationRequest(BaseModel):
     @field_validator("output_format")
     @classmethod
     def validate_output_format(cls, value: list[str]) -> list[str]:
-        """Validate that output_format contains valid values and is not empty."""
+        """Validate that output_format contains valid values and is not empty.
+
+        Returns:
+            list[str]: The validation result.
+
+        Raises:
+            ValueError: If output_format is empty or contains invalid format values.
+
+        """
         if not value:
             raise ValueError("output_format must contain at least one format ('toml' or 'png')")
         for fmt in value:
@@ -140,7 +148,15 @@ class SpriteRefinementRequest(BaseModel):
     @field_validator("output_format")
     @classmethod
     def validate_output_format(cls, value: list[str]) -> list[str]:
-        """Validate that output_format contains valid values and is not empty."""
+        """Validate that output_format contains valid values and is not empty.
+
+        Returns:
+            list[str]: The validation result.
+
+        Raises:
+            ValueError: If output_format is empty or contains invalid format values.
+
+        """
         if not value:
             raise ValueError("output_format must contain at least one format ('toml' or 'png')")
         for fmt in value:

@@ -14,7 +14,6 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene, SceneManager
 
 from tests.mocks.test_mock_factory import MockFactory
@@ -38,7 +37,6 @@ class TestSceneRendering:
 
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
-
 
     def teardown_method(self):
         """Clean up test fixtures."""

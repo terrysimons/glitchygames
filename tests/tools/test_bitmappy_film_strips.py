@@ -31,6 +31,7 @@ class TestFilmStripAddDeleteFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
 
         # Use real pygame initialization since film strip classes require it
@@ -151,6 +152,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
 
         # Use real pygame initialization since BitmapEditorScene requires it
@@ -309,8 +311,11 @@ class TestBitmapEditorFilmStripIntegration:
         mock_frame.duration = 0.5
 
         scene.canvas.animated_sprite._animations = {
-            "strip_1": [mock_frame], "strip_2": [mock_frame], "strip_3": [mock_frame],
-            "strip_4": [mock_frame], "strip_5": [mock_frame]
+            "strip_1": [mock_frame],
+            "strip_2": [mock_frame],
+            "strip_3": [mock_frame],
+            "strip_4": [mock_frame],
+            "strip_5": [mock_frame],
         }
         scene._on_sprite_loaded = self._mocker.Mock()
         scene._update_film_strip_visibility = self._mocker.Mock()
@@ -342,7 +347,9 @@ class TestBitmapEditorFilmStripIntegration:
         mock_frame.duration = 0.5
 
         scene.canvas.animated_sprite._animations = {
-            "strip_1": [mock_frame], "strip_2": [mock_frame], "strip_3": [mock_frame]
+            "strip_1": [mock_frame],
+            "strip_2": [mock_frame],
+            "strip_3": [mock_frame],
         }
         scene._on_sprite_loaded = self._mocker.Mock()
         scene._update_film_strip_visibility = self._mocker.Mock()
@@ -363,6 +370,7 @@ class TestFilmStripWidgetIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
 
         # Use real pygame initialization since FilmStripWidget requires it
@@ -386,14 +394,14 @@ class TestFilmStripWidgetIntegration:
         widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
         widget.parent_scene.canvas.animated_sprite._animations = {
             "test_animation": [],
-            "another_animation": []  # Add second animation so delete tab is shown
+            "another_animation": [],  # Add second animation so delete tab is shown
         }
 
         # Create mock animated sprite with frames
         animated_sprite = self._mocker.Mock()
         animated_sprite._animations = {
             "test_animation": [self._mocker.Mock(), self._mocker.Mock()],
-            "another_animation": [self._mocker.Mock()]  # Add second animation
+            "another_animation": [self._mocker.Mock()],  # Add second animation
         }
         animated_sprite._animation_order = ["test_animation", "another_animation"]
         widget.set_animated_sprite(animated_sprite)
@@ -454,7 +462,7 @@ class TestFilmStripWidgetIntegration:
         widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
         widget.parent_scene.canvas.animated_sprite._animations = {
             "test_animation": [],
-            "other_animation": []
+            "other_animation": [],
         }
 
         # Create mock animated sprite with frames

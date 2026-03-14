@@ -20,9 +20,6 @@ class Horizontal:
         Args:
             speed (Speed): The speed object to move at.
 
-        Returns:
-            None
-
         """
         self.speed = speed
         self.current_speed = self.speed.x
@@ -33,9 +30,6 @@ class Horizontal:
         Args:
             value (int): The value to change the speed by.
 
-        Returns:
-            None
-
         """
         self.current_speed = value
 
@@ -43,9 +37,6 @@ class Horizontal:
         """Move left.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -57,9 +48,6 @@ class Horizontal:
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._change_speed(self.speed.x)
 
@@ -67,9 +55,6 @@ class Horizontal:
         """Stop moving.
 
         Args:
-            None
-
-        Returns:
             None
 
         """

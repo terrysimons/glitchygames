@@ -82,16 +82,16 @@ class TestTextEvents:
 
         # Test different character types
         test_texts = [
-            "Hello World",           # Basic text
-            "123456789",             # Numbers
-            "!@#$%^&*()",            # Special characters
-            "Hello\nWorld",          # Text with newlines
-            "Hello\tWorld",          # Text with tabs
-            "Hello World!",          # Mixed characters
-            "Café",                  # Text with accents
-            "你好",                   # Unicode text
-            "αβγδε",                 # Greek letters
-            "🚀🎮🎯",                # Emojis
+            "Hello World",  # Basic text
+            "123456789",  # Numbers
+            "!@#$%^&*()",  # Special characters
+            "Hello\nWorld",  # Text with newlines
+            "Hello\tWorld",  # Text with tabs
+            "Hello World!",  # Mixed characters
+            "Café",  # Text with accents
+            "你好",  # Unicode text
+            "αβγδε",  # Greek letters
+            "🚀🎮🎯",  # Emojis
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -109,12 +109,12 @@ class TestTextEvents:
 
         # Test different editing scenarios
         editing_scenarios = [
-            ("Hello", 0, 5),         # Full text selection
-            ("Hello", 2, 3),         # Partial text selection
-            ("Hello", 0, 0),         # No selection (cursor position)
-            ("Hello", 5, 0),         # Cursor at end
-            ("", 0, 0),              # Empty text
-            ("Test", 1, 2),          # Middle selection
+            ("Hello", 0, 5),  # Full text selection
+            ("Hello", 2, 3),  # Partial text selection
+            ("Hello", 0, 0),  # No selection (cursor position)
+            ("Hello", 5, 0),  # Cursor at end
+            ("", 0, 0),  # Empty text
+            ("Test", 1, 2),  # Middle selection
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -132,11 +132,50 @@ class TestTextEvents:
 
         # Test single character inputs
         single_chars = [
-            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-            "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-            "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
-            " ", "\t", "\n", "\r",
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+            "I",
+            "J",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "0",
+            "!",
+            "@",
+            "#",
+            "$",
+            "%",
+            "^",
+            "&",
+            "*",
+            "(",
+            ")",
+            " ",
+            "\t",
+            "\n",
+            "\r",
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -154,12 +193,12 @@ class TestTextEvents:
 
         # Test cursor movement scenarios
         cursor_scenarios = [
-            ("Hello", 0, 0),         # Cursor at beginning
-            ("Hello", 1, 0),         # Cursor after first character
-            ("Hello", 2, 0),         # Cursor in middle
-            ("Hello", 3, 0),         # Cursor near end
-            ("Hello", 4, 0),         # Cursor at end
-            ("Hello", 5, 0),         # Cursor beyond end
+            ("Hello", 0, 0),  # Cursor at beginning
+            ("Hello", 1, 0),  # Cursor after first character
+            ("Hello", 2, 0),  # Cursor in middle
+            ("Hello", 3, 0),  # Cursor near end
+            ("Hello", 4, 0),  # Cursor at end
+            ("Hello", 5, 0),  # Cursor beyond end
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -177,16 +216,16 @@ class TestTextEvents:
 
         # Test Unicode characters
         unicode_texts = [
-            "Café",                  # Latin with accents
-            "naïve",                 # Latin with diaeresis
-            "résumé",                # Latin with accents
-            "你好",                   # Chinese characters
-            "こんにちは",              # Japanese characters
-            "안녕하세요",             # Korean characters
-            "Привет",                # Cyrillic characters
-            "αβγδε",                 # Greek letters
-            "🚀🎮🎯",                # Emojis
-            "∞≠≤≥",                  # Mathematical symbols
+            "Café",  # Latin with accents
+            "naïve",  # Latin with diaeresis
+            "résumé",  # Latin with accents
+            "你好",  # Chinese characters
+            "こんにちは",  # Japanese characters
+            "안녕하세요",  # Korean characters
+            "Привет",  # Cyrillic characters
+            "αβγδε",  # Greek letters
+            "🚀🎮🎯",  # Emojis
+            "∞≠≤≥",  # Mathematical symbols
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -204,12 +243,12 @@ class TestTextEvents:
 
         # Test selection scenarios
         selection_scenarios = [
-            ("Hello", 0, 5),         # Select all
-            ("Hello", 0, 1),         # Select first character
-            ("Hello", 1, 3),         # Select middle characters
-            ("Hello", 4, 1),         # Select last character
-            ("Hello", 0, 0),         # No selection
-            ("Hello", 2, 0),         # Cursor position, no selection
+            ("Hello", 0, 5),  # Select all
+            ("Hello", 0, 1),  # Select first character
+            ("Hello", 1, 3),  # Select middle characters
+            ("Hello", 4, 1),  # Select last character
+            ("Hello", 0, 0),  # No selection
+            ("Hello", 2, 0),  # Cursor position, no selection
         ]
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
@@ -221,15 +260,20 @@ class TestTextEvents:
             # Expected to call unhandled_event and raise UnhandledEventError
 
     def _setup_mock_scene_for_stub(self, stub):
-        """Set up mock scene object for event stubs using centralized mocks."""
+        """Set up mock scene object for event stubs using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         # Create a scene mock with proper event handling configuration
         # Use empty event_handlers to avoid unhandled event logging
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
-                "no_unhandled_events": True  # This will cause UnhandledEventError to be raised
+                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
             },
-            event_handlers={}  # Empty handlers to trigger unhandled_event fallback
+            event_handlers={},  # Empty handlers to trigger unhandled_event fallback
         )
 
         # Set the options on the stub so unhandled_event can access them
@@ -237,7 +281,7 @@ class TestTextEvents:
         return scene_mock
 
 
-class TestTextEvents:
+class TestTextEventsKeyboardManager:
     """Test text events handled by KeyboardEventManager."""
 
     def test_text_events_through_keyboard_manager(self, mock_pygame_patches):

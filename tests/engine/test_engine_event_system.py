@@ -13,14 +13,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 
-from tests.mocks import MockFactory
-
 
 class TestEngineEventSystem:
     """Test GameEngine event system functionality."""
 
     def _create_mock_game(self, mocker):
-        """Create a mock game using MockFactory."""
+        """Create a mock game using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_game = mocker.Mock()
         mock_game.NAME = "MockGame"
         mock_game.VERSION = "1.0"
@@ -28,14 +31,21 @@ class TestEngineEventSystem:
         return mock_game
 
     def _create_mock_event(self, mocker, event_type, **kwargs):
-        """Create a mock event using MockFactory."""
+        """Create a mock event using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_event = mocker.Mock()
         mock_event.type = event_type
         for key, value in kwargs.items():
             setattr(mock_event, key, value)
         return mock_event
 
-    def test_game_engine_event_handlers_registration(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_game_engine_event_handlers_registration(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
         """Test GameEngine event handler registration."""
         # Mock argument parsing to prevent command line argument issues
         mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
@@ -57,9 +67,10 @@ class TestEngineEventSystem:
 
         # Test that some common event types are registered
         # The actual events depend on the events module configuration
-        assert any(event_type in engine.EVENT_HANDLERS for event_type in [
-            pygame.QUIT, pygame.ACTIVEEVENT, pygame.KEYDOWN, pygame.KEYUP
-        ])
+        assert any(
+            event_type in engine.EVENT_HANDLERS
+            for event_type in [pygame.QUIT, pygame.ACTIVEEVENT, pygame.KEYDOWN, pygame.KEYUP]
+        )
 
     def test_game_engine_event_processing(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine event processing."""
@@ -75,10 +86,10 @@ class TestEngineEventSystem:
 
         # Mock events
         mock_events = [
-            self._create_mock_event(mocker,pygame.QUIT),
-            self._create_mock_event(mocker,pygame.KEYDOWN, key=pygame.K_SPACE),
-            self._create_mock_event(mocker,pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)),
-            self._create_mock_event(mocker,pygame.JOYBUTTONDOWN, button=0, joy=0),
+            self._create_mock_event(mocker, pygame.QUIT),
+            self._create_mock_event(mocker, pygame.KEYDOWN, key=pygame.K_SPACE),
+            self._create_mock_event(mocker, pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)),
+            self._create_mock_event(mocker, pygame.JOYBUTTONDOWN, button=0, joy=0),
         ]
 
         # Mock the process_events method to avoid actual event processing
@@ -104,7 +115,7 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock quit event
-        quit_event = self._create_mock_event(mocker,pygame.QUIT)
+        quit_event = self._create_mock_event(mocker, pygame.QUIT)
 
         # Test quit event handler
         mock_quit_handler = mocker.patch.object(engine, "on_quit_event")
@@ -129,8 +140,8 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock keyboard events
-        keydown_event = self._create_mock_event(mocker,pygame.KEYDOWN, key=pygame.K_SPACE)
-        keyup_event = self._create_mock_event(mocker,pygame.KEYUP, key=pygame.K_SPACE)
+        keydown_event = self._create_mock_event(mocker, pygame.KEYDOWN, key=pygame.K_SPACE)
+        keyup_event = self._create_mock_event(mocker, pygame.KEYUP, key=pygame.K_SPACE)
 
         # Test keyboard event handlers
         mock_keydown_handler = mocker.patch.object(engine, "on_keydown_event")
@@ -160,9 +171,15 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock mouse events
-        mousedown_event = self._create_mock_event(mocker,pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
-        mouseup_event = self._create_mock_event(mocker,pygame.MOUSEBUTTONUP, button=1, pos=(100, 100))
-        mousemotion_event = self._create_mock_event(mocker,pygame.MOUSEMOTION, pos=(100, 100), rel=(5, 5))
+        mousedown_event = self._create_mock_event(
+            mocker, pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)
+        )
+        mouseup_event = self._create_mock_event(
+            mocker, pygame.MOUSEBUTTONUP, button=1, pos=(100, 100)
+        )
+        mousemotion_event = self._create_mock_event(
+            mocker, pygame.MOUSEMOTION, pos=(100, 100), rel=(5, 5)
+        )
 
         # Test mouse event handlers
         mock_mousedown_handler = mocker.patch.object(engine, "on_mousebuttondown_event")
@@ -196,11 +213,17 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock joystick events
-        joybuttondown_event = self._create_mock_event(mocker,pygame.JOYBUTTONDOWN, button=0, joy=0)
-        joybuttonup_event = self._create_mock_event(mocker,pygame.JOYBUTTONUP, button=0, joy=0)
-        joyaxismotion_event = self._create_mock_event(mocker,pygame.JOYAXISMOTION, axis=0, value=0.5, joy=0)
-        joyhatmotion_event = self._create_mock_event(mocker,pygame.JOYHATMOTION, hat=0, value=(1, 0), joy=0)
-        joyballmotion_event = self._create_mock_event(mocker,pygame.JOYBALLMOTION, ball=0, rel=(5, 5), joy=0)
+        joybuttondown_event = self._create_mock_event(mocker, pygame.JOYBUTTONDOWN, button=0, joy=0)
+        joybuttonup_event = self._create_mock_event(mocker, pygame.JOYBUTTONUP, button=0, joy=0)
+        joyaxismotion_event = self._create_mock_event(
+            mocker, pygame.JOYAXISMOTION, axis=0, value=0.5, joy=0
+        )
+        joyhatmotion_event = self._create_mock_event(
+            mocker, pygame.JOYHATMOTION, hat=0, value=(1, 0), joy=0
+        )
+        joyballmotion_event = self._create_mock_event(
+            mocker, pygame.JOYBALLMOTION, ball=0, rel=(5, 5), joy=0
+        )
 
         # Test joystick event handlers
         mock_joybuttondown_handler = mocker.patch.object(engine, "on_joybuttondown_event")
@@ -242,7 +265,7 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock active event
-        active_event = self._create_mock_event(mocker,pygame.ACTIVEEVENT, gain=1, state=1)
+        active_event = self._create_mock_event(mocker, pygame.ACTIVEEVENT, gain=1, state=1)
 
         # Test active event handler
         mock_active_handler = mocker.patch.object(engine, "on_active_event")
@@ -267,9 +290,9 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock user events
-        fps_event = self._create_mock_event(mocker,pygame.USEREVENT + 1)  # FPSEVENT
-        game_event = self._create_mock_event(mocker,pygame.USEREVENT + 2)  # GAMEEVENT
-        menu_event = self._create_mock_event(mocker,pygame.USEREVENT + 3)  # MENUEVENT
+        fps_event = self._create_mock_event(mocker, pygame.USEREVENT + 1)  # FPSEVENT
+        game_event = self._create_mock_event(mocker, pygame.USEREVENT + 2)  # GAMEEVENT
+        menu_event = self._create_mock_event(mocker, pygame.USEREVENT + 3)  # MENUEVENT
 
         # Test user event handlers
         mock_fps_handler = mocker.patch.object(engine, "on_fps_event")
@@ -303,7 +326,7 @@ class TestEngineEventSystem:
         engine = GameEngine(game=mock_game)
 
         # Mock sys wm event
-        sys_wm_event = self._create_mock_event(mocker,pygame.SYSWMEVENT, msg="test_message")
+        sys_wm_event = self._create_mock_event(mocker, pygame.SYSWMEVENT, msg="test_message")
 
         # Test sys wm event handler
         mock_sys_wm_handler = mocker.patch.object(engine, "on_sys_wm_event")
@@ -315,7 +338,9 @@ class TestEngineEventSystem:
         # Verify the handler was called
         mock_sys_wm_handler.assert_called_once_with(sys_wm_event)
 
-    def test_game_engine_event_manager_integration(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_game_engine_event_manager_integration(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
         """Test GameEngine event manager integration."""
         # Mock argument parsing to prevent command line argument issues
         mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")

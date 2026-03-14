@@ -16,17 +16,13 @@ from tests.mocks.test_mock_factory import MockFactory
 
 def test_zero_speed_scenarios(mocker):
     """Test various scenarios with zero speed components."""
-
     # Set up centralized mocks
     MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     print("=== Testing Zero Speed Scenarios ===\n")
 
     # Create a ball with X-only speedup
-    ball = BallSprite(
-        speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-        speed_up_multiplier=1.15
-    )
+    ball = BallSprite(speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, speed_up_multiplier=1.15)
 
     print("1. Both X and Y speeds are 0:")
     ball.speed = Speed(0.0, 0.0)
@@ -97,7 +93,7 @@ def test_zero_speed_scenarios(mocker):
 
     for i in range(10):
         ball.dt_tick(0.016)  # 60 FPS
-        print(f"   Iteration {i+1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
+        print(f"   Iteration {i + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
         time.sleep(0.1)  # Small delay to see progression
 
     print("   Result: X speed remains 0, Y speed remains 0 (no movement)\n")
@@ -108,7 +104,7 @@ def test_zero_speed_scenarios(mocker):
 
     for i in range(10):
         ball.dt_tick(0.016)  # 60 FPS
-        print(f"   Iteration {i+1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
+        print(f"   Iteration {i + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
         time.sleep(0.1)  # Small delay to see progression
 
     print("   Result: X speed increases over time, Y speed unchanged\n")
@@ -121,7 +117,9 @@ def test_zero_speed_scenarios(mocker):
 
     for i in range(20):
         ball.dt_tick(0.016)  # 60 FPS
-        print(f"   Iteration {i+1}: position=({ball.rect.x}, {ball.rect.y}), speed=({ball.speed.x}, {ball.speed.y})")
+        print(
+            f"   Iteration {i + 1}: position=({ball.rect.x}, {ball.rect.y}), speed=({ball.speed.x}, {ball.speed.y})"
+        )
         time.sleep(0.05)  # Small delay
 
     print("   Result: Position never changes (no movement with zero speed)\n")
@@ -165,7 +163,9 @@ def test_zero_speed_scenarios(mocker):
     ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
 
     for x_speed, y_speed, description in test_speeds:
-        print(f"12.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with Y-only speedup:")
+        print(
+            f"12.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with Y-only speedup:"
+        )
         ball.speed = Speed(x_speed, y_speed)
         print(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
 
@@ -187,7 +187,9 @@ def test_zero_speed_scenarios(mocker):
     ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
 
     for x_speed, y_speed, description in test_speeds:
-        print(f"13.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with both X and Y speedup:")
+        print(
+            f"13.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with both X and Y speedup:"
+        )
         ball.speed = Speed(x_speed, y_speed)
         print(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
 
@@ -217,7 +219,9 @@ def test_zero_speed_scenarios(mocker):
     ]
 
     for x_speed, y_speed, description in continuous_test_speeds:
-        print(f"14.{continuous_test_speeds.index((x_speed, y_speed, description)) + 1} Testing continuous speedup with {description}:")
+        print(
+            f"14.{continuous_test_speeds.index((x_speed, y_speed, description)) + 1} Testing continuous speedup with {description}:"
+        )
         ball.speed = Speed(x_speed, y_speed)
         print(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
 
@@ -227,10 +231,13 @@ def test_zero_speed_scenarios(mocker):
 
         for i in range(5):
             ball.dt_tick(0.016)  # 60 FPS
-            print(f"   Iteration {i+1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
+            print(f"   Iteration {i + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
             time.sleep(0.1)
 
-        print(f"   Result: {'X and Y speeds increase' if x_speed != 0.0 and y_speed != 0.0 else 'Only non-zero components increase'}\n")
+        print(
+            f"   Result: {'X and Y speeds increase' if x_speed != 0.0 and y_speed != 0.0 else 'Only non-zero components increase'}\n"
+        )
+
 
 if __name__ == "__main__":
     test_zero_speed_scenarios()

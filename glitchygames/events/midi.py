@@ -25,15 +25,18 @@ class MidiEventManager(ResourceManager):
         """Proxy for MIDI events."""
 
         def __init__(self: Self, game: object) -> None:
+            """Initialize the MIDI event proxy with a game object."""
             super().__init__(game)
             self.game = game
             self.proxies = [self.game]
 
         def on_midi_in_event(self: Self, event) -> None:
+            """Forward MIDI input events to the game object."""
             if hasattr(self.game, "on_midi_in_event"):
                 self.game.on_midi_in_event(event)
 
         def on_midi_out_event(self: Self, event) -> None:
+            """Forward MIDI output events to the game object."""
             if hasattr(self.game, "on_midi_out_event"):
                 self.game.on_midi_out_event(event)
 
@@ -42,9 +45,6 @@ class MidiEventManager(ResourceManager):
 
         Args:
             game (object): The game object.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -68,6 +68,6 @@ class MidiEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Midi Options")  # noqa: F841
+        group = parser.add_argument_group("Midi Options")
 
         return parser

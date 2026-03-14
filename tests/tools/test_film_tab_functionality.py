@@ -112,7 +112,12 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
     """Test film tab integration with film strips."""
 
     def _create_mock_sprite_with_frames(self):
-        """Create a mock sprite with frames using centralized mocks."""
+        """Create a mock sprite with frames using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         mock_sprite = MockFactory.create_animated_sprite_mock("idle", use_cache=True)
         mock_sprite._animation_order = ["idle"]
 
@@ -479,8 +484,9 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         for x in range(0, min(32, frame_surface.get_width()), SAMPLE_SIZE):
             for y in range(0, min(32, frame_surface.get_height()), SAMPLE_SIZE):
                 pixel_color = frame_surface.get_at((x, y))
-                assert pixel_color[:3] == (MAGENTA_R, MAGENTA_G, MAGENTA_B), \
+                assert pixel_color[:3] == (MAGENTA_R, MAGENTA_G, MAGENTA_B), (
                     f"Pixel at ({x}, {y}) should be magenta"
+                )
 
     @pytest.mark.skip(reason="Frame spacing logic not yet implemented")
     def test_frame_spacing_has_2_pixel_gap(self, mock_pygame_patches):
@@ -513,13 +519,13 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         frame_layouts = film_strip.frame_layouts
 
         # Should have at least 3 frames for spacing test
-        assert len(frame_layouts) >= MIN_FRAMES_FOR_SPACING, \
+        assert len(frame_layouts) >= MIN_FRAMES_FOR_SPACING, (
             "Need at least 3 frames to test spacing"
+        )
 
         # Get sorted frame keys for the test animation
         frame_keys = sorted([
-            k for k in frame_layouts
-            if isinstance(k, tuple) and k[0] == "test_anim"
+            k for k in frame_layouts if isinstance(k, tuple) and k[0] == "test_anim"
         ])
 
         # Test spacing between consecutive frames (after the first)
@@ -535,9 +541,10 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
             previous_frame_end = previous_frame.x + previous_frame.width
             actual_gap = current_frame.x - previous_frame_end
 
-            assert actual_gap == expected_gap, \
-                f"Frame {frame_keys[i]} should have {expected_gap}px gap from " \
+            assert actual_gap == expected_gap, (
+                f"Frame {frame_keys[i]} should have {expected_gap}px gap from "
                 f"frame {frame_keys[i - 1]}, but has {actual_gap}px gap"
+            )
 
     @pytest.mark.skip(reason="Frame spacing logic not yet implemented")
     def test_frame_spacing_with_tabs(self, mock_pygame_patches):
@@ -576,8 +583,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
 
         # Get sorted frame keys for the test animation
         frame_keys = sorted([
-            k for k in frame_layouts
-            if isinstance(k, tuple) and k[0] == "test_anim"
+            k for k in frame_layouts if isinstance(k, tuple) and k[0] == "test_anim"
         ])
 
         # Test that spacing formula is correct
@@ -591,9 +597,10 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
             # Calculate actual spacing
             actual_spacing = current_frame.x - previous_frame.x
 
-            assert actual_spacing == expected_spacing, \
-                f"Frame {frame_keys[i]} spacing should be {expected_spacing}px " \
+            assert actual_spacing == expected_spacing, (
+                f"Frame {frame_keys[i]} spacing should be {expected_spacing}px "
                 f"(frame_width + tab_width + 2), but is {actual_spacing}px"
+            )
 
 
 class TestFilmTabSceneIntegration(FilmStripTestBase):

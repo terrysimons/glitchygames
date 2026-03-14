@@ -31,6 +31,7 @@ class TestTextSpriteFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -52,7 +53,7 @@ class TestTextSpriteFunctionality:
             width=TEST_WIDTH,
             height=TEST_HEIGHT,
             text="Hello World",
-            name="TestText"
+            name="TestText",
         )
 
         # Assert
@@ -77,7 +78,7 @@ class TestTextSpriteFunctionality:
             width=TEST_WIDTH,
             height=TEST_HEIGHT,
             text="Hello",
-            name="TestText"
+            name="TestText",
         )
 
         # Act
@@ -93,6 +94,7 @@ class TestTextBoxSpriteFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -109,11 +111,7 @@ class TestTextBoxSpriteFunctionality:
 
         # Act
         textbox = TextBoxSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestTextBox"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestTextBox"
         )
 
         # Assert
@@ -134,11 +132,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestTextBox"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestTextBox"
         )
 
         # Act: simulate text input by directly setting the text_box text
@@ -158,11 +152,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestTextBox"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestTextBox"
         )
         textbox.text = "Hello"
 
@@ -183,11 +173,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS,
-            y=TEST_Y_POS,
-            width=TEST_WIDTH,
-            height=TEST_HEIGHT,
-            name="TestTextBox"
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name="TestTextBox"
         )
 
         # Act: gain focus by clicking on the textbox
@@ -210,6 +196,7 @@ class TestMultiLineTextBoxFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -232,7 +219,7 @@ class TestMultiLineTextBoxFunctionality:
             y=TEST_Y_POS,
             width=TEST_MULTILINE_WIDTH,
             height=TEST_MULTILINE_HEIGHT,
-            name="TestMultiLine"
+            name="TestMultiLine",
         )
 
         # Assert
@@ -262,7 +249,7 @@ class TestMultiLineTextBoxFunctionality:
             y=TEST_Y_POS,
             width=TEST_MULTILINE_WIDTH,
             height=TEST_MULTILINE_HEIGHT,
-            name="TestMultiLine"
+            name="TestMultiLine",
         )
 
         # Act: simulate text input with line breaks by setting text directly
@@ -289,7 +276,7 @@ class TestMultiLineTextBoxFunctionality:
             y=TEST_Y_POS,
             width=TEST_MULTILINE_WIDTH,
             height=TEST_MULTILINE_HEIGHT,
-            name="TestMultiLine"
+            name="TestMultiLine",
         )
 
         # Act: test scrolling by modifying scroll_offset directly

@@ -27,6 +27,7 @@ class TestLegacySpriteGlyphs:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -174,8 +175,9 @@ class TestLegacySpriteGlyphs:
 
         # Test that the deflate method works correctly for a single-color sprite
         assert config.has_section("sprite"), "Should have sprite section"
-        assert config.get("sprite", "name") == "test_single_color", \
+        assert config.get("sprite", "name") == "test_single_color", (
             "Should have correct sprite name"
+        )
 
         # Test that there's at least one color section
         sections = config.sections()

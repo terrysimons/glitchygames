@@ -22,6 +22,7 @@ class TestGameObjectsSounds:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_sound_function(self, mocker):
@@ -35,8 +36,13 @@ class TestGameObjectsSounds:
         result = load_sound("test.wav", 0.5)
 
         # Verify the sound was created with correct path
-        expected_path = (Path(__file__).parent.parent.parent / "glitchygames" /
-                        "game_objects" / "snd_files" / "test.wav")
+        expected_path = (
+            Path(__file__).parent.parent.parent
+            / "glitchygames"
+            / "game_objects"
+            / "snd_files"
+            / "test.wav"
+        )
         mock_sound_class.assert_called_once_with(expected_path)
 
         # Verify volume was set

@@ -37,7 +37,12 @@ class MockGame(Scene):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
         parser.add_argument("--test-flag", action="store_true", help="Test flag")
         return parser
 
@@ -50,7 +55,12 @@ class MockGameWithArgs(MockGame):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
         parser.add_argument("--test-flag", action="store_true", help="Test flag")
         return parser
 
@@ -59,11 +69,21 @@ class TestGameManager:
     """Test GameEventManager functionality."""
 
     def _create_mock_game(self):
-        """Create a mock game using MockFactory."""
+        """Create a mock game using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         return MockFactory.create_game_mock()
 
     def _create_mock_event(self, event_type, **kwargs):
-        """Create a mock event using MockFactory."""
+        """Create a mock event using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_event = MockFactory.create_pygame_event_mock()
         mock_event.type = event_type
         for key, value in kwargs.items():
@@ -106,7 +126,7 @@ class TestGameManager:
         mock_events = [
             self._create_mock_event(pygame.QUIT),
             self._create_mock_event(pygame.KEYDOWN, key=pygame.K_SPACE),
-            self._create_mock_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
+            self._create_mock_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)),
         ]
 
         # Mock the process_events method to avoid actual event processing

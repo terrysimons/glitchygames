@@ -44,7 +44,7 @@ class TestFilmStripButtonHover:
             "test_animation": [
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
-                mocker.Mock(spec=SpriteFrame)
+                mocker.Mock(spec=SpriteFrame),
             ]
         }
 
@@ -218,7 +218,6 @@ class TestFilmStripButtonHover:
         self.film_strip_widget.handle_hover(pos)
         assert tab1.is_hovered
 
-
     def test_removal_button_no_layouts(self):
         """Test that removal button detection works when no layouts exist."""
         # No removal button layouts
@@ -232,7 +231,7 @@ class TestFilmStripButtonHover:
         """Test that removal button detection works when layouts attribute doesn't exist."""
         # Remove the layouts attribute
         if hasattr(self.film_strip_widget, "removal_button_layouts"):
-            delattr(self.film_strip_widget, "removal_button_layouts")
+            del self.film_strip_widget.removal_button_layouts
 
         pos = (15, 35)
         result = self.film_strip_widget.get_removal_button_at_position(pos)

@@ -23,7 +23,12 @@ EXPECTED_FRAME_COUNT = 2
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
         / "glitchygames"
@@ -39,6 +44,7 @@ class TestAnimationSystemAudit:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):

@@ -22,34 +22,19 @@ class TestGameOverScene:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         # Reset singleton state for clean test
         SceneManager._reset()
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_game_over_scene_initialization(self):
-        """Test that Game Over scene initializes correctly.
-
-        Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
-
-        """
+        """Test that Game Over scene initializes correctly."""
         scene = GameOverScene()
         assert scene.text_sprite is None
         assert hasattr(scene, "all_sprites")
 
     def test_game_over_scene_setup(self):
-        """Test that Game Over scene sets up correctly.
-
-        Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
-
-        """
+        """Test that Game Over scene sets up correctly."""
         scene = GameOverScene()
         scene.screen_width = 800
         scene.screen_height = 600
@@ -62,10 +47,7 @@ class TestGameOverScene:
         """Test that Game Over scene gets game engine reference when switched to.
 
         Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
+            mocker: pytest-mock fixture.
 
         """
         # Create a mock scene manager with game engine
@@ -87,10 +69,7 @@ class TestGameOverScene:
         """Test that Game Over scene handles key events correctly.
 
         Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
+            mocker: pytest-mock fixture.
 
         """
         scene = GameOverScene()
@@ -116,16 +95,14 @@ class TestGameOverIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_game_over_triggered_when_all_balls_dead(self, mocker):
         """Test that Game Over is triggered when all balls are dead.
 
         Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
+            mocker: pytest-mock fixture.
 
         """
         # Mock the GameOverScene import to avoid pygame initialization issues
@@ -169,10 +146,7 @@ class TestGameOverIntegration:
         """Test that Game Over scene gets game engine reference from scene manager.
 
         Args:
-            mock_pygame_patches: Mock pygame patches fixture.
-
-        Returns:
-            None
+            mocker: pytest-mock fixture.
 
         """
         # Mock the GameOverScene to avoid pygame initialization issues
@@ -190,7 +164,7 @@ class TestGameOverIntegration:
             "update_type": "dirty",
             "fps_refresh_rate": 1,
             "target_fps": 60,
-            "fps_log_interval_ms": 1000
+            "fps_log_interval_ms": 1000,
         }
         scene_manager.game_engine = mock_game_engine
 

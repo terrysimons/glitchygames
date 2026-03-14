@@ -39,7 +39,12 @@ class TestSceneEvents:
         self.scene_manager = SceneManager()
 
     def _create_mock_args(self, mocker):
-        """Create mock command line arguments."""
+        """Create mock command line arguments.
+
+        Returns:
+            object: The result.
+
+        """
         mock_args = mocker.Mock()
         mock_args.fps = 60
         mock_args.resolution = "800x600"
@@ -160,6 +165,7 @@ class TestSceneEvents:
 
     def test_scene_event_handling_with_custom_handlers(self, mocker):
         """Test scene event handling with custom handlers."""
+
         class CustomScene(Scene):
             def __init__(self):
                 super().__init__()

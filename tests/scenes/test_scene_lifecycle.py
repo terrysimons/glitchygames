@@ -130,6 +130,7 @@ class TestSceneLifecycle:
 
     def test_scene_lifecycle_with_custom_methods(self):
         """Test scene lifecycle with custom methods."""
+
         class CustomScene(Scene):
             def __init__(self):
                 super().__init__()

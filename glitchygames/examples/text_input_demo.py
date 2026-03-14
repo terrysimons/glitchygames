@@ -33,9 +33,6 @@ class Game(Scene):
             options (dict): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -64,9 +61,6 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         pygame.key.set_repeat(350)
 
@@ -74,9 +68,6 @@ class Game(Scene):
         """Update the game.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -89,9 +80,6 @@ class Game(Scene):
         Args:
             control (object): The control that submitted the event.
 
-        Returns:
-            None
-
         """
         self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
 
@@ -101,9 +89,6 @@ class Game(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.input_box.activate()
 
@@ -112,9 +97,6 @@ class Game(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         if self.input_box.active:
@@ -129,9 +111,6 @@ class Game(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         if self.input_box.active:

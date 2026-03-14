@@ -37,7 +37,12 @@ class MockGame(Scene):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
         parser.add_argument("--test-flag", action="store_true", help="Test flag")
         return parser
 
@@ -50,7 +55,12 @@ class MockGameWithArgs(MockGame):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
         parser.add_argument("--test-flag", action="store_true", help="Test flag")
         return parser
 
@@ -59,7 +69,12 @@ class TestEngineProperties:
     """Test GameEngine properties."""
 
     def _create_mock_game(self):
-        """Create a mock game using MockFactory."""
+        """Create a mock game using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_game = MockFactory.create_game_mock()
         return mock_game
 
@@ -104,7 +119,10 @@ class TestEngineProperties:
         engine = GameEngine(game=mock_game)
 
         # Set joystick attributes directly (simulating what start() would do)
-        engine.joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
+        engine.joysticks = [
+            MockFactory.create_pygame_joystick_mock(),
+            MockFactory.create_pygame_joystick_mock(),
+        ]  # 2 joysticks
         engine.joystick_count = len(engine.joysticks)
 
         # Test that joystick_count property exists
@@ -123,7 +141,10 @@ class TestEngineProperties:
         engine = GameEngine(game=mock_game)
 
         # Set joystick attributes directly (simulating what start() would do)
-        mock_joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
+        mock_joysticks = [
+            MockFactory.create_pygame_joystick_mock(),
+            MockFactory.create_pygame_joystick_mock(),
+        ]  # 2 joysticks
         engine.joysticks = mock_joysticks
         engine.joystick_count = len(engine.joysticks)
 

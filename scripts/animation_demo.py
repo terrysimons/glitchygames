@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    """Run the animation demo."""
+    """Run the animation demo.
+
+    Returns:
+        object: The result.
+
+    """
     # Initialize pygame
     pygame.init()
 

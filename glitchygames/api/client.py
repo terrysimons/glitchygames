@@ -147,10 +147,6 @@ def extract_apng_frames(
     Returns:
         API response with frames and metadata
 
-    Raises:
-        httpx.HTTPError: If the request fails
-        FileNotFoundError: If the APNG file doesn't exist
-
     """
     url = f"{server_url.rstrip('/')}/sprites/extract-frames"
 
@@ -201,14 +197,11 @@ def generate_sprite(
     Returns:
         API response as a dictionary
 
-    Raises:
-        httpx.HTTPError: If the request fails
-
     """
     url = f"{server_url.rstrip('/')}/sprites/generate"
 
     # Default frame_count to 1
-    effective_frame_count = frame_count if frame_count else 1
+    effective_frame_count = frame_count or 1
 
     payload = {
         "prompt": prompt,
@@ -252,7 +245,7 @@ def display_sprite_ascii(toml_content: str) -> None:
         colors = renderer._extract_colors_from_toml(sprite_data)
 
         # Check if it's an animated sprite
-        if "animation" in sprite_data and sprite_data["animation"]:
+        if sprite_data.get("animation"):
             animations = sprite_data["animation"]
             for anim_index, animation in enumerate(animations):
                 anim_name = animation.get("namespace", f"animation-{anim_index}")

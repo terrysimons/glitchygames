@@ -14,7 +14,7 @@ import pytest
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from glitchygames.sprites import AnimatedSprite, SpriteFrame
+from glitchygames.sprites import AnimatedSprite
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
 
 from mocks.test_mock_factory import MockFactory, create_10x10_sprite_mock
@@ -60,13 +60,18 @@ class TestOnLoadFileEvent:
 
     @staticmethod
     def _create_test_animated_sprite():
-        """Create a test animated sprite with 2 frames using centralized mocks."""
+        """Create a test animated sprite with 2 frames using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         # Use centralized mock factory to create animated sprite
         animated_sprite = MockFactory.create_animated_sprite_mock(
             animation_name="idle",
             frame_size=(8, 8),
             pixel_color=(255, 0, 0),  # Red base color
-            current_frame=0
+            current_frame=0,
         )
 
         # Set up frame manager
@@ -79,7 +84,12 @@ class TestOnLoadFileEvent:
 
     @staticmethod
     def _create_test_sprite_file(content: str) -> str:
-        """Create a temporary sprite file with given content."""
+        """Create a temporary sprite file with given content.
+
+        Returns:
+            str: The resulting string.
+
+        """
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".toml", delete=False, encoding="utf-8"
         ) as f:
@@ -88,7 +98,12 @@ class TestOnLoadFileEvent:
 
     @staticmethod
     def _create_mock_event(filename: str):
-        """Create a mock pygame event for file loading."""
+        """Create a mock pygame event for file loading.
+
+        Returns:
+            object: The result.
+
+        """
         return MockFactory.create_event_mock(filename)
 
     @staticmethod
@@ -99,6 +114,10 @@ class TestOnLoadFileEvent:
         1. First try to find "idle" animation
         2. If no "idle" animation exists, use the first animation in file order
         3. If no animation order is available, fall back to the first key in _animations
+
+        Returns:
+            str: The first animation name.
+
         """
         if not hasattr(sprite, "_animations") or not sprite._animations:
             return ""
@@ -290,9 +309,7 @@ pixels = \"\"\"
             mock_load.return_value = mock_loaded_sprite
 
             # Mock the resize method and other methods to prevent side effects
-            mock_resize = mocker.patch.object(
-                self.scene.canvas, "_resize_canvas_to_sprite_size"
-            )
+            mock_resize = mocker.patch.object(self.scene.canvas, "_resize_canvas_to_sprite_size")
             mocker.patch.object(self.scene.canvas, "_setup_animation_state")
             mocker.patch.object(self.scene.canvas, "_update_ui_components")
             mocker.patch.object(self.scene.canvas, "_finalize_sprite_loading")
@@ -383,15 +400,11 @@ pixels = \"\"\"
             self.scene.canvas.film_strip.set_animated_sprite = mocker.Mock()
 
             # Mock helper methods to prevent real loading
-            mock_load_sprite = mocker.patch.object(
-                self.scene.canvas, "_load_sprite_from_file"
-            )
+            mock_load_sprite = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
             mock_resize = mocker.patch.object(self.scene.canvas, "_check_and_resize_canvas")
             mock_setup = mocker.patch.object(self.scene.canvas, "_setup_animation_state")
             mock_update_ui = mocker.patch.object(self.scene.canvas, "_update_ui_components")
-            mock_finalize = mocker.patch.object(
-                self.scene.canvas, "_finalize_sprite_loading"
-            )
+            mock_finalize = mocker.patch.object(self.scene.canvas, "_finalize_sprite_loading")
 
             # Set up the mock for _load_sprite_from_file to return our mock sprite
             mock_load_sprite.return_value = mock_loaded_sprite
@@ -461,9 +474,7 @@ pixels = \"\"\"
 
             # Create a mock loaded sprite using the centralized factory
             mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
-                animation_name="test_sprite",
-                frame_size=(8, 8),
-                pixel_color=(255, 0, 0)
+                animation_name="test_sprite", frame_size=(8, 8), pixel_color=(255, 0, 0)
             )
 
             # Mock the entire loading process by patching the method that loads the sprite

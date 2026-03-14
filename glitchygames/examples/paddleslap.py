@@ -28,7 +28,6 @@ from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger("game")
@@ -54,9 +53,6 @@ class TextSprite(Sprite):
             x (int): The x position of the text.
             y (int): The y position of the text.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -121,10 +117,7 @@ class TextSprite(Sprite):
                     line_height (int): The line height of the text.
                     groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-                Returns:
-                    None
-
-                """  # noqa: E501
+                """
                 if groups is None:
                     groups = pygame.sprite.LayeredDirty()
 
@@ -146,9 +139,6 @@ class TextSprite(Sprite):
                     surface (pygame.surface.Surface): The surface to print to.
                     string (str): The string to print.
 
-                Returns:
-                    None
-
                 """
                 (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
@@ -160,9 +150,6 @@ class TextSprite(Sprite):
                 """Reset the text box.
 
                 Args:
-                    None
-
-                Returns:
                     None
 
                 """
@@ -181,9 +168,6 @@ class TextSprite(Sprite):
         """Update the text sprite.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -208,9 +192,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -301,9 +282,6 @@ class Game(Scene):
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
@@ -327,9 +305,6 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Set default FPS to 60 if not specified by command line
         if self.target_fps == 0:
@@ -341,9 +316,6 @@ class Game(Scene):
 
         Args:
             dt (float): The delta time.
-
-        Returns:
-            None
 
         """
         self.dt = dt
@@ -400,9 +372,6 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         for i, ball in enumerate(self.balls):
             if not ball.alive():
@@ -440,9 +409,6 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self.next_scene = GameOverScene(options=self.options)
         self.previous_scene = self
@@ -452,9 +418,6 @@ class Game(Scene):
 
         Args:
             ball: The ball that triggered the spawn (optional, for callback compatibility)
-
-        Returns:
-            None
 
         """
         # Create new ball at default speed
@@ -551,9 +514,6 @@ class Game(Scene):
         Args:
             ball: The ball that triggered the collision
 
-        Returns:
-            None
-
         """
         # Check if spawning is enabled
         if self.ball_spawn_mode == BallSpawnMode.NO_SPAWNING:
@@ -591,10 +551,10 @@ class Game(Scene):
         """
         if self.ball_spawn_mode & BallSpawnMode.FREQUENT:
             return 0.5
-        elif self.ball_spawn_mode & BallSpawnMode.RARE:
+        if self.ball_spawn_mode & BallSpawnMode.RARE:
             return 5.0
-        else:  # NORMAL or default
-            return 2.0
+        # NORMAL or default
+        return 2.0
 
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
@@ -606,14 +566,10 @@ class Game(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Tick cooldowns: decrement all active cooldowns and remove expired ones
         expired_pairs = [
-            pair for pair, remaining in self._ball_collision_cooldowns.items()
-            if remaining <= 1
+            pair for pair, remaining in self._ball_collision_cooldowns.items() if remaining <= 1
         ]
         for pair in expired_pairs:
             del self._ball_collision_cooldowns[pair]
@@ -663,10 +619,7 @@ class Game(Scene):
                 ny = dy / distance
 
                 # Calculate relative velocity along collision normal
-                dvn = (
-                    (ball2.speed.x - ball1.speed.x) * nx
-                    + (ball2.speed.y - ball1.speed.y) * ny
-                )
+                dvn = (ball2.speed.x - ball1.speed.x) * nx + (ball2.speed.y - ball1.speed.y) * ny
 
                 # Only skip if balls are clearly separating AND not overlapping
                 if dvn > 0 and distance >= collision_distance:
@@ -742,9 +695,6 @@ class Game(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
             player = self.player1 if event.instance_id == 0 else self.player2
@@ -757,9 +707,6 @@ class Game(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         player = self.player1 if event.instance_id == 0 else self.player2
@@ -776,9 +723,6 @@ class Game(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         player = self.player1 if event.instance_id == 0 else self.player2
         if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
@@ -790,29 +734,11 @@ class Game(Scene):
                 player.down()
             self.log.info(f"GOT on_controller_axis_motion_event: {event}")
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
-        """Handle key up events.
-
-        Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
-
-        """
-        # Handle ESC/q to quit
-        super().on_key_up_event(event)
-
-        # Paddles continue moving until they hit boundaries - no key release handling needed
-
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events.
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # Handle specific key presses instead of scanning all keys
@@ -846,9 +772,6 @@ class Game(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - pause the game
@@ -860,15 +783,7 @@ class Game(Scene):
 
 
 def main() -> None:
-    """Run the main function.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    """
+    """Run the main function."""
     GameEngine(game=Game).start()
 
 

@@ -8,11 +8,8 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-import pygame
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestBallBoundaryPhysics:
@@ -21,9 +18,7 @@ class TestBallBoundaryPhysics:
     def test_ball_initialization_with_boundary_settings(self):
         """Test that ball initializes with correct boundary settings."""
         ball = BallSprite(
-            bounce_top_bottom=True,
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            bounce_top_bottom=True, bounce_left_right=False, speed_up_mode=SpeedUpMode.NONE
         )
 
         assert ball.bounce_top_bottom
@@ -33,10 +28,11 @@ class TestBallBoundaryPhysics:
     def test_top_boundary_bounce(self):
         """Test ball bouncing off top boundary."""
         ball = BallSprite(
-            x=400, y=0,  # Start at top edge
+            x=400,
+            y=0,  # Start at top edge
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
@@ -51,10 +47,11 @@ class TestBallBoundaryPhysics:
     def test_bottom_boundary_bounce(self):
         """Test ball bouncing off bottom boundary."""
         ball = BallSprite(
-            x=400, y=580,  # Start near bottom
+            x=400,
+            y=580,  # Start near bottom
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, 50.0)  # Moving down
 
@@ -69,10 +66,11 @@ class TestBallBoundaryPhysics:
     def test_left_boundary_bounce(self):
         """Test ball bouncing off left boundary."""
         ball = BallSprite(
-            x=0, y=300,  # Start at left edge
+            x=0,
+            y=300,  # Start at left edge
             bounce_top_bottom=False,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(-50.0, 100.0)  # Moving left
 
@@ -87,10 +85,11 @@ class TestBallBoundaryPhysics:
     def test_right_boundary_bounce(self):
         """Test ball bouncing off right boundary."""
         ball = BallSprite(
-            x=780, y=300,  # Start near right edge
+            x=780,
+            y=300,  # Start near right edge
             bounce_top_bottom=False,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(50.0, 100.0)  # Moving right
 
@@ -105,10 +104,11 @@ class TestBallBoundaryPhysics:
     def test_no_bounce_when_disabled(self):
         """Test that ball doesn't bounce when boundary bouncing is disabled."""
         ball = BallSprite(
-            x=400, y=0,  # Start at top edge
+            x=400,
+            y=0,  # Start at top edge
             bounce_top_bottom=False,  # Disabled
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
@@ -125,10 +125,7 @@ class TestBallBoundaryPhysics:
         """Test ball behavior when hitting corners."""
         # Test top-left corner
         ball = BallSprite(
-            x=0, y=0,
-            bounce_top_bottom=True,
-            bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE
+            x=0, y=0, bounce_top_bottom=True, bounce_left_right=True, speed_up_mode=SpeedUpMode.NONE
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 
@@ -145,10 +142,11 @@ class TestBallBoundaryPhysics:
     def test_boundary_clipping_prevention(self):
         """Test that ball cannot clip through boundaries."""
         ball = BallSprite(
-            x=400, y=300,
+            x=400,
+            y=300,
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Test with very high speed that could cause clipping
@@ -168,10 +166,11 @@ class TestBallBoundaryPhysics:
     def test_speed_preservation_during_bounce(self):
         """Test that speed magnitude is preserved during bounces."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Set a known speed first
@@ -190,10 +189,11 @@ class TestBallBoundaryPhysics:
     def test_multiple_rapid_bounces(self):
         """Test ball behavior with multiple rapid bounces."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(0.0, -100.0)  # Moving straight up
 
@@ -209,11 +209,12 @@ class TestBallBoundaryPhysics:
     def test_boundary_bounce_with_speed_up(self):
         """Test boundary bounce with speed-up mechanics."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.2
+            speed_up_multiplier=1.2,
         )
 
         # Set initial speed first, then measure
@@ -230,10 +231,11 @@ class TestBallBoundaryPhysics:
     def test_edge_case_zero_speed_boundary(self):
         """Test ball behavior at boundary with zero speed."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(0.0, 0.0)  # Zero speed
 
@@ -242,17 +244,18 @@ class TestBallBoundaryPhysics:
 
         # Ball should be repositioned but speed remains zero
         assert ball.rect.y >= 0
-        assert ball.speed.x == 0.0
-        assert ball.speed.y == 0.0
+        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
+        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
 
     def test_boundary_bounce_sound_effects(self, mocker):
         """Test that boundary bounces trigger sound effects."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
             collision_sound="test_sound",
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Mock the sound
@@ -267,10 +270,11 @@ class TestBallBoundaryPhysics:
     def test_boundary_bounce_debug_logging(self, mocker):
         """Test that boundary bounces generate debug logs."""
         ball = BallSprite(
-            x=400, y=0,
+            x=400,
+            y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE
+            speed_up_mode=SpeedUpMode.NONE,
         )
 
         mock_logger = mocker.patch("logging.getLogger")
@@ -286,4 +290,5 @@ class TestBallBoundaryPhysics:
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__])

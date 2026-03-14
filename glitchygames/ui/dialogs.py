@@ -22,14 +22,14 @@ LOG.addHandler(logging.NullHandler())
 
 def _process_example_filename(filename: str) -> tuple[str, bool]:
     """Process filename that may contain 'example:' or 'examples:' prefix.
-    
+
     If the filename contains 'example:' or 'examples:', strip it off and return the cleaned
     filename along with a flag indicating it should be saved to the examples
     directory.
-    
+
     Args:
         filename: The input filename that may contain 'example:' or 'examples:' prefix
-        
+
     Returns:
         tuple: (cleaned_filename, is_example) where is_example is True if
                the filename had 'example:' or 'examples:' prefix
@@ -37,22 +37,26 @@ def _process_example_filename(filename: str) -> tuple[str, bool]:
     """
     is_example = False
     cleaned_filename = filename.strip()
-    
+
     if cleaned_filename.startswith("example:"):
         is_example = True
-        cleaned_filename = cleaned_filename[len("example:"):].strip()
-        LOG.info(f"Detected 'example:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'")
+        cleaned_filename = cleaned_filename[len("example:") :].strip()
+        LOG.info(
+            f"Detected 'example:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
+        )
     elif cleaned_filename.startswith("examples:"):
         is_example = True
-        cleaned_filename = cleaned_filename[len("examples:"):].strip()
-        LOG.info(f"Detected 'examples:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'")
-    
+        cleaned_filename = cleaned_filename[len("examples:") :].strip()
+        LOG.info(
+            f"Detected 'examples:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
+        )
+
     return cleaned_filename, is_example
 
 
 def _get_examples_dir() -> Path:
     """Get the path to the examples/resources/sprites directory.
-    
+
     Returns:
         Path: Path to the examples sprites directory
 
@@ -73,50 +77,48 @@ def _get_examples_dir() -> Path:
 
 def _get_save_path(filename: str) -> Path:
     """Get the full save path for a filename.
-    
+
     Args:
         filename: The filename (may contain 'example:' or 'examples:' prefix)
-        
+
     Returns:
         Path: Full path where the file should be saved
 
     """
     cleaned_filename, is_example = _process_example_filename(filename)
-    
+
     if is_example:
         examples_dir = _get_examples_dir()
         save_path = examples_dir / cleaned_filename
         LOG.info(f"Example save path: {save_path}")
         return save_path
-    else:
-        # Normal save - return just the filename (current behavior)
-        save_path = Path(cleaned_filename)
-        LOG.info(f"Normal save path: {save_path}")
-        return save_path
+    # Normal save - return just the filename (current behavior)
+    save_path = Path(cleaned_filename)
+    LOG.info(f"Normal save path: {save_path}")
+    return save_path
 
 
 def _get_load_path(filename: str) -> Path:
     """Get the full load path for a filename.
-    
+
     Args:
         filename: The filename (may contain 'example:' or 'examples:' prefix)
-        
+
     Returns:
         Path: Full path where the file should be loaded from
 
     """
     cleaned_filename, is_example = _process_example_filename(filename)
-    
+
     if is_example:
         examples_dir = _get_examples_dir()
         load_path = examples_dir / cleaned_filename
         LOG.info(f"Example load path: {load_path}")
         return load_path
-    else:
-        # Normal load - return just the filename (current behavior)
-        load_path = Path(cleaned_filename)
-        LOG.info(f"Normal load path: {load_path}")
-        return load_path
+    # Normal load - return just the filename (current behavior)
+    load_path = Path(cleaned_filename)
+    LOG.info(f"Normal load path: {load_path}")
+    return load_path
 
 
 class InputConfirmationDialogScene(Scene):
@@ -143,11 +145,6 @@ class InputConfirmationDialogScene(Scene):
             groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
                    Defaults to pygame.sprite.LayeredDirty().
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if groups is None:
@@ -184,11 +181,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             None
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.dialog.cancel_button.callbacks = {
@@ -206,11 +198,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             None
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.next_scene = self
@@ -221,11 +208,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             None
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         # Set next scene before cleanup
@@ -246,11 +228,6 @@ class InputConfirmationDialogScene(Scene):
             event (pygame.event.Event): The pygame event.
             trigger (object): The trigger object.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.log.info(f"Cancel: event: {event}, trigger: {trigger}")
@@ -278,11 +255,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             control (object): The control object.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
@@ -293,11 +265,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             event (pygame.event.Event): The pygame event.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.dialog.input_box.activate()
@@ -308,11 +275,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             event (pygame.event.Event): The pygame event.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if self.dialog.input_box.active:
@@ -328,11 +290,6 @@ class InputConfirmationDialogScene(Scene):
         Args:
             event (pygame.event.Event): The pygame event.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if self.dialog.input_box.active:
@@ -364,11 +321,6 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
             groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
                    Defaults to pygame.sprite.LayeredDirty().
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if groups is None:
@@ -382,11 +334,6 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
             event (pygame.event.Event): The pygame event.
             trigger (object): The trigger object.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.log.info(f"New Canvas: event: {event}, trigger: {trigger}")
@@ -423,11 +370,6 @@ class LoadDialogScene(InputConfirmationDialogScene):
             groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
                    Defaults to pygame.sprite.LayeredDirty().
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if groups is None:
@@ -442,11 +384,6 @@ class LoadDialogScene(InputConfirmationDialogScene):
             event (pygame.event.Event): The pygame event.
             trigger (object): The trigger object.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.log.info(f"Load File: event: {event}, trigger: {trigger}")
@@ -484,11 +421,6 @@ class SaveDialogScene(InputConfirmationDialogScene):
             groups (pygame.sprite.LayeredDirty, optional): Sprite groups.
                    Defaults to pygame.sprite.LayeredDirty().
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         if groups is None:
@@ -503,11 +435,6 @@ class SaveDialogScene(InputConfirmationDialogScene):
             event (pygame.event.Event): The pygame event.
             trigger (object): The trigger object.
 
-        Returns:
-            None
-
-        Raises:
-            None
 
         """
         self.log.info(f"Save File: event: {event}, trigger: {trigger}")
@@ -603,7 +530,9 @@ class DeleteAnimationDialogScene(Scene):
             # Return to previous scene
             self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
         else:
-            LOG.warning(f"DeleteAnimationDialog: Typed name '{typed_text}' does not match '{self.animation_name}'")
+            LOG.warning(
+                f"DeleteAnimationDialog: Typed name '{typed_text}' does not match '{self.animation_name}'"
+            )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
             self.dialog.input_box.text = ""
@@ -696,13 +625,14 @@ class DeleteFrameDialogScene(Scene):
 
         # Add second label for the confirmation prompt
         from glitchygames.ui import TextSprite
+
         self.second_label = TextSprite(
             text=message2,
             x=self.dialog.dialog_text_sprite.rect.x,
             y=self.dialog.dialog_text_sprite.rect.y + 30,  # Position below first label
             width=self.dialog.dialog_text_sprite.rect.width,
             height=20,
-            groups=self.all_sprites
+            groups=self.all_sprites,
         )
         self.second_label.border_width = 0
         self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
@@ -726,7 +656,9 @@ class DeleteFrameDialogScene(Scene):
 
         # Validate that the typed text is "YES"
         if typed_text == "YES":
-            LOG.info(f"DeleteFrameDialog: User confirmed deletion of frame {self.frame_index} from '{self.animation_name}'")
+            LOG.info(
+                f"DeleteFrameDialog: User confirmed deletion of frame {self.frame_index} from '{self.animation_name}'"
+            )
             # Call the callback if provided
             if self.on_confirm_callback:
                 self.on_confirm_callback()

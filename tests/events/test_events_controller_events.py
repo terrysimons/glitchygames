@@ -3,6 +3,7 @@
 This module tests controller event interfaces, stubs, and event handling.
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -12,14 +13,12 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameEngine
 from glitchygames.events import (
     ControllerEvents,
     ControllerEventStubs,
     HashableEvent,
     UnhandledEventError,
 )
-from glitchygames.scenes import Scene
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -64,7 +63,9 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_axis_motion_event": lambda event: scene.controller_events_received.append(event) or True
+                "on_controller_axis_motion_event": lambda event: (
+                    scene.controller_events_received.append(event) or True
+                )
             }
         )
 
@@ -76,14 +77,16 @@ class TestControllerEvents:
         assert result is True
         assert len(scene.controller_events_received) == 1
         assert scene.controller_events_received[0].axis == 0
-        assert scene.controller_events_received[0].value == 0.5
+        assert math.isclose(scene.controller_events_received[0].value, 0.5)
 
     def test_controller_button_down_event(self, mock_pygame_patches):
         """Test controller button down event handling."""
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_button_down_event": lambda event: scene.controller_events_received.append(event) or True
+                "on_controller_button_down_event": lambda event: (
+                    scene.controller_events_received.append(event) or True
+                )
             }
         )
 
@@ -101,7 +104,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_button_up_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_button_up_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -119,7 +125,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_device_added_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_device_added_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -137,7 +146,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_device_removed_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_device_removed_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -155,7 +167,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_device_remapped_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_device_remapped_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -173,7 +188,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_touchpad_down_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_touchpad_down_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -192,7 +210,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_touchpad_motion_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_touchpad_motion_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -211,7 +232,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_touchpad_up_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_touchpad_up_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -230,7 +254,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_axis_motion_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_axis_motion_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -251,8 +278,14 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_button_down_event": lambda event: (scene.controller_events_received.append(event), True)[1],
-                "on_controller_button_up_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_button_down_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1],
+                "on_controller_button_up_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1],
             }
         )
 
@@ -294,7 +327,10 @@ class TestControllerEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_axis_motion_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_axis_motion_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -319,18 +355,22 @@ class TestControllerEvents:
             assert scene.controller_events_received[i].axis == axis
 
     def _setup_mock_scene_for_stub(self, stub):
-        """Set up mock scene object for event stubs using centralized mocks."""
+        """Set up mock scene object for event stubs using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
-                "no_unhandled_events": True  # This will cause UnhandledEventError to be raised
+                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
             }
         )
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
         return scene_mock
-
 
 
 class TestControllerEventFlow:
@@ -341,7 +381,10 @@ class TestControllerEventFlow:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_controller_axis_motion_event": lambda event: (scene.controller_events_received.append(event), True)[1]
+                "on_controller_axis_motion_event": lambda event: (
+                    scene.controller_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -355,7 +398,7 @@ class TestControllerEventFlow:
         assert result is True
         assert len(scene.controller_events_received) == 1
         assert scene.controller_events_received[0].axis == 0
-        assert scene.controller_events_received[0].value == 0.5
+        assert math.isclose(scene.controller_events_received[0].value, 0.5)
 
     def test_controller_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
         """Test that unhandled controller events fall back to stubs and cause UnhandledEventError."""

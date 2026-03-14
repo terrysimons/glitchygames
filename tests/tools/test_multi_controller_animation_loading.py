@@ -1,12 +1,10 @@
-"""
-Multi-Controller Animation Loading Tests
+"""Multi-Controller Animation Loading Tests.
 
 This module tests the scenario where animations are loaded while controllers
 are active, ensuring proper state management and visual indicator updates.
 """
 
 import time
-from typing import Dict
 
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
@@ -30,7 +28,7 @@ class TestMultiControllerAnimationLoading:
 
         self.manager = MultiControllerManager()
         self.visual_manager = VisualCollisionManager()
-        self.controller_selections: Dict[int, ControllerSelection] = {}
+        self.controller_selections: dict[int, ControllerSelection] = {}
 
         # Mock bitmappy scene
         self.scene = mocker.Mock()
@@ -52,12 +50,14 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
-                color=self.manager.CONTROLLER_COLORS[controller_id]
+                color=self.manager.CONTROLLER_COLORS[controller_id],
             )
             self.manager.assigned_controllers[instance_id] = controller_id
 
             # Set up controller selection
-            self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+            self.controller_selections[controller_id] = ControllerSelection(
+                controller_id, instance_id
+            )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f"existing_animation_{i}", i)
 
@@ -66,7 +66,7 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 color=self.manager.CONTROLLER_COLORS[controller_id],
-                position=(100 + i * 50, 100)
+                position=(100 + i * 50, 100),
             )
 
         # Verify initial state
@@ -98,7 +98,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             status=ControllerStatus.ACTIVE,
-            color=self.manager.CONTROLLER_COLORS[controller_id]
+            color=self.manager.CONTROLLER_COLORS[controller_id],
         )
         self.manager.assigned_controllers[instance_id] = controller_id
 
@@ -108,7 +108,9 @@ class TestMultiControllerAnimationLoading:
 
         # Record initial state
         initial_animation, initial_frame = self.controller_selections[controller_id].get_selection()
-        initial_history_length = len(self.controller_selections[controller_id].get_navigation_history())
+        initial_history_length = len(
+            self.controller_selections[controller_id].get_navigation_history()
+        )
 
         # Simulate loading new animation
         self._simulate_animation_loading("loaded_animation")
@@ -119,7 +121,9 @@ class TestMultiControllerAnimationLoading:
         assert current_frame == initial_frame  # Should not change
 
         # Verify navigation history is preserved
-        current_history_length = len(self.controller_selections[controller_id].get_navigation_history())
+        current_history_length = len(
+            self.controller_selections[controller_id].get_navigation_history()
+        )
         assert current_history_length == initial_history_length
 
         # Verify controller is still active
@@ -135,7 +139,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             status=ControllerStatus.ACTIVE,
-            color=self.manager.CONTROLLER_COLORS[controller_id]
+            color=self.manager.CONTROLLER_COLORS[controller_id],
         )
         self.manager.assigned_controllers[instance_id] = controller_id
 
@@ -148,7 +152,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             color=self.manager.CONTROLLER_COLORS[controller_id],
-            position=(100, 100)
+            position=(100, 100),
         )
 
         # Verify initial indicator
@@ -181,11 +185,13 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
-                color=self.manager.CONTROLLER_COLORS[controller_id]
+                color=self.manager.CONTROLLER_COLORS[controller_id],
             )
             self.manager.assigned_controllers[instance_id] = controller_id
 
-            self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+            self.controller_selections[controller_id] = ControllerSelection(
+                controller_id, instance_id
+            )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f"animation_{i}", i)
 
@@ -194,12 +200,12 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 color=self.manager.CONTROLLER_COLORS[controller_id],
-                position=(100, 100)  # Same position for all
+                position=(100, 100),  # Same position for all
             )
 
         # Verify collision groups are created
         assert (100, 100) in self.visual_manager.film_strip_collision_groups
-        assert len(self.visual_manager.film_strip_collision_groups[(100, 100)]) == 3
+        assert len(self.visual_manager.film_strip_collision_groups[100, 100]) == 3
 
         # Simulate loading new animation
         self._simulate_animation_loading("new_animation")
@@ -227,7 +233,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             status=ControllerStatus.ACTIVE,
-            color=self.manager.CONTROLLER_COLORS[controller_id]
+            color=self.manager.CONTROLLER_COLORS[controller_id],
         )
         self.manager.assigned_controllers[instance_id] = controller_id
 
@@ -241,7 +247,9 @@ class TestMultiControllerAnimationLoading:
         # Test that navigation still works
         # Navigate to next frame
         current_animation, current_frame = self.controller_selections[controller_id].get_selection()
-        self.controller_selections[controller_id].set_selection(current_animation, current_frame + 1)
+        self.controller_selections[controller_id].set_selection(
+            current_animation, current_frame + 1
+        )
 
         # Verify navigation worked
         new_animation, new_frame = self.controller_selections[controller_id].get_selection()
@@ -264,7 +272,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             status=ControllerStatus.ACTIVE,
-            color=self.manager.CONTROLLER_COLORS[controller_id]
+            color=self.manager.CONTROLLER_COLORS[controller_id],
         )
         self.manager.assigned_controllers[instance_id] = controller_id
 
@@ -277,7 +285,7 @@ class TestMultiControllerAnimationLoading:
             controller_id=controller_id,
             instance_id=instance_id,
             color=self.manager.CONTROLLER_COLORS[controller_id],
-            position=(100, 100)
+            position=(100, 100),
         )
 
         # Simulate loading animation with error
@@ -308,11 +316,13 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
-                color=self.manager.CONTROLLER_COLORS[controller_id]
+                color=self.manager.CONTROLLER_COLORS[controller_id],
             )
             self.manager.assigned_controllers[instance_id] = controller_id
 
-            self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
+            self.controller_selections[controller_id] = ControllerSelection(
+                controller_id, instance_id
+            )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f"animation_{i}", i)
 
@@ -320,7 +330,7 @@ class TestMultiControllerAnimationLoading:
                 controller_id=controller_id,
                 instance_id=instance_id,
                 color=self.manager.CONTROLLER_COLORS[controller_id],
-                position=(100 + i * 10, 100 + i * 10)
+                position=(100 + i * 10, 100 + i * 10),
             )
 
         # Measure time for loading animation

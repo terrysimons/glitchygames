@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""OS-level accuracy tests for the FastTimer backend."""
+
 import sys
 
 import pytest
@@ -14,11 +16,13 @@ def _os_overshoot_ns_default() -> int:
 
 
 def test_factory_fast_backend_instantiates():
+    """Test that create_timer with 'fast' returns a FastTimer instance."""
     t = create_timer("fast", {"sleep_granularity_ns": 1_000_000, "windows_timer_1ms": False})
     assert isinstance(t, FastTimer)
 
 
 def test_fast_timer_basic_sleep_accuracy():
+    """Test that FastTimer sleep accuracy is within OS-specific bounds."""
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=False)
     start = t.ns_now()
     deadline = start + 3_000_000  # 3ms
@@ -29,6 +33,7 @@ def test_fast_timer_basic_sleep_accuracy():
 
 
 def test_fast_timer_spin_tighten_accuracy():
+    """Test that spin-only mode achieves tight sleep accuracy."""
     # No sleep floor: rely on final spin to tighten
     t = FastTimer(sleep_granularity_ns=0, windows_timer_1ms=False)
     start = t.ns_now()
@@ -40,8 +45,11 @@ def test_fast_timer_spin_tighten_accuracy():
     assert overshoot < _os_overshoot_ns_default()
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-only timing resolution test")
+@pytest.mark.skipif(
+    not sys.platform.startswith("win"), reason="Windows-only timing resolution test"
+)
 def test_fast_timer_windows_1ms_option_tighter():
+    """Test that Windows 1ms timer resolution yields tighter sleep accuracy."""
     # With timeBeginPeriod(1), expect tighter overshoot than default Windows
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=True)
     start = t.ns_now()
@@ -51,5 +59,3 @@ def test_fast_timer_windows_1ms_option_tighter():
     overshoot = woke - deadline
     # Expect notably tighter than default 20ms bound; assert < 5ms
     assert overshoot < 5_000_000
-
-

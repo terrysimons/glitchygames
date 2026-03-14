@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent, UnhandledEventError
-from glitchygames.scenes import Scene
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -27,9 +26,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                "on_audio_device_added_event": lambda event: True
-            }
+            event_handlers={"on_audio_device_added_event": lambda event: True}
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -59,9 +56,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                "on_controller_axis_motion_event": lambda event: True
-            }
+            event_handlers={"on_controller_axis_motion_event": lambda event: True}
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -98,7 +93,7 @@ class TestEventIntegration:
                 "windowed": True,  # Required by GameEngine
                 "fps_refresh_rate": 1000,  # Required by GameEngine
             },
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -113,8 +108,10 @@ class TestEventIntegration:
 
         # Create a proper audio manager mock that calls the scene's audio event handlers
         mock_audio_manager = mocker.Mock()
+
         def audio_device_added_handler(event):
             scene.on_audio_device_added_event(event)
+
         mock_audio_manager.on_audio_device_added_event = audio_device_added_handler
         engine.audio_manager = mock_audio_manager
 
@@ -139,11 +136,13 @@ class TestEventIntegration:
         scene = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
-                "no_unhandled_events": False  # Don't exit on unhandled events for this test
+                "no_unhandled_events": False,  # Don't exit on unhandled events for this test
             },
             event_handlers={
-                "on_audio_device_added_event": lambda event: scene.audio_events_received.append(event) or True
-            }
+                "on_audio_device_added_event": lambda event: (
+                    scene.audio_events_received.append(event) or True
+                )
+            },
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -155,6 +154,7 @@ class TestEventIntegration:
 
         # Set up the audio manager to delegate to the scene
         from glitchygames.events.audio import AudioEventManager
+
         engine.audio_manager = AudioEventManager(game=scene)
 
         # Configure the scene manager to handle audio events
@@ -199,4 +199,7 @@ class TestEventIntegration:
 
         # Check that handlers point to the right methods
         assert GameEngine.EVENT_HANDLERS[pygame.AUDIODEVICEADDED] == engine.process_audio_event
-        assert GameEngine.EVENT_HANDLERS[pygame.CONTROLLERAXISMOTION] == engine.process_controller_event
+        assert (
+            GameEngine.EVENT_HANDLERS[pygame.CONTROLLERAXISMOTION]
+            == engine.process_controller_event
+        )

@@ -125,6 +125,7 @@ include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"
 extend-include = []
 lint.select = ["ALL"]
 lint.ignore = [
+  # --- Previously ignored ---
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
   "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
@@ -137,11 +138,11 @@ lint.ignore = [
   "C901", # Function is too complex
   "EM102", # Exception must not use an f-string literal, assign to variable first
   "TRY003", # Avoid specifying long messages outside the exception class
-  "ARG002", # Unused method argument: `args`
+  "ARG002", # Unused method argument
   "TD003", # Missing issue link on the line following this TODO
   "PLR0913", # Too many arguments to function call
   "TD002", # Missing author in TODO
-  "S101",
+  "S101", # Use of assert
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
   "CPY001", # Missing copyright notice at top of file
@@ -151,19 +152,144 @@ lint.ignore = [
   "D203", # Incorrect blank line before class (conflicts with D211)
   "D213", # Multi-line summary second line (conflicts with D212)
   "TRY300", # Consider moving this statement to an `else` block
-  "PLR6301"
+  "PLR6301", # Method could be a function/staticmethod
+
+  # --- Type annotations (pyright handles type checking) ---
+  "ANN", # All annotation rules — pyright is authoritative
+
+  # --- Print statements (legitimate in game engine / CLI output) ---
+  "T201", # print found
+
+  # --- Code complexity (game logic is inherently complex) ---
+  "PLR2004", # magic-value-comparison (pixel coords, colors, event codes)
+  "PLR1702", # too-many-nested-blocks
+  "PLR0912", # too-many-branches
+  "PLR0915", # too-many-statements
+  "PLR0914", # too-many-locals
+  "PLR0916", # too-many-boolean-expressions
+
+  # --- Import placement (lazy/conditional imports are intentional) ---
+  "PLC0415", # import-outside-top-level
+  "E402", # module-import-not-at-top-of-file
+
+  # --- Exception handling (event handlers catch broad exceptions intentionally) ---
+  "BLE001", # blind-except
+  "S110", # try-except-pass
+
+  # --- Module structure ---
+  "RUF067", # non-empty-init-module (__init__.py re-exports are intentional)
+
+  # --- Game engine specifics ---
+  "E501", # line-too-long (ruff format handles what it can)
+  "E712", # true-false-comparison (pygame uses == True/False)
+  "PLW1514", # unspecified-encoding (fine for game assets)
+  "PLC1901", # compare-to-empty-string
+
+  # --- Boolean arguments (common in game APIs) ---
+  "FBT001", # boolean-type-hint-positional-argument
+  "FBT002", # boolean-default-value-positional-argument
+  "FBT003", # boolean-positional-value-in-call
+
+  # --- Unused arguments (callback signatures require them) ---
+  "ARG001", # unused-function-argument
+  "ARG005", # unused-lambda-argument
+
+  # --- Path handling (os.path is fine) ---
+  "PTH", # All pathlib rules
+
+  # --- Unused variables (many are pytest mock side effects) ---
+  "F841", # unused-variable
+  "RUF059", # unused-unpacked-variable
+  "B007", # unused-loop-control-variable
+
+  # --- Logging style ---
+  "TRY400", # error-instead-of-exception (logging.error vs logging.exception)
+  "G003", # logging-string-concat
+
+  # --- Code style preferences (not bugs) ---
+  "SIM102", # collapsible-if
+  "SIM105", # suppressible-exception (use contextlib.suppress)
+  "SIM108", # if-else-block-instead-of-if-exp
+  "SIM113", # enumerate-for-loop
+  "SIM401", # if-else-block-instead-of-dict-get
+  "RET504", # unnecessary-assign
+  "RET503", # implicit-return
+  "FURB113", # repeated-append
+  "FURB118", # reimplemented-operator
+  "FURB148", # unnecessary-enumerate
+  "PLR6201", # literal-membership (list vs set in `in`)
+  "PLR1714", # repeated-equality-comparison
+  "PERF102", # incorrect-dict-iterator
+  "PERF401", # manual-list-comprehension
+  "RUF013", # implicit-optional
+  "RUF015", # unnecessary-iterable-allocation-for-first-element
+  "E731", # lambda-assignment
+  "PLW2901", # redefined-loop-name
+  "PLR1704", # redefined-argument-from-local
+  "TRY301", # raise-within-try
+  "TRY401", # verbose-log-message
+  "S104", # hardcoded-bind-all-interfaces
+  "S112", # try-except-continue
+  "N806", # non-lowercase-variable-in-function
+  "PGH003", # blanket-type-ignore
+  "RUF029", # unused-async
+  "RUF052", # used-dummy-variable
+  "RUF012", # mutable-class-default
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "TRY002", # raise-vanilla-class
+  "B903", # class-as-data-structure (could be dataclass)
+  "B905", # zip-without-explicit-strict
+  "B011", # assert-false
+  "B023", # function-uses-loop-variable
+  "PT018", # pytest-composite-assertion
+  "PT015", # pytest-assert-always-false
+  "PT006", # pytest-parametrize-names-wrong-type
+  "PT011", # pytest-raises-too-broad
+  "PT012", # pytest-raises-with-multiple-statements
+  "PYI034", # non-self-return-type
+  "TC001", # typing-only-first-party-import
+  "TC002", # typing-only-third-party-import
+  "TC003", # typing-only-standard-library-import
+  "TID252", # relative-imports
+  "PLC2701", # import-private-name (tests import private functions)
+  "FAST001", # fast-api-redundant-response-model
+  "PLW0602", # global-variable-not-assigned
+  "PLW0603", # global-statement
 ]
 lint.exclude = []
 lint.fixable = [
-  "I001",
-  "Q000",
-  "EXE001",
-  "D401",
-  "D413",
-  "TRY400",
-  "F541",
-  "T201",
-  "UP035",
+  "I001",   # import-sort
+  "Q000",   # quote style
+  "EXE001", # shebang-not-executable
+  "D200",   # unnecessary-multiline-docstring
+  "D205",   # missing-blank-line-after-summary
+  "D413",   # missing-blank-line-after-last-section
+  "F541",   # f-string-missing-placeholders
+  "UP006",  # non-pep585-annotation (List -> list)
+  "UP035",  # deprecated-import
+  "UP045",  # non-pep604-annotation-optional (Optional -> X | None)
+  "UP015",  # redundant-open-modes
+  "UP037",  # quoted-annotation
+  "UP008",  # super-call-with-parameters
+  "UP043",  # unnecessary-default-type-args
+  "RUF100", # unused-noqa
+  "RUF031", # incorrectly-parenthesized-tuple-in-subscript
+  "PIE790", # unnecessary-placeholder
+  "C403",   # unnecessary-list-comprehension-set
+  "RUF046", # unnecessary-cast-to-int
+  "RUF022", # unsorted-dunder-all
+  "RUF010", # explicit-f-string-type-conversion
+  "SIM118", # in-dict-keys
+  "FURB152", # math-constant
+  "Q003",   # avoidable-escaped-quote
+  "Q001",   # bad-quotes-multiline-string
+  "FURB101", # read-whole-file
+  "FURB103", # write-whole-file
+  "RUF019", # unnecessary-key-check
+  "D401",   # non-imperative-mood
+  "PLR1711", # useless-return
+  "SIM103", # needless-bool
 ]
 lint.unfixable = []
 target-version = "py313"

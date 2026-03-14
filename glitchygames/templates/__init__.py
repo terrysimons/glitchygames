@@ -8,7 +8,12 @@ path = Path(__file__).parent
 
 
 def get_templates() -> list:
-    """Return a list of templates."""
+    """Return a list of templates.
+
+    Returns:
+        list: The templates.
+
+    """
     contents = [item.name for item in path.iterdir()]
     return [x for x in contents if Path.is_dir(Path(path) / x) and not x.startswith("__")]
 

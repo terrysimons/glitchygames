@@ -18,6 +18,7 @@ class TestFilmStripSprite:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 

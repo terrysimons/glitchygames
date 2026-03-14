@@ -18,6 +18,7 @@ class TestShiftRightClickSamplingSimple:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
@@ -26,8 +27,7 @@ class TestShiftRightClickSamplingSimple:
 
         # Create film strip sprite
         self.film_strip_sprite = bitmappy.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget,
-            x=100, y=100, width=200, height=100
+            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
         )
 
         # Create a mock parent scene with the _sample_color_from_screen method
@@ -80,7 +80,9 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return True for left shift key
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=True)
-        mock_get_pressed = mocker.patch("glitchygames.tools.bitmappy.pygame.key.get_pressed", return_value=mock_key_state)
+        mock_get_pressed = mocker.patch(
+            "glitchygames.tools.bitmappy.pygame.key.get_pressed", return_value=mock_key_state
+        )
 
         # Debug: Check the mock key state
         print(f"Mock key state: {mock_key_state}")
@@ -103,7 +105,9 @@ class TestShiftRightClickSamplingSimple:
         self.parent_scene._sample_color_from_screen.assert_called_once_with((150, 150))
 
         # Verify that get_pressed was called (short-circuits after first True, so only 1 call)
-        assert mock_get_pressed.call_count == 1, f"Expected get_pressed to be called 1 time, but was called {mock_get_pressed.call_count} times"
+        assert mock_get_pressed.call_count == 1, (
+            f"Expected get_pressed to be called 1 time, but was called {mock_get_pressed.call_count} times"
+        )
 
     def test_screen_sampling_handles_rgb_format(self):
         """Test that screen sampling handles RGB format correctly."""

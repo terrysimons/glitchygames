@@ -16,13 +16,23 @@ from glitchygames.services.sprite_generation_service import GenerationResult
 
 @pytest.fixture
 def client():
-    """Create a test client for the API."""
+    """Create a test client for the API.
+
+    Returns:
+        object: The result.
+
+    """
     return TestClient(app)
 
 
 @pytest.fixture
 def mock_generation_result():
-    """Provide a mock successful generation result."""
+    """Provide a mock successful generation result.
+
+    Returns:
+        object: The result.
+
+    """
     return GenerationResult(
         success=True,
         toml_content="""
@@ -46,7 +56,12 @@ blue = 0
 
 @pytest.fixture
 def mock_render_result():
-    """Provide a mock successful render result."""
+    """Provide a mock successful render result.
+
+    Returns:
+        object: The result.
+
+    """
     return RenderResult(
         success=True,
         png_bytes=b"fake png data",
@@ -107,7 +122,9 @@ class TestSpriteGenerationEndpoint:
         assert data["toml_content"] is not None
         assert data["png_base64"] is None
 
-    def test_generate_sprite_png_only(self, client, mock_generation_result, mock_render_result, mocker):
+    def test_generate_sprite_png_only(
+        self, client, mock_generation_result, mock_render_result, mocker
+    ):
         """Test generating sprite with PNG output only."""
         mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
         mock_gen_service = mocker.MagicMock()
@@ -129,7 +146,9 @@ class TestSpriteGenerationEndpoint:
         assert data["success"] is True
         assert data["png_base64"] is not None
 
-    def test_generate_sprite_both_outputs(self, client, mock_generation_result, mock_render_result, mocker):
+    def test_generate_sprite_both_outputs(
+        self, client, mock_generation_result, mock_render_result, mocker
+    ):
         """Test generating sprite with both TOML and PNG output."""
         mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
         mock_gen_service = mocker.MagicMock()
@@ -270,7 +289,9 @@ class TestSpriteRefinementEndpoint:
 class TestOutputDirFunctionality:
     """Test suite for output_dir file saving functionality."""
 
-    def test_generate_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result, mocker):
+    def test_generate_sprite_with_output_dir(
+        self, client, mock_generation_result, mock_render_result, mocker
+    ):
         """Test generating sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
             mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")
@@ -332,7 +353,9 @@ class TestOutputDirFunctionality:
             assert new_subdir.exists()
             assert new_subdir.is_dir()
 
-    def test_refine_sprite_with_output_dir(self, client, mock_generation_result, mock_render_result, mocker):
+    def test_refine_sprite_with_output_dir(
+        self, client, mock_generation_result, mock_render_result, mocker
+    ):
         """Test refining sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
             mock_services = mocker.patch("glitchygames.api.routes.sprites._get_services")

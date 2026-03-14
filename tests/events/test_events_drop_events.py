@@ -61,14 +61,17 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_begin_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_begin_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
         # Test drop begin
         event = HashableEvent(pygame.DROPBEGIN)
         result = scene.on_drop_begin_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
@@ -79,14 +82,17 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_file_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
         # Test drop file
         event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt")
         result = scene.on_drop_file_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
@@ -98,14 +104,17 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_text_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_text_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
         # Test drop text
         event = HashableEvent(pygame.DROPTEXT, text="Hello World")
         result = scene.on_drop_text_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
@@ -117,14 +126,17 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_complete_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_complete_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
         # Test drop complete
         event = HashableEvent(pygame.DROPCOMPLETE)
         result = scene.on_drop_complete_event(event)
-        
+
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
@@ -135,7 +147,10 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_file_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -164,7 +179,10 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_text_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_text_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -193,10 +211,22 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_begin_event": lambda event: (scene.drop_events_received.append(event), True)[1],
-                "on_drop_file_event": lambda event: (scene.drop_events_received.append(event), True)[1],
-                "on_drop_text_event": lambda event: (scene.drop_events_received.append(event), True)[1],
-                "on_drop_complete_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_begin_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
+                "on_drop_file_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
+                "on_drop_text_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
+                "on_drop_complete_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
             }
         )
 
@@ -231,7 +261,10 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_file_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1]
             }
         )
 
@@ -263,8 +296,14 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (scene.drop_events_received.append(event), True)[1],
-                "on_drop_text_event": lambda event: (scene.drop_events_received.append(event), True)[1]
+                "on_drop_file_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
+                "on_drop_text_event": lambda event: (
+                    scene.drop_events_received.append(event),
+                    True,
+                )[1],
             }
         )
 
@@ -308,12 +347,14 @@ class TestDropEvents:
         assert len(scene.drop_events_received) == total_events
 
     def _setup_mock_game_for_stub(self, stub, mocker):
-        """Set up mock game object for event stubs."""
+        """Set up mock game object for event stubs.
+
+        Returns:
+            object: The result.
+
+        """
         mock_game = mocker.Mock()
-        mock_game.options = {
-            "debug_events": False,
-            "no_unhandled_events": True
-        }
+        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
         stub.options = mock_game.options
         return mock_game
 

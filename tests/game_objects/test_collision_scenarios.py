@@ -51,8 +51,8 @@ class TestWallCollisions:
 
         # Expected: Speed.y reversed, speed.x unchanged
         assert ball.speed.x == SPEED_3_0  # Unchanged
-        assert ball.speed.y == SPEED_2_0   # Reversed from -2.0 to +2.0
-        assert ball.rect.y == 1     # Position adjusted to prevent sticking
+        assert ball.speed.y == SPEED_2_0  # Reversed from -2.0 to +2.0
+        assert ball.rect.y == 1  # Position adjusted to prevent sticking
 
     def test_ball_bounces_off_bottom_wall(self, mock_pygame_patches):
         """Test ball bounces off bottom wall with speed reversal."""
@@ -67,7 +67,7 @@ class TestWallCollisions:
         ball._do_bounce()
 
         # Expected: Speed.y reversed, speed.x unchanged
-        assert ball.speed.x == SPEED_3_0   # Unchanged
+        assert ball.speed.x == SPEED_3_0  # Unchanged
         assert ball.speed.y == SPEED_NEG_2_0  # Reversed from +2.0 to -2.0
 
     def test_wall_collision_preserves_speed_magnitude(self, mock_pygame_patches):
@@ -135,7 +135,7 @@ class TestPaddleCollisions:
         # Expected: Direction reversed, speed increased (using logarithmic scaling)
         # The speed_up method uses logarithmic scaling, not simple multiplication
         assert ball.speed.x < SPEED_NEG_3_0  # Reversed and increased (negative)
-        assert ball.speed.y > SPEED_2_0   # Increased
+        assert ball.speed.y > SPEED_2_0  # Increased
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert final_magnitude > initial_magnitude  # Speed increased
 
@@ -181,8 +181,8 @@ class TestBallToBallCollisions:
         ball2.speed = Speed(SPEED_0_0, SPEED_3_0)  # Moving down
 
         # Calculate initial total kinetic energy
-        initial_energy = (
-            0.5 * (SPEED_2_0_COLLISION**2 + SPEED_0_0**2 + SPEED_0_0**2 + SPEED_3_0**2)
+        initial_energy = 0.5 * (
+            SPEED_2_0_COLLISION**2 + SPEED_0_0**2 + SPEED_0_0**2 + SPEED_3_0**2
         )  # 6.5
 
         # Action: Simulate elastic collision
@@ -198,8 +198,9 @@ class TestBallToBallCollisions:
         ball2.speed.y = temp_y1
 
         # Calculate final total kinetic energy
-        final_energy = 0.5 * (ball1.speed.x**2 + ball1.speed.y**2 +
-                              ball2.speed.x**2 + ball2.speed.y**2)
+        final_energy = 0.5 * (
+            ball1.speed.x**2 + ball1.speed.y**2 + ball2.speed.x**2 + ball2.speed.y**2
+        )
 
         # Expected: Energy conserved
         assert abs(final_energy - initial_energy) < TOLERANCE_0_01  # Within tolerance

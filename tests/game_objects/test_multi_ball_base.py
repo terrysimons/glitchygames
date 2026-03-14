@@ -24,7 +24,10 @@ COLLISION_COOLDOWN_FRAMES = 10
 class MultiBallTestBase:
     """Base class for multi-ball collision tests."""
 
-    def __init__(self, test_name, num_balls=5, enable_ball_collisions=False, enable_ball_bouncing=False):
+    def __init__(
+        self, test_name, num_balls=5, enable_ball_collisions=False, enable_ball_bouncing=False
+    ):
+        """Initialize multi-ball test base with configuration parameters."""
         self.test_name = test_name
         self.num_balls = num_balls
         self.enable_ball_collisions = enable_ball_collisions
@@ -61,19 +64,19 @@ class MultiBallTestBase:
 
         Returns sum of speed_magnitude^2. For equal-mass balls, this is
         proportional to total kinetic energy.
+
+        Returns:
+            object: The result.
+
         """
-        return sum(
-            ball.speed.x ** 2 + ball.speed.y ** 2
-            for ball in self.balls
-            if ball.alive()
-        )
+        return sum(ball.speed.x**2 + ball.speed.y**2 for ball in self.balls if ball.alive())
 
     def print_initial_state(self):
         """Print initial ball states."""
         print(f"Created {self.num_balls} balls")
         print("Initial ball states:")
         for i, ball in enumerate(self.balls):
-            magnitude = math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
+            magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             print(
                 f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) "
                 f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
@@ -95,6 +98,10 @@ class MultiBallTestBase:
 
         Uses per-pair cooldown to prevent the same collision from being
         processed on consecutive frames while bounding boxes still overlap.
+
+        Returns:
+            object: The result.
+
         """
         ball_collisions = 0
 
@@ -112,9 +119,7 @@ class MultiBallTestBase:
                 dx = self.balls[j].rect.centerx - self.balls[i].rect.centerx
                 dy = self.balls[j].rect.centery - self.balls[i].rect.centery
                 distance = math.sqrt(dx * dx + dy * dy)
-                collision_distance = (
-                    self.balls[i].rect.width // 2 + self.balls[j].rect.width // 2
-                )
+                collision_distance = self.balls[i].rect.width // 2 + self.balls[j].rect.width // 2
 
                 if distance <= collision_distance:
                     if self.enable_ball_bouncing:
@@ -158,10 +163,9 @@ class MultiBallTestBase:
         ny = dy / distance
 
         # Check if balls are approaching along the collision normal
-        relative_velocity_along_normal = (
-            (ball2.speed.x - ball1.speed.x) * nx
-            + (ball2.speed.y - ball1.speed.y) * ny
-        )
+        relative_velocity_along_normal = (ball2.speed.x - ball1.speed.x) * nx + (
+            ball2.speed.y - ball1.speed.y
+        ) * ny
 
         collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
         if relative_velocity_along_normal > 0 and distance >= collision_distance:
@@ -200,7 +204,12 @@ class MultiBallTestBase:
         return True
 
     def update_balls(self, dt, frame_count):
-        """Update ball positions and track data."""
+        """Update ball positions and track data.
+
+        Returns:
+            object: The result.
+
+        """
         wall_bounces = 0
 
         for i, ball in enumerate(self.balls):
@@ -210,15 +219,13 @@ class MultiBallTestBase:
                 ball.dt_tick(dt)
 
                 # Detect wall bounces by speed direction flip at boundaries
-                if (
-                    old_speed_x * ball.speed.x < 0
-                    and (ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1)
+                if old_speed_x * ball.speed.x < 0 and (
+                    ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1
                 ):
                     wall_bounces += 1
 
-                if (
-                    old_speed_y * ball.speed.y < 0
-                    and (ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1)
+                if old_speed_y * ball.speed.y < 0 and (
+                    ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1
                 ):
                     wall_bounces += 1
 
@@ -227,13 +234,18 @@ class MultiBallTestBase:
 
                 # Sample speed magnitude every 60 frames (1 second at 60 FPS)
                 if frame_count % 60 == 0:
-                    current_magnitude = math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
+                    current_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
                     self.speed_magnitude_samples[i].append(current_magnitude)
 
         return wall_bounces
 
     def run_test(self, fps, duration_seconds):
-        """Run the test with specified FPS and duration."""
+        """Run the test with specified FPS and duration.
+
+        Returns:
+            object: The result.
+
+        """
         print(f"=== {self.test_name} ===")
         print(f"Testing at {fps} FPS for {duration_seconds} seconds...")
 
@@ -290,8 +302,11 @@ class MultiBallTestBase:
         final_alive = sum(1 for ball in self.balls if ball.alive())
 
         self.print_results(
-            total_time, frame_count, final_alive,
-            total_wall_bounces, total_ball_collisions,
+            total_time,
+            frame_count,
+            final_alive,
+            total_wall_bounces,
+            total_ball_collisions,
         )
 
         pygame.quit()

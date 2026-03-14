@@ -38,9 +38,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 game (object): The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
             self.mouse_state = {}
@@ -63,15 +60,15 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.mouse_state[event.type] = event
             # Diagnostics: sample motion rate and whether a DOWN is currently tracked
             self._motion_seq += 1
             try:
-                has_down = any(getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN for e in self.mouse_state.values())
+                has_down = any(
+                    getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN
+                    for e in self.mouse_state.values()
+                )
             except Exception:
                 has_down = False
             # if self._motion_seq % 10 == 0:
@@ -125,9 +122,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
 
-            Returns:
-                None
-
             """
             self._drag_seq += 1
             # self.log.info(
@@ -162,9 +156,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
-
-            Returns:
-                None
 
             """
             self.log.debug(f"{type(self)}: Mouse Drop: {event} {trigger}")
@@ -201,9 +192,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
 
-            Returns:
-                None
-
             """
             self.game.on_left_mouse_drag_event(event, trigger)
 
@@ -221,9 +209,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
-
-            Returns:
-                None
 
             """
             self.game.on_left_mouse_drag_up_event(event, trigger)
@@ -243,9 +228,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
 
-            Returns:
-                None
-
             """
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
@@ -263,9 +245,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
-
-            Returns:
-                None
 
             """
             self.game.on_middle_mouse_drag_up_event(event, trigger)
@@ -285,9 +264,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
 
-            Returns:
-                None
-
             """
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
@@ -306,9 +282,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 trigger (pygame.event.Event): The triggering event.
 
-            Returns:
-                None
-
             """
             self.game.on_right_mouse_drag_up_event(event, trigger)
 
@@ -326,9 +299,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
                 entering_focus (object): The object entering focus.
-
-            Returns:
-                None
 
             """
             # Send a leave focus event for the old focus.
@@ -354,9 +324,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
                 leaving_focus (object): The object leaving focus.
 
-            Returns:
-                None
-
             """
             self.previous_focus = leaving_focus
 
@@ -371,9 +338,6 @@ class MouseEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.mouse_state[event.button] = event
@@ -414,9 +378,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.mouse_state[event.button] = event
             self.game.on_left_mouse_button_up_event(event)
@@ -427,9 +388,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_middle_mouse_button_up_event(event)
 
@@ -439,9 +397,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_right_mouse_button_up_event(event)
 
@@ -450,9 +405,6 @@ class MouseEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.mouse_state[event.button] = event
@@ -493,9 +445,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             try:
                 state_keys = list(self.mouse_state.keys())
@@ -513,9 +462,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_middle_mouse_button_down_event(event)
 
@@ -524,9 +470,6 @@ class MouseEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_right_mouse_button_down_event(event)
@@ -537,9 +480,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_mouse_scroll_down_event(event)
 
@@ -548,9 +488,6 @@ class MouseEventManager(ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_mouse_scroll_up_event(event)
@@ -561,9 +498,6 @@ class MouseEventManager(ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_mouse_wheel_event(event)
 
@@ -572,9 +506,6 @@ class MouseEventManager(ResourceManager):
 
         Args:
             game (object): The game instance.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -589,10 +520,10 @@ class MouseEventManager(ResourceManager):
             parser (argparse.ArgumentParser): The argument parser.
 
         Returns:
-            None
+            argparse.ArgumentParser: The result.
 
         """
-        group = parser.add_argument_group("Mouse Options")  # noqa: F841
+        group = parser.add_argument_group("Mouse Options")
 
         return parser
 
@@ -611,9 +542,6 @@ class MousePointer:
         Args:
             pos (tuple): The position of the mouse pointer.
             size (tuple): The size of the mouse pointer.
-
-        Returns:
-            None
 
         """
         super().__init__()
@@ -639,9 +567,6 @@ class MousePointer:
         Args:
             new_x (int): The new x coordinate.
 
-        Returns:
-            None
-
         """
         self.pos[0] = new_x
 
@@ -661,9 +586,6 @@ class MousePointer:
 
         Args:
             new_y (int): The new y coordinate.
-
-        Returns:
-            None
 
         """
         self.pos[1] = new_y

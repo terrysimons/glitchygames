@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: FBT001, FBT002
 """Glitchy Games Engine sprite module."""
 
 from __future__ import annotations
@@ -68,9 +67,6 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
         Args:
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -97,9 +93,6 @@ class Sprite(RootSprite):
         Args:
             sprite_type (object | None): The sprite type to break on.
                 None means break on any sprite.
-
-        Returns:
-            None
 
         """
         # None means disabled.
@@ -134,9 +127,6 @@ class Sprite(RootSprite):
             name (str | None): The name of the sprite.
             parent (object | None): The parent of the sprite.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -227,9 +217,6 @@ class Sprite(RootSprite):
         Args:
             new_width (int): The new width of the sprite.
 
-        Returns:
-            None
-
         """
         self.rect.width = new_width
         self.dirty = 1 if not self.dirty else self.dirty
@@ -251,9 +238,6 @@ class Sprite(RootSprite):
         Args:
             new_height (int): The new height of the sprite.
 
-        Returns:
-            None
-
         """
         self.rect.height = new_height
         self.dirty = 1 if not self.dirty else self.dirty
@@ -264,29 +248,18 @@ class Sprite(RootSprite):
         Args:
             dt (float): The new delta time.
 
-        Returns:
-            None
-
         """
         self.dt = dt
         self.dt_timer += self.dt
 
     def update(self: Self) -> None:
-        """Update the sprite.
-
-        Returns:
-            None
-
-        """
+        """Update the sprite."""
 
     def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle a joystick axis motion event.
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYAXISMOTION    joy, axis, value
@@ -298,9 +271,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f"{type(self)}: {event}")
@@ -310,9 +280,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # JOYBUTTONUP      joy, button
@@ -324,9 +291,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYHATMOTION     joy, hat, value
         self.log.debug(f"{type(self)}: {event}")
@@ -337,9 +301,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # JOYBALLMOTION    joy, ball, rel
         self.log.debug(f"{type(self)}: {event}")
@@ -349,9 +310,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEMOTION      pos, rel, buttons
@@ -364,9 +322,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             old_focus (object): The old focus.
 
-        Returns:
-            None
-
         """
         # Custom Event
         self.log.debug(f"Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}")
@@ -376,9 +331,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # Custom Event
@@ -390,9 +342,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # Custom Event
         self.log.debug(f"Mouse Enter Event: {type(self)}: {event}")
@@ -402,9 +351,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # Custom Event
@@ -419,9 +365,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}")
 
@@ -433,9 +376,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(
@@ -451,9 +391,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(
             f"Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
@@ -467,9 +404,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(
@@ -485,9 +419,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(
             f"Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
@@ -501,9 +432,6 @@ class Sprite(RootSprite):
         Args:
         event (pygame.event.Event): The event to handle.
         trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(
@@ -519,9 +447,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(
             f"Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}"
@@ -533,9 +458,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"Mouse Drag Up Event: {type(self)}: {event}")
 
@@ -544,9 +466,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -557,9 +476,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -577,9 +493,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f"{type(self)}: Middle Mouse Button Up Event: {event}")
@@ -589,9 +502,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -608,9 +518,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f"{type(self)}: {event} @ {self}")
@@ -620,9 +527,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -641,9 +545,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f"{type(self)}: Middle Mouse Button Down Event: {event}")
@@ -653,9 +554,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -672,9 +570,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f"{type(self)}: Mouse Scroll Down Event: {event}")
@@ -684,9 +579,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -698,9 +590,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Mouse Chord Up Event: {event}")
 
@@ -709,9 +598,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Chord Down Event: {event}")
@@ -722,9 +608,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # KEYDOWN          unicode, key, mod
         self.log.debug(f"{type(self)}: {event}")
@@ -734,9 +617,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # KEYUP            key, mod
@@ -749,9 +629,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             keys (list): The keys that were pressed.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: {event}, {keys}")
 
@@ -762,9 +639,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             keys (list): The keys that were pressed.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)} KEYCHORDUP: {event}, {keys}")
 
@@ -773,9 +647,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # QUIT             none
@@ -788,9 +659,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # ACTIVEEVENT      gain, state
         self.log.debug(f"{type(self)}: {event}")
@@ -800,9 +668,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # VIDEORESIZE      size, w, h
@@ -814,9 +679,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # VIDEOEXPOSE      none
         self.log.debug(f"{type(self)}: {event}")
@@ -827,9 +689,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # SYSWMEVENT
         self.log.debug(f"{type(self)}: {event}")
@@ -839,9 +698,6 @@ class Sprite(RootSprite):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # USEREVENT        code
@@ -856,9 +712,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}")
 
@@ -870,9 +723,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}")
@@ -886,9 +736,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}")
 
@@ -900,9 +747,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}")
@@ -916,9 +760,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -931,9 +772,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -943,9 +781,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}")
@@ -957,9 +792,6 @@ class Sprite(RootSprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -969,9 +801,6 @@ class Sprite(RootSprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}")
@@ -989,7 +818,12 @@ class Sprite(RootSprite):
     #            log.error(f'No proxies for {type(self)}.{attr}')
 
     def __str__(self: Self) -> str:
-        """Return a string representation of the sprite."""
+        """Return a string representation of the sprite.
+
+        Returns:
+            str: The string representation.
+
+        """
         return f'{type(self)} "{self.name}" ({self!r})'
 
 
@@ -1029,8 +863,8 @@ class BitmappySprite(Sprite):
             parent: optional, the parent of the sprite.
             groups: optional, the sprite groups to add the sprite to.
 
-        Returns:
-            None
+        Raises:
+            error: If a Surface cannot be created with the given dimensions.
 
         """
         if groups is None:
@@ -1069,7 +903,12 @@ class BitmappySprite(Sprite):
         self.proxies = [self.parent]
 
     def load(self: Self, filename: str | None = None) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a sprite from a Bitmappy config file using the factory."""
+        """Load a sprite from a Bitmappy config file using the factory.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The result.
+
+        """
         self.log.debug(f"=== Starting load from {filename} ===")
 
         # Use the factory to load sprite (always returns AnimatedSprite now)
@@ -1098,14 +937,27 @@ class BitmappySprite(Sprite):
 
     @staticmethod
     def _raise_animated_sprite_error(filename: str) -> None:
-        """Raise an error for animated sprite files."""
+        """Raise an error for animated sprite files.
+
+        Raises:
+            ValueError: Always raised to indicate an animated sprite was loaded incorrectly.
+
+        """
         raise ValueError(
             f"File {filename} contains animated sprite data. "
             f"Use AnimatedSprite class instead of BitmappySprite."
         )
 
     def _load_static_only(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a static sprite from a Bitmappy config file (legacy method)."""
+        """Load a static sprite from a Bitmappy config file (legacy method).
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The result.
+
+        Raises:
+            ValueError: If the file format is not supported.
+
+        """
         self.log.debug(f"=== Starting static-only load from {filename} ===")
 
         # Detect file format and handle accordingly
@@ -1113,16 +965,24 @@ class BitmappySprite(Sprite):
 
         if file_format == "toml":
             return self._load_static_toml(filename)
-        raise ValueError(
-            f"Unsupported file format: {file_format}. Only TOML format is supported."
-        )
+        raise ValueError(f"Unsupported file format: {file_format}. Only TOML format is supported.")
 
     def _raise_too_many_colors_error(self, color_count: int) -> None:
-        """Raise an error for too many colors."""
+        """Raise an error for too many colors.
+
+        Raises:
+            ValueError: If the color count exceeds the maximum number of sprite glyphs.
+
+        """
         raise ValueError(f"Too many colors: {color_count} > {len(SPRITE_GLYPHS)}")
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load a static sprite from a TOML file."""
+        """Load a static sprite from a TOML file.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The result.
+
+        """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding="utf-8")
         self.log.debug(f"Raw file content ({len(raw_content)} bytes):\n{raw_content}")
@@ -1226,7 +1086,12 @@ class BitmappySprite(Sprite):
         self._save_static_only(filename, file_format)
 
     def _load(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
-        """Load static sprite from file."""
+        """Load static sprite from file.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The result.
+
+        """
         return self._load_static_only(filename)
 
     def _save_static_only(
@@ -1269,6 +1134,10 @@ class BitmappySprite(Sprite):
         3. Add inflate methods in _load_static_only()
         4. Update tests
         See LOADER_README.md for detailed implementation guide.
+
+        Returns:
+            dict: The result.
+
         """
         try:
             self.log.debug(f"Starting deflate for {self.name} in {file_format} format")
@@ -1286,11 +1155,10 @@ class BitmappySprite(Sprite):
                             "name": self.name,
                             "pixels_across": 0,
                             "pixels_tall": 0,
-                            "pixels": []
+                            "pixels": [],
                         }
                     }
-                else:
-                    self._raise_unsupported_format_error(file_format)
+                self._raise_unsupported_format_error(file_format)
 
             # Ensure pixels attribute exists
             if not hasattr(self, "pixels"):
@@ -1436,9 +1304,13 @@ class BitmappySprite(Sprite):
 
     @staticmethod
     def _raise_unsupported_format_error(file_format: str) -> None:
-        """Raise an error for unsupported file format."""
-        raise ValueError(f"Unsupported format: {file_format}")
+        """Raise an error for unsupported file format.
 
+        Raises:
+            ValueError: Always raised to indicate an unsupported file format.
+
+        """
+        raise ValueError(f"Unsupported format: {file_format}")
 
     def _create_color_map(self: Self) -> dict:
         """Create a color map from the sprite's pixels.
@@ -1540,12 +1412,7 @@ class BitmappySprite(Sprite):
                         # Default color for unknown characters
                         pixels.append((255, 0, 255))
 
-            return {
-                "pixels": pixels,
-                "width": width,
-                "height": height,
-                "name": name
-            }
+            return {"pixels": pixels, "width": width, "height": height, "name": name}
 
         except Exception:
             self.log.error("Error in TOML inflate")
@@ -1559,6 +1426,9 @@ class BitmappySprite(Sprite):
 
         Returns:
             dict: Sprite data dictionary
+
+        Raises:
+            ValueError: If the file format is not supported.
 
         """
         # Detect file format and handle accordingly
@@ -1577,9 +1447,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}")
 
@@ -1591,9 +1458,6 @@ class BitmappySprite(Sprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}")
@@ -1607,9 +1471,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}")
 
@@ -1621,9 +1482,6 @@ class BitmappySprite(Sprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}")
@@ -1637,9 +1495,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -1652,9 +1507,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -1664,9 +1516,6 @@ class BitmappySprite(Sprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}")
@@ -1678,9 +1527,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}")
 
@@ -1690,9 +1536,6 @@ class BitmappySprite(Sprite):
         Args:
             event (pygame.event.Event): The event to handle.
             trigger (object | None): The object that triggered the event.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}")
@@ -1704,9 +1547,6 @@ class BitmappySprite(Sprite):
             event (pygame.event.Event): The event to handle.
             keys (list): The keys that were pressed.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}")
 
@@ -1716,9 +1556,6 @@ class BitmappySprite(Sprite):
         Args:
             event (pygame.event.Event): The event to handle.
             keys (list): The keys that were pressed.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}")
@@ -1739,7 +1576,8 @@ class BitmappySprite(Sprite):
                 return f'{type(self)} "{self.name}" (no file loaded)'
 
             import toml
-            with open(self.filename, "r") as f:
+
+            with open(self.filename) as f:
                 toml_data = toml.load(f)
 
             # Check if it's an animated sprite and show all frames
@@ -1767,9 +1605,9 @@ class BitmappySprite(Sprite):
                                 frame_data = {
                                     "sprite": {
                                         "name": toml_data.get("sprite", {}).get("name", "unnamed"),
-                                        "pixels": frame["pixels"]
+                                        "pixels": frame["pixels"],
                                     },
-                                    "colors": toml_data.get("colors", {})
+                                    "colors": toml_data.get("colors", {}),
                                 }
 
                                 # Render this frame with colorized output
@@ -1785,10 +1623,9 @@ class BitmappySprite(Sprite):
                         output_lines.append("")
 
                 return "\n".join(output_lines)
-            else:
-                # Static sprite - show normally
-                renderer = ASCIIRenderer()
-                return renderer.render_sprite(toml_data)
+            # Static sprite - show normally
+            renderer = ASCIIRenderer()
+            return renderer.render_sprite(toml_data)
 
         except Exception as e:
             # Fallback to basic representation if rendering fails
@@ -1815,7 +1652,7 @@ class Singleton:
             cls.__instance__ = object.__new__(cls)
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
-        return cast(Singleton, cls.__instance__)
+        return cast("Singleton", cls.__instance__)
 
 
 # This is a root class for sprites that should be singletons, like
@@ -1840,7 +1677,7 @@ class SingletonBitmappySprite(BitmappySprite):
             cls.__instance__ = object.__new__(cls)
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
-        return cast(SingletonBitmappySprite, cls.__instance__)
+        return cast("SingletonBitmappySprite", cls.__instance__)
 
     def __init__(
         self: Self,
@@ -1860,9 +1697,6 @@ class SingletonBitmappySprite(BitmappySprite):
             height (int): The height of the sprite.
             name (str): The name of the sprite.
             groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -1893,7 +1727,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             cls.__instance__ = object.__new__(cls)
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
-        return cast(FocusableSingletonBitmappySprite, cls.__instance__)
+        return cast("FocusableSingletonBitmappySprite", cls.__instance__)
 
     def __init__(
         self: Self,
@@ -1913,9 +1747,6 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             height (int): The height of the sprite.
             name (str): The name of the sprite.
             groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -1972,7 +1803,12 @@ class SpriteFactory:
 
     @staticmethod
     def _detect_file_format(filename) -> str:
-        """Detect file format based on extension."""
+        """Detect file format based on extension.
+
+        Returns:
+            str: The resulting string.
+
+        """
         # Convert Path objects to strings
         filename_str = str(filename)
 
@@ -1992,6 +1828,13 @@ class SpriteFactory:
         3. Add save/load methods in BitmappySprite and AnimatedSprite
         4. Update tests
         See LOADER_README.md for detailed implementation guide.
+
+        Returns:
+            dict: The result.
+
+        Raises:
+            ValueError: If the file format is not supported.
+
         """
         file_format = SpriteFactory._detect_file_format(filename)
 
@@ -2002,7 +1845,12 @@ class SpriteFactory:
 
     @staticmethod
     def _analyze_toml_file(filename) -> dict:
-        """Analyze TOML file content to determine sprite type."""
+        """Analyze TOML file content to determine sprite type.
+
+        Returns:
+            dict: The result.
+
+        """
         with Path(filename).open("r", encoding="utf-8") as f:
             data = toml.load(f)
 
@@ -2013,13 +1861,17 @@ class SpriteFactory:
         # Check for sprite.pixels (ignore empty strings and empty lists)
         if "sprite" in data and "pixels" in data["sprite"]:
             pixels = data["sprite"]["pixels"]
-            if ((isinstance(pixels, str) and pixels.strip())
-                or (isinstance(pixels, list) and pixels)):
+            if (isinstance(pixels, str) and pixels.strip()) or (
+                isinstance(pixels, list) and pixels
+            ):
                 has_sprite_pixels = True
 
         # Check for animation sections (both keys and arrays of tables)
-        if ("animation" in data or "animations" in data
-            or (isinstance(data.get("animation"), list) and data["animation"])):
+        if (
+            "animation" in data
+            or "animations" in data
+            or (isinstance(data.get("animation"), list) and data["animation"])
+        ):
             has_animation_sections = True
 
         # Check for frame sections (both keys and arrays of tables)
@@ -2041,13 +1893,23 @@ class SpriteFactory:
 
     @staticmethod
     def _get_toml_data(filename) -> dict:
-        """Get raw TOML data from file."""
+        """Get raw TOML data from file.
+
+        Returns:
+            dict: The toml data.
+
+        """
         with Path(filename).open("r", encoding="utf-8") as f:
             return toml.load(f)
 
     @staticmethod
     def _determine_type(analysis: dict) -> str:
-        """Determine sprite type based on file analysis."""
+        """Determine sprite type based on file analysis.
+
+        Returns:
+            str: The resulting string.
+
+        """
         # Prioritize animations over static content
         if analysis["has_frame_sections"] or analysis["has_animation_sections"]:
             return "animated"
@@ -2057,7 +1919,12 @@ class SpriteFactory:
 
     @staticmethod
     def _get_default_sprite_path() -> str:
-        """Get the path to the default sprite (raspberry.toml)."""
+        """Get the path to the default sprite (raspberry.toml).
+
+        Returns:
+            str: The default sprite path.
+
+        """
         # Get the path to the assets directory
         assets_dir = Path(__file__).parent / ".." / "assets"
         return str(assets_dir / "raspberry.toml")
@@ -2075,10 +1942,6 @@ class SpriteFactory:
             sprite: The sprite to save (BitmappySprite or AnimatedSprite).
             filename: Path where to save the sprite file.
             file_format: Output format ("ini", "yaml", or "toml"). Defaults to "toml".
-
-        Raises:
-            NotImplementedError: If saving animated sprites (not yet implemented).
-            ValueError: If file_format is not supported.
 
         """
         if hasattr(sprite, "animations"):  # It's an AnimatedSprite
@@ -2099,7 +1962,12 @@ class SpriteFactory:
 
 # Add helper methods to BitmappySprite for AI training data extraction
 def _get_pixel_string(self: Self) -> str:
-    """Get pixel data as a string for AI training."""
+    """Get pixel data as a string for AI training.
+
+    Returns:
+        str: The pixel string.
+
+    """
     if not hasattr(self, "pixels") or not self.pixels:
         return ""
 
@@ -2120,7 +1988,12 @@ def _get_pixel_string(self: Self) -> str:
 
 
 def _get_color_map(self: Self) -> dict:
-    """Get color mapping for AI training."""
+    """Get color mapping for AI training.
+
+    Returns:
+        dict: The color map.
+
+    """
     if not hasattr(self, "pixels") or not self.pixels:
         return {}
 

@@ -14,7 +14,12 @@ LOG.addHandler(logging.NullHandler())
 
 
 def indexed_rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples."""
+    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples.
+
+    Yields:
+        tuple[int, int, int]: An (R, G, B) color tuple for each pixel datum.
+
+    """
     try:
         for datum in pixel_data:
             yield datum[0]
@@ -23,7 +28,12 @@ def indexed_rgb_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]
 
 
 def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) pixel tuples for 555 formated color data."""
+    """Yield (R, G, B) pixel tuples for 555 formated color data.
+
+    Yields:
+        tuple[int, int, int]: An (R, G, B) color tuple extracted from 555 packed data.
+
+    """
     try:
         # Construct RGB triplets.
         for packed_rgb_triplet in pixel_data:
@@ -72,7 +82,12 @@ def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
 
 
 def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
-    """Yield (R, G, B) tuples for 565 formatted color data."""
+    """Yield (R, G, B) tuples for 565 formatted color data.
+
+    Yields:
+        tuple[int, int, int]: An (R, G, B) color tuple extracted from 565 packed data.
+
+    """
     try:
         # Construct RGB triplets.
         for packed_rgb_triplet in pixel_data:
@@ -127,6 +142,9 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     Yields:
         Tuples of (r,g,b) values
 
+    Raises:
+        ValueError: If pixel data is empty or its length is not divisible by 3.
+
     """
     # Validate input
     if not pixel_data:
@@ -150,7 +168,12 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
 
 
 def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:
-    """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data."""
+    """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data.
+
+    Returns:
+        pygame.Surface: The result.
+
+    """
     image = pygame.Surface((width, height))
     y = 0
     x = 0
@@ -167,7 +190,12 @@ def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:
 
 
 def pixels_from_data(pixel_data: list) -> list:
-    """Expand raw pixel data into [(R, G, B), ...] triplets."""
+    """Expand raw pixel data into [(R, G, B), ...] triplets.
+
+    Returns:
+        list: The result.
+
+    """
     pixels = rgb_triplet_generator(
         pixel_data=pixel_data,
     )
@@ -179,7 +207,12 @@ def pixels_from_data(pixel_data: list) -> list:
 
 
 def pixels_from_path(path: str) -> list:
-    """Expand raw pixel data from file into [(R, G, B), ...] triplets."""
+    """Expand raw pixel data from file into [(R, G, B), ...] triplets.
+
+    Returns:
+        list: The result.
+
+    """
     with Path.open(path, "rb") as fh:
         pixel_data = fh.read()
 

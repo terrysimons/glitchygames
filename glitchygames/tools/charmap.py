@@ -24,7 +24,12 @@ EMOJI_RANGES = [
 
 
 def is_defined_non_whitespace_printable(ch):
-    """Check if character is defined, non-whitespace, and printable."""
+    """Check if character is defined, non-whitespace, and printable.
+
+    Returns:
+        object: True if is defined non whitespace printable, False otherwise.
+
+    """
     if not ch.isprintable():
         return False
     if ch.isspace():
@@ -37,13 +42,23 @@ def is_defined_non_whitespace_printable(ch):
 
 
 def is_emoji(ch):
-    """Check if character is an emoji."""
+    """Check if character is an emoji.
+
+    Returns:
+        object: True if is emoji, False otherwise.
+
+    """
     cp = ord(ch)
     return any(start <= cp <= end for start, end in EMOJI_RANGES)
 
 
 def unicode_generator_with_priority():
-    """Generate Unicode characters with priority ordering."""
+    """Generate Unicode characters with priority ordering.
+
+    Yields:
+        str: The next Unicode character in priority order.
+
+    """
     # Regional indicator letters (🇦-🇿)
     # ordered_letters = [
     #     "\U0001F1E6", "\U0001F1E7", "\U0001F1E8", "\U0001F1E9", "\U0001F1EA",

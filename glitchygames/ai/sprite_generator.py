@@ -178,7 +178,12 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
 
 
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
-    """Reconstruct static sprite TOML from example data."""
+    """Reconstruct static sprite TOML from example data.
+
+    Returns:
+        str: The resulting string.
+
+    """
     lines = ["[sprite]"]
     lines.append(f'name = "{example.get("name", "unknown")}"')
 
@@ -195,18 +200,23 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
-            lines.append(f'red = {color_data.get("red", 0)}')
-            lines.append(f'green = {color_data.get("green", 0)}')
-            lines.append(f'blue = {color_data.get("blue", 0)}')
+            lines.append(f"red = {color_data.get('red', 0)}")
+            lines.append(f"green = {color_data.get('green', 0)}")
+            lines.append(f"blue = {color_data.get('blue', 0)}")
             if "alpha" in color_data and color_data["alpha"] != 255:
-                lines.append(f'alpha = {color_data["alpha"]}')
+                lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")
 
     return "\n".join(lines)
 
 
 def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
-    """Reconstruct animated sprite TOML from example data."""
+    """Reconstruct animated sprite TOML from example data.
+
+    Returns:
+        str: The resulting string.
+
+    """
     lines = ["[sprite]"]
     lines.append(f'name = "{example.get("name", "unknown")}"')
     lines.append("")
@@ -219,8 +229,8 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
 
         lines.append("[[animation]]")
         lines.append(f'namespace = "{anim.get("namespace", "default")}"')
-        lines.append(f'frame_interval = {anim.get("frame_interval", 0.5)}')
-        lines.append(f'loop = {str(anim.get("loop", True)).lower()}')
+        lines.append(f"frame_interval = {anim.get('frame_interval', 0.5)}")
+        lines.append(f"loop = {str(anim.get('loop', True)).lower()}")
         lines.append("")
 
         # Add frames
@@ -231,7 +241,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
 
             lines.append("[[animation.frame]]")
             lines.append(f'namespace = "{anim.get("namespace", "default")}"')
-            lines.append(f'frame_index = {frame.get("frame_index", 0)}')
+            lines.append(f"frame_index = {frame.get('frame_index', 0)}")
 
             # Handle pixels
             pixels = frame.get("pixels", "")
@@ -241,7 +251,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
                 lines.append(f'pixels = "{pixels}"')
 
             if "frame_interval" in frame:
-                lines.append(f'frame_interval = {frame["frame_interval"]}')
+                lines.append(f"frame_interval = {frame['frame_interval']}")
             lines.append("")
 
     # Add colors
@@ -249,11 +259,11 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
-            lines.append(f'red = {color_data.get("red", 0)}')
-            lines.append(f'green = {color_data.get("green", 0)}')
-            lines.append(f'blue = {color_data.get("blue", 0)}')
+            lines.append(f"red = {color_data.get('red', 0)}")
+            lines.append(f"green = {color_data.get('green', 0)}")
+            lines.append(f"blue = {color_data.get('blue', 0)}")
             if "alpha" in color_data and color_data["alpha"] != 255:
-                lines.append(f'alpha = {color_data["alpha"]}')
+                lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")
 
     return "\n".join(lines)
@@ -265,7 +275,7 @@ def build_sprite_generation_messages(
     *,
     max_examples: int = 3,
     include_size_hint: bool = True,
-    include_animation_hint: bool = True
+    include_animation_hint: bool = True,
 ) -> list[dict[str, str]]:
     """Build optimized AI message conversation for sprite generation.
 
@@ -285,9 +295,7 @@ def build_sprite_generation_messages(
     if training_examples:
         # Limit examples to avoid token bloat
         examples = training_examples[:max_examples]
-        formatted_examples = "\n\n---\n\n".join([
-            format_training_example(ex) for ex in examples
-        ])
+        formatted_examples = "\n\n---\n\n".join([format_training_example(ex) for ex in examples])
         example_context = f"\n\nExample sprites:\n\n{formatted_examples}"
 
     # Build enhanced user request with hints
@@ -298,7 +306,9 @@ def build_sprite_generation_messages(
         size_hint = get_sprite_size_hint(user_request)
         if size_hint:
             width, height = size_hint
-            enhanced_request += f"\n\nIMPORTANT: Generate sprite at exactly {width}x{height} pixels."
+            enhanced_request += (
+                f"\n\nIMPORTANT: Generate sprite at exactly {width}x{height} pixels."
+            )
 
     # Add animation hint if detected
     if include_animation_hint and detect_animation_request(user_request):
@@ -308,22 +318,10 @@ def build_sprite_generation_messages(
         )
 
     messages = [
-        {
-            "role": "system",
-            "content": SpriteGenerationPrompt.SYSTEM_MESSAGE
-        },
-        {
-            "role": "user",
-            "content": f"{SpriteGenerationPrompt.FORMAT_SPEC}{example_context}"
-        },
-        {
-            "role": "assistant",
-            "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION
-        },
-        {
-            "role": "user",
-            "content": enhanced_request
-        }
+        {"role": "system", "content": SpriteGenerationPrompt.SYSTEM_MESSAGE},
+        {"role": "user", "content": f"{SpriteGenerationPrompt.FORMAT_SPEC}{example_context}"},
+        {"role": "assistant", "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION},
+        {"role": "user", "content": enhanced_request},
     ]
 
     return messages
@@ -346,13 +344,20 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
 
     # Check for error/apology messages
     error_indicators = [
-        "i apologize", "i'm sorry", "i cannot", "i can't",
-        "unable to", "error:", "failed to"
+        "i apologize",
+        "i'm sorry",
+        "i cannot",
+        "i can't",
+        "unable to",
+        "error:",
+        "failed to",
     ]
 
     # Check if content looks like an error message (not TOML)
     has_error_phrase = any(phrase in content_lower for phrase in error_indicators)
-    has_toml_structure = any(marker in content_lower for marker in ["[sprite]", "[colors", "[[animation]]"])
+    has_toml_structure = any(
+        marker in content_lower for marker in ["[sprite]", "[colors", "[[animation]]"]
+    )
 
     if has_error_phrase and not has_toml_structure:
         return False, "AI returned error message instead of sprite"
@@ -498,9 +503,21 @@ def detect_animation_request(request: str) -> bool:
     request_lower = request.lower()
 
     animation_keywords = [
-        "animat", "frame", "walk", "run", "jump", "idle",
-        "2-frame", "multi-frame", "loop", "cycle", "sequence",
-        "moving", "spinning", "rotating", "bouncing"
+        "animat",
+        "frame",
+        "walk",
+        "run",
+        "jump",
+        "idle",
+        "2-frame",
+        "multi-frame",
+        "loop",
+        "cycle",
+        "sequence",
+        "moving",
+        "spinning",
+        "rotating",
+        "bouncing",
     ]
 
     return any(keyword in request_lower for keyword in animation_keywords)
@@ -519,17 +536,44 @@ def detect_refinement_request(request: str) -> bool:
     request_lower = request.lower()
 
     refinement_keywords = [
-        "make it", "change", "modify", "update", "adjust",
-        "more", "less", "bigger", "smaller", "larger", "wider", "taller",
-        "brighter", "darker", "lighter",
-        "add", "remove", "replace",
-        "different", "another", "new color",
+        "make it",
+        "change",
+        "modify",
+        "update",
+        "adjust",
+        "more",
+        "less",
+        "bigger",
+        "smaller",
+        "larger",
+        "wider",
+        "taller",
+        "brighter",
+        "darker",
+        "lighter",
+        "add",
+        "remove",
+        "replace",
+        "different",
+        "another",
+        "new color",
         # Possessive pronouns indicating existing sprite
-        "make his", "make her", "make their", "make its",
-        "give him", "give her", "give it", "give them",
-        "turn it", "turn the", "turn his", "turn her",
+        "make his",
+        "make her",
+        "make their",
+        "make its",
+        "give him",
+        "give her",
+        "give it",
+        "give them",
+        "turn it",
+        "turn the",
+        "turn his",
+        "turn her",
         # Direct references to "the sprite" or specific parts
-        "make the", "change the", "update the",
+        "make the",
+        "change the",
+        "update the",
     ]
 
     return any(keyword in request_lower for keyword in refinement_keywords)
@@ -541,7 +585,7 @@ def build_refinement_messages(
     conversation_history: list[dict[str, str]] | None = None,
     *,
     include_size_hint: bool = True,
-    include_animation_hint: bool = True
+    include_animation_hint: bool = True,
 ) -> list[dict[str, str]]:
     """Build message conversation for sprite refinement.
 
@@ -558,18 +602,9 @@ def build_refinement_messages(
     """
     # Start with base system message and format spec
     messages = [
-        {
-            "role": "system",
-            "content": SpriteGenerationPrompt.SYSTEM_MESSAGE
-        },
-        {
-            "role": "user",
-            "content": SpriteGenerationPrompt.FORMAT_SPEC
-        },
-        {
-            "role": "assistant",
-            "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION
-        }
+        {"role": "system", "content": SpriteGenerationPrompt.SYSTEM_MESSAGE},
+        {"role": "user", "content": SpriteGenerationPrompt.FORMAT_SPEC},
+        {"role": "assistant", "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION},
     ]
 
     # Add conversation history if available
@@ -591,9 +626,6 @@ def build_refinement_messages(
         f"Return ONLY the complete updated sprite in TOML format."
     )
 
-    messages.append({
-        "role": "user",
-        "content": refinement_context
-    })
+    messages.append({"role": "user", "content": refinement_context})
 
     return messages

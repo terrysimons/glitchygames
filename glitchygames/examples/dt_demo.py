@@ -33,9 +33,6 @@ class Game(Scene):
             options (dict): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -58,9 +55,6 @@ class Game(Scene):
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
@@ -81,9 +75,6 @@ class Game(Scene):
         Args:
             dt: The delta time (float).
 
-        Returns:
-            None
-
         """
         # self.dt = dt
         # self.dt_timer += self.dt
@@ -100,12 +91,6 @@ class Game(Scene):
 
         This method will get called automatically by the GameEngine class.
 
-        Args:
-            None
-
-        Returns:
-            None
-
         """
         self.screen.fill((0, 0, 0))
 
@@ -113,7 +98,9 @@ class Game(Scene):
             self.record = self.dt_timer
             self.passed = True
 
-        countdown = self.font.render("Time: " + str(round(self.dt_timer, 2)), False, (255, 255, 255))
+        countdown = self.font.render(
+            "Time: " + str(round(self.dt_timer, 2)), False, (255, 255, 255)
+        )
         fps_text = self.font.render(f"FPS: {round(self.fps, 2)}", False, (255, 255, 255))
 
         self.screen.blit(countdown, (0, 0))
@@ -130,9 +117,6 @@ class Game(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         pressed_keys = pygame.key.get_pressed()

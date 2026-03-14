@@ -35,6 +35,7 @@ class FilmStripTestBase:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         # Use real pygame initialization since BitmapEditorScene requires it
         pygame.init()
         pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
@@ -56,7 +57,7 @@ class FilmStripTestBase:
             animation_name="idle",
             frame_size=(FRAME_SIZE, FRAME_SIZE),
             pixel_color=MAGENTA_PIXELS,
-            use_cache=True
+            use_cache=True,
         )
 
         # Replace mock frame images with real pygame Surfaces so that
@@ -68,7 +69,7 @@ class FilmStripTestBase:
             pixels_across=PIXELS_ACROSS,
             pixels_tall=PIXELS_TALL,
             pixel_size=PIXEL_SIZE,
-            use_cache=True
+            use_cache=True,
         )
 
     @staticmethod
@@ -90,30 +91,45 @@ class FilmStripTestBase:
                 frame.image = real_surface
 
     def create_optimized_scene(self, options=None, mocker=None):
-        """Create an optimized scene with minimal overhead."""
+        """Create an optimized scene with minimal overhead.
+
+        Returns:
+            object: The newly created optimized scene.
+
+        """
         if options is None:
             options = {
                 "pixels_across": PIXELS_ACROSS,
                 "pixels_tall": PIXELS_TALL,
-                "pixel_size": PIXEL_SIZE
+                "pixel_size": PIXEL_SIZE,
             }
 
         return bitmappy.BitmapEditorScene(options=options)
 
     def create_optimized_sprite(self, animation_name="idle", **kwargs):
-        """Create an optimized sprite using cached objects."""
+        """Create an optimized sprite using cached objects.
+
+        Returns:
+            object: The newly created optimized sprite.
+
+        """
         sprite = MockFactory.create_animated_sprite_mock(
             animation_name=animation_name,
             frame_size=(FRAME_SIZE, FRAME_SIZE),
             pixel_color=MAGENTA_PIXELS,
             use_cache=True,
-            **kwargs
+            **kwargs,
         )
         self._replace_mock_images_with_real_surfaces(sprite)
         return sprite
 
     def setup_scene_with_sprite(self, sprite=None, options=None):
-        """Set up a scene with a sprite loaded, optimized for performance."""
+        """Set up a scene with a sprite loaded, optimized for performance.
+
+        Returns:
+            object: The result.
+
+        """
         if sprite is None:
             sprite = self.cached_sprite
 

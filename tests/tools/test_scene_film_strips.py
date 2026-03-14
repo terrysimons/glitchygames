@@ -32,7 +32,7 @@ class TestSceneFilmStrips:
 
         # Test that film strips are properly accessible
         # Each animation should have its own film strip
-        for anim_name in scene.film_strips.keys():
+        for anim_name in scene.film_strips:
             assert anim_name in scene.film_strip_sprites
             assert scene.film_strips[anim_name] is not None
             assert scene.film_strip_sprites[anim_name] is not None

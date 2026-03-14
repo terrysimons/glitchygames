@@ -23,6 +23,7 @@ class TestSpriteFactory:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -43,7 +44,7 @@ class TestSpriteFactory:
         analysis = {
             "has_sprite_pixels": False,
             "has_animation_sections": True,
-            "has_frame_sections": False
+            "has_frame_sections": False,
         }
 
         sprite_type = SpriteFactory._determine_type(analysis)
@@ -54,7 +55,7 @@ class TestSpriteFactory:
         analysis = {
             "has_sprite_pixels": True,
             "has_animation_sections": False,
-            "has_frame_sections": False
+            "has_frame_sections": False,
         }
 
         sprite_type = SpriteFactory._determine_type(analysis)
@@ -65,7 +66,7 @@ class TestSpriteFactory:
         analysis = {
             "has_sprite_pixels": False,
             "has_animation_sections": False,
-            "has_frame_sections": False
+            "has_frame_sections": False,
         }
 
         sprite_type = SpriteFactory._determine_type(analysis)
@@ -164,27 +165,36 @@ class TestSpriteFactory:
     def test_load_sprite_invalid_file(self, mocker):
         """Test loading sprite from invalid file."""
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename="nonexistent.toml")
 
     def test_load_sprite_mixed_content(self, mocker):
         """Test loading sprite with mixed content."""
-        mocker.patch("glitchygames.sprites.SpriteFactory._analyze_file", return_value={
-            "has_sprite_pixels": True,
-            "has_animation_sections": True,
-            "has_frame_sections": False
-        })
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory._analyze_file",
+            return_value={
+                "has_sprite_pixels": True,
+                "has_animation_sections": True,
+                "has_frame_sections": False,
+            },
+        )
 
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename="mixed.toml")
 
     def test_sprite_factory_load_sprite_invalid_file(self, mocker):
         """Test SpriteFactory load_sprite with invalid file."""
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename="nonexistent.toml")
 

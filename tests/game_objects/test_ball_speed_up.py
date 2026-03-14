@@ -25,6 +25,7 @@ class TestBallSpriteSpeedUp:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_speed_up_applies_correct_multiplier(self):
@@ -88,7 +89,7 @@ class TestBallSpriteSpeedUp:
             ball.speed_up(1.1)
 
         # Speed should be 100 * (1.1^5) = 161.051
-        expected_speed = 100.0 * (1.1 ** 5)
+        expected_speed = 100.0 * (1.1**5)
         assert abs(ball.speed.x - expected_speed) < TOLERANCE_1E_10
         assert abs(ball.speed.y - expected_speed) < TOLERANCE_1E_10
 
@@ -162,5 +163,5 @@ class TestBallSpriteSpeedUp:
         assert abs(ball.speed.x - ball.speed.y) < TOLERANCE_1E_10
 
         # Speed should be 1.0 * (1.01^100) ≈ 2.7048
-        expected_speed = 1.0 * (1.01 ** 100)
+        expected_speed = 1.0 * (1.01**100)
         assert abs(ball.speed.x - expected_speed) < TOLERANCE_1E_10

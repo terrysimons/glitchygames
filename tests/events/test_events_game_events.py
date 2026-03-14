@@ -109,7 +109,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_quit_event": lambda event: (scene.game_events_received.append(("quit", event)), True)[1]
+                "on_quit_event": lambda event: (
+                    scene.game_events_received.append(("quit", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -128,7 +131,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_active_event": lambda event: (scene.game_events_received.append(("active", event)), True)[1]
+                "on_active_event": lambda event: (
+                    scene.game_events_received.append(("active", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -149,7 +155,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_fps_event": lambda event: (scene.game_events_received.append(("fps", event)), True)[1]
+                "on_fps_event": lambda event: (
+                    scene.game_events_received.append(("fps", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -168,7 +177,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_game_event": lambda event: (scene.game_events_received.append(("game", event)), True)[1]
+                "on_game_event": lambda event: (
+                    scene.game_events_received.append(("game", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -187,7 +199,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_menu_item_event": lambda event: (scene.game_events_received.append(("menu_item", event)), True)[1]
+                "on_menu_item_event": lambda event: (
+                    scene.game_events_received.append(("menu_item", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -206,7 +221,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_sys_wm_event": lambda event: (scene.game_events_received.append(("sys_wm", event)), True)[1]
+                "on_sys_wm_event": lambda event: (
+                    scene.game_events_received.append(("sys_wm", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -225,7 +243,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_user_event": lambda event: (scene.game_events_received.append(("user", event)), True)[1]
+                "on_user_event": lambda event: (
+                    scene.game_events_received.append(("user", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -245,7 +266,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_expose_event": lambda event: (scene.game_events_received.append(("video_expose", event)), True)[1]
+                "on_video_expose_event": lambda event: (
+                    scene.game_events_received.append(("video_expose", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -264,7 +288,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_resize_event": lambda event: (scene.game_events_received.append(("video_resize", event)), True)[1]
+                "on_video_resize_event": lambda event: (
+                    scene.game_events_received.append(("video_resize", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -285,18 +312,21 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_active_event": lambda event: (scene.game_events_received.append(("active", event)), True)[1]
+                "on_active_event": lambda event: (
+                    scene.game_events_received.append(("active", event)),
+                    True,
+                )[1]
             }
         )
 
         # Test different gain states
         gain_states = [
-            (1, 1),   # Gained focus
-            (0, 1),   # Lost focus
-            (1, 2),   # Gained mouse
-            (0, 2),   # Lost mouse
-            (1, 4),   # Gained keyboard
-            (0, 4),   # Lost keyboard
+            (1, 1),  # Gained focus
+            (0, 1),  # Lost focus
+            (1, 2),  # Gained mouse
+            (0, 2),  # Lost mouse
+            (1, 4),  # Gained keyboard
+            (0, 4),  # Lost keyboard
         ]
 
         for gain, state in gain_states:
@@ -319,7 +349,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_user_event": lambda event: (scene.game_events_received.append(("user", event)), True)[1]
+                "on_user_event": lambda event: (
+                    scene.game_events_received.append(("user", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -343,14 +376,17 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_resize_event": lambda event: (scene.game_events_received.append(("video_resize", event)), True)[1]
+                "on_video_resize_event": lambda event: (
+                    scene.game_events_received.append(("video_resize", event)),
+                    True,
+                )[1]
             }
         )
 
         # Test different window dimensions
         dimensions = [
-            (640, 480),   # VGA
-            (800, 600),   # SVGA
+            (640, 480),  # VGA
+            (800, 600),  # SVGA
             (1024, 768),  # XGA
             (1280, 720),  # HD
             (1920, 1080),  # Full HD
@@ -378,7 +414,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_game_event": lambda event: (scene.game_events_received.append(("game", event)), True)[1]
+                "on_game_event": lambda event: (
+                    scene.game_events_received.append(("game", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -409,7 +448,10 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_menu_item_event": lambda event: (scene.game_events_received.append(("menu", event)), True)[1]
+                "on_menu_item_event": lambda event: (
+                    scene.game_events_received.append(("menu", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -443,7 +485,10 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_render_device_reset_event": lambda event: (scene.game_events_received.append(("render_device_reset", event)), None)[1]
+                "on_render_device_reset_event": lambda event: (
+                    scene.game_events_received.append(("render_device_reset", event)),
+                    None,
+                )[1]
             }
         )
 
@@ -462,7 +507,10 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_render_targets_reset_event": lambda event: (scene.game_events_received.append(("render_targets_reset", event)), None)[1]
+                "on_render_targets_reset_event": lambda event: (
+                    scene.game_events_received.append(("render_targets_reset", event)),
+                    None,
+                )[1]
             }
         )
 
@@ -481,7 +529,10 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_clipboard_update_event": lambda event: (scene.game_events_received.append(("clipboard_update", event)), None)[1]
+                "on_clipboard_update_event": lambda event: (
+                    scene.game_events_received.append(("clipboard_update", event)),
+                    None,
+                )[1]
             }
         )
 
@@ -500,7 +551,10 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_locale_changed_event": lambda event: (scene.game_events_received.append(("locale_changed", event)), None)[1]
+                "on_locale_changed_event": lambda event: (
+                    scene.game_events_received.append(("locale_changed", event)),
+                    None,
+                )[1]
             }
         )
 
@@ -513,4 +567,3 @@ class TestGameEvents:
         assert len(scene.game_events_received) == 1
         assert scene.game_events_received[0][0] == "locale_changed"
         assert scene.game_events_received[0][1].type == pygame.LOCALECHANGED
-

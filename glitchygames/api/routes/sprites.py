@@ -93,8 +93,7 @@ def _save_sprite_files(
         for frame_info in rendered_frames:
             frame_bytes = base64.b64decode(frame_info.png_base64)
             frame_path = save_dir / (
-                f"animation-{frame_info.animation_index}-"
-                f"frame-{frame_info.frame_index}.png"
+                f"animation-{frame_info.animation_index}-frame-{frame_info.frame_index}.png"
             )
             frame_path.write_bytes(frame_bytes)
             saved_files.append(str(frame_path))

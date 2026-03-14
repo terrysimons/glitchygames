@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """Comprehensive tests for the updated undo/redo system with frame-specific operations."""
 
-import time
-
 import pytest
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
-from glitchygames.tools.undo_redo_manager import Operation, OperationType, UndoRedoManager
+from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
 
 
 class TestUndoRedoManagerBasic:
@@ -39,7 +36,7 @@ class TestUndoRedoManagerBasic:
             operation_type=OperationType.CANVAS_PIXEL_CHANGE,
             description="Test pixel change",
             undo_data=undo_data,
-            redo_data=redo_data
+            redo_data=redo_data,
         )
 
         assert len(self.manager.undo_stack) == 1
@@ -58,7 +55,7 @@ class TestUndoRedoManagerBasic:
             OperationType.CANVAS_PIXEL_CHANGE,
             "Test operation",
             {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))}
+            {"pixel": (10, 20, (0, 255, 0))},
         )
 
         result = self.manager.undo()
@@ -78,7 +75,7 @@ class TestUndoRedoManagerBasic:
             OperationType.CANVAS_PIXEL_CHANGE,
             "Test operation",
             {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))}
+            {"pixel": (10, 20, (0, 255, 0))},
         )
 
         # Undo first
@@ -112,8 +109,12 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Frame-specific brush stroke",
-            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
+            undo_data={
+                "pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]
+            },  # (x, y, new_color, old_color)
+            redo_data={
+                "pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]
+            },  # (x, y, old_color, new_color)
         )
 
         frame_key = ("walk_animation", 1)
@@ -133,7 +134,7 @@ class TestFrameSpecificUndoRedo:
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
             undo_data={"pixels": []},
-            redo_data={"pixels": []}
+            redo_data={"pixels": []},
         )
 
         assert self.manager.can_undo_frame("walk_animation", 1)
@@ -149,7 +150,7 @@ class TestFrameSpecificUndoRedo:
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
             undo_data={"pixels": []},
-            redo_data={"pixels": []}
+            redo_data={"pixels": []},
         )
 
         assert not self.manager.can_redo_frame("walk_animation", 1)
@@ -173,8 +174,12 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
+            undo_data={
+                "pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]
+            },  # (x, y, new_color, old_color)
+            redo_data={
+                "pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]
+            },  # (x, y, old_color, new_color)
         )
 
         # Undo the operation
@@ -198,8 +203,12 @@ class TestFrameSpecificUndoRedo:
             frame=1,
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description="Test operation",
-            undo_data={"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            redo_data={"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
+            undo_data={
+                "pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]
+            },  # (x, y, new_color, old_color)
+            redo_data={
+                "pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]
+            },  # (x, y, old_color, new_color)
         )
 
         self.manager.undo_frame("walk_animation", 1)
@@ -226,7 +235,7 @@ class TestCanvasOperationTracker:
         """Test adding frame-specific pixel changes."""
         pixels = [
             PixelChange(10, 20, (255, 0, 0), (0, 255, 0)),
-            PixelChange(11, 20, (255, 0, 0), (0, 255, 0))
+            PixelChange(11, 20, (255, 0, 0), (0, 255, 0)),
         ]
 
         self.tracker.add_frame_pixel_changes("walk_animation", 1, pixels)
@@ -241,10 +250,7 @@ class TestCanvasOperationTracker:
 
     def test_add_frame_pixel_changes_with_tuples(self):
         """Test adding frame-specific pixel changes with tuple format."""
-        pixels = [
-            (10, 20, (255, 0, 0), (0, 255, 0)),
-            (11, 20, (255, 0, 0), (0, 255, 0))
-        ]
+        pixels = [(10, 20, (255, 0, 0), (0, 255, 0)), (11, 20, (255, 0, 0), (0, 255, 0))]
 
         self.tracker.add_frame_pixel_changes("run_animation", 2, pixels)
 
@@ -258,9 +264,7 @@ class TestCanvasOperationTracker:
 
     def test_add_pixel_changes_global_fallback(self):
         """Test that global tracking still works as fallback."""
-        pixels = [
-            (10, 20, (255, 0, 0), (0, 255, 0))
-        ]
+        pixels = [(10, 20, (255, 0, 0), (0, 255, 0))]
 
         self.tracker.add_pixel_changes(pixels)
 
@@ -279,12 +283,7 @@ class TestFilmStripOperationTracker:
 
     def test_add_frame_added(self):
         """Test tracking frame addition."""
-        frame_data = {
-            "width": 32,
-            "height": 32,
-            "pixels": [255, 0, 0] * 32 * 32,
-            "duration": 1.0
-        }
+        frame_data = {"width": 32, "height": 32, "pixels": [255, 0, 0] * 32 * 32, "duration": 1.0}
         self.tracker.add_frame_added(2, "walk_animation", frame_data)
 
         assert len(self.manager.undo_stack) == 1
@@ -294,12 +293,7 @@ class TestFilmStripOperationTracker:
 
     def test_add_frame_deleted(self):
         """Test tracking frame deletion."""
-        frame_data = {
-            "width": 32,
-            "height": 32,
-            "pixels": [255, 0, 0] * 32 * 32,
-            "duration": 1.0
-        }
+        frame_data = {"width": 32, "height": 32, "pixels": [255, 0, 0] * 32 * 32, "duration": 1.0}
         self.tracker.add_frame_deleted(1, "run_animation", frame_data)
 
         assert len(self.manager.undo_stack) == 1
@@ -312,7 +306,7 @@ class TestFilmStripOperationTracker:
         animation_data = {
             "frames": [
                 {"width": 32, "height": 32, "pixels": [255, 0, 0] * 32 * 32, "duration": 1.0},
-                {"width": 32, "height": 32, "pixels": [0, 255, 0] * 32 * 32, "duration": 1.0}
+                {"width": 32, "height": 32, "pixels": [0, 255, 0] * 32 * 32, "duration": 1.0},
             ]
         }
         self.tracker.add_animation_added("new_animation", animation_data)
@@ -358,7 +352,7 @@ class TestUndoRedoCallbacks:
             delete_frame_callback=self.mock_delete_frame_callback,
             reorder_frame_callback=self.mock_reorder_frame_callback,
             add_animation_callback=self.mock_add_animation_callback,
-            delete_animation_callback=self.mock_delete_animation_callback
+            delete_animation_callback=self.mock_delete_animation_callback,
         )
 
     def test_canvas_operation_callbacks(self):
@@ -368,7 +362,7 @@ class TestUndoRedoCallbacks:
             OperationType.CANVAS_BRUSH_STROKE,
             "Test brush stroke",
             {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
         )
 
         self.manager.undo()
@@ -381,7 +375,7 @@ class TestUndoRedoCallbacks:
             OperationType.FILM_STRIP_FRAME_ADD,
             "Test frame add",
             {"frame_index": 1, "animation_name": "test", "frame_data": {}},
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}}
+            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
         )
 
         self.manager.undo()
@@ -392,7 +386,7 @@ class TestUndoRedoCallbacks:
             OperationType.FILM_STRIP_FRAME_DELETE,
             "Test frame delete",
             {"frame_index": 1, "animation_name": "test", "frame_data": {}},
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}}
+            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
         )
 
         self.manager.undo()
@@ -403,7 +397,7 @@ class TestUndoRedoCallbacks:
             OperationType.FILM_STRIP_ANIMATION_ADD,
             "Test animation add",
             {"animation_name": "test", "animation_data": {}},
-            {"animation_name": "test", "animation_data": {}}
+            {"animation_name": "test", "animation_data": {}},
         )
 
         self.manager.undo()
@@ -414,7 +408,7 @@ class TestUndoRedoCallbacks:
             OperationType.FILM_STRIP_ANIMATION_DELETE,
             "Test animation delete",
             {"animation_name": "test", "animation_data": {}},
-            {"animation_name": "test", "animation_data": {}}
+            {"animation_name": "test", "animation_data": {}},
         )
 
         self.manager.undo()
@@ -443,7 +437,7 @@ class TestIntegrationScenarios:
             delete_frame_callback=mock_delete_frame_callback,
             reorder_frame_callback=mocker.Mock(return_value=True),
             add_animation_callback=mocker.Mock(return_value=True),
-            delete_animation_callback=mocker.Mock(return_value=True)
+            delete_animation_callback=mocker.Mock(return_value=True),
         )
 
         # Add canvas operation
@@ -548,7 +542,7 @@ class TestEdgeCases:
                 OperationType.CANVAS_PIXEL_CHANGE,
                 f"Operation {i}",
                 {"data": f"undo{i}"},
-                {"data": f"redo{i}"}
+                {"data": f"redo{i}"},
             )
 
         assert len(manager.undo_stack) == 3  # Should be limited to max_history
@@ -562,7 +556,7 @@ class TestEdgeCases:
                 OperationType.CANVAS_PIXEL_CHANGE,
                 f"Operation {i}",
                 {"data": f"undo{i}"},
-                {"data": f"redo{i}"}
+                {"data": f"redo{i}"},
             )
 
         assert len(self.manager.undo_stack) == 3
@@ -583,7 +577,7 @@ class TestEdgeCases:
             OperationType.CANVAS_BRUSH_STROKE,
             "Test operation",
             {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]}   # (x, y, old_color, new_color)
+            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
         )
 
         # Undo should fail

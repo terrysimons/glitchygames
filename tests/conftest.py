@@ -27,7 +27,6 @@ def pytest_configure(config):
     """Configure pytest to enable strict event handling for all tests."""
     # This ensures that unhandled events cause tests to fail, catching bugs
     # The no_unhandled_events flag is enabled globally in mock_game fixture
-    pass
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +35,10 @@ def setup_conditional_pygame_mocks(request, mocker):
 
     Uses pytest-mock's mocker fixture for automatic cleanup — no manual
     teardown needed.
+
+    Yields:
+        dict: The mock pygame patches dictionary, or an empty dict if no mocks are needed.
+
     """
     # Check if this is a scene test or game objects test that needs mocks
     test_file = str(request.node.fspath)
@@ -44,6 +47,7 @@ def setup_conditional_pygame_mocks(request, mocker):
     if needs_mocks:
         # Ensure pygame is properly initialized for mocks
         import pygame
+
         if not pygame.get_init():
             pygame.init()
         # Ensure display mode is set (needed after pygame.quit() from other tests)
@@ -51,9 +55,7 @@ def setup_conditional_pygame_mocks(request, mocker):
             pygame.display.set_mode((800, 600))
 
         # Use mocker-based mocks — cleanup is automatic
-        mocks = MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-        yield mocks
+        yield MockFactory.setup_pygame_mocks_with_mocker(mocker)
     else:
         # No mocks needed for this test
         yield {}
@@ -94,7 +96,12 @@ def reset_singletons():
 
 @pytest.fixture
 def mock_game_args(mocker):
-    """Create mock command line arguments for testing."""
+    """Create mock command line arguments for testing.
+
+    Returns:
+        object: The result.
+
+    """
     mock_args = mocker.Mock()
     mock_args.fps = 60
     mock_args.resolution = "800x600"  # String format expected by GameEngine
@@ -115,9 +122,14 @@ def mock_pygame_patches(mocker):
 
     Uses pytest-mock's mocker fixture for automatic cleanup — no manual
     teardown needed.
+
+    Returns:
+        object: The result.
+
     """
     # Ensure pygame is properly initialized for mocks
     import pygame
+
     if not pygame.get_init():
         pygame.init()
     # Ensure display mode is set (needed after pygame.quit() from other tests)
@@ -126,12 +138,18 @@ def mock_pygame_patches(mocker):
 
     mocks = MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    yield mocks
+    return mocks
 
 
 @pytest.fixture
 def mock_game(mocker):
-    """Create a mock game scene for testing."""
+    """Create a mock game scene for testing.
+
+    Returns:
+        object: The result.
+
+    """
+
     class MockGame(Scene):
         """Simple mock game scene for testing."""
 
@@ -142,7 +160,7 @@ def mock_game(mocker):
             if options is None:
                 options = {
                     "debug_events": False,
-                    "no_unhandled_events": True  # Enable globally to catch unhandled events as bugs
+                    "no_unhandled_events": True,  # Enable globally to catch unhandled events as bugs
                 }
             if groups is None:
                 groups = mocker.Mock()  # Mock pygame.sprite.Group
@@ -153,7 +171,12 @@ def mock_game(mocker):
 
         @classmethod
         def args(cls, parser):
-            """Add mock game arguments."""
+            """Add mock game arguments.
+
+            Returns:
+                object: The result.
+
+            """
             parser.add_argument("--test-flag", action="store_true", help="Test flag")
             return parser
 
@@ -165,14 +188,24 @@ def mock_game(mocker):
 
 @pytest.fixture
 def mock_game_with_args(mock_game):
-    """Create a mock game that properly handles command line arguments."""
+    """Create a mock game that properly handles command line arguments.
+
+    Returns:
+        object: The result.
+
+    """
 
     class MockGameWithArgs(mock_game):
         """Mock game that properly handles command line arguments."""
 
         @classmethod
         def args(cls, parser):
-            """Add mock game arguments."""
+            """Add mock game arguments.
+
+            Returns:
+                object: The result.
+
+            """
             parser.add_argument("--test-flag", action="store_true", help="Test flag")
             return parser
 
@@ -181,19 +214,34 @@ def mock_game_with_args(mock_game):
 
 @pytest.fixture
 def mock_surface():
-    """Create a mock pygame surface for testing."""
+    """Create a mock pygame surface for testing.
+
+    Returns:
+        object: The result.
+
+    """
     return MockFactory.create_pygame_surface_mock(32, 32)
 
 
 @pytest.fixture
 def mock_joystick_manager():
-    """Create a mock joystick manager for testing."""
+    """Create a mock joystick manager for testing.
+
+    Returns:
+        object: The result.
+
+    """
     return MockFactory.create_joystick_manager_mock(joystick_count=0)  # No joysticks by default
 
 
 @pytest.fixture
 def mock_managers(mocker):
-    """Create mock managers for testing."""
+    """Create mock managers for testing.
+
+    Returns:
+        object: The result.
+
+    """
     return {
         "joystick_manager": mocker.Mock(),
         "font_manager": mocker.Mock(),

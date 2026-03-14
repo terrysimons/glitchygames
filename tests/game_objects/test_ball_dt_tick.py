@@ -5,7 +5,6 @@ import math
 
 import pytest
 from glitchygames.game_objects.ball import BallSprite
-from glitchygames.movement import Speed
 
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -15,6 +14,7 @@ class TestBallDtTick:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_dt_tick(self):
@@ -26,7 +26,7 @@ class TestBallDtTick:
 
         # Test movement in different directions
         directions = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
-        dt = 1.0/60.0  # 60 FPS
+        dt = 1.0 / 60.0  # 60 FPS
 
         print(f"Testing with dt={dt:.4f} (60 FPS)")
         print("Direction | Initial Pos | Final Pos  | Distance | Speed")
@@ -54,7 +54,9 @@ class TestBallDtTick:
             final_x, final_y = ball.rect.x, ball.rect.y
 
             # Calculate distance moved
-            distance = math.sqrt((final_x - initial_x)**2 + (final_y - initial_y)**2)
+            distance = math.sqrt((final_x - initial_x) ** 2 + (final_y - initial_y) ** 2)
             actual_speed = distance / 1.0  # distance per second
 
-            print(f"{direction:8d}° | ({initial_x:3d},{initial_y:3d})     | ({final_x:3d},{final_y:3d})    | {distance:6.1f} | {actual_speed:6.1f}")
+            print(
+                f"{direction:8d}° | ({initial_x:3d},{initial_y:3d})     | ({final_x:3d},{final_y:3d})    | {distance:6.1f} | {actual_speed:6.1f}"
+            )

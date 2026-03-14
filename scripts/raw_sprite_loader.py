@@ -36,9 +36,6 @@ class BitmappyLegacySprite(Sprite):
             filename (str): The filename to load.
             **kwargs: Keyword arguments to pass to the parent class.
 
-        Returns:
-            Self
-
         """
         super().__init__(*args, width=0, height=0, **kwargs)
         self.image = None
@@ -125,9 +122,6 @@ class BitmappyLegacySprite(Sprite):
         Args:
             filename (str): The filename to save to.
 
-        Returns:
-            None
-
         """
         config = self.deflate()
 
@@ -142,6 +136,9 @@ class BitmappyLegacySprite(Sprite):
 
         Returns:
             configparser.ConfigParser: The config parser.
+
+        Raises:
+            ValueError: If there are too many unique colors to map to characters.
 
         """
         config = configparser.ConfigParser(dict_type=OrderedDict)
@@ -257,9 +254,6 @@ class GameScene(Scene):
         Args:
             filename (str): The filename to load.
 
-        Returns:
-            None
-
         """
         super().__init__()
         self.screen = pygame.display.get_surface()
@@ -288,9 +282,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            None
-
         """
         super().__init__(options=options)
         self.filename = options.get("filename")
@@ -301,9 +292,6 @@ class Game(Scene):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
 
         """
         parser.add_argument(

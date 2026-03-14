@@ -33,6 +33,7 @@ CONTROLLER_EVENTS = [
 
 TEST_DURATION = 15
 
+
 def print_device_event(event):
     """Print details of a joystick or controller device event."""
     # Map of name for known device events for both joysticks and controllers
@@ -73,13 +74,13 @@ def dump_event(event):
         if hasattr(event, "guid"):
             print(f"   Event guid: {event.guid}")
 
-
     except Exception as e:
         print(f"⚠️  Error dumping event: {e}")
         print(f"   Raw event: {event}")
 
 
 def process_events():
+    """Process all pending pygame events including controller input."""
     try:
         events = pygame.event.get()
         for event in events:
@@ -98,11 +99,12 @@ def process_events():
 
     current_count = pygame._sdl2.controller.get_count()
     if current_count != getattr(process_events, "last_count", 0):
-        print(f"📊 Controller count changed: {getattr(process_events, 'last_count', 0)} → {current_count}")
+        print(
+            f"📊 Controller count changed: {getattr(process_events, 'last_count', 0)} → {current_count}"
+        )
         process_events.last_count = current_count
 
     time.sleep(0.1)
-
 
 
 def test_controller_hotplug():
@@ -135,7 +137,6 @@ def test_controller_hotplug():
     start_time = time.time()
     while time.time() - start_time < TEST_DURATION:
         process_events()
-
 
     # Test 2: With joystick event blocking
     print("\n=== TEST 2: With joystick event blocking ===")

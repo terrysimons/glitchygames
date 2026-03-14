@@ -84,7 +84,7 @@ class TestSceneManager:
         mock_engine.OPTIONS = {
             "update_type": "update",
             "fps_log_interval_ms": FPS_REFRESH_RATE,
-            "target_fps": 60
+            "target_fps": 60,
         }
         scene_manager.game_engine = mock_engine
         assert scene_manager.game_engine == mock_engine
@@ -198,7 +198,7 @@ class TestSceneManager:
         mock_engine.OPTIONS = {
             "update_type": "update",
             "fps_log_interval_ms": FPS_REFRESH_RATE,
-            "target_fps": 60
+            "target_fps": 60,
         }
         scene_manager.game_engine = mock_engine
 
@@ -212,9 +212,7 @@ class TestSceneManager:
 
         # Test registering game event (may not exist in all implementations)
         with contextlib.suppress(AttributeError):
-            scene_manager.register_game_event(
-                "test_event", mock_callback
-            )
+            scene_manager.register_game_event("test_event", mock_callback)
 
     def test_scene_manager_getattr(self):
         """Test SceneManager __getattr__ method."""
@@ -262,9 +260,7 @@ class TestSceneManager:
         scene_manager = self.scene_manager
 
         # Set up proper OPTIONS structure
-        scene_manager.OPTIONS = {
-            "fps_log_interval_ms": FPS_REFRESH_RATE
-        }
+        scene_manager.OPTIONS = {"fps_log_interval_ms": FPS_REFRESH_RATE}
 
         # Test FPS event posting logic
         current_time = 1.0

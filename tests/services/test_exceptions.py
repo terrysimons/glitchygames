@@ -1,6 +1,5 @@
 """Tests for service exceptions."""
 
-import pytest
 from glitchygames.services.exceptions import (
     AIProviderError,
     RenderingError,

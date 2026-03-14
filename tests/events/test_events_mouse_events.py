@@ -69,7 +69,9 @@ class TestMouseEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_mouse_button_down_event": lambda event: scene.mouse_events_received.append(event) or True
+                "on_mouse_button_down_event": lambda event: (
+                    scene.mouse_events_received.append(event) or True
+                )
             }
         )
 
@@ -87,7 +89,9 @@ class TestMouseEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_mouse_button_up_event": lambda event: scene.mouse_events_received.append(event) or True
+                "on_mouse_button_up_event": lambda event: (
+                    scene.mouse_events_received.append(event) or True
+                )
             }
         )
 
@@ -105,7 +109,9 @@ class TestMouseEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_mouse_motion_event": lambda event: scene.mouse_events_received.append(event) or True
+                "on_mouse_motion_event": lambda event: (
+                    scene.mouse_events_received.append(event) or True
+                )
             }
         )
 
@@ -236,12 +242,14 @@ class TestMouseEvents:
         # Exception was raised as expected
 
     def _setup_mock_game_for_stub(self, stub):
-        """Set up mock game object for event stubs."""
+        """Set up mock game object for event stubs.
+
+        Returns:
+            object: The result.
+
+        """
         scene_mock = MockFactory.create_event_test_scene_mock(
-            options={
-                "debug_events": False,
-                "no_unhandled_events": True
-            }
+            options={"debug_events": False, "no_unhandled_events": True}
         )
         stub.options = scene_mock.options
         return scene_mock
@@ -287,7 +295,9 @@ class TestMouseEventManager:
 
         # Test mouse motion - use mocker.patch.object to prevent recursive calls
         mock_handler = mocker.patch.object(scene_mock, "on_mouse_motion_event")
-        motion_event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0))
+        motion_event = HashableEvent(
+            pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0)
+        )
         manager.on_mouse_motion_event(motion_event)
         mock_handler.assert_called_once_with(motion_event)
 
@@ -497,7 +507,7 @@ class TestMouseEventManager:
         manager.on_mouse_button_down_event(btn5)
 
         scene.on_mouse_scroll_down_event.assert_called_once()  # button 4 maps to scroll down in code
-        scene.on_mouse_scroll_up_event.assert_called_once()    # button 5 maps to scroll up in code
+        scene.on_mouse_scroll_up_event.assert_called_once()  # button 5 maps to scroll up in code
 
     def test_focus_enter_unfocus_sequence_updates_state(self, mock_pygame_patches, mocker):
         """Entering focus should unfocus old, set current to new, and call handlers."""

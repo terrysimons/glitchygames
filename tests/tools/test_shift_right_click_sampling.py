@@ -19,6 +19,7 @@ class TestShiftRightClickSampling:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
@@ -27,8 +28,7 @@ class TestShiftRightClickSampling:
 
         # Create film strip sprite
         self.film_strip_sprite = bitmappy.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget,
-            x=100, y=100, width=200, height=100
+            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
         )
 
         # Create a mock parent scene with the _sample_color_from_screen method
@@ -166,13 +166,19 @@ class TestShiftRightClickSampling:
         # Add the right-click handler method to the mock scene
         def mock_on_right_mouse_button_up_event(event):
             # Check if the click is on the canvas to sample canvas pixel data
-            if hasattr(scene, "canvas") and scene.canvas and scene.canvas.rect.collidepoint(event.pos):
+            if (
+                hasattr(scene, "canvas")
+                and scene.canvas
+                and scene.canvas.rect.collidepoint(event.pos)
+            ):
                 canvas_x = (event.pos[0] - scene.canvas.rect.x) // scene.canvas.pixel_width
                 canvas_y = (event.pos[1] - scene.canvas.rect.y) // scene.canvas.pixel_height
 
                 # Check bounds
-                if (0 <= canvas_x < scene.canvas.pixels_across and
-                    0 <= canvas_y < scene.canvas.pixels_tall):
+                if (
+                    0 <= canvas_x < scene.canvas.pixels_across
+                    and 0 <= canvas_y < scene.canvas.pixels_tall
+                ):
                     pixel_num = canvas_y * scene.canvas.pixels_across + canvas_x
 
                     if pixel_num < len(scene.canvas.pixels):
@@ -264,7 +270,11 @@ class TestShiftRightClickSampling:
             key_state = mock_get_pressed()
             is_shift_click = key_state[pygame.K_LSHIFT] or key_state[pygame.K_RSHIFT]
 
-            if hasattr(scene, "canvas") and scene.canvas and scene.canvas.rect.collidepoint(event.pos):
+            if (
+                hasattr(scene, "canvas")
+                and scene.canvas
+                and scene.canvas.rect.collidepoint(event.pos)
+            ):
                 if is_shift_click:
                     scene._sample_color_from_screen(event.pos)
                     return

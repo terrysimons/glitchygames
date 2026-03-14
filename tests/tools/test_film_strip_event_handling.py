@@ -27,8 +27,7 @@ class TestFilmStripEventHandling:
 
         # Create film strip sprite
         self.film_strip_sprite = bitmappy.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget,
-            x=100, y=100, width=200, height=100
+            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
         )
 
     def test_right_click_inside_bounds_returns_true(self):
@@ -60,7 +59,9 @@ class TestFilmStripEventHandling:
     def test_right_click_with_frame_selection_returns_true(self):
         """Test that right-click on a frame for color sampling returns True."""
         # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
+            return_value=("animation", 0)
+        )
 
         # Create a mock right-click event inside the film strip
         event = MockFactory.create_pygame_event_mock()
@@ -143,7 +144,9 @@ class TestFilmStripEventHandling:
     def test_frame_selection_takes_priority_over_onion_skinning(self):
         """Test that frame selection for color sampling takes priority over onion skinning."""
         # Mock the film strip widget to return a frame (color sampling)
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
+            return_value=("animation", 0)
+        )
         self.film_strip_widget.handle_click = self._mocker.Mock(return_value=None)
 
         # Create a mock right-click event

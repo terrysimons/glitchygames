@@ -58,7 +58,12 @@ class BitrotAdventures(Scene):
     # clobbered an existing option.
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Game specific command line arguments."""
+        """Game specific command line arguments.
+
+        Returns:
+            argparse.ArgumentParser: The result.
+
+        """
         parser.add_argument("-s", "--some-game-specific-option", help="foo help")
         return parser
 

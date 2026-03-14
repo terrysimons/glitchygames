@@ -14,6 +14,7 @@ class TestBallExponentialSpeedUp:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_exponential_x_speed_up(self):
@@ -21,7 +22,7 @@ class TestBallExponentialSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -35,14 +36,14 @@ class TestBallExponentialSpeedUp:
         expected_x = 100.0 * (1.2 ** (100.0 / 100.0))  # 100 * 1.2^1 = 120
         assert ball.speed.x == pytest.approx(expected_x, abs=1e-5)
         # Y speed should remain unchanged
-        assert ball.speed.y == 50.0
+        assert math.isclose(ball.speed.y, 50.0)
 
     def test_exponential_y_speed_up(self):
         """Test exponential Y speed-up."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
             speed_up_multiplier=1.5,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -53,7 +54,7 @@ class TestBallExponentialSpeedUp:
         ball.speed_up(speed_up_type="exponential_y")
 
         # X speed should remain unchanged
-        assert ball.speed.x == 200.0
+        assert math.isclose(ball.speed.x, 200.0)
         # Y speed should be exponentially increased
         expected_y = 150.0 * (1.5 ** (150.0 / 100.0))  # 150 * 1.5^1.5 ~= 275.6
         assert ball.speed.y == pytest.approx(expected_y, abs=0.1)
@@ -61,9 +62,10 @@ class TestBallExponentialSpeedUp:
     def test_exponential_both_speed_up(self):
         """Test exponential both X and Y speed-up."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
+            | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
             speed_up_multiplier=1.3,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -85,7 +87,7 @@ class TestBallExponentialSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed with zero X component
@@ -96,16 +98,16 @@ class TestBallExponentialSpeedUp:
         ball.speed_up(speed_up_type="exponential_x")
 
         # X speed should remain zero (no change for zero speed)
-        assert ball.speed.x == 0.0
+        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
         # Y speed should remain unchanged
-        assert ball.speed.y == 100.0
+        assert math.isclose(ball.speed.y, 100.0)
 
     def test_continuous_exponential_speed_up(self):
         """Test continuous exponential speed-up."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -122,14 +124,14 @@ class TestBallExponentialSpeedUp:
         expected_x = 50.0 * (1.1 ** (50.0 / 100.0))  # 50 * 1.1^0.5 ~= 52.4
         assert ball.speed.x == pytest.approx(expected_x, abs=0.1)
         # Y speed should remain unchanged
-        assert ball.speed.y == 75.0
+        assert math.isclose(ball.speed.y, 75.0)
 
     def test_paddle_bounce_exponential_speed_up(self):
         """Test paddle bounce exponential speed-up."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X,
             speed_up_multiplier=1.4,
-            speed_up_interval=1.0
+            speed_up_interval=1.0,
         )
 
         # Set initial speed
@@ -143,14 +145,14 @@ class TestBallExponentialSpeedUp:
         expected_x = 200.0 * (1.4 ** (200.0 / 100.0))  # 200 * 1.4^2 = 392
         assert ball.speed.x == pytest.approx(expected_x, abs=0.1)
         # Y speed should remain unchanged
-        assert ball.speed.y == 100.0
+        assert math.isclose(ball.speed.y, 100.0)
 
     def test_wall_bounce_exponential_speed_up(self):
         """Test wall bounce exponential speed-up."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_Y,
             speed_up_multiplier=1.3,
-            speed_up_interval=1.0
+            speed_up_interval=1.0,
         )
 
         # Set initial speed
@@ -161,7 +163,7 @@ class TestBallExponentialSpeedUp:
         ball._check_bounce_speed_up("wall")
 
         # X speed should remain unchanged
-        assert ball.speed.x == 150.0
+        assert math.isclose(ball.speed.x, 150.0)
         # Y speed should be exponentially increased
         expected_y = 80.0 * (1.3 ** (80.0 / 100.0))  # 80 * 1.3^0.8 ~= 100.4
         assert ball.speed.y == pytest.approx(expected_y, abs=0.1)
@@ -169,9 +171,10 @@ class TestBallExponentialSpeedUp:
     def test_combined_exponential_modes(self):
         """Test combined exponential X and Y modes."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
+            | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -194,9 +197,10 @@ class TestBallExponentialSpeedUp:
     def test_exponential_speed_up_priority(self):
         """Test that exponential speed-up has higher priority than logarithmic."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
+            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
+            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -213,14 +217,14 @@ class TestBallExponentialSpeedUp:
         expected_x = 100.0 * (1.2 ** (100.0 / 100.0))  # 100 * 1.2^1 = 120
         assert ball.speed.x == pytest.approx(expected_x, abs=0.1)
         # Y speed should remain unchanged
-        assert ball.speed.y == 50.0
+        assert math.isclose(ball.speed.y, 50.0)
 
     def test_exponential_speed_up_extreme_values(self):
         """Test exponential speed-up with extreme speed values."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set very high initial speed
@@ -232,17 +236,17 @@ class TestBallExponentialSpeedUp:
 
         # X speed should be exponentially increased but capped to prevent runaway growth
         # With cap of 2.0: 1000 * 1.1^2 = 1210
-        expected_x = 1000.0 * (1.1 ** 2.0)  # Capped at 2.0 to prevent runaway growth
+        expected_x = 1000.0 * (1.1**2.0)  # Capped at 2.0 to prevent runaway growth
         assert ball.speed.x == pytest.approx(expected_x, abs=0.1)
         # Y speed should remain unchanged
-        assert ball.speed.y == 500.0
+        assert math.isclose(ball.speed.y, 500.0)
 
     def test_exponential_speed_up_negative_speed(self):
         """Test exponential speed-up with negative speed values."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set negative initial speed
@@ -256,4 +260,4 @@ class TestBallExponentialSpeedUp:
         expected_x = -100.0 * (1.2 ** (100.0 / 100.0))  # -100 * 1.2^1 = -120
         assert ball.speed.x == pytest.approx(expected_x, abs=0.1)
         # Y speed should remain unchanged
-        assert ball.speed.y == 50.0
+        assert math.isclose(ball.speed.y, 50.0)

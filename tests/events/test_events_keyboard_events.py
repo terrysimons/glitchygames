@@ -59,7 +59,9 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: scene.keyboard_events_received.append(event) or True
+                "on_key_down_event": lambda event: (
+                    scene.keyboard_events_received.append(event) or True
+                )
             }
         )
 
@@ -77,7 +79,9 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_up_event": lambda event: scene.keyboard_events_received.append(event) or True
+                "on_key_up_event": lambda event: (
+                    scene.keyboard_events_received.append(event) or True
+                )
             }
         )
 
@@ -95,7 +99,10 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_down_event": lambda event, keys: (scene.keyboard_events_received.append(("chord_down", event, keys)), True)[1]
+                "on_key_chord_down_event": lambda event, keys: (
+                    scene.keyboard_events_received.append(("chord_down", event, keys)),
+                    True,
+                )[1]
             }
         )
 
@@ -116,7 +123,10 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_up_event": lambda event, keys: (scene.keyboard_events_received.append(("chord_up", event, keys)), True)[1]
+                "on_key_chord_up_event": lambda event, keys: (
+                    scene.keyboard_events_received.append(("chord_up", event, keys)),
+                    True,
+                )[1]
             }
         )
 
@@ -137,8 +147,12 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: scene.keyboard_events_received.append(("down", event)) or True,
-                "on_key_up_event": lambda event: scene.keyboard_events_received.append(("up", event)) or True
+                "on_key_down_event": lambda event: (
+                    scene.keyboard_events_received.append(("down", event)) or True
+                ),
+                "on_key_up_event": lambda event: (
+                    scene.keyboard_events_received.append(("up", event)) or True
+                ),
             }
         )
 
@@ -175,8 +189,14 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (scene.keyboard_events_received.append(("down", event)), True)[1],
-                "on_key_up_event": lambda event: (scene.keyboard_events_received.append(("up", event)), True)[1]
+                "on_key_down_event": lambda event: (
+                    scene.keyboard_events_received.append(("down", event)),
+                    True,
+                )[1],
+                "on_key_up_event": lambda event: (
+                    scene.keyboard_events_received.append(("up", event)),
+                    True,
+                )[1],
             }
         )
 
@@ -211,8 +231,14 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_down_event": lambda event, keys: (scene.keyboard_events_received.append(("chord_down", event, keys)), True)[1],
-                "on_key_chord_up_event": lambda event, keys: (scene.keyboard_events_received.append(("chord_up", event, keys)), True)[1]
+                "on_key_chord_down_event": lambda event, keys: (
+                    scene.keyboard_events_received.append(("chord_down", event, keys)),
+                    True,
+                )[1],
+                "on_key_chord_up_event": lambda event, keys: (
+                    scene.keyboard_events_received.append(("chord_up", event, keys)),
+                    True,
+                )[1],
             }
         )
 
@@ -246,7 +272,10 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (scene.keyboard_events_received.append(("down", event)), True)[1]
+                "on_key_down_event": lambda event: (
+                    scene.keyboard_events_received.append(("down", event)),
+                    True,
+                )[1]
             }
         )
 
@@ -269,12 +298,17 @@ class TestKeyboardEvents:
         assert len(scene.keyboard_events_received) == 3
 
     def _setup_mock_scene_for_stub(self, stub):
-        """Set up mock scene object for event stubs using centralized mocks."""
+        """Set up mock scene object for event stubs using centralized mocks.
+
+        Returns:
+            object: The result.
+
+        """
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
                 "debug_events": False,
-                "no_unhandled_events": True  # This will cause UnhandledEventError to be raised
+                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
             }
         )
         # Set the options on the stub so unhandled_event can access them

@@ -27,6 +27,7 @@ class TestTOMLOnlySupport:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -81,7 +82,9 @@ class TestTOMLOnlySupport:
 
         # Load it back
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == "test_toml"
         # Check that the sprite was loaded correctly
@@ -120,7 +123,9 @@ class TestTOMLOnlySupport:
 
         # Load it back
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == "test_animated_toml"
         assert "test_anim" in loaded_sprite.animations

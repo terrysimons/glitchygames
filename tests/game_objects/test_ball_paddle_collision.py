@@ -1,5 +1,7 @@
 """Test ball paddle collision detection and clipping prevention."""
 
+import math
+
 import pytest
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
@@ -12,16 +14,26 @@ class TestBallPaddleCollision:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_paddle_collision_detection(self, mocker):
         """Test that ball detects collision with paddle."""
         # Create a ball and paddle with collision sound
         import pygame
+
         group = pygame.sprite.Group()
 
         ball = BallSprite(x=100, y=100, groups=group)
-        paddle = VerticalPaddle("Test Paddle", (20, 100), (50, 50), (255, 255, 255), 400, collision_sound="test.wav", groups=group)
+        paddle = VerticalPaddle(
+            "Test Paddle",
+            (20, 100),
+            (50, 50),
+            (255, 255, 255),
+            400,
+            collision_sound="test.wav",
+            groups=group,
+        )
 
         # Position ball so it overlaps with paddle
         ball.rect.x = 55  # Overlaps with paddle at x=50, width=20
@@ -44,7 +56,7 @@ class TestBallPaddleCollision:
 
         # Position ball so it's on the left side of paddle
         ball.rect.centerx = 55  # Left of paddle center
-        ball.rect.right = 65    # Overlapping with paddle
+        ball.rect.right = 65  # Overlapping with paddle
 
         # Adjust position
         ball._adjust_position_for_paddle_collision(paddle)
@@ -64,7 +76,7 @@ class TestBallPaddleCollision:
 
         # Position ball so it's on the right side of paddle
         ball.rect.centerx = 65  # Right of paddle center
-        ball.rect.left = 55     # Overlapping with paddle
+        ball.rect.left = 55  # Overlapping with paddle
 
         # Adjust position
         ball._adjust_position_for_paddle_collision(paddle)
@@ -76,10 +88,13 @@ class TestBallPaddleCollision:
         """Test that no adjustment occurs when ball and paddle don't overlap."""
         # Create a ball and paddle with collision sound
         ball = BallSprite(x=100, y=100)
-        paddle = VerticalPaddle("Test Paddle", (20, 100), (50, 50), (255, 255, 255), 400, collision_sound="test.wav")
+        paddle = VerticalPaddle(
+            "Test Paddle", (20, 100), (50, 50), (255, 255, 255), 400, collision_sound="test.wav"
+        )
 
         # Add both to a real pygame group
         import pygame
+
         group = pygame.sprite.Group()
         group.add(ball, paddle)
 
@@ -96,10 +111,19 @@ class TestBallPaddleCollision:
         """Test that ball bounces off paddle correctly."""
         # Create a ball and paddle with collision sound
         import pygame
+
         group = pygame.sprite.Group()
 
         ball = BallSprite(x=100, y=100, groups=group)
-        paddle = VerticalPaddle("Test Paddle", (20, 100), (50, 50), (255, 255, 255), 400, collision_sound="test.wav", groups=group)
+        paddle = VerticalPaddle(
+            "Test Paddle",
+            (20, 100),
+            (50, 50),
+            (255, 255, 255),
+            400,
+            collision_sound="test.wav",
+            groups=group,
+        )
 
         # Position ball so it overlaps with paddle
         ball.rect.x = 55  # Overlaps with paddle at x=50, width=20
@@ -117,6 +141,6 @@ class TestBallPaddleCollision:
         # Ball should bounce (X speed should be positive after hitting right side)
         assert ball.speed.x > 0
         # Y speed should be unchanged
-        assert ball.speed.y == 50.0
+        assert math.isclose(ball.speed.y, 50.0)
         # Ball should be marked as dirty
         assert ball.dirty == 2

@@ -29,9 +29,7 @@ class TestTemplateDiscovery:
         def is_dir_side_effect(path):
             # Check if the path ends with a template name
             path_str = str(path)
-            return any(template in path_str for template in [
-                "template1", "template2"
-            ])
+            return any(template in path_str for template in ["template1", "template2"])
 
         mock_is_dir.side_effect = is_dir_side_effect
 
@@ -77,9 +75,9 @@ class TestTemplateDiscovery:
 
         def is_dir_side_effect(path):
             path_str = str(path)
-            return any(name in path_str for name in [
-                "template1", "__pycache__", ".git", "__init__.py"
-            ])
+            return any(
+                name in path_str for name in ["template1", "__pycache__", ".git", "__init__.py"]
+            )
 
         mock_is_dir.side_effect = is_dir_side_effect
 

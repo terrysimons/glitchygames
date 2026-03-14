@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Tests for timer backend deadline computation and monotonicity."""
+
 import os
 import time
 
@@ -7,6 +9,7 @@ from glitchygames.timing import FastTimer, PygameTimer
 
 
 def test_fast_timer_compute_deadline_monotonic():
+    """Test that FastTimer compute_deadline produces monotonically increasing values."""
     t = FastTimer(sleep_granularity_ns=0)
     period = 1_000_000  # 1ms
     d0 = t.compute_deadline(None, period)
@@ -16,10 +19,12 @@ def test_fast_timer_compute_deadline_monotonic():
 
 
 def test_pygame_timer_ns_now_monotonic():
+    """Test that PygameTimer ns_now returns monotonically increasing values."""
     # Ensure headless-friendly init; respect existing setting if provided
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     try:
         import pygame
+
         if not pygame.get_init():
             pygame.init()
         # Some environments require a display module init
@@ -36,5 +41,3 @@ def test_pygame_timer_ns_now_monotonic():
     time.sleep(0.001)
     b = p.ns_now()
     assert b >= a
-
-

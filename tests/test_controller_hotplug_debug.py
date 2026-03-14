@@ -31,7 +31,6 @@ def _prompt_or_skip(message: str) -> None:
 
 def test_controller_hotplug():
     """Test controller hotplug detection with different event blocking configurations."""
-
     # Initialize pygame
     pygame.init()
     pygame._sdl2.controller.init()
@@ -60,7 +59,9 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
+            print(
+                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
+            )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -84,7 +85,9 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
+            print(
+                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
+            )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -114,7 +117,9 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
+            print(
+                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
+            )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -138,13 +143,16 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            print(f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}")
+            print(
+                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
+            )
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
 
     print("\n=== Test Complete ===")
     pygame.quit()
+
 
 if __name__ == "__main__":
     test_controller_hotplug()

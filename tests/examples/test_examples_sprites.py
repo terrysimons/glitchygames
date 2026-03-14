@@ -284,7 +284,12 @@ class TestExamplesSprites:
 
     @staticmethod
     def _extract_pixel_data(surface):
-        """Extract pixel data from a pygame surface as RGB tuples."""
+        """Extract pixel data from a pygame surface as RGB tuples.
+
+        Returns:
+            object: The result.
+
+        """
         width, height = surface.get_size()
         pixels = []
 

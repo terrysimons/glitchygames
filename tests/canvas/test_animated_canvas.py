@@ -53,17 +53,17 @@ class TestAnimatedCanvasSprite:
         )
 
         # Create a film strip widget for testing
-        self.canvas.film_strip = FilmStripWidget(
-            x=100,
-            y=0,
-            width=400,
-            height=100
-        )
+        self.canvas.film_strip = FilmStripWidget(x=100, y=0, width=400, height=100)
         self.canvas.film_strip.set_animated_sprite(self.animated_sprite)
 
     @staticmethod
     def _create_test_animated_sprite():
-        """Create a test animated sprite with multiple animations and frames."""
+        """Create a test animated sprite with multiple animations and frames.
+
+        Returns:
+            object: The result.
+
+        """
         # Create frames for idle animation
         idle_surface1 = pygame.Surface((8, 8))
         idle_surface1.fill((255, 0, 0))  # Red
@@ -292,6 +292,7 @@ class TestAnimatedCanvasSpriteEdgeCases:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
@@ -312,7 +313,7 @@ class TestAnimatedCanvasSpriteEdgeCases:
             pixel_height=16,
         )
 
-        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)  # noqa: E501
+        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)
         assert not canvas.current_animation
         assert canvas.current_frame == 0
 

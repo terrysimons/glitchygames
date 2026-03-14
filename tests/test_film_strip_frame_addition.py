@@ -1,5 +1,7 @@
 """Tests for film strip frame addition functionality."""
 
+import math
+
 import pygame
 import pytest
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
@@ -17,7 +19,12 @@ CANVAS_HEIGHT = 8
 
 
 def _create_blank_frame_mock(width, height, duration=0.5):
-    """Create a proper SpriteFrame for use as a _create_blank_frame mock return value."""
+    """Create a proper SpriteFrame for use as a _create_blank_frame mock return value.
+
+    Returns:
+        object: The result.
+
+    """
     surface = MockFactory.create_pygame_surface_mock(width, height)
     surface.fill((255, 0, 255))
     frame = SpriteFrame(surface, duration=duration)
@@ -30,6 +37,10 @@ def _mock_parent_scene(animated_sprite, mocker):
 
     Sets up canvas.animated_sprite so that film_strip._update_film_tabs()
     can iterate _animations.keys() without hitting 'Mock is not iterable'.
+
+    Returns:
+        object: The result.
+
     """
     parent_scene = mocker.Mock()
     parent_scene._on_frame_inserted = mocker.Mock()
@@ -106,7 +117,7 @@ class TestFilmStripFrameAddition:
 
         # Verify film strip reinitialized its preview animations
         # The preview animation time should be reset to 0.0 for multi-frame
-        assert film_strip.preview_animation_times["idle"] == 0.0
+        assert math.isclose(film_strip.preview_animation_times["idle"], 0.0, abs_tol=1e-9)
 
         # Verify parent scene was notified
         film_strip.parent_scene._on_frame_inserted.assert_called_once_with("idle", 1)
@@ -230,8 +241,10 @@ class TestFilmStripFrameAddition:
         film_strip._insert_frame_at_tab(tab)
 
         # Verify preview animation timing was reinitialized
-        assert film_strip.preview_animation_times["idle"] == 0.0  # Multi-frame timing
-        assert film_strip.preview_animation_speeds["idle"] == 1.0
+        assert math.isclose(
+            film_strip.preview_animation_times["idle"], 0.0, abs_tol=1e-9
+        )  # Multi-frame timing
+        assert math.isclose(film_strip.preview_animation_speeds["idle"], 1.0)
         assert len(film_strip.preview_frame_durations["idle"]) == TEST_SIZE_2
 
         # Test that animation updates work
@@ -246,7 +259,7 @@ class TestFilmStripFrameAddition:
         animated_sprite = AnimatedSprite()
         animated_sprite._animations = {
             "idle": [frame1],  # Single frame
-            "walk": [frame1, frame2]  # Multi frame
+            "walk": [frame1, frame2],  # Multi frame
         }
         animated_sprite.frame_manager.current_animation = "idle"
 

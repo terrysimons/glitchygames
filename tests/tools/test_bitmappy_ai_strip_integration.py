@@ -21,6 +21,7 @@ class TestAISStripIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
@@ -47,9 +48,7 @@ class TestAISStripIntegration:
         mock_frame2 = self._mocker.Mock()
         mock_frame2.pixels = [(0, 0, 255), (255, 255, 0)]  # Blue, Yellow
 
-        scene.canvas.animated_sprite._animations = {
-            "test_animation": [mock_frame1, mock_frame2]
-        }
+        scene.canvas.animated_sprite._animations = {"test_animation": [mock_frame1, mock_frame2]}
 
         # Mock the AnimatedSprite.save method
         mock_sprite_class = mocker.patch("glitchygames.sprites.animated.AnimatedSprite")
@@ -112,18 +111,18 @@ class TestAISStripIntegration:
         mock_frame2 = self._mocker.Mock()
         mock_frame2.pixels = [(0, 0, 255), (255, 255, 0)]
 
-        scene.canvas.animated_sprite._animations = {
-            "test_animation": [mock_frame1, mock_frame2]
-        }
+        scene.canvas.animated_sprite._animations = {"test_animation": [mock_frame1, mock_frame2]}
 
         # Mock the helper methods
         scene._check_current_frame_has_content = self._mocker.Mock(return_value=True)
         scene._save_current_frame_to_temp_toml = self._mocker.Mock(return_value="/tmp/frame.toml")  # noqa: S108
         scene._save_current_strip_to_temp_toml = self._mocker.Mock(return_value="/tmp/strip.toml")  # noqa: S108
-        scene._load_temp_toml_as_example = self._mocker.Mock(side_effect=[
-            {"name": "selected_frame", "sprite_type": "static", "pixels": "test_frame"},
-            {"name": "selected_strip", "sprite_type": "animated", "pixels": "test_strip"}
-        ])
+        scene._load_temp_toml_as_example = self._mocker.Mock(
+            side_effect=[
+                {"name": "selected_frame", "sprite_type": "static", "pixels": "test_frame"},
+                {"name": "selected_strip", "sprite_type": "animated", "pixels": "test_strip"},
+            ]
+        )
 
         # Mock debug_text
         scene.debug_text = self._mocker.Mock()

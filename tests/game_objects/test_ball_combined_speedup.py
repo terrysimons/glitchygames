@@ -20,6 +20,7 @@ class TestBallCombinedSpeedUp:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         # Mock screen dimensions for consistent testing
         self.screen_width = 800
@@ -30,7 +31,7 @@ class TestBallCombinedSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.05  # Short interval for testing
+            speed_up_interval=0.05,  # Short interval for testing
         )
 
         ball.speed = Speed(100.0, 200.0)
@@ -59,7 +60,7 @@ class TestBallCombinedSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
             speed_up_multiplier=1.15,
-            speed_up_interval=0.05  # Short interval for testing
+            speed_up_interval=0.05,  # Short interval for testing
         )
 
         ball.speed = Speed(150.0, 100.0)
@@ -80,8 +81,9 @@ class TestBallCombinedSpeedUp:
     def test_combined_logarithmic_x_and_y(self):
         """Test combining logarithmic X and Y speed-up modes."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.25
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
+            | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
+            speed_up_multiplier=1.25,
         )
 
         ball.speed = Speed(200.0, 150.0)
@@ -105,10 +107,7 @@ class TestBallCombinedSpeedUp:
 
     def test_all_linear_modes(self):
         """Test all linear speed-up modes combined."""
-        ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ALL_LINEAR,
-            speed_up_multiplier=1.1
-        )
+        ball = BallSprite(speed_up_mode=SpeedUpMode.ALL_LINEAR, speed_up_multiplier=1.1)
 
         ball.speed = Speed(100.0, 200.0)
         initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
@@ -136,7 +135,7 @@ class TestBallCombinedSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ALL_LOGARITHMIC_X,
             speed_up_multiplier=1.2,
-            speed_up_interval=0.05  # Short interval for testing
+            speed_up_interval=0.05,  # Short interval for testing
         )
 
         ball.speed = Speed(100.0, 200.0)
@@ -163,7 +162,7 @@ class TestBallCombinedSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ALL_LOGARITHMIC_Y,
             speed_up_multiplier=1.3,
-            speed_up_interval=0.05  # Short interval for testing
+            speed_up_interval=0.05,  # Short interval for testing
         )
 
         ball.speed = Speed(100.0, 200.0)
@@ -190,7 +189,7 @@ class TestBallCombinedSpeedUp:
         """Test mixed linear and logarithmic modes for different bounce types."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_BOUNCE_LINEAR | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.15
+            speed_up_multiplier=1.15,
         )
 
         ball.speed = Speed(150.0, 100.0)
@@ -216,7 +215,7 @@ class TestBallCombinedSpeedUp:
         """Test that speed-up modes are handled with correct priority."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR | SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
-            speed_up_multiplier=1.1
+            speed_up_multiplier=1.1,
         )
 
         ball.speed = Speed(100.0, 200.0)
@@ -235,8 +234,9 @@ class TestBallCombinedSpeedUp:
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.2
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
+            | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
+            speed_up_multiplier=1.2,
         )
 
         ball.speed = Speed(100.0, 150.0)
@@ -256,17 +256,17 @@ class TestBallCombinedSpeedUp:
         """Test combined modes with zero speed components."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.5
+            speed_up_multiplier=1.5,
         )
 
         # Test with zero X
         ball.speed = Speed(0.0, 100.0)
         ball.on_paddle_bounce()
-        assert ball.speed.x == 0.0  # Should remain zero
+        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)  # Should remain zero
         assert ball.speed.y == pytest.approx(100.0 * 1.5)  # Y should scale
 
         # Test with zero Y
         ball.speed = Speed(100.0, 0.0)
         ball.on_paddle_bounce()
         assert ball.speed.x == pytest.approx(100.0 * 1.5)  # X should scale
-        assert ball.speed.y == 0.0  # Should remain zero
+        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)  # Should remain zero

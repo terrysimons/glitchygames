@@ -11,6 +11,7 @@ class TestInterfaceMeta:
 
     def test_sprite_and_scene_interface_combination(self):
         """Test that a class can implement both interfaces."""
+
         class GameObject(SpriteInterface, SceneInterface):
             def update_nested_sprites(self):
                 pass

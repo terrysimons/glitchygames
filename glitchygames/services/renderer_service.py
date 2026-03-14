@@ -172,9 +172,7 @@ class RendererService:
             rendered_frames = []
             LOG.info(f"render_all_frames={render_all_frames}, frame_count={frame_count}")
             if render_all_frames and frame_count > 1:
-                all_frames_base64, rendered_frames = self._render_all_frames(
-                    sprite, scale
-                )
+                all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
                 LOG.info(f"Rendered {len(all_frames_base64)} frames")
             else:
                 LOG.info(
@@ -241,9 +239,7 @@ class RendererService:
 
         return png_bytes, png_base64
 
-    def _render_all_frames(
-        self, sprite, scale: int = 1
-    ) -> tuple[list[str], list[RenderedFrame]]:
+    def _render_all_frames(self, sprite, scale: int = 1) -> tuple[list[str], list[RenderedFrame]]:
         """Render all frames of an animated sprite to PNG.
 
         Args:
@@ -283,9 +279,7 @@ class RendererService:
 
         try:
             # Iterate through all animations and their frames
-            for animation_index, (animation_name, frames) in enumerate(
-                all_animations.items()
-            ):
+            for animation_index, (animation_name, frames) in enumerate(all_animations.items()):
                 LOG.debug(f"Animation '{animation_name}' has {len(frames)} frames")
 
                 if has_frame_manager:

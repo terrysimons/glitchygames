@@ -28,6 +28,7 @@ class TestInputBoxFunctionality:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
@@ -56,7 +57,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Assert
@@ -89,7 +90,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -119,7 +120,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created and has expected properties
@@ -150,7 +151,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -180,7 +181,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -210,7 +211,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -240,7 +241,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -270,7 +271,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created
@@ -300,7 +301,7 @@ class TestInputBoxFunctionality:
             y=TEST_INPUT_Y_POS,
             width=TEST_INPUT_WIDTH,
             height=TEST_INPUT_HEIGHT,
-            name="TestInputBox"
+            name="TestInputBox",
         )
 
         # Test that inputbox can be created

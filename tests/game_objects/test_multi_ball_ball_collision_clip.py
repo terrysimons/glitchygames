@@ -53,10 +53,7 @@ def test_multi_ball_ball_collision_clip():
         balls.append(ball)
 
     # Record initial magnitudes — clipping should not change any speeds
-    initial_magnitudes = [
-        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
-        for ball in balls
-    ]
+    initial_magnitudes = [math.sqrt(ball.speed.x**2 + ball.speed.y**2) for ball in balls]
 
     # Track statistics
     wall_bounces = 0
@@ -72,9 +69,7 @@ def test_multi_ball_ball_collision_clip():
 
     while frame_count < max_frames and any(ball.alive() for ball in balls):
         # Tick cooldowns at start of each frame
-        expired_pairs = [
-            pair for pair, remaining in collision_cooldowns.items() if remaining <= 1
-        ]
+        expired_pairs = [pair for pair, remaining in collision_cooldowns.items() if remaining <= 1]
         for pair in expired_pairs:
             del collision_cooldowns[pair]
         for pair in collision_cooldowns:
@@ -110,15 +105,13 @@ def test_multi_ball_ball_collision_clip():
                 ball.dt_tick(dt)
 
                 # Detect wall bounces by speed direction flip at boundaries
-                if (
-                    old_speed_x * ball.speed.x < 0
-                    and (ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1)
+                if old_speed_x * ball.speed.x < 0 and (
+                    ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1
                 ):
                     wall_bounces += 1
 
-                if (
-                    old_speed_y * ball.speed.y < 0
-                    and (ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1)
+                if old_speed_y * ball.speed.y < 0 and (
+                    ball.rect.y <= 1 or ball.rect.y >= 600 - ball.height - 1
                 ):
                     wall_bounces += 1
 
@@ -127,10 +120,7 @@ def test_multi_ball_ball_collision_clip():
     final_alive = sum(1 for ball in balls if ball.alive())
 
     # Compute final magnitudes
-    final_magnitudes = [
-        math.sqrt(ball.speed.x ** 2 + ball.speed.y ** 2)
-        for ball in balls
-    ]
+    final_magnitudes = [math.sqrt(ball.speed.x**2 + ball.speed.y**2) for ball in balls]
 
     pygame.quit()
 

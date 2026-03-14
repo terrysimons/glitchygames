@@ -38,6 +38,7 @@ class TestSpriteInterface:
 
     def test_sprite_interface_inheritance(self):
         """Test that SpriteInterface can be inherited."""
+
         class TestSprite(SpriteInterface):
             def update_nested_sprites(self):
                 pass

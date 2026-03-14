@@ -22,7 +22,14 @@ class AnimationScene(Scene):
     """Scene for displaying animated sprites."""
 
     def __init__(self):
-        """Initialize the animation scene."""
+        """Initialize the animation scene.
+
+        Raises:
+            FileNotFoundError: If the animation TOML file is not found.
+            ValueError: If the animation data is invalid.
+            RuntimeError: If the animation system fails to initialize.
+
+        """
         super().__init__()
 
         # Create sprite group for the scene
@@ -53,7 +60,12 @@ class AnimationScene(Scene):
             self.animated_sprite.update(dt or 0.016)
 
     def handle_event(self, event):
-        """Handle scene events."""
+        """Handle scene events.
+
+        Returns:
+            object: The result.
+
+        """
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE or event.unicode.lower() == "q":
                 return "quit"
@@ -73,7 +85,12 @@ class AnimationScene(Scene):
 
 
 def main():
-    """Run the animation scene demo."""
+    """Run the animation scene demo.
+
+    Returns:
+        object: The result.
+
+    """
     # Initialize pygame
     pygame.init()
 

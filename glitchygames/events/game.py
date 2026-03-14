@@ -26,9 +26,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 game: the game instance
 
-            Returns:
-                None
-
             """
             super().__init__(game=game)
             self.game: Scene = game
@@ -40,9 +37,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # ACTIVEEVENT      gain, state
             self.game.on_active_event(event=event)
@@ -52,9 +46,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # FPSEVENT is pygame.USEREVENT + 1
@@ -66,9 +57,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # GAMEEVENT is pygame.USEREVENT + 2
             self.game.on_game_event(event=event)
@@ -78,9 +66,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # MENUEVENT is pygame.USEREVENT + 3
@@ -92,9 +77,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # SYSWMEVENT
             self.game.on_sys_wm_event(event=event)
@@ -104,9 +86,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # USEREVENT        code
@@ -118,9 +97,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # VIDEOEXPOSE      none
             self.game.on_video_expose_event(event=event)
@@ -130,9 +106,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # VIDEORESIZE      size, w, h
@@ -144,9 +117,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # QUIT             none
             self.game.on_quit_event(event=event)
@@ -156,9 +126,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # RENDER_DEVICE_RESET
@@ -170,9 +137,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # RENDER_TARGETS_RESET
             self.game.on_render_targets_reset_event(event=event)
@@ -182,9 +146,6 @@ class GameEventManager(ResourceManager, GameEvents):
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             # CLIPBOARDUPDATE
@@ -196,9 +157,6 @@ class GameEventManager(ResourceManager, GameEvents):
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             # LOCALECHANGED
             self.game.on_locale_changed_event(event=event)
@@ -209,12 +167,11 @@ class GameEventManager(ResourceManager, GameEvents):
         Args:
             game: The game instance.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
-        self.proxies: list[GameEventManager.GameEventProxy] = [GameEventManager.GameEventProxy(game=game)]
+        self.proxies: list[GameEventManager.GameEventProxy] = [
+            GameEventManager.GameEventProxy(game=game)
+        ]
 
     def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active event."""
@@ -289,7 +246,7 @@ class GameEventManager(ResourceManager, GameEvents):
             parser (argparse.ArgumentParser): The argument parser.
 
         Returns:
-            None
+            argparse.ArgumentParser: The result.
 
         """
         group = parser.add_argument_group("Game Options")

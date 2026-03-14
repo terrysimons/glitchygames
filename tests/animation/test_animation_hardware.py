@@ -21,7 +21,12 @@ from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
         / "glitchygames"
@@ -85,7 +90,12 @@ class HardwareAnimationTestScene(Scene):
 
     @staticmethod
     def capture_hardware_display_buffer() -> list[tuple[int, int, int]]:
-        """Capture pixel data directly from the hardware display buffer."""
+        """Capture pixel data directly from the hardware display buffer.
+
+        Returns:
+            list[tuple[int, int, int]]: The result.
+
+        """
         # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
 
@@ -100,7 +110,12 @@ class HardwareAnimationTestScene(Scene):
         return pixels
 
     def capture_test_surface_pixels(self) -> list[tuple[int, int, int]]:
-        """Capture pixel data from our test surface (scene-level rendering)."""
+        """Capture pixel data from our test surface (scene-level rendering).
+
+        Returns:
+            list[tuple[int, int, int]]: The result.
+
+        """
         # Clear the test surface
         self.test_surface.fill(self.background_color)
 
@@ -121,7 +136,12 @@ class HardwareAnimationTestScene(Scene):
         return pixels
 
     def capture_sprite_pixels(self) -> list[tuple[int, int, int]]:
-        """Capture pixel data directly from the sprite surface."""
+        """Capture pixel data directly from the sprite surface.
+
+        Returns:
+            list[tuple[int, int, int]]: The result.
+
+        """
         if not self.animated_sprite:
             return []
 
@@ -142,7 +162,12 @@ class HardwareAnimationTestScene(Scene):
         return pixels
 
     def get_sprite_area_from_hardware_buffer(self) -> list[tuple[int, int, int]]:
-        """Get sprite area pixels from the hardware display buffer."""
+        """Get sprite area pixels from the hardware display buffer.
+
+        Returns:
+            list[tuple[int, int, int]]: The sprite area from hardware buffer.
+
+        """
         display_surface = pygame.display.get_surface()
         sprite_rect = self.animated_sprite.rect
 
@@ -176,6 +201,7 @@ class TestAnimationHardware:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):

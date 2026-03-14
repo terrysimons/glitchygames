@@ -31,7 +31,7 @@ def main() -> None:
     args = get_args()
 
     if args.list:
-        [print(x) for x in templates.get_templates()]  # noqa: T201
+        [print(x) for x in templates.get_templates()]
     elif args.template == "pong":
         templates.build("pong")
 

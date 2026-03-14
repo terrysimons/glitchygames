@@ -47,7 +47,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.mock_sprite._animations.update({
             "walk": walk_sprite._animations["walk"],
             "jump": jump_sprite._animations["jump"],
-            "attack": attack_sprite._animations["attack"]
+            "attack": attack_sprite._animations["attack"],
         })
 
         # Reload the sprite to create film strips for all animations

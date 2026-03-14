@@ -22,7 +22,12 @@ from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
         / "glitchygames"
@@ -86,7 +91,12 @@ class AnimationTestScene(Scene):
             self.animated_sprite.update(self.dt)
 
     def capture_frame_pixels(self) -> list[tuple[int, int, int]]:
-        """Capture current frame pixel data from the test surface."""
+        """Capture current frame pixel data from the test surface.
+
+        Returns:
+            list[tuple[int, int, int]]: The result.
+
+        """
         # Clear the test surface
         self.test_surface.fill(self.background_color)
 
@@ -107,7 +117,12 @@ class AnimationTestScene(Scene):
         return pixels
 
     def get_sprite_pixel_data(self) -> list[tuple[int, int, int]]:
-        """Get pixel data directly from the animated sprite's current frame."""
+        """Get pixel data directly from the animated sprite's current frame.
+
+        Returns:
+            list[tuple[int, int, int]]: The sprite pixel data.
+
+        """
         if not self.animated_sprite:
             return []
 
@@ -133,6 +148,7 @@ class TestAnimationVisual:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):

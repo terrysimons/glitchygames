@@ -26,6 +26,7 @@ class TestCharacterLimitEnforcement:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -106,8 +107,9 @@ class TestCharacterLimitEnforcement:
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
         call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-        assert any("Pixels list length mismatch: 65 vs expected 81" in msg
-                  for msg in call_args_list)
+        assert any(
+            "Pixels list length mismatch: 65 vs expected 81" in msg for msg in call_args_list
+        )
         assert any("Error in deflate" in msg for msg in call_args_list)
         assert any("Error in save" in msg for msg in call_args_list)
 
@@ -220,20 +222,21 @@ class TestCharacterLimitEnforcement:
         with pytest.raises(ValueError, match="Too many colors"):
             animated_sprite.save(str(toml_file), "toml")
 
-    @pytest.mark.parametrize("width,height", [
-        (1, 64),   # 1x64 grid
-        (2, 32),   # 2x32 grid
-        (4, 16),   # 4x16 grid
-        (8, 8),    # 8x8 grid
-        (16, 4),   # 16x4 grid
-        (32, 2),   # 32x2 grid
-        (64, 1),   # 64x1 grid
-    ])
+    @pytest.mark.parametrize(
+        "width,height",
+        [
+            (1, 64),  # 1x64 grid
+            (2, 32),  # 2x32 grid
+            (4, 16),  # 4x16 grid
+            (8, 8),  # 8x8 grid
+            (16, 4),  # 16x4 grid
+            (32, 2),  # 32x2 grid
+            (64, 1),  # 64x1 grid
+        ],
+    )
     def test_character_limit_edge_cases(self, width, height):
         """Test character limit enforcement with edge cases."""
-        sprite = BitmappySprite(
-            x=0, y=0, width=width, height=height, name=f"test_{width}x{height}"
-        )
+        sprite = BitmappySprite(x=0, y=0, width=width, height=height, name=f"test_{width}x{height}")
 
         # Create 64 unique colors
         colors = []

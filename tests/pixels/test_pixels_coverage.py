@@ -32,7 +32,12 @@ class TestPixelsCoverage:
     """Test coverage for Pixels module."""
 
     def _create_mock_surface(self):
-        """Create a mock surface using MockFactory."""
+        """Create a mock surface using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_surface = MockFactory.create_pygame_surface_mock_object()
         mock_surface.get_width.return_value = 8
         mock_surface.get_height.return_value = 8
@@ -40,7 +45,12 @@ class TestPixelsCoverage:
         return mock_surface
 
     def _create_mock_pixel_array(self):
-        """Create a mock pixel array using MockFactory."""
+        """Create a mock pixel array using MockFactory.
+
+        Returns:
+            object: The result.
+
+        """
         mock_pixel_array = MockFactory.create_pygame_surface_mock_object()
         mock_pixel_array.make_surface.return_value = self._create_mock_surface()
         return mock_pixel_array
@@ -185,9 +195,9 @@ class TestPixelsCoverage:
 
     def test_pixels_from_path(self, mocker):
         """Test pixels_from_path function."""
-        mocker.patch("pathlib.Path.open", mocker.mock_open(
-            read_data=b"\xff\x00\x00\x00\xff\x00\x00\x00\xff"
-        ))
+        mocker.patch(
+            "pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00\x00\x00\xff")
+        )
         # Test with valid file path
         result = pixels_from_path("test_file.txt")
         assert len(result) == RGB_COMPONENTS_PER_PIXEL
@@ -295,9 +305,7 @@ class TestPixelsCoverage:
     def test_pixels_from_path_edge_cases(self, mocker):
         """Test pixels_from_path edge cases."""
         # Test with file containing invalid data (not divisible by 3)
-        mocker.patch("pathlib.Path.open", mocker.mock_open(
-            read_data=b"\xff\x00"
-        ))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00"))
         mocker.patch("pathlib.Path.exists", return_value=True)
         with pytest.raises(ValueError, match="Pixel data length \\(2\\) is not divisible by 3"):
             pixels_from_path("invalid_file.txt")
@@ -305,9 +313,7 @@ class TestPixelsCoverage:
     def test_pixels_from_path_edge_cases_valid(self, mocker):
         """Test pixels_from_path edge cases with valid data."""
         # Test with file containing valid data
-        mocker.patch("pathlib.Path.open", mocker.mock_open(
-            read_data=b"\xff\x00\x00\x00\xff\x00"
-        ))
+        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00"))
         mocker.patch("pathlib.Path.exists", return_value=True)
         result = pixels_from_path("valid_file.txt")
         assert len(result) == TWO_PIXEL_BYTES // RGB_BYTES_PER_PIXEL

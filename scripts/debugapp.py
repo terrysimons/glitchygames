@@ -25,15 +25,7 @@ class IntroScene(Scene):
     """The intro scene."""
 
     def __init__(self: Self) -> Self:
-        """Initialize the intro scene.
-
-        Args:
-            None
-
-        Returns:
-            Self
-
-        """
+        """Initialize the intro scene."""
         super().__init__()
         self.screen = pygame.display.get_surface()
         self.screen_width = self.screen.get_width()
@@ -57,9 +49,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            Self
-
         """
         super().__init__(options=options)
         # These are set up in the GameEngine class.
@@ -73,9 +62,6 @@ class Game(Scene):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
 
         """
         parser.add_argument(

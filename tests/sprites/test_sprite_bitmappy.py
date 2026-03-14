@@ -28,6 +28,7 @@ class TestBitmappySprite:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -110,7 +111,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
+            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
@@ -137,8 +138,9 @@ class TestBitmappySprite:
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
         call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-        assert any("Pixels list length mismatch: 0 vs expected 1024" in msg
-                  for msg in call_args_list)
+        assert any(
+            "Pixels list length mismatch: 0 vs expected 1024" in msg for msg in call_args_list
+        )
         assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_method_too_many_colors(self, mocker):
@@ -156,8 +158,9 @@ class TestBitmappySprite:
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
         call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-        assert any("Pixels list length mismatch: 100 vs expected 1024" in msg
-                  for msg in call_args_list)
+        assert any(
+            "Pixels list length mismatch: 100 vs expected 1024" in msg for msg in call_args_list
+        )
         assert any("Error in deflate" in msg for msg in call_args_list)
 
     def test_bitmappy_sprite_deflate_pads_and_truncates_pixels(self, mocker):
@@ -167,9 +170,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={
-                "A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)
-            }
+            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
@@ -190,7 +191,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (1, 1, 1), "X": (255, 0, 255)}
+            return_value={"A": (1, 1, 1), "X": (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
@@ -211,9 +212,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={
-                "A": (255, 0, 0), "X": (255, 0, 255)
-            }  # Missing second color
+            return_value={"A": (255, 0, 0), "X": (255, 0, 255)},  # Missing second color
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
@@ -273,7 +272,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
+            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
         )
         result = sprite._create_toml_config()
         assert "sprite" in result
@@ -285,9 +284,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={
-                "A": (255, 0, 0), "X": (255, 0, 255)
-            }  # Missing second color
+            return_value={"A": (255, 0, 0), "X": (255, 0, 255)},  # Missing second color
         )
         color_map = {"A": (255, 0, 0), "X": (255, 0, 255)}
 
@@ -349,7 +346,7 @@ class TestBitmappySprite:
 
         mocker.patch(
             "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)}
+            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
         )
         result = sprite._get_pixel_string()
         assert result is not None
@@ -393,6 +390,7 @@ class TestSingletonBitmappySprite:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -420,6 +418,7 @@ class TestFocusableSingletonBitmappySprite:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):

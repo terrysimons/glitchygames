@@ -12,9 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 # Import and run the game
@@ -26,7 +24,7 @@ if __name__ == "__main__":
     print("Look for BALL MOVE, BALL BOUNCE, and PADDLE HIT messages")
     print("Press Ctrl+C to stop when you see the weird movement")
     print("=" * 50)
-    
+
     try:
         main()
     except KeyboardInterrupt:

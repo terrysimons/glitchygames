@@ -81,7 +81,14 @@ class AnimationGame(Scene):
             self.animated_sprite.set_frame(1)
 
     def _load_animated_sprite(self: Self) -> None:
-        """Load the animated sprite from foo.toml."""
+        """Load the animated sprite from foo.toml.
+
+        Raises:
+            FileNotFoundError: If the animation TOML file is not found.
+            ValueError: If the animation data is invalid.
+            RuntimeError: If the animation system fails to initialize.
+
+        """
         foo_toml_path = Path(__file__).parent.parent / "foo.toml"
 
         try:
@@ -99,7 +106,12 @@ class AnimationGame(Scene):
 
     @classmethod
     def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Add game-specific arguments to the global parser."""
+        """Add game-specific arguments to the global parser.
+
+        Returns:
+            argparse.ArgumentParser: The result.
+
+        """
         parser.add_argument(
             "-v", "--version", action="store_true", help="print the game version and exit"
         )

@@ -67,9 +67,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 game (object): The game object.
                 controller_id (int): The controller id.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
@@ -99,9 +96,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self._axes[event.axis] = event.value
             self.game.on_controller_axis_motion_event(event)
@@ -111,9 +105,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.log.debug(f"CONTROLLERBUTTONDOWN triggered: {event}")
@@ -131,9 +122,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.log.debug(f"CONTROLLERBUTTONUP triggered: {event}")
             if event.button < 0:
@@ -149,9 +137,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             # CONTROLLERDEVICEADDED device_index, guid
             self.game.on_controller_device_added_event(event)
@@ -162,9 +147,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_controller_device_remapped_event(event)
 
@@ -173,9 +155,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # CONTROLLERDEVICEREMOVED instance_id
@@ -187,9 +166,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_controller_touchpad_down_event(event)
 
@@ -199,9 +175,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             Args:
                 event (pygame.event.Event): The event to handle.
 
-            Returns:
-                None
-
             """
             self.game.on_controller_touchpad_motion_event(event)
 
@@ -210,9 +183,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             self.game.on_controller_touchpad_up_event(event)
@@ -248,9 +218,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         Args:
             game (object): The game object.
-
-        Returns:
-            None
 
         """
         super().__init__(game=game)
@@ -319,9 +286,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"CONTROLLERAXISMOTION triggered: on_controller_axis_motion_event({event})")
         self.controllers[event.instance_id].on_controller_axis_motion_event(event)
@@ -331,9 +295,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug(
@@ -347,9 +308,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(f"CONTROLLERBUTTONUPEVENT triggered: on_controller_button_up_event({event})")
         self.controllers[event.instance_id].on_controller_button_up_event(event)
@@ -359,9 +317,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         # CONTROLLERDEVICEADDED device_index, guid
@@ -389,9 +344,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(
             f"CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event({event}"
@@ -404,25 +356,21 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         # CONTROLLERDEVICEREMOVED instance_id
         if event.instance_id in self.controllers:
             self.controllers[event.instance_id].on_controller_device_removed_event(event)
             del self.controllers[event.instance_id]
             self.log.debug(f"Removed Controller #{event.instance_id}")
-            self.log.debug(f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})")
+            self.log.debug(
+                f"CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed({event})"
+            )
 
     def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad down events.
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug(
@@ -436,9 +384,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.debug(
             f"CONTROLLERTOUCHPADMOTION triggered: on_controller_touchpad_motion_event({event})"
@@ -450,9 +395,6 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.debug(f"CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event({event})")

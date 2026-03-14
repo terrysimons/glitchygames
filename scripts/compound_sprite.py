@@ -40,9 +40,6 @@ class GameScene(Scene):
         Args:
             groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
 
-        Returns:
-            None
-
         """
         if groups is None:
             groups = pygame.sprite.Group()
@@ -161,9 +158,6 @@ class GameScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.info(f"Mouse Up Event: {event}")
 
@@ -181,9 +175,6 @@ class Game(Scene):
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            None
-
         """
         super().__init__(options=options)
 
@@ -198,9 +189,6 @@ class Game(Scene):
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Returns:
-            None
 
         """
         parser.add_argument(

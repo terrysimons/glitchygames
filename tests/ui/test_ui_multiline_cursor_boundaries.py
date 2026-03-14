@@ -36,6 +36,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         pygame.init()
         pygame.display.set_mode((800, 600), pygame.HIDDEN)
@@ -60,7 +61,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=width,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         if text:
             textbox.text = text
@@ -115,7 +116,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,  # Wide enough to avoid wrapping
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_SHORT_TEXT  # "Hello" - 5 characters
         textbox.active = True
@@ -144,7 +145,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_MULTILINE_TEXT  # "Line 1\nLine 2\nLine 3"
         textbox.active = True
@@ -177,7 +178,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Line 1\nLine 2"
         textbox.active = True
@@ -199,7 +200,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_NARROW,  # Narrow to force wrapping
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_LONG_TEXT
         textbox.active = True
@@ -207,8 +208,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         # Set cursor to absolute end
         textbox.cursor_pos = len(TEST_LONG_TEXT)
         assert textbox.cursor_pos == len(TEST_LONG_TEXT), (
-            f"Cursor should reach end position {len(TEST_LONG_TEXT)}, "
-            f"got {textbox.cursor_pos}"
+            f"Cursor should reach end position {len(TEST_LONG_TEXT)}, got {textbox.cursor_pos}"
         )
 
     # =========================================================================
@@ -226,7 +226,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "AB\nCD"
         textbox.active = True
@@ -251,7 +251,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "AB\nCD"
         textbox.active = True
@@ -276,7 +276,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_SHORT_TEXT
         textbox.active = True
@@ -301,7 +301,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_SHORT_TEXT
         textbox.active = True
@@ -311,9 +311,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         self._simulate_key_press(mocker, textbox, pygame.K_LEFT)
 
         # Should still be at 0, not negative
-        assert textbox.cursor_pos == 0, (
-            f"Cursor should stay at 0, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 0, f"Cursor should stay at 0, got {textbox.cursor_pos}"
 
     def test_down_arrow_preserves_column_when_possible(self, mocker):
         """Test down arrow maintains column position when next line is long enough."""
@@ -326,7 +324,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "ABCDEF\nGHIJKL"
         textbox.active = True
@@ -352,7 +350,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "ABCDEF\nGHIJKL"
         textbox.active = True
@@ -381,7 +379,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "ABCD"
         textbox.active = True
@@ -404,7 +402,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Short"
         textbox.active = True
@@ -428,7 +426,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_NARROW,  # Force wrapping
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_LONG_TEXT
         textbox.active = True
@@ -454,7 +452,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Line 1\n\nLine 3"  # Empty line in middle
         textbox.active = True
@@ -489,7 +487,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_REPEATED_CHARS  # "aaaaaaaaaa" (10 chars)
         textbox.active = True
@@ -514,7 +512,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "abcabc"  # Repeating pattern
         textbox.active = True
@@ -539,7 +537,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "     "  # 5 spaces
         textbox.active = True
@@ -567,7 +565,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_NARROW,  # Force wrapping
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "A\n" + TEST_LONG_TEXT
         textbox.active = True
@@ -588,7 +586,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_EMPTY_LINES_TEXT  # "Line 1\n\n\nLine 4"
         textbox.active = True
@@ -616,7 +614,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_NARROW,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_LONG_TEXT + "\nShort"
         textbox.active = True
@@ -643,7 +641,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Hello"
         textbox.active = True
@@ -656,9 +654,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "Hell", (
             f"Text should be 'Hell', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 4, (
-            f"Cursor should be at 4, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 4, f"Cursor should be at 4, got {textbox.cursor_pos}"
 
     def test_backspace_at_start_of_line_joins_lines(self, mocker):
         """Test backspace at start of line joins with previous line."""
@@ -671,7 +667,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "AB\nCD"
         textbox.active = True
@@ -684,9 +680,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "ABCD", (
             f"Text should be 'ABCD', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 2, (
-            f"Cursor should be at 2, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 2, f"Cursor should be at 2, got {textbox.cursor_pos}"
 
     def test_delete_at_end_of_line_joins_lines(self, mocker):
         """Test delete at end of line joins with next line."""
@@ -699,7 +693,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "AB\nCD"
         textbox.active = True
@@ -712,9 +706,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "ABCD", (
             f"Text should be 'ABCD', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 2, (
-            f"Cursor should remain at 2, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 2, f"Cursor should remain at 2, got {textbox.cursor_pos}"
 
     def test_delete_at_very_end_of_text(self, mocker):
         """Test delete at absolute end does nothing and doesn't crash."""
@@ -727,7 +719,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Test"
         textbox.active = True
@@ -740,9 +732,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "Test", (
             f"Text should be 'Test', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 4, (
-            f"Cursor should remain at 4, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 4, f"Cursor should remain at 4, got {textbox.cursor_pos}"
 
     # =========================================================================
     # Section 7: Text Insertion at Boundaries Tests
@@ -759,7 +749,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "AB\nCD"
         textbox.active = True
@@ -774,9 +764,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "ABX\nCD", (
             f"Text should be 'ABX\\nCD', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 3, (
-            f"Cursor should be at 3, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 3, f"Cursor should be at 3, got {textbox.cursor_pos}"
 
     def test_insert_at_very_end_of_text(self, mocker):
         """Test inserting at absolute end of text appends correctly."""
@@ -789,7 +777,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Test"
         textbox.active = True
@@ -804,9 +792,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "Test!", (
             f"Text should be 'Test!', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 5, (
-            f"Cursor should be at 5, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 5, f"Cursor should be at 5, got {textbox.cursor_pos}"
 
     def test_insert_newline_in_middle_of_line(self, mocker):
         """Test inserting newline splits line correctly."""
@@ -819,7 +805,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "ABCD"
         textbox.active = True
@@ -832,9 +818,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox._original_text == "AB\nCD", (
             f"Text should be 'AB\\nCD', got '{textbox._original_text}'"
         )
-        assert textbox.cursor_pos == 3, (
-            f"Cursor should be at 3, got {textbox.cursor_pos}"
-        )
+        assert textbox.cursor_pos == 3, f"Cursor should be at 3, got {textbox.cursor_pos}"
 
     # =========================================================================
     # Section 8: Selection at Boundaries Tests
@@ -851,7 +835,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Hello"
         textbox.active = True
@@ -874,12 +858,8 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox.selection_start == 2, (
             f"Selection start should be 2, got {textbox.selection_start}"
         )
-        assert textbox.selection_end == 5, (
-            f"Selection end should be 5, got {textbox.selection_end}"
-        )
-        assert textbox.cursor_pos == 5, (
-            f"Cursor should be at 5, got {textbox.cursor_pos}"
-        )
+        assert textbox.selection_end == 5, f"Selection end should be 5, got {textbox.selection_end}"
+        assert textbox.cursor_pos == 5, f"Cursor should be at 5, got {textbox.cursor_pos}"
 
     def test_selection_from_end_of_line_backwards(self, mocker):
         """Test selection starting at end going backwards."""
@@ -892,7 +872,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_WIDE,
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = "Hello"
         textbox.active = True
@@ -915,12 +895,8 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert textbox.selection_start == 5, (
             f"Selection start should be 5, got {textbox.selection_start}"
         )
-        assert textbox.selection_end == 2, (
-            f"Selection end should be 2, got {textbox.selection_end}"
-        )
-        assert textbox.cursor_pos == 2, (
-            f"Cursor should be at 2, got {textbox.cursor_pos}"
-        )
+        assert textbox.selection_end == 2, f"Selection end should be 2, got {textbox.selection_end}"
+        assert textbox.cursor_pos == 2, f"Cursor should be at 2, got {textbox.cursor_pos}"
 
     def test_selection_across_wrapped_line_boundary(self, mocker):
         """Test selection spanning auto-wrapped line boundary."""
@@ -933,7 +909,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y=TEST_TEXTBOX_Y,
             width=TEST_TEXTBOX_WIDTH_NARROW,  # Force wrapping
             height=TEST_TEXTBOX_HEIGHT,
-            name="TestTextBox"
+            name="TestTextBox",
         )
         textbox.text = TEST_LONG_TEXT
         textbox.active = True

@@ -75,7 +75,7 @@ class TestColorPaletteCoverage:
         palette = ColorPalette(colors=colors)
 
         assert palette._colors == colors
-        assert palette._size == 2  # len(colors) - 1  # noqa: PLR2004
+        assert palette._size == 2  # len(colors) - 1
 
     def test_color_palette_initialization_with_filename(self, mocker):
         """Test ColorPalette initialization with filename."""
@@ -140,7 +140,7 @@ class TestColorPaletteCoverage:
 
         palette.set_color(5, (128, 128, 128))
         assert palette._colors[2] == (128, 128, 128)
-        assert len(palette._colors) == 3  # noqa: PLR2004
+        assert len(palette._colors) == 3
 
 
 class TestPaletteUtilityCoverage:
@@ -155,15 +155,15 @@ class TestPaletteUtilityCoverage:
 
         colors = PaletteUtility.load_palette_from_config(config)
 
-        assert len(colors) == 2  # noqa: PLR2004
-        assert colors[0].r == 255  # noqa: PLR2004
+        assert len(colors) == 2
+        assert colors[0].r == 255
         assert colors[0].g == 0
         assert colors[0].b == 0
-        assert colors[0].a == 255  # noqa: PLR2004
+        assert colors[0].a == 255
         assert colors[1].r == 0
-        assert colors[1].g == 255  # noqa: PLR2004
+        assert colors[1].g == 255
         assert colors[1].b == 0
-        assert colors[1].a == 128  # noqa: PLR2004
+        assert colors[1].a == 128
 
     def test_load_palette_from_config_without_alpha(self):
         """Test load_palette_from_config method without alpha values."""
@@ -174,10 +174,10 @@ class TestPaletteUtilityCoverage:
         colors = PaletteUtility.load_palette_from_config(config)
 
         assert len(colors) == 1
-        assert colors[0].r == 128  # noqa: PLR2004
-        assert colors[0].g == 64  # noqa: PLR2004
-        assert colors[0].b == 192  # noqa: PLR2004
-        assert colors[0].a == 255  # Default alpha  # noqa: PLR2004
+        assert colors[0].r == 128
+        assert colors[0].g == 64
+        assert colors[0].b == 192
+        assert colors[0].a == 255  # Default alpha
 
     def test_load_palette_from_file(self, mocker):
         """Test load_palette_from_file method."""
@@ -204,9 +204,7 @@ alpha = 128
         )
         mock_load.return_value = [(255, 0, 0), (0, 255, 0)]
 
-        PaletteUtility.load_palette_from_file(
-            Path("test.palette")
-        )
+        PaletteUtility.load_palette_from_file(Path("test.palette"))
         mock_load.assert_called_once()
 
     def test_write_palette_to_file(self, mocker):
@@ -219,9 +217,7 @@ alpha = 128
 
         # Verify Path.open was called correctly
         mock_file.assert_called_once_with(output_file, "w")
-        mock_file().write.assert_called_once_with(
-            json.dumps(config_data)
-        )
+        mock_file().write.assert_called_once_with(json.dumps(config_data))
 
     def test_parse_rgb_data_in_file(self, mocker):
         """Test parse_rgb_data_in_file method."""
@@ -231,16 +227,16 @@ alpha = 128
         mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=rgb_content))
         colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
 
-        assert len(colors) == 3  # Duplicate should be removed  # noqa: PLR2004
-        assert colors[0].r == 255  # noqa: PLR2004
+        assert len(colors) == 3  # Duplicate should be removed
+        assert colors[0].r == 255
         assert colors[0].g == 0
         assert colors[0].b == 0
         assert colors[1].r == 0
-        assert colors[1].g == 255  # noqa: PLR2004
+        assert colors[1].g == 255
         assert colors[1].b == 0
         assert colors[2].r == 0
         assert colors[2].g == 0
-        assert colors[2].b == 255  # noqa: PLR2004
+        assert colors[2].b == 255
 
     def test_parse_rgb_data_in_file_with_alpha(self, mocker):
         """Test parse_rgb_data_in_file method with alpha values."""
@@ -250,15 +246,15 @@ alpha = 128
         mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=rgb_content))
         colors = PaletteUtility.parse_rgb_data_in_file(Path("test_rgb.txt"))
 
-        assert len(colors) == 2  # noqa: PLR2004
-        assert colors[0].r == 255  # noqa: PLR2004
+        assert len(colors) == 2
+        assert colors[0].r == 255
         assert colors[0].g == 0
         assert colors[0].b == 0
-        assert colors[0].a == 128  # noqa: PLR2004
+        assert colors[0].a == 128
         assert colors[1].r == 0
-        assert colors[1].g == 255  # noqa: PLR2004
+        assert colors[1].g == 255
         assert colors[1].b == 0
-        assert colors[1].a == 64  # noqa: PLR2004
+        assert colors[1].a == 64
 
     def test_create_palette_data(self):
         """Test create_palette_data method."""
@@ -373,7 +369,7 @@ class TestColorPaletteEdgeCasesCoverage:
         # Test beyond boundary - should append
         palette.set_color(1, (64, 64, 64))  # Beyond current size
         assert palette._colors[2] == (64, 64, 64)  # Appends at index 2
-        assert len(palette._colors) == 3  # noqa: PLR2004
+        assert len(palette._colors) == 3
 
     def test_parse_rgb_data_with_empty_file(self, mocker):
         """Test parse_rgb_data_in_file with empty file."""

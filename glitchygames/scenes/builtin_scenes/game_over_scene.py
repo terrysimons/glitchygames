@@ -20,9 +20,6 @@ class GameOverScene(Scene):
         Args:
             **kwargs: Additional keyword arguments.
 
-        Returns:
-            None
-
         """
         super().__init__(**kwargs)
         self.text_sprite = None
@@ -36,9 +33,6 @@ class GameOverScene(Scene):
         Args:
             None
 
-        Returns:
-            None
-
         """
         super().setup()
         log.info("GameOverScene setup() called")
@@ -48,7 +42,7 @@ class GameOverScene(Scene):
             "GAME OVER",
             (self.screen_width // 2, self.screen_height // 2),
             color=(255, 0, 0),  # Red color
-            font_size=48
+            font_size=48,
         )
         self.all_sprites.add(self.text_sprite)
 
@@ -57,7 +51,7 @@ class GameOverScene(Scene):
             "Press SPACE to restart or ESC to quit",
             (self.screen_width // 2, self.screen_height // 2 + 60),
             color=(255, 255, 255),  # White color
-            font_size=24
+            font_size=24,
         )
         self.all_sprites.add(subtitle)
         log.info("GameOverScene setup() completed")
@@ -66,9 +60,6 @@ class GameOverScene(Scene):
         """Update the Game Over scene.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -81,9 +72,6 @@ class GameOverScene(Scene):
 
         Args:
             event: The key down event.
-
-        Returns:
-            None
 
         """
         if event.key == pygame.K_SPACE:
@@ -102,9 +90,6 @@ class GameOverScene(Scene):
         Args:
             event: The key up event.
 
-        Returns:
-            None
-
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - restart the game
@@ -116,27 +101,23 @@ class GameOverScene(Scene):
 
     def resume(self: Self) -> None:
         """Resume by creating a new game instance.
-        
+
         Override the default resume behavior to create a fresh game
         instead of switching back to the previous scene.
-        
-        Returns:
-            None
 
         """
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:
             game_class = type(self.scene_manager.previous_scene)
             self.log.info(f"Restarting game with class: {game_class}")
-            
+
             # Create a new instance of the game with the same options
             new_game = game_class(options=self.options)
-            
+
             # Switch to the new game instance
             self.scene_manager.switch_to_scene(new_game)
         else:
             self.log.warning("No previous scene found to restart")
-
 
 
 class TextSprite(Sprite):
@@ -148,7 +129,7 @@ class TextSprite(Sprite):
         position: tuple[int, int],
         color: tuple[int, int, int] = (255, 255, 255),
         font_size: int = 24,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Initialize the text sprite.
 
@@ -158,9 +139,6 @@ class TextSprite(Sprite):
             color: The color of the text.
             font_size: The size of the font.
             **kwargs: Additional keyword arguments.
-
-        Returns:
-            None
 
         """
         # Create a font
@@ -172,10 +150,10 @@ class TextSprite(Sprite):
         # Initialize the sprite with the text surface
         super().__init__(
             x=position[0] - text_surface.get_width() // 2,  # Center horizontally
-            y=position[1] - text_surface.get_height() // 2,   # Center vertically
+            y=position[1] - text_surface.get_height() // 2,  # Center vertically
             width=text_surface.get_width(),
             height=text_surface.get_height(),
-            **kwargs
+            **kwargs,
         )
 
         # Set the image to the text surface

@@ -8,7 +8,12 @@ import toml
 
 
 def convert_ini_to_toml(ini_file_path: str, toml_file_path: str) -> bool:
-    """Convert a single .ini sprite file to .toml format."""
+    """Convert a single .ini sprite file to .toml format.
+
+    Returns:
+        bool: True if the condition is met, False otherwise.
+
+    """
     try:
         # Read the INI file
         config = configparser.ConfigParser()

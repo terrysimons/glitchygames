@@ -14,7 +14,10 @@ except Exception as exc:  # pragma: no cover - optional
 
 
 class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
-    def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - mirror sr.Microphone
+    """PortAudio-based microphone wrapping speech_recognition.Microphone."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialize the PortAudio microphone wrapper."""
         self._inner = sr.Microphone(*args, **kwargs)
         # Attributes will be populated in __enter__ via the inner source
         self.stream = None
@@ -23,7 +26,13 @@ class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.CHUNK = None
         self.SAMPLE_WIDTH = None
 
-    def __enter__(self):  # noqa: D401
+    def __enter__(self) -> PortAudioMicrophone:
+        """Enter the context manager, opening the inner microphone stream.
+
+        Returns:
+            PortAudioMicrophone: This microphone instance with stream attributes populated.
+
+        """
         source = self._inner.__enter__()
         # Mirror essential attributes used by Recognizer.listen
         self.stream = source.stream
@@ -33,7 +42,11 @@ class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.SAMPLE_WIDTH = source.SAMPLE_WIDTH
         return self
 
-    def __exit__(self, exc_type, exc, tb):  # noqa: D401, ANN001
+    def __exit__(self, exc_type, exc, tb) -> bool | None:
+        """Exit the context manager, closing the inner microphone stream.
+
+        Returns:
+            bool | None: Whether to suppress the exception, if any.
+
+        """
         return self._inner.__exit__(exc_type, exc, tb)
-
-

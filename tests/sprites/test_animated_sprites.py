@@ -123,6 +123,7 @@ class TestSpriteFactory:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -138,7 +139,12 @@ class TestSpriteFactory:
         shutil.rmtree(self.temp_dir)
 
     def create_static_sprite_file(self, filename: str) -> str:
-        """Create a static sprite TOML file for testing."""
+        """Create a static sprite TOML file for testing.
+
+        Returns:
+            str: The newly created static sprite file.
+
+        """
         filepath = Path(self.temp_dir) / filename
 
         toml_content = '''[sprite]
@@ -157,7 +163,12 @@ blue = 0
         return str(filepath)
 
     def create_animated_sprite_file(self, filename: str) -> str:
-        """Create an animated sprite TOML file for testing."""
+        """Create an animated sprite TOML file for testing.
+
+        Returns:
+            str: The newly created animated sprite file.
+
+        """
         filepath = Path(self.temp_dir) / filename
 
         toml_content = '''[sprite]
@@ -185,7 +196,12 @@ blue = 0
         return str(filepath)
 
     def create_mixed_sprite_file(self, filename: str) -> str:
-        """Create a mixed content TOML file (should be invalid)."""
+        """Create a mixed content TOML file (should be invalid).
+
+        Returns:
+            str: The newly created mixed sprite file.
+
+        """
         filepath = Path(self.temp_dir) / filename
 
         toml_content = '''[sprite]
@@ -210,7 +226,12 @@ blue = 0
         return str(filepath)
 
     def create_empty_sprite_file(self, filename: str) -> str:
-        """Create an empty TOML file (should be invalid)."""
+        """Create an empty TOML file (should be invalid).
+
+        Returns:
+            str: The newly created empty sprite file.
+
+        """
         filepath = Path(self.temp_dir) / filename
 
         toml_content = """[sprite]
@@ -316,7 +337,9 @@ name = "TestEmptySprite"
 
         # AnimatedSprite load is now implemented
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         sprite = SpriteFactory.load_sprite(filename=filename)
         assert isinstance(sprite, AnimatedSprite)
         assert sprite.name == "TestAnimatedSprite"
@@ -326,7 +349,9 @@ name = "TestEmptySprite"
         filename = self.create_mixed_sprite_file("mixed.toml")
 
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename=filename)
 
@@ -335,7 +360,9 @@ name = "TestEmptySprite"
         filename = self.create_empty_sprite_file("empty.toml")
 
         # Temporarily disable the centralized mock for this test by patching with the original method
-        mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite)
+        mocker.patch(
+            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+        )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename=filename)
 

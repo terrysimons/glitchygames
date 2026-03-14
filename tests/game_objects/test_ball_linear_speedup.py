@@ -20,6 +20,7 @@ class TestBallLinearSpeedUp:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         # Mock screen dimensions for consistent testing
         self.screen_width = 800
@@ -51,7 +52,7 @@ class TestBallLinearSpeedUp:
             bounce_top_bottom=True,
             bounce_left_right=True,
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LINEAR,
-            speed_up_multiplier=1.2
+            speed_up_multiplier=1.2,
         )
 
         # Set initial speed
@@ -72,10 +73,7 @@ class TestBallLinearSpeedUp:
 
     def test_linear_speed_up_with_paddle_bounce(self):
         """Test linear speed-up behavior with paddle bouncing."""
-        ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LINEAR,
-            speed_up_multiplier=1.3
-        )
+        ball = BallSprite(speed_up_mode=SpeedUpMode.ON_BOUNCE_LINEAR, speed_up_multiplier=1.3)
 
         # Set initial speed
         ball.speed = Speed(200.0, 150.0)
@@ -94,7 +92,7 @@ class TestBallLinearSpeedUp:
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
 
         # Set initial speed
@@ -128,7 +126,7 @@ class TestBallLinearSpeedUp:
 
         # Check final magnitude
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        expected_magnitude = initial_magnitude * (1.2 ** 3)
+        expected_magnitude = initial_magnitude * (1.2**3)
         assert final_magnitude == pytest.approx(expected_magnitude)
 
     def test_linear_speed_up_with_zero_speed(self):
@@ -142,8 +140,8 @@ class TestBallLinearSpeedUp:
         ball.speed_up(multiplier=1.5, speed_up_type="linear")
 
         # Should remain zero
-        assert ball.speed.x == 0.0
-        assert ball.speed.y == 0.0
+        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
+        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
 
     def test_linear_speed_up_direction_preservation_accuracy(self):
         """Test that linear speed-up preserves direction with high precision."""
@@ -166,5 +164,6 @@ class TestBallLinearSpeedUp:
 
             # Check direction preservation
             new_direction = math.atan2(ball.speed.y, ball.speed.x)
-            assert initial_direction == pytest.approx(new_direction, abs=1e-12), \
+            assert initial_direction == pytest.approx(new_direction, abs=1e-12), (
                 f"Direction not preserved for angle {angle_degrees} degrees"
+            )

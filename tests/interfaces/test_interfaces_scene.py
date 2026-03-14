@@ -43,6 +43,7 @@ class TestSceneInterface:
 
     def test_scene_interface_inheritance(self):
         """Test that SceneInterface can be inherited."""
+
         class TestScene(SceneInterface):
             def switch_to_scene(self, next_scene):
                 pass

@@ -118,6 +118,7 @@ class TestEngineLifecycle:
 
     def test_start_method_with_mocked_managers(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine.start method with mocked managers."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -134,7 +135,7 @@ class TestEngineLifecycle:
         engine = GameEngine(game=MockGame)
 
         # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
+        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
         mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
 
         # Mock all the manager classes
@@ -150,7 +151,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()
@@ -173,6 +174,7 @@ class TestEngineLifecycle:
 
     def test_start_method_with_profiling(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine.start method with profiling enabled."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -192,7 +194,7 @@ class TestEngineLifecycle:
         engine = GameEngine(game=MockGame)
 
         # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
+        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
         mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
 
         # Mock all the manager classes
@@ -208,7 +210,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()
@@ -221,7 +223,7 @@ class TestEngineLifecycle:
 
         # Mock joystick manager
         engine.joystick_manager = mocker.Mock()
-        engine.joystick_manager.joysticks = {}  # Empty dictionary (no joysticks connected)  # noqa: E501
+        engine.joystick_manager.joysticks = {}  # Empty dictionary (no joysticks connected)
 
         # Set up joysticks list properly
         engine.joysticks = []
@@ -240,6 +242,7 @@ class TestEngineLifecycle:
 
     def test_start_method_exception_handling(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine.start method exception handling."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -256,7 +259,7 @@ class TestEngineLifecycle:
         engine = GameEngine(game=MockGame)
 
         # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)  # noqa: E501
+        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
         mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
 
         # Mock all the manager classes to raise exceptions
@@ -272,7 +275,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()
@@ -298,8 +301,11 @@ class TestEngineLifecycle:
         # Verify game was initialized
         mock_game_class.assert_called_once()
 
-    def test_start_method_error_message_with_previous_scene(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_start_method_error_message_with_previous_scene(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
         """Test GameEngine.start method error message shows previous scene when current is None."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -332,7 +338,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()
@@ -358,8 +364,11 @@ class TestEngineLifecycle:
         call_args = mock_log.call_args[0][0]
         assert "PreviousScene" in call_args
 
-    def test_start_method_error_message_with_current_scene(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_start_method_error_message_with_current_scene(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
         """Test GameEngine.start method error message shows current scene when available."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -392,7 +401,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()
@@ -418,8 +427,11 @@ class TestEngineLifecycle:
         assert "CurrentScene" in call_args
         assert "(previous)" not in call_args
 
-    def test_start_method_error_message_with_no_scenes(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_start_method_error_message_with_no_scenes(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
         """Test GameEngine.start method error message shows None when both scenes are None."""
+
         # Create a mock game class
         class MockGame:
             NAME = "MockGame"
@@ -452,7 +464,7 @@ class TestEngineLifecycle:
             KeyboardEventManager=mocker.Mock,
             MidiEventManager=mocker.Mock,
             MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock
+            WindowEventManager=mocker.Mock,
         )
         mock_game_class = mocker.patch.object(engine, "game")
         mock_game_instance = mocker.Mock()

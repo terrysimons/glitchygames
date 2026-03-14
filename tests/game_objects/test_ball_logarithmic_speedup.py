@@ -20,6 +20,7 @@ class TestBallLogarithmicSpeedUp:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         # Mock screen dimensions for consistent testing
         self.screen_width = 800
@@ -73,7 +74,7 @@ class TestBallLogarithmicSpeedUp:
             bounce_top_bottom=True,
             bounce_left_right=True,
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.25
+            speed_up_multiplier=1.25,
         )
 
         ball.speed = Speed(150.0, 100.0)
@@ -94,7 +95,7 @@ class TestBallLogarithmicSpeedUp:
             bounce_top_bottom=True,
             bounce_left_right=True,
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.3
+            speed_up_multiplier=1.3,
         )
 
         ball.speed = Speed(150.0, 100.0)
@@ -114,8 +115,9 @@ class TestBallLogarithmicSpeedUp:
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.2
+            speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X
+            | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
+            speed_up_multiplier=1.2,
         )
 
         ball.speed = Speed(150.0, 100.0)
@@ -133,8 +135,7 @@ class TestBallLogarithmicSpeedUp:
     def test_logarithmic_x_speed_up_with_paddle_bounce(self):
         """Test logarithmic X speed-up with paddle bouncing."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.4
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, speed_up_multiplier=1.4
         )
 
         ball.speed = Speed(200.0, 150.0)
@@ -151,8 +152,7 @@ class TestBallLogarithmicSpeedUp:
     def test_logarithmic_y_speed_up_with_paddle_bounce(self):
         """Test logarithmic Y speed-up with paddle bouncing."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.35
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y, speed_up_multiplier=1.35
         )
 
         ball.speed = Speed(200.0, 150.0)
@@ -172,7 +172,7 @@ class TestBallLogarithmicSpeedUp:
         ball_x = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
         ball_x.speed = Speed(100.0, 200.0)
         ball_x._last_speed_up_time = 0.0
@@ -185,7 +185,7 @@ class TestBallLogarithmicSpeedUp:
         ball_y = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
             speed_up_multiplier=1.15,
-            speed_up_interval=0.1
+            speed_up_interval=0.1,
         )
         ball_y.speed = Speed(100.0, 200.0)
         ball_y._last_speed_up_time = 0.0
@@ -219,7 +219,7 @@ class TestBallLogarithmicSpeedUp:
             ball.speed_up(multiplier=1.2, speed_up_type="logarithmic_x")
 
         # Check final X speed
-        expected_x = initial_x * (1.2 ** 3)
+        expected_x = initial_x * (1.2**3)
         assert ball.speed.x == pytest.approx(expected_x)
         # Y should remain unchanged
         assert ball.speed.y == pytest.approx(initial_y)
@@ -245,7 +245,7 @@ class TestBallLogarithmicSpeedUp:
         ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_y")
 
         # Y should remain zero
-        assert ball.speed.y == 0.0
+        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
         assert ball.speed.x == pytest.approx(100.0)
 
     def test_logarithmic_speed_up_precision(self):

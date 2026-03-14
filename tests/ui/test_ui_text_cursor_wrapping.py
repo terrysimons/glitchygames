@@ -19,6 +19,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Initialize pygame for real font operations
@@ -38,7 +39,7 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=200,  # Narrow width to force wrapping
             height=100,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         # Set a long line that will be wrapped
@@ -69,7 +70,7 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=150,  # Very narrow width to force wrapping
             height=120,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         # Set a long line that will definitely wrap
@@ -90,9 +91,7 @@ class TestMultiLineTextBoxCursorWrapping:
         # Debug information (removed print statements for linting)
 
         # Test the new cursor positioning logic
-        cursor_line, cursor_column = textbox._get_cursor_line_and_column_in_wrapped_text(
-            cursor_pos
-        )
+        cursor_line, cursor_column = textbox._get_cursor_line_and_column_in_wrapped_text(cursor_pos)
         # Debug information (removed print statements for linting)
 
         # The cursor should now be positioned correctly in the wrapped text
@@ -111,13 +110,11 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=150,  # Narrow width
             height=120,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         # Text with both explicit newlines and long lines that will wrap
-        mixed_text = (
-            "Line 1\nThis is a very long line that will be wrapped automatically\nLine 3"
-        )
+        mixed_text = "Line 1\nThis is a very long line that will be wrapped automatically\nLine 3"
         textbox.text = mixed_text
         textbox.active = True
         textbox.cursor_pos = len(mixed_text)
@@ -133,13 +130,7 @@ class TestMultiLineTextBoxCursorWrapping:
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
-        textbox = MultiLineTextBox(
-            x=10,
-            y=10,
-            width=200,
-            height=100,
-            name="TestTextBox"
-        )
+        textbox = MultiLineTextBox(x=10, y=10, width=200, height=100, name="TestTextBox")
 
         # Long text that will wrap
         long_text = "This is a very long line of text that should be automatically wrapped"
@@ -165,7 +156,7 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=100,  # Very narrow width
             height=100,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         # Single very long word that will be forced onto its own line
@@ -185,13 +176,7 @@ class TestMultiLineTextBoxCursorWrapping:
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
-        textbox = MultiLineTextBox(
-            x=10,
-            y=10,
-            width=200,
-            height=100,
-            name="TestTextBox"
-        )
+        textbox = MultiLineTextBox(x=10, y=10, width=200, height=100, name="TestTextBox")
 
         long_text = "This is a very long line that will be wrapped to multiple lines"
         textbox.text = long_text
@@ -211,13 +196,7 @@ class TestMultiLineTextBoxCursorWrapping:
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
-        textbox = MultiLineTextBox(
-            x=10,
-            y=10,
-            width=200,
-            height=100,
-            name="TestTextBox"
-        )
+        textbox = MultiLineTextBox(x=10, y=10, width=200, height=100, name="TestTextBox")
 
         long_text = "This is a very long line that will be wrapped to multiple lines"
         textbox.text = long_text
@@ -245,7 +224,7 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=150,  # Narrow width to force wrapping
             height=120,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         long_text = (
@@ -294,7 +273,7 @@ class TestMultiLineTextBoxCursorWrapping:
             y=10,
             width=150,  # Narrow width to force wrapping
             height=120,
-            name="TestTextBox"
+            name="TestTextBox",
         )
 
         long_text = (

@@ -6,7 +6,7 @@ with both static BitmappySprites and animated sprites through a unified API.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 import pygame
 
@@ -121,7 +121,12 @@ class StaticCanvasInterface:
         self.canvas_sprite = canvas_sprite
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
-        """Get the current pixel data as a list of RGBA tuples."""
+        """Get the current pixel data as a list of RGBA tuples.
+
+        Returns:
+            list[tuple[int, int, int, int]]: The pixel data.
+
+        """
         return self.canvas_sprite.pixels.copy()
 
     def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
@@ -132,18 +137,27 @@ class StaticCanvasInterface:
         self.canvas_sprite.dirty = 1
 
     def get_dimensions(self) -> tuple[int, int]:
-        """Get the canvas dimensions as (width, height) in pixels."""
+        """Get the canvas dimensions as (width, height) in pixels.
+
+        Returns:
+            tuple[int, int]: The dimensions.
+
+        """
         return (self.canvas_sprite.pixels_across, self.canvas_sprite.pixels_tall)
 
     def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int, int]:
-        """Get the color of a pixel at the given coordinates."""
+        """Get the color of a pixel at the given coordinates.
+
+        Returns:
+            tuple[int, int, int, int]: The pixel at.
+
+        """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             pixel = self.canvas_sprite.pixels[pixel_num]
             if len(pixel) == 4:
                 return pixel
-            else:
-                return (pixel[0], pixel[1], pixel[2], 255)
+            return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
@@ -155,7 +169,12 @@ class StaticCanvasInterface:
             self.canvas_sprite.dirty = 1
 
     def get_surface(self) -> pygame.Surface:
-        """Get the current rendered surface."""
+        """Get the current rendered surface.
+
+        Returns:
+            pygame.Surface: The surface.
+
+        """
         return self.canvas_sprite.image
 
     def mark_dirty(self) -> None:
@@ -205,7 +224,12 @@ class AnimatedCanvasInterface:
         self.current_frame = 0
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
-        """Get the current pixel data as a list of RGBA tuples."""
+        """Get the current pixel data as a list of RGBA tuples.
+
+        Returns:
+            list[tuple[int, int, int, int]]: The pixel data.
+
+        """
         if hasattr(self.canvas_sprite, "animated_sprite"):
             frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
@@ -239,11 +263,21 @@ class AnimatedCanvasInterface:
             self.canvas_sprite.dirty = 1
 
     def get_dimensions(self) -> tuple[int, int]:
-        """Get the canvas dimensions as (width, height) in pixels."""
+        """Get the canvas dimensions as (width, height) in pixels.
+
+        Returns:
+            tuple[int, int]: The dimensions.
+
+        """
         return (self.canvas_sprite.pixels_across, self.canvas_sprite.pixels_tall)
 
     def get_pixel_at(self, x: int, y: int) -> tuple[int, int, int, int]:
-        """Get the color of a pixel at the given coordinates."""
+        """Get the color of a pixel at the given coordinates.
+
+        Returns:
+            tuple[int, int, int, int]: The pixel at.
+
+        """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             if hasattr(self.canvas_sprite, "animated_sprite"):
@@ -259,16 +293,16 @@ class AnimatedCanvasInterface:
                     pixel = frame.get_pixel_data()[pixel_num]
                     if len(pixel) == 4:
                         return pixel
-                    else:
-                        return (pixel[0], pixel[1], pixel[2], 255)
+                    return (pixel[0], pixel[1], pixel[2], 255)
             pixel = self.canvas_sprite.pixels[pixel_num]
             if len(pixel) == 4:
                 return pixel
-            else:
-                return (pixel[0], pixel[1], pixel[2], 255)
+            return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
-    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int], skip_drag_ops: bool = False) -> None:
+    def set_pixel_at(
+        self, x: int, y: int, color: tuple[int, int, int], skip_drag_ops: bool = False
+    ) -> None:
         """Set the color of a pixel at the given coordinates.
 
         Args:
@@ -309,23 +343,34 @@ class AnimatedCanvasInterface:
             # Skip tracking if a controller drag is active (controller drag handles its own tracking)
             # But allow the initial pixel to be painted and tracked normally
             controller_drag_active = False
-            if (hasattr(self.canvas_sprite, "parent_scene") and
-                self.canvas_sprite.parent_scene and
-                hasattr(self.canvas_sprite.parent_scene, "controller_drags")):
+            if (
+                hasattr(self.canvas_sprite, "parent_scene")
+                and self.canvas_sprite.parent_scene
+                and hasattr(self.canvas_sprite.parent_scene, "controller_drags")
+            ):
                 # Check if any controller has an active drag with multiple pixels
-                for controller_id, drag_info in self.canvas_sprite.parent_scene.controller_drags.items():
-                    if drag_info.get("active", False) and len(drag_info.get("pixels_drawn", [])) > 0:
+                for (
+                    controller_id,
+                    drag_info,
+                ) in self.canvas_sprite.parent_scene.controller_drags.items():
+                    if (
+                        drag_info.get("active", False)
+                        and len(drag_info.get("pixels_drawn", [])) > 0
+                    ):
                         controller_drag_active = True
-                        print(f"DEBUG: Controller drag active with pixels for controller {controller_id}, skipping canvas interface tracking")
+                        print(
+                            f"DEBUG: Controller drag active with pixels for controller {controller_id}, skipping canvas interface tracking"
+                        )
                         break
 
-            if (hasattr(self.canvas_sprite, "parent_scene") and
-                self.canvas_sprite.parent_scene and
-                hasattr(self.canvas_sprite.parent_scene, "canvas_operation_tracker") and
-                not getattr(self.canvas_sprite.parent_scene, "_applying_undo_redo", False) and
-                not controller_drag_active and
-                old_color != color):  # Only track if color actually changed
-
+            if (
+                hasattr(self.canvas_sprite, "parent_scene")
+                and self.canvas_sprite.parent_scene
+                and hasattr(self.canvas_sprite.parent_scene, "canvas_operation_tracker")
+                and not getattr(self.canvas_sprite.parent_scene, "_applying_undo_redo", False)
+                and not controller_drag_active
+                and old_color != color
+            ):  # Only track if color actually changed
                 # Collect pixel changes during drag operations
                 if not hasattr(self.canvas_sprite.parent_scene, "_current_pixel_changes"):
                     self.canvas_sprite.parent_scene._current_pixel_changes = []
@@ -369,16 +414,21 @@ class AnimatedCanvasInterface:
 
                 # Only log debug info occasionally to reduce overhead
                 if len(pixel_changes_dict) % 100 == 0:
-                    LOG.debug(f"Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels")
+                    LOG.debug(
+                        f"Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels"
+                    )
 
                 # Start a timer for single clicks (if this is the first pixel)
                 if len(self.canvas_sprite.parent_scene._current_pixel_changes_dict) == 1:
                     import time
+
                     self.canvas_sprite.parent_scene._pixel_change_timer = time.time()
                     LOG.debug("Canvas interface started pixel change timer for single click")
             elif controller_drag_active:
                 # Controller drag is active with pixels, don't collect pixels in canvas interface
-                print("DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection")
+                print(
+                    "DEBUG: Controller drag active with pixels, skipping canvas interface pixel collection"
+                )
                 # But still update the frame data - don't return early
 
             if hasattr(self.canvas_sprite, "animated_sprite"):
@@ -425,7 +475,12 @@ class AnimatedCanvasInterface:
                 self.canvas_sprite.dirty = 1
 
     def get_surface(self) -> pygame.Surface:
-        """Get the current rendered surface."""
+        """Get the current rendered surface.
+
+        Returns:
+            pygame.Surface: The surface.
+
+        """
         return self.canvas_sprite.image
 
     def mark_dirty(self) -> None:
@@ -440,7 +495,12 @@ class AnimatedCanvasInterface:
         # The canvas sprite will handle the frame switching
 
     def get_current_frame(self) -> tuple[str, int]:
-        """Get the current animation and frame."""
+        """Get the current animation and frame.
+
+        Returns:
+            tuple[str, int]: The current frame.
+
+        """
         return (self.current_animation, self.current_frame)
 
 
@@ -467,12 +527,22 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         self.canvas_sprite = canvas_sprite
 
     def render(self, sprite: Any) -> pygame.Surface:
-        """Render an animated sprite to a surface."""
+        """Render an animated sprite to a surface.
+
+        Returns:
+            pygame.Surface: The result.
+
+        """
         # Use the force_redraw method to avoid recursion
         return self.force_redraw(sprite)
 
     def force_redraw(self, sprite: Any) -> pygame.Surface:
-        """Force a complete redraw of the animated sprite."""
+        """Force a complete redraw of the animated sprite.
+
+        Returns:
+            pygame.Surface: The result.
+
+        """
         LOG.debug("DEBUG: AnimatedCanvasRenderer.force_redraw called")
         if hasattr(self.canvas_sprite, "animated_sprite"):
             # Get the current frame from the canvas (not the animated sprite)
@@ -480,16 +550,23 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             current_frame = self.canvas_sprite.current_frame
             frames = self.canvas_sprite.animated_sprite.frames
 
-            LOG.debug(f"DEBUG: current_animation={current_animation}, current_frame={current_frame}")
+            LOG.debug(
+                f"DEBUG: current_animation={current_animation}, current_frame={current_frame}"
+            )
             LOG.debug(f"DEBUG: frames keys={list(frames.keys()) if frames else 'None'}")
-            LOG.debug(f"DEBUG: frames[current_animation] length={len(frames[current_animation]) if current_animation in frames else 'N/A'}")
+            LOG.debug(
+                f"DEBUG: frames[current_animation] length={len(frames[current_animation]) if current_animation in frames else 'N/A'}"
+            )
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
                 # Create a single transparent buffer for all frames (hardware accelerated)
-                self.canvas_sprite.image = pygame.Surface((
-                    self.canvas_sprite.width,
-                    self.canvas_sprite.height,
-                ), pygame.SRCALPHA)
+                self.canvas_sprite.image = pygame.Surface(
+                    (
+                        self.canvas_sprite.width,
+                        self.canvas_sprite.height,
+                    ),
+                    pygame.SRCALPHA,
+                )
                 self.canvas_sprite.image = self.canvas_sprite.image.convert_alpha()
                 # Use magenta background pixel (opaque) as the canvas background
                 # Per-pixel alpha pixels will be blended on top
@@ -497,6 +574,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
                 # Get onion skinning manager
                 from .onion_skinning import get_onion_skinning_manager
+
                 onion_manager = get_onion_skinning_manager()
 
                 # If onion skinning is enabled, blend only explicitly enabled frames
@@ -504,15 +582,20 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     # Get only frames that have onion skinning explicitly enabled
                     onion_frames = set()
                     for frame_idx in range(len(frames[current_animation])):
-                        if frame_idx != current_frame and onion_manager.is_frame_onion_skinned(current_animation, frame_idx):
+                        if frame_idx != current_frame and onion_manager.is_frame_onion_skinned(
+                            current_animation, frame_idx
+                        ):
                             onion_frames.add(frame_idx)
                     LOG.debug(f"Rendering onion frames: {onion_frames}")
 
                     # Create a temporary surface to accumulate onion layers (hardware accelerated)
-                    onion_accumulator = pygame.Surface((
-                        self.canvas_sprite.width,
-                        self.canvas_sprite.height,
-                    ), pygame.SRCALPHA)
+                    onion_accumulator = pygame.Surface(
+                        (
+                            self.canvas_sprite.width,
+                            self.canvas_sprite.height,
+                        ),
+                        pygame.SRCALPHA,
+                    )
                     onion_accumulator = onion_accumulator.convert_alpha()
                     onion_accumulator.fill((0, 0, 0, 0))  # Transparent background
 
@@ -526,14 +609,21 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 frame_pixels = getattr(
                                     frame,
                                     "pixels",
-                                    [(255, 0, 255)] * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
+                                    [(255, 0, 255)]
+                                    * (
+                                        self.canvas_sprite.pixels_across
+                                        * self.canvas_sprite.pixels_tall
+                                    ),
                                 )
 
                             # Create a temporary surface for this onion frame (hardware accelerated)
-                            frame_surface = pygame.Surface((
-                                self.canvas_sprite.width,
-                                self.canvas_sprite.height,
-                            ), pygame.SRCALPHA)
+                            frame_surface = pygame.Surface(
+                                (
+                                    self.canvas_sprite.width,
+                                    self.canvas_sprite.height,
+                                ),
+                                pygame.SRCALPHA,
+                            )
                             frame_surface = frame_surface.convert_alpha()
                             frame_surface.fill((0, 0, 0, 0))  # Transparent background
 
@@ -544,8 +634,12 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
                                     continue
 
-                                x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-                                y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                                x = (
+                                    i % self.canvas_sprite.pixels_across
+                                ) * self.canvas_sprite.pixel_width
+                                y = (
+                                    i // self.canvas_sprite.pixels_across
+                                ) * self.canvas_sprite.pixel_height
 
                                 # Do NOT apply panning offset to onion layers - they stay in original position
 
@@ -565,11 +659,18 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 pygame.draw.rect(
                                     frame_surface,
                                     transparent_pixel,
-                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
+                                    (
+                                        x,
+                                        y,
+                                        self.canvas_sprite.pixel_width,
+                                        self.canvas_sprite.pixel_height,
+                                    ),
                                 )
 
                             # Blend this frame into the accumulator using alpha blending
-                            onion_accumulator.blit(frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)
+                            onion_accumulator.blit(
+                                frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2
+                            )
 
                     # Blit the accumulated onion layers onto the main canvas
                     self.canvas_sprite.image.blit(onion_accumulator, (0, 0))
@@ -578,29 +679,38 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 # Check if selected frame should be visible (for comparison mode)
                 selected_frame_visible = True
                 if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
-                    selected_frame_visible = getattr(self.canvas_sprite.parent_scene, "selected_frame_visible", True)
+                    selected_frame_visible = getattr(
+                        self.canvas_sprite.parent_scene, "selected_frame_visible", True
+                    )
 
                 # Always get frame data for controller indicators, even if frame is hidden
                 frame = frames[current_animation][current_frame]
 
                 # Use panned pixel data if panning is active, otherwise use original frame data
-                if (hasattr(self.canvas_sprite, "_panning_active") and
-                    self.canvas_sprite._panning_active and
-                    hasattr(self.canvas_sprite, "pixels")):
+                if (
+                    hasattr(self.canvas_sprite, "_panning_active")
+                    and self.canvas_sprite._panning_active
+                    and hasattr(self.canvas_sprite, "pixels")
+                ):
                     frame_pixels = self.canvas_sprite.pixels
-                    LOG.debug(f"DEBUG: Using panned canvas pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
+                    LOG.debug(
+                        f"DEBUG: Using panned canvas pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                    )
+                elif hasattr(frame, "get_pixel_data"):
+                    frame_pixels = frame.get_pixel_data()
+                    LOG.debug(
+                        f"DEBUG: Using frame.get_pixel_data(): {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                    )
                 else:
-                    if hasattr(frame, "get_pixel_data"):
-                        frame_pixels = frame.get_pixel_data()
-                        LOG.debug(f"DEBUG: Using frame.get_pixel_data(): {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
-                    else:
-                        frame_pixels = getattr(
-                            frame,
-                            "pixels",
-                            [(255, 0, 255)]
-                            * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
-                        )
-                        LOG.debug(f"DEBUG: Using fallback frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}")
+                    frame_pixels = getattr(
+                        frame,
+                        "pixels",
+                        [(255, 0, 255)]
+                        * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
+                    )
+                    LOG.debug(
+                        f"DEBUG: Using fallback frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                    )
 
                 # Use the border thickness set by the canvas sprite
                 border_thickness = self.canvas_sprite.border_thickness
@@ -610,7 +720,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     # Blit each pixel of the selected frame at 100% opacity
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        y = (
+                            i // self.canvas_sprite.pixels_across
+                        ) * self.canvas_sprite.pixel_height
 
                         # Do NOT apply panning offset to drawing coordinates - grid stays fixed
                         # Panning is handled by extracting different pixel data, not moving the grid
@@ -627,9 +739,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 self._draw_plus_indicator(
                                     self.canvas_sprite.image,
                                     controller_indicator_color,
-                                    x, y,
+                                    x,
+                                    y,
                                     self.canvas_sprite.pixel_width,
-                                    self.canvas_sprite.pixel_height
+                                    self.canvas_sprite.pixel_height,
                                 )
                             continue
 
@@ -640,7 +753,12 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     pixel,
-                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                    (
+                                        x,
+                                        y,
+                                        self.canvas_sprite.pixel_width,
+                                        self.canvas_sprite.pixel_height,
+                                    ),
                                 )
                             else:
                                 # RGB pixel - convert to RGBA for alpha surface
@@ -648,38 +766,55 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 pygame.draw.rect(
                                     self.canvas_sprite.image,
                                     rgba_pixel,
-                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
+                                    (
+                                        x,
+                                        y,
+                                        self.canvas_sprite.pixel_width,
+                                        self.canvas_sprite.pixel_height,
+                                    ),
                                 )
                             # Draw plus sign indicator on top
                             self._draw_plus_indicator(
                                 self.canvas_sprite.image,
                                 controller_indicator_color,
-                                x, y,
+                                x,
+                                y,
                                 self.canvas_sprite.pixel_width,
-                                self.canvas_sprite.pixel_height
+                                self.canvas_sprite.pixel_height,
+                            )
+                        # Draw normal pixel with alpha blending if RGBA
+                        elif len(pixel) == 4:
+                            # RGBA pixel - use alpha blending
+                            pygame.draw.rect(
+                                self.canvas_sprite.image,
+                                pixel,
+                                (
+                                    x,
+                                    y,
+                                    self.canvas_sprite.pixel_width,
+                                    self.canvas_sprite.pixel_height,
+                                ),
                             )
                         else:
-                            # Draw normal pixel with alpha blending if RGBA
-                            if len(pixel) == 4:
-                                # RGBA pixel - use alpha blending
-                                pygame.draw.rect(
-                                    self.canvas_sprite.image,
-                                    pixel,
-                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                                )
-                            else:
-                                # RGB pixel - convert to RGBA for alpha surface
-                                rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
-                                pygame.draw.rect(
-                                    self.canvas_sprite.image,
-                                    rgba_pixel,
-                                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                                )
+                            # RGB pixel - convert to RGBA for alpha surface
+                            rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
+                            pygame.draw.rect(
+                                self.canvas_sprite.image,
+                                rgba_pixel,
+                                (
+                                    x,
+                                    y,
+                                    self.canvas_sprite.pixel_width,
+                                    self.canvas_sprite.pixel_height,
+                                ),
+                            )
                 else:
                     # Selected frame is hidden, but still draw controller indicators
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        y = (
+                            i // self.canvas_sprite.pixels_across
+                        ) * self.canvas_sprite.pixel_height
 
                         # Do NOT apply panning offset to drawing coordinates - grid stays fixed
 
@@ -693,16 +828,19 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             self._draw_plus_indicator(
                                 self.canvas_sprite.image,
                                 controller_indicator_color,
-                                x, y,
+                                x,
+                                y,
                                 self.canvas_sprite.pixel_width,
-                                self.canvas_sprite.pixel_height
+                                self.canvas_sprite.pixel_height,
                             )
 
                 # Draw borders on the main canvas (only if selected frame is visible)
                 if selected_frame_visible and border_thickness > 0:
                     for i, pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-                        y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+                        y = (
+                            i // self.canvas_sprite.pixels_across
+                        ) * self.canvas_sprite.pixel_height
 
                         # Do NOT apply panning offset to drawing coordinates - grid stays fixed
 
@@ -739,9 +877,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         self._draw_plus_indicator(
                             self.canvas_sprite.image,
                             controller_indicator_color,
-                            x, y,
+                            x,
+                            y,
                             self.canvas_sprite.pixel_width,
-                            self.canvas_sprite.pixel_height
+                            self.canvas_sprite.pixel_height,
                         )
                     else:
                         # Draw normal pixel
@@ -800,8 +939,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     )
 
         # Draw hover effect for the hovered pixel (white border to match keyboard selector)
-        if (hasattr(self.canvas_sprite, "hovered_pixel") and
-            self.canvas_sprite.hovered_pixel is not None):
+        if (
+            hasattr(self.canvas_sprite, "hovered_pixel")
+            and self.canvas_sprite.hovered_pixel is not None
+        ):
             hover_x, hover_y = self.canvas_sprite.hovered_pixel
             pixel_x = hover_x * self.canvas_sprite.pixel_width
             pixel_y = hover_y * self.canvas_sprite.pixel_height
@@ -811,24 +952,28 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self.canvas_sprite.image,
                 (255, 255, 255),  # White color
                 (pixel_x, pixel_y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                2  # 2px border thickness
+                2,  # 2px border thickness
             )
 
         # Draw canvas hover border (1px white border around entire canvas perimeter)
-        if (hasattr(self.canvas_sprite, "is_hovered") and
-            self.canvas_sprite.is_hovered):
+        if hasattr(self.canvas_sprite, "is_hovered") and self.canvas_sprite.is_hovered:
             # Draw white border around the entire canvas perimeter
             pygame.draw.rect(
                 self.canvas_sprite.image,
                 (255, 255, 255),  # White color
                 (0, 0, self.canvas_sprite.image.get_width(), self.canvas_sprite.image.get_height()),
-                1  # 1px border thickness
+                1,  # 1px border thickness
             )
 
         return self.canvas_sprite.image
 
     def get_pixel_size(self) -> tuple[int, int]:
-        """Get the size of individual pixels in the renderer."""
+        """Get the size of individual pixels in the renderer.
+
+        Returns:
+            tuple[int, int]: The pixel size.
+
+        """
         return (self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
 
     def _has_active_controllers_in_canvas_mode(self) -> bool:
@@ -851,12 +996,20 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         if position and position.is_valid:
                             # Check if position is within canvas bounds
                             x, y = position.position
-                            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                            if (
+                                0 <= x < self.canvas_sprite.pixels_across
+                                and 0 <= y < self.canvas_sprite.pixels_tall
+                            ):
                                 return True
         return False
 
-    def _get_controller_indicator_for_pixel(self, pixel_index: int) -> Optional[tuple[int, int, int]]:
-        """Check if any controller is active on this pixel and return indicator color."""
+    def _get_controller_indicator_for_pixel(self, pixel_index: int) -> tuple[int, int, int] | None:
+        """Check if any controller is active on this pixel and return indicator color.
+
+        Returns:
+            tuple[int, int, int] | None: The controller indicator for pixel.
+
+        """
         # Get the parent scene to access controller data
         if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
             scene = self.canvas_sprite.parent_scene
@@ -870,19 +1023,33 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         if position and position.is_valid:
                             # Convert position to pixel index
                             x, y = position.position
-                            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+                            if (
+                                0 <= x < self.canvas_sprite.pixels_across
+                                and 0 <= y < self.canvas_sprite.pixels_tall
+                            ):
                                 controller_pixel_index = y * self.canvas_sprite.pixels_across + x
                                 if controller_pixel_index == pixel_index:
                                     # Get controller color
                                     if hasattr(scene, "multi_controller_manager"):
-                                        controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
+                                        controller_info = (
+                                            scene.multi_controller_manager.get_controller_info(
+                                                controller_id
+                                            )
+                                        )
                                         if controller_info:
                                             return controller_info.color
         return None
 
-    def _draw_plus_indicator(self, surface: pygame.Surface, color: tuple[int, int, int], x: int, y: int, width: int, height: int) -> None:
+    def _draw_plus_indicator(
+        self,
+        surface: pygame.Surface,
+        color: tuple[int, int, int],
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> None:
         """Draw a box indicator with controller color and inverse color borders."""
-
         # The x,y coordinates are the top-left corner of the pixel box
         # Calculate the center of the pixel box in screen coordinates
         center_x = x + self.canvas_sprite.pixel_width // 2
@@ -903,20 +1070,34 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         pygame.draw.rect(surface, inverse_color, (x + 2, y + 2, width - 4, height - 4), 2)
 
     def _get_pixel_color_at_position(self, x: int, y: int) -> tuple[int, int, int]:
-        """Get the pixel color at the specified position."""
+        """Get the pixel color at the specified position.
+
+        Returns:
+            tuple[int, int, int]: The pixel color at position.
+
+        """
         if hasattr(self, "canvas_sprite") and self.canvas_sprite:
-            if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
+            if (
+                0 <= x < self.canvas_sprite.pixels_across
+                and 0 <= y < self.canvas_sprite.pixels_tall
+            ):
                 pixel_index = y * self.canvas_sprite.pixels_across + x
                 if pixel_index < len(self.canvas_sprite.pixels):
                     pixel_color = self.canvas_sprite.pixels[pixel_index]
                     return pixel_color
-                else:
-                    print(f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})")
+                print(
+                    f"DEBUG: Pixel index {pixel_index} out of range (max: {len(self.canvas_sprite.pixels) - 1})"
+                )
             else:
                 print(f"DEBUG: Coordinates ({x}, {y}) out of bounds")
         print(f"DEBUG: Pixel not found at ({x}, {y}), returning black")
         return (0, 0, 0)  # Default to black if pixel not found
 
     def _get_inverse_color(self, color: tuple[int, int, int]) -> tuple[int, int, int]:
-        """Get the inverse color for contrast."""
+        """Get the inverse color for contrast.
+
+        Returns:
+            tuple[int, int, int]: The inverse color.
+
+        """
         return (255 - color[0], 255 - color[1], 255 - color[2])

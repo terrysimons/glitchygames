@@ -1,6 +1,5 @@
 """Tests for AI sprite generation functionality."""
 
-import pytest
 from glitchygames.ai.sprite_generator import (
     build_refinement_messages,
     build_sprite_generation_messages,
@@ -19,8 +18,7 @@ class TestSpriteGenerationMessages:
     def test_basic_message_structure(self):
         """Test basic message structure is correct."""
         messages = build_sprite_generation_messages(
-            user_request="Create a red square",
-            training_examples=None
+            user_request="Create a red square", training_examples=None
         )
 
         assert len(messages) == 4
@@ -38,16 +36,12 @@ class TestSpriteGenerationMessages:
                 "sprite_type": "static",
                 "has_alpha": False,
                 "pixels": "ABC\nDEF",
-                "colors": {
-                    "A": {"red": 255, "green": 0, "blue": 0}
-                }
+                "colors": {"A": {"red": 255, "green": 0, "blue": 0}},
             }
         ]
 
         messages = build_sprite_generation_messages(
-            user_request="Create a sprite",
-            training_examples=examples,
-            max_examples=3
+            user_request="Create a sprite", training_examples=examples, max_examples=3
         )
 
         # Check example is included in context
@@ -56,9 +50,7 @@ class TestSpriteGenerationMessages:
     def test_size_hint_injection(self):
         """Test that size hints are added to request."""
         messages = build_sprite_generation_messages(
-            user_request="Create a 32x32 sprite",
-            training_examples=None,
-            include_size_hint=True
+            user_request="Create a 32x32 sprite", training_examples=None, include_size_hint=True
         )
 
         last_message = messages[3]["content"]
@@ -70,7 +62,7 @@ class TestSpriteGenerationMessages:
         messages = build_sprite_generation_messages(
             user_request="Create an animated walking sprite",
             training_examples=None,
-            include_animation_hint=True
+            include_animation_hint=True,
         )
 
         last_message = messages[3]["content"]
@@ -82,9 +74,7 @@ class TestSpriteGenerationMessages:
         examples = [{"name": f"sprite_{i}"} for i in range(10)]
 
         messages = build_sprite_generation_messages(
-            user_request="Create a sprite",
-            training_examples=examples,
-            max_examples=2
+            user_request="Create a sprite", training_examples=examples, max_examples=2
         )
 
         # Should only include 2 examples
@@ -104,9 +94,7 @@ class TestTrainingExampleFormatting:
             "sprite_type": "static",
             "has_alpha": False,
             "pixels": "RR\nRR",
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0}
-            }
+            "colors": {"R": {"red": 255, "green": 0, "blue": 0}},
         }
 
         result = format_training_example(example, include_raw=False)
@@ -129,17 +117,10 @@ class TestTrainingExampleFormatting:
                     "namespace": "walk",
                     "frame_interval": 0.3,
                     "loop": True,
-                    "frame": [
-                        {
-                            "frame_index": 0,
-                            "pixels": "AB\nCD"
-                        }
-                    ]
+                    "frame": [{"frame_index": 0, "pixels": "AB\nCD"}],
                 }
             ],
-            "colors": {
-                "A": {"red": 255, "green": 0, "blue": 0}
-            }
+            "colors": {"A": {"red": 255, "green": 0, "blue": 0}},
         }
 
         result = format_training_example(example, include_raw=False)
@@ -147,7 +128,7 @@ class TestTrainingExampleFormatting:
         assert "WalkingHero" in result
         assert "type=animated" in result
         assert "[[animation]]" in result
-        assert "namespace = \"walk\"" in result
+        assert 'namespace = "walk"' in result
         assert "[[animation.frame]]" in result
 
     def test_alpha_sprite_formatting(self):
@@ -157,9 +138,7 @@ class TestTrainingExampleFormatting:
             "sprite_type": "static",
             "has_alpha": True,
             "pixels": "A",
-            "colors": {
-                "A": {"red": 255, "green": 0, "blue": 0, "alpha": 127}
-            }
+            "colors": {"A": {"red": 255, "green": 0, "blue": 0, "alpha": 127}},
         }
 
         result = format_training_example(example, include_raw=False)
@@ -169,12 +148,8 @@ class TestTrainingExampleFormatting:
 
     def test_raw_content_preference(self):
         """Test that raw_content is used when available."""
-        raw_toml = "[sprite]\nname = \"Raw\"\npixels = \"X\""
-        example = {
-            "name": "test",
-            "raw_content": raw_toml,
-            "pixels": "should_not_appear"
-        }
+        raw_toml = '[sprite]\nname = "Raw"\npixels = "X"'
+        example = {"name": "test", "raw_content": raw_toml, "pixels": "should_not_appear"}
 
         result = format_training_example(example, include_raw=True)
 
@@ -196,17 +171,17 @@ class TestResponseCleaning:
 
     def test_remove_code_blocks(self):
         """Test removal of markdown code blocks."""
-        content = "```toml\n[sprite]\nname = \"test\"\n```"
+        content = '```toml\n[sprite]\nname = "test"\n```'
 
         result = clean_ai_response(content)
 
         assert "```" not in result
         assert "[sprite]" in result
-        assert "name = \"test\"" in result
+        assert 'name = "test"' in result
 
     def test_remove_backticks_only(self):
         """Test removal of code fences."""
-        content = "```\n[sprite]\nname = \"test\"\n```"
+        content = '```\n[sprite]\nname = "test"\n```'
 
         result = clean_ai_response(content)
 
@@ -215,7 +190,7 @@ class TestResponseCleaning:
 
     def test_remove_leading_text(self):
         """Test removal of leading explanatory text."""
-        content = "Here's your sprite:\n\nSome explanation\n\n[sprite]\nname = \"test\""
+        content = 'Here\'s your sprite:\n\nSome explanation\n\n[sprite]\nname = "test"'
 
         result = clean_ai_response(content)
 
@@ -351,7 +326,7 @@ red = 255, 0, 0
 
     def test_markdown_code_blocks(self):
         """Test detection of uncleaned markdown."""
-        content = "```toml\n[sprite]\nname = \"test\"\n```"
+        content = '```toml\n[sprite]\nname = "test"\n```'
 
         is_valid, error = validate_ai_response(content)
 
@@ -461,8 +436,7 @@ class TestRefinementMessages:
         """Test basic refinement message structure."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request="Make it bigger",
-            last_sprite_content=last_sprite
+            user_request="Make it bigger", last_sprite_content=last_sprite
         )
 
         assert len(messages) == 4
@@ -480,13 +454,13 @@ class TestRefinementMessages:
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         history = [
             {"role": "user", "content": "Create a red square"},
-            {"role": "assistant", "content": last_sprite}
+            {"role": "assistant", "content": last_sprite},
         ]
 
         messages = build_refinement_messages(
             user_request="Make it blue",
             last_sprite_content=last_sprite,
-            conversation_history=history
+            conversation_history=history,
         )
 
         # Should have system, format, confirmation, history (2), and new request
@@ -500,9 +474,7 @@ class TestRefinementMessages:
         """Test that refinement requests include the user's size request."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request="Make it 32x32",
-            last_sprite_content=last_sprite,
-            include_size_hint=True
+            user_request="Make it 32x32", last_sprite_content=last_sprite, include_size_hint=True
         )
 
         last_message = messages[-1]["content"]
@@ -516,7 +488,7 @@ class TestRefinementMessages:
         messages = build_refinement_messages(
             user_request="Make it animated with 2 frames",
             last_sprite_content=last_sprite,
-            include_animation_hint=True
+            include_animation_hint=True,
         )
 
         last_message = messages[-1]["content"]
@@ -527,7 +499,7 @@ class TestRefinementMessages:
     def test_preserves_all_frames_in_animated_refinement(self):
         """Test that animated sprite refinements include the full sprite content."""
         # Create a multi-frame animated sprite
-        last_sprite = '''[sprite]
+        last_sprite = """[sprite]
 name = "test"
 
 [[animation]]
@@ -550,10 +522,9 @@ pixels = "C"
 
 [colors."A"]
 red = 255
-'''
+"""
         messages = build_refinement_messages(
-            user_request="Make it red",
-            last_sprite_content=last_sprite
+            user_request="Make it red", last_sprite_content=last_sprite
         )
 
         last_message = messages[-1]["content"]
@@ -571,7 +542,7 @@ red = 255
         messages = build_refinement_messages(
             user_request="Make it animated with 2 frames",
             last_sprite_content=last_sprite,
-            include_animation_hint=True
+            include_animation_hint=True,
         )
 
         last_message = messages[-1]["content"]

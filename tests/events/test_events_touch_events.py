@@ -65,7 +65,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: scene.touch_events_received.append(("touch_down", event)) or True
+                "on_touch_down_event": lambda event: (
+                    scene.touch_events_received.append(("touch_down", event)) or True
+                )
             }
         )
 
@@ -85,7 +87,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_motion_event": lambda event: scene.touch_events_received.append(("touch_motion", event)) or True
+                "on_touch_motion_event": lambda event: (
+                    scene.touch_events_received.append(("touch_motion", event)) or True
+                )
             }
         )
 
@@ -105,7 +109,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_up_event": lambda event: scene.touch_events_received.append(("touch_up", event)) or True
+                "on_touch_up_event": lambda event: (
+                    scene.touch_events_received.append(("touch_up", event)) or True
+                )
             }
         )
 
@@ -125,7 +131,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_down_event": lambda event: scene.touch_events_received.append(("multi_touch_down", event)) or True
+                "on_multi_touch_down_event": lambda event: (
+                    scene.touch_events_received.append(("multi_touch_down", event)) or True
+                )
             }
         )
 
@@ -145,7 +153,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_motion_event": lambda event: scene.touch_events_received.append(("multi_touch_motion", event)) or True
+                "on_multi_touch_motion_event": lambda event: (
+                    scene.touch_events_received.append(("multi_touch_motion", event)) or True
+                )
             }
         )
 
@@ -165,7 +175,9 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_up_event": lambda event: scene.touch_events_received.append(("multi_touch_up", event)) or True
+                "on_multi_touch_up_event": lambda event: (
+                    scene.touch_events_received.append(("multi_touch_up", event)) or True
+                )
             }
         )
 
@@ -185,9 +197,15 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: scene.touch_events_received.append(("touch_down", event)) or True,
-                "on_touch_motion_event": lambda event: scene.touch_events_received.append(("touch_motion", event)) or True,
-                "on_touch_up_event": lambda event: scene.touch_events_received.append(("touch_up", event)) or True
+                "on_touch_down_event": lambda event: (
+                    scene.touch_events_received.append(("touch_down", event)) or True
+                ),
+                "on_touch_motion_event": lambda event: (
+                    scene.touch_events_received.append(("touch_motion", event)) or True
+                ),
+                "on_touch_up_event": lambda event: (
+                    scene.touch_events_received.append(("touch_up", event)) or True
+                ),
             }
         )
 
@@ -198,7 +216,9 @@ class TestTouchEvents:
             scene.on_touch_down_event(event)
 
             # Test finger motion
-            event = HashableEvent(pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10)  # noqa: E501
+            event = HashableEvent(
+                pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10
+            )
             scene.on_touch_motion_event(event)
 
             # Test finger up
@@ -215,9 +235,15 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: scene.touch_events_received.append(("touch_down", event)) or True,
-                "on_touch_motion_event": lambda event: scene.touch_events_received.append(("touch_motion", event)) or True,
-                "on_touch_up_event": lambda event: scene.touch_events_received.append(("touch_up", event)) or True
+                "on_touch_down_event": lambda event: (
+                    scene.touch_events_received.append(("touch_down", event)) or True
+                ),
+                "on_touch_motion_event": lambda event: (
+                    scene.touch_events_received.append(("touch_motion", event)) or True
+                ),
+                "on_touch_up_event": lambda event: (
+                    scene.touch_events_received.append(("touch_up", event)) or True
+                ),
             }
         )
 
@@ -226,7 +252,9 @@ class TestTouchEvents:
         scene.on_touch_down_event(event)
 
         # Test touch motion with pressure
-        event = HashableEvent(pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6)  # noqa: E501
+        event = HashableEvent(
+            pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6
+        )
         scene.on_touch_motion_event(event)
 
         # Test touch up with pressure
@@ -246,19 +274,25 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: scene.touch_events_received.append(("touch_down", event)) or True,
-                "on_touch_motion_event": lambda event: scene.touch_events_received.append(("touch_motion", event)) or True,
-                "on_touch_up_event": lambda event: scene.touch_events_received.append(("touch_up", event)) or True
+                "on_touch_down_event": lambda event: (
+                    scene.touch_events_received.append(("touch_down", event)) or True
+                ),
+                "on_touch_motion_event": lambda event: (
+                    scene.touch_events_received.append(("touch_motion", event)) or True
+                ),
+                "on_touch_up_event": lambda event: (
+                    scene.touch_events_received.append(("touch_up", event)) or True
+                ),
             }
         )
 
         # Test different touch positions
         positions = [
-            (0, 0),      # Top-left
+            (0, 0),  # Top-left
             (100, 100),  # Center
             (200, 200),  # Bottom-right
-            (50, 150),   # Middle-left
-            (150, 50),   # Top-right
+            (50, 150),  # Middle-left
+            (150, 50),  # Top-right
         ]
 
         for x, y in positions:
@@ -278,12 +312,14 @@ class TestTouchEvents:
         assert len(scene.touch_events_received) == 15
 
     def _setup_mock_game_for_stub(self, stub, mocker):
-        """Set up mock game object for event stubs."""
+        """Set up mock game object for event stubs.
+
+        Returns:
+            object: The result.
+
+        """
         mock_game = mocker.Mock()
-        mock_game.options = {
-            "debug_events": False,
-            "no_unhandled_events": True
-        }
+        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
         stub.options = mock_game.options
         return mock_game
 
@@ -310,13 +346,19 @@ class TestTouchManager:
         manager = TouchEventManager(game=mock_game)
 
         # Test touch finger down
-        touch_down_event = HashableEvent(pygame.FINGERDOWN, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0)
+        touch_down_event = HashableEvent(
+            pygame.FINGERDOWN, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0
+        )
         manager.on_touch_finger_down_event(touch_down_event)
 
         # Test touch finger up
-        touch_up_event = HashableEvent(pygame.FINGERUP, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0)
+        touch_up_event = HashableEvent(
+            pygame.FINGERUP, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0
+        )
         manager.on_touch_finger_up_event(touch_up_event)
 
         # Test touch finger motion
-        touch_motion_event = HashableEvent(pygame.FINGERMOTION, touch_id=1, finger_id=1, x=110, y=110, dx=10, dy=10)
+        touch_motion_event = HashableEvent(
+            pygame.FINGERMOTION, touch_id=1, finger_id=1, x=110, y=110, dx=10, dy=10
+        )
         manager.on_touch_finger_motion_event(touch_motion_event)

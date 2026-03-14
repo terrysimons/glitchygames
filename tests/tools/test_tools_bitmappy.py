@@ -32,7 +32,12 @@ class TestBitmappyFunctionality:
         assert callable(bitmappy.BitmapEditorScene)
 
     def test_bitmappy_exceptions(self, mock_pygame_patches):
-        """Test bitmappy exception classes."""
+        """Test bitmappy exception classes.
+
+        Raises:
+            GGUnhandledMenuItemError: Raised intentionally to test the exception class.
+
+        """
         # Test that exception classes exist
         assert hasattr(bitmappy, "GGUnhandledMenuItemError")
         assert callable(bitmappy.GGUnhandledMenuItemError)

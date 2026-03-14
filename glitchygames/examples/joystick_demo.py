@@ -39,9 +39,6 @@ class ShapesSprite(Sprite):
             *args: Arguments to pass to the parent class.
             **kwargs: Keyword arguments to pass to the parent class.
 
-        Returns:
-            Self
-
         """
         super().__init__(*args, **kwargs)
         self.use_gfxdraw = False
@@ -73,9 +70,6 @@ class ShapesSprite(Sprite):
         Args:
             pos (tuple): The new position.
 
-        Returns:
-            None
-
         """
         self.rect.center = pos
         self.dirty = 1
@@ -84,9 +78,6 @@ class ShapesSprite(Sprite):
         """Update the sprite.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -100,9 +91,6 @@ class ShapesSprite(Sprite):
         """Draw a yellow point.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -129,9 +117,6 @@ class ShapesSprite(Sprite):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Draw a blue circle.
         if self.use_gfxdraw:
@@ -155,9 +140,6 @@ class ShapesSprite(Sprite):
         """Draw a green triangle.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -207,9 +189,6 @@ class ShapesSprite(Sprite):
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
@@ -222,7 +201,10 @@ class ShapesSprite(Sprite):
 
 # TODO: Refactor this into ui.py and/or remove it
 class TextSprite(Sprite):
+    """Text display sprite for rendering joystick information on screen."""
+
     def __init__(self: Self, background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=None):
+        """Initialize the text sprite with position and appearance settings."""
         self.background_color = background_color
         self.alpha = alpha
         self.x = x
@@ -236,7 +218,9 @@ class TextSprite(Sprite):
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
-        super().__init__(x=x, y=y, width=self.screen_width, height=self.screen_height, groups=groups)
+        super().__init__(
+            x=x, y=y, width=self.screen_width, height=self.screen_height, groups=groups
+        )
 
         # Quick and dirty, for now.
         self.image = pygame.Surface((self.screen_width, self.screen_height))
@@ -248,22 +232,22 @@ class TextSprite(Sprite):
         else:
             self.image.convert_alpha()
             self.image.set_alpha(self.alpha)
-#             # key will let you hide the background
-#             # but things that are blited otherwise will
-#             # be translucent.  This can be an easy
-#             # way to get a translucent image which
-#             # does not have a border, but it causes issues
-#             # with edge-bleed.
-#             #
-#             # What if we blitted the translucent background
-#             # to the screen, then copied it and used the copy
-#             # to write the text on top of when translucency
-#             # is set?  That would allow us to also control
-#             # whether the text is opaque or translucent, and
-#             # it would also allow a different translucency level
-#             # on the text than the window.
-#             self.image.convert_alpha()
-#             self.image.set_alpha(self.alpha)
+        #             # key will let you hide the background
+        #             # but things that are blited otherwise will
+        #             # be translucent.  This can be an easy
+        #             # way to get a translucent image which
+        #             # does not have a border, but it causes issues
+        #             # with edge-bleed.
+        #             #
+        #             # What if we blitted the translucent background
+        #             # to the screen, then copied it and used the copy
+        #             # to write the text on top of when translucency
+        #             # is set?  That would allow us to also control
+        #             # whether the text is opaque or translucent, and
+        #             # it would also allow a different translucency level
+        #             # on the text than the window.
+        #             self.image.convert_alpha()
+        #             self.image.set_alpha(self.alpha)
 
         self.rect = self.image.get_rect()
         self.rect.x += x
@@ -296,10 +280,9 @@ class TextSprite(Sprite):
     def update(self, filter_controller_index=None, input_mode=None):
         """Update the text display."""
         self.update_textbox(filter_controller_index, input_mode)
-        return
 
     def update_textbox(self, filter_controller_index=None, input_mode=None):
-        """Alternative update method using TextBoxSprite
+        """Update the display using TextBoxSprite.
 
         Args:
             filter_controller_index (int | None): If set, only show info for this controller index
@@ -327,7 +310,9 @@ class TextSprite(Sprite):
                     # Debug: check if text would go beyond surface bounds
                     text_width = rendered.get_width()
                     if self.x + text_width > surface.get_width():
-                        print(f"DEBUG: Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}")
+                        print(
+                            f"DEBUG: Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}"
+                        )
                     surface.blit(rendered, (self.x, self.y))
                     self.y += self.line_height
 
@@ -359,7 +344,9 @@ class TextSprite(Sprite):
 
         if filter_controller_index is not None:
             # Show only the selected controller
-            self.text_box.print(self.image, f"Showing {input_mode.title()} {filter_controller_index}")
+            self.text_box.print(
+                self.image, f"Showing {input_mode.title()} {filter_controller_index}"
+            )
             active = []
 
             # Use the correct manager based on input mode
@@ -443,17 +430,21 @@ class TextSprite(Sprite):
                     joystick_guid = None  # Controllers don't have GUIDs in the same way
                 else:
                     joystick_guid = (
-                        "-".join(joystick.get_guid()[i:i+4].upper() for i in range(0, len(joystick.get_guid()), 4))
-                        if hasattr(joystick, "get_guid") and joystick.get_guid() else None
+                        "-".join(
+                            joystick.get_guid()[i : i + 4].upper()
+                            for i in range(0, len(joystick.get_guid()), 4)
+                        )
+                        if hasattr(joystick, "get_guid") and joystick.get_guid()
+                        else None
                     )
                 # For controllers, use joystick_id directly; for joysticks, try to get _device_id
                 if input_mode == "controller":
                     device_id = joystick_id
                 else:
                     device_id = proxy._device_id if hasattr(proxy, "_device_id") else joystick_id
-                instance_id = joystick.get_instance_id() if \
-                    hasattr(joystick, "get_instance_id") \
-                        else None
+                instance_id = (
+                    joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
+                )
 
                 device_type = input_mode.title()
                 self.text_box.print(self.image, f"{device_type} {device_id} (id={joystick_id})")
@@ -492,13 +483,9 @@ class TextSprite(Sprite):
                     for j in range(axes):
                         try:
                             axis_value = joystick.get_axis(j)
-                            self.text_box.print(
-                                self.image, f"Axis {j} value: {axis_value:>6.3f}"
-                            )
+                            self.text_box.print(self.image, f"Axis {j} value: {axis_value:>6.3f}")
                         except Exception:
-                            self.text_box.print(
-                                self.image, f"Axis {j} value: N/A"
-                            )
+                            self.text_box.print(self.image, f"Axis {j} value: N/A")
                     self.text_box.unindent()
 
                     buttons = len(proxy.BUTTONS) if hasattr(proxy, "BUTTONS") else 0
@@ -508,13 +495,9 @@ class TextSprite(Sprite):
                     for j in range(buttons):
                         try:
                             button_value = joystick.get_button(j)
-                            self.text_box.print(
-                                self.image, f"Button {j:>2} value: {button_value}"
-                            )
+                            self.text_box.print(self.image, f"Button {j:>2} value: {button_value}")
                         except Exception:
-                            self.text_box.print(
-                                self.image, f"Button {j:>2} value: N/A"
-                            )
+                            self.text_box.print(self.image, f"Button {j:>2} value: N/A")
                     self.text_box.unindent()
 
                     # Controllers don't have hats
@@ -526,9 +509,9 @@ class TextSprite(Sprite):
 
                     self.text_box.indent()
                     for j in range(axes):
-                           self.text_box.print(
-                                self.image, f"Axis {j} value: {joystick.get_axis(j):>6.3f}"
-                            )
+                        self.text_box.print(
+                            self.image, f"Axis {j} value: {joystick.get_axis(j):>6.3f}"
+                        )
                     self.text_box.unindent()
 
                     buttons = joystick.get_numbuttons()
@@ -550,7 +533,9 @@ class TextSprite(Sprite):
                     self.text_box.indent()
                     for j in range(hats):
                         try:
-                            self.text_box.print(self.image, f"Hat {j} value: {str(joystick.get_hat(j))}")
+                            self.text_box.print(
+                                self.image, f"Hat {j} value: {joystick.get_hat(j)!s}"
+                            )
                         except Exception:
                             self.text_box.print(self.image, f"Hat {j} value: N/A")
                 self.text_box.unindent()
@@ -560,15 +545,14 @@ class TextSprite(Sprite):
 class JoystickScene(Scene):
     """A scene for testing joysticks."""
 
-    def __init__(self: Self, *, options: dict, groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(
+        self: Self, *, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+    ) -> None:
         """Initialize the JoystickScene.
 
         Args:
             options (dict | None): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
 
         """
         if groups is None:
@@ -579,7 +563,9 @@ class JoystickScene(Scene):
 
         # self.load_resources()
         self.shapes_sprite = ShapesSprite(x=0, y=0, width=640, height=480, groups=groups)
-        self.text_sprite = TextSprite(background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=self)
+        self.text_sprite = TextSprite(
+            background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=self
+        )
 
         # Add the sprites to the all_sprites group (text on top)
         self.all_sprites.add(self.text_sprite)
@@ -616,7 +602,10 @@ class JoystickScene(Scene):
             self._rebuild_controller_tabs()
 
         # Manually update the text sprite to refresh button states
-        self.text_sprite.update(filter_controller_index=self.active_controller_index, input_mode=self.options.get("input_mode", "joystick"))
+        self.text_sprite.update(
+            filter_controller_index=self.active_controller_index,
+            input_mode=self.options.get("input_mode", "joystick"),
+        )
 
         # Keep tabs centered if window size changes dynamically
         if self.tab_control is not None:
@@ -631,9 +620,6 @@ class JoystickScene(Scene):
         """Load the resources.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -670,9 +656,6 @@ class JoystickScene(Scene):
         Args:
             screen (pygame.Surface): The screen to render to.
 
-        Returns:
-            None
-
         """
         super().render(screen)
 
@@ -707,16 +690,19 @@ class JoystickScene(Scene):
                 device_manager = self.game.controller_manager
             elif hasattr(self, "text_sprite") and hasattr(self.text_sprite, "controller_manager"):
                 device_manager = self.text_sprite.controller_manager
-        else:  # joystick mode
-            if hasattr(self, "game") and hasattr(self.game, "joystick_manager"):
-                device_manager = self.game.joystick_manager
-            elif hasattr(self, "text_sprite") and hasattr(self.text_sprite, "joystick_manager"):
-                device_manager = self.text_sprite.joystick_manager
+        elif hasattr(self, "game") and hasattr(self.game, "joystick_manager"):
+            device_manager = self.game.joystick_manager
+        elif hasattr(self, "text_sprite") and hasattr(self.text_sprite, "joystick_manager"):
+            device_manager = self.text_sprite.joystick_manager
 
         # Force cleanup of stale entries in device_manager
         if device_manager:
             # Use the correct attribute name based on input mode
-            devices = device_manager.controllers if input_mode == "controller" else device_manager.joysticks
+            devices = (
+                device_manager.controllers
+                if input_mode == "controller"
+                else device_manager.joysticks
+            )
 
             # Only do stale cleanup for joysticks, not controllers
             if input_mode == "joystick":
@@ -737,10 +723,14 @@ class JoystickScene(Scene):
                         try:
                             instance_id = proxy.joystick.get_instance_id()
                             if instance_id not in current_instance_ids:
-                                print(f"DEBUG: {input_mode.title()} {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale")
+                                print(
+                                    f"DEBUG: {input_mode.title()} {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale"
+                                )
                                 stale_ids.append(joystick_id)
                         except Exception as e:
-                            print(f"DEBUG: Marking {input_mode} {joystick_id} as stale for removal: {e}")
+                            print(
+                                f"DEBUG: Marking {input_mode} {joystick_id} as stale for removal: {e}"
+                            )
                             stale_ids.append(joystick_id)
 
                 # Remove stale entries
@@ -765,7 +755,7 @@ class JoystickScene(Scene):
                                         controller_id=controller_id, game=device_manager.game
                                     )
                                     devices[controller_id] = controller_proxy
-                            except Exception as e:
+                            except Exception:
                                 pass
 
                 # Do stale cleanup for controllers that are no longer connected
@@ -776,28 +766,24 @@ class JoystickScene(Scene):
                 for controller_id, proxy in devices.items():
                     has_device = hasattr(proxy, "controller") and proxy.controller is not None
 
-                    if not has_device:
+                    if not has_device or controller_id >= current_pygame_count:
                         stale_ids.append(controller_id)
                     else:
-                        # Check if the controller ID is still valid by checking if it's within the current count
-                        if controller_id >= current_pygame_count:
-                            stale_ids.append(controller_id)
-                        else:
-                            # Try to verify the controller is still valid by checking if it's still a controller
-                            try:
-                                if not pygame._sdl2.controller.is_controller(controller_id):
-                                    stale_ids.append(controller_id)
-                                else:
-                                    # Additional validation: try to get the controller name
-                                    # This helps catch cases where the controller is marked as valid
-                                    # but is actually disconnected (common on some Linux systems)
-                                    try:
-                                        pygame._sdl2.controller.name_forindex(controller_id)
-                                    except Exception:
-                                        # If we can't get the name, the controller is likely disconnected
-                                        stale_ids.append(controller_id)
-                            except Exception as e:
+                        # Try to verify the controller is still valid by checking if it's still a controller
+                        try:
+                            if not pygame._sdl2.controller.is_controller(controller_id):
                                 stale_ids.append(controller_id)
+                            else:
+                                # Additional validation: try to get the controller name
+                                # This helps catch cases where the controller is marked as valid
+                                # but is actually disconnected (common on some Linux systems)
+                                try:
+                                    pygame._sdl2.controller.name_forindex(controller_id)
+                                except Exception:
+                                    # If we can't get the name, the controller is likely disconnected
+                                    stale_ids.append(controller_id)
+                        except Exception:
+                            stale_ids.append(controller_id)
 
                 # Remove stale entries
                 for stale_id in stale_ids:
@@ -808,7 +794,11 @@ class JoystickScene(Scene):
         unique_ids = []
         if device_manager:
             # Use the correct attribute name based on input mode
-            devices = device_manager.controllers if input_mode == "controller" else device_manager.joysticks
+            devices = (
+                device_manager.controllers
+                if input_mode == "controller"
+                else device_manager.joysticks
+            )
             for joystick_id, proxy in devices.items():
                 # Check for the correct attribute based on input mode
                 if input_mode == "controller":
@@ -871,7 +861,7 @@ class JoystickScene(Scene):
                         # Use device_id instead of joystick_id for tabs
                         if device_id not in unique_ids:
                             unique_ids.append(device_id)
-                    except Exception as e:
+                    except Exception:
                         pass
 
         # Sort IDs for consistent ordering
@@ -883,7 +873,7 @@ class JoystickScene(Scene):
             if self.tab_control is not None:
                 try:
                     self.all_sprites.remove(self.tab_control)
-                except Exception as e:
+                except Exception:
                     pass
                 finally:
                     self.tab_control = None
@@ -915,7 +905,7 @@ class JoystickScene(Scene):
             if self.tab_control is not None:
                 try:
                     self.all_sprites.remove(self.tab_control)
-                except Exception as e:
+                except Exception:
                     pass
                 finally:
                     self.tab_control = None
@@ -950,39 +940,49 @@ class JoystickScene(Scene):
         self.tab_control.update()
 
         # Refresh the text display to show the correct controller info
-        self.text_sprite.update(filter_controller_index=self.active_controller_index, input_mode=self.options.get("input_mode", "joystick"))
+        self.text_sprite.update(
+            filter_controller_index=self.active_controller_index,
+            input_mode=self.options.get("input_mode", "joystick"),
+        )
 
     def on_tab_change_event(self: Self, tab_label: str) -> None:
         """Handle tab selection; filter display to show only selected controller."""
         try:
             # Convert tab label (which is a string representation of controller ID) back to int
             self.active_controller_index = int(tab_label)
-        except Exception as e:
+        except Exception:
             self.active_controller_index = None
         # Force text sprite to refresh with new filter
-        self.text_sprite.update(filter_controller_index=self.active_controller_index, input_mode=self.options.get("input_mode", "joystick"))
+        self.text_sprite.update(
+            filter_controller_index=self.active_controller_index,
+            input_mode=self.options.get("input_mode", "joystick"),
+        )
         # Force tab control redraw
         if self.tab_control is not None:
             self.tab_control.dirty = 2
 
     # Device hotplug events: rebuild tabs
     def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joystick device added events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = pygame.joystick.get_count()
         self._rebuild_controller_tabs()
 
     def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle joystick device removed events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = pygame.joystick.get_count()
         self._rebuild_controller_tabs()
 
     # Controller device events: rebuild tabs
     def on_controller_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller device added events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = pygame.joystick.get_count()
         self._rebuild_controller_tabs()
 
     def on_controller_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        """Handle controller device removed events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = pygame.joystick.get_count()
         self._rebuild_controller_tabs()
@@ -993,9 +993,6 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.shapes_sprite.move(event.pos)
 
@@ -1004,9 +1001,6 @@ class JoystickScene(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.post_game_event("recharge", {"item": "bullet", "rate": 1})
@@ -1017,9 +1011,6 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.post_game_event("pew pew", {"bullet": "big boomies"})
 
@@ -1028,9 +1019,6 @@ class JoystickScene(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.info(f"PEW PEW Event: {event}")
@@ -1041,9 +1029,6 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
         self.log.info(f"Recharge Event: {event}")
 
@@ -1052,9 +1037,6 @@ class JoystickScene(Scene):
 
         Args:
             event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
 
         """
         self.log.info("controller Axis motion event")
@@ -1065,11 +1047,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -1077,11 +1055,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_device_remapped_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller device remapped events.
@@ -1089,11 +1063,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_touchpad_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad down events.
@@ -1101,11 +1071,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_touchpad_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad motion events.
@@ -1113,11 +1079,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_touchpad_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller touchpad up events.
@@ -1125,11 +1087,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
     def on_controller_sensor_update_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller sensor update events.
@@ -1137,11 +1095,7 @@ class JoystickScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        pass
 
 
 class Game(Scene):
@@ -1156,9 +1110,6 @@ class Game(Scene):
 
         Args:
             options (dict): The options passed to the game.
-
-        Returns:
-            None
 
         """
         super().__init__(options=options)
@@ -1207,7 +1158,9 @@ class Game(Scene):
             #     pygame.CONTROLLERTOUCHPADUP,
             # ])
         elif self.input_mode == "controller":
-            self.log.info("Controller mode: Not blocking joystick events to preserve controller hotplug")
+            self.log.info(
+                "Controller mode: Not blocking joystick events to preserve controller hotplug"
+            )
             # Note: We don't block joystick events in controller mode because
             # pygame.event.set_blocked(glitchygames.events.JOYSTICK_EVENTS) interferes
             # with CONTROLLERDEVICEADDED/CONTROLLERDEVICEREMOVED event generation on macOS
@@ -1252,9 +1205,6 @@ class Game(Scene):
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
             "--time", type=int, help="time in seconds to wait before quitting", default=10
@@ -1265,15 +1215,7 @@ class Game(Scene):
 
 
 def main() -> None:
-    """Run the main function.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    """
+    """Run the main function."""
     GameEngine(game=Game).start()
 
 

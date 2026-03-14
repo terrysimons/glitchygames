@@ -48,7 +48,12 @@ class TestBallPhysicsBenchmarks:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _create_ball_at_center(self):
-        """Create a ball positioned at center with diagonal velocity."""
+        """Create a ball positioned at center with diagonal velocity.
+
+        Returns:
+            object: The result.
+
+        """
         ball = BallSprite()
         ball.rect.x = 400
         ball.rect.y = 300
@@ -113,7 +118,12 @@ class TestAnimatedSpriteBenchmarks:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _create_multi_frame_sprite(self, frame_count):
-        """Create an AnimatedSprite with the given number of frames."""
+        """Create an AnimatedSprite with the given number of frames.
+
+        Returns:
+            object: The result.
+
+        """
         sprite = AnimatedSprite()
         surfaces = []
         for _ in range(frame_count):

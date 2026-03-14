@@ -21,6 +21,7 @@ class TestPauseScreen:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def setup_method(self):
@@ -32,7 +33,9 @@ class TestPauseScreen:
         """Test that Pause Screen is triggered when spacebar is pressed during gameplay."""
         # Mock the PauseScene import to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
-        mock_pause_scene_class = mocker.patch(PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene)
+        mock_pause_scene_class = mocker.patch(
+            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene
+        )
 
         # Create a game instance
         game = Game(options={})
@@ -40,10 +43,13 @@ class TestPauseScreen:
 
         # Check initial state - the game should be the active scene initially
         from glitchygames.scenes import SceneManager
+
         scene_manager = SceneManager()
         # The game should be the active scene initially, but if it's not, that's okay
         # as long as it's not the pause scene yet
-        assert scene_manager.active_scene != mock_pause_scene, "Expected pause scene not to be active initially"
+        assert scene_manager.active_scene != mock_pause_scene, (
+            "Expected pause scene not to be active initially"
+        )
 
         # Simulate spacebar press to trigger pause
         pygame.K_SPACE = 32
@@ -61,15 +67,20 @@ class TestPauseScreen:
 
         # Check if pause was triggered by checking the scene manager's active scene
         from glitchygames.scenes import SceneManager
+
         scene_manager = SceneManager()
-        assert scene_manager.active_scene == mock_pause_scene, "Expected pause scene to be set as active scene"
+        assert scene_manager.active_scene == mock_pause_scene, (
+            "Expected pause scene to be set as active scene"
+        )
         print("✅ Pause screen condition properly detected!")
 
     def test_pause_screen_resume_on_spacebar(self, mocker):
         """Test that Pause Screen can be resumed with spacebar."""
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
-        mock_pause_scene_class = mocker.patch(PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene)
+        mock_pause_scene_class = mocker.patch(
+            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene
+        )
 
         # Create a game instance
         game = Game(options={})
@@ -90,6 +101,7 @@ class TestPauseScreen:
 
         # Get the pause scene from the scene manager
         from glitchygames.scenes import SceneManager
+
         scene_manager = SceneManager()
         pause_scene = scene_manager.active_scene
         assert pause_scene == mock_pause_scene, "Expected pause scene to be created"
@@ -105,7 +117,9 @@ class TestPauseScreen:
         """Test that Pause Screen gets game engine reference from scene manager."""
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
-        mock_pause_scene_class = mocker.patch(PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene)
+        mock_pause_scene_class = mocker.patch(
+            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene
+        )
 
         # Test the scene manager's _setup_new_scene method directly
         # Create a scene manager with game engine
@@ -115,7 +129,7 @@ class TestPauseScreen:
             "update_type": "dirty",
             "fps_refresh_rate": 1,
             "target_fps": 60,
-            "fps_log_interval_ms": 1000.0
+            "fps_log_interval_ms": 1000.0,
         }
         scene_manager.game_engine = mock_game_engine
 
@@ -136,13 +150,16 @@ class TestPauseScreenIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_pause_resume_cycle(self, mocker):
         """Test complete pause/resume cycle through the game."""
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
-        mock_pause_scene_class = mocker.patch(PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene)
+        mock_pause_scene_class = mocker.patch(
+            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene
+        )
 
         # Create a game instance
         game = Game(options={})
@@ -162,6 +179,7 @@ class TestPauseScreenIntegration:
         game.on_key_up_event(space_up_event)
         # Check if pause was triggered by checking the scene manager's active scene
         from glitchygames.scenes import SceneManager
+
         scene_manager = SceneManager()
         assert scene_manager.active_scene == mock_pause_scene, "Expected pause scene to be set"
 

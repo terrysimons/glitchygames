@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for onion skinning rendering functionality."""
 
+import math
+
 import pygame
 import pytest
 from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
@@ -56,21 +58,28 @@ class TestOnionSkinningRendering:
 
         # Create renderer
         self.renderer = AnimatedCanvasRenderer(self.canvas_sprite)
-    
+
     def teardown_method(self):
         """Clean up after each test method."""
         pygame.quit()
-    
+
     def _create_mock_frame(self, pixels):
-        """Create a mock frame with the given pixels."""
+        """Create a mock frame with the given pixels.
+
+        Returns:
+            object: The result.
+
+        """
         frame = self._mocker.Mock()
         frame.get_pixel_data.return_value = pixels
         return frame
-    
+
     def test_onion_skinning_background_color(self):
         """Test that onion skinning uses magenta background."""
         # Mock the onion skinning manager
-        mock_get_manager = self._mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = self._mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = self._mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = True
         mock_manager.get_onion_skinned_frames.return_value = {0, 2}  # Frames 0 and 2
@@ -83,11 +92,13 @@ class TestOnionSkinningRendering:
         # Check that surface was created
         assert surface is not None
         assert surface.get_size() == (128, 128)
-    
+
     def test_onion_skinning_transparency_level(self):
         """Test that onion skinning respects transparency settings."""
         # Mock the onion skinning manager
-        mock_get_manager = self._mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = self._mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = self._mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = True
         mock_manager.get_onion_skinned_frames.return_value = {0, 2}
@@ -99,11 +110,13 @@ class TestOnionSkinningRendering:
 
         # Check that surface was created with correct transparency
         assert surface is not None
-    
+
     def test_no_onion_skinning_when_disabled(self):
         """Test that no onion skinning occurs when disabled."""
         # Mock the onion skinning manager
-        mock_get_manager = self._mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = self._mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = self._mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = False
         mock_get_manager.return_value = mock_manager
@@ -113,7 +126,7 @@ class TestOnionSkinningRendering:
 
         # Check that surface was created
         assert surface is not None
-    
+
     def test_transparent_pixel_skipping(self):
         """Test that transparent pixels (255, 0, 255) are skipped."""
         # Create frames with transparent pixels
@@ -123,9 +136,11 @@ class TestOnionSkinningRendering:
             self._create_mock_frame([(0, 255, 0)] * 64),  # Current frame: Green
             self._create_mock_frame(transparent_pixels),
         ]
-        
+
         # Mock the onion skinning manager
-        mock_get_manager = self._mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = self._mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = self._mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = True
         mock_manager.get_onion_skinned_frames.return_value = {0, 2}
@@ -153,11 +168,15 @@ class TestOnionSkinningRendering:
             self.renderer, "_has_active_controllers_in_canvas_mode"
         )
         mock_has_controllers.return_value = True
-        mock_get_indicator = self._mocker.patch.object(self.renderer, "_get_controller_indicator_for_pixel")
+        mock_get_indicator = self._mocker.patch.object(
+            self.renderer, "_get_controller_indicator_for_pixel"
+        )
         mock_get_indicator.return_value = (255, 0, 0)  # Red indicator
 
         # Mock the onion skinning manager
-        mock_get_manager = self._mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = self._mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = self._mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = True
         mock_manager.get_onion_skinned_frames.return_value = {0, 2}
@@ -176,7 +195,7 @@ class TestOnionSkinningRendering:
 
 class TestOnionSkinningIntegration:
     """Integration tests for onion skinning with real rendering."""
-    
+
     def setup_method(self):
         """Set up test fixtures before each test method."""
         pygame.init()
@@ -185,29 +204,29 @@ class TestOnionSkinningIntegration:
     def teardown_method(self):
         """Clean up after each test method."""
         pygame.quit()
-    
+
     def test_onion_skinning_manager_integration(self):
         """Test integration between OnionSkinningManager and rendering."""
         # Create a real onion skinning manager
         manager = OnionSkinningManager()
-        
+
         # Test default settings
         assert manager.global_onion_skinning_enabled is True
-        assert manager.onion_transparency == 0.5
-        
+        assert math.isclose(manager.onion_transparency, 0.5)
+
         # Test transparency setting
         manager.set_transparency(0.25)
-        assert manager.onion_transparency == 0.25
-        
+        assert math.isclose(manager.onion_transparency, 0.25)
+
         # Test frame onion skinning
         manager.toggle_frame_onion_skinning("test_animation", 0)
         assert manager.is_frame_onion_skinned("test_animation", 0)
-        
+
         # Test getting onion skinned frames
         onion_frames = manager.get_onion_skinned_frames("test_animation", 1, 3)
         expected_frames = {0, 2}  # All frames except current (1)
         assert onion_frames == expected_frames
-    
+
     def test_surface_creation_performance(self, mocker):
         """Test that surface creation is efficient."""
         # Create a mock canvas sprite
@@ -246,7 +265,9 @@ class TestOnionSkinningIntegration:
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
         # Mock the onion skinning manager
-        mock_get_manager = mocker.patch("glitchygames.tools.onion_skinning.get_onion_skinning_manager")
+        mock_get_manager = mocker.patch(
+            "glitchygames.tools.onion_skinning.get_onion_skinning_manager"
+        )
         mock_manager = mocker.Mock()
         mock_manager.is_global_onion_skinning_enabled.return_value = True
         mock_manager.get_onion_skinned_frames.return_value = {0, 2}

@@ -8,7 +8,7 @@ import toml
 from glitchygames.tools.bitmappy import (
     AnimatedCanvasSprite,
     BitmapEditorScene,
-    _normalize_toml_data,  # noqa: PLC2701
+    _normalize_toml_data,
 )
 
 from tests.mocks import MockFactory
@@ -133,6 +133,7 @@ class TestTOMLNormalization:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
@@ -142,14 +143,11 @@ class TestTOMLNormalization:
         """Test that escaped newlines are converted to actual newlines."""
         # Test data with escaped newlines
         config_data = {
-            "sprite": {
-                "name": "test_sprite",
-                "pixels": "ABC\\nDEF\\nGHI\\n"
-            },
+            "sprite": {"name": "test_sprite", "pixels": "ABC\\nDEF\\nGHI\\n"},
             "colors": {
                 "A": {"red": 255, "green": 0, "blue": 0},
-                "B": {"red": 0, "green": 255, "blue": 0}
-            }
+                "B": {"red": 0, "green": 255, "blue": 0},
+            },
         }
 
         # Normalize the data
@@ -163,12 +161,7 @@ class TestTOMLNormalization:
     def test_normalize_toml_data_with_double_escaped_newlines(self):
         """Test that double-escaped newlines are converted to actual newlines."""
         # Test data with double-escaped newlines
-        config_data = {
-            "sprite": {
-                "name": "test_sprite",
-                "pixels": "ABC\\\\nDEF\\\\nGHI\\\\n"
-            }
-        }
+        config_data = {"sprite": {"name": "test_sprite", "pixels": "ABC\\\\nDEF\\\\nGHI\\\\n"}}
 
         # Normalize the data
         normalized = _normalize_toml_data(config_data)
@@ -187,15 +180,9 @@ class TestTOMLNormalization:
                     "frame_interval": 100,
                     "loop": True,
                     "frame": [
-                        {
-                            "frame_index": 0,
-                            "pixels": "ABC\\nDEF\\nGHI\\n"
-                        },
-                        {
-                            "frame_index": 1,
-                            "pixels": "XYZ\\n123\\n456\\n"
-                        }
-                    ]
+                        {"frame_index": 0, "pixels": "ABC\\nDEF\\nGHI\\n"},
+                        {"frame_index": 1, "pixels": "XYZ\\n123\\n456\\n"},
+                    ],
                 }
             ]
         }
@@ -222,6 +209,7 @@ class TestTOMLConstruction:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         self._mocker = mocker
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
@@ -238,7 +226,7 @@ class TestTOMLConstruction:
             "sprite": {
                 "name": "test_sprite",
                 "description": "A test sprite",
-                "pixels": "ABC\nDEF\nGHI\n"
+                "pixels": "ABC\nDEF\nGHI\n",
             }
         }
 
@@ -260,12 +248,7 @@ class TestTOMLConstruction:
                     "namespace": "test_anim",
                     "frame_interval": 100,
                     "loop": True,
-                    "frame": [
-                        {
-                            "frame_index": 0,
-                            "pixels": "ABC\nDEF\nGHI\n"
-                        }
-                    ]
+                    "frame": [{"frame_index": 0, "pixels": "ABC\nDEF\nGHI\n"}],
                 }
             ]
         }
@@ -289,7 +272,7 @@ class TestTOMLConstruction:
         data = {
             "colors": {
                 "A": {"red": 255, "green": 0, "blue": 0},
-                "B": {"red": 0, "green": 255, "blue": 0}
+                "B": {"red": 0, "green": 255, "blue": 0},
             }
         }
 
@@ -305,12 +288,7 @@ class TestTOMLConstruction:
 
     def test_construct_toml_preserves_newlines(self):
         """Test that TOML construction preserves actual newlines in pixel data."""
-        data = {
-            "sprite": {
-                "name": "test",
-                "pixels": "ABC\nDEF\nGHI\n"
-            }
-        }
+        data = {"sprite": {"name": "test", "pixels": "ABC\nDEF\nGHI\n"}}
 
         result = self.mock_scene._construct_toml_with_preserved_formatting(data)
 
@@ -370,8 +348,7 @@ class TestPNGConversionIntegration:
                 assert 'pixels = """' in content
 
                 # Should not contain escaped newlines in the file
-                assert ("\\n" not in content or
-                        content.count("\\n") == content.count('pixels = """'))
+                assert "\\n" not in content or content.count("\\n") == content.count('pixels = """')
 
                 # Parse with toml to ensure it's valid
                 toml_data = toml.loads(Path(result).read_text(encoding="utf-8"))
@@ -448,7 +425,9 @@ class TestDragAndDropPNG:
 
             try:
                 # Mock the conversion and loading methods
-                mock_convert = self._mocker.patch.object(self.mock_scene, "_convert_png_to_bitmappy")
+                mock_convert = self._mocker.patch.object(
+                    self.mock_scene, "_convert_png_to_bitmappy"
+                )
                 mock_load = self._mocker.patch.object(self.mock_scene, "_load_converted_sprite")
 
                 mock_convert.return_value = "/tmp/test.toml"  # noqa: S108
@@ -481,7 +460,9 @@ class TestDragAndDropPNG:
 
             try:
                 # Mock the conversion method (should not be called)
-                mock_convert = self._mocker.patch.object(self.mock_scene, "_convert_png_to_bitmappy")
+                mock_convert = self._mocker.patch.object(
+                    self.mock_scene, "_convert_png_to_bitmappy"
+                )
 
                 # Create a mock event with the correct attribute
                 class MockEvent:
@@ -953,6 +934,7 @@ class TestDescriptionFeature:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
