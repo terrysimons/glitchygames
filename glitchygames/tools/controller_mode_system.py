@@ -123,11 +123,11 @@ class ControllerModeState:
             return LocationType.FILM_STRIP
         if self.current_mode == ControllerMode.CANVAS:
             return LocationType.CANVAS
-        if self.current_mode in [
+        if self.current_mode in {
             ControllerMode.R_SLIDER,
             ControllerMode.G_SLIDER,
             ControllerMode.B_SLIDER,
-        ]:
+        }:
             return LocationType.SLIDER
         return LocationType.FILM_STRIP
 

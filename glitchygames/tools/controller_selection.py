@@ -158,7 +158,7 @@ class ControllerSelection:
             slider_name: Name of the slider (R, G, or B)
 
         """
-        if slider_name in ["R", "G", "B"] and self.state.selected_slider != slider_name:
+        if slider_name in {"R", "G", "B"} and self.state.selected_slider != slider_name:
             self.state.selected_slider = slider_name
             self.state.last_update_time = time.time()
 
@@ -180,7 +180,7 @@ class ControllerSelection:
             direction: "HORIZONTAL" or "VERTICAL"
 
         """
-        if direction in ["HORIZONTAL", "VERTICAL"]:
+        if direction in {"HORIZONTAL", "VERTICAL"}:
             self.state.controller_fill_direction = direction
             self.state.last_update_time = time.time()
             LOG.debug("Controller %s fill direction set to %s", self.controller_id, direction)

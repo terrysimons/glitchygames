@@ -330,7 +330,7 @@ class TestSelectionBoxColorMatching:
             if selection["type"] == "keyboard":
                 assert selection["color"] == (255, 255, 255)
             elif selection["type"].startswith("controller"):
-                assert selection["color"] in [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+                assert selection["color"] in {(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)}
 
 
 class TestFilmStripScrolling:

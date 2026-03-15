@@ -568,27 +568,27 @@ class UndoRedoManager:
 
         """
         try:
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.CANVAS_PIXEL_CHANGE,
                 OperationType.CANVAS_BRUSH_STROKE,
                 OperationType.CANVAS_FLOOD_FILL,
                 OperationType.CANVAS_COLOR_CHANGE,
-            ]:
+            }:
                 return self._undo_canvas_operation(operation)
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.FILM_STRIP_FRAME_ADD,
                 OperationType.FILM_STRIP_FRAME_DELETE,
                 OperationType.FILM_STRIP_FRAME_REORDER,
                 OperationType.FILM_STRIP_ANIMATION_ADD,
                 OperationType.FILM_STRIP_ANIMATION_DELETE,
-            ]:
+            }:
                 return self._undo_film_strip_operation(operation)
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.FRAME_COPY,
                 OperationType.FRAME_PASTE,
                 OperationType.ANIMATION_COPY,
                 OperationType.ANIMATION_PASTE,
-            ]:
+            }:
                 return self._undo_cross_area_operation(operation)
             if operation.operation_type == OperationType.FRAME_SELECTION:
                 return self._undo_frame_selection_operation(operation)
@@ -614,27 +614,27 @@ class UndoRedoManager:
 
         """
         try:
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.CANVAS_PIXEL_CHANGE,
                 OperationType.CANVAS_BRUSH_STROKE,
                 OperationType.CANVAS_FLOOD_FILL,
                 OperationType.CANVAS_COLOR_CHANGE,
-            ]:
+            }:
                 return self._redo_canvas_operation(operation)
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.FILM_STRIP_FRAME_ADD,
                 OperationType.FILM_STRIP_FRAME_DELETE,
                 OperationType.FILM_STRIP_FRAME_REORDER,
                 OperationType.FILM_STRIP_ANIMATION_ADD,
                 OperationType.FILM_STRIP_ANIMATION_DELETE,
-            ]:
+            }:
                 return self._redo_film_strip_operation(operation)
-            if operation.operation_type in [
+            if operation.operation_type in {
                 OperationType.FRAME_COPY,
                 OperationType.FRAME_PASTE,
                 OperationType.ANIMATION_COPY,
                 OperationType.ANIMATION_PASTE,
-            ]:
+            }:
                 return self._redo_cross_area_operation(operation)
             if operation.operation_type == OperationType.FRAME_SELECTION:
                 return self._redo_frame_selection_operation(operation)

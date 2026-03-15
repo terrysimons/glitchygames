@@ -47,15 +47,15 @@ class TerminalDetector:
         colorterm = os.environ.get("COLORTERM", "").lower()
 
         # Check for true color support
-        if any(term in ["truecolor", "24bit", "direct"] for term in [term, colorterm]):
+        if any(term in {"truecolor", "24bit", "direct"} for term in [term, colorterm]):
             self._capability = TerminalCapability.TRUE_COLOR
         elif (
             "256" in colorterm
             or "256color" in term
-            or any(term in ["xterm", "screen", "tmux", "rxvt"] for term in [term])
+            or any(term in {"xterm", "screen", "tmux", "rxvt"} for term in [term])
         ):
             self._capability = TerminalCapability.COLOR_256
-        elif any(term in ["linux", "vt100", "vt220"] for term in [term]):
+        elif any(term in {"linux", "vt100", "vt220"} for term in [term]):
             self._capability = TerminalCapability.COLOR_8
         else:
             # Default to 8-color for most terminals

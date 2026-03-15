@@ -1934,7 +1934,7 @@ def _parse_toml_value(value: str) -> str | bool | int | float | list:
         return value[3:-3]
 
     # Handle boolean values
-    if value.lower() in ("true", "false"):
+    if value.lower() in {"true", "false"}:
         return value.lower() == "true"
 
     # Handle numeric values
@@ -9194,7 +9194,7 @@ class BitmapEditorScene(Scene):
         cleaned_content = self._clean_ai_response(content)
 
         # Check if this is an error message - if so, return it as-is
-        if cleaned_content.strip() in ["AI features not available", "AI features not available."]:
+        if cleaned_content.strip() in {"AI features not available", "AI features not available."}:
             self.log.warning("AI returned error message, skipping TOML processing")
             return cleaned_content
 
@@ -9789,7 +9789,7 @@ pixels = \"\"\"
         self._log_ai_response_content(content)
 
         # Check if this is an error message
-        if content.strip() in ["AI features not available", "AI features not available."]:
+        if content.strip() in {"AI features not available", "AI features not available."}:
             self.log.warning("AI returned error message, cannot load sprite")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = (
@@ -9936,7 +9936,7 @@ pixels = \"\"\"
 
         """
         # Check if this is an error message instead of valid content
-        if content.strip() in ["AI features not available", "AI features not available."]:
+        if content.strip() in {"AI features not available", "AI features not available."}:
             self.log.warning("AI returned error message instead of sprite content")
             return content  # Return as-is for error handling upstream
 
@@ -10146,7 +10146,7 @@ pixels = \"\"\"
             and (mod & pygame.KMOD_SHIFT)
             and hasattr(self, "canvas")
             and self.canvas
-            and event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]
+            and event.key in {pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN}
         ):
             self.log.debug("Ctrl+Shift+Arrow key released - committing panned buffer")
             self._commit_panned_buffer()
@@ -10389,11 +10389,11 @@ pixels = \"\"\"
         if hasattr(self, "mode_switcher"):
             for controller_id in self.mode_switcher.controller_modes:
                 controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-                if controller_mode and controller_mode.value in [
+                if controller_mode and controller_mode.value in {
                     "r_slider",
                     "g_slider",
                     "b_slider",
-                ]:
+                }:
                     any_controller_in_slider_mode = True
                     break
 
@@ -12155,7 +12155,7 @@ pixels = \"\"\"
         # Handle mode-specific button presses
         if controller_mode and controller_mode.value == "canvas":
             self._handle_canvas_button_press(controller_id, event.button)
-        elif controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
+        elif controller_mode and controller_mode.value in {"r_slider", "g_slider", "b_slider"}:
             self._handle_slider_button_press(controller_id, event.button)
         else:
             # Default to film strip mode handling
@@ -12485,26 +12485,26 @@ pixels = \"\"\"
             return
 
         # Handle button releases for continuous slider adjustment (D-pad and shoulder buttons)
-        if event.button in [
+        if event.button in {
             pygame.CONTROLLER_BUTTON_DPAD_LEFT,
             pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
             pygame.CONTROLLER_BUTTON_LEFTSHOULDER,
             pygame.CONTROLLER_BUTTON_RIGHTSHOULDER,
-        ]:
+        }:
             self._stop_slider_continuous_adjustment(controller_id)
 
             # Update color well when slider adjustment is finished (only if controller is in slider mode)
             controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-            if controller_mode and controller_mode.value in ["r_slider", "g_slider", "b_slider"]:
+            if controller_mode and controller_mode.value in {"r_slider", "g_slider", "b_slider"}:
                 self._update_color_well_from_sliders()
 
         # Handle button releases for continuous canvas movement (D-pad buttons)
-        if event.button in [
+        if event.button in {
             pygame.CONTROLLER_BUTTON_DPAD_LEFT,
             pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
             pygame.CONTROLLER_BUTTON_DPAD_UP,
             pygame.CONTROLLER_BUTTON_DPAD_DOWN,
-        ]:
+        }:
             self._stop_canvas_continuous_movement(controller_id)
 
         # Handle A button release in canvas mode (end controller drag)
@@ -12906,11 +12906,11 @@ pixels = \"\"\"
             target_controller_id = None
             for cid in self.mode_switcher.controller_modes:
                 controller_mode = self.mode_switcher.get_controller_mode(cid)
-                if controller_mode and controller_mode.value in [
+                if controller_mode and controller_mode.value in {
                     "r_slider",
                     "g_slider",
                     "b_slider",
-                ]:
+                }:
                     target_controller_id = cid
                     break
         else:
@@ -13090,11 +13090,11 @@ pixels = \"\"\"
                 self.log.debug(
                     f"DEBUG: Continuous adjustment - controller {controller_id} mode: {controller_mode.value if controller_mode else 'None'}"
                 )
-                if controller_mode and controller_mode.value in [
+                if controller_mode and controller_mode.value in {
                     "r_slider",
                     "g_slider",
                     "b_slider",
-                ]:
+                }:
                     self.log.debug(
                         "DEBUG: Calling _update_color_well_from_sliders during continuous adjustment"
                     )
@@ -13581,7 +13581,7 @@ pixels = \"\"\"
 
         """
         # Handle trigger axis motion for mode switching (axes 4 and 5)
-        if event.axis in [4, 5]:  # TRIGGERLEFT and TRIGGERRIGHT
+        if event.axis in {4, 5}:  # TRIGGERLEFT and TRIGGERRIGHT
             self.log.debug(
                 f"DEBUG: Trigger axis motion detected: axis={event.axis}, value={event.value}"
             )
@@ -13613,7 +13613,7 @@ pixels = \"\"\"
 
         """
         # Handle trigger axis motion for mode switching
-        if event.axis in [pygame.CONTROLLER_AXIS_TRIGGERLEFT, pygame.CONTROLLER_AXIS_TRIGGERRIGHT]:
+        if event.axis in {pygame.CONTROLLER_AXIS_TRIGGERLEFT, pygame.CONTROLLER_AXIS_TRIGGERRIGHT}:
             self._handle_trigger_axis_motion(event)
             return
 
@@ -13884,7 +13884,7 @@ pixels = \"\"\"
             # Default position based on mode
             if new_mode.value == "canvas":
                 position = (0, 0)  # Start at top-left of canvas
-            elif new_mode.value in ["r_slider", "g_slider", "b_slider"]:
+            elif new_mode.value in {"r_slider", "g_slider", "b_slider"}:
                 position = (0, 0)  # Start at top of slider
             else:  # film_strip
                 position = (100, 100)  # Default position
@@ -14980,7 +14980,7 @@ pixels = \"\"\"
                 f"DEBUG: Processing controller {instance_id}, status: {controller_info.status.value}"
             )
             # Accept controllers with any status (connected, assigned, or active)
-            if controller_info.status.value in ["connected", "assigned", "active"]:
+            if controller_info.status.value in {"connected", "assigned", "active"}:
                 controller_id = controller_info.controller_id
 
                 # Check if controller selection already exists
