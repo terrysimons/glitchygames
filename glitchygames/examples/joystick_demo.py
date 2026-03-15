@@ -857,11 +857,8 @@ class JoystickScene(Scene):
                                 # Fallback to joystick_id
                                 device_id = joystick_id
 
-                        if input_mode == "controller":
-                            # Controllers don't have get_guid(), skip it
-                            guid = "N/A"
-                        else:
-                            guid = device_obj.get_guid()
+                        # Controllers don't have get_guid(), skip it
+                        guid = "N/A" if input_mode == "controller" else device_obj.get_guid()
 
                         # Use device_id instead of joystick_id for tabs
                         if device_id not in unique_ids:

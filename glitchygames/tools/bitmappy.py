@@ -441,10 +441,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
         char_index = 0
         for pixel in pixels:
             # Normalize to RGB for color mapping (ignore alpha for color matching)
-            if len(pixel) == RGBA_COMPONENT_COUNT:
-                rgb = pixel[:3]
-            else:
-                rgb = pixel
+            rgb = pixel[:3] if len(pixel) == RGBA_COMPONENT_COUNT else pixel
 
             if rgb not in unique_colors:
                 unique_colors[rgb] = SPRITE_GLYPHS[char_index % len(SPRITE_GLYPHS)]
@@ -466,10 +463,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
                 if idx < len(pixels):
                     pixel = pixels[idx]
                     # Normalize to RGB for mapping
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        rgb = pixel[:3]
-                    else:
-                        rgb = pixel
+                    rgb = pixel[:3] if len(pixel) == RGBA_COMPONENT_COUNT else pixel
 
                     char = unique_colors.get(rgb, " ")
                     line.append(char)
@@ -8205,12 +8199,10 @@ class BitmapEditorScene(Scene):
                 # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                 try:
                     text = self.red_slider.text_sprite.text.strip().lower()
-                    if any(c in "abcdef" for c in text):
-                        # Contains hex characters, parse as hex
-                        new_value = int(text, 16)
-                    else:
-                        # No hex characters, parse as decimal
-                        new_value = int(text)
+                    # Parse as hex if contains hex letters, otherwise decimal
+                    new_value = (
+                        int(text, 16) if any(c in "abcdef" for c in text) else int(text)
+                    )
 
                     if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                         self.red_slider.value = new_value
@@ -8257,12 +8249,10 @@ class BitmapEditorScene(Scene):
                 # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                 try:
                     text = self.green_slider.text_sprite.text.strip().lower()
-                    if any(c in "abcdef" for c in text):
-                        # Contains hex characters, parse as hex
-                        new_value = int(text, 16)
-                    else:
-                        # No hex characters, parse as decimal
-                        new_value = int(text)
+                    # Parse as hex if contains hex letters, otherwise decimal
+                    new_value = (
+                        int(text, 16) if any(c in "abcdef" for c in text) else int(text)
+                    )
 
                     if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                         self.green_slider.value = new_value
@@ -8302,12 +8292,10 @@ class BitmapEditorScene(Scene):
                 # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
                 try:
                     text = self.blue_slider.text_sprite.text.strip().lower()
-                    if any(c in "abcdef" for c in text):
-                        # Contains hex characters, parse as hex
-                        new_value = int(text, 16)
-                    else:
-                        # No hex characters, parse as decimal
-                        new_value = int(text)
+                    # Parse as hex if contains hex letters, otherwise decimal
+                    new_value = (
+                        int(text, 16) if any(c in "abcdef" for c in text) else int(text)
+                    )
 
                     if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                         self.blue_slider.value = new_value
@@ -9805,10 +9793,7 @@ pixels = \"\"\"
             if hasattr(self, "debug_text"):
                 # Append the error message to the input box, with original prompt at the bottom
                 current_text = getattr(self.debug_text, "text", "")
-                if current_text:
-                    error_text = current_text + "\n\n" + content
-                else:
-                    error_text = content
+                error_text = current_text + "\n\n" + content if current_text else content
 
                 # Add original prompt at the bottom if we have it
                 if original_prompt:
@@ -13140,10 +13125,7 @@ pixels = \"\"\"
 
                 # Get current position
                 current_position = self.mode_switcher.get_controller_position(controller_id)
-                if current_position:
-                    current_pos = current_position.position
-                else:
-                    current_pos = (0, 0)
+                current_pos = current_position.position if current_position else (0, 0)
 
                 # Only track if position actually changed
                 if start_position != current_pos:
@@ -13244,12 +13226,8 @@ pixels = \"\"\"
 
         # Paint pixels in a horizontal line
         for i in range(abs(distance)):
-            if distance > 0:
-                # Moving right
-                pixel_x = start_x + i
-            else:
-                # Moving left
-                pixel_x = start_x - i
+            # Moving right if positive, left if negative
+            pixel_x = start_x + i if distance > 0 else start_x - i
 
             pixel_y = start_y
 
@@ -13338,12 +13316,8 @@ pixels = \"\"\"
 
         # Paint pixels in a vertical line
         for i in range(abs(distance)):
-            if distance > 0:
-                # Moving down
-                pixel_y = start_y + i
-            else:
-                # Moving up
-                pixel_y = start_y - i
+            # Moving down if positive, up if negative
+            pixel_y = start_y + i if distance > 0 else start_y - i
 
             pixel_x = start_x
 
