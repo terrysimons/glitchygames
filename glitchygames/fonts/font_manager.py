@@ -202,14 +202,14 @@ class FontManager(ResourceManager):
             font_config['font_size'] = 14
 
         # Create cache key
-        cache_key = f"{font_config['font_name']}_{font_config['font_size']}"
+        cache_key = f'{font_config["font_name"]}_{font_config["font_size"]}'
 
         # Check cache first
         if cache_key in FontManager._font_cache:
             return FontManager._font_cache[cache_key]
 
-        log.info(f"Loading Font: {font_config['font_name']}")
-        log.info(f"Font Size: {font_config['font_size']}")
+        log.info(f'Loading Font: {font_config["font_name"]}')
+        log.info(f'Font Size: {font_config["font_size"]}')
 
         try:
             font = pygame.freetype.SysFont(
@@ -260,7 +260,7 @@ class FontManager(ResourceManager):
             font_config['font_size'] = 14
 
         # Create cache key for pygame fonts
-        cache_key = f"pygame_{font_config['font_name']}_{font_config['font_size']}"
+        cache_key = f'pygame_{font_config["font_name"]}_{font_config["font_size"]}'
 
         # Check cache first
         if cache_key in FontManager._font_cache:

@@ -38,9 +38,9 @@ def run_frame_rate_tests():
     all_results = []
 
     for scenario_name, enable_collisions, enable_bouncing in scenarios:
-        LOG.debug(f"\n{'=' * 60}")
+        LOG.debug(f'\n{"=" * 60}')
         LOG.debug(f'SCENARIO: {scenario_name}')
-        LOG.debug(f"{'=' * 60}")
+        LOG.debug(f'{"=" * 60}')
 
         scenario_results = []
 
@@ -84,28 +84,28 @@ def run_frame_rate_tests():
         # Print scenario summary
         LOG.info(f'\n📈 {scenario_name} Results Summary:')
         for result in scenario_results:
-            fps_str = f"{result['fps']:.0f}" if result['fps'] != float('inf') else '∞'
+            fps_str = f'{result["fps"]:.0f}' if result['fps'] != float('inf') else '∞'
             LOG.debug(
-                f"  {fps_str} FPS: {result['alive']}/5 alive,"
-                f" {result['wall_bounces']} wall bounces,"
-                f" {result['ball_collisions']} ball collisions"
+                f'  {fps_str} FPS: {result["alive"]}/5 alive,'
+                f' {result["wall_bounces"]} wall bounces,'
+                f' {result["ball_collisions"]} ball collisions'
             )
 
     # Print overall summary
-    LOG.debug(f"\n{'=' * 60}")
+    LOG.debug(f'\n{"=" * 60}')
     LOG.info('OVERALL RESULTS SUMMARY')
-    LOG.debug(f"{'=' * 60}")
+    LOG.debug(f'{"=" * 60}')
 
     for scenario_name, _, _ in scenarios:
         LOG.debug(f'\n{scenario_name}:')
         scenario_data = [r for r in all_results if r['scenario'] == scenario_name]
 
         for result in scenario_data:
-            fps_str = f"{result['fps']:.0f}" if result['fps'] != float('inf') else '∞'
+            fps_str = f'{result["fps"]:.0f}' if result['fps'] != float('inf') else '∞'
             LOG.debug(
-                f"  {fps_str} FPS: {result['alive']}/5 alive,"
-                f" {result['wall_bounces']} wall bounces,"
-                f" {result['ball_collisions']} ball collisions"
+                f'  {fps_str} FPS: {result["alive"]}/5 alive,'
+                f' {result["wall_bounces"]} wall bounces,'
+                f' {result["ball_collisions"]} ball collisions'
             )
 
     return all_results
@@ -123,9 +123,9 @@ if __name__ == '__main__':
     if failures:
         LOG.debug(f'⚠️  {len(failures)} tests had ball deaths')
         for failure in failures:
-            fps_str = f"{failure['fps']:.0f}" if failure['fps'] != float('inf') else '∞'
+            fps_str = f'{failure["fps"]:.0f}' if failure['fps'] != float('inf') else '∞'
             LOG.debug(
-                f"  - {failure['scenario']} @ {fps_str} FPS: {failure['alive']}/5 balls alive"
+                f'  - {failure["scenario"]} @ {fps_str} FPS: {failure["alive"]}/5 balls alive'
             )
     else:
         LOG.info('✅ All tests passed - all balls survived in all scenarios!')

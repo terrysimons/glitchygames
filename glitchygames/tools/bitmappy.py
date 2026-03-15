@@ -457,7 +457,7 @@ def _build_color_to_glyph_map(pixels: list) -> dict:
     if unique_colors:
         LOG.debug(f'_render_frame_to_ascii: Found {len(unique_colors)} unique colors')
         LOG.debug(
-            f"_render_frame_to_ascii: First unique color: {next(iter(unique_colors.keys()))} ->"
+            f'_render_frame_to_ascii: First unique color: {next(iter(unique_colors.keys()))} ->'
             f" '{next(iter(unique_colors.values()))}'"
         )
 
@@ -955,9 +955,11 @@ def _process_config_file(config_file: Path, training_data: list) -> None:
     """
     LOG.debug(f'Processing config file: {config_file}')
     try:
-        if ai_training_state['format'] == 'toml':
-            config_data, sprite_data = _parse_toml_sprite_data(config_file)
+        if ai_training_state['format'] != 'toml':
+            LOG.warning(f"Unsupported format '{ai_training_state['format']}' for {config_file}")
+            return
 
+        config_data, sprite_data = _parse_toml_sprite_data(config_file)
         converted_sprite_data = _convert_sprite_to_alpha_format(sprite_data)
         training_data.append(converted_sprite_data)
 
@@ -1391,7 +1393,7 @@ def _initialize_ai_client(log: logging.Logger) -> object | None:
         return None
 
     log.info('aisuite is available')
-    log.debug(f"aisuite version: {getattr(ai, '__version__', 'unknown')}")
+    log.debug(f'aisuite version: {getattr(ai, "__version__", "unknown")}')
 
     _set_ollama_env_timeout(log)
 
@@ -1454,13 +1456,13 @@ def _log_capabilities_dump(log: logging.Logger, **fields: object) -> None:
         **fields: Key-value pairs to include in the dump.
 
     """
-    log.debug(f"\n{'=' * 60}")
+    log.debug(f'\n{"=" * 60}')
     log.debug('MODEL CAPABILITIES DUMP')
     log.debug('=' * 60)
     log.debug(f'Model: {AI_MODEL}')
     for key, value in fields.items():
         log.debug(f'{key}: {value}')
-    log.debug(f"{'=' * 60}\n")
+    log.debug(f'{"=" * 60}\n')
 
 
 def _parse_capabilities_response(log: logging.Logger, content: str) -> dict:
@@ -1568,14 +1570,14 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
         model_status = _check_ollama_model_status(log)
 
         if not model_status['downloaded']:
-            log.info(f"Model needs to be downloaded: {model_status['reason']}")
-            log.info(f"\n{'=' * 60}")
+            log.info(f'Model needs to be downloaded: {model_status["reason"]}')
+            log.info(f'\n{"=" * 60}')
             log.info('MODEL DOWNLOAD DETECTED')
             log.info('=' * 60)
             log.info(f'Model: {AI_MODEL}')
             log.info('Status: Model needs to be downloaded')
             log.info('This may take several minutes depending on model size...')
-            log.info(f"{'=' * 60}\n")
+            log.info(f'{"=" * 60}\n')
 
         client = _initialize_ai_client(log)
 
@@ -1610,15 +1612,15 @@ def _create_ai_retry_decorator(
     def giveup_handler(details: dict) -> None:
         """Handle final failure after all retries."""
         log.error(
-            f"AI request failed permanently after {details['tries']} attempts:"
-            f" {details['exception']}"
+            f'AI request failed permanently after {details["tries"]} attempts:'
+            f' {details["exception"]}'
         )
 
     def backoff_handler(details: dict) -> None:
         """Handle backoff between retries."""
         log.warning(
-            f"AI request failed (attempt {details['tries']}), retrying in {details['wait']:.1f}s:"
-            f" {details['exception']}"
+            f'AI request failed (attempt {details["tries"]}), retrying in {details["wait"]:.1f}s:'
+            f' {details["exception"]}'
         )
 
     return backoff.on_exception(
@@ -1847,8 +1849,11 @@ def _select_relevant_training_examples(
     scored_examples = []
     for example in ai_training_state['data']:
         score = _score_training_example(
-            example, user_lower, user_words,
-            wants_alpha=wants_alpha, requested_size=requested_size,
+            example,
+            user_lower,
+            user_words,
+            wants_alpha=wants_alpha,
+            requested_size=requested_size,
         )
         scored_examples.append((score, example))
 
@@ -1930,7 +1935,7 @@ def _build_retry_prompt(original_prompt: str, validation_error: str) -> str:
     elif 'mixed' in error_lower and 'format' in error_lower:
         retry_prompt += (
             "CRITICAL: For animated sprites, do NOT include 'pixels' in [sprite] section. "
-            "Only include pixels in [[animation.frame]] sections."
+            'Only include pixels in [[animation.frame]] sections.'
         )
     elif 'comma' in error_lower:
         retry_prompt += (
@@ -2153,7 +2158,7 @@ def _fix_comma_separated_color_field(
                 fixed_color['blue'] = values[2]
             log.warning(
                 f"Fixed comma-separated color format for '{color_key}':"
-                f" {field_value} -> separate fields"
+                f' {field_value} -> separate fields'
             )
         elif field_name == 'green' and len(values) >= 1:
             fixed_color['green'] = values[0]
@@ -2327,6 +2332,7 @@ def ai_worker(
         client = _initialize_ai_client(log)
         request_count = 0
 
+        request = None
         while True:
             try:
                 request = request_queue.get()
@@ -2466,8 +2472,8 @@ class FilmStripSprite(BitmappySprite):
         # Check if this sprite has been killed - if so, don't update
         if not hasattr(self, 'groups') or not self.groups() or len(self.groups()) == 0:
             LOG.debug(
-                f"DEBUG: FilmStripSprite update skipped - not in groups: {hasattr(self, 'groups')},"
-                f" groups: {self.groups() if hasattr(self, 'groups') else 'None'}"
+                f'DEBUG: FilmStripSprite update skipped - not in groups: {hasattr(self, "groups")},'
+                f' groups: {self.groups() if hasattr(self, "groups") else "None"}'
             )
             # Clear the widget reference to prevent any lingering updates
             if hasattr(self, 'film_strip_widget'):
@@ -3473,8 +3479,8 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.dirty_pixels = [True] * len(self.pixels)
 
         self.log.debug(
-            f"Applied panning view for {frame_key}: offset=({frame_state['pan_x']},"
-            f" {frame_state['pan_y']})"
+            f'Applied panning view for {frame_key}: offset=({frame_state["pan_x"]},'
+            f' {frame_state["pan_y"]})'
         )
 
     def reset_panning(self) -> None:
@@ -3707,7 +3713,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
                 self.dirty = 1
                 self.log.debug(
-                    f"Set frame to {frame_index} for animation "
+                    f'Set frame to {frame_index} for animation '
                     f"'{self.current_animation}' (was_playing: {was_playing})"
                 )
 
@@ -4539,7 +4545,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         loaded_sprite.load(filename)
 
         # Debug: Check what was loaded
-        self.log.debug(f"Loaded sprite has _animations: {hasattr(loaded_sprite, '_animations')}")
+        self.log.debug(f'Loaded sprite has _animations: {hasattr(loaded_sprite, "_animations")}')
         if hasattr(loaded_sprite, '_animations'):
             self.log.debug(f'Loaded sprite _animations: {list(loaded_sprite._animations.keys())}')
             self.log.debug(f'Loaded sprite current_animation: {loaded_sprite.current_animation}')
@@ -4620,8 +4626,8 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Notify parent scene about sprite load
         LOG.debug(
-            f"DEBUG: Checking callbacks - hasattr(parent_scene): {hasattr(self, 'parent_scene')},"
-            f" hasattr(on_sprite_loaded): {hasattr(self, 'on_sprite_loaded')}"
+            f'DEBUG: Checking callbacks - hasattr(parent_scene): {hasattr(self, "parent_scene")},'
+            f' hasattr(on_sprite_loaded): {hasattr(self, "on_sprite_loaded")}'
         )
         if hasattr(self, 'parent_scene') and self.parent_scene:
             self.log.debug('Calling parent scene _on_sprite_loaded')
@@ -4633,9 +4639,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.on_sprite_loaded(loaded_sprite)
         else:
             LOG.debug(
-                f"DEBUG: No callback found - hasattr(parent_scene):"
-                f" {hasattr(self, 'parent_scene')}, hasattr(on_sprite_loaded):"
-                f" {hasattr(self, 'on_sprite_loaded')}"
+                f'DEBUG: No callback found - hasattr(parent_scene):'
+                f' {hasattr(self, "parent_scene")}, hasattr(on_sprite_loaded):'
+                f' {hasattr(self, "on_sprite_loaded")}'
             )
             self.log.debug('No parent scene or callback found')
 
@@ -4697,7 +4703,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(self, 'parent_scene'):
             self.log.debug(
                 f"hasattr(self.parent_scene, 'debug_text'):"
-                f" {hasattr(self.parent_scene, 'debug_text')}"
+                f' {hasattr(self.parent_scene, "debug_text")}'
             )
             self.log.debug(f'self.parent_scene type: {type(self.parent_scene)}')
 
@@ -4844,12 +4850,12 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.log.debug(
             f'Converted static sprite to animated format with 1 frame: {len(pixel_data)} pixels'
         )
-        self.log.debug(f"Animated sprite has frames: {hasattr(animated_sprite, 'frames')}")
+        self.log.debug(f'Animated sprite has frames: {hasattr(animated_sprite, "frames")}')
         if hasattr(animated_sprite, 'frames'):
             self.log.debug(f'Available animations: {list(animated_sprite._animations.keys())}')
             if 'idle' in animated_sprite._animations:
                 self.log.debug(
-                    f"Idle animation has {len(animated_sprite._animations['idle'])} frames"
+                    f'Idle animation has {len(animated_sprite._animations["idle"])} frames'
                 )
                 if animated_sprite._animations['idle']:
                     frame_pixels = animated_sprite._animations['idle'][0].get_pixel_data()
@@ -4937,7 +4943,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.dirty = 1  # Mark canvas as dirty for redraw
             self.log.debug(f'Copied {len(current_frame_pixels)} pixels to canvas')
             self.log.debug(
-                f"Canvas pixels after copy: {self.pixels[:5] if self.pixels else 'None'}"
+                f'Canvas pixels after copy: {self.pixels[:5] if self.pixels else "None"}'
             )
         else:
             self.log.warning('No current frame pixels to copy to canvas')
@@ -5706,8 +5712,7 @@ class BitmapEditorScene(Scene):
             f' {len(frames)} frames'
         )
         LOG.debug(
-            f'Creating film strip {strip_index} for animation {anim_name} with {len(frames)}'
-            f' frames'
+            f'Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames'
         )
         # Create a single animated sprite with just this animation
         # Use the proper constructor to ensure all attributes are initialized
@@ -5813,7 +5818,7 @@ class BitmapEditorScene(Scene):
             return
         LOG.debug(
             f"DEBUG: hasattr(self.canvas, 'animated_sprite'):"
-            f" {hasattr(self.canvas, 'animated_sprite')}"
+            f' {hasattr(self.canvas, "animated_sprite")}'
         )
         if not hasattr(self.canvas, 'animated_sprite'):
             return
@@ -5822,7 +5827,7 @@ class BitmapEditorScene(Scene):
             return
         LOG.debug(
             f"DEBUG: hasattr(self.canvas.animated_sprite, '_animations'):"
-            f" {hasattr(self.canvas.animated_sprite, '_animations')}"
+            f' {hasattr(self.canvas.animated_sprite, "_animations")}'
         )
         if hasattr(self.canvas.animated_sprite, '_animations'):
             LOG.debug(
@@ -6164,7 +6169,7 @@ class BitmapEditorScene(Scene):
         """
         # Select the 0th frame of the new animation so the user can immediately start editing it
         LOG.debug(
-            f"BitmapEditorScene: Selecting frame 0 of newly created animation"
+            f'BitmapEditorScene: Selecting frame 0 of newly created animation'
             f" '{new_animation_name}'"
         )
         # Set flag to prevent frame selection tracking during animation creation
@@ -6176,7 +6181,7 @@ class BitmapEditorScene(Scene):
             if hasattr(self, 'undo_redo_manager'):
                 self.undo_redo_manager.set_current_frame(new_animation_name, 0)
                 LOG.debug(
-                    f"BitmapEditorScene: Updated undo/redo manager to track frame 0 of"
+                    f'BitmapEditorScene: Updated undo/redo manager to track frame 0 of'
                     f" '{new_animation_name}'"
                 )
         finally:
@@ -6212,8 +6217,7 @@ class BitmapEditorScene(Scene):
             f' {self.canvas.animated_sprite.current_animation}'
         )
         LOG.debug(
-            f'DEBUG: Animated sprite current frame:'
-            f' {self.canvas.animated_sprite.current_frame}'
+            f'DEBUG: Animated sprite current frame: {self.canvas.animated_sprite.current_frame}'
         )
         self.canvas.show_frame(new_animation_name, 0)
         LOG.debug(
@@ -6221,12 +6225,9 @@ class BitmapEditorScene(Scene):
             f' {self.canvas.animated_sprite.current_animation}'
         )
         LOG.debug(
-            f'DEBUG: After switch - current frame:'
-            f' {self.canvas.animated_sprite.current_frame}'
+            f'DEBUG: After switch - current frame: {self.canvas.animated_sprite.current_frame}'
         )
-        LOG.debug(
-            f'DEBUG: New frame surface size: {self.canvas.animated_sprite.image.get_size()}'
-        )
+        LOG.debug(f'DEBUG: New frame surface size: {self.canvas.animated_sprite.image.get_size()}')
 
         # Force the animated sprite to update its surface
         self.canvas.animated_sprite._update_surface_and_mark_dirty()
@@ -6278,15 +6279,11 @@ class BitmapEditorScene(Scene):
         # Switch to the first remaining animation and select the previous frame
         remaining_animations = list(self.canvas.animated_sprite._animations.keys())
         if remaining_animations:
-            self._select_animation_after_deletion(
-                remaining_animations, animation_name
-            )
+            self._select_animation_after_deletion(remaining_animations, animation_name)
             return
 
         # No remaining animations - clear selection
-        self._handle_no_remaining_animations(
-            remaining_animations, all_animations, deleted_index
-        )
+        self._handle_no_remaining_animations(remaining_animations, all_animations, deleted_index)
 
     def _capture_animation_deletion_for_undo(self, animation_name: str) -> None:
         """Capture animation data for undo/redo before deletion.
@@ -6313,9 +6310,7 @@ class BitmapEditorScene(Scene):
             animation_data['frames'].append(frame_data)
 
         # Track animation deletion for undo/redo
-        self.film_strip_operation_tracker.add_animation_deleted(
-            animation_name, animation_data
-        )
+        self.film_strip_operation_tracker.add_animation_deleted(animation_name, animation_data)
 
     def _select_animation_after_deletion(
         self, remaining_animations: list[str], deleted_animation_name: str
@@ -6331,14 +6326,16 @@ class BitmapEditorScene(Scene):
 
         # Try to select the previous frame in the remaining animation
         # If the deleted animation had frames, try to select a frame at a similar position
-        if hasattr(self, 'selected_frame') and self.selected_frame > 0:
+        if (
+            hasattr(self, 'selected_frame')
+            and self.selected_frame is not None
+            and self.selected_frame > 0
+        ):
             # Select the previous frame if available
             target_frame = max(0, self.selected_frame - 1)
         else:
             # If no previous frame, select the last frame of the remaining animation
-            target_frame = max(
-                0, len(self.canvas.animated_sprite._animations[new_animation]) - 1
-            )
+            target_frame = max(0, len(self.canvas.animated_sprite._animations[new_animation]) - 1)
 
         # Ensure the target frame is within bounds
         max_frame = len(self.canvas.animated_sprite._animations[new_animation]) - 1
@@ -7056,6 +7053,10 @@ class BitmapEditorScene(Scene):
 
         """
         try:
+            if VoiceEventManager is None:
+                self.log.info('Voice recognition not available')
+                self.voice_manager = None
+                return
             self.voice_manager = VoiceEventManager(logger=self.log)
 
             if self.voice_manager.is_available():
@@ -7148,6 +7149,8 @@ class BitmapEditorScene(Scene):
         scroll_change = int(drag_distance / strip_height)
 
         # Calculate new scroll offset
+        if self.film_strip_drag_start_offset is None:
+            return
         new_offset = self.film_strip_drag_start_offset + scroll_change
 
         # Clamp to valid range
@@ -7184,11 +7187,11 @@ class BitmapEditorScene(Scene):
 
         # Create film strips if we have an animated sprite
         LOG.debug('DEBUG: Checking conditions for _create_film_strips')
-        LOG.debug(f"DEBUG: hasattr(animated_sprite): {hasattr(self, 'animated_sprite')}")
+        LOG.debug(f'DEBUG: hasattr(animated_sprite): {hasattr(self, "animated_sprite")}')
         if hasattr(self, 'animated_sprite') and self.animated_sprite:
             LOG.debug(f'DEBUG: self.animated_sprite: {self.animated_sprite}')
             LOG.debug(
-                f"DEBUG: hasattr(_animations): {hasattr(self.animated_sprite, '_animations')}"
+                f'DEBUG: hasattr(_animations): {hasattr(self.animated_sprite, "_animations")}'
             )
             if hasattr(self.animated_sprite, '_animations'):
                 LOG.debug(f'DEBUG: _animations: {self.animated_sprite._animations}')
@@ -7205,7 +7208,7 @@ class BitmapEditorScene(Scene):
         """Handle when a new sprite is loaded - recreate film strips."""
         self.log.debug('=== _on_sprite_loaded called ===')
         LOG.debug(f'DEBUG: _on_sprite_loaded called with sprite: {loaded_sprite}')
-        LOG.debug(f"DEBUG: Sprite has animations: {hasattr(loaded_sprite, '_animations')}")
+        LOG.debug(f'DEBUG: Sprite has animations: {hasattr(loaded_sprite, "_animations")}')
         if hasattr(loaded_sprite, '_animations'):
             LOG.debug(f'DEBUG: Sprite animations: {list(loaded_sprite._animations.keys())}')
 
@@ -7221,7 +7224,7 @@ class BitmapEditorScene(Scene):
         self._preserved_controller_selections = preserved_controller_selections
 
         # Clear existing film strips
-        LOG.debug(f"DEBUG: Checking film_strips - hasattr: {hasattr(self, 'film_strips')}")
+        LOG.debug(f'DEBUG: Checking film_strips - hasattr: {hasattr(self, "film_strips")}')
         if hasattr(self, 'film_strips') and self.film_strips:
             self.log.debug(f'Clearing {len(self.film_strips)} existing film strips')
             LOG.debug(f'DEBUG: Clearing {len(self.film_strips)} existing film strips')
@@ -7267,8 +7270,8 @@ class BitmapEditorScene(Scene):
 
                 # Initialize pixels if needed (for mock sprites)
                 self.log.debug(
-                    f"Checking canvas pixels: has_pixels={hasattr(self.canvas, 'pixels')},"
-                    f" is_list={isinstance(getattr(self.canvas, 'pixels', None), list)}"
+                    f'Checking canvas pixels: has_pixels={hasattr(self.canvas, "pixels")},'
+                    f' is_list={isinstance(getattr(self.canvas, "pixels", None), list)}'
                 )
                 if not hasattr(self.canvas, 'pixels') or not isinstance(self.canvas.pixels, list):
                     self.log.debug('Initializing canvas pixels')
@@ -7552,7 +7555,7 @@ class BitmapEditorScene(Scene):
 
         """
         # If we removed a frame before or at the current position, adjust the selected frame
-        if self.selected_frame > 0:
+        if self.selected_frame is not None and self.selected_frame > 0:
             self.selected_frame -= 1
         else:
             # If we were at frame 0 and removed it, stay at frame 0 (which is now the next
@@ -7603,6 +7606,7 @@ class BitmapEditorScene(Scene):
             hasattr(self, 'selected_animation')
             and self.selected_animation == animation
             and hasattr(self, 'selected_frame')
+            and self.selected_frame is not None
             and self.selected_frame >= frame_index
         ):
             self._adjust_selected_frame_after_removal(animation, frame_index)
@@ -7644,8 +7648,8 @@ class BitmapEditorScene(Scene):
 
         LOG.debug(f'BitmapEditorScene: [SCENE COPY] Found {len(self.film_strips)} film strips')
         LOG.debug(
-            f"BitmapEditorScene: [SCENE COPY] Looking for animation:"
-            f" {getattr(self, 'selected_animation', 'None')}"
+            f'BitmapEditorScene: [SCENE COPY] Looking for animation:'
+            f' {getattr(self, "selected_animation", "None")}'
         )
 
         # Find the active film strip (the one with the current animation)
@@ -7689,8 +7693,8 @@ class BitmapEditorScene(Scene):
 
         LOG.debug(f'BitmapEditorScene: [SCENE PASTE] Found {len(self.film_strips)} film strips')
         LOG.debug(
-            f"BitmapEditorScene: [SCENE PASTE] Looking for animation:"
-            f" {getattr(self, 'selected_animation', 'None')}"
+            f'BitmapEditorScene: [SCENE PASTE] Looking for animation:'
+            f' {getattr(self, "selected_animation", "None")}'
         )
 
         # Find the active film strip (the one with the current animation)
@@ -7950,7 +7954,7 @@ class BitmapEditorScene(Scene):
         new_frame = (current_frame + direction) % total_frames
 
         LOG.debug(
-            f"BitmapEditorScene: Navigating from frame {current_frame} to frame {new_frame} in"
+            f'BitmapEditorScene: Navigating from frame {current_frame} to frame {new_frame} in'
             f" animation '{current_animation}' (total frames: {total_frames})"
         )
 
@@ -8280,59 +8284,13 @@ class BitmapEditorScene(Scene):
         self._applying_undo_redo = False
         self._frame_clipboard = None
 
-    def _handle_undo(self) -> None:
-        """Handle undo operation."""
-        if self.undo_redo_manager.can_undo():
-            success = self.undo_redo_manager.undo()
-            if success:
-                undo_description = self.undo_redo_manager.get_undo_description()
-                LOG.debug(f'Undo successful: {undo_description}')
-                # Force redraw of affected areas
-                self._force_redraw_after_undo_redo()
-            else:
-                LOG.warning('Undo operation failed')
-        else:
-            LOG.debug('No operations to undo')
-
-    def _handle_redo(self) -> None:
-        """Handle redo operation."""
-        if self.undo_redo_manager.can_redo():
-            success = self.undo_redo_manager.redo()
-            if success:
-                redo_description = self.undo_redo_manager.get_redo_description()
-                LOG.debug(f'Redo successful: {redo_description}')
-                # Force redraw of affected areas
-                self._force_redraw_after_undo_redo()
-            else:
-                LOG.warning('Redo operation failed')
-        else:
-            LOG.debug('No operations to redo')
-
-    def _force_redraw_after_undo_redo(self) -> None:
-        """Force redraw of affected areas after undo/redo operations."""
-        # Force canvas redraw
-        if hasattr(self, 'canvas') and self.canvas:
-            self.canvas.dirty = 1
-            self.canvas.force_redraw()
-            LOG.debug('Forced canvas redraw after undo/redo')
-
-        # Force film strip redraw
-        if hasattr(self, 'film_strips') and self.film_strips:
-            for film_strip in self.film_strips:
-                if hasattr(film_strip, 'dirty'):
-                    film_strip.dirty = 1
-            LOG.debug('Forced film strip redraw after undo/redo')
-
-        # Dialog scenes are now created fresh each time they're needed
-        # No need to store persistent dialog scene instances
-
         # These are set up in the GameEngine class.
         if not hasattr(self, '_initialized'):
             self.log.info(f'Game Options: {self.options}')
 
             # Override font to use a cleaner system font
             self.options['font_name'] = 'arial'
-            self.log.info(f"Font overridden to: {self.options['font_name']}")
+            self.log.info(f'Font overridden to: {self.options["font_name"]}')
             self._initialized = True
 
     def on_menu_item_event(self: Self, event: pygame.event.Event) -> None:
@@ -9235,24 +9193,6 @@ class BitmapEditorScene(Scene):
             text_hovered = self._is_slider_text_hovered(slider_name, mouse_pos)
             self._update_slider_text_hover_border(slider_name, is_text_hovered=text_hovered)
 
-    def _update_sprite_description(self, description: str) -> None:
-        """Update the sprite description when the AI text box content changes.
-
-        Args:
-            description: The new description text
-
-        """
-        if (
-            hasattr(self, 'canvas')
-            and self.canvas
-            and hasattr(self.canvas, 'animated_sprite')
-            and self.canvas.animated_sprite
-        ):
-            self.canvas.animated_sprite.description = description
-            self.log.debug(f"Updated sprite description: '{description}'")
-        else:
-            self.log.debug('No animated sprite available to update description')
-
     def _on_debug_text_change(self, new_text: str) -> None:
         """Handle debug text change.
 
@@ -9542,8 +9482,8 @@ class BitmapEditorScene(Scene):
                 lines.extend([
                     '[[animation]]',
                     f'namespace = "{animation["namespace"]}"',
-                    f"frame_interval = {animation['frame_interval']}",
-                    f"loop = {str(animation['loop']).lower()}",
+                    f'frame_interval = {animation["frame_interval"]}',
+                    f'loop = {str(animation["loop"]).lower()}',
                     '',
                 ])
 
@@ -9551,7 +9491,7 @@ class BitmapEditorScene(Scene):
                     lines.extend([
                         '[[animation.frame]]',
                         f'namespace = "{animation["namespace"]}"',
-                        f"frame_index = {frame['frame_index']}",
+                        f'frame_index = {frame["frame_index"]}',
                         'pixels = """',
                         frame['pixels'],
                         '"""',
@@ -9568,9 +9508,9 @@ class BitmapEditorScene(Scene):
                     seen_colors.add(color_key)
                     lines.extend([
                         f'[colors."{color_key}"]',
-                        f"red = {color_data['red']}",
-                        f"green = {color_data['green']}",
-                        f"blue = {color_data['blue']}",
+                        f'red = {color_data["red"]}',
+                        f'green = {color_data["green"]}',
+                        f'blue = {color_data["blue"]}',
                         '',
                     ])
                 else:
@@ -9587,7 +9527,7 @@ class BitmapEditorScene(Scene):
         """
         # Determine file extension based on training format
         file_extension = (
-            f".{ai_training_state['format']}" if ai_training_state['format'] else '.toml'
+            f'.{ai_training_state["format"]}' if ai_training_state['format'] else '.toml'
         )
 
         with tempfile.NamedTemporaryFile(
@@ -9620,9 +9560,9 @@ class BitmapEditorScene(Scene):
         # Just verify the state after loading
         if hasattr(self.canvas, 'animated_sprite') and self.canvas.animated_sprite:
             self.log.debug(
-                f"AI sprite loaded - animated_sprite state: "
+                f'AI sprite loaded - animated_sprite state: '
                 f"current_animation='{self.canvas.animated_sprite.current_animation}', "
-                f"is_playing={self.canvas.animated_sprite.is_playing}"
+                f'is_playing={self.canvas.animated_sprite.is_playing}'
             )
             animations = (
                 list(self.canvas.animated_sprite._animations.keys())
@@ -9921,7 +9861,7 @@ pixels = \"\"\"
             except OSError as cleanup_error:
                 self.log.warning(f'Failed to clean up temp file {temp_toml_path}: {cleanup_error}')
 
-            self.log.info(f"Loaded current frame as training example: {sprite_data['name']}")
+            self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
             return sprite_data
 
         except (OSError, ValueError, KeyError, TypeError):
@@ -10014,8 +9954,8 @@ pixels = \"\"\"
         # Use SpriteFactory to detect the sprite type
         sprite = SpriteFactory.load_sprite(filename=tmp_path)
         is_animated = hasattr(sprite, '_animations') and sprite._animations
-        self.log.info(f"AI sprite type: {'Animated' if is_animated else 'Static'}")
-        self.log.debug(f"AI sprite has _animations: {hasattr(sprite, '_animations')}")
+        self.log.info(f'AI sprite type: {"Animated" if is_animated else "Static"}')
+        self.log.debug(f'AI sprite has _animations: {hasattr(sprite, "_animations")}')
         if hasattr(sprite, '_animations'):
             self.log.debug(f'AI sprite _animations: {list(sprite._animations.keys())}')
             self.log.debug(f'AI sprite current_animation: {sprite.current_animation}')
@@ -10706,7 +10646,7 @@ pixels = \"\"\"
 
             onion_manager = get_onion_skinning_manager()
             new_state = onion_manager.toggle_global_onion_skinning()
-            self.log.debug(f"Onion skinning {'enabled' if new_state else 'disabled'}")
+            self.log.debug(f'Onion skinning {"enabled" if new_state else "disabled"}')
             # Force canvas redraw to show/hide onion skinning
             if hasattr(self, 'canvas') and self.canvas:
                 self.canvas.force_redraw()
@@ -10816,7 +10756,7 @@ pixels = \"\"\"
         if current_animation not in animations:
             self.log.warning(
                 f"Current animation '{current_animation}' no longer exists, switching to first"
-                f" available"
+                f' available'
             )
             if animations:
                 # Switch to the first available animation
@@ -10832,7 +10772,7 @@ pixels = \"\"\"
         if current_frame is None or current_frame < 0 or current_frame >= len(frames):
             self.log.warning(
                 f"Current frame {current_frame} is invalid for animation '{current_animation}' with"
-                f" {len(frames)} frames"
+                f' {len(frames)} frames'
             )
             # Switch to the last valid frame
             valid_frame = max(0, len(frames) - 1)
@@ -10931,6 +10871,10 @@ pixels = \"\"\"
         animation = self.selected_animation
         frame = self.selected_frame
 
+        if animation is None or frame is None:
+            self.log.warning('No animation or frame selected for copying')
+            return
+
         if not hasattr(self.canvas, 'animated_sprite') or not self.canvas.animated_sprite:
             self.log.warning('No animated sprite available for frame copying')
             return
@@ -10987,6 +10931,10 @@ pixels = \"\"\"
         animation = self.selected_animation
         frame = self.selected_frame
 
+        if animation is None or frame is None:
+            self.log.warning('No animation or frame selected for pasting')
+            return
+
         if not hasattr(self.canvas, 'animated_sprite') or not self.canvas.animated_sprite:
             self.log.warning('No animated sprite available for frame pasting')
             return
@@ -11031,9 +10979,9 @@ pixels = \"\"\"
         self.undo_redo_manager.add_operation(
             operation_type=OperationType.FRAME_PASTE,
             description=(
-                f"Paste frame from"
-                f" {self._frame_clipboard['animation']}[{self._frame_clipboard['frame']}] to"
-                f" {animation}[{frame}]"
+                f'Paste frame from'
+                f' {self._frame_clipboard["animation"]}[{self._frame_clipboard["frame"]}] to'
+                f' {animation}[{frame}]'
             ),
             undo_data={
                 'animation': animation,
@@ -11224,6 +11172,10 @@ pixels = \"\"\"
             True if the frame was added successfully, False otherwise
 
         """
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
         try:
             if (
                 not hasattr(self, 'canvas')
@@ -11234,10 +11186,6 @@ pixels = \"\"\"
                 return False
 
             # Create a new frame from the frame data
-            import pygame
-
-            from glitchygames.sprites.animated import SpriteFrame
-
             # Create surface from frame data
             surface = pygame.Surface((frame_data['width'], frame_data['height']))
             if frame_data.get('pixels'):
@@ -11439,7 +11387,7 @@ pixels = \"\"\"
                         self.film_strip_widget.mark_dirty()
 
                     self.log.debug(
-                        f"Reordered frame from {old_index} to {new_index} in animation"
+                        f'Reordered frame from {old_index} to {new_index} in animation'
                         f" '{animation_name}' for undo/redo"
                     )
                     return True
@@ -11463,6 +11411,10 @@ pixels = \"\"\"
             True if the animation was added successfully, False otherwise
 
         """
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
         try:
             if (
                 not hasattr(self, 'canvas')
@@ -11474,10 +11426,6 @@ pixels = \"\"\"
 
             # Create the animation with its frames
             for frame_data in animation_data.get('frames', []):
-                import pygame
-
-                from glitchygames.sprites.animated import SpriteFrame
-
                 # Create surface from frame data
                 surface = pygame.Surface((frame_data['width'], frame_data['height']))
                 if frame_data.get('pixels'):
@@ -11864,8 +11812,11 @@ pixels = \"\"\"
 
             has_transparency, original_image = self._detect_png_transparency(image, file_path)
             unique_colors, sample_count, transparent_pixels = self._sample_png_colors(
-                pixel_array, width, height,
-                has_transparency=has_transparency, original_image=original_image,
+                pixel_array,
+                width,
+                height,
+                has_transparency=has_transparency,
+                original_image=original_image,
             )
 
             if has_transparency:
@@ -11885,7 +11836,9 @@ pixels = \"\"\"
             )
 
             pixel_string = self._generate_pixel_string(
-                pixel_array, width, height,
+                pixel_array,
+                width,
+                height,
                 has_transparency=has_transparency,
                 original_image=original_image,
                 color_mapping=color_mapping,
@@ -12336,8 +12289,8 @@ pixels = \"\"\"
         self.log.info(f'Searching for canvas sprite in {len(self.all_sprites)} sprites...')
         for i, sprite in enumerate(self.all_sprites):
             self.log.info(
-                f"Sprite {i}: {type(sprite)} - has on_load_file_event:"
-                f" {hasattr(sprite, 'on_load_file_event')}"
+                f'Sprite {i}: {type(sprite)} - has on_load_file_event:'
+                f' {hasattr(sprite, "on_load_file_event")}'
             )
             if hasattr(sprite, 'on_load_file_event'):
                 self.log.info(f'Found canvas sprite: {type(sprite)}')
@@ -12378,7 +12331,7 @@ pixels = \"\"\"
         """
         self.log.info(f'Canvas sprite type: {type(canvas_sprite)}')
         self.log.info(
-            f"Canvas sprite has animated_sprite: {hasattr(canvas_sprite, 'animated_sprite')}"
+            f'Canvas sprite has animated_sprite: {hasattr(canvas_sprite, "animated_sprite")}'
         )
         if hasattr(canvas_sprite, 'animated_sprite'):
             self.log.info(f'animated_sprite value: {canvas_sprite.animated_sprite}')
@@ -12503,7 +12456,7 @@ pixels = \"\"\"
                     onion_manager.set_animation_onion_state(animation_name, frame_states)
                     self.log.debug(
                         f"Initialized onion skinning for animation '{animation_name}' with"
-                        f" {len(frames)} frames"
+                        f' {len(frames)} frames'
                     )
 
             # Ensure global onion skinning is enabled
@@ -12830,26 +12783,26 @@ pixels = \"\"\"
         if fill_direction == 'HORIZONTAL':
             if a_button_held:
                 LOG.debug(
-                    f"Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels"
-                    f" {'left' if is_left else 'right'}"
+                    f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
+                    f' {"left" if is_left else "right"}'
                 )
                 self._canvas_paint_horizontal_line(controller_id, distance)
             else:
                 LOG.debug(
-                    f"Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels"
-                    f" {'left' if is_left else 'right'}"
+                    f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
+                    f' {"left" if is_left else "right"}'
                 )
                 self._canvas_jump_horizontal(controller_id, distance)
         elif a_button_held:
             LOG.debug(
-                f"Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels"
-                f" {'up' if is_left else 'down'}"
+                f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
+                f' {"up" if is_left else "down"}'
             )
             self._canvas_paint_vertical_line(controller_id, distance)
         else:
             LOG.debug(
-                f"Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels"
-                f" {'up' if is_left else 'down'}"
+                f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
+                f' {"up" if is_left else "down"}'
             )
             self._canvas_jump_vertical(controller_id, distance)
 
@@ -12994,16 +12947,16 @@ pixels = \"\"\"
         drag_info['end_position'] = self.mode_switcher.get_controller_position(controller_id)
 
         self.log.debug(
-            f"DEBUG: Controller {controller_id}: Drag operation drew"
-            f" {len(drag_info['pixels_drawn'])} pixels"
+            f'DEBUG: Controller {controller_id}: Drag operation drew'
+            f' {len(drag_info["pixels_drawn"])} pixels'
         )
 
         if not drag_info['pixels_drawn']:
             return
 
         LOG.debug(
-            f"Controller {controller_id}: Drag operation completed with"
-            f" {len(drag_info['pixels_drawn'])} pixels drawn"
+            f'Controller {controller_id}: Drag operation completed with'
+            f' {len(drag_info["pixels_drawn"])} pixels drawn'
         )
 
         pixel_changes = self._collect_drag_pixel_changes(controller_id, drag_info)
@@ -13237,8 +13190,8 @@ pixels = \"\"\"
         }
         drag_info['pixels_drawn'].append(pixel_info)
         self.log.debug(
-            f"DEBUG: Controller drag tracking pixel at {position}, total"
-            f" pixels: {len(drag_info['pixels_drawn'])}"
+            f'DEBUG: Controller drag tracking pixel at {position}, total'
+            f' pixels: {len(drag_info["pixels_drawn"])}'
         )
 
     def _canvas_erase_at_controller_position(self, controller_id: int) -> None:
@@ -13512,8 +13465,8 @@ pixels = \"\"\"
         if hasattr(self, 'mode_switcher'):
             controller_mode = self.mode_switcher.get_controller_mode(controller_id)
             self.log.debug(
-                f"DEBUG: Controller {controller_id} mode:"
-                f" {controller_mode.value if controller_mode else 'None'}"
+                f'DEBUG: Controller {controller_id} mode:'
+                f' {controller_mode.value if controller_mode else "None"}'
             )
 
             # Adjust the appropriate slider based on mode
@@ -13549,8 +13502,8 @@ pixels = \"\"\"
                 self.log.debug(f'DEBUG: Adjusted B slider to {new_value}')
             else:
                 self.log.debug(
-                    f"DEBUG: No matching slider mode for"
-                    f" {controller_mode.value if controller_mode else 'None'}"
+                    f'DEBUG: No matching slider mode for'
+                    f' {controller_mode.value if controller_mode else "None"}'
                 )
         else:
             self.log.debug('DEBUG: No mode_switcher found')
@@ -13638,8 +13591,8 @@ pixels = \"\"\"
                 # Update color well during continuous adjustment
                 controller_mode = self.mode_switcher.get_controller_mode(controller_id)
                 self.log.debug(
-                    f"DEBUG: Continuous adjustment - controller {controller_id} mode:"
-                    f" {controller_mode.value if controller_mode else 'None'}"
+                    f'DEBUG: Continuous adjustment - controller {controller_id} mode:'
+                    f' {controller_mode.value if controller_mode else "None"}'
                 )
                 if controller_mode and controller_mode.value in {
                     'r_slider',
@@ -14162,8 +14115,8 @@ pixels = \"\"\"
         self.log.debug(f'DEBUG: RIGHT_X axis constant: {pygame.CONTROLLER_AXIS_RIGHTX}')
         self.log.debug(f'DEBUG: RIGHT_Y axis constant: {pygame.CONTROLLER_AXIS_RIGHTY}')
         self.log.debug(
-            f"DEBUG: Controller selection active:"
-            f" {getattr(self, 'controller_selection_active', False)}"
+            f'DEBUG: Controller selection active:'
+            f' {getattr(self, "controller_selection_active", False)}'
         )
 
         # Left stick for fine frame navigation (only if controller selection is active)
@@ -14797,7 +14750,7 @@ pixels = \"\"\"
         for controller in controllers:
             # Create indicator at calculated position
             indicator = BitmappySprite(
-                name=f"SliderIndicator_{controller['controller_id']}",
+                name=f'SliderIndicator_{controller["controller_id"]}',
                 x=current_x - indicator_size // 2,
                 y=center_y - indicator_size // 2,
                 width=indicator_size,
@@ -15115,7 +15068,7 @@ pixels = \"\"\"
 
         self.log.debug(
             f"DEBUG: Scrolled to show animation '{animation_name}' at index {target_index}, scroll"
-            f" offset: {self.film_strip_scroll_offset}"
+            f' offset: {self.film_strip_scroll_offset}'
         )
 
     def _validate_controller_selection(self) -> None:
@@ -15327,7 +15280,7 @@ pixels = \"\"\"
 
         self.log.debug(
             f"DEBUG: Controller {controller_id} previous animation: Moving to '{new_animation}',"
-            f" frame {target_frame}"
+            f' frame {target_frame}'
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -15383,7 +15336,7 @@ pixels = \"\"\"
 
         self.log.debug(
             f"DEBUG: Controller {controller_id} next animation: Moving to '{new_animation}', frame"
-            f" {target_frame}"
+            f' {target_frame}'
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -15513,9 +15466,9 @@ pixels = \"\"\"
             f"DEBUG: Controller {controller_id} selecting frame {frame} in animation '{animation}'"
         )
         self.log.debug(
-            f"DEBUG: Current global selection before update:"
+            f'DEBUG: Current global selection before update:'
             f" animation='{getattr(self, 'selected_animation', 'None')}',"
-            f" frame={getattr(self, 'selected_frame', 'None')}"
+            f' frame={getattr(self, "selected_frame", "None")}'
         )
 
         # Update the canvas to show this frame
@@ -15534,7 +15487,7 @@ pixels = \"\"\"
                         # Store global selection state (same as keyboard selection)
                         self.log.debug(
                             f"DEBUG: Setting global selection state to animation '{animation}',"
-                            f" frame {frame}"
+                            f' frame {frame}'
                         )
                         self.selected_animation = animation
                         self.selected_frame = frame
@@ -15544,23 +15497,23 @@ pixels = \"\"\"
                         self._update_film_strip_selection_state()
 
                         self.log.debug(
-                            f"DEBUG: Controller selection updated keyboard selection to animation"
+                            f'DEBUG: Controller selection updated keyboard selection to animation'
                             f" '{animation}', frame {frame}"
                         )
                         self.log.debug(
                             f"DEBUG: Final global selection: animation='{self.selected_animation}',"
-                            f" frame={self.selected_frame}"
+                            f' frame={self.selected_frame}'
                         )
                     else:
                         self.log.debug(
                             f"DEBUG: Frame {frame} is out of bounds for animation '{animation}'"
-                            f" (max:"
-                            f" {len(strip_widget.animated_sprite._animations[animation]) - 1})"
+                            f' (max:'
+                            f' {len(strip_widget.animated_sprite._animations[animation]) - 1})'
                         )
                 else:
                     self.log.debug(
                         f"DEBUG: Animation '{animation}' not found in"
-                        f" strip_widget.animated_sprite._animations"
+                        f' strip_widget.animated_sprite._animations'
                     )
             else:
                 self.log.debug(
@@ -15604,11 +15557,11 @@ pixels = \"\"\"
                 f'DEBUG: Current controller_selections: {list(self.controller_selections.keys())}'
             )
             self.log.debug(
-                f"DEBUG: Current film_strips: {
+                f'DEBUG: Current film_strips: {
                     list(self.film_strips.keys())
-                    if hasattr(self, 'film_strips') and self.film_strips
-                    else 'None'
-                }"
+                    if hasattr(self, "film_strips") and self.film_strips
+                    else "None"
+                }'
             )
 
         if not self.controller_selections:
@@ -15660,7 +15613,7 @@ pixels = \"\"\"
                 animation, frame = controller_selection.get_selection()
                 active_controllers[controller_id] = (animation, frame)
                 self.log.debug(
-                    f"DEBUG: Storing active controller {controller_id} with animation"
+                    f'DEBUG: Storing active controller {controller_id} with animation'
                     f" '{animation}', frame {frame}"
                 )
         return active_controllers
@@ -15735,7 +15688,7 @@ pixels = \"\"\"
         controller_selection.set_selection(first_animation, 0)
         controller_selection.activate()
         self.log.debug(
-            f"DEBUG: Reset active controller {controller_id} to first animation"
+            f'DEBUG: Reset active controller {controller_id} to first animation'
             f" '{first_animation}', frame 0 (ignoring previous selection)"
         )
         self.log.debug(

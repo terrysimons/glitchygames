@@ -84,9 +84,7 @@ def _run_continuous_speedup_scenarios(ball):
 
     for iteration in range(10):
         ball.dt_tick(0.016)  # 60 FPS
-        LOG.debug(
-            f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})'
-        )
+        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
         time.sleep(0.1)  # Small delay to see progression
 
     LOG.debug('   Result: X speed remains 0, Y speed remains 0 (no movement)\n')
@@ -97,9 +95,7 @@ def _run_continuous_speedup_scenarios(ball):
 
     for iteration in range(10):
         ball.dt_tick(0.016)  # 60 FPS
-        LOG.debug(
-            f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})'
-        )
+        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
         time.sleep(0.1)  # Small delay to see progression
 
     LOG.debug('   Result: X speed increases over time, Y speed unchanged\n')
@@ -159,20 +155,13 @@ def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_inde
 
     for iteration in range(5):
         ball.dt_tick(0.016)  # 60 FPS
-        LOG.debug(
-            f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})'
-        )
+        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
         time.sleep(0.1)
 
-    both_nonzero = (
-        not math.isclose(x_speed, 0.0, abs_tol=1e-9)
-        and not math.isclose(y_speed, 0.0, abs_tol=1e-9)
+    both_nonzero = not math.isclose(x_speed, 0.0, abs_tol=1e-9) and not math.isclose(
+        y_speed, 0.0, abs_tol=1e-9
     )
-    result_msg = (
-        'X and Y speeds increase'
-        if both_nonzero
-        else 'Only non-zero components increase'
-    )
+    result_msg = 'X and Y speeds increase' if both_nonzero else 'Only non-zero components increase'
     LOG.debug(f'   Result: {result_msg}\n')
 
 
@@ -206,14 +195,10 @@ def test_zero_speed_scenarios(mocker):
     ]
 
     LOG.debug('=== COMPREHENSIVE DIRECTIONAL ZERO SPEED TESTS ===\n')
-    _run_bounce_tests_for_mode(
-        ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, test_speeds, label='11'
-    )
+    _run_bounce_tests_for_mode(ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, test_speeds, label='11')
 
     LOG.debug('=== TESTING Y-ONLY SPEEDUP ===\n')
-    _run_bounce_tests_for_mode(
-        ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y, test_speeds, label='12'
-    )
+    _run_bounce_tests_for_mode(ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y, test_speeds, label='12')
 
     LOG.debug('=== TESTING BOTH X AND Y SPEEDUP ===\n')
     _run_bounce_tests_for_mode(
@@ -225,9 +210,7 @@ def test_zero_speed_scenarios(mocker):
 
     # Test continuous speed-up with various zero combinations
     LOG.debug('=== TESTING CONTINUOUS SPEEDUP WITH ZERO COMBINATIONS ===\n')
-    ball.speed_up_mode = (
-        SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y
-    )
+    ball.speed_up_mode = SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y
 
     continuous_test_speeds = [
         (0.0, 0.0, 'Both zero'),
@@ -237,9 +220,7 @@ def test_zero_speed_scenarios(mocker):
         (0.0, 5.0, 'X zero, Y small positive'),
     ]
 
-    for index, (x_speed, y_speed, description) in enumerate(
-        continuous_test_speeds, start=1
-    ):
+    for index, (x_speed, y_speed, description) in enumerate(continuous_test_speeds, start=1):
         _run_continuous_speedup_test(ball, x_speed, y_speed, description, index)
 
 

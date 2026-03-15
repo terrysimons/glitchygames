@@ -462,6 +462,8 @@ class Game(Scene):
             # And between y=20 and y=screen_height-20 (with some margin from top/bottom)
             # Try to find a location that's not too close to existing balls
             max_attempts = 10
+            spawn_x = self.screen_width // 2
+            spawn_y = self.screen_height // 2
             for _ in range(max_attempts):
                 spawn_x = (
                     secrets.randbelow(self.screen_width - 60) + 30
@@ -624,10 +626,9 @@ class Game(Scene):
                 normal_y = dy / distance
 
                 # Calculate relative velocity along collision normal
-                dvn = (
-                    (ball2.speed.x - ball1.speed.x) * normal_x
-                    + (ball2.speed.y - ball1.speed.y) * normal_y
-                )
+                dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
+                    ball2.speed.y - ball1.speed.y
+                ) * normal_y
 
                 # Only skip if balls are clearly separating AND not overlapping
                 if dvn > 0 and distance >= collision_distance:

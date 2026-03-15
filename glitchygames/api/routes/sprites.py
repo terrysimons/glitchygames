@@ -330,9 +330,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         ) from e
 
 
-def _extract_single_frame(
-    png: object, control: object, index: int
-) -> tuple[ApngFrameInfo, int]:
+def _extract_single_frame(png: object, control: object, index: int) -> tuple[ApngFrameInfo, int]:
     """Extract a single frame and its metadata from an APNG frame pair.
 
     Args:
@@ -402,9 +400,9 @@ def _extract_png_dimensions(
         Tuple of (width, height)
 
     """
-    try:
-        import struct
+    import struct
 
+    try:
         # PNG dimensions are in the IHDR chunk at bytes 16-24
         if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
             width = struct.unpack('>I', frame_bytes[16:20])[0]

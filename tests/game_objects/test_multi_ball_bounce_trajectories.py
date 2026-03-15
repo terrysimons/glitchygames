@@ -82,8 +82,7 @@ def _run_simulation(balls, max_frames, dt, screen_width=800, screen_height=600):
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             LOG.debug(
-                f'  Frame {frame_count}: {alive_count} balls alive,'
-                f' {total_bounces} total bounces'
+                f'  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces'
             )
 
     return {
@@ -106,14 +105,10 @@ def _analyze_ball_trajectory(ball, ball_index, trajectory_positions, magnitude_s
     min_y, max_y = min(y_positions), max(y_positions)
 
     LOG.debug(f'Ball {ball_index + 1} trajectory:')
-    LOG.debug(
-        f'  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]'
-    )
+    LOG.debug(f'  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]')
     LOG.debug(f'  Final position: ({ball.rect.x}, {ball.rect.y})')
     LOG.debug(f'  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})')
-    LOG.debug(
-        f'  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}'
-    )
+    LOG.debug(f'  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}')
 
     x_drift = max_x - min_x
     y_drift = max_y - min_y
@@ -128,10 +123,7 @@ def _analyze_ball_trajectory(ball, ball_index, trajectory_positions, magnitude_s
         max_mag = max(magnitude_samples)
         drift = max_mag - min_mag
 
-        LOG.debug(
-            f'  Speed magnitude: min={min_mag:.3f},'
-            f' max={max_mag:.3f}, drift={drift:.6f}'
-        )
+        LOG.debug(f'  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}')
 
         if drift < 0.01:
             LOG.info('  Speed magnitude is stable')
@@ -155,8 +147,7 @@ def _analyze_ball_interactions(balls):
             if distance < 50:
                 interactions += 1
                 LOG.debug(
-                    f'  Balls {ball_i + 1} and {ball_j + 1} are close:'
-                    f' distance={distance:.1f}'
+                    f'  Balls {ball_i + 1} and {ball_j + 1} are close: distance={distance:.1f}'
                 )
 
     if interactions > 0:
@@ -177,11 +168,11 @@ def _analyze_results(balls, results):
 
     LOG.debug('\n=== FINAL RESULTS ===')
     LOG.debug(f'Total time: {total_time:.2f} seconds')
-    LOG.debug(f"Frames processed: {results['frame_count']:,}")
+    LOG.debug(f'Frames processed: {results["frame_count"]:,}')
     LOG.debug(f'Balls still alive: {final_alive}')
-    LOG.debug(f"Total bounces: {results['total_bounces']}")
-    LOG.debug(f"X bounces: {results['x_bounces']}")
-    LOG.debug(f"Y bounces: {results['y_bounces']}")
+    LOG.debug(f'Total bounces: {results["total_bounces"]}')
+    LOG.debug(f'X bounces: {results["x_bounces"]}')
+    LOG.debug(f'Y bounces: {results["y_bounces"]}')
 
     # Analyze individual ball trajectories
     LOG.debug('\n=== TRAJECTORY ANALYSIS ===')
@@ -224,10 +215,7 @@ def test_multi_ball_bounce_trajectories():
     dt = 1.0 / 60.0  # 60 FPS
     max_frames = 1800  # 30 seconds at 60 FPS
 
-    LOG.debug(
-        f'\nRunning simulation for {max_frames} frames'
-        f' ({max_frames / 60:.1f} seconds)...'
-    )
+    LOG.debug(f'\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...')
 
     results = _run_simulation(balls, max_frames, dt)
     final_alive = _analyze_results(balls, results)
@@ -240,7 +228,7 @@ def test_multi_ball_bounce_trajectories():
         LOG.info(f'  Only {final_alive}/{num_balls} balls survived')
 
     if results['total_bounces'] > 0:
-        LOG.info(f"  Bouncing is working ({results['total_bounces']} total bounces)")
+        LOG.info(f'  Bouncing is working ({results["total_bounces"]} total bounces)')
     else:
         LOG.debug('  No bounces detected - bouncing may be disabled')
 

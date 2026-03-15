@@ -7,21 +7,44 @@ import nox
 nox.options.default_venv_backend = 'uv'
 
 
-# @nox.session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
-@nox.session(python=['3.13'], reuse_venv=False)
-def lint_and_test(session: nox.Session) -> None:
-    """Run linting and tests with coverage."""
+def _lint_code(session: nox.Session) -> None:
+    """Lint the project."""
+    session.run(
+        'pyright',
+    )
+
+    # Lint code
+    session.run(
+        'ruff',
+        'check',
+        'noxfile.py',
+        'glitchygames',
+        'scripts',
+        'tests',
+    )
+
+
+def _lint_docs(session: nox.Session) -> None:
+    """Lint the docs."""
     # Install with all extras into the nox session venv.
     # Update this if new [project.optional-dependencies] sections are added.
     session.install('.[api,dev,docs]')
 
-    # Run tests with coverage
-    # Override addopts to avoid duplicate --cov flags from pyproject.toml
+    # Lint docs
     session.run(
-        'pytest'
+        'mkdocs',
+        'build',
+        '--strict',
     )
 
-    # Sort imports (not supported by ruff format yet)
+
+@nox.session(python=['3.13'], reuse_venv=False, name='format')
+def _format(session: nox.Session) -> None:
+    """Format the project."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
     session.run(
         'ruff',
         'check',
@@ -53,10 +76,6 @@ def lint_and_test(session: nox.Session) -> None:
         'I',
         '--fix',
         'tests',
-    )
-
-    session.run(
-        'pyright',
     )
 
     # Format code (ruff format is mostly black style)
@@ -81,34 +100,32 @@ def lint_and_test(session: nox.Session) -> None:
         'tests',
     )
 
-    # Lint code
-    session.run(
-        'ruff',
-        'check',
-        'noxfile.py',
-    )
-    session.run(
-        'ruff',
-        'check',
-        'glitchygames',
-    )
-    session.run(
-        'ruff',
-        'check',
-        'scripts',
-    )
-    session.run(
-        'ruff',
-        'check',
-        'tests',
-    )
 
-    # Lint docs
-    session.run(
-        'mkdocs',
-        'build',
-        '--strict',
-    )
+@nox.session(python=['3.13'], reuse_venv=False)
+def lint(session: nox.Session) -> None:
+    """Lint the project."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
+    _lint_code(session)
+    _lint_docs(session)
+
+
+@nox.session(python=['3.13'], reuse_venv=False)
+def test(session: nox.Session) -> None:
+    """Run tests."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
+    # Run tests with coverage
+    session.run('pytest')
+    session.run('coverage', 'report')
+    session.run('coverage', 'html')
+    session.run('coverage', 'xml')
+    session.run('coverage', 'json')
+    session.run('coverage', 'lcov')
 
 
 @nox.session(python=['3.13'], reuse_venv=False)
@@ -124,10 +141,14 @@ def security_scan(session: nox.Session) -> None:
         'bandit',
         '-r',
         'glitchygames',
-        '--exclude', 'glitchygames/tests',
-        '-s', 'B104',
-        '-f', 'json',
-        '-o', '/dev/stdout',
+        '--exclude',
+        'glitchygames/tests',
+        '-s',
+        'B104',
+        '-f',
+        'json',
+        '-o',
+        '/dev/stdout',
     )
 
     # Run safety check for known vulnerabilities
@@ -135,10 +156,15 @@ def security_scan(session: nox.Session) -> None:
     session.run(
         'safety',
         'scan',
-        '--exclude', '.venv',
-        '--exclude', '.nox',
-        '--json',
-        '--output', '/dev/stdout',
+        '--exclude',
+        '.venv',
+        '--exclude',
+        '.nox',
+        '--output',
+        'screen',
+        '--save-as',
+        'json',
+        'safety-report.json',
     )
 
 
@@ -153,23 +179,11 @@ def performance_test(session: nox.Session) -> None:
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         'pytest',
-        '-o', 'addopts=',
-        '-p', 'no:xdist',
+        '-o',
+        'addopts=',
+        '-p',
+        'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
         'tests/',
-    )
-
-
-@nox.session(python=['3.13'], reuse_venv=False)
-def coverage_report(session: nox.Session) -> None:
-    """Generate detailed coverage report."""
-    # Install with all extras into the nox session venv.
-    # Update this if new [project.optional-dependencies] sections are added.
-    session.install('.[api,dev,docs]')
-
-    # Run tests with coverage
-    # Override addopts to avoid duplicate --cov flags from pyproject.toml
-    session.run(
-        'pytest',
     )

@@ -237,7 +237,9 @@ def test_multi_ball_ball_collision_bounce():
     while frame_count < 1800 and any(ball.alive() for ball in balls):
         _tick_collision_cooldowns(collision_cooldowns)
         ball_collisions += _detect_and_resolve_collisions(
-            balls, collision_cooldowns, collision_participants,
+            balls,
+            collision_cooldowns,
+            collision_participants,
         )
         wall_bounces += _update_balls_and_count_wall_bounces(balls, 1.0 / 60.0)
         frame_count += 1

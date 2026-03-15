@@ -225,15 +225,12 @@ def _lookup_in_map(lookup: tuple, color_map: dict) -> str:
     """
     if lookup not in color_map:
         raise KeyError(
-            f'Color {lookup} not found in color map. '
-            f'Available colors: {list(color_map.keys())}'
+            f'Color {lookup} not found in color map. Available colors: {list(color_map.keys())}'
         )
     return color_map[lookup]
 
 
-def _normalize_pixel_for_color_map(
-    pixel: tuple, *, needs_alpha: bool
-) -> tuple:
+def _normalize_pixel_for_color_map(pixel: tuple, *, needs_alpha: bool) -> tuple:
     """Normalize a pixel tuple for use as a color map key.
 
     Returns:
@@ -258,9 +255,7 @@ def _normalize_pixel_for_color_map(
     return pixel
 
 
-def _extract_pixel_colors(
-    pixel_lines: list, width: int, height: int, color_map: dict
-) -> list:
+def _extract_pixel_colors(pixel_lines: list, width: int, height: int, color_map: dict) -> list:
     """Extract pixel colors from pixel lines using the color map.
 
     Returns:
@@ -935,7 +930,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if not self.frame_manager.set_frame(frame_index):
             frames = self._animations.get(self.frame_manager.current_animation, [])
             raise IndexError(
-                f"Frame index {frame_index} out of range for animation "
+                f'Frame index {frame_index} out of range for animation '
                 f"'{self.frame_manager.current_animation}' (0-{len(frames) - 1})"
             )
 
@@ -1127,7 +1122,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             )
             self.frame_manager.current_animation = initial_animation
             self.log.debug(
-                f"Set initial animation to first animation in file: "
+                f'Set initial animation to first animation in file: '
                 f"'{initial_animation}' with {len(self._animations[initial_animation])} frames"
             )
             self.frame_manager.current_frame = 0
@@ -1194,7 +1189,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         ):
             self.log.debug(
                 f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', "
-                f"frame={self.frame_manager.current_frame}"
+                f'frame={self.frame_manager.current_frame}'
             )
             # Force initial surface update by resetting frame tracking
             self._last_frame_index = -1  # Force update regardless of previous state
@@ -1270,7 +1265,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._animation_order.append(animation_name)
 
         self.log.debug(
-            f"Converted static sprite to single-frame animation "
+            f'Converted static sprite to single-frame animation '
             f"'{animation_name}' ({width}x{height})"
         )
 
@@ -1861,10 +1856,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     'blue': b,
                     'alpha': original_alpha_values[char],
                 }
-            elif (
-                needs_per_pixel_alpha
-                and len(color_tuple) == RGBA_COMPONENT_COUNT
-            ):
+            elif needs_per_pixel_alpha and len(color_tuple) == RGBA_COMPONENT_COUNT:
                 # Sprite has pixels with alpha 0-254,
                 # and this color has RGBA - write the alpha value
                 a = color_tuple[3]
@@ -1951,9 +1943,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 pixel_idx = y * width + x
                 if pixel_idx < len(pixels):
                     pixel = pixels[pixel_idx]
-                    color_char = _lookup_pixel_char(
-                        pixel, color_map, map_uses_alpha=map_uses_alpha
-                    )
+                    color_char = _lookup_pixel_char(pixel, color_map, map_uses_alpha=map_uses_alpha)
                     row.append(color_char)
                 else:
                     row.append('.')
@@ -1975,13 +1965,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for animation in data['animation']:
             f.write('[[animation]]\n')
             f.write(f'namespace = "{animation["namespace"]}"\n')
-            f.write(f"frame_interval = {animation['frame_interval']}\n")
-            f.write(f"loop = {str(animation['loop']).lower()}\n\n")
+            f.write(f'frame_interval = {animation["frame_interval"]}\n')
+            f.write(f'loop = {str(animation["loop"]).lower()}\n\n')
 
             for frame in animation['frame']:
                 f.write('[[animation.frame]]\n')
                 f.write(f'namespace = "{animation["namespace"]}"\n')
-                f.write(f"frame_index = {frame['frame_index']}\n")
+                f.write(f'frame_index = {frame["frame_index"]}\n')
                 f.write('pixels = """\n')
                 f.write(frame['pixels'])
                 f.write('\n"""\n\n')
@@ -2012,11 +2002,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             for char in chars_to_write:
                 color = data['colors'][char]
                 f.write(f'[colors."{char}"]\n')
-                f.write(f"red = {color['red']}\n")
-                f.write(f"green = {color['green']}\n")
-                f.write(f"blue = {color['blue']}\n")
+                f.write(f'red = {color["red"]}\n')
+                f.write(f'green = {color["green"]}\n')
+                f.write(f'blue = {color["blue"]}\n')
                 if 'alpha' in color:
-                    f.write(f"alpha = {color['alpha']}\n")
+                    f.write(f'alpha = {color["alpha"]}\n')
                 f.write('\n')
 
     @staticmethod
@@ -2026,7 +2016,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """Write TOML alpha section if needed."""
         if 'alpha' in data:
             f.write('[alpha]\n')
-            f.write(f"blending = {str(data['alpha']['blending']).lower()}\n")
+            f.write(f'blending = {str(data["alpha"]["blending"]).lower()}\n')
             if not preserve_trailing_newline:
                 f.write('\n')
 
@@ -2093,7 +2083,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         ):
             self.log.debug(
                 f"ANIMATION FRAME DUMP: animation '{self.frame_manager.current_animation}' "
-                f"not found or no animation"
+                f'not found or no animation'
             )
             return
 
@@ -2107,8 +2097,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         frame = frames[self.frame_manager.current_frame]
         self.log.debug(
             f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', "
-            f"frame_index={self.frame_manager.current_frame}, frame={frame}, "
-            f"has_surface={hasattr(frame, 'surface')}"
+            f'frame_index={self.frame_manager.current_frame}, frame={frame}, '
+            f'has_surface={hasattr(frame, "surface")}'
         )
 
         self._debug_frame_pixel_data(frame)
@@ -2175,7 +2165,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self.dirty = 1
 
         self.log.debug(
-            f"Updated surface for frame {self.frame_manager.current_frame} "
+            f'Updated surface for frame {self.frame_manager.current_frame} '
             f"of animation '{self.frame_manager.current_animation}'"
         )
 

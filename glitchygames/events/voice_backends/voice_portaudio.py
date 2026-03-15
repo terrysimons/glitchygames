@@ -18,7 +18,7 @@ except Exception as exc:  # pragma: no cover - optional
     raise RuntimeError('speech_recognition is required for PortAudioMicrophone') from exc
 
 
-class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
+class PortAudioMicrophone(sr.AudioSource):
     """PortAudio-based microphone wrapping speech_recognition.Microphone."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:

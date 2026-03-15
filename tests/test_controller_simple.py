@@ -105,8 +105,8 @@ def process_events():
     current_count = pygame._sdl2.controller.get_count()
     if current_count != getattr(process_events, 'last_count', 0):
         LOG.debug(
-            f"📊 Controller count changed: {getattr(process_events, 'last_count', 0)}"
-            f" → {current_count}"
+            f'📊 Controller count changed: {getattr(process_events, "last_count", 0)}'
+            f' → {current_count}'
         )
         process_events.last_count = current_count
 

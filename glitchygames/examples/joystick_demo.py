@@ -292,9 +292,7 @@ class TextSprite(Sprite):
         """Update the text display."""
         self.update_textbox(filter_controller_index, input_mode)
 
-    def _get_device_object_from_proxy(
-        self: Self, proxy: object, input_mode: str
-    ) -> object | None:
+    def _get_device_object_from_proxy(self: Self, proxy: object, input_mode: str) -> object | None:
         """Extract the device object from a proxy based on input mode.
 
         Args:
@@ -326,9 +324,7 @@ class TextSprite(Sprite):
             return self.controller_manager.controllers
         return self.joystick_manager.joysticks
 
-    def _find_joystick_device_id(
-        self: Self, device_obj: object
-    ) -> int | None:
+    def _find_joystick_device_id(self: Self, device_obj: object) -> int | None:
         """Find the current pygame device index for a joystick by object identity.
 
         Args:
@@ -435,9 +431,7 @@ class TextSprite(Sprite):
         else:
             self._render_joystick_inputs(device_obj)
 
-    def _render_controller_inputs(
-        self: Self, proxy: object, device_obj: object
-    ) -> None:
+    def _render_controller_inputs(self: Self, proxy: object, device_obj: object) -> None:
         """Render controller-specific input info (axes, buttons).
 
         Args:
@@ -484,9 +478,7 @@ class TextSprite(Sprite):
 
         self.text_box.indent()
         for j in range(axes):
-            self.text_box.print(
-                self.image, f'Axis {j} value: {device_obj.get_axis(j):>6.3f}'
-            )
+            self.text_box.print(self.image, f'Axis {j} value: {device_obj.get_axis(j):>6.3f}')
         self.text_box.unindent()
 
         buttons = device_obj.get_numbuttons()
@@ -494,9 +486,7 @@ class TextSprite(Sprite):
 
         self.text_box.indent()
         for j in range(buttons):
-            self.text_box.print(
-                self.image, f'Button {j:>2} value: {device_obj.get_button(j)}'
-            )
+            self.text_box.print(self.image, f'Button {j:>2} value: {device_obj.get_button(j)}')
         self.text_box.unindent()
 
         # Hat switch. All or nothing for direction, not like joysticks.
@@ -508,9 +498,7 @@ class TextSprite(Sprite):
             self.text_box.indent()
             for j in range(hats):
                 try:
-                    self.text_box.print(
-                        self.image, f'Hat {j} value: {device_obj.get_hat(j)!s}'
-                    )
+                    self.text_box.print(self.image, f'Hat {j} value: {device_obj.get_hat(j)!s}')
                 except pygame.error:
                     self.text_box.print(self.image, f'Hat {j} value: N/A')
             self.text_box.unindent()
@@ -595,8 +583,8 @@ class TextSprite(Sprite):
                     if self.x + text_width > surface.get_width():
                         LOG.debug(
                             f"Text '{string}' width {text_width} "
-                            f"at x={self.x} exceeds surface "
-                            f"width {surface.get_width()}"
+                            f'at x={self.x} exceeds surface '
+                            f'width {surface.get_width()}'
                         )
                     surface.blit(rendered, (self.x, self.y))
                     self.y += self.line_height
@@ -895,9 +883,7 @@ class JoystickScene(Scene):
         for stale_id in stale_ids:
             devices.pop(stale_id, None)
 
-    def _find_controller_device_id(
-        self: Self, joystick_id: int, device_obj: object
-    ) -> int:
+    def _find_controller_device_id(self: Self, joystick_id: int, device_obj: object) -> int:
         """Find the current device index for a controller by object identity.
 
         Args:
@@ -932,9 +918,7 @@ class JoystickScene(Scene):
         """
         unique_ids = []
         devices = (
-            device_manager.controllers
-            if input_mode == 'controller'
-            else device_manager.joysticks
+            device_manager.controllers if input_mode == 'controller' else device_manager.joysticks
         )
 
         for joystick_id, proxy in devices.items():

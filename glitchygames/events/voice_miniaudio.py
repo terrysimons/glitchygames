@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover - optional dependency
-    mi = None  # type: ignore[assignment]
+    mi = None
 
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover - test environments may skip
-    sr = None  # type: ignore[assignment]
+    sr = None
 
 
 class _BlockingByteStream:
@@ -71,7 +71,7 @@ class _BlockingByteStream:
             self._cv.notify_all()
 
 
-class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
+class MiniaudioMicrophone(sr.AudioSource):
     """Miniaudio-based microphone compatible with speech_recognition.AudioSource."""
 
     def __init__(
@@ -96,7 +96,7 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.CHUNK = chunk_size
         self.SAMPLE_WIDTH = sample_width  # bytes per sample
         self.stream: _BlockingByteStream | None = None
-        self._device: mi.CaptureDevice | None = None
+        self._device: mi.CaptureDevice | None = None  # pyright: ignore[reportInvalidTypeForm]
 
     def __enter__(self) -> Self:
         """Enter the context manager, starting audio capture.

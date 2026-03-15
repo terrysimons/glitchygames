@@ -323,6 +323,7 @@ class TestPNGConversionIntegration:
             # Create a simple test file
             Path(tmp_png.name).write_bytes(b'fake png data')
 
+            result = None
             try:
                 # Mock the canvas to avoid display requirements
                 mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
@@ -376,6 +377,7 @@ class TestPNGConversionIntegration:
             # Create a simple test file
             Path(tmp_png.name).write_bytes(b'fake png data')
 
+            result = None
             try:
                 mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
                 mock_canvas.pixels_across = 32

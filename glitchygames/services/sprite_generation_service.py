@@ -157,7 +157,7 @@ class SpriteGenerationService:
                 hints.append(', '.join(animation_parts))
 
         if hints:
-            enhanced_prompt = f"{prompt} ({'; '.join(hints)})"
+            enhanced_prompt = f'{prompt} ({"; ".join(hints)})'
 
         # Build messages using the existing prompt builder
         messages = build_sprite_generation_messages(

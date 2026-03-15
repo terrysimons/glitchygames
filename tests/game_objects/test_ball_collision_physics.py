@@ -387,7 +387,7 @@ class TestBallCollisionPhysics:
         # Ball1's Y velocity should remain unchanged for horizontal collision
         assert ball1.speed.y == ball1_initial_y, (
             f"Ball's Y velocity should remain unchanged for horizontal"
-            f" collision: {ball1.speed.y} = {ball1_initial_y}"
+            f' collision: {ball1.speed.y} = {ball1_initial_y}'
         )
 
     def test_zero_x_velocity_ball_energy_transfer(self):
@@ -438,8 +438,7 @@ class TestBallCollisionPhysics:
 
         # Ball1's X velocity should change due to collision
         assert ball1.speed.x != ball1_initial_x, (
-            f"Horizontal ball's X velocity should change:"
-            f" {ball1.speed.x} != {ball1_initial_x}"
+            f"Horizontal ball's X velocity should change: {ball1.speed.x} != {ball1_initial_x}"
         )
 
     def test_vertical_to_diagonal_energy_transfer(self):

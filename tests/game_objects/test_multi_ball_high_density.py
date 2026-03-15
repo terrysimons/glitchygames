@@ -39,9 +39,9 @@ def run_high_density_tests():
     all_results = []
 
     for scenario_name, enable_collisions, enable_bouncing in scenarios:
-        LOG.debug(f"\n{'=' * 80}")
+        LOG.debug(f'\n{"=" * 80}')
         LOG.debug(f'SCENARIO: {scenario_name}')
-        LOG.debug(f"{'=' * 80}")
+        LOG.debug(f'{"=" * 80}')
 
         scenario_results = []
 
@@ -88,16 +88,16 @@ def run_high_density_tests():
         LOG.debug(f'\n📈 {scenario_name} Results Summary:')
         for result in scenario_results:
             LOG.debug(
-                f"  {result['num_balls']} balls:"
-                f" {result['alive']}/{result['num_balls']} alive,"
-                f" {result['wall_bounces']} wall bounces,"
-                f" {result['ball_collisions']} ball collisions"
+                f'  {result["num_balls"]} balls:'
+                f' {result["alive"]}/{result["num_balls"]} alive,'
+                f' {result["wall_bounces"]} wall bounces,'
+                f' {result["ball_collisions"]} ball collisions'
             )
 
     # Print overall summary
-    LOG.debug(f"\n{'=' * 80}")
+    LOG.debug(f'\n{"=" * 80}')
     LOG.debug('OVERALL HIGH-DENSITY RESULTS SUMMARY')
-    LOG.debug(f"{'=' * 80}")
+    LOG.debug(f'{"=" * 80}')
 
     for scenario_name, _, _ in scenarios:
         LOG.debug(f'\n{scenario_name}:')
@@ -105,10 +105,10 @@ def run_high_density_tests():
 
         for result in scenario_data:
             LOG.debug(
-                f"  {result['num_balls']} balls:"
-                f" {result['alive']}/{result['num_balls']} alive,"
-                f" {result['wall_bounces']} wall bounces,"
-                f" {result['ball_collisions']} ball collisions"
+                f'  {result["num_balls"]} balls:'
+                f' {result["alive"]}/{result["num_balls"]} alive,'
+                f' {result["wall_bounces"]} wall bounces,'
+                f' {result["ball_collisions"]} ball collisions'
             )
 
     return all_results
@@ -127,10 +127,10 @@ if __name__ == '__main__':
         LOG.debug(f'⚠️  {len(failures)} tests had ball deaths')
         for failure in failures:
             LOG.debug(
-                f"  - {failure['scenario']} with"
-                f" {failure['num_balls']} balls:"
-                f" {failure['alive']}/{failure['num_balls']}"
-                f" balls alive"
+                f'  - {failure["scenario"]} with'
+                f' {failure["num_balls"]} balls:'
+                f' {failure["alive"]}/{failure["num_balls"]}'
+                f' balls alive'
             )
     else:
         LOG.info('✅ All tests passed - all balls survived in all scenarios!')
@@ -148,7 +148,7 @@ if __name__ == '__main__':
         for result in scenario_data:
             balls_per_second = result['num_balls'] / result['test_time']
             LOG.debug(
-                f"  {result['num_balls']} balls: {balls_per_second:.1f} balls/second processing"
+                f'  {result["num_balls"]} balls: {balls_per_second:.1f} balls/second processing'
             )
 
     LOG.info('\n🏁 High-density testing completed!')

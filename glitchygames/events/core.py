@@ -198,7 +198,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
         raise UnhandledEventError(f'Unhandled event: {pygame.event.event_name(event.type)} {event}')
     if no_unhandled_events is None:
         LOG.error(
-            "Error: no_unhandled_events is missing from the game options. "
+            'Error: no_unhandled_events is missing from the game options. '
             "This shouldn't be possible."
         )
 

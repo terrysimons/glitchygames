@@ -115,7 +115,7 @@ def create_parser() -> argparse.ArgumentParser:
         '--animation-language-model',
         metavar='MODEL',
         help=(
-            "Override the AI model for generation "
+            'Override the AI model for generation '
             "(aisuite format, e.g., 'anthropic:claude-sonnet-4-5')"
         ),
     )
@@ -151,7 +151,7 @@ def extract_apng_frames(
         API response with frames and metadata
 
     """
-    url = f"{server_url.rstrip('/')}/sprites/extract-frames"
+    url = f'{server_url.rstrip("/")}/sprites/extract-frames'
 
     # Read and encode the APNG file
     apng_bytes = Path(apng_path).read_bytes()
@@ -201,7 +201,7 @@ def generate_sprite(
         API response as a dictionary
 
     """
-    url = f"{server_url.rstrip('/')}/sprites/generate"
+    url = f'{server_url.rstrip("/")}/sprites/generate'
 
     # Default frame_count to 1
     effective_frame_count = frame_count or 1
@@ -502,8 +502,8 @@ def save_files_locally(
             frame_entries = [
                 (
                     (
-                        f"animation-{info.get('animation_index', 0)}"
-                        f"-frame-{info.get('frame_index', 0)}"
+                        f'animation-{info.get("animation_index", 0)}'
+                        f'-frame-{info.get("frame_index", 0)}'
                     ),
                     str(info.get('animation_index', 0)),
                     str(info.get('frame_index', 0)),
@@ -549,14 +549,14 @@ def _log_extraction_metadata(response: dict) -> None:
         response: The extraction response dictionary
 
     """
-    LOG.info(f"Extracted {response.get('frame_count')} frames")
+    LOG.info(f'Extracted {response.get("frame_count")} frames')
     if response.get('width') and response.get('height'):
-        LOG.info(f"  Canvas size: {response.get('width')}x{response.get('height')} pixels")
+        LOG.info(f'  Canvas size: {response.get("width")}x{response.get("height")} pixels')
     if response.get('total_duration_ms'):
-        LOG.info(f"  Total duration: {response.get('total_duration_ms')}ms")
+        LOG.info(f'  Total duration: {response.get("total_duration_ms")}ms')
     if response.get('loop_count') is not None:
         loops = response.get('loop_count')
-        LOG.info(f"  Loop count: {'infinite' if loops == 0 else loops}")
+        LOG.info(f'  Loop count: {"infinite" if loops == 0 else loops}')
 
 
 def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str) -> None:
@@ -575,7 +575,7 @@ def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str
     saved_files = []
 
     for frame_info in response.get('frames', []):
-        frame_path = output_dir / f"{apng_name}_frame_{frame_info['index']:03d}.png"
+        frame_path = output_dir / f'{apng_name}_frame_{frame_info["index"]:03d}.png'
         frame_bytes = base64.b64decode(frame_info['png_base64'])
         frame_path.write_bytes(frame_bytes)
         saved_files.append(str(frame_path))
@@ -604,7 +604,7 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
         )
 
         if not response.get('success'):
-            LOG.error(f"Extraction failed: {response.get('error', 'Unknown error')}")
+            LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
             return 1
 
         _log_extraction_metadata(response)
@@ -620,7 +620,7 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             output_data = response.copy()
             if not parsed_args.verbose:
                 for frame in output_data.get('frames', []):
-                    frame['png_base64'] = f"<{len(frame.get('png_base64', ''))} chars>"
+                    frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
             print(json.dumps(output_data, indent=2))  # noqa: T201
 
         return 0
@@ -673,15 +673,15 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
     )
 
     if not response.get('success'):
-        LOG.error(f"Generation failed: {response.get('error', 'Unknown error')}")
+        LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
         return 1
 
     # Display results
-    LOG.info(f"Generated sprite: {response.get('sprite_name')}")
+    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
     if response.get('is_animated'):
-        LOG.info(f"  Animated: {response.get('frame_count')} frames")
+        LOG.info(f'  Animated: {response.get("frame_count")} frames')
     if response.get('width') and response.get('height'):
-        LOG.info(f"  Size: {response.get('width')}x{response.get('height')} pixels")
+        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
 
     # Display colorized ASCII preview of the sprite
     if response.get('toml_content'):

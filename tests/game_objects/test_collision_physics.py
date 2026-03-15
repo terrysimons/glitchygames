@@ -36,8 +36,7 @@ def test_collision_physics():
         f' ball2=({ball2_speed[0]}, {ball2_speed[1]})'
     )
     LOG.debug(
-        f'  After:  ball1=({new_ball1_x}, {new_ball1_y}),'
-        f' ball2=({new_ball2_x}, {new_ball2_y})'
+        f'  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})'
     )
     LOG.debug('  Expected: ball1 should stop, ball2 should move right')
 
@@ -64,8 +63,7 @@ def test_collision_physics():
         f' ball2=({ball2_speed[0]}, {ball2_speed[1]})'
     )
     LOG.debug(
-        f'  After:  ball1=({new_ball1_x}, {new_ball1_y}),'
-        f' ball2=({new_ball2_x}, {new_ball2_y})'
+        f'  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})'
     )
     LOG.debug('  Expected: ball1 should stop, ball2 should move down')
 

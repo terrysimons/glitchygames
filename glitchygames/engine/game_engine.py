@@ -602,8 +602,8 @@ class GameEngine(events.EventManager):
                 #
                 # The Raspberry Pi screen exposes
                 # 2 resolutions, but only one works properly
-                desired_width: Literal[800] = 800
-                desired_height: Literal[480] = 480
+                desired_width = 800
+                desired_height = 480
 
         return (int(desired_width), int(desired_height))
 
@@ -803,6 +803,7 @@ class GameEngine(events.EventManager):
                 'Game not initialized.  Pass a game class to the GameEngine constructor.'
             )
 
+        profiler = None
         try:
             if GameEngine.OPTIONS['profile']:
                 profiler = cProfile.Profile()
@@ -823,7 +824,7 @@ class GameEngine(events.EventManager):
                 self.timer = create_timer(
                     GameEngine.OPTIONS.get('timer_backend'), GameEngine.OPTIONS
                 )
-                self.log.info(f"Timer backend: {GameEngine.OPTIONS.get('timer_backend')}")
+                self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
             except (ValueError, TypeError, OSError) as timer_error:
                 self.timer = None
                 self.log.debug(
@@ -855,7 +856,7 @@ class GameEngine(events.EventManager):
         finally:
             self._shutdown()
 
-            if GameEngine.OPTIONS['profile']:
+            if GameEngine.OPTIONS['profile'] and profiler is not None:
                 profiler.disable()
                 profiler.print_stats()
 
@@ -1148,9 +1149,9 @@ class GameEngine(events.EventManager):
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
             self.log.debug(
-                f"ENGINE: MOUSEBUTTONDOWN received:"
-                f" button={getattr(event, 'button', None)},"
-                f" pos={getattr(event, 'pos', None)}"
+                f'ENGINE: MOUSEBUTTONDOWN received:'
+                f' button={getattr(event, "button", None)},'
+                f' pos={getattr(event, "pos", None)}'
             )
             self.mouse_manager.on_mouse_button_down_event(event)
             return True

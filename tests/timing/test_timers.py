@@ -28,7 +28,10 @@ def test_pygame_timer_ns_now_monotonic():
     os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
     try:
         import pygame
+    except ImportError:
+        pytest.skip('Pygame is not available')
 
+    try:
         if not pygame.get_init():
             pygame.init()
         # Some environments require a display module init
@@ -37,7 +40,7 @@ def test_pygame_timer_ns_now_monotonic():
                 pygame.display.init()
         except pygame.error:
             LOG.debug('Display init failed with dummy driver, continuing without display')
-    except (ImportError, pygame.error):
+    except pygame.error:
         pytest.skip('Pygame could not initialize even with dummy driver')
 
     p = PygameTimer()

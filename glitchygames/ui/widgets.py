@@ -1872,9 +1872,7 @@ class SliderSprite(BitmappySprite):
             self.text_sprite.dirty = 2  # Force redraw
             # Update parent scene
             if hasattr(self.parent, 'on_slider_event'):
-                trigger = pygame.event.Event(
-                    0, {'name': self.name, 'value': new_value}
-                )
+                trigger = pygame.event.Event(0, {'name': self.name, 'value': new_value})
                 self.parent.on_slider_event(event=event, trigger=trigger)
         except ValueError:
             self._restore_original_value()
@@ -3451,11 +3449,7 @@ class MultiLineTextBox(BitmappySprite):
     def _handle_copy(self) -> None:
         """Handle copy operation."""
         try:
-            if (
-                pyperclip
-                and self.selection_start is not None
-                and self.selection_end is not None
-            ):
+            if pyperclip and self.selection_start is not None and self.selection_end is not None:
                 start = min(self.selection_start, self.selection_end)
                 end = max(self.selection_start, self.selection_end)
                 pyperclip.copy(self._text[start:end])
@@ -3481,11 +3475,7 @@ class MultiLineTextBox(BitmappySprite):
     def _handle_cut(self) -> None:
         """Handle cut operation."""
         try:
-            if (
-                pyperclip
-                and self.selection_start is not None
-                and self.selection_end is not None
-            ):
+            if pyperclip and self.selection_start is not None and self.selection_end is not None:
                 start = min(self.selection_start, self.selection_end)
                 end = max(self.selection_start, self.selection_end)
                 pyperclip.copy(self._original_text[start:end])

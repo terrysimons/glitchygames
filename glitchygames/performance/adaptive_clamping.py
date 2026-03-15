@@ -300,7 +300,7 @@ class AdaptiveClamping:
             },
             'reliability_level': '5 9s (99.999%)'
             if stats['total_samples'] >= RELIABILITY_MIN_SAMPLES
-            else f"Limited ({stats['total_samples']:,} samples)",
+            else f'Limited ({stats["total_samples"]:,} samples)',
         }
 
     def _track_fps(self: Self, fps: float) -> None:
@@ -570,37 +570,37 @@ class AdaptiveClamping:
             spare_stats: Spare time stats dictionary
 
         """
-        LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
+        LOG.info(f'📊 Total Frames: {stats["total_frames"]:,}')
         trim_label = (
             'no trimming'
             if self._trim_percent == 0
             else f'dropped top/bottom {self._trim_percent:.1f}%'
         )
-        LOG.info(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
+        LOG.info(f'📈 Analyzed Frames: {stats["trimmed_frames"]:,} ({trim_label})')
 
         if 'message' not in spare_stats:
             LOG.info(f'🎯 Target FPS: {self._target_fps:.1f}')
 
-        LOG.info(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
-        LOG.info(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
-        LOG.info(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
-        LOG.info(f"📊 Median FPS: {stats['median_fps']:.1f}")
-        LOG.info(f"🏆 Performance Grade: {stats['performance_grade']}")
+        LOG.info(f'⚡ Average FPS: {stats["avg_fps"]:.1f}')
+        LOG.info(f'📉 Minimum FPS: {stats["min_fps"]:.1f}')
+        LOG.info(f'📈 Maximum FPS: {stats["max_fps"]:.1f}')
+        LOG.info(f'📊 Median FPS: {stats["median_fps"]:.1f}')
+        LOG.info(f'🏆 Performance Grade: {stats["performance_grade"]}')
 
         if 'message' not in spare_stats:
-            LOG.info(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick")
-            LOG.info(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick")
+            LOG.info(f'⏱️  Target Frame Time: {spare_stats["target_frame_time_ms"]:.1f}ms per-tick')
+            LOG.info(f'⏱️  Average Frame Time: {spare_stats["avg_frame_time_ms"]:.1f}ms per-tick')
             LOG.info(
-                f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms"
-                f" per-tick ({spare_stats['spare_capacity_percent']:.1f}%"
-                f" of scheduled capacity)"
+                f'⏱️  Spare Time: {spare_stats["avg_spare_time_ms"]:.1f}ms'
+                f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
+                f' of scheduled capacity)'
             )
             LOG.info(
-                f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms"
-                f" per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}%"
-                f" of scheduled capacity)"
+                f'🎨 Draw Time: {spare_stats["avg_frame_time_ms"]:.1f}ms'
+                f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
+                f' of scheduled capacity)'
             )
-            LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
+            LOG.info(f'🔄 Could Tick: {spare_stats["could_tick_times"]:.1f}x faster')
 
     @staticmethod
     def _log_fps_histogram(fps_histogram: dict, trimmed_frames: int) -> None:
@@ -660,7 +660,7 @@ class AdaptiveClamping:
             # Skip global report if not enough data - per-scene reports are more useful
             return
 
-        LOG.info(f"\n{'=' * 80}")
+        LOG.info(f'\n{"=" * 80}')
         LOG.info('🎮 GAME PERFORMANCE REPORT')
         LOG.info('=' * 80)
 
@@ -680,14 +680,14 @@ class AdaptiveClamping:
         filtered_stats = per_scene_stats
 
         if not filtered_stats:
-            LOG.info(f"\n{'=' * 80}")
+            LOG.info(f'\n{"=" * 80}')
             LOG.info('🎮 PER-SCENE PERFORMANCE REPORT')
             LOG.info('=' * 80)
             LOG.info('No scene performance data collected')
             LOG.info('=' * 80)
             return
 
-        LOG.info(f"\n{'=' * 80}")
+        LOG.info(f'\n{"=" * 80}')
         LOG.info('🎮 PER-SCENE PERFORMANCE REPORT')
         LOG.info('=' * 80)
 
@@ -696,7 +696,7 @@ class AdaptiveClamping:
             LOG.info('-' * 40)
 
             if 'message' in stats:
-                LOG.info(f"   {stats['message']}")
+                LOG.info(f'   {stats["message"]}')
                 continue
 
             spare_stats = self.get_spare_time_stats(scene_name)

@@ -38,14 +38,16 @@ def test_fixed_collision_physics():
     # Test case 1: Horizontal vs Stationary
     _test_velocity_swap(
         'Test 1: Horizontal (100,0) vs Stationary (0,0)',
-        (100.0, 0.0), (0.0, 0.0),
+        (100.0, 0.0),
+        (0.0, 0.0),
         'ball1 should stop, ball2 should move right',
     )
 
     # Test case 2: Vertical vs Stationary
     _test_velocity_swap(
         'Test 2: Vertical (0,100) vs Stationary (0,0)',
-        (0.0, 100.0), (0.0, 0.0),
+        (0.0, 100.0),
+        (0.0, 0.0),
         'ball1 should stop, ball2 should move down',
     )
 
@@ -54,7 +56,8 @@ def test_fixed_collision_physics():
     ball2_speed = (50.0, 0.0)
     new_ball1_x, new_ball1_y, new_ball2_x, new_ball2_y = _test_velocity_swap(
         'Test 3: FIXED - Vertical (0,100) vs Horizontal (50,0)',
-        ball1_speed, ball2_speed,
+        ball1_speed,
+        ball2_speed,
         'ball1 should get horizontal motion, ball2 should get vertical motion',
     )
 
@@ -69,14 +72,16 @@ def test_fixed_collision_physics():
     # Test case 4: Diagonal collision
     _test_velocity_swap(
         'Test 4: Diagonal (50,50) vs Stationary (0,0)',
-        (50.0, 50.0), (0.0, 0.0),
+        (50.0, 50.0),
+        (0.0, 0.0),
         'ball1 should stop, ball2 should move diagonally',
     )
 
     # Test case 5: Both balls moving
     _test_velocity_swap(
         '\nTest 5: Both balls moving - (100,0) vs (0,50)',
-        (100.0, 0.0), (0.0, 50.0),
+        (100.0, 0.0),
+        (0.0, 50.0),
         'balls should swap velocities completely',
     )
 

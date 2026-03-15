@@ -26,7 +26,7 @@ def get_microphone_backend() -> type[object] | None:
     """
     # Prefer miniaudio backend
     try:
-        from .voice_miniaudio import MiniaudioMicrophone
+        from .voice_miniaudio import MiniaudioMicrophone  # pyright: ignore[reportMissingImports]
 
         # Light probe: try to instantiate; if fails, skip
         try:

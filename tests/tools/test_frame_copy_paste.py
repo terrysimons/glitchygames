@@ -267,14 +267,14 @@ class TestFrameCopyPaste:
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
         # Without these, the mock object's auto-generated methods return truthy
         # Mock objects instead of False, causing early returns.
-        scene._handle_slider_text_input = (
-            BitmapEditorScene._handle_slider_text_input.__get__(scene, BitmapEditorScene)
+        scene._handle_slider_text_input = BitmapEditorScene._handle_slider_text_input.__get__(
+            scene, BitmapEditorScene
         )
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
-        scene._handle_ctrl_key_shortcuts = (
-            BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(scene, BitmapEditorScene)
+        scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
+            scene, BitmapEditorScene
         )
 
         scene.red_slider = self._mocker.Mock()
@@ -325,14 +325,14 @@ class TestFrameCopyPaste:
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
         # Without these, the mock object's auto-generated methods return truthy
         # Mock objects instead of False, causing early returns.
-        scene._handle_slider_text_input = (
-            BitmapEditorScene._handle_slider_text_input.__get__(scene, BitmapEditorScene)
+        scene._handle_slider_text_input = BitmapEditorScene._handle_slider_text_input.__get__(
+            scene, BitmapEditorScene
         )
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
-        scene._handle_ctrl_key_shortcuts = (
-            BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(scene, BitmapEditorScene)
+        scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
+            scene, BitmapEditorScene
         )
 
         scene.red_slider = self._mocker.Mock()

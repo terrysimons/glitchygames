@@ -15,7 +15,7 @@ try:
     from .voice_backends import get_microphone_backend
 except ImportError:
 
-    def get_microphone_backend() -> None:  # type: ignore[misc]
+    def get_microphone_backend() -> None:
         """Return None when voice backends are unavailable."""
 
 
@@ -106,20 +106,20 @@ class VoiceEventManager(ResourceManager):
         """
         backend_name = getattr(mic_cls, '__name__', str(mic_cls))
         try:
-            probe = mic_cls()  # type: ignore[call-arg]
+            probe = mic_cls()
             enter = getattr(probe, '__enter__', None)
             exit_cm = getattr(probe, '__exit__', None)
-            if callable(enter):  # type: ignore[truthy-bool]
+            if callable(enter):
                 try:
                     enter()
                 finally:
                     try:
-                        if callable(exit_cm):  # type: ignore[truthy-bool]
+                        if callable(exit_cm):
                             exit_cm(None, None, None)
                     except OSError:
                         LOG.debug('Voice backend cleanup raised OSError during probe')
             self.log.info(f'Voice backend selected: {backend_name}')
-            return mic_cls()  # type: ignore[call-arg]
+            return mic_cls()
         except OSError:
             self.log.exception(f'Voice backend probe failed for {backend_name}')
             return None
@@ -192,6 +192,10 @@ class VoiceEventManager(ResourceManager):
         """Run the main listening loop in a separate thread."""
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.log.error('Cannot start listen loop: speech recognition not available')
+            return
+
+        if self.microphone is None:
+            self.log.error('Cannot start listen loop: microphone not available')
             return
 
         # Open microphone once and keep it open for the duration

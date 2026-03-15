@@ -455,14 +455,17 @@ class MockFactory:
         """
         if tag is not None:
 
-            def handler(event, _tag=tag, _event_list=event_list):
+            def tagged_handler(event, _tag=tag, _event_list=event_list):
                 _event_list.append((_tag, event))
 
+            handler = tagged_handler
         else:
 
-            def handler(event, _event_list=event_list):
+            def untagged_handler(event, _event_list=event_list):
                 _event_list.append(event)
                 return True
+
+            handler = untagged_handler
 
         setattr(scene_mock, handler_name, handler)
 
@@ -1148,7 +1151,7 @@ class MockFactory:
         return screen
 
     @staticmethod
-    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211, ARG004
+    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211, ARG004  # pyright: ignore[reportSelfClsParameterName]
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed

@@ -10,8 +10,9 @@ import pytest
 LOG = logging.getLogger(__name__)
 
 
-def _apply_wall_bounces(new_x, new_y, speed_x, speed_y, ball_width, ball_height,
-                        screen_width, screen_height):
+def _apply_wall_bounces(
+    new_x, new_y, speed_x, speed_y, ball_width, ball_height, screen_width, screen_height
+):
     """Apply wall bounce logic and return updated position, speed, and bounce counts.
 
     Returns:
@@ -48,8 +49,9 @@ def _apply_wall_bounces(new_x, new_y, speed_x, speed_y, ball_width, ball_height,
     return new_x, new_y, speed_x, speed_y, x_bounces, y_bounces
 
 
-def _run_bounce_simulation(screen_width, screen_height, ball_width, ball_height,
-                           x, y, speed_x, speed_y, dt, iterations):
+def _run_bounce_simulation(
+    screen_width, screen_height, ball_width, ball_height, x, y, speed_x, speed_y, dt, iterations
+):
     """Run the ball bounce simulation loop.
 
     Returns:
@@ -59,8 +61,13 @@ def _run_bounce_simulation(screen_width, screen_height, ball_width, ball_height,
     """
     # Use a dict for accumulating statistics to reduce local variable count
     stats = {
-        'bounce_count': 0, 'x_bounces': 0, 'y_bounces': 0,
-        'min_x': x, 'max_x': x, 'min_y': y, 'max_y': y,
+        'bounce_count': 0,
+        'x_bounces': 0,
+        'y_bounces': 0,
+        'min_x': x,
+        'max_x': x,
+        'min_y': y,
+        'max_y': y,
     }
     initial_magnitude = math.sqrt(speed_x**2 + speed_y**2)
     magnitude_samples = []
@@ -71,8 +78,14 @@ def _run_bounce_simulation(screen_width, screen_height, ball_width, ball_height,
         new_y = y + round(speed_y * dt)
 
         new_x, new_y, speed_x, speed_y, x_bounces, y_bounces = _apply_wall_bounces(
-            new_x, new_y, speed_x, speed_y, ball_width, ball_height,
-            screen_width, screen_height,
+            new_x,
+            new_y,
+            speed_x,
+            speed_y,
+            ball_width,
+            ball_height,
+            screen_width,
+            screen_height,
         )
         stats['x_bounces'] += x_bounces
         stats['y_bounces'] += y_bounces
@@ -89,8 +102,10 @@ def _run_bounce_simulation(screen_width, screen_height, ball_width, ball_height,
             magnitude_samples.append(math.sqrt(speed_x**2 + speed_y**2))
 
     return {
-        'x': x, 'y': y,
-        'speed_x': speed_x, 'speed_y': speed_y,
+        'x': x,
+        'y': y,
+        'speed_x': speed_x,
+        'speed_y': speed_y,
         'initial_magnitude': initial_magnitude,
         'magnitude_samples': magnitude_samples,
         'total_time': time.time() - start_time,
@@ -101,19 +116,19 @@ def _run_bounce_simulation(screen_width, screen_height, ball_width, ball_height,
 def _log_simulation_results(results, iterations):
     """Log the results of a bounce simulation."""
     LOG.debug('\n=== FINAL RESULTS ===')
-    LOG.debug(f"Total bounces: {results['bounce_count']:,}")
-    LOG.debug(f"X bounces: {results['x_bounces']:,}")
-    LOG.debug(f"Y bounces: {results['y_bounces']:,}")
-    LOG.debug(f"Total time: {results['total_time']:.3f} seconds")
-    LOG.debug(f"Iterations per second: {iterations / results['total_time']:.0f}")
-    LOG.debug(f"Calculations per second: {iterations * 4 / results['total_time']:.0f}")
-    LOG.debug(f"Final position: ({results['x']:.3f}, {results['y']:.3f})")
-    LOG.debug(f"Final speed: ({results['speed_x']:.6f}, {results['speed_y']:.6f})")
-    final_magnitude = math.sqrt(results['speed_x']**2 + results['speed_y']**2)
+    LOG.debug(f'Total bounces: {results["bounce_count"]:,}')
+    LOG.debug(f'X bounces: {results["x_bounces"]:,}')
+    LOG.debug(f'Y bounces: {results["y_bounces"]:,}')
+    LOG.debug(f'Total time: {results["total_time"]:.3f} seconds')
+    LOG.debug(f'Iterations per second: {iterations / results["total_time"]:.0f}')
+    LOG.debug(f'Calculations per second: {iterations * 4 / results["total_time"]:.0f}')
+    LOG.debug(f'Final position: ({results["x"]:.3f}, {results["y"]:.3f})')
+    LOG.debug(f'Final speed: ({results["speed_x"]:.6f}, {results["speed_y"]:.6f})')
+    final_magnitude = math.sqrt(results['speed_x'] ** 2 + results['speed_y'] ** 2)
     LOG.debug(f'Final speed magnitude: {final_magnitude:.6f}')
     LOG.debug(
-        f"Position bounds: X[{results['min_x']:.1f}-{results['max_x']:.1f}]"
-        f" Y[{results['min_y']:.1f}-{results['max_y']:.1f}]"
+        f'Position bounds: X[{results["min_x"]:.1f}-{results["max_x"]:.1f}]'
+        f' Y[{results["min_y"]:.1f}-{results["max_y"]:.1f}]'
     )
 
 
@@ -156,12 +171,12 @@ def _check_position_bounds(results, screen_width, screen_height, ball_width, bal
     else:
         LOG.debug('  Position bounds issue detected')
         LOG.debug(
-            f"    Expected X: [{expected_min_x}-{expected_max_x}],"
-            f" got [{results['min_x']:.1f}-{results['max_x']:.1f}]"
+            f'    Expected X: [{expected_min_x}-{expected_max_x}],'
+            f' got [{results["min_x"]:.1f}-{results["max_x"]:.1f}]'
         )
         LOG.debug(
-            f"    Expected Y: [{expected_min_y}-{expected_max_y}],"
-            f" got [{results['min_y']:.1f}-{results['max_y']:.1f}]"
+            f'    Expected Y: [{expected_min_y}-{expected_max_y}],'
+            f' got [{results["min_y"]:.1f}-{results["max_y"]:.1f}]'
         )
 
 
@@ -195,9 +210,16 @@ def test_ball_math_fast():
     LOG.debug(f'\nRunning {iterations:,} iterations...')
 
     results = _run_bounce_simulation(
-        screen_width, screen_height, ball_width, ball_height,
-        x=400.0, y=300.0, speed_x=250.0, speed_y=125.0,
-        dt=1.0 / 60.0, iterations=iterations,
+        screen_width,
+        screen_height,
+        ball_width,
+        ball_height,
+        x=400.0,
+        y=300.0,
+        speed_x=250.0,
+        speed_y=125.0,
+        dt=1.0 / 60.0,
+        iterations=iterations,
     )
 
     _log_simulation_results(results, iterations)
@@ -205,7 +227,7 @@ def test_ball_math_fast():
 
     # Check for mathematical stability
     LOG.debug('\nMathematical stability check:')
-    final_magnitude = math.sqrt(results['speed_x']**2 + results['speed_y']**2)
+    final_magnitude = math.sqrt(results['speed_x'] ** 2 + results['speed_y'] ** 2)
     magnitude_change = abs(final_magnitude - results['initial_magnitude'])
     LOG.debug(f'  Speed magnitude change: {magnitude_change:.6f}')
 

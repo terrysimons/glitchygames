@@ -662,8 +662,8 @@ class DeleteFrameDialogScene(Scene):
         # Validate that the typed text is "YES"
         if typed_text == 'YES':
             LOG.info(
-                f"DeleteFrameDialog: User confirmed deletion of"
-                f" frame {self.frame_index}"
+                f'DeleteFrameDialog: User confirmed deletion of'
+                f' frame {self.frame_index}'
                 f" from '{self.animation_name}'"
             )
             # Call the callback if provided

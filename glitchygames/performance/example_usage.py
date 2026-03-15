@@ -33,7 +33,7 @@ class ExampleGameObject:
 
         """
         stats = performance_manager.get_performance_stats()
-        return f"Avg FPS: {stats['avg_fps']:.1f}, History: {stats['history_length']} frames"
+        return f'Avg FPS: {stats["avg_fps"]:.1f}, History: {stats["history_length"]} frames'
 
 
 # Example usage in a game loop

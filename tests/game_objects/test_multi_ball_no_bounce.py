@@ -101,7 +101,7 @@ def test_multi_ball_no_bounce():
 
     LOG.debug('\n=== FINAL RESULTS ===')
     LOG.debug(f'Total time: {total_time:.2f} seconds')
-    LOG.debug(f"Frames processed: {results['frame_count']:,}")
+    LOG.debug(f'Frames processed: {results["frame_count"]:,}')
     LOG.debug(f'Balls that died: {balls_died}')
     LOG.debug(f'Balls still alive: {final_alive}')
 
@@ -109,8 +109,7 @@ def test_multi_ball_no_bounce():
     for ball_index, ball in enumerate(balls):
         if ball.alive():
             LOG.debug(
-                f'  Ball {ball_index + 1} still alive at'
-                f' position ({ball.rect.x}, {ball.rect.y})'
+                f'  Ball {ball_index + 1} still alive at position ({ball.rect.x}, {ball.rect.y})'
             )
             LOG.debug(f'    Speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})')
             LOG.debug(

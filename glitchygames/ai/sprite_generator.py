@@ -165,7 +165,7 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
         if has_alpha:
             desc_parts.append('alpha=yes')
 
-        description = f"# {', '.join(desc_parts)}\n"
+        description = f'# {", ".join(desc_parts)}\n'
 
         # Get raw content if available and requested
         if include_raw and 'raw_content' in example:
@@ -181,7 +181,7 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
 
     except (KeyError, ValueError, TypeError, AttributeError) as e:
         LOG.warning(f'Error formatting training example: {e}')
-        return f"# Example: {example.get('name', 'unknown')} (formatting error)"
+        return f'# Example: {example.get("name", "unknown")} (formatting error)'
 
 
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
@@ -208,12 +208,12 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
             lines.extend((
-                f"red = {color_data.get('red', 0)}",
-                f"green = {color_data.get('green', 0)}",
-                f"blue = {color_data.get('blue', 0)}",
+                f'red = {color_data.get("red", 0)}',
+                f'green = {color_data.get("green", 0)}',
+                f'blue = {color_data.get("blue", 0)}',
             ))
             if 'alpha' in color_data and color_data['alpha'] != MAX_COLOR_CHANNEL_VALUE:
-                lines.append(f"alpha = {color_data['alpha']}")
+                lines.append(f'alpha = {color_data["alpha"]}')
         lines.append('')
 
     return '\n'.join(lines)
@@ -241,8 +241,8 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
         lines.extend([
             '[[animation]]',
             f'namespace = "{anim.get("namespace", "default")}"',
-            f"frame_interval = {anim.get('frame_interval', 0.5)}",
-            f"loop = {str(anim.get('loop', True)).lower()}",
+            f'frame_interval = {anim.get("frame_interval", 0.5)}',
+            f'loop = {str(anim.get("loop", True)).lower()}',
             '',
         ])
 
@@ -255,7 +255,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
             lines.extend((
                 '[[animation.frame]]',
                 f'namespace = "{anim.get("namespace", "default")}"',
-                f"frame_index = {frame.get('frame_index', 0)}",
+                f'frame_index = {frame.get("frame_index", 0)}',
             ))
 
             # Handle pixels
@@ -266,7 +266,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
                 lines.append(f'pixels = "{pixels}"')
 
             if 'frame_interval' in frame:
-                lines.append(f"frame_interval = {frame['frame_interval']}")
+                lines.append(f'frame_interval = {frame["frame_interval"]}')
             lines.append('')
 
     # Add colors
@@ -275,12 +275,12 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
             lines.extend((
-                f"red = {color_data.get('red', 0)}",
-                f"green = {color_data.get('green', 0)}",
-                f"blue = {color_data.get('blue', 0)}",
+                f'red = {color_data.get("red", 0)}',
+                f'green = {color_data.get("green", 0)}',
+                f'blue = {color_data.get("blue", 0)}',
             ))
             if 'alpha' in color_data and color_data['alpha'] != MAX_COLOR_CHANNEL_VALUE:
-                lines.append(f"alpha = {color_data['alpha']}")
+                lines.append(f'alpha = {color_data["alpha"]}')
         lines.append('')
 
     return '\n'.join(lines)
@@ -684,22 +684,22 @@ def build_refinement_messages(
 
     # Add the previous sprite as context with explicit preservation instructions
     refinement_context = (
-        f"Here is the current sprite:\n\n"
-        f"```toml\n{last_sprite_content}\n```\n\n"
+        f'Here is the current sprite:\n\n'
+        f'```toml\n{last_sprite_content}\n```\n\n'
         f"User's request: {enhanced_request}\n\n"
-        f"CRITICAL INSTRUCTIONS:\n"
-        f"1. Return the EXACT same sprite structure with ONLY the changes requested\n"
-        f"2. Preserve ALL animation namespaces (film strip labels) that exist\n"
-        f"3. Preserve the EXACT number of frames in each animation"
-        f" UNLESS the user explicitly asks to add/remove frames\n"
-        f"4. Preserve ALL [[animation]] and"
-        f" [[animation.frame]] sections\n"
-        f"5. Only modify what the user specifically requested"
+        f'CRITICAL INSTRUCTIONS:\n'
+        f'1. Return the EXACT same sprite structure with ONLY the changes requested\n'
+        f'2. Preserve ALL animation namespaces (film strip labels) that exist\n'
+        f'3. Preserve the EXACT number of frames in each animation'
+        f' UNLESS the user explicitly asks to add/remove frames\n'
+        f'4. Preserve ALL [[animation]] and'
+        f' [[animation.frame]] sections\n'
+        f'5. Only modify what the user specifically requested'
         f" (e.g., if they say 'make it red', only change colors)\n"
-        f"6. If the user asks to add frames, add them."
-        f" If they ask to remove frames, remove them."
-        f" Otherwise, keep the same count.\n\n"
-        f"Return ONLY the complete updated sprite in TOML format."
+        f'6. If the user asks to add frames, add them.'
+        f' If they ask to remove frames, remove them.'
+        f' Otherwise, keep the same count.\n\n'
+        f'Return ONLY the complete updated sprite in TOML format.'
     )
 
     messages.append({'role': 'user', 'content': refinement_context})

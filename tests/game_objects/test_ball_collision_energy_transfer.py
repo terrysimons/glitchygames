@@ -140,7 +140,10 @@ class TestBallCollisionEnergyTransfer:
         # or if they're moving toward each other (dvn <= 0)
         # Balls moving away only collide if overlapping or significant speed difference
         if dvn > 0 and self._should_skip_separating_balls(
-            ball1, ball2, distance, collision_distance,
+            ball1,
+            ball2,
+            distance,
+            collision_distance,
         ):
             return False
 
@@ -215,10 +218,7 @@ class TestBallCollisionEnergyTransfer:
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(
-                f'  Energy changes: Ball1={energy_change1:.1f},'
-                f' Ball2={energy_change2:.1f}'
-            )
+            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -378,10 +378,7 @@ class TestBallCollisionEnergyTransfer:
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(
-                f'  Energy changes: Ball1={energy_change1:.1f},'
-                f' Ball2={energy_change2:.1f}'
-            )
+            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -466,18 +463,15 @@ class TestBallCollisionEnergyTransfer:
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(
-                f'  Energy changes: Ball1={energy_change1:.1f},'
-                f' Ball2={energy_change2:.1f}'
-            )
+            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
             assert energy_change1 != 0, 'Ball 1 energy should have changed'
             assert energy_change2 != 0, 'Ball 2 energy should have changed'
-            assert total_final_energy == pytest.approx(
-                total_initial_energy, abs=0.1
-            ), 'Total energy should be conserved'
+            assert total_final_energy == pytest.approx(total_initial_energy, abs=0.1), (
+                'Total energy should be conserved'
+            )
         else:
             pytest.fail('Collision should have occurred for diagonal collision')
 

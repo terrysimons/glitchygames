@@ -328,7 +328,7 @@ class RendererService:
                     )
                 else:
                     LOG.warning(
-                        f"Could not get surface for frame {frame_index} "
+                        f'Could not get surface for frame {frame_index} '
                         f"of animation '{animation_name}'"
                     )
 

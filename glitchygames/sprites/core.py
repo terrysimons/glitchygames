@@ -16,7 +16,7 @@ import collections
 import logging
 import tomllib
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from typing import Any, ClassVar, NoReturn, Self, cast
 
 import pygame
 import tomli_w
@@ -1246,9 +1246,7 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _generate_pixel_rows(
-        self, color_map: dict | None = None
-    ) -> tuple[list[str], dict]:
+    def _generate_pixel_rows(self, color_map: dict | None = None) -> tuple[list[str], dict]:
         """Generate pixel rows from the sprite's pixel data.
 
         Args:
@@ -1316,7 +1314,7 @@ class BitmappySprite(Sprite):
         }
 
     @staticmethod
-    def _raise_unsupported_format_error(file_format: str) -> None:
+    def _raise_unsupported_format_error(file_format: str) -> NoReturn:
         """Raise an error for unsupported file format.
 
         Raises:

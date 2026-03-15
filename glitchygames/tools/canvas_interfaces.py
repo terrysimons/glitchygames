@@ -349,9 +349,8 @@ class AnimatedCanvasInterface:
         if not (hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene):
             return False
         parent = self.canvas_sprite.parent_scene
-        return (
-            hasattr(parent, 'canvas_operation_tracker')
-            and not getattr(parent, '_applying_undo_redo', False)
+        return hasattr(parent, 'canvas_operation_tracker') and not getattr(
+            parent, '_applying_undo_redo', False
         )
 
     def set_pixel_at(
@@ -372,8 +371,7 @@ class AnimatedCanvasInterface:
 
         """
         if not (
-            0 <= x < self.canvas_sprite.pixels_across
-            and 0 <= y < self.canvas_sprite.pixels_tall
+            0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall
         ):
             return
 
@@ -504,9 +502,7 @@ class AnimatedCanvasInterface:
 
         # Only log debug info occasionally to reduce overhead
         if len(pixel_changes_dict) % 100 == 0:
-            LOG.debug(
-                f'Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels'
-            )
+            LOG.debug(f'Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels')
 
         # Start a timer for single clicks (if this is the first pixel)
         if len(parent_scene._current_pixel_changes_dict) == 1:
@@ -640,13 +636,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         current_frame = self.canvas_sprite.current_frame
         frames = self.canvas_sprite.animated_sprite.frames
 
+        LOG.debug(f'DEBUG: current_animation={current_animation}, current_frame={current_frame}')
+        LOG.debug(f'DEBUG: frames keys={list(frames.keys()) if frames else "None"}')
         LOG.debug(
-            f'DEBUG: current_animation={current_animation}, current_frame={current_frame}'
-        )
-        LOG.debug(f"DEBUG: frames keys={list(frames.keys()) if frames else 'None'}")
-        LOG.debug(
-            f"DEBUG: frames[current_animation] length="
-            f"{len(frames[current_animation]) if current_animation in frames else 'N/A'}"
+            f'DEBUG: frames[current_animation] length='
+            f'{len(frames[current_animation]) if current_animation in frames else "N/A"}'
         )
 
         if current_animation not in frames or current_frame >= len(frames[current_animation]):
@@ -723,9 +717,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 frame = frames[current_animation][frame_idx]
                 frame_pixels = self._get_frame_pixel_data(frame)
                 frame_surface = self._render_onion_frame(frame_pixels, alpha)
-                onion_accumulator.blit(
-                    frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2
-                )
+                onion_accumulator.blit(frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)
 
         # Blit the accumulated onion layers onto the main canvas
         self.canvas_sprite.image.blit(onion_accumulator, (0, 0))
@@ -742,8 +734,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         return getattr(
             frame,
             'pixels',
-            [(255, 0, 255)]
-            * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
+            [(255, 0, 255)] * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
         )
 
     def _render_onion_frame(self, frame_pixels: list, alpha: int) -> pygame.Surface:
@@ -870,7 +861,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self._draw_plus_indicator(
                         self.canvas_sprite.image,
                         controller_indicator_color,
-                        x, y,
+                        x,
+                        y,
                         self.canvas_sprite.pixel_width,
                         self.canvas_sprite.pixel_height,
                     )
@@ -884,7 +876,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x, y,
+                    x,
+                    y,
                     self.canvas_sprite.pixel_width,
                     self.canvas_sprite.pixel_height,
                 )
@@ -905,7 +898,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x, y,
+                    x,
+                    y,
                     self.canvas_sprite.pixel_width,
                     self.canvas_sprite.pixel_height,
                 )
@@ -951,7 +945,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x, y,
+                    x,
+                    y,
                     self.canvas_sprite.pixel_width,
                     self.canvas_sprite.pixel_height,
                 )

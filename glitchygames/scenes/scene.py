@@ -1301,8 +1301,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f"Top sprite @ DOWN: {type(top_sprite).__name__}, "
-                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+                f'Top sprite @ DOWN: {type(top_sprite).__name__}, '
+                f'active={getattr(top_sprite, "active", None)}, pos={event.pos}'
             )
 
         # Find currently focused sprites
@@ -1347,8 +1347,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f"Top sprite @ DRAG: {type(top_sprite).__name__}, "
-                f"active={getattr(top_sprite, 'active', None)}, pos={event.pos}"
+                f'Top sprite @ DRAG: {type(top_sprite).__name__}, '
+                f'active={getattr(top_sprite, "active", None)}, pos={event.pos}'
             )
 
         for sprite in collided_sprites:
