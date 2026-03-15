@@ -18,6 +18,7 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent"
 ]
+keywords = ["pygame", "game-engine", "pixel-art", "sprite-editor"]
 dependencies = [
     "tomli-w",
     "pygame-ce",
@@ -88,10 +89,14 @@ python_functions = ["test_*"]
 # Exclude examples directory from test collection
 norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
 addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+strict = true
+filterwarnings = ["error"]
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
 source = ["glitchygames"]
+branch = true
+parallel = true
 omit = [
     "*/tests/*",
     "*/examples/*",
@@ -114,7 +119,8 @@ exclude_lines = [
     "if 0:",
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod"
+    "@(abc\\.)?abstractmethod",
+    "if TYPE_CHECKING:"
 ]
 
 [tool.coverage.html]
@@ -157,39 +163,7 @@ lint.ignore = [
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
 ]
-lint.fixable = [
-  "I001",   # import-sort
-  "Q000",   # quote style
-  "EXE001", # shebang-not-executable
-  "D200",   # unnecessary-multiline-docstring
-  "D205",   # missing-blank-line-after-summary
-  "D413",   # missing-blank-line-after-last-section
-  "F541",   # f-string-missing-placeholders
-  "UP006",  # non-pep585-annotation (List -> list)
-  "UP035",  # deprecated-import
-  "UP045",  # non-pep604-annotation-optional (Optional -> X | None)
-  "UP015",  # redundant-open-modes
-  "UP037",  # quoted-annotation
-  "UP008",  # super-call-with-parameters
-  "UP043",  # unnecessary-default-type-args
-  "RUF100", # unused-noqa
-  "RUF031", # incorrectly-parenthesized-tuple-in-subscript
-  "PIE790", # unnecessary-placeholder
-  "C403",   # unnecessary-list-comprehension-set
-  "RUF046", # unnecessary-cast-to-int
-  "RUF022", # unsorted-dunder-all
-  "RUF010", # explicit-f-string-type-conversion
-  "SIM118", # in-dict-keys
-  "FURB152", # math-constant
-  "Q003",   # avoidable-escaped-quote
-  "Q001",   # bad-quotes-multiline-string
-  "FURB101", # read-whole-file
-  "FURB103", # write-whole-file
-  "RUF019", # unnecessary-key-check
-  "D401",   # non-imperative-mood
-  "PLR1711", # useless-return
-  "SIM103", # needless-bool
-]
+lint.fixable = ["ALL"]
 include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 target-version = "py313"
 
@@ -203,6 +177,8 @@ target-version = "py313"
 
 [tool.ruff.format]
 docstring-code-format = true
+quote-style = "single"
+line-ending = "lf"
 
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
@@ -220,6 +196,7 @@ convention = "google"
 known-first-party = ["glitchygames"]
 
 [tool.pyright]
+typeCheckingMode = "basic"
 include = ["glitchygames", "tests", "scripts"]
 exclude = [
     "**/__pycache__",
@@ -242,6 +219,7 @@ reportMissingTypeStubs = false
 reportPossiblyUnboundVariable = "warning"
 reportPrivateImportUsage = "warning"
 reportRedeclaration = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
 # These remain disabled until targeted cleanup is done
 reportAttributeAccessIssue = false
 reportIncompatibleMethodOverride = false
