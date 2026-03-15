@@ -1212,8 +1212,8 @@ class MockFactory:
         self._x = x
         self._y = y
 
-        # pygame sprites expect __g to be a set-like object with add method
-        self.__g = set()
+        # pygame sprites expect __g to be a dict (Sprite.add_internal does self.__g[group] = 0)
+        self.__g = {}
 
         # Establish dirty/visible flags BEFORE property setters use them
         self.dirty = 1
@@ -1243,7 +1243,8 @@ class MockFactory:
         # Debug logging removed to avoid accessing attributes prematurely
 
         # Also set the pygame sprite attributes that are needed
-        self._Sprite__g = set()
+        # pygame.sprite.Sprite.add_internal does self.__g[group] = 0, so __g must be a dict
+        self._Sprite__g = {}
 
     @staticmethod
     def create_pygame_display_mock() -> Mock:

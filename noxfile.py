@@ -11,17 +11,14 @@ nox.options.default_venv_backend = 'uv'
 @nox.session(python=['3.13'], reuse_venv=False)
 def lint_and_test(session: nox.Session) -> None:
     """Run linting and tests with coverage."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
     session.install('.[api,dev,docs]')
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
-        'pytest',
-        '-o',
-        'addopts=',
-        '--cov=glitchygames',
-        '--cov-report=term-missing',
-        '--cov-report=html',
+        'pytest'
     )
 
     # Sort imports (not supported by ruff format yet)
@@ -117,47 +114,47 @@ def lint_and_test(session: nox.Session) -> None:
 @nox.session(python=['3.13'], reuse_venv=False)
 def security_scan(session: nox.Session) -> None:
     """Run security scanning tools."""
-    session.install('.[dev,docs,api]')
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
 
     # Run bandit security scan
+    # Exclude test dirs (B101 assert false positives) and skip B104 (0.0.0.0 bind is intentional)
     session.run(
         'bandit',
         '-r',
         'glitchygames',
-        '-f',
-        'json',
-        '-o',
-        'bandit-report.json',
-    )
-    session.run(
-        'bandit',
-        '-r',
-        'glitchygames',
+        '--exclude', 'glitchygames/tests',
+        '-s', 'B104',
+        '-f', 'json',
+        '-o', '/dev/stdout',
     )
 
     # Run safety check for known vulnerabilities
+    # Exclude .venv and .nox to avoid scanning third-party packages
     session.run(
         'safety',
-        'check',
+        'scan',
+        '--exclude', '.venv',
+        '--exclude', '.nox',
         '--json',
-    )
-    session.run(
-        'safety',
-        'check',
+        '--output', '/dev/stdout',
     )
 
 
 @nox.session(python=['3.13'], reuse_venv=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
-    session.install('.[dev,docs,api]')
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
 
     # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         'pytest',
-        '-o',
-        'addopts=',
+        '-o', 'addopts=',
+        '-p', 'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
         'tests/',
@@ -167,26 +164,12 @@ def performance_test(session: nox.Session) -> None:
 @nox.session(python=['3.13'], reuse_venv=False)
 def coverage_report(session: nox.Session) -> None:
     """Generate detailed coverage report."""
-    session.install('.[dev,docs,api]')
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
         'pytest',
-        '-o',
-        'addopts=',
-        '--cov=glitchygames',
-        '--cov-report=html',
-        '--cov-report=term-missing',
-    )
-
-    # Generate coverage report
-    session.run(
-        'coverage',
-        'report',
-        '--show-missing',
-    )
-    session.run(
-        'coverage',
-        'html',
     )

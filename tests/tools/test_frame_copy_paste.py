@@ -262,6 +262,21 @@ class TestFrameCopyPaste:
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
         scene.debug_text.active = False
+
+        # Bind the intermediate methods from BitmapEditorScene so that
+        # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
+        # Without these, the mock object's auto-generated methods return truthy
+        # Mock objects instead of False, causing early returns.
+        scene._handle_slider_text_input = (
+            BitmapEditorScene._handle_slider_text_input.__get__(scene, BitmapEditorScene)
+        )
+        scene._handle_film_strip_text_input = (
+            BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
+        )
+        scene._handle_ctrl_key_shortcuts = (
+            BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(scene, BitmapEditorScene)
+        )
+
         scene.red_slider = self._mocker.Mock()
         scene.red_slider.text_sprite = self._mocker.Mock()
         scene.red_slider.text_sprite.active = False
@@ -305,6 +320,21 @@ class TestFrameCopyPaste:
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
         scene.debug_text.active = False
+
+        # Bind the intermediate methods from BitmapEditorScene so that
+        # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
+        # Without these, the mock object's auto-generated methods return truthy
+        # Mock objects instead of False, causing early returns.
+        scene._handle_slider_text_input = (
+            BitmapEditorScene._handle_slider_text_input.__get__(scene, BitmapEditorScene)
+        )
+        scene._handle_film_strip_text_input = (
+            BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
+        )
+        scene._handle_ctrl_key_shortcuts = (
+            BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(scene, BitmapEditorScene)
+        )
+
         scene.red_slider = self._mocker.Mock()
         scene.red_slider.text_sprite = self._mocker.Mock()
         scene.red_slider.text_sprite.active = False

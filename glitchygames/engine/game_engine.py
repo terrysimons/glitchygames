@@ -722,8 +722,9 @@ class GameEngine(events.EventManager):
             pygame.event.set_blocked(events.CONTROLLER_EVENTS)
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            # Enable controller events for button presses and axis movements
-            pygame._sdl2.controller.set_eventstate(True)
+            # Controller events are enabled by default when the controller module
+            # is initialized via pygame._sdl2.controller.init(). No need to call
+            # set_eventstate() — that function was removed in pygame-ce 2.5.x.
 
         self.touch_manager = TouchEventManager(game=self.scene_manager)
         # https://glitchy-games.atlassian.net/browse/GG-23

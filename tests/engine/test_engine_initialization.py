@@ -240,12 +240,10 @@ class TestEngineInitialization:
 
     def test_engine_options_initialization(self):
         """Test that engine options are properly initialized."""
-        # Test that OPTIONS dict exists and has expected keys
+        # Test that OPTIONS class variable exists and is a dict.
+        # OPTIONS starts empty and is populated during GameEngine.__init__().
         assert hasattr(GameEngine, 'OPTIONS')
         assert isinstance(GameEngine.OPTIONS, dict)
-
-        # Test that profile option exists
-        assert 'profile' in GameEngine.OPTIONS
 
     def test_engine_constants(self):
         """Test that engine constants are properly set."""

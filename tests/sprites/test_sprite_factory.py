@@ -116,7 +116,7 @@ class TestSpriteFactory:
     def test_analyze_toml_file_animation(self, mocker):
         """Test analyzing TOML file with animation."""
         mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open.return_value.__enter__.return_value.read.return_value = b"""
             [sprite]
             pixels = [1, 2, 3]
 
@@ -131,7 +131,7 @@ class TestSpriteFactory:
     def test_analyze_toml_file_basic(self, mocker):
         """Test analyzing basic TOML file."""
         mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open.return_value.__enter__.return_value.read.return_value = b"""
             [sprite]
             pixels = [1, 2, 3]
             """
@@ -143,7 +143,7 @@ class TestSpriteFactory:
     def test_analyze_toml_file_empty_pixels(self, mocker):
         """Test analyzing TOML file with empty pixels."""
         mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open.return_value.__enter__.return_value.read.return_value = b"""
             [sprite]
             pixels = []
             """
@@ -206,7 +206,7 @@ class TestSpriteFactory:
     def test_sprite_factory_analyze_toml_file_with_sprite_pixels(self, mocker):
         """Test analyzing TOML file with sprite pixels."""
         mock_open = mocker.patch('pathlib.Path.open')
-        mock_open.return_value.__enter__.return_value.read.return_value = """
+        mock_open.return_value.__enter__.return_value.read.return_value = b"""
             [sprite]
             pixels = [1, 2, 3, 4, 5, 6]
             """

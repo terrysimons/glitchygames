@@ -121,12 +121,7 @@ def test_controller_hotplug():
 
     LOG.debug('=== Controller Hotplug Debug Test ===')
     LOG.debug(f'Initial controller count: {pygame._sdl2.controller.get_count()}')
-    LOG.debug(f'Controller event state: {pygame._sdl2.controller.get_eventstate()}')
     LOG.debug(f'Joystick count: {pygame.joystick.get_count()}')
-
-    # Enable controller events
-    pygame._sdl2.controller.set_eventstate(True)
-    LOG.debug(f'Controller event state after enabling: {pygame._sdl2.controller.get_eventstate()}')
 
     # Try to open controllers to see if that helps with button events
     for i in range(pygame._sdl2.controller.get_count()):
@@ -149,8 +144,6 @@ def test_controller_hotplug():
     LOG.debug('Blocking joystick events...')
     pygame.event.set_blocked(JOYSTICK_EVENTS)
     LOG.debug(f'Blocked events: {JOYSTICK_EVENTS}')
-    LOG.debug(f'Controller Event state: {pygame._sdl2.controller.get_eventstate()}')
-    pygame._sdl2.controller.set_eventstate(True)
 
     LOG.debug(f'Monitoring for {TEST_DURATION} seconds... Please plug/unplug controllers...')
 

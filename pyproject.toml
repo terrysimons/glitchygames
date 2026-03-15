@@ -88,9 +88,16 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Exclude examples directory from test collection
 norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
-addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
-strict = true
-filterwarnings = ["error"]
+addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+filterwarnings = [
+    "error",
+    # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
+    "ignore:aifc was removed:DeprecationWarning",
+    # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
+    "ignore:ast\\..* is deprecated:DeprecationWarning",
+    # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
+    "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
+]
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
@@ -131,9 +138,13 @@ preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
-lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
-lint.select = ["ALL"]
-lint.ignore = [
+include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
+target-version = "py313"
+
+[tool.ruff.lint]
+task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+select = ["ALL"]
+ignore = [
   # --- Previously ignored ---
   #"ASYN",
   "FIX002", # Line contains TODO, consider resolving the issue
@@ -163,9 +174,7 @@ lint.ignore = [
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
 ]
-lint.fixable = ["ALL"]
-include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
-target-version = "py313"
+fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
