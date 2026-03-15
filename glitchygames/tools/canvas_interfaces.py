@@ -15,12 +15,26 @@ import pygame
 # Import the default file format constant
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from glitchygames.sprites import BitmappySprite
 
 LOG = logging.getLogger("game.tools.canvas_interfaces")
 LOG.addHandler(logging.NullHandler())
+
+
+class MockPixelEvent(BaseModel):
+    """Lightweight mock event for internal pixel update calls."""
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+class MockTrigger(BaseModel):
+    """Lightweight mock trigger for pixel update notifications."""
+
+    pixel_number: int
+    pixel_color: tuple[int, int, int]
 
 
 class CanvasInterface(Protocol):
@@ -464,17 +478,8 @@ class AnimatedCanvasInterface:
 
                     # Trigger pixel update event to notify film strip
                     if hasattr(self.canvas_sprite, "on_pixel_update_event"):
-                        # Create a mock event and trigger object
-                        class MockEvent:
-                            pass
-
-                        class MockTrigger:
-                            def __init__(self, pixel_num: int, color: tuple[int, int, int]) -> None:
-                                self.pixel_number = pixel_num
-                                self.pixel_color = color
-
-                        mock_event = MockEvent()
-                        mock_trigger = MockTrigger(pixel_num, color)
+                        mock_event = MockPixelEvent()
+                        mock_trigger = MockTrigger(pixel_number=pixel_num, pixel_color=color)
                         self.canvas_sprite.on_pixel_update_event(mock_event, mock_trigger)
             else:
                 self.canvas_sprite.pixels[pixel_num] = color

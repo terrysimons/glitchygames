@@ -111,6 +111,8 @@ MIN_COLOR_FIELD_VALUES_FOR_GREEN = 2  # Minimum parsed color field values for gr
 MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blue
 AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
 
+from pydantic import BaseModel
+
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
@@ -137,6 +139,13 @@ if TYPE_CHECKING:
     from glitchygames.tools.visual_collision_manager import VisualIndicator
 
 LOG = logging.getLogger("game.tools.bitmappy")
+
+
+class MockEvent(BaseModel):
+    """Lightweight mock event for internal file-loading calls."""
+
+    text: str
+
 
 # Turn on sprite debugging
 BitmappySprite.DEBUG = True
@@ -9312,11 +9321,7 @@ class BitmapEditorScene(Scene):
         """Load animated AI sprite into canvas."""
         self.log.info("Loading animated sprite into existing animated canvas...")
 
-        class MockEvent:
-            def __init__(self, text: str) -> None:
-                self.text = text
-
-        mock_event = MockEvent(tmp_path)
+        mock_event = MockEvent(text=tmp_path)
         self.canvas.on_load_file_event(mock_event)
 
         # Animation will be started by on_load_file_event, no need to start here
@@ -9327,11 +9332,7 @@ class BitmapEditorScene(Scene):
         self.log.info("Loading static sprite into animated canvas...")
 
         # Load the static sprite into the current animated canvas
-        class MockEvent:
-            def __init__(self, text: str) -> None:
-                self.text = text
-
-        mock_event = MockEvent(tmp_path)
+        mock_event = MockEvent(text=tmp_path)
         self.canvas.on_load_file_event(mock_event)
 
         # Animation will be started by on_load_file_event, no need to start here
@@ -11863,11 +11864,7 @@ pixels = \"\"\"
                 self.log.info(f"Found canvas sprite: {type(canvas_sprite)}")
 
                 # Create a mock event for loading
-                class MockEvent:
-                    def __init__(self, text: str) -> None:
-                        self.text = text
-
-                mock_event = MockEvent(toml_path)
+                mock_event = MockEvent(text=toml_path)
                 self.log.info("Calling on_load_file_event...")
                 canvas_sprite.on_load_file_event(mock_event)
                 self.log.info("on_load_file_event completed")
