@@ -1008,11 +1008,11 @@ class UndoRedoManager:
 
     def set_film_strip_callbacks(
         self,
-        add_frame_callback: callable = None,
-        delete_frame_callback: callable = None,
-        reorder_frame_callback: callable = None,
-        add_animation_callback: callable = None,
-        delete_animation_callback: callable = None,
+        add_frame_callback: callable | None = None,
+        delete_frame_callback: callable | None = None,
+        reorder_frame_callback: callable | None = None,
+        add_animation_callback: callable | None = None,
+        delete_animation_callback: callable | None = None,
     ) -> None:
         """Set the callback functions for film strip operations.
 

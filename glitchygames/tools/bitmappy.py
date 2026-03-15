@@ -468,7 +468,7 @@ def _render_frame_to_ascii(frame: SpriteFrame, renderer: ASCIIRenderer) -> str:
         if len(unique_colors) > 0:
             LOG.debug(f"_render_frame_to_ascii: Found {len(unique_colors)} unique colors")
             LOG.debug(
-                f"_render_frame_to_ascii: First unique color: {list(unique_colors.keys())[0]} -> '{list(unique_colors.values())[0]}'"
+                f"_render_frame_to_ascii: First unique color: {next(iter(unique_colors.keys()))} -> '{next(iter(unique_colors.values()))}'"
             )
 
         # Build pixel string
@@ -1789,7 +1789,7 @@ def _build_retry_prompt(original_prompt: str, validation_error: str) -> str:
     return retry_prompt
 
 
-def parse_toml_robustly(content: str, log: logging.Logger = None) -> dict:
+def parse_toml_robustly(content: str, log: logging.Logger | None = None) -> dict:
     """Parse TOML content with graceful handling of duplicate keys and malformed content.
 
     Args:
@@ -6742,7 +6742,7 @@ class BitmapEditorScene(Scene):
                 self.canvas._check_and_resize_canvas(loaded_sprite)
 
                 # Set the canvas to show the first frame of the first animation
-                first_animation = list(loaded_sprite._animations.keys())[0]
+                first_animation = next(iter(loaded_sprite._animations.keys()))
                 self.canvas.current_animation = first_animation
                 self.canvas.current_frame = 0
 
@@ -6773,7 +6773,7 @@ class BitmapEditorScene(Scene):
             self.log.debug("Film strips created for loaded sprite")
 
             # Initialize global selection to first frame of first animation
-            first_animation = list(loaded_sprite._animations.keys())[0]
+            first_animation = next(iter(loaded_sprite._animations.keys()))
             self.selected_animation = first_animation
             self.selected_frame = 0
             self.selected_strip = None  # Will be set when first frame is selected
@@ -8914,7 +8914,7 @@ class BitmapEditorScene(Scene):
                     and len(self.canvas.animated_sprite._animations) == 1
                 ):
                     # Check if the single animation has only one frame
-                    single_animation = list(self.canvas.animated_sprite._animations.values())[0]
+                    single_animation = next(iter(self.canvas.animated_sprite._animations.values()))
                     # Handle both list of frames and object with frames attribute
                     if hasattr(single_animation, "frames"):
                         frame_count = len(single_animation.frames)
@@ -10533,7 +10533,7 @@ pixels = \"\"\"
             )
             if animations:
                 # Switch to the first available animation
-                first_animation = list(animations.keys())[0]
+                first_animation = next(iter(animations.keys()))
                 self.canvas.show_frame(first_animation, 0)
                 self.log.info(f"Switched to animation '{first_animation}', frame 0")
                 return
@@ -11291,7 +11291,7 @@ pixels = \"\"\"
             return False
 
     def _apply_controller_position_for_undo_redo(
-        self, controller_id: int, position: tuple[int, int], mode: str = None
+        self, controller_id: int, position: tuple[int, int], mode: str | None = None
     ) -> bool:
         """Apply a controller position change for undo/redo operations.
 
@@ -12896,7 +12896,7 @@ pixels = \"\"\"
         else:
             self.log.debug("DEBUG: No color_well found or color_well is None")
 
-    def _handle_slider_mode_navigation(self, direction: str, controller_id: int = None) -> None:
+    def _handle_slider_mode_navigation(self, direction: str, controller_id: int | None = None) -> None:
         """Handle arrow key navigation between slider modes."""
         if not hasattr(self, "mode_switcher"):
             return
@@ -14525,7 +14525,7 @@ pixels = \"\"\"
             and hasattr(self, "film_strips")
             and self.film_strips
         ):
-            first_animation = list(self.film_strips.keys())[0]
+            first_animation = next(iter(self.film_strips.keys()))
             controller_selection.set_selection(first_animation, 0)
             self.log.debug(
                 f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0"
@@ -15008,7 +15008,7 @@ pixels = \"\"\"
                     if self.film_strips:
                         # Always reset to first strip and frame 0 when loading new files
                         # since animation names and structure will be different
-                        first_animation = list(self.film_strips.keys())[0]
+                        first_animation = next(iter(self.film_strips.keys()))
                         controller_selection.set_selection(first_animation, 0)
                         controller_selection.activate()
                         self.log.debug(

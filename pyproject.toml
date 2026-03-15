@@ -192,8 +192,6 @@ lint.ignore = [
   "PLR1714", # repeated-equality-comparison
   "PERF102", # incorrect-dict-iterator
   "PERF401", # manual-list-comprehension
-  "RUF013", # implicit-optional
-  "RUF015", # unnecessary-iterable-allocation-for-first-element
   "PLW2901", # redefined-loop-name
   "PLR1704", # redefined-argument-from-local
   "TRY301", # raise-within-try
@@ -202,10 +200,6 @@ lint.ignore = [
   "S112", # try-except-continue
   "N806", # non-lowercase-variable-in-function
   "PGH003", # blanket-type-ignore
-  "RUF029", # unused-async
-  "RUF052", # used-dummy-variable
-  "RUF012", # mutable-class-default
-  "RUF002", # ambiguous-unicode-character-docstring
 ]
 lint.exclude = []
 lint.fixable = [

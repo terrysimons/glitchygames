@@ -84,17 +84,17 @@ class VoiceEventManager(ResourceManager):
                 backend_name = getattr(mic_cls, "__name__", str(mic_cls))
                 # Probe the backend by opening/closing once to surface errors early
                 try:
-                    _probe = mic_cls()  # type: ignore[call-arg]
+                    probe = mic_cls()  # type: ignore[call-arg]
                     try:
-                        _enter = _probe.__enter__
+                        enter = probe.__enter__
                     except AttributeError:
-                        _enter = None
-                    if callable(_enter):  # type: ignore[truthy-bool]
+                        enter = None
+                    if callable(enter):  # type: ignore[truthy-bool]
                         try:
-                            _probe.__enter__()
+                            probe.__enter__()
                         finally:
                             try:
-                                _probe.__exit__(None, None, None)
+                                probe.__exit__(None, None, None)
                             except OSError:
                                 LOG.debug("Voice backend cleanup raised OSError during probe")
                     self.log.info(f"Voice backend selected: {backend_name}")

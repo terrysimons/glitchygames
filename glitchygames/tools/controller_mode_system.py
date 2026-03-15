@@ -83,7 +83,7 @@ class ControllerModeState:
             self.mode_history = self.mode_history[-MAX_MODE_HISTORY_SIZE:]
 
     def save_current_position(
-        self, position: tuple[int, int] = None, frame: int = None, animation: str = None
+        self, position: tuple[int, int] | None = None, frame: int | None = None, animation: str | None = None
     ) -> None:
         """Save current position for the current mode."""
         if position is not None:
@@ -308,8 +308,8 @@ class ModeSwitcher:
         self,
         controller_id: int,
         position: tuple[int, int],
-        frame: int = None,
-        animation: str = None,
+        frame: int | None = None,
+        animation: str | None = None,
     ) -> None:
         """Save current position for a controller's current mode."""
         if controller_id in self.controller_modes:

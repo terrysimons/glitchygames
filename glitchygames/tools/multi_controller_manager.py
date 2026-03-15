@@ -16,7 +16,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
 import pygame
 
@@ -54,7 +54,7 @@ class MultiControllerManager:
     """
 
     # Controller color scheme
-    CONTROLLER_COLORS = [
+    CONTROLLER_COLORS: ClassVar[list[tuple[int, int, int]]] = [
         (255, 0, 0),  # Controller 0: Red
         (0, 255, 0),  # Controller 1: Green
         (0, 0, 255),  # Controller 2: Blue

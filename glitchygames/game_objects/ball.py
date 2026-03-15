@@ -381,7 +381,7 @@ class BallSprite(Sprite):
         # Speed the ball up
         self.speed *= 1.1
 
-    def speed_up(self: Self, multiplier: float = None, speed_up_type: str = "linear") -> None:
+    def speed_up(self: Self, multiplier: float | None = None, speed_up_type: str = "linear") -> None:
         """Increase the ball's speed with linear, logarithmic, or exponential scaling.
 
         Args:

@@ -612,7 +612,7 @@ class TestRGBRGBAIntegration:
             # Should maintain RGB format
             # Check what animations are available
             assert len(loaded_sprite._animations) > 0, "No animations loaded"
-            animation_name = list(loaded_sprite._animations.keys())[0]
+            animation_name = next(iter(loaded_sprite._animations.keys()))
             loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
 
@@ -665,7 +665,7 @@ class TestRGBRGBAIntegration:
             # Should maintain RGBA format with transparency
             # Check what animations are available
             assert len(loaded_sprite._animations) > 0, "No animations loaded"
-            animation_name = list(loaded_sprite._animations.keys())[0]
+            animation_name = next(iter(loaded_sprite._animations.keys()))
             loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
 

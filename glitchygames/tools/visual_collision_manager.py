@@ -15,6 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum
+from typing import ClassVar
 
 import pygame
 
@@ -67,7 +68,7 @@ class VisualCollisionManager:
     MAX_OFFSET = 20
 
     # Positioning patterns for collision avoidance
-    POSITION_PATTERNS = [
+    POSITION_PATTERNS: ClassVar[list[tuple[int, int]]] = [
         (0, 0),  # Center
         (-15, -15),  # Top-left
         (15, -15),  # Top-right

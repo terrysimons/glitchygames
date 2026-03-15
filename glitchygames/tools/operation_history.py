@@ -506,8 +506,8 @@ class ControllerPositionOperationTracker:
         controller_id: int,
         old_position: tuple[int, int],
         new_position: tuple[int, int],
-        old_mode: str = None,
-        new_mode: str = None,
+        old_mode: str | None = None,
+        new_mode: str | None = None,
     ) -> None:
         """Track when a controller position changes.
 

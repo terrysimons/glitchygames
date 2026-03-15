@@ -538,8 +538,8 @@ class MockFactory:
 
     @staticmethod
     def create_event_test_scene_mock(
-        options: dict = None,
-        event_handlers: dict = None,
+        options: dict | None = None,
+        event_handlers: dict | None = None,
         use_cache: bool = True,  # noqa: ARG004
     ) -> Mock:
         """Create a scene mock for event testing.
@@ -1355,7 +1355,7 @@ class MockFactory:
         )
 
         # Mock SpriteFactory.load_sprite to return our mocked animated sprite
-        def mock_sprite_factory_load_sprite(*, filename: str = None):
+        def mock_sprite_factory_load_sprite(*, filename: str | None = None):
             """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
 
             Returns:
@@ -1892,7 +1892,7 @@ class MockFactory:
         )
 
         # Mock SpriteFactory.load_sprite to return our mocked animated sprite
-        def mock_sprite_factory_load_sprite(*, filename: str = None):
+        def mock_sprite_factory_load_sprite(*, filename: str | None = None):
             """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
 
             Returns:
@@ -2190,7 +2190,7 @@ def create_template_path_mock(template_name: str = "test_template") -> Mock:
     return MockPath(template_name)
 
 
-def create_template_repo_file_mock(repo_url: str = None) -> Mock:
+def create_template_repo_file_mock(repo_url: str | None = None) -> Mock:
     """Create a mock .repo file for template testing.
 
     Returns:
@@ -2207,7 +2207,7 @@ def create_template_repo_file_mock(repo_url: str = None) -> Mock:
     return mock_file
 
 
-def create_template_directory_mock(template_names: list = None) -> Mock:
+def create_template_directory_mock(template_names: list | None = None) -> Mock:
     """Create a mock template directory with specified templates.
 
     Returns:

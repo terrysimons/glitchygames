@@ -184,7 +184,7 @@ class AdaptiveClamping:
 
             self._current_scene = scene_name
 
-    def track_fps_from_event(self: Self, fps: float, frame_time: float = None) -> None:
+    def track_fps_from_event(self: Self, fps: float, frame_time: float | None = None) -> None:
         """Track FPS from FPS events with sliding window and statistical sampling.
 
         Args:
@@ -230,7 +230,7 @@ class AdaptiveClamping:
             else:
                 scene_data["fps_histogram"][fps_int] = 1
 
-    def get_statistical_aggregates(self: Self, scene_name: str = None) -> dict:
+    def get_statistical_aggregates(self: Self, scene_name: str | None = None) -> dict:
         """Get statistical aggregates for 5 9s reliability analysis.
 
         Args:
@@ -513,7 +513,7 @@ class AdaptiveClamping:
             return "D (Poor)"  # 70%+ of target
         return "F (Very Poor)"  # <70% of target
 
-    def get_spare_time_stats(self: Self, scene_name: str = None) -> dict:
+    def get_spare_time_stats(self: Self, scene_name: str | None = None) -> dict:
         """Calculate spare time statistics for capped frame rates.
 
         Args:
