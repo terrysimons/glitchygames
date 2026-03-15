@@ -205,6 +205,6 @@ class WindowEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Window Options")
+        _group = parser.add_argument_group("Window Options")
 
         return parser

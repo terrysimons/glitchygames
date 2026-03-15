@@ -416,7 +416,6 @@ class AdaptiveClamping:
                 LOG.info("Filtering out Unknown scene from per-scene stats")
                 continue
             fps_history = scene_data["fps_history"]
-            fps_histogram = scene_data["fps_histogram"]
 
             if not fps_history:
                 per_scene_stats[scene_name] = {"message": "Not enough data"}

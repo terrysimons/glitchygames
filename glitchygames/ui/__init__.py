@@ -3068,7 +3068,7 @@ class MultiLineTextBox(BitmappySprite):
 
         # Find the corresponding position in original text
         # Map character by character, checking position BEFORE incrementing
-        for i, char in enumerate(self._original_text):
+        for i, _char in enumerate(self._original_text):
             if i >= target_wrapped_pos:
                 return i  # Return current position when we've reached target
 

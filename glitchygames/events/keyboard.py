@@ -130,6 +130,6 @@ class KeyboardEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Keyboard Options")
+        _group = parser.add_argument_group("Keyboard Options")
 
         return parser

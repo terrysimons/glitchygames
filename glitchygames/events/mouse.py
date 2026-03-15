@@ -65,12 +65,12 @@ class MouseEventManager(ResourceManager):
             # Diagnostics: sample motion rate and whether a DOWN is currently tracked
             self._motion_seq += 1
             try:
-                has_down = any(
+                _has_down = any(
                     getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN
                     for e in self.mouse_state.values()
                 )
             except RuntimeError:
-                has_down = False
+                _has_down = False
             # if self._motion_seq % 10 == 0:
             #     self.log.info(
             #         f"MOUSE PROXY: MOTION#{self._motion_seq} pos={getattr(event, 'pos', None)} rel={getattr(event, 'rel', None)} has_down={has_down}"
@@ -413,11 +413,11 @@ class MouseEventManager(ResourceManager):
             self._drag_seq = 0
             # Diagnostics
             try:
-                state_keys = list(self.mouse_state.keys())
+                _state_keys = list(self.mouse_state.keys())
             except RuntimeError:
-                state_keys = []
+                _state_keys = []
             # self.log.info(
-            #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={_state_keys}"
             # )
 
             # Whatever was clicked on gets lock.
@@ -447,12 +447,12 @@ class MouseEventManager(ResourceManager):
 
             """
             try:
-                state_keys = list(self.mouse_state.keys())
+                _state_keys = list(self.mouse_state.keys())
             except RuntimeError:
-                state_keys = []
+                _state_keys = []
             # self.log.info(
             #     f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
-            #     f"pos={getattr(event, 'pos', None)} state_keys={state_keys}"
+            #     f"pos={getattr(event, 'pos', None)} state_keys={_state_keys}"
             # )
             self.game.on_left_mouse_button_down_event(event)
 
@@ -523,7 +523,7 @@ class MouseEventManager(ResourceManager):
             argparse.ArgumentParser: The result.
 
         """
-        group = parser.add_argument_group("Mouse Options")
+        _group = parser.add_argument_group("Mouse Options")
 
         return parser
 

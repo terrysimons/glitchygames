@@ -89,6 +89,6 @@ class AudioEventManager(ResourceManager):
             The argument parser.
 
         """
-        group: argparse._ArgumentGroup = parser.add_argument_group("Sound Mixer Options")
+        _group: argparse._ArgumentGroup = parser.add_argument_group("Sound Mixer Options")
 
         return parser

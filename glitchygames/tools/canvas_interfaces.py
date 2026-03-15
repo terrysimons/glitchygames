@@ -822,7 +822,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             )
                 else:
                     # Selected frame is hidden, but still draw controller indicators
-                    for i, pixel in enumerate(frame_pixels):
+                    for i, _pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (
                             i // self.canvas_sprite.pixels_across
@@ -848,7 +848,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
                 # Draw borders on the main canvas (only if selected frame is visible)
                 if selected_frame_visible and border_thickness > 0:
-                    for i, pixel in enumerate(frame_pixels):
+                    for i, _pixel in enumerate(frame_pixels):
                         x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
                         y = (
                             i // self.canvas_sprite.pixels_across

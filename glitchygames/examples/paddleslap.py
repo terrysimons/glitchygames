@@ -453,7 +453,7 @@ class Game(Scene):
             # And between y=20 and y=screen_height-20 (with some margin from top/bottom)
             # Try to find a location that's not too close to existing balls
             max_attempts = 10
-            for attempt in range(max_attempts):
+            for _ in range(max_attempts):
                 spawn_x = (
                     secrets.randbelow(self.screen_width - 60) + 30
                 )  # Between paddles with margin

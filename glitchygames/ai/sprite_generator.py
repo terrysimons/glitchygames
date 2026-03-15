@@ -382,8 +382,6 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
     # Check for truncated responses FIRST (before checking missing sections)
     # Look for pixel data that ends abruptly without closing """
     if 'pixels = """' in content:
-        # Find all pixel blocks
-        pixel_blocks = re.findall(r'pixels = """(.*?)"""', content, re.DOTALL)
         # Also check for unclosed pixel blocks
         unclosed = re.findall(r'pixels = """([^"]+)$', content, re.DOTALL)
         if unclosed:

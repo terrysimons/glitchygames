@@ -180,10 +180,6 @@ lint.ignore = [
   # --- Unused arguments (callback signatures require them) ---
   "ARG001", # unused-function-argument
   "ARG005", # unused-lambda-argument
-
-  # --- Unused variables (many are pytest mock side effects) ---
-  "F841", # unused-variable
-  "B007", # unused-loop-control-variable
 ]
 lint.exclude = []
 lint.fixable = [
@@ -223,8 +219,8 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004", "ANN", "PLC2701"]
-"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "PLC2701"]
+"tests/**/*.py" = ["PLR2004", "ANN", "PLC2701", "F841", "B007"]
+"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "PLC2701", "F841", "B007"]
 
 [tool.ruff.format]
 docstring-code-format = true

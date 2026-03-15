@@ -86,7 +86,7 @@ class DropEventManager(ResourceManager):
             The argument parser.
 
         """
-        group = parser.add_argument_group("Drop Options")
+        _group = parser.add_argument_group("Drop Options")
 
         return parser
 

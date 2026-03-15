@@ -433,10 +433,10 @@ class TextSprite(Sprite):
                         proxy_name = pygame._sdl2.controller.name_forindex(joystick_id)
                     except pygame.error:
                         proxy_name = "Unknown Controller"
-                    joystick_name = None  # Controllers don't have joystick names
+                    _joystick_name = None  # Controllers don't have joystick names
                 else:
                     proxy_name = proxy.get_name() if hasattr(proxy, "get_name") else None
-                    joystick_name = joystick.get_name() if hasattr(joystick, "get_name") else None
+                    _joystick_name = joystick.get_name() if hasattr(joystick, "get_name") else None
                 # Get GUID based on input mode
                 if input_mode == "controller":
                     joystick_guid = None  # Controllers don't have GUIDs in the same way
@@ -689,9 +689,9 @@ class JoystickScene(Scene):
 
         # Use the correct count method based on input mode
         if input_mode == "controller":
-            pygame_count = pygame._sdl2.controller.get_count()
+            _pygame_count = pygame._sdl2.controller.get_count()
         else:
-            pygame_count = pygame.joystick.get_count()
+            _pygame_count = pygame.joystick.get_count()
 
         # Get the appropriate manager based on input mode
         device_manager = None
@@ -828,9 +828,9 @@ class JoystickScene(Scene):
                         if input_mode == "controller":
                             # Controllers use different API - get name from pygame controller
                             try:
-                                name = pygame._sdl2.controller.name_forindex(joystick_id)
+                                _name = pygame._sdl2.controller.name_forindex(joystick_id)
                             except pygame.error:
-                                name = "Unknown Controller"
+                                _name = "Unknown Controller"
                             # For controllers, find the current device index by matching the device object
                             device_id = None
                             for i in range(pygame.controller.get_count()):
@@ -850,7 +850,7 @@ class JoystickScene(Scene):
                                 device_id = joystick_id
                         else:
                             # Joysticks use the normal API
-                            name = device_obj.get_name()
+                            _name = device_obj.get_name()
                             # Find the current device index by matching the device object
                             device_id = None
                             for i in range(pygame.joystick.get_count()):
@@ -870,7 +870,7 @@ class JoystickScene(Scene):
                                 device_id = joystick_id
 
                         # Controllers don't have get_guid(), skip it
-                        guid = "N/A" if input_mode == "controller" else device_obj.get_guid()
+                        _guid = "N/A" if input_mode == "controller" else device_obj.get_guid()
 
                         # Use device_id instead of joystick_id for tabs
                         if device_id not in unique_ids:

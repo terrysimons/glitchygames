@@ -68,6 +68,6 @@ class MidiEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Midi Options")
+        _group = parser.add_argument_group("Midi Options")
 
         return parser

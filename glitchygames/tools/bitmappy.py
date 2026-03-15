@@ -855,7 +855,7 @@ def load_ai_training_data() -> None:
                     total_duration = 0.0
                     is_looped = False
                     if sprite_type == "animated" and hasattr(sprite, "_animations"):
-                        for anim_name, frames in sprite._animations.items():
+                        for frames in sprite._animations.values():
                             # Check if animation is looped
                             if hasattr(sprite, "is_looping") and sprite.is_looping:
                                 is_looped = True
@@ -3258,24 +3258,11 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.sprite_serializer = AnimatedSpriteSerializer()
         self.canvas_renderer = AnimatedCanvasRenderer(self)
 
-        # Create multiple independent film strips - one for each animation
-        film_strip_x = self.rect.right + 4  # 4 pixels to the right of canvas edge
-        film_strip_y = self.rect.y  # Start at same vertical position as canvas
-
-        # Calculate required width for film strip - extend to end of screen
-        screen_width = pygame.display.get_surface().get_width()
-        available_width = screen_width - film_strip_x  # Extend to end of screen
-        film_strip_width = max(300, available_width)
-
         # Multiple film strips disabled - only showing first animation
 
         # Film strips will be created in the main scene after canvas setup
 
         # Film strip sprites are added to groups in _create_multiple_film_strips
-
-        # Get screen dimensions from pygame
-        screen_info = pygame.display.Info()
-        screen_width = screen_info.current_w
 
         # Show the first frame
         self.show_frame(self.current_animation, self.current_frame)
@@ -3731,13 +3718,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
     def update(self) -> None:
         """Update the canvas sprite."""
-        # Check if mouse is outside canvas
-        mouse_pos = pygame.mouse.get_pos()
-
-        # Get window size
-        screen_info = pygame.display.Info()
-        screen_rect = pygame.Rect(0, 0, screen_info.current_w, screen_info.current_h)
-
         # Animation timing is handled by the scene's update_animation method
 
         # Force redraw if dirty
@@ -3935,7 +3915,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         frame_pixels = frame.get_pixel_data()
 
                         # Apply all pixel changes to the frame
-                        for x, y, old_color, new_color in self._drag_pixels.values():
+                        for x, y, _old_color, new_color in self._drag_pixels.values():
                             pixel_num = y * self.pixels_across + x
                             if pixel_num < len(frame_pixels):
                                 frame_pixels[pixel_num] = new_color
@@ -5632,7 +5612,7 @@ class BitmapEditorScene(Scene):
         strip_spacing = -19
 
         # Hide all strips first
-        for anim_name, film_strip in self.film_strips.items():
+        for anim_name in self.film_strips:
             if hasattr(self, "film_strip_sprites") and anim_name in self.film_strip_sprites:
                 self.film_strip_sprites[anim_name].visible = False
 
@@ -5677,8 +5657,6 @@ class BitmapEditorScene(Scene):
             # Fallback: position to the right of the canvas
             film_strip_x = self.canvas.rect.right + 4  # 4 pixels to the right of canvas edge
         film_strip_y_start = self.canvas.rect.y if hasattr(self, "canvas") and self.canvas else 0
-        strip_height = 145
-        strip_spacing = -19
 
         # Create up arrow (above first strip)
         up_arrow_y = film_strip_y_start - 30
@@ -5699,8 +5677,6 @@ class BitmapEditorScene(Scene):
             or not hasattr(self.canvas, "animated_sprite")
         ):
             return
-
-        total_animations = len(self.canvas.animated_sprite._animations)
 
         # Show up arrow if we can scroll up
         if hasattr(self, "scroll_up_arrow") and self.scroll_up_arrow:
@@ -7894,14 +7870,6 @@ class BitmapEditorScene(Scene):
             # Update AI sprite positioning for new canvas size
             self._update_ai_sprite_position()
 
-            # Update mini map position for new size
-            screen_info = pygame.display.Info()
-            screen_width = screen_info.current_w
-            pixel_width = 2  # MiniView uses 2x2 pixels per sprite pixel
-            mini_map_width = width * pixel_width
-            mini_map_x = max(screen_width - mini_map_width, 0)  # Flush to right edge
-            mini_map_y = 24  # Flush to top
-
             # Update canvas dimensions and redraw
             self.canvas.update()
             self.canvas.dirty = 1
@@ -8846,37 +8814,6 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "debug_text"):
                 self.debug_text.text = "AI process not available"
             return
-
-        # Determine the format to use based on training data
-        format_instruction = ""
-        if ai_training_state["format"] == "toml":
-            format_instruction = """
-                    I understand. I will provide ONLY raw TOML content "
-                    "without any
-                    markdown formatting, code blocks, or explanations. The TOML "
-                    "format
-                    will include:
-                        - [sprite] section containing name and pixels "
-                        "(using triple-quoted block strings)
-                        - [colors."X"] sections ONLY for colors that are actually used in the pixel data
-                        - RGB values from 0-255 for each color
-                        - Pixels using the SPRITE_GLYPHS character set
-                        - For animated sprites: [[animation]] and [[animation.frame]] sections
-                        - When "frame", "animation", "animated", "2-frame", or "multi-frame"
-                          is mentioned, I will create an ANIMATED sprite with multiple frames
-                        - IMPORTANT: Use triple-quoted block strings for multi-line pixel data
-                        - EFFICIENCY: Only define colors that appear in the pixels "
-                            (e.g., if pixels="0", only define [colors."0"])
-                """.strip()
-        else:
-            format_instruction = """
-                    I understand. I will provide ONLY raw INI content without any
-                    markdown formatting, code blocks, or explanations. The INI format
-                    will include:
-                        - [sprite] section containing name and pixel layout
-                        - RGB values from 0-255 for each color
-                        - Pixels using the SPRITE_GLYPHS character set
-                """.strip()
 
         # Check if current frame has content (not all magenta)
         current_frame_has_content = self._check_current_frame_has_content()
@@ -14349,9 +14286,6 @@ pixels = \"\"\"
         self.log.debug(
             f"DEBUG: Drawing indicator for controller {indicator.controller_id} at ({final_x}, {final_y}) with shape {indicator.shape.value}"
         )
-
-        # Set transparency
-        color = (*indicator.color, int(255 * indicator.transparency))
 
         # Draw based on shape
         if indicator.shape.value == "triangle":

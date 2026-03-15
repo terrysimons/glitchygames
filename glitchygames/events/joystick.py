@@ -340,7 +340,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Joystick Options")
+        _group = parser.add_argument_group("Joystick Options")
 
         return parser
 
