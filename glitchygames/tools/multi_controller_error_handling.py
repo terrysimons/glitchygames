@@ -165,8 +165,8 @@ class MultiControllerErrorHandler:
         if error_key in self.recovery_handlers:
             try:
                 return self.recovery_handlers[error_key](error_info)
-            except (ValueError, TypeError, AttributeError, KeyError, OSError) as recovery_error:
-                self.logger.error(f"Recovery handler failed: {recovery_error}")
+            except (ValueError, TypeError, AttributeError, KeyError, OSError):
+                self.logger.exception("Recovery handler failed")
                 return False
 
         # Default recovery strategies

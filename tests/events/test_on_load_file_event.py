@@ -230,10 +230,10 @@ pixels = \"\"\"
         # Verify error was handled gracefully
         # (The method should not raise an exception)
 
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        # Verify the EXCEPTION log message was called
+        mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = mock_log.exception.call_args[0][0]
         assert "File not found" in call_args
 
     def test_load_invalid_file_format(self, mocker):
@@ -252,10 +252,10 @@ pixels = \"\"\"
         self.scene.canvas.on_load_file_event(event)
 
         # Verify error was handled gracefully
-        # The error log should be called at least once (it may be called multiple times for different error details)
-        assert mock_log.error.call_count >= 1
+        # The exception log should be called at least once (it may be called multiple times for different error details)
+        assert mock_log.exception.call_count >= 1
         # Check that at least one log message contains the expected content
-        all_calls = [call[0][0] for call in mock_log.error.call_args_list]
+        all_calls = [call[0][0] for call in mock_log.exception.call_args_list]
         assert any("Error in on_load_file_event for animated sprite" in call for call in all_calls)
 
     def test_canvas_resize_on_different_dimensions(self, mocker):

@@ -97,8 +97,8 @@ class VoiceEventManager(ResourceManager):
                                 LOG.debug("Voice backend cleanup raised OSError during probe")
                     self.log.info(f"Voice backend selected: {backend_name}")
                     self.microphone = mic_cls()  # type: ignore[call-arg]
-                except OSError as e:
-                    self.log.error(f"Voice backend probe failed for {backend_name}: {e}")
+                except OSError:
+                    self.log.exception(f"Voice backend probe failed for {backend_name}")
                     self.microphone = None
             if self.microphone is None:
                 # Last resort: try built-in sr.Microphone init
@@ -121,7 +121,7 @@ class VoiceEventManager(ResourceManager):
             self.microphone = sr.Microphone()
             self.log.info("Microphone initialized successfully")
         except (OSError, AttributeError):
-            self.log.error("Failed to initialize microphone")
+            self.log.error("Failed to initialize microphone")  # noqa: TRY400
             self.microphone = None
 
     def _register_default_commands(self) -> None:
@@ -202,7 +202,7 @@ class VoiceEventManager(ResourceManager):
                         # Speech was unintelligible, continue listening
                         self.log.debug("Could not understand audio")
                     except sr.RequestError:
-                        self.log.error("Speech recognition service error")
+                        self.log.error("Speech recognition service error")  # noqa: TRY400
                         # Wait a bit before trying again
                         time.sleep(2)
 
@@ -210,7 +210,7 @@ class VoiceEventManager(ResourceManager):
                     # Timeout is normal, continue listening
                     continue
                 except OSError:
-                    self.log.error("Error in voice recognition loop")
+                    self.log.error("Error in voice recognition loop")  # noqa: TRY400
                     time.sleep(1)
 
     def _process_command(self, text: str) -> None:

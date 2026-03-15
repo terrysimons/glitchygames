@@ -597,17 +597,17 @@ def _handle_extract_frames(parsed_args) -> int:
         return 0
 
     except FileNotFoundError:
-        LOG.error(f"APNG file not found: {apng_path}")
+        LOG.error(f"APNG file not found: {apng_path}")  # noqa: TRY400
         return 1
     except httpx.ConnectError:
-        LOG.error(f"Could not connect to server at {parsed_args.server_url}")
-        LOG.error("Is the server running? Start it with: glitchygames-server")
+        LOG.error(f"Could not connect to server at {parsed_args.server_url}")  # noqa: TRY400
+        LOG.error("Is the server running? Start it with: glitchygames-server")  # noqa: TRY400
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
+        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f"Error: {e}")
+        LOG.error(f"Error: {e}")  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 
@@ -706,14 +706,14 @@ def main(args: list[str] | None = None) -> int:
         return 0
 
     except httpx.ConnectError:
-        LOG.error(f"Could not connect to server at {parsed_args.server_url}")
-        LOG.error("Is the server running? Start it with: glitchygames-server")
+        LOG.error(f"Could not connect to server at {parsed_args.server_url}")  # noqa: TRY400
+        LOG.error("Is the server running? Start it with: glitchygames-server")  # noqa: TRY400
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
+        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f"Error: {e}")
+        LOG.error(f"Error: {e}")  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 

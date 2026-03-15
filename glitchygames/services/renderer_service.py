@@ -124,7 +124,7 @@ class RendererService:
                 temp_file.write(toml_content)
                 temp_path = temp_file.name
         except OSError as e:
-            LOG.error(f"Failed to create temporary file: {e}")
+            LOG.exception("Failed to create temporary file")
             return RenderResult(
                 success=False,
                 error=f"Failed to create temporary file: {e}",
@@ -192,7 +192,7 @@ class RendererService:
             )
 
         except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-            LOG.error(f"Failed to render sprite: {e}")
+            LOG.exception("Failed to render sprite")
             return RenderResult(
                 success=False,
                 error=f"Failed to render sprite: {e}",

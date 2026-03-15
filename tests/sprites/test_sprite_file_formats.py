@@ -145,11 +145,11 @@ class TestTOMLOnlySupport:
         with pytest.raises(ValueError, match="Unsupported format"):
             sprite.save(str(yaml_file), "yaml")
 
-        # Verify the ERROR log messages were called
-        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        assert mock_log.exception.call_count == EXPECTED_ERROR_COUNT_2
         # Check that the log messages contain the expected content
-        first_call = mock_log.error.call_args_list[0][0][0]
-        second_call = mock_log.error.call_args_list[1][0][0]
+        first_call = mock_log.exception.call_args_list[0][0][0]
+        second_call = mock_log.exception.call_args_list[1][0][0]
         assert "Error in deflate" in first_call
         assert "Error in save" in second_call
 
@@ -168,11 +168,11 @@ class TestTOMLOnlySupport:
         with pytest.raises(ValueError, match="Unsupported format"):
             sprite.save(str(ini_file), "ini")
 
-        # Verify the ERROR log messages were called
-        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        assert mock_log.exception.call_count == EXPECTED_ERROR_COUNT_2
         # Check that the log messages contain the expected content
-        first_call = mock_log.error.call_args_list[0][0][0]
-        second_call = mock_log.error.call_args_list[1][0][0]
+        first_call = mock_log.exception.call_args_list[0][0][0]
+        second_call = mock_log.exception.call_args_list[1][0][0]
         assert "Error in deflate" in first_call
         assert "Error in save" in second_call
 
@@ -233,10 +233,10 @@ class TestTOMLOnlySupport:
         with pytest.raises(ValueError, match="Unsupported format"):
             sprite.save("test.json", "json")
 
-        # Verify the ERROR log messages were called
-        assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        assert mock_log.exception.call_count == EXPECTED_ERROR_COUNT_2
         # Check that the log messages contain the expected content
-        first_call = mock_log.error.call_args_list[0][0][0]
-        second_call = mock_log.error.call_args_list[1][0][0]
+        first_call = mock_log.exception.call_args_list[0][0][0]
+        second_call = mock_log.exception.call_args_list[1][0][0]
         assert "Error in deflate" in first_call
         assert "Error in save" in second_call

@@ -189,7 +189,6 @@ lint.ignore = [
   "B007", # unused-loop-control-variable
 
   # --- Logging style ---
-  "TRY400", # error-instead-of-exception (logging.error vs logging.exception)
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---

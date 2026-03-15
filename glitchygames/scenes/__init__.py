@@ -350,7 +350,7 @@ class SceneManager(SceneInterface, events.EventManager):
         try:
             self.game_engine.registered_events[event.subtype](event)
         except KeyError:
-            self.log.error(
+            self.log.error(  # noqa: TRY400
                 f"Unregistered Event: {event} "
                 "(call self.register_game_event(<event subtype>, <event data>))"
             )

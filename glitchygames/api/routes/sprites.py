@@ -208,7 +208,7 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         return response
 
     except AIProviderError as e:
-        LOG.error(f"AI provider error: {e}")
+        LOG.exception("AI provider error")
         raise HTTPException(
             status_code=503,
             detail=f"AI provider unavailable: {e}",
@@ -318,7 +318,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         return response
 
     except AIProviderError as e:
-        LOG.error(f"AI provider error: {e}")
+        LOG.exception("AI provider error")
         raise HTTPException(
             status_code=503,
             detail=f"AI provider unavailable: {e}",

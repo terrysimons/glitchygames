@@ -430,8 +430,8 @@ class UndoRedoManager:
 
             return success
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing frame operation for {animation}[{frame}]: {e}")
+        except Exception:
+            LOG.exception(f"Error undoing frame operation for {animation}[{frame}]")
             return False
         finally:
             self.is_undoing = False
@@ -478,8 +478,8 @@ class UndoRedoManager:
 
             return success
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing frame operation for {animation}[{frame}]: {e}")
+        except Exception:
+            LOG.exception(f"Error redoing frame operation for {animation}[{frame}]")
             return False
         finally:
             self.is_redoing = False
@@ -599,8 +599,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error executing undo for {operation.description}: {e}")
+        except Exception:
+            LOG.exception(f"Error executing undo for {operation.description}")
             return False
 
     def _execute_redo(self, operation: Operation) -> bool:
@@ -645,8 +645,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error executing redo for {operation.description}: {e}")
+        except Exception:
+            LOG.exception(f"Error executing redo for {operation.description}")
             return False
 
     def _undo_canvas_operation(self, operation: Operation) -> bool:
@@ -693,8 +693,8 @@ class UndoRedoManager:
                 LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
                 return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing canvas operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing canvas operation")
             return False
 
     def _undo_film_strip_operation(self, operation: Operation) -> bool:
@@ -742,8 +742,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing film strip operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing film strip operation")
             return False
 
     def _undo_cross_area_operation(self, operation: Operation) -> bool:
@@ -770,8 +770,8 @@ class UndoRedoManager:
                 return False
             LOG.warning(f"Unknown cross-area operation type: {operation.operation_type}")
             return False
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing cross-area operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing cross-area operation")
             return False
 
     def _redo_canvas_operation(self, operation: Operation) -> bool:
@@ -816,8 +816,8 @@ class UndoRedoManager:
                 LOG.warning(f"Unknown canvas operation type: {operation.operation_type}")
                 return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing canvas operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing canvas operation")
             return False
 
     def _redo_film_strip_operation(self, operation: Operation) -> bool:
@@ -865,8 +865,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing film strip operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing film strip operation")
             return False
 
     def _redo_cross_area_operation(self, operation: Operation) -> bool:
@@ -893,8 +893,8 @@ class UndoRedoManager:
                 return False
             LOG.warning(f"Unknown cross-area operation type: {operation.operation_type}")
             return False
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing cross-area operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing cross-area operation")
             return False
 
     def _undo_frame_selection_operation(self, operation: Operation) -> bool:
@@ -933,8 +933,8 @@ class UndoRedoManager:
             LOG.warning("Frame selection callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing frame selection: {e}")
+        except Exception:
+            LOG.exception("Error undoing frame selection")
             return False
 
     def _redo_frame_selection_operation(self, operation: Operation) -> bool:
@@ -969,8 +969,8 @@ class UndoRedoManager:
             LOG.warning("Frame selection callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing frame selection: {e}")
+        except Exception:
+            LOG.exception("Error redoing frame selection")
             return False
 
     def clear_history(self) -> None:
@@ -1051,8 +1051,8 @@ class UndoRedoManager:
                 # If callback returns False, treat as failure
                 # If callback returns True, treat as success
                 return result is not False
-            except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-                LOG.error(f"Error applying pixel change: {e}")
+            except Exception:
+                LOG.exception("Error applying pixel change")
                 return False
         else:
             LOG.warning("No pixel change callback set")
@@ -1190,8 +1190,8 @@ class UndoRedoManager:
             LOG.warning("Frame selection callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing frame selection: {e}")
+        except Exception:
+            LOG.exception("Error undoing frame selection")
             return False
 
     def _redo_frame_selection_operation(self, operation: Operation) -> bool:
@@ -1226,8 +1226,8 @@ class UndoRedoManager:
             LOG.warning("Frame selection callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing frame selection: {e}")
+        except Exception:
+            LOG.exception("Error redoing frame selection")
             return False
 
     def _undo_film_strip_operation(self, operation: Operation) -> bool:
@@ -1316,8 +1316,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing film strip operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing film strip operation")
             return False
 
     def _redo_film_strip_operation(self, operation: Operation) -> bool:
@@ -1404,8 +1404,8 @@ class UndoRedoManager:
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing film strip operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing film strip operation")
             return False
 
     def _undo_controller_position_operation(self, operation: Operation) -> bool:
@@ -1430,8 +1430,8 @@ class UndoRedoManager:
             LOG.warning("Controller position callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing controller position operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing controller position operation")
             return False
 
     def _redo_controller_position_operation(self, operation: Operation) -> bool:
@@ -1456,8 +1456,8 @@ class UndoRedoManager:
             LOG.warning("Controller position callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing controller position operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing controller position operation")
             return False
 
     def _undo_controller_mode_operation(self, operation: Operation) -> bool:
@@ -1481,8 +1481,8 @@ class UndoRedoManager:
             LOG.warning("Controller mode callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error undoing controller mode operation: {e}")
+        except Exception:
+            LOG.exception("Error undoing controller mode operation")
             return False
 
     def _redo_controller_mode_operation(self, operation: Operation) -> bool:
@@ -1506,6 +1506,6 @@ class UndoRedoManager:
             LOG.warning("Controller mode callback not set")
             return False
 
-        except Exception as e:  # noqa: BLE001 - undo/redo wraps arbitrary scene callbacks
-            LOG.error(f"Error redoing controller mode operation: {e}")
+        except Exception:
+            LOG.exception("Error redoing controller mode operation")
             return False

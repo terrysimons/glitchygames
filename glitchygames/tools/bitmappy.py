@@ -1419,7 +1419,7 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
         return capabilities
 
     except (ValueError, ConnectionError, TimeoutError) as e:
-        log.error("Failed to query model capabilities")
+        log.exception("Failed to query model capabilities")
 
         # Dump capabilities to log for exception case
         log.debug("\n" + "=" * 60)
@@ -1525,8 +1525,8 @@ def _make_ai_api_call(request: AIRequest, client, log: logging.Logger):
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
-        log.error(f"API call failed after {duration:.2f} seconds: {e}")
-        log.error(f"Exception type: {type(e)}")
+        log.exception(f"API call failed after {duration:.2f} seconds")
+        log.exception(f"Exception type: {type(e)}")
         raise
 
     end_time = time.time()
@@ -2123,14 +2123,14 @@ def ai_worker(
                 log.info("Response sent successfully")
 
             except (ValueError, KeyError, AttributeError, OSError) as e:
-                log.error("Error processing AI request")
+                log.exception("Error processing AI request")
                 if request:
                     response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
     except ImportError:
-        log.error("Failed to import aisuite")
+        log.exception("Failed to import aisuite")
         raise
     except (OSError, ValueError, KeyError, AttributeError):
-        log.error("Fatal error in AI worker process")
+        log.exception("Fatal error in AI worker process")
         raise
 
 
@@ -2537,7 +2537,7 @@ class FilmStripSprite(BitmappySprite):
                 )
 
         except Exception as e:
-            LOG.error(f"FilmStripSprite: Error sampling color from frame: {e}")
+            LOG.error(f"FilmStripSprite: Error sampling color from frame: {e}")  # noqa: TRY400
             LOG.exception("Full traceback:")
 
     def on_key_down_event(self, event):
@@ -2789,8 +2789,8 @@ class FilmStripSprite(BitmappySprite):
             LOG.debug("FilmStripSprite: Successfully converted image to sprite frame")
             return frame
 
-        except (pygame.error, OSError, ValueError, AttributeError) as e:
-            LOG.error(f"FilmStripSprite: Failed to convert image {file_path}: {e}")
+        except (pygame.error, OSError, ValueError, AttributeError):
+            LOG.exception(f"FilmStripSprite: Failed to convert image {file_path}")
             return None
 
     def _replace_frame_with_image(self, file_path: str, animation: str, frame_idx: int) -> bool:
@@ -4116,7 +4116,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                     self.animated_sprite, filename=filename, file_format=file_format
                 )
         except (OSError, ValueError, KeyError):
-            self.log.error("Error saving file")
+            self.log.exception("Error saving file")
             raise
 
     def get_canvas_interface(self) -> AnimatedCanvasInterface:
@@ -4173,16 +4173,16 @@ class AnimatedCanvasSprite(BitmappySprite):
             self._finalize_sprite_loading(loaded_sprite, filename)
 
         except FileNotFoundError as e:
-            self.log.error("File not found")
+            self.log.exception("File not found")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error: File not found - {e}"
         except (OSError, ValueError, KeyError, TypeError, AttributeError, pygame.error) as e:
-            self.log.error(f"Error in on_load_file_event for animated sprite: {e}")
-            self.log.error(f"Exception type: {type(e).__name__}")
+            self.log.exception("Error in on_load_file_event for animated sprite")
+            self.log.exception(f"Exception type: {type(e).__name__}")
             import traceback
 
-            self.log.error(f"Traceback: {traceback.format_exc()}")
+            self.log.exception(f"Traceback: {traceback.format_exc()}")
             # Show user-friendly error message instead of crashing
             if hasattr(self, "parent") and hasattr(self.parent, "debug_text"):
                 self.parent.debug_text.text = f"Error loading sprite: {e}"
@@ -5521,8 +5521,8 @@ class BitmapEditorScene(Scene):
                             frame.image = surface
                             LOG.debug(f"DEBUG: Created image for frame {frame_idx} from pixel data")
 
-                    except (pygame.error, AttributeError, TypeError, ValueError, IndexError) as e:
-                        LOG.error(f"DEBUG: Failed to create image for frame {frame_idx}: {e}")
+                    except (pygame.error, AttributeError, TypeError, ValueError, IndexError):
+                        LOG.exception(f"DEBUG: Failed to create image for frame {frame_idx}")
 
                 elif not has_image and not has_pixel_data:
                     # Create a default magenta frame
@@ -5538,9 +5538,9 @@ class BitmapEditorScene(Scene):
 
                         LOG.debug(f"DEBUG: Created default magenta frame for frame {frame_idx}")
 
-                    except (pygame.error, AttributeError, TypeError, ValueError) as e:
-                        LOG.error(
-                            f"DEBUG: Failed to create default frame for frame {frame_idx}: {e}"
+                    except (pygame.error, AttributeError, TypeError, ValueError):
+                        LOG.exception(
+                            f"DEBUG: Failed to create default frame for frame {frame_idx}"
                         )
 
     def _select_initial_film_strip(self):
@@ -6541,8 +6541,8 @@ class BitmapEditorScene(Scene):
                 self.log.warning("Voice recognition not available - microphone not found")
                 self.voice_manager = None
 
-        except (ImportError, OSError, AttributeError, RuntimeError) as e:
-            self.log.error(f"Failed to initialize voice recognition: {e}")
+        except (ImportError, OSError, AttributeError, RuntimeError):
+            self.log.exception("Failed to initialize voice recognition")
             self.voice_manager = None
 
     def _clear_ai_sprite_box(self) -> None:
@@ -7859,8 +7859,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Canvas resized to {width}x{height} with pixel size {new_pixel_size}")
 
         except ValueError:
-            self.log.error(f"Invalid dimensions format '{dimensions}'")
-            self.log.error("Expected format: WxH (e.g., '32x32')")
+            self.log.exception(f"Invalid dimensions format '{dimensions}'")
+            self.log.exception("Expected format: WxH (e.g., '32x32')")
 
         self.dirty = 1
 
@@ -7968,7 +7968,7 @@ class BitmapEditorScene(Scene):
             )
 
         except Exception as e:
-            self.log.error(f"Error sampling color from screen: {e}")
+            self.log.error(f"Error sampling color from screen: {e}")  # noqa: TRY400
             self.log.exception("Full traceback:")
 
     def on_slider_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
@@ -8943,8 +8943,8 @@ class BitmapEditorScene(Scene):
 
                 # Debug: Log first 500 chars to verify structure
                 self.log.debug(f"Serialized sprite preview:\n{last_sprite_content[:500]}")
-            except (OSError, ValueError, AttributeError, TypeError) as e:
-                self.log.error(f"Failed to serialize sprite: {e}")
+            except (OSError, ValueError, AttributeError, TypeError):
+                self.log.exception("Failed to serialize sprite")
                 self.log.warning("Will use standard generation mode instead")
 
         # Build messages based on request type
@@ -8990,8 +8990,8 @@ class BitmapEditorScene(Scene):
             if hasattr(self, "debug_text"):
                 self.debug_text.text = f"Processing AI request... (ID: {request_id})"
 
-        except (AttributeError, OSError, ValueError) as submit_error:
-            self.log.error(f"Error submitting AI request: {submit_error}")
+        except (AttributeError, OSError, ValueError):
+            self.log.exception("Error submitting AI request")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = "Error: Failed to submit AI request"
 
@@ -9026,8 +9026,8 @@ class BitmapEditorScene(Scene):
                 self.ai_process.start()
                 self.log.info(f"AI worker process started with PID: {self.ai_process.pid}")
 
-            except (OSError, RuntimeError) as init_error:
-                self.log.error(f"Error initializing AI worker process: {init_error}")
+            except (OSError, RuntimeError):
+                self.log.exception("Error initializing AI worker process")
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None
@@ -9376,8 +9376,8 @@ class BitmapEditorScene(Scene):
                 return non_magenta_count > 0
             self.log.debug("No canvas or canvas.pixels found, returning False")
             return False
-        except (AttributeError, TypeError, IndexError) as e:
-            self.log.error(f"Error checking frame content: {e}")
+        except (AttributeError, TypeError, IndexError):
+            self.log.exception("Error checking frame content")
             return False
 
     def _save_current_frame_to_temp_toml(self) -> str | None:
@@ -9413,8 +9413,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Saved current frame to temporary TOML: {temp_path}")
             return temp_path
 
-        except (OSError, ValueError, AttributeError, TypeError) as e:
-            self.log.error(f"Error saving frame to temp TOML: {e}")
+        except (OSError, ValueError, AttributeError, TypeError):
+            self.log.exception("Error saving frame to temp TOML")
             return None
 
     def _save_current_strip_to_temp_toml(self) -> str | None:
@@ -9467,8 +9467,8 @@ class BitmapEditorScene(Scene):
             self.log.info(f"Saved current strip to temporary TOML: {temp_path}")
             return temp_path
 
-        except (OSError, ValueError, AttributeError, KeyError, TypeError) as e:
-            self.log.error(f"Error saving strip to temp TOML: {e}")
+        except (OSError, ValueError, AttributeError, KeyError, TypeError):
+            self.log.exception("Error saving strip to temp TOML")
             return None
 
     def _generate_frame_toml_content(
@@ -9640,8 +9640,8 @@ pixels = \"\"\"
 
             return toml_content
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
-            self.log.error(f"Error generating frame TOML content: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            self.log.exception("Error generating frame TOML content")
             return ""
 
     def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
@@ -9714,8 +9714,8 @@ pixels = \"\"\"
             self.log.info(f"Loaded current frame as training example: {sprite_data['name']}")
             return sprite_data
 
-        except (OSError, ValueError, KeyError, TypeError) as e:
-            self.log.error(f"Error loading temp TOML as example: {e}")
+        except (OSError, ValueError, KeyError, TypeError):
+            self.log.exception("Error loading temp TOML as example")
             return None
 
     def _is_ai_error_message(self, content: str) -> bool:
@@ -9866,7 +9866,7 @@ pixels = \"\"\"
             AttributeError,
             pygame.error,
         ) as sprite_error:
-            self.log.error(f"Failed to load AI sprite: {sprite_error}")
+            self.log.exception("Failed to load AI sprite")
 
             # Get the original prompt that was sent to the AI
             original_prompt = ""
@@ -9993,8 +9993,8 @@ pixels = \"\"\"
             except Empty:
                 # This is normal - no responses available
                 pass
-            except (ValueError, TypeError, AttributeError, OSError) as process_error:
-                self.log.error(f"Error processing AI response: {process_error}")
+            except (ValueError, TypeError, AttributeError, OSError):
+                self.log.exception("Error processing AI response")
 
     def _shutdown_ai_worker(self) -> None:
         """Signal AI worker to shut down."""
@@ -10003,8 +10003,8 @@ pixels = \"\"\"
                 self.log.info("Sending shutdown signal to AI worker...")
                 self.ai_request_queue.put(None, timeout=1.0)  # Add timeout
                 self.log.info("Shutdown signal sent successfully")
-            except (OSError, ValueError) as shutdown_error:
-                self.log.error(f"Error sending shutdown signal: {shutdown_error}")
+            except (OSError, ValueError):
+                self.log.exception("Error sending shutdown signal")
 
     def _cleanup_ai_process(self) -> None:
         """Clean up AI process."""
@@ -10023,8 +10023,8 @@ pixels = \"\"\"
                     self.ai_process.kill()  # Force kill if still alive
                     self.ai_process.join(timeout=0.5)  # Final cleanup
             self.log.info("AI process cleanup completed")
-        except (OSError, RuntimeError, AttributeError) as cleanup_error:
-            self.log.error(f"Error during AI process cleanup: {cleanup_error}")
+        except (OSError, RuntimeError, AttributeError):
+            self.log.exception("Error during AI process cleanup")
         finally:
             # Ensure process is cleaned up
             if hasattr(self, "ai_process") and self.ai_process:
@@ -10041,15 +10041,15 @@ pixels = \"\"\"
             try:
                 self.ai_request_queue.close()
                 self.log.info("AI request queue closed")
-            except (OSError, ValueError) as close_error:
-                self.log.error(f"Error closing request queue: {close_error}")
+            except (OSError, ValueError):
+                self.log.exception("Error closing request queue")
 
         if hasattr(self, "ai_response_queue") and self.ai_response_queue:
             try:
                 self.ai_response_queue.close()
                 self.log.info("AI response queue closed")
-            except (OSError, ValueError) as close_error:
-                self.log.error(f"Error closing response queue: {close_error}")
+            except (OSError, ValueError):
+                self.log.exception("Error closing response queue")
 
     def _cleanup_voice_recognition(self) -> None:
         """Clean up voice recognition resources.
@@ -10077,8 +10077,8 @@ pixels = \"\"\"
                 self.voice_manager.stop_listening()
                 self.voice_manager = None
                 self.log.info("Voice recognition stopped successfully")
-            except (OSError, AttributeError, RuntimeError) as stop_error:
-                self.log.error(f"Error stopping voice recognition: {stop_error}")
+            except (OSError, AttributeError, RuntimeError):
+                self.log.exception("Error stopping voice recognition")
 
     def cleanup(self):
         """Clean up resources."""
@@ -10764,8 +10764,8 @@ pixels = \"\"\"
             self.log.debug(f"Applied frame paste to {animation}[{frame}]")
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
-            self.log.error(f"Error applying frame paste: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            self.log.exception("Error applying frame paste")
             return False
 
     def _apply_pixel_change_for_undo_redo(
@@ -10818,8 +10818,8 @@ pixels = \"\"\"
             else:
                 self.log.warning("Canvas not available for frame selection undo/redo")
                 return False
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
-            self.log.error(f"Error applying frame selection undo/redo: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            self.log.exception("Error applying frame selection undo/redo")
             return False
 
     def _add_frame_for_undo_redo(
@@ -10926,8 +10926,8 @@ pixels = \"\"\"
             )
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error) as e:
-            self.log.error(f"Error adding frame for undo/redo: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error):
+            self.log.exception("Error adding frame for undo/redo")
             return False
 
     def _delete_frame_for_undo_redo(self, frame_index: int, animation_name: str) -> bool:
@@ -11050,8 +11050,8 @@ pixels = \"\"\"
             self.log.warning(f"Animation '{animation_name}' not found")
             return False
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
-            self.log.error(f"Error deleting frame for undo/redo: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            self.log.exception("Error deleting frame for undo/redo")
             return False
 
     def _reorder_frame_for_undo_redo(
@@ -11101,8 +11101,8 @@ pixels = \"\"\"
             self.log.warning(f"Animation '{animation_name}' not found")
             return False
 
-        except (AttributeError, IndexError, KeyError, TypeError) as e:
-            self.log.error(f"Error reordering frame for undo/redo: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError):
+            self.log.exception("Error reordering frame for undo/redo")
             return False
 
     def _add_animation_for_undo_redo(self, animation_name: str, animation_data: dict) -> bool:
@@ -11174,8 +11174,8 @@ pixels = \"\"\"
             self.log.debug(f"Added animation '{animation_name}' for undo/redo")
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error) as e:
-            self.log.error(f"Error adding animation for undo/redo: {e}")
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error):
+            self.log.exception("Error adding animation for undo/redo")
             return False
 
     def _delete_animation_for_undo_redo(self, animation_name: str) -> bool:
@@ -11231,8 +11231,8 @@ pixels = \"\"\"
             self.log.warning(f"Animation '{animation_name}' not found")
             return False
 
-        except (AttributeError, KeyError, TypeError) as e:
-            self.log.error(f"Error deleting animation for undo/redo: {e}")
+        except (AttributeError, KeyError, TypeError):
+            self.log.exception("Error deleting animation for undo/redo")
             return False
 
     def _apply_controller_position_for_undo_redo(
@@ -11270,8 +11270,8 @@ pixels = \"\"\"
             finally:
                 # Always reset the flag
                 self._applying_undo_redo = False
-        except (AttributeError, KeyError, TypeError) as e:
-            self.log.error(f"Error applying controller position undo/redo: {e}")
+        except (AttributeError, KeyError, TypeError):
+            self.log.exception("Error applying controller position undo/redo")
             return False
 
     def _apply_controller_mode_for_undo_redo(self, controller_id: int, mode: str) -> bool:
@@ -11321,8 +11321,8 @@ pixels = \"\"\"
             finally:
                 # Always reset the flag
                 self._applying_undo_redo = False
-        except (AttributeError, KeyError, TypeError, ValueError) as e:
-            self.log.error(f"Error applying controller mode undo/redo: {e}")
+        except (AttributeError, KeyError, TypeError, ValueError):
+            self.log.exception("Error applying controller mode undo/redo")
             return False
 
     def _submit_pixel_changes_if_ready(self) -> None:
@@ -11430,7 +11430,7 @@ pixels = \"\"\"
             file_size = Path(file_path).stat().st_size
             self.log.info(f"File size: {file_size} bytes")
         except OSError:
-            self.log.error("Could not get file size")
+            self.log.exception("Could not get file size")
             return
 
         # First, check if any film strip sprites can handle the drop
@@ -11442,8 +11442,8 @@ pixels = \"\"\"
                         if film_strip_sprite.on_drop_file_event(event):
                             self.log.info(f"Film strip '{strip_name}' handled the drop")
                             return
-                    except (AttributeError, TypeError, ValueError, OSError, pygame.error) as e:
-                        self.log.error(f"Error in film strip drop handler: {e}")
+                    except (AttributeError, TypeError, ValueError, OSError, pygame.error):
+                        self.log.exception("Error in film strip drop handler")
                         continue
 
         # If no film strip handled it, check if drop is on the canvas
@@ -11768,8 +11768,8 @@ pixels = \"\"\"
 
                 self.log.info(f"TOML validation passed: {color_count} colors defined")
 
-            except Exception as e:
-                self.log.error(f"TOML validation failed: {e}")
+            except Exception:
+                self.log.exception("TOML validation failed")
                 raise
 
             self.log.info(f"Successfully converted PNG to bitmappy format: {output_path}")
@@ -11777,8 +11777,8 @@ pixels = \"\"\"
             # Return the path to the converted TOML file
             return str(output_path)
 
-        except (OSError, ValueError, TypeError, AttributeError, pygame.error) as convert_error:
-            self.log.error(f"Error converting PNG to bitmappy format: {convert_error}")
+        except (OSError, ValueError, TypeError, AttributeError, pygame.error):
+            self.log.exception("Error converting PNG to bitmappy format")
             return None
 
     def _load_converted_sprite(self, toml_path: str) -> None:
@@ -11918,8 +11918,8 @@ pixels = \"\"\"
             TypeError,
             KeyError,
             pygame.error,
-        ) as load_error:
-            self.log.error(f"Error loading converted sprite into editor: {load_error}")
+        ):
+            self.log.exception("Error loading converted sprite into editor")
 
     def _initialize_onion_skinning_for_sprite(self, loaded_sprite: AnimatedSprite) -> None:
         """Initialize onion skinning for a newly loaded sprite.
@@ -11960,8 +11960,8 @@ pixels = \"\"\"
 
             self.log.info("Onion skinning initialized for loaded sprite")
 
-        except (ImportError, AttributeError, KeyError, TypeError) as e:
-            self.log.error(f"Failed to initialize onion skinning for loaded sprite: {e}")
+        except (ImportError, AttributeError, KeyError, TypeError):
+            self.log.exception("Failed to initialize onion skinning for loaded sprite")
 
     def handle_event(self, event):
         """Handle pygame events."""
@@ -12031,7 +12031,7 @@ pixels = \"\"\"
                 # Reset generator
                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
             except StopIteration:
-                self.log.error("Generator empty on first triplet!")
+                self.log.exception("Generator empty on first triplet!")
                 raise
 
             # Now proceed with the rest of deflate
@@ -12043,7 +12043,7 @@ pixels = \"\"\"
             self.log.debug(f"Found {len(colors)} unique colors")
 
         except Exception:
-            self.log.error("Error in deflate")
+            self.log.exception("Error in deflate")
             raise
         else:
             return config

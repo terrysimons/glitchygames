@@ -180,7 +180,7 @@ class SpriteGenerationService:
             LOG.debug(f"Raw AI response length: {len(raw_content)} chars")
 
         except Exception as e:
-            LOG.error(f"AI API call failed: {e}")
+            LOG.exception("AI API call failed")
             raise AIProviderError(
                 f"AI generation failed: {e}",
                 provider=self.config.ai_provider,
@@ -258,7 +258,7 @@ class SpriteGenerationService:
             LOG.debug(f"Raw AI response length: {len(raw_content)} chars")
 
         except Exception as e:
-            LOG.error(f"AI API call failed: {e}")
+            LOG.exception("AI API call failed")
             raise AIProviderError(
                 f"AI refinement failed: {e}",
                 provider=self.config.ai_provider,

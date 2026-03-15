@@ -134,14 +134,17 @@ class TestBitmappySprite:
         with pytest.raises(ValueError, match="Unsupported format"):
             sprite.deflate("json")
 
-        # Verify the ERROR log message was called (multiple times expected)
+        # Verify the ERROR log message was called for validation warnings
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
-        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any(
-            "Pixels list length mismatch: 0 vs expected 1024" in msg for msg in call_args_list
+            "Pixels list length mismatch: 0 vs expected 1024" in msg for msg in error_args_list
         )
-        assert any("Error in deflate" in msg for msg in call_args_list)
+        # "Error in deflate" is logged via LOG.exception (inside except block)
+        assert mock_log.exception.call_count >= 1
+        exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
+        assert any("Error in deflate" in msg for msg in exception_args_list)
 
     def test_bitmappy_sprite_deflate_method_too_many_colors(self, mocker):
         """Test BitmappySprite deflate method with too many colors."""
@@ -154,14 +157,17 @@ class TestBitmappySprite:
         with pytest.raises(ValueError, match="Too many colors"):
             sprite.deflate("toml")
 
-        # Verify the ERROR log message was called (multiple times expected)
+        # Verify the ERROR log message was called for validation warnings
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
-        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any(
-            "Pixels list length mismatch: 100 vs expected 1024" in msg for msg in call_args_list
+            "Pixels list length mismatch: 100 vs expected 1024" in msg for msg in error_args_list
         )
-        assert any("Error in deflate" in msg for msg in call_args_list)
+        # "Error in deflate" is logged via LOG.exception (inside except block)
+        assert mock_log.exception.call_count >= 1
+        exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
+        assert any("Error in deflate" in msg for msg in exception_args_list)
 
     def test_bitmappy_sprite_deflate_pads_and_truncates_pixels(self, mocker):
         """Test BitmappySprite deflate method padding and truncating pixels."""
@@ -259,10 +265,10 @@ class TestBitmappySprite:
         with pytest.raises(ValueError, match="Unsupported format: xml"):
             sprite._save_static_only("test.xml")
 
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        # Verify the EXCEPTION log message was called (inside except block)
+        mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = mock_log.exception.call_args[0][0]
         assert "Error in save" in call_args
 
     def test_bitmappy_sprite_create_toml_config_coverage(self, mocker):
@@ -315,10 +321,10 @@ class TestBitmappySprite:
         with pytest.raises(ValueError, match="Unsupported format: xml"):
             sprite._save_static_only("test.xml")
 
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        # Verify the EXCEPTION log message was called (inside except block)
+        mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = mock_log.exception.call_args[0][0]
         assert "Error in save" in call_args
 
     def test_bitmappy_sprite_save_static_only_method_unsupported_format_json(self, mocker):
@@ -333,10 +339,10 @@ class TestBitmappySprite:
         with pytest.raises(ValueError, match="Unsupported format: json"):
             sprite._save_static_only("test.json")
 
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        # Verify the EXCEPTION log message was called (inside except block)
+        mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = mock_log.exception.call_args[0][0]
         assert "Error in save" in call_args
 
     def test_get_pixel_string_method(self, mocker):
