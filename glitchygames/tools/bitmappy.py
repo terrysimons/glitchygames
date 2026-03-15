@@ -1887,8 +1887,8 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict:
     current_section = None
 
     lines = content.split("\n")
-    for line_num, line in enumerate(lines, 1):
-        line = line.strip()
+    for line_num, raw_line in enumerate(lines, 1):
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
 

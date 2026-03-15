@@ -94,7 +94,6 @@ class TestControllerDragUndoRedo:
             position = mock_scene.mode_switcher.get_controller_position(controller_id)
             if position and position.is_valid:
                 current_color = mock_scene._get_current_color()
-                x, y = position.position[0], position.position[1]
 
                 # Check if pixel is already the selected color (debouncing)
                 current_pixel_color = mock_scene.canvas.canvas_interface.get_pixel_at(x, y)

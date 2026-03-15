@@ -191,7 +191,6 @@ lint.ignore = [
   # --- Code style preferences (not bugs) ---
   "PERF102", # incorrect-dict-iterator
   "PERF401", # manual-list-comprehension
-  "PLW2901", # redefined-loop-name
 ]
 lint.exclude = []
 lint.fixable = [
