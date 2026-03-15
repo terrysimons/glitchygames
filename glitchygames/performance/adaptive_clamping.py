@@ -762,7 +762,7 @@ class AdaptiveClamping:
                 prefix_length = 40
                 max_bar_length = 80 - prefix_length
 
-                def calculate_bar_length(count: int, max_count: int) -> int:
+                def calculate_bar_length(count: int, max_count: int, max_bar_length: int = max_bar_length) -> int:
                     bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
                     return min(bar_length, max_bar_length)
 
