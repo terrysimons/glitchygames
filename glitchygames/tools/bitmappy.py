@@ -10436,6 +10436,8 @@ pixels = \"\"\"
                     self.log.debug("No canvas found, using parent class handling")
                     super().on_key_down_event(event)
 
+        return None
+
     def _handle_undo(self) -> None:
         """Handle undo operation."""
         if not hasattr(self, "undo_redo_manager"):
