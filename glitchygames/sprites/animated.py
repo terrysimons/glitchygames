@@ -973,7 +973,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         color_map, color_order, colors_with_per_pixel_alpha = self._build_color_map(data)
         self._color_map = color_map  # Store color map for later use
         self._color_order = color_order  # Store color order for preserving file format
-        # Store which colors originally had alpha=0-254 (per-pixel alpha) vs alpha=255 or no alpha (indexed)
+        # Store which colors originally had alpha=0-254 (per-pixel
+        # alpha) vs alpha=255 or no alpha (indexed)
         self._colors_with_per_pixel_alpha = colors_with_per_pixel_alpha
         animations = data.get("animation", [])
 
@@ -1096,12 +1097,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             tuple: (color_map dict, color_order list, original_alpha_values dict) -
                    color_map maps char->color,
                    color_order preserves the order colors appeared in the file,
-                   original_alpha_values maps char->alpha_value for colors that had alpha=0-254 (per-pixel)
+                   original_alpha_values maps char->alpha_value for
+                   colors that had alpha=0-254 (per-pixel)
 
         """
         color_map = {}
         color_order = []  # Preserve order of colors as they appear in file
-        original_alpha_values = {}  # Track original alpha values for colors with alpha=0-254 (per-pixel)
+        # Track original alpha values for colors with alpha=0-254
+        original_alpha_values = {}
         colors_section = data.get("colors", {})
         for char, color_data in colors_section.items():
             r = color_data.get("red", 0)
@@ -1717,8 +1720,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     "blue": b,
                     "alpha": original_alpha_values[char],
                 }
-            elif needs_per_pixel_alpha and len(color_tuple) == RGBA_COMPONENT_COUNT:
-                # Sprite has pixels with alpha 0-254, and this color has RGBA - write the alpha value
+            elif (
+                needs_per_pixel_alpha
+                and len(color_tuple) == RGBA_COMPONENT_COUNT
+            ):
+                # Sprite has pixels with alpha 0-254,
+                # and this color has RGBA - write the alpha value
                 a = color_tuple[3]
                 if 0 <= a <= MAX_PER_PIXEL_ALPHA:
                     # Per-pixel alpha value - write it
@@ -1820,8 +1827,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                                 )
                             color_char = color_map[lookup]
                         elif map_uses_alpha:
-                            # Map has some RGBA keys (magenta), but may have RGB keys for other colors
-                            # If pixel is opaque (alpha=255), try RGB first, then RGBA
+                            # Map has some RGBA keys (magenta), but may
+                            # have RGB keys for other colors.
+                            # If pixel is opaque (alpha=255), try RGB
+                            # first, then RGBA
                             if a == MAX_COLOR_CHANNEL_VALUE:
                                 # Try RGB version first
                                 lookup_rgb = (r, g, b)
@@ -1832,8 +1841,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                                     color_char = color_map[r, g, b, a]
                                 else:
                                     raise KeyError(
-                                        f"Color {(r, g, b)} (or RGBA {(r, g, b, a)}) not found in color map. "
-                                        f"Available colors: {list(color_map.keys())}"
+                                        f"Color {(r, g, b)} (or RGBA"
+                                        f" {(r, g, b, a)}) not found"
+                                        f" in color map. "
+                                        f"Available colors: "
+                                        f"{list(color_map.keys())}"
                                     )
                             else:
                                 # Pixel has transparency, must use RGBA
@@ -1865,7 +1877,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                             )
                         color_char = color_map[lookup]
                     elif map_uses_alpha:
-                        # Map uses alpha (has magenta as RGBA), but may have RGB keys for other colors
+                        # Map uses alpha (has magenta as RGBA), but may
+                        # have RGB keys for other colors.
                         # Try RGBA version first, then fall back to RGB
                         lookup_rgba = (pixel[0], pixel[1], pixel[2], 255)
                         if lookup_rgba in color_map:

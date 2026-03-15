@@ -122,7 +122,9 @@ def test_zero_speed_scenarios(mocker):
     for i in range(20):
         ball.dt_tick(0.016)  # 60 FPS
         LOG.debug(
-            f"   Iteration {i + 1}: position=({ball.rect.x}, {ball.rect.y}), speed=({ball.speed.x}, {ball.speed.y})"
+            f"   Iteration {i + 1}:"
+            f" position=({ball.rect.x}, {ball.rect.y}),"
+            f" speed=({ball.speed.x}, {ball.speed.y})"
         )
         time.sleep(0.05)  # Small delay
 
@@ -169,8 +171,10 @@ def test_zero_speed_scenarios(mocker):
     ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
 
     for x_speed, y_speed, description in test_speeds:
+        index = test_speeds.index((x_speed, y_speed, description)) + 1
         LOG.debug(
-            f"12.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with Y-only speedup:"
+            f"12.{index} Testing {description}"
+            f" with Y-only speedup:"
         )
         ball.speed = Speed(x_speed, y_speed)
         LOG.debug(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
@@ -193,8 +197,10 @@ def test_zero_speed_scenarios(mocker):
     ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
 
     for x_speed, y_speed, description in test_speeds:
+        index = test_speeds.index((x_speed, y_speed, description)) + 1
         LOG.debug(
-            f"13.{test_speeds.index((x_speed, y_speed, description)) + 1} Testing {description} with both X and Y speedup:"
+            f"13.{index} Testing {description}"
+            f" with both X and Y speedup:"
         )
         ball.speed = Speed(x_speed, y_speed)
         LOG.debug(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
@@ -225,8 +231,12 @@ def test_zero_speed_scenarios(mocker):
     ]
 
     for x_speed, y_speed, description in continuous_test_speeds:
+        index = continuous_test_speeds.index(
+            (x_speed, y_speed, description)
+        ) + 1
         LOG.debug(
-            f"14.{continuous_test_speeds.index((x_speed, y_speed, description)) + 1} Testing continuous speedup with {description}:"
+            f"14.{index} Testing continuous"
+            f" speedup with {description}:"
         )
         ball.speed = Speed(x_speed, y_speed)
         LOG.debug(f"   Initial speed: ({ball.speed.x}, {ball.speed.y})")
@@ -240,9 +250,16 @@ def test_zero_speed_scenarios(mocker):
             LOG.debug(f"   Iteration {i + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})")
             time.sleep(0.1)
 
-        LOG.debug(
-            f"   Result: {'X and Y speeds increase' if not math.isclose(x_speed, 0.0, abs_tol=1e-9) and not math.isclose(y_speed, 0.0, abs_tol=1e-9) else 'Only non-zero components increase'}\n"
+        both_nonzero = (
+            not math.isclose(x_speed, 0.0, abs_tol=1e-9)
+            and not math.isclose(y_speed, 0.0, abs_tol=1e-9)
         )
+        result_msg = (
+            "X and Y speeds increase"
+            if both_nonzero
+            else "Only non-zero components increase"
+        )
+        LOG.debug(f"   Result: {result_msg}\n")
 
 
 if __name__ == "__main__":

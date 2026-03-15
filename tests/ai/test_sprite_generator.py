@@ -336,7 +336,12 @@ red = 255, 0, 0
     def test_truncated_response(self):
         """Test detection of truncated pixel data."""
         # Simulate truncated response with unclosed triple quotes
-        content = '[sprite]\nname = "test"\n\n[[animation.frame]]\nnamespace = "test"\nframe_index = 0\npixels = """\n0000000000000000\n0000000000000000\n00'
+        content = (
+            '[sprite]\nname = "test"\n\n'
+            '[[animation.frame]]\nnamespace = "test"\n'
+            'frame_index = 0\npixels = """\n'
+            "0000000000000000\n0000000000000000\n00"
+        )
         # Note: unclosed pixel block with short last line (just "00")
 
         is_valid, error = validate_ai_response(content)

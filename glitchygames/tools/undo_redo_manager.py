@@ -299,13 +299,16 @@ class UndoRedoManager:
         LOG.debug(f"Added operation: {description} (undo stack size: {len(self.undo_stack)})")
 
     def _optimize_frame_create_select_operations(self) -> None:
-        """Optimize frame create + frame select operations by removing both if they appear consecutively.
+        """Optimize frame create + frame select operations.
+
+        Remove both if they appear consecutively.
 
         If the last two operations are:
         1. FRAME_SELECTION (most recent)
         2. FILM_STRIP_FRAME_ADD (second most recent)
 
-        And they're for the same frame, remove both operations since frame creation implies selection.
+        And they're for the same frame, remove both operations
+        since frame creation implies selection.
         """
         if len(self.undo_stack) < MIN_UNDO_STACK_SIZE_FOR_COLLAPSE:
             return
@@ -1017,11 +1020,20 @@ class UndoRedoManager:
         """Set the callback functions for film strip operations.
 
         Args:
-            add_frame_callback: Function that takes (frame_index, animation_name, frame_data) and adds a frame
-            delete_frame_callback: Function that takes (frame_index, animation_name) and deletes a frame
-            reorder_frame_callback: Function that takes (old_index, new_index, animation_name) and reorders frames
-            add_animation_callback: Function that takes (animation_name, animation_data) and adds an animation
-            delete_animation_callback: Function that takes (animation_name) and deletes an animation
+            add_frame_callback: Function that takes
+                (frame_index, animation_name, frame_data)
+                and adds a frame.
+            delete_frame_callback: Function that takes
+                (frame_index, animation_name)
+                and deletes a frame.
+            reorder_frame_callback: Function that takes
+                (old_index, new_index, animation_name)
+                and reorders frames.
+            add_animation_callback: Function that takes
+                (animation_name, animation_data)
+                and adds an animation.
+            delete_animation_callback: Function that takes
+                (animation_name) and deletes an animation.
 
         """
         self.add_frame_callback = add_frame_callback

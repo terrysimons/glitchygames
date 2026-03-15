@@ -543,7 +543,10 @@ class TestVoiceRecognitionManagerPositive:
 
 
 class TestBitmapEditorSceneVoiceIntegrationNegative:
-    """Test voice recognition integration with BitmapEditorScene when speech recognition is NOT available."""
+    """Test voice recognition integration with BitmapEditorScene.
+
+    Tests behavior when speech recognition is NOT available.
+    """
 
     def test_voice_recognition_setup_without_speech_recognition(self, mocker):
         """Test that voice recognition setup fails gracefully without speech recognition."""
@@ -588,7 +591,10 @@ class TestBitmapEditorSceneVoiceIntegrationNegative:
 
 
 class TestBitmapEditorSceneVoiceIntegrationPositive:
-    """Test voice recognition integration with BitmapEditorScene when speech recognition IS available."""
+    """Test voice recognition integration with BitmapEditorScene.
+
+    Tests behavior when speech recognition IS available.
+    """
 
     @pytest.mark.skipif(
         not SPEECH_RECOGNITION_AVAILABLE, reason="speech_recognition is not installed"

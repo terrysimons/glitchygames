@@ -51,7 +51,8 @@ class TestBallCollisionPhysics:
         collision_distance = 20.0  # 10px radius each ball
         if distance > collision_distance or distance < 0.001:
             LOG.debug(
-                f"DEBUG: No collision - distance={distance:.2f}, collision_distance={collision_distance}"
+                f"DEBUG: No collision - distance={distance:.2f},"
+                f" collision_distance={collision_distance}"
             )
             return None
 
@@ -384,7 +385,8 @@ class TestBallCollisionPhysics:
 
         # Ball1's Y velocity should remain unchanged for horizontal collision
         assert ball1.speed.y == ball1_initial_y, (
-            f"Ball's Y velocity should remain unchanged for horizontal collision: {ball1.speed.y} = {ball1_initial_y}"
+            f"Ball's Y velocity should remain unchanged for horizontal"
+            f" collision: {ball1.speed.y} = {ball1_initial_y}"
         )
 
     def test_zero_x_velocity_ball_energy_transfer(self):
@@ -429,12 +431,14 @@ class TestBallCollisionPhysics:
 
         # For horizontal collision, Y velocity should remain unchanged
         assert ball1.speed.y == ball1_initial_y, (
-            f"Horizontal collision should not change Y velocity: {ball1.speed.y} = {ball1_initial_y}"
+            f"Horizontal collision should not change Y velocity:"
+            f" {ball1.speed.y} = {ball1_initial_y}"
         )
 
         # Ball1's X velocity should change due to collision
         assert ball1.speed.x != ball1_initial_x, (
-            f"Horizontal ball's X velocity should change: {ball1.speed.x} != {ball1_initial_x}"
+            f"Horizontal ball's X velocity should change:"
+            f" {ball1.speed.x} != {ball1_initial_x}"
         )
 
     def test_vertical_to_diagonal_energy_transfer(self):
@@ -453,10 +457,12 @@ class TestBallCollisionPhysics:
 
         # Ball1 should have gained X velocity from the diagonal ball
         assert ball1.speed.x != ball1_initial_x, (
-            f"Vertical ball should gain X velocity from diagonal: {ball1.speed.x} != {ball1_initial_x}"
+            f"Vertical ball should gain X velocity from diagonal:"
+            f" {ball1.speed.x} != {ball1_initial_x}"
         )
 
         # For horizontal collision, Y velocity should remain unchanged
         assert ball1.speed.y == ball1_initial_y, (
-            f"Horizontal collision should not change Y velocity: {ball1.speed.y} = {ball1_initial_y}"
+            f"Horizontal collision should not change Y velocity:"
+            f" {ball1.speed.y} = {ball1_initial_y}"
         )

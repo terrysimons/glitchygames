@@ -61,5 +61,7 @@ class TestBallDtTick:
             actual_speed = distance / 1.0  # distance per second
 
             LOG.debug(
-                f"{direction:8d}° | ({initial_x:3d},{initial_y:3d})     | ({final_x:3d},{final_y:3d})    | {distance:6.1f} | {actual_speed:6.1f}"
+                f"{direction:8d}° | ({initial_x:3d},{initial_y:3d})"
+                f"     | ({final_x:3d},{final_y:3d})"
+                f"    | {distance:6.1f} | {actual_speed:6.1f}"
             )

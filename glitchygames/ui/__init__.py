@@ -1750,7 +1750,8 @@ class SliderSprite(BitmappySprite):
                                 # Valid value, update slider
                                 self.value = new_value
 
-                                # Convert text to appropriate format based on parent's format setting
+                                # Convert text to appropriate format
+                                # based on parent's format setting
                                 if (
                                     hasattr(self.parent, "slider_input_format")
                                     and self.parent.slider_input_format == "%X"
@@ -2201,7 +2202,8 @@ class ColorWellSprite(BitmappySprite):
         """Set the active color.
 
         Args:
-            active_color (tuple[R: int, G: int, B: int] | tuple[R: int, G: int, B: int, A: int]): The new active color.
+            active_color: The new active color as
+                (R, G, B) or (R, G, B, A) tuple.
 
         """
         self.red = active_color[0]

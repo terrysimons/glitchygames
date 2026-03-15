@@ -60,7 +60,8 @@ class TestControllerDragUndoRedo:
         return scene
 
     def test_controller_drag_operation_collects_pixels(self, mock_scene, mocker):
-        """Test that controller drag operations collect pixels but don't submit them for undo/redo."""
+        """Test that controller drag operations collect pixels but don't submit them for undo/redo.
+        """
         controller_id = 0
 
         # Simulate starting a controller drag
@@ -157,7 +158,8 @@ class TestControllerDragUndoRedo:
             "end_position": None,
         }
 
-        # Simulate the A button release logic directly (since we can't easily mock the event handler)
+        # Simulate the A button release logic directly
+        # (since we can't easily mock the event handler)
         if controller_id in mock_scene.controller_drags:
             drag_info = mock_scene.controller_drags[controller_id]
             if drag_info["active"]:
@@ -229,7 +231,8 @@ class TestControllerDragUndoRedo:
             "end_position": None,
         }
 
-        # Simulate the A button release logic directly (since we can't easily mock the event handler)
+        # Simulate the A button release logic directly
+        # (since we can't easily mock the event handler)
         if controller_id in mock_scene.controller_drags:
             drag_info = mock_scene.controller_drags[controller_id]
             if drag_info["active"]:

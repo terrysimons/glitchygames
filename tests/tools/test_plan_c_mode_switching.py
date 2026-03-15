@@ -358,7 +358,8 @@ class TestModeSwitcher:
 
         self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
 
-        # Cycle through all modes using L2 cycle: FILM_STRIP -> CANVAS -> R_SLIDER -> G_SLIDER -> B_SLIDER
+        # Cycle through all modes using L2 cycle:
+        # FILM_STRIP -> CANVAS -> R_SLIDER -> G_SLIDER -> B_SLIDER
         # FILM_STRIP -> CANVAS (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(controller_id, 1.0, 0.0, current_time)
         assert new_mode == ControllerMode.CANVAS

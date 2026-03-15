@@ -323,7 +323,9 @@ class TextSprite(Sprite):
                     text_width = rendered.get_width()
                     if self.x + text_width > surface.get_width():
                         LOG.debug(
-                            f"Text '{string}' width {text_width} at x={self.x} exceeds surface width {surface.get_width()}"
+                            f"Text '{string}' width {text_width} "
+                            f"at x={self.x} exceeds surface "
+                            f"width {surface.get_width()}"
                         )
                     surface.blit(rendered, (self.x, self.y))
                     self.y += self.line_height
@@ -463,7 +465,8 @@ class TextSprite(Sprite):
 
                 # Get the name from the OS for the controller/joystick
                 self.text_box.indent()
-                # Display the proxy name explicitly; this is expected to be specific (e.g., "Xbox 360 Controller")
+                # Display the proxy name explicitly; this is expected
+                # to be specific (e.g., "Xbox 360 Controller")
                 self.text_box.print(self.image, f"{device_type} name: {proxy_name}")
 
                 # Display the GUID/UUID
@@ -735,7 +738,11 @@ class JoystickScene(Scene):
                             instance_id = proxy.joystick.get_instance_id()
                             if instance_id not in current_instance_ids:
                                 LOG.debug(
-                                    f"{input_mode.title()} {joystick_id} (instance_id={instance_id}) not in current pygame joysticks, marking as stale"
+                                    f"{input_mode.title()} "
+                                    f"{joystick_id} "
+                                    f"(instance_id={instance_id})"
+                                    f" not in current pygame "
+                                    f"joysticks, marking as stale"
                                 )
                                 stale_ids.append(joystick_id)
                         except pygame.error as e:
@@ -782,7 +789,8 @@ class JoystickScene(Scene):
                     if not has_device or controller_id >= current_pygame_count:
                         stale_ids.append(controller_id)
                     else:
-                        # Try to verify the controller is still valid by checking if it's still a controller
+                        # Try to verify the controller is still valid
+                        # by checking if it's still a controller
                         try:
                             if not pygame._sdl2.controller.is_controller(controller_id):
                                 stale_ids.append(controller_id)
@@ -793,7 +801,8 @@ class JoystickScene(Scene):
                                 try:
                                     pygame._sdl2.controller.name_forindex(controller_id)
                                 except pygame.error:
-                                    # If we can't get the name, the controller is likely disconnected
+                                    # If we can't get the name, the
+                                    # controller is likely disconnected
                                     stale_ids.append(controller_id)
                         except pygame.error:
                             stale_ids.append(controller_id)
@@ -831,7 +840,8 @@ class JoystickScene(Scene):
                                 _name = pygame._sdl2.controller.name_forindex(joystick_id)
                             except pygame.error:
                                 _name = "Unknown Controller"
-                            # For controllers, find the current device index by matching the device object
+                            # For controllers, find the current device
+                            # index by matching the device object
                             device_id = None
                             for i in range(pygame.controller.get_count()):
                                 try:

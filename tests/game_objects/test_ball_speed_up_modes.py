@@ -150,7 +150,9 @@ def test_speed_up_modes(mocker):
     LOG.debug("  SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X")
     LOG.debug("  SpeedUpMode.WALL_ONLY_LOGARITHMIC_X | SpeedUpMode.PADDLE_ONLY_LOGARITHMIC_X")
     LOG.debug(
-        "  SpeedUpMode.ALL_LOGARITHMIC & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X  # All except continuous"
+        "  SpeedUpMode.ALL_LOGARITHMIC"
+        " & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X"
+        "  # All except continuous"
     )
 
     LOG.info("\nAll speed-up modes tested successfully!")

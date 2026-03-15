@@ -81,9 +81,11 @@ class TestTOMLOnlySupport:
         assert "red =" in content  # Should have color definitions
 
         # Load it back
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == "test_toml"
@@ -122,9 +124,11 @@ class TestTOMLOnlySupport:
         assert "red =" in content  # Should have color definitions
 
         # Load it back
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == "test_animated_toml"

@@ -40,7 +40,8 @@ def test_multi_ball_no_bounce():
     LOG.debug("Initial ball states:")
     for i, ball in enumerate(balls):
         LOG.debug(
-            f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f})"
+            f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y})"
+            f" speed=({ball.speed.x:.1f},{ball.speed.y:.1f})"
         )
 
     # Track statistics
@@ -93,7 +94,9 @@ def test_multi_ball_no_bounce():
             LOG.debug(f"  Ball {i + 1} still alive at position ({ball.rect.x}, {ball.rect.y})")
             LOG.debug(f"    Speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})")
             LOG.debug(
-                f"    Bounce settings: top/bottom={ball.bounce_top_bottom}, left/right={ball.bounce_left_right}"
+                f"    Bounce settings:"
+                f" top/bottom={ball.bounce_top_bottom},"
+                f" left/right={ball.bounce_left_right}"
             )
 
     # Analyze results

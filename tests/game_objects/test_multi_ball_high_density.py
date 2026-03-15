@@ -77,7 +77,9 @@ def run_high_density_tests():
 
             # Print summary
             LOG.debug(
-                f"\n📊 SUMMARY: {alive}/{num_balls} balls alive, {wall_bounces} wall bounces, {ball_collisions} ball collisions"
+                f"\n📊 SUMMARY: {alive}/{num_balls} balls alive,"
+                f" {wall_bounces} wall bounces,"
+                f" {ball_collisions} ball collisions"
             )
             LOG.debug(f"⏱️  Test completed in {test_time:.2f} seconds")
             LOG.debug(f"🎯 Performance: {num_balls / test_time:.1f} balls/second")
@@ -86,7 +88,10 @@ def run_high_density_tests():
         LOG.debug(f"\n📈 {scenario_name} Results Summary:")
         for result in scenario_results:
             LOG.debug(
-                f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {result['num_balls']} balls:"
+                f" {result['alive']}/{result['num_balls']} alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     # Print overall summary
@@ -100,7 +105,10 @@ def run_high_density_tests():
 
         for result in scenario_data:
             LOG.debug(
-                f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {result['num_balls']} balls:"
+                f" {result['alive']}/{result['num_balls']} alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     return all_results
@@ -119,7 +127,10 @@ if __name__ == "__main__":
         LOG.debug(f"⚠️  {len(failures)} tests had ball deaths")
         for failure in failures:
             LOG.debug(
-                f"  - {failure['scenario']} with {failure['num_balls']} balls: {failure['alive']}/{failure['num_balls']} balls alive"
+                f"  - {failure['scenario']} with"
+                f" {failure['num_balls']} balls:"
+                f" {failure['alive']}/{failure['num_balls']}"
+                f" balls alive"
             )
     else:
         LOG.info("✅ All tests passed - all balls survived in all scenarios!")

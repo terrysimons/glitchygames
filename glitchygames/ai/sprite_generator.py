@@ -20,7 +20,9 @@ class SpriteGenerationPrompt:
     """Encapsulates sprite generation prompt templates and logic."""
 
     # Concise format specification for AI
-    FORMAT_SPEC = """You generate sprites in TOML format. Return ONLY raw TOML, no markdown, no code blocks, no explanations.
+    FORMAT_SPEC = """\
+You generate sprites in TOML format. \
+Return ONLY raw TOML, no markdown, no code blocks, no explanations.
 
 STATIC SPRITE (single frame):
 [sprite]
@@ -649,10 +651,15 @@ def build_refinement_messages(
         f"CRITICAL INSTRUCTIONS:\n"
         f"1. Return the EXACT same sprite structure with ONLY the changes requested\n"
         f"2. Preserve ALL animation namespaces (film strip labels) that exist\n"
-        f"3. Preserve the EXACT number of frames in each animation UNLESS the user explicitly asks to add/remove frames\n"
-        f"4. Preserve ALL [[animation]] and [[animation.frame]] sections\n"
-        f"5. Only modify what the user specifically requested (e.g., if they say 'make it red', only change colors)\n"
-        f"6. If the user asks to add frames, add them. If they ask to remove frames, remove them. Otherwise, keep the same count.\n\n"
+        f"3. Preserve the EXACT number of frames in each animation"
+        f" UNLESS the user explicitly asks to add/remove frames\n"
+        f"4. Preserve ALL [[animation]] and"
+        f" [[animation.frame]] sections\n"
+        f"5. Only modify what the user specifically requested"
+        f" (e.g., if they say 'make it red', only change colors)\n"
+        f"6. If the user asks to add frames, add them."
+        f" If they ask to remove frames, remove them."
+        f" Otherwise, keep the same count.\n\n"
         f"Return ONLY the complete updated sprite in TOML format."
     )
 

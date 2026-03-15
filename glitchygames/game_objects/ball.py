@@ -389,7 +389,10 @@ class BallSprite(Sprite):
 
         Args:
             multiplier (float): The speed multiplier to apply.
-            speed_up_type (str): Type of speed-up ('linear', 'logarithmic_x', 'logarithmic_y', 'logarithmic_both', 'exponential_x', 'exponential_y', 'exponential_both').
+            speed_up_type (str): Type of speed-up ('linear',
+                'logarithmic_x', 'logarithmic_y',
+                'logarithmic_both', 'exponential_x',
+                'exponential_y', 'exponential_both').
 
         """
         if multiplier is None:
@@ -842,7 +845,9 @@ class BallSprite(Sprite):
 
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
-                f"BALL CORNER COLLISION: {in_top_left=} {in_top_right=} {in_bottom_left=} {in_bottom_right=}"
+                f"BALL CORNER COLLISION:"
+                f" {in_top_left=} {in_top_right=}"
+                f" {in_bottom_left=} {in_bottom_right=}"
             )
 
             # Enhanced corner physics - both X and Y components are reflected

@@ -164,9 +164,11 @@ class TestSpriteFactory:
 
     def test_load_sprite_invalid_file(self, mocker):
         """Test loading sprite from invalid file."""
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename="nonexistent.toml")
@@ -182,18 +184,22 @@ class TestSpriteFactory:
             },
         )
 
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename="mixed.toml")
 
     def test_sprite_factory_load_sprite_invalid_file(self, mocker):
         """Test SpriteFactory load_sprite with invalid file."""
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename="nonexistent.toml")

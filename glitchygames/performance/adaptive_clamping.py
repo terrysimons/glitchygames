@@ -58,7 +58,10 @@ class AdaptiveClamping:
         """Initialize the adaptive clamping system."""
         if not self._initialized:
             self._dt_history = []
-            self._scene_data = {}  # Track performance per scene: {scene_name: {'fps_history': [], 'fps_histogram': {}, 'frame_times': [], 'statistical_aggregates': {}}}
+            # Track performance per scene:
+            # {scene_name: {'fps_history': [], 'fps_histogram': {},
+            #  'frame_times': [], 'statistical_aggregates': {}}}
+            self._scene_data = {}
             self._last_performance_log_time = 0.0
             self._fps_log_interval_ms = 1000.0  # Default 1 second
             self._current_scene = None
@@ -118,7 +121,9 @@ class AdaptiveClamping:
                 and current_time - self._last_performance_log_time >= log_interval_seconds
             ):
                 LOG.info(
-                    f"Adjusted dt from {dt * 1000:.1f}ms to {adjusted_dt * 1000:.1f}ms per frame (avg_fps={avg_fps:.1f})"
+                    f"Adjusted dt from {dt * 1000:.1f}ms to "
+                    f"{adjusted_dt * 1000:.1f}ms per frame "
+                    f"(avg_fps={avg_fps:.1f})"
                 )
                 self._last_performance_log_time = current_time
 
@@ -587,10 +592,14 @@ class AdaptiveClamping:
             LOG.info(f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick")
             LOG.info(f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick")
             LOG.info(
-                f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms per-tick ({spare_stats['spare_capacity_percent']:.1f}% of scheduled capacity)"
+                f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms"
+                f" per-tick ({spare_stats['spare_capacity_percent']:.1f}%"
+                f" of scheduled capacity)"
             )
             LOG.info(
-                f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}% of scheduled capacity)"
+                f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms"
+                f" per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}%"
+                f" of scheduled capacity)"
             )
             LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
 
@@ -652,12 +661,16 @@ class AdaptiveClamping:
                 elif isinstance(bucket, tuple):
                     # FPS range bucket
                     LOG.info(
-                        f"  {bucket[0]:3d}-{bucket[1]:3d} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}"
+                        f"  {bucket[0]:3d}-{bucket[1]:3d} FPS:"
+                        f" {count:5d} frames"
+                        f" ({percentage:5.1f}%) {bar}"
                     )
                 else:
                     # Legacy single number bucket
                     LOG.info(
-                        f"  {bucket:3d}-{bucket + 4:3d} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}"
+                        f"  {bucket:3d}-{bucket + 4:3d} FPS:"
+                        f" {count:5d} frames"
+                        f" ({percentage:5.1f}%) {bar}"
                     )
 
         LOG.info("=" * 80)
@@ -716,10 +729,18 @@ class AdaptiveClamping:
                     f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick"
                 )
                 LOG.info(
-                    f"⏱️  Spare Time: {spare_stats['avg_spare_time_ms']:.1f}ms per-tick ({spare_stats['spare_capacity_percent']:.1f}% of scheduled capacity)"
+                    f"⏱️  Spare Time: "
+                    f"{spare_stats['avg_spare_time_ms']:.1f}ms"
+                    f" per-tick "
+                    f"({spare_stats['spare_capacity_percent']:.1f}%"
+                    f" of scheduled capacity)"
                 )
                 LOG.info(
-                    f"🎨 Draw Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick ({(100 - spare_stats['spare_capacity_percent']):.1f}% of scheduled capacity)"
+                    f"🎨 Draw Time: "
+                    f"{spare_stats['avg_frame_time_ms']:.1f}ms"
+                    f" per-tick "
+                    f"({(100 - spare_stats['spare_capacity_percent']):.1f}%"
+                    f" of scheduled capacity)"
                 )
                 LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
 
@@ -778,12 +799,19 @@ class AdaptiveClamping:
                         fps_range = f"{bucket:>3s} FPS"
                         LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
                     elif isinstance(bucket, tuple):
-                        # Fixed-width columns: FPS range (15 chars), frames (8 chars), percentage (10 chars)
+                        # Fixed-width columns: FPS range (15 chars),
+                        # frames (8 chars), percentage (10 chars)
                         fps_range = f"{bucket[0]:3d}-{bucket[1]:3d} FPS"
-                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+                        LOG.info(
+                            f"  {fps_range:15s} {count:5d}"
+                            f" frames ({percentage:5.1f}%) {bar}"
+                        )
                     else:
                         fps_range = f"{bucket:3d}-{bucket + 4:3d} FPS"
-                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+                        LOG.info(
+                            f"  {fps_range:15s} {count:5d}"
+                            f" frames ({percentage:5.1f}%) {bar}"
+                        )
 
         LOG.info("=" * 80)
 

@@ -111,7 +111,10 @@ class TestBallDirectionPreservation:
         )
 
     def test_logarithmic_both_speed_up_changes_direction(self):
-        """Test that logarithmic both speed-up preserves direction (scales both components equally)."""
+        """Test logarithmic both speed-up preserves direction.
+
+        Scales both components equally.
+        """
         ball = BallSprite()
 
         ball.speed = Speed(100.0, 200.0)
@@ -144,7 +147,8 @@ class TestBallDirectionPreservation:
         ball._do_bounce()
 
         # Y should be reversed, but direction should be preserved relative to the bounce
-        # The bounce itself changes direction, but the speed-up should preserve the relative direction
+        # The bounce itself changes direction, but the speed-up should
+        # preserve the relative direction
         assert ball.speed.y > 0  # Should be positive after top bounce
         assert ball.speed.x == pytest.approx(150.0 * 1.2)  # X should be scaled
 

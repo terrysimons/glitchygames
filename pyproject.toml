@@ -142,7 +142,6 @@ lint.ignore = [
   "TD003", # Missing issue link on the line following this TODO
   "PLR0913", # Too many arguments to function call
   "TD002", # Missing author in TODO
-  "S101", # Use of assert
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
   "CPY001", # Missing copyright notice at top of file
@@ -164,9 +163,6 @@ lint.ignore = [
 
   # --- Module structure ---
   "RUF067", # non-empty-init-module (__init__.py re-exports are intentional)
-
-  # --- Game engine specifics ---
-  "E501", # line-too-long (ruff format handles what it can)
 ]
 lint.exclude = []
 lint.fixable = [
@@ -206,8 +202,12 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007"]
-"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007"]
+"tests/**/*.py" = [
+    "PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007", "S101"
+]
+"glitchygames/tests/**/*.py" = [
+    "PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007", "S101"
+]
 
 [tool.ruff.format]
 docstring-code-format = true

@@ -32,10 +32,12 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny  # 0 - 0 + 0 = 0
 
     LOG.debug(
-        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})"
+        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),"
+        f" ball2=({ball2_speed[0]}, {ball2_speed[1]})"
     )
     LOG.debug(
-        f"  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})"
+        f"  After:  ball1=({new_ball1_x}, {new_ball1_y}),"
+        f" ball2=({new_ball2_x}, {new_ball2_y})"
     )
     LOG.debug("  Expected: ball1 should stop, ball2 should move right")
 
@@ -58,10 +60,12 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny  # 0 - 0 + 100 = 100
 
     LOG.debug(
-        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})"
+        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),"
+        f" ball2=({ball2_speed[0]}, {ball2_speed[1]})"
     )
     LOG.debug(
-        f"  After:  ball1=({new_ball1_x}, {new_ball1_y}), ball2=({new_ball2_x}, {new_ball2_y})"
+        f"  After:  ball1=({new_ball1_x}, {new_ball1_y}),"
+        f" ball2=({new_ball2_x}, {new_ball2_y})"
     )
     LOG.debug("  Expected: ball1 should stop, ball2 should move down")
 
@@ -84,10 +88,12 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny
 
     LOG.debug(
-        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})"
+        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),"
+        f" ball2=({ball2_speed[0]}, {ball2_speed[1]})"
     )
     LOG.debug(
-        f"  After:  ball1=({new_ball1_x:.1f}, {new_ball1_y:.1f}), ball2=({new_ball2_x:.1f}, {new_ball2_y:.1f})"
+        f"  After:  ball1=({new_ball1_x:.1f}, {new_ball1_y:.1f}),"
+        f" ball2=({new_ball2_x:.1f}, {new_ball2_y:.1f})"
     )
     LOG.debug("  Expected: ball1 should stop, ball2 should move diagonally")
 

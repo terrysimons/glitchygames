@@ -42,7 +42,9 @@ def test_multi_ball_bounce_trajectories():
     for i, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         LOG.debug(
-            f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
+            f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y})"
+            f" speed=({ball.speed.x:.1f},{ball.speed.y:.1f})"
+            f" mag={magnitude:.1f}"
         )
 
     # Track statistics

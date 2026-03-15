@@ -62,9 +62,8 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            LOG.debug(
-                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
-            )
+            last_count = getattr(test_controller_hotplug, "last_count", 0)
+            LOG.debug(f"Controller count changed: {last_count} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -88,9 +87,8 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            LOG.debug(
-                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
-            )
+            last_count = getattr(test_controller_hotplug, "last_count", 0)
+            LOG.debug(f"Controller count changed: {last_count} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -120,9 +118,8 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            LOG.debug(
-                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
-            )
+            last_count = getattr(test_controller_hotplug, "last_count", 0)
+            LOG.debug(f"Controller count changed: {last_count} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)
@@ -146,9 +143,8 @@ def test_controller_hotplug():
 
         current_count = pygame._sdl2.controller.get_count()
         if current_count != getattr(test_controller_hotplug, "last_count", 0):
-            LOG.debug(
-                f"Controller count changed: {getattr(test_controller_hotplug, 'last_count', 0)} -> {current_count}"
-            )
+            last_count = getattr(test_controller_hotplug, "last_count", 0)
+            LOG.debug(f"Controller count changed: {last_count} -> {current_count}")
             test_controller_hotplug.last_count = current_count
 
         time.sleep(0.1)

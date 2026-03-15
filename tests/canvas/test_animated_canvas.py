@@ -313,7 +313,8 @@ class TestAnimatedCanvasSpriteEdgeCases:
             pixel_height=16,
         )
 
-        # Should handle empty sprite gracefully (no animations, so current_animation should be empty)
+        # Should handle empty sprite gracefully
+        # (no animations, so current_animation should be empty)
         assert not canvas.current_animation
         assert canvas.current_frame == 0
 

@@ -75,7 +75,9 @@ def run_frame_rate_tests():
 
             # Print summary
             LOG.info(
-                f"\n📊 SUMMARY: {alive}/5 balls alive, {wall_bounces} wall bounces, {ball_collisions} ball collisions"
+                f"\n📊 SUMMARY: {alive}/5 balls alive,"
+                f" {wall_bounces} wall bounces,"
+                f" {ball_collisions} ball collisions"
             )
             LOG.info(f"⏱️  Test completed in {test_time:.2f} seconds")
 
@@ -84,7 +86,9 @@ def run_frame_rate_tests():
         for result in scenario_results:
             fps_str = f"{result['fps']:.0f}" if result["fps"] != float("inf") else "∞"
             LOG.debug(
-                f"  {fps_str} FPS: {result['alive']}/5 alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {fps_str} FPS: {result['alive']}/5 alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     # Print overall summary
@@ -99,7 +103,9 @@ def run_frame_rate_tests():
         for result in scenario_data:
             fps_str = f"{result['fps']:.0f}" if result["fps"] != float("inf") else "∞"
             LOG.debug(
-                f"  {fps_str} FPS: {result['alive']}/5 alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {fps_str} FPS: {result['alive']}/5 alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     return all_results

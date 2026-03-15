@@ -75,7 +75,9 @@ def run_extreme_tests():
 
             # Print summary
             LOG.info(
-                f"\n📊 SUMMARY: {alive}/{num_balls} balls alive, {wall_bounces} wall bounces, {ball_collisions} ball collisions"
+                f"\n📊 SUMMARY: {alive}/{num_balls} balls alive,"
+                f" {wall_bounces} wall bounces,"
+                f" {ball_collisions} ball collisions"
             )
             LOG.info(f"⏱️  Test completed in {test_time:.2f} seconds")
             LOG.info(f"🎯 Performance: {num_balls / test_time:.1f} balls/second")
@@ -85,7 +87,10 @@ def run_extreme_tests():
         LOG.info(f"\n📈 {scenario_name} Results Summary:")
         for result in scenario_results:
             LOG.debug(
-                f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {result['num_balls']} balls:"
+                f" {result['alive']}/{result['num_balls']} alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     # Print overall summary
@@ -99,7 +104,10 @@ def run_extreme_tests():
 
         for result in scenario_data:
             LOG.debug(
-                f"  {result['num_balls']} balls: {result['alive']}/{result['num_balls']} alive, {result['wall_bounces']} wall bounces, {result['ball_collisions']} ball collisions"
+                f"  {result['num_balls']} balls:"
+                f" {result['alive']}/{result['num_balls']} alive,"
+                f" {result['wall_bounces']} wall bounces,"
+                f" {result['ball_collisions']} ball collisions"
             )
 
     return all_results
@@ -118,7 +126,10 @@ if __name__ == "__main__":
         LOG.debug(f"⚠️  {len(failures)} tests had ball deaths")
         for failure in failures:
             LOG.debug(
-                f"  - {failure['scenario']} with {failure['num_balls']} balls: {failure['alive']}/{failure['num_balls']} balls alive"
+                f"  - {failure['scenario']} with"
+                f" {failure['num_balls']} balls:"
+                f" {failure['alive']}/{failure['num_balls']}"
+                f" balls alive"
             )
     else:
         LOG.info("✅ All tests passed - all balls survived in all scenarios!")
@@ -136,7 +147,9 @@ if __name__ == "__main__":
             balls_per_second = result["num_balls"] / result["test_time"]
             collisions_per_second = result["ball_collisions"] / result["test_time"]
             LOG.debug(
-                f"  {result['num_balls']} balls: {balls_per_second:.1f} balls/second, {collisions_per_second:.1f} collisions/second"
+                f"  {result['num_balls']} balls:"
+                f" {balls_per_second:.1f} balls/second,"
+                f" {collisions_per_second:.1f} collisions/second"
             )
 
     LOG.info("\n🏁 Extreme testing completed!")

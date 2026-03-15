@@ -698,8 +698,10 @@ class TestSaveLoadPixelPreservation:
             saved_normalized = saved_content.rstrip("\n")
             assert original_normalized == saved_normalized, (
                 "Saved file should match original file.\n"
-                f"Original length: {len(original_content)} (normalized: {len(original_normalized)})\n"
-                f"Saved length: {len(saved_content)} (normalized: {len(saved_normalized)})"
+                f"Original length: {len(original_content)} "
+                f"(normalized: {len(original_normalized)})\n"
+                f"Saved length: {len(saved_content)} "
+                f"(normalized: {len(saved_normalized)})"
             )
 
         finally:
@@ -711,7 +713,8 @@ class TestSaveLoadPixelPreservation:
 
     def test_candle_sprite_with_alpha_section_preserves_alpha_fields(self):
         """Test that colors with alpha=0-254 (per-pixel alpha) are preserved when saved."""
-        # Create temporary file with candle sprite that has color 'd' with alpha=200 (per-pixel alpha)
+        # Create temporary file with candle sprite that has
+        # color 'd' with alpha=200 (per-pixel alpha)
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".toml", delete=False, encoding="utf-8"
         ) as f:

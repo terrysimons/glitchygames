@@ -91,10 +91,12 @@ def test_edge_cases():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny
 
     LOG.debug(
-        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}), ball2=({ball2_speed[0]}, {ball2_speed[1]})"
+        f"  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),"
+        f" ball2=({ball2_speed[0]}, {ball2_speed[1]})"
     )
     LOG.debug(
-        f"  After:  ball1=({new_ball1_x:.3f}, {new_ball1_y:.3f}), ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})"
+        f"  After:  ball1=({new_ball1_x:.3f}, {new_ball1_y:.3f}),"
+        f" ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})"
     )
 
 

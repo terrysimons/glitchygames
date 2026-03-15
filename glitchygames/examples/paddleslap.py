@@ -130,7 +130,8 @@ class TextSprite(Sprite):
                     font_controller (FontManager): The font controller to use.
                     pos (tuple): The position of the text.
                     line_height (int): The line height of the text.
-                    groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+                    groups (pygame.sprite.LayeredDirty | None): The sprite
+                        groups to add the sprite to.
 
                 """
                 if groups is None:
@@ -266,14 +267,14 @@ class Game(Scene):
                 collision_sound=SFX.BOUNCE,
                 bounce_top_bottom=True,  # Bounce off top and bottom walls
                 bounce_left_right=False,  # Don't bounce off side walls (scoring)
-                speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,  # Logarithmic speed up on X only for paddle hits
+                # Logarithmic speed up on X only for paddle hits
+                speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
                 speed_up_multiplier=1.15,  # 15% speed increase
                 speed_up_interval=1.0,  # Not used for paddle-only mode
             )
             # Set a more reasonable speed for the ball (pixels per second)
-            ball.speed = Speed(
-                250.0, 125.0
-            )  # 250 pixels/second horizontal, 125 pixels/second vertical
+            # 250 pixels/sec horizontal, 125 pixels/sec vertical
+            ball.speed = Speed(250.0, 125.0)
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
             # Set up paddle collision callback for ball spawn (with speed limit check)
@@ -396,8 +397,14 @@ class Game(Scene):
             log.debug(
                 f"BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
                 f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
-                f"paddle1_rect=({self.player1.rect.x},{self.player1.rect.y},{self.player1.rect.width},{self.player1.rect.height}) "
-                f"paddle2_rect=({self.player2.rect.x},{self.player2.rect.y},{self.player2.rect.width},{self.player2.rect.height})"
+                f"paddle1_rect=({self.player1.rect.x},"
+                f"{self.player1.rect.y},"
+                f"{self.player1.rect.width},"
+                f"{self.player1.rect.height}) "
+                f"paddle2_rect=({self.player2.rect.x},"
+                f"{self.player2.rect.y},"
+                f"{self.player2.rect.width},"
+                f"{self.player2.rect.height})"
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -440,7 +447,8 @@ class Game(Scene):
             collision_sound=SFX.BOUNCE,
             bounce_top_bottom=True,  # Bounce off top and bottom walls
             bounce_left_right=False,  # Don't bounce off side walls (scoring)
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,  # Logarithmic speed up on X only for paddle hits
+            # Logarithmic speed up on X only for paddle hits
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
             speed_up_multiplier=1.15,  # 15% speed increase
             speed_up_interval=1.0,  # Not used for paddle-only mode
         )
@@ -540,7 +548,9 @@ class Game(Scene):
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
-                    f"Ball spawn cooldown active ({current_time - self.last_ball_spawn_time:.1f}s < {cooldown}s), not spawning"
+                    f"Ball spawn cooldown active "
+                    f"({current_time - self.last_ball_spawn_time:.1f}s"
+                    f" < {cooldown}s), not spawning"
                 )
                 return
 

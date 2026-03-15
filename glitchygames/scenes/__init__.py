@@ -239,7 +239,11 @@ class SceneManager(SceneInterface, events.EventManager):
                                 late = getattr(self, "_jitter_late_frames", 0)
                                 late_pct = (late / count) * 100.0
                                 self.log.info(
-                                    f"Timer jitter ns: p50={p50} p95={p95} p99={p99} max={p100} frames={count} avg_fps={avg_fps:.1f} late={late_pct:.1f}%"
+                                    f"Timer jitter ns: p50={p50}"
+                                    f" p95={p95} p99={p99}"
+                                    f" max={p100} frames={count}"
+                                    f" avg_fps={avg_fps:.1f}"
+                                    f" late={late_pct:.1f}%"
                                 )
                             self._jitter_last_log_ns = now_ns
                             self._jitter_interval_start_ns = now_ns
@@ -1286,7 +1290,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug(f"{type(self)}: Mouse Drag Event: {event} {trigger}")
         # Optimized: Skip expensive collision detection for drag events
-        # Most drag handling is done by specific sprite drag handlers (e.g., on_left_mouse_drag_event)
+        # Most drag handling is done by specific sprite drag handlers
+        # (e.g., on_left_mouse_drag_event)
         # Only do collision detection if specifically needed
         collided_sprites = self.sprites_at_position(pos=event.pos)
 

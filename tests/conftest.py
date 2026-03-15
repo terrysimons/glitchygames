@@ -158,7 +158,8 @@ def mock_game(mocker):
             if options is None:
                 options = {
                     "debug_events": False,
-                    "no_unhandled_events": True,  # Enable globally to catch unhandled events as bugs
+                    # Enable globally to catch unhandled events as bugs
+                    "no_unhandled_events": True,
                 }
             if groups is None:
                 groups = mocker.Mock()  # Mock pygame.sprite.Group

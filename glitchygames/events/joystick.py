@@ -310,7 +310,10 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except pygame.error:
                 idx_guid = None
             self.log.debug(
-                f"INIT MAP index={pygame_joystick_index} get_id={idx_get_id} instance_id={idx_instance} name={idx_name} guid={idx_guid}"
+                f"INIT MAP index={pygame_joystick_index}"
+                f" get_id={idx_get_id}"
+                f" instance_id={idx_instance}"
+                f" name={idx_name} guid={idx_guid}"
             )
 
             # Use stable instance_id as the key when available
@@ -464,7 +467,10 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except pygame.error:
                 js_instance = None
             self.log.debug(
-                f"DEVICEADDED index={added_idx} get_id={js_get_id} instance_id={js_instance} name={js_name} guid={js_guid}"
+                f"DEVICEADDED index={added_idx}"
+                f" get_id={js_get_id}"
+                f" instance_id={js_instance}"
+                f" name={js_name} guid={js_guid}"
             )
 
         # Determine stable instance_id for the new device
@@ -492,7 +498,10 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             joystick_id=event.device_index, instance_id=instance_id, game=self.game
         )
         self.log.debug(
-            f"Created JoystickProxy with device_index={event.device_index}, instance_id={instance_id}, _device_id={joystick_proxy._device_id}"
+            f"Created JoystickProxy with"
+            f" device_index={event.device_index},"
+            f" instance_id={instance_id},"
+            f" _device_id={joystick_proxy._device_id}"
         )
         self.joysticks[instance_id] = joystick_proxy
 

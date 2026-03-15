@@ -109,7 +109,8 @@ class TestShiftRightClickSamplingSimple:
 
         # Verify that get_pressed was called (short-circuits after first True, so only 1 call)
         assert mock_get_pressed.call_count == 1, (
-            f"Expected get_pressed to be called 1 time, but was called {mock_get_pressed.call_count} times"
+            f"Expected get_pressed to be called 1 time, "
+            f"but was called {mock_get_pressed.call_count} times"
         )
 
     def test_screen_sampling_handles_rgb_format(self):

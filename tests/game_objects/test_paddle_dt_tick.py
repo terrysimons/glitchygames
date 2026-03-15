@@ -60,7 +60,9 @@ def test_paddle_movement():
         actual_speed = distance / 1.0  # distance per second
 
         LOG.debug(
-            f"{direction:8s} | {initial_y:10d} | {final_y:9d} | {distance:6.1f} | {actual_speed:6.1f}"
+            f"{direction:8s} | {initial_y:10d}"
+            f" | {final_y:9d} | {distance:6.1f}"
+            f" | {actual_speed:6.1f}"
         )
 
 

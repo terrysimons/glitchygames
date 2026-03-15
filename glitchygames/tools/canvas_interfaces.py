@@ -362,7 +362,8 @@ class AnimatedCanvasInterface:
 
             # Track the pixel change for undo/redo if we have a parent scene with operation tracker
             # Skip tracking if we're currently applying undo/redo to prevent feedback loops
-            # Skip tracking if a controller drag is active (controller drag handles its own tracking)
+            # Skip tracking if a controller drag is active
+            # (controller drag handles its own tracking)
             # But allow the initial pixel to be painted and tracked normally
             controller_drag_active = False
             if (
@@ -381,7 +382,9 @@ class AnimatedCanvasInterface:
                     ):
                         controller_drag_active = True
                         LOG.debug(
-                            "Controller drag active with pixels for controller %s, skipping canvas interface tracking",
+                            "Controller drag active with pixels"
+                            " for controller %s, skipping"
+                            " canvas interface tracking",
                             controller_id,
                         )
                         break
@@ -423,7 +426,8 @@ class AnimatedCanvasInterface:
                 if not hasattr(self.canvas_sprite.parent_scene, "_pixel_changes_list_dirty"):
                     self.canvas_sprite.parent_scene._pixel_changes_list_dirty = True
 
-                # Only convert to list occasionally or when submitting - this avoids O(n) conversion every drag event
+                # Only convert to list occasionally or when submitting
+                # - this avoids O(n) conversion every drag event
                 # The dict will be converted to list when _submit_pixel_changes_if_ready is called
 
                 # Safety limit: If collection grows beyond 2000 unique pixels, trim oldest entries
@@ -569,7 +573,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             )
             LOG.debug(f"DEBUG: frames keys={list(frames.keys()) if frames else 'None'}")
             LOG.debug(
-                f"DEBUG: frames[current_animation] length={len(frames[current_animation]) if current_animation in frames else 'N/A'}"
+                f"DEBUG: frames[current_animation] length="
+                f"{len(frames[current_animation]) if current_animation in frames else 'N/A'}"
             )
 
             if current_animation in frames and current_frame < len(frames[current_animation]):
@@ -641,8 +646,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             frame_surface = frame_surface.convert_alpha()
                             frame_surface.fill((0, 0, 0, 0))  # Transparent background
 
-                            # Draw each pixel with onion transparency (skip 255,0,255 pixels)
-                            # NOTE: Onion layers should NOT be panned - they stay in original position
+                            # Draw each pixel with onion transparency
+                            # (skip 255,0,255 pixels).
+                            # NOTE: Onion layers should NOT be panned
+                            # - they stay in original position
                             for i, pixel in enumerate(frame_pixels):
                                 # Skip transparent pixels (magenta) - 100% transparent
                                 if pixel in {(255, 0, 255), (255, 0, 255, 255)}:
@@ -655,7 +662,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                     i // self.canvas_sprite.pixels_across
                                 ) * self.canvas_sprite.pixel_height
 
-                                # Do NOT apply panning offset to onion layers - they stay in original position
+                                # Do NOT apply panning offset to onion
+                                # layers - they stay in original position
 
                                 # Draw pixel with onion transparency
                                 alpha = int(255 * onion_manager.onion_transparency)
@@ -708,12 +716,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 ):
                     frame_pixels = self.canvas_sprite.pixels
                     LOG.debug(
-                        f"DEBUG: Using panned canvas pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                        f"DEBUG: Using panned canvas pixels: "
+                        f"{len(frame_pixels)} pixels, "
+                        f"first few: {frame_pixels[:3]}"
                     )
                 elif hasattr(frame, "get_pixel_data"):
                     frame_pixels = frame.get_pixel_data()
                     LOG.debug(
-                        f"DEBUG: Using frame.get_pixel_data(): {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                        f"DEBUG: Using frame.get_pixel_data(): "
+                        f"{len(frame_pixels)} pixels, "
+                        f"first few: {frame_pixels[:3]}"
                     )
                 else:
                     frame_pixels = getattr(
@@ -723,7 +735,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
                     )
                     LOG.debug(
-                        f"DEBUG: Using fallback frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:3]}"
+                        f"DEBUG: Using fallback frame pixels: "
+                        f"{len(frame_pixels)} pixels, "
+                        f"first few: {frame_pixels[:3]}"
                     )
 
                 # Use the border thickness set by the canvas sprite
@@ -741,7 +755,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                         # Do NOT apply panning offset to drawing coordinates - grid stays fixed
                         # Panning is handled by extracting different pixel data, not moving the grid
 
-                        # Check if any controller is active on this pixel (even for transparent pixels)
+                        # Check if any controller is active on this
+                        # pixel (even for transparent pixels)
                         controller_indicator_color = None
                         if self._has_active_controllers_in_canvas_mode():
                             controller_indicator_color = self._get_controller_indicator_for_pixel(i)
@@ -961,7 +976,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             pixel_x = hover_x * self.canvas_sprite.pixel_width
             pixel_y = hover_y * self.canvas_sprite.pixel_height
 
-            # Draw white border around the hovered pixel (2px thick to match keyboard selector style)
+            # Draw white border around the hovered pixel
+            # (2px thick to match keyboard selector style)
             pygame.draw.rect(
                 self.canvas_sprite.image,
                 (255, 255, 255),  # White color

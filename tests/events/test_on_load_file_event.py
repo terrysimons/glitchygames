@@ -252,7 +252,8 @@ pixels = \"\"\"
         self.scene.canvas.on_load_file_event(event)
 
         # Verify error was handled gracefully
-        # The exception log should be called at least once (it may be called multiple times for different error details)
+        # The exception log should be called at least once
+        # (it may be called multiple times for different error details)
         assert mock_log.exception.call_count >= 1
         # Check that at least one log message contains the expected content
         all_calls = [call[0][0] for call in mock_log.exception.call_args_list]

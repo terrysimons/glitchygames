@@ -849,7 +849,9 @@ class MockFactory:
 
     @staticmethod
     def create_pygame_surface_mock_object(width: int = 8, height: int = 8):
-        """Create a Mock object that can have its methods mocked (for tests that need to set return_value).
+        """Create a Mock object that can have its methods mocked.
+
+        For tests that need to set return_value.
 
         Returns:
             object: The newly created pygame surface mock object.
@@ -1166,7 +1168,8 @@ class MockFactory:
         # Add common UI component attributes that might be accessed
         # Note: TextSprite manages its own text property, so we don't set self.text here
 
-        # For ButtonSprite, we need to ensure that when TextSprite is created, it has the right attributes
+        # For ButtonSprite, we need to ensure that when TextSprite
+        # is created, it has the right attributes.
         # This will be handled by the TextSprite mock constructor
 
         # Add x and y properties for TextSprite compatibility
@@ -1185,8 +1188,9 @@ class MockFactory:
         # Add pygame sprite required attributes
         self.blendmode = 0  # pygame.BLEND_NORMAL
 
-        # Now set basic attributes - use private attributes to avoid triggering property setters
-        # that might reference attributes not yet initialized (e.g., ButtonSprite.x setter references self.text)
+        # Now set basic attributes - use private attributes to avoid
+        # triggering property setters that might reference attributes
+        # not yet initialized (e.g., ButtonSprite.x setter -> self.text)
         self._x = x
         self._y = y
         self._width = width
@@ -1529,7 +1533,8 @@ class MockFactory:
         event_post_patcher = patch("pygame.event.post", event_post_mock)
         event_event_patcher = patch("pygame.event.Event", event_event_mock)
 
-        # Sprite class mocking - patch the BitmappySprite constructor to handle pygame.display.get_surface()
+        # Sprite class mocking - patch the BitmappySprite constructor
+        # to handle pygame.display.get_surface()
         sprite_patcher = patch(
             "glitchygames.sprites.BitmappySprite.__init__", MockFactory._mock_sprite_init
         )

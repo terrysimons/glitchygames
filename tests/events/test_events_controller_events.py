@@ -401,7 +401,10 @@ class TestControllerEventFlow:
         assert math.isclose(scene.controller_events_received[0].value, 0.5)
 
     def test_controller_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
-        """Test that unhandled controller events fall back to stubs and cause UnhandledEventError."""
+        """Test unhandled controller events fall back to stubs.
+
+        Verifies that they cause UnhandledEventError.
+        """
         # Use centralized mock for scene without event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={}  # No event handlers - will fall back to stubs

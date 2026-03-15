@@ -534,7 +534,8 @@ class DeleteAnimationDialogScene(Scene):
             self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
         else:
             LOG.warning(
-                f"DeleteAnimationDialog: Typed name '{typed_text}' does not match '{self.animation_name}'"
+                f"DeleteAnimationDialog: Typed name '{typed_text}'"
+                f" does not match '{self.animation_name}'"
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
@@ -660,7 +661,9 @@ class DeleteFrameDialogScene(Scene):
         # Validate that the typed text is "YES"
         if typed_text == "YES":
             LOG.info(
-                f"DeleteFrameDialog: User confirmed deletion of frame {self.frame_index} from '{self.animation_name}'"
+                f"DeleteFrameDialog: User confirmed deletion of"
+                f" frame {self.frame_index}"
+                f" from '{self.animation_name}'"
             )
             # Call the callback if provided
             if self.on_confirm_callback:

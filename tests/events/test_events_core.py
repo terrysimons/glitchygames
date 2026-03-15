@@ -138,7 +138,8 @@ class TestHashableEvent:
         # Same events should have same hash
         assert hash(event1) == hash(event2)
 
-        # Different events should have different hashes (but this might not always be true due to hash collisions)
+        # Different events should have different hashes
+        # (but this might not always be true due to hash collisions)
         # So we'll just test that the hash function works without errors
         assert isinstance(hash(event1), int)
         assert isinstance(hash(event3), int)

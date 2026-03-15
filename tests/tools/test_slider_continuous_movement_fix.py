@@ -53,7 +53,7 @@ class TestSliderContinuousMovementFix:
         assert not _is_controller_in_continuous_movement(1)
 
     def test_controller_in_canvas_continuous_movement(self, mock_scene):
-        """Test that controller is detected as in continuous movement when canvas movement is active."""
+        """Test that controller is in continuous movement when canvas movement is active."""
 
         def _is_controller_in_continuous_movement(controller_id):
             if (
@@ -79,7 +79,7 @@ class TestSliderContinuousMovementFix:
         assert not _is_controller_in_continuous_movement(1)
 
     def test_controller_in_slider_continuous_adjustment(self, mock_scene):
-        """Test that controller is detected as in continuous movement when slider adjustment is active."""
+        """Test that controller is in continuous movement when slider adjustment is active."""
 
         def _is_controller_in_continuous_movement(controller_id):
             if (

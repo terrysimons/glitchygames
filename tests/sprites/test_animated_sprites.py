@@ -336,9 +336,11 @@ name = "TestEmptySprite"
         filename = self.create_animated_sprite_file("animated.toml")
 
         # AnimatedSprite load is now implemented
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         sprite = SpriteFactory.load_sprite(filename=filename)
         assert isinstance(sprite, AnimatedSprite)
@@ -348,9 +350,11 @@ name = "TestEmptySprite"
         """Test that loading mixed sprite raises ValueError."""
         filename = self.create_mixed_sprite_file("mixed.toml")
 
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename=filename)
@@ -359,9 +363,11 @@ name = "TestEmptySprite"
         """Test that loading empty sprite raises ValueError."""
         filename = self.create_empty_sprite_file("empty.toml")
 
-        # Temporarily disable the centralized mock for this test by patching with the original method
+        # Temporarily disable the centralized mock for this test
+        # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite", original_sprite_factory_load_sprite
+            "glitchygames.sprites.SpriteFactory.load_sprite",
+            original_sprite_factory_load_sprite,
         )
         with pytest.raises(ValueError, match="Invalid sprite file"):
             SpriteFactory.load_sprite(filename=filename)

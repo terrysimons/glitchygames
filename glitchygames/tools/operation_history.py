@@ -191,7 +191,10 @@ class CanvasOperationTracker:
         redo_data = {"pixels": redo_pixels}
 
         if len(pixel_changes) == 1:
-            description = f"Frame {animation}[{frame}] pixel change at ({pixel_changes[0][0]}, {pixel_changes[0][1]})"
+            description = (
+                f"Frame {animation}[{frame}] pixel change"
+                f" at ({pixel_changes[0][0]}, {pixel_changes[0][1]})"
+            )
         else:
             description = f"Frame {animation}[{frame}] pixel changes ({len(pixel_changes)} pixels)"
 

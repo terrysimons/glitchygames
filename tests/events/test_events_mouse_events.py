@@ -506,8 +506,10 @@ class TestMouseEventManager:
         manager.on_mouse_button_down_event(btn4)
         manager.on_mouse_button_down_event(btn5)
 
-        scene.on_mouse_scroll_down_event.assert_called_once()  # button 4 maps to scroll down in code
-        scene.on_mouse_scroll_up_event.assert_called_once()  # button 5 maps to scroll up in code
+        # button 4 maps to scroll down in code
+        scene.on_mouse_scroll_down_event.assert_called_once()
+        # button 5 maps to scroll up in code
+        scene.on_mouse_scroll_up_event.assert_called_once()
 
     def test_focus_enter_unfocus_sequence_updates_state(self, mock_pygame_patches, mocker):
         """Entering focus should unfocus old, set current to new, and call handlers."""

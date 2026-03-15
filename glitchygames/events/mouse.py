@@ -73,7 +73,10 @@ class MouseEventManager(ResourceManager):
                 _has_down = False
             # if self._motion_seq % 10 == 0:
             #     self.log.info(
-            #         f"MOUSE PROXY: MOTION#{self._motion_seq} pos={getattr(event, 'pos', None)} rel={getattr(event, 'rel', None)} has_down={has_down}"
+            #         f"MOUSE PROXY: MOTION#{self._motion_seq}"
+            #         f" pos={getattr(event, 'pos', None)}"
+            #         f" rel={getattr(event, 'rel', None)}"
+            #         f" has_down={has_down}"
             #     )
             self.game.on_mouse_motion_event(event)
 
@@ -125,7 +128,9 @@ class MouseEventManager(ResourceManager):
             """
             self._drag_seq += 1
             # self.log.info(
-            #     f"MOUSE PROXY: DRAG#{self._drag_seq} pos={getattr(event, 'pos', None)} trigger_button={getattr(trigger, 'button', None)}"
+            #     f"MOUSE PROXY: DRAG#{self._drag_seq}"
+            #     f" pos={getattr(event, 'pos', None)}"
+            #     f" trigger_button={getattr(trigger, 'button', None)}"
             # )
             self.game.on_mouse_drag_event(event, trigger)
 
@@ -343,7 +348,9 @@ class MouseEventManager(ResourceManager):
             self.mouse_state[event.button] = event
             # Diagnostics
             # self.log.info(
-            #     f"MOUSE PROXY: UP button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)}"
+            #     f"MOUSE PROXY: UP"
+            #     f" button={getattr(event, 'button', None)}"
+            #     f" pos={getattr(event, 'pos', None)}"
             # )
 
             # First dispatch to specific button handlers to allow widgets to react
@@ -417,7 +424,10 @@ class MouseEventManager(ResourceManager):
             except RuntimeError:
                 _state_keys = []
             # self.log.info(
-            #     f"MOUSE PROXY: DOWN button={getattr(event, 'button', None)} pos={getattr(event, 'pos', None)} state_keys={_state_keys}"
+            #     f"MOUSE PROXY: DOWN"
+            #     f" button={getattr(event, 'button', None)}"
+            #     f" pos={getattr(event, 'pos', None)}"
+            #     f" state_keys={_state_keys}"
             # )
 
             # Whatever was clicked on gets lock.
@@ -451,8 +461,10 @@ class MouseEventManager(ResourceManager):
             except RuntimeError:
                 _state_keys = []
             # self.log.info(
-            #     f"MOUSE PROXY: on_left_mouse_button_down_event button={getattr(event, 'button', None)} "
-            #     f"pos={getattr(event, 'pos', None)} state_keys={_state_keys}"
+            #     f"MOUSE PROXY: on_left_mouse_button_down_event"
+            #     f" button={getattr(event, 'button', None)}"
+            #     f" pos={getattr(event, 'pos', None)}"
+            #     f" state_keys={_state_keys}"
             # )
             self.game.on_left_mouse_button_down_event(event)
 
