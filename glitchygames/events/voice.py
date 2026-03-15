@@ -18,6 +18,7 @@ except ImportError:
     def get_microphone_backend() -> None:  # type: ignore[misc]
         """Return None when voice backends are unavailable."""
 
+
 # Centralized logger for voice recognition
 LOG: logging.Logger = logging.getLogger("glitchygames.events.voice")
 LOG.addHandler(logging.NullHandler())

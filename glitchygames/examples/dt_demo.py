@@ -99,7 +99,9 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            "Time: " + str(round(self.dt_timer, 2)), False, (255, 255, 255)  # noqa: FBT003
+            "Time: " + str(round(self.dt_timer, 2)),
+            False,  # noqa: FBT003
+            (255, 255, 255),
         )
         fps_text = self.font.render(f"FPS: {round(self.fps, 2)}", False, (255, 255, 255))  # noqa: FBT003
 

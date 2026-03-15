@@ -19,8 +19,8 @@ LOG = logging.getLogger(__name__)
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent / ".." / ".."))
 
-import pygame
-from glitchygames.game_objects.ball import BallSprite
+import pygame  # noqa: E402
+from glitchygames.game_objects.ball import BallSprite  # noqa: E402
 
 
 class TestBallCollisionEnergyTransfer:

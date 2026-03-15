@@ -62,9 +62,7 @@ class TestSpriteGenerationService:
 
         mocker.patch.dict("sys.modules", {"aisuite": None})
         # Mock import to fail
-        mocker.patch(
-            "builtins.__import__", side_effect=ImportError("No module named 'aisuite'")
-        )
+        mocker.patch("builtins.__import__", side_effect=ImportError("No module named 'aisuite'"))
         # This should raise an error on import attempt
         with pytest.raises(AIProviderError):
             service._ensure_client()

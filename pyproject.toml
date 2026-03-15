@@ -162,9 +162,6 @@ lint.ignore = [
   "PLR0914", # too-many-locals
   "PLR0916", # too-many-boolean-expressions
 
-  # --- Import placement (lazy/conditional imports are intentional) ---
-  "E402", # module-import-not-at-top-of-file
-
   # --- Module structure ---
   "RUF067", # non-empty-init-module (__init__.py re-exports are intentional)
 

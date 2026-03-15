@@ -292,7 +292,9 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -324,7 +326,9 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -357,7 +361,9 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -392,7 +398,9 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite._animations = {"test": [frame1, frame2]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -425,7 +433,9 @@ R = { red = 255, green = 0, blue = 0 }
 G = { red = 0, green = 255, blue = 0 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -473,7 +483,9 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255, alpha = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -523,7 +535,9 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }
 B = { red = 0, green = 0, blue = 255 }
 """
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             f.write(toml_content)
             temp_path = f.name
 
@@ -582,7 +596,9 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -635,7 +651,9 @@ class TestRGBRGBAIntegration:
         sprite._animations = {"test": [frame]}
         sprite.name = "test_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as f:
             temp_path = f.name
 
         try:
@@ -702,10 +720,14 @@ class TestRGBRGBAIntegration:
         rgba_sprite._animations = {"test": [rgba_frame]}
         rgba_sprite.name = "rgba_sprite"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as rgb_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as rgb_file:
             rgb_path = rgb_file.name
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False, encoding="utf-8") as rgba_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+        ) as rgba_file:
             rgba_path = rgba_file.name
 
         try:

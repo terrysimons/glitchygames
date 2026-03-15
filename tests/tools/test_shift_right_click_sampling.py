@@ -12,9 +12,9 @@ LOG = logging.getLogger(__name__)
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy, film_strip
+from glitchygames.tools import bitmappy, film_strip  # noqa: E402
 
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory  # noqa: E402
 
 
 class TestShiftRightClickSampling:

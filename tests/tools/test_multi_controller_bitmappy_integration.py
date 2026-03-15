@@ -8,11 +8,11 @@ import logging
 
 import pygame
 import pytest
-
-LOG = logging.getLogger(__name__)
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+
+LOG = logging.getLogger(__name__)
 
 
 class TestBitmappyMultiControllerIntegration:

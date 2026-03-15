@@ -123,7 +123,12 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self._device.start()
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> None:
         """Exit the context manager, stopping audio capture and cleaning up."""
         try:
             if self._device is not None:

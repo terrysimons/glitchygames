@@ -73,7 +73,9 @@ class SpriteSerializer(ABC):
     """Abstract base class for sprite serialization."""
 
     @abstractmethod
-    def save(self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def save(
+        self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT
+    ) -> None:
         """Save a sprite to a file.
 
         Args:
@@ -1040,9 +1042,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 and 0 <= y < self.canvas_sprite.pixels_tall
                             ):
                                 controller_pixel_index = y * self.canvas_sprite.pixels_across + x
-                                if (
-                                    controller_pixel_index == pixel_index
-                                    and hasattr(scene, "multi_controller_manager")
+                                if controller_pixel_index == pixel_index and hasattr(
+                                    scene, "multi_controller_manager"
                                 ):
                                     # Get controller color
                                     controller_info = (

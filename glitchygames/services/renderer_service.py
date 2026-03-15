@@ -246,7 +246,9 @@ class RendererService:
 
         return png_bytes, png_base64
 
-    def _render_all_frames(self, sprite: AnimatedSprite, scale: int = 1) -> tuple[list[str], list[RenderedFrame]]:
+    def _render_all_frames(
+        self, sprite: AnimatedSprite, scale: int = 1
+    ) -> tuple[list[str], list[RenderedFrame]]:
         """Render all frames of an animated sprite to PNG.
 
         Args:

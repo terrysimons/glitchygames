@@ -612,7 +612,9 @@ class AdaptiveClamping:
 
             # Sort by frame count to create bell curve arrangement
             # Highest frame counts in center, tapering off to sides
-            all_buckets.sort(key=operator.itemgetter(1), reverse=True)  # Sort by frame count (descending)
+            all_buckets.sort(
+                key=operator.itemgetter(1), reverse=True
+            )  # Sort by frame count (descending)
 
             # Rearrange to bell curve: highest in center, tapering off
             bell_curve_buckets = []
@@ -761,7 +763,9 @@ class AdaptiveClamping:
                 prefix_length = 40
                 max_bar_length = 80 - prefix_length
 
-                def calculate_bar_length(count: int, max_count: int, max_bar_length: int = max_bar_length) -> int:
+                def calculate_bar_length(
+                    count: int, max_count: int, max_bar_length: int = max_bar_length
+                ) -> int:
                     bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
                     return min(bar_length, max_bar_length)
 

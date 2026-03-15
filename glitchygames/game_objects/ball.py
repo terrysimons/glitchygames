@@ -382,7 +382,9 @@ class BallSprite(Sprite):
         # Speed the ball up
         self.speed *= 1.1
 
-    def speed_up(self: Self, multiplier: float | None = None, speed_up_type: str = "linear") -> None:
+    def speed_up(
+        self: Self, multiplier: float | None = None, speed_up_type: str = "linear"
+    ) -> None:
         """Increase the ball's speed with linear, logarithmic, or exponential scaling.
 
         Args:
@@ -917,9 +919,7 @@ class BallSprite(Sprite):
             sprite
             for group in self.groups()
             for sprite in group
-            if (
-                hasattr(sprite, "snd") or sprite.__class__.__name__.lower().find("paddle") != -1
-            )
+            if (hasattr(sprite, "snd") or sprite.__class__.__name__.lower().find("paddle") != -1)
             and sprite != self
         ]
 

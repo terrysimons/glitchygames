@@ -7,14 +7,14 @@ navigation boundaries, collision edge cases, and race conditions.
 import logging
 import threading
 import time
-
-LOG = logging.getLogger(__name__)
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+
+LOG = logging.getLogger(__name__)
 
 
 class TestControllerHotplugEdgeCases:

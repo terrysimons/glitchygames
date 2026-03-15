@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 
 # Import and run the game
-from glitchygames.examples.paddleslap import main
+from glitchygames.examples.paddleslap import main  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 

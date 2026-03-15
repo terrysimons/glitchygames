@@ -12,11 +12,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-
-log = logging.getLogger(__name__)
 from typing import Any
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGB_COMPONENT_COUNT
+
+log = logging.getLogger(__name__)
 
 POSITION_TUPLE_LENGTH = 2
 

@@ -79,6 +79,24 @@ from glitchygames.ui.dialogs import (
     NewCanvasDialogScene,
     SaveDialogScene,
 )
+from pydantic import BaseModel
+
+from .canvas_interfaces import (
+    AnimatedCanvasInterface,
+    AnimatedCanvasRenderer,
+    AnimatedSpriteSerializer,
+)
+from .controller_mode_system import ControllerMode
+from .controller_selection import ControllerSelection
+from .film_strip import FilmStripWidget
+from .multi_controller_manager import MultiControllerManager
+from .operation_history import (
+    CanvasOperationTracker,
+    CrossAreaOperationTracker,
+    FilmStripOperationTracker,
+)
+from .undo_redo_manager import UndoRedoManager
+from .visual_collision_manager import VisualCollisionManager
 
 # Constants
 MAGENTA_TRANSPARENT = (255, 0, 255)  # Magenta color used for transparency
@@ -111,25 +129,6 @@ MIN_COLOR_FIELD_VALUES_FOR_GREEN = 2  # Minimum parsed color field values for gr
 MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blue
 AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
 AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
-
-from pydantic import BaseModel
-
-from .canvas_interfaces import (
-    AnimatedCanvasInterface,
-    AnimatedCanvasRenderer,
-    AnimatedSpriteSerializer,
-)
-from .controller_mode_system import ControllerMode
-from .controller_selection import ControllerSelection
-from .film_strip import FilmStripWidget
-from .multi_controller_manager import MultiControllerManager
-from .operation_history import (
-    CanvasOperationTracker,
-    CrossAreaOperationTracker,
-    FilmStripOperationTracker,
-)
-from .undo_redo_manager import UndoRedoManager
-from .visual_collision_manager import VisualCollisionManager
 
 if TYPE_CHECKING:
     import argparse
@@ -401,8 +400,7 @@ def _render_frames_side_by_side(
 
     # Split frames into rows
     frame_rows = [
-        frame_outputs[i : i + frames_per_row]
-        for i in range(0, len(frame_outputs), frames_per_row)
+        frame_outputs[i : i + frames_per_row] for i in range(0, len(frame_outputs), frames_per_row)
     ]
 
     # Render each row and combine vertically
@@ -9098,7 +9096,9 @@ class BitmapEditorScene(Scene):
                 # DON'T delete from pending_ai_requests - we're retrying
                 return
             # Max retries reached, load anyway and show error
-            self.log.error(f"Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway")
+            self.log.error(
+                f"Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway"
+            )
             if hasattr(self, "debug_text"):
                 self.debug_text.text = (
                     f"Failed after {AI_VALIDATION_MAX_RETRIES} retries:\n{validation_error}\n\n"
@@ -9250,7 +9250,9 @@ class BitmapEditorScene(Scene):
 
         """
         # Determine file extension based on training format
-        file_extension = f".{ai_training_state["format"]}" if ai_training_state["format"] else ".toml"
+        file_extension = (
+            f".{ai_training_state['format']}" if ai_training_state["format"] else ".toml"
+        )
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=file_extension, delete=False, encoding="utf-8"
@@ -9530,7 +9532,9 @@ class BitmapEditorScene(Scene):
                     color_counts[color] = color_counts.get(color, 0) + 1
 
                 # Sort by frequency and take top 64
-                sorted_by_frequency = sorted(color_counts.items(), key=operator.itemgetter(1), reverse=True)
+                sorted_by_frequency = sorted(
+                    color_counts.items(), key=operator.itemgetter(1), reverse=True
+                )
                 unique_colors = {color for color, _ in sorted_by_frequency[:64]}
                 self.log.info(f"Quantized to {len(unique_colors)} colors")
 
@@ -11591,7 +11595,9 @@ pixels = \"\"\"
                     min_distance = float("inf")
 
                     for group_color in color_groups:
-                        distance = sum((a - b) ** 2 for a, b in zip(color, group_color, strict=True))
+                        distance = sum(
+                            (a - b) ** 2 for a, b in zip(color, group_color, strict=True)
+                        )
                         if distance < min_distance:
                             min_distance = distance
                             closest_group = group_color
@@ -12552,7 +12558,9 @@ pixels = \"\"\"
                             )
 
     # Canvas Mode Implementation Methods
-    def _canvas_paint_at_controller_position(self, controller_id: int, *, force: bool = False) -> None:
+    def _canvas_paint_at_controller_position(
+        self, controller_id: int, *, force: bool = False
+    ) -> None:
         """Paint at the controller's current canvas position.
 
         Args:
@@ -12839,7 +12847,9 @@ pixels = \"\"\"
         else:
             self.log.debug("DEBUG: No color_well found or color_well is None")
 
-    def _handle_slider_mode_navigation(self, direction: str, controller_id: int | None = None) -> None:
+    def _handle_slider_mode_navigation(
+        self, direction: str, controller_id: int | None = None
+    ) -> None:
         """Handle arrow key navigation between slider modes."""
         if not hasattr(self, "mode_switcher"):
             return

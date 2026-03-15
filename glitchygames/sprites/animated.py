@@ -169,7 +169,9 @@ class FrameManager:
         if observer in self._observers:
             self._observers.remove(observer)
 
-    def notify_observers(self, change_type: str, old_value: str | int, new_value: str | int) -> None:
+    def notify_observers(
+        self, change_type: str, old_value: str | int, new_value: str | int
+    ) -> None:
         """Notify all observers of a frame change."""
         for observer in self._observers:
             if hasattr(observer, "on_frame_change"):
@@ -1950,7 +1952,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write("\n")
 
     @staticmethod
-    def _write_toml_alpha(f: IO[str], data: dict, *, preserve_trailing_newline: bool = False) -> None:
+    def _write_toml_alpha(
+        f: IO[str], data: dict, *, preserve_trailing_newline: bool = False
+    ) -> None:
         """Write TOML alpha section if needed."""
         if "alpha" in data:
             f.write("[alpha]\n")

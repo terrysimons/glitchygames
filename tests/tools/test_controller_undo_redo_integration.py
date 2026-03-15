@@ -10,10 +10,10 @@ import logging
 
 import pygame
 import pytest
-
-LOG = logging.getLogger(__name__)
 from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
+
+LOG = logging.getLogger(__name__)
 
 
 class TestControllerUndoRedoIntegration:
@@ -41,9 +41,8 @@ class TestControllerUndoRedoIntegration:
             try:
                 if button == pygame.CONTROLLER_BUTTON_B:
                     scene._handle_undo()
-                elif (
-                    button == pygame.CONTROLLER_BUTTON_X
-                    and getattr(scene, "selected_frame_visible", True)
+                elif button == pygame.CONTROLLER_BUTTON_X and getattr(
+                    scene, "selected_frame_visible", True
                 ):
                     scene._handle_redo()
             except (AttributeError, ValueError):

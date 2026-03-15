@@ -1423,13 +1423,8 @@ class FilmStripWidget:
                 controller_selection,
             ) in self.parent_scene.controller_selections.items():
                 if controller_selection.is_active():
-                    controller_animation, controller_frame = (
-                        controller_selection.get_selection()
-                    )
-                    if (
-                        controller_animation == animation_name
-                        and controller_frame == frame_index
-                    ):
+                    controller_animation, controller_frame = controller_selection.get_selection()
+                    if controller_animation == animation_name and controller_frame == frame_index:
                         # Get controller color from multi-controller manager singleton
                         from .multi_controller_manager import MultiControllerManager
 
@@ -1490,7 +1485,9 @@ class FilmStripWidget:
 
             # Render frame number text in format "current+1/total"
             frame_text = f"{frame_index + 1}/{total_frames}"
-            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text  # noqa: FBT003
+            text_surface = font.render(
+                frame_text, True, (255, 255, 255)  # noqa: FBT003
+            )  # White text
             text_rect = text_surface.get_rect()
 
             # Position at bottom center of the frame (like animation preview)
@@ -2314,7 +2311,9 @@ class FilmStripWidget:
 
             # Render frame index text in format "current+1/total"
             frame_text = f"{current_frame_idx + 1}/{total_frames}"
-            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text  # noqa: FBT003
+            text_surface = font.render(
+                frame_text, True, (255, 255, 255)  # noqa: FBT003
+            )  # White text
             text_rect = text_surface.get_rect()
 
             # Position at bottom center of the preview

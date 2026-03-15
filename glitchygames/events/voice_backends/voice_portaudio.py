@@ -47,7 +47,12 @@ class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.SAMPLE_WIDTH = source.SAMPLE_WIDTH
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> bool | None:
         """Exit the context manager, closing the inner microphone stream.
 
         Returns:
