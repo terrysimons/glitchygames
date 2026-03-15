@@ -8,6 +8,7 @@ API with the miniaudio backend.
 from __future__ import annotations
 
 import types
+from typing import Self
 
 try:
     import speech_recognition as sr
@@ -28,7 +29,7 @@ class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.CHUNK = None
         self.SAMPLE_WIDTH = None
 
-    def __enter__(self) -> PortAudioMicrophone:
+    def __enter__(self) -> Self:
         """Enter the context manager, opening the inner microphone stream.
 
         Returns:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import types
 from collections import deque
+from typing import Self
 
 try:
     import miniaudio as mi
@@ -95,7 +96,7 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.stream: _BlockingByteStream | None = None
         self._device: mi.CaptureDevice | None = None
 
-    def __enter__(self) -> MiniaudioMicrophone:
+    def __enter__(self) -> Self:
         """Enter the context manager, starting audio capture.
 
         Returns:
