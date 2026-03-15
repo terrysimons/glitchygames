@@ -562,7 +562,7 @@ class AdaptiveClamping:
             # Skip global report if not enough data - per-scene reports are more useful
             return
 
-        LOG.info("\n" + "=" * 80)
+        LOG.info(f"\n{'=' * 80}")
         LOG.info("🎮 GAME PERFORMANCE REPORT")
         LOG.info("=" * 80)
         LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
@@ -669,14 +669,14 @@ class AdaptiveClamping:
         filtered_stats = per_scene_stats
 
         if not filtered_stats:
-            LOG.info("\n" + "=" * 80)
+            LOG.info(f"\n{'=' * 80}")
             LOG.info("🎮 PER-SCENE PERFORMANCE REPORT")
             LOG.info("=" * 80)
             LOG.info("No scene performance data collected")
             LOG.info("=" * 80)
             return
 
-        LOG.info("\n" + "=" * 80)
+        LOG.info(f"\n{'=' * 80}")
         LOG.info("🎮 PER-SCENE PERFORMANCE REPORT")
         LOG.info("=" * 80)
 

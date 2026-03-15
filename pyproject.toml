@@ -184,9 +184,6 @@ lint.ignore = [
   # --- Unused variables (many are pytest mock side effects) ---
   "F841", # unused-variable
   "B007", # unused-loop-control-variable
-
-  # --- Logging style ---
-  "G003", # logging-string-concat
 ]
 lint.exclude = []
 lint.fixable = [

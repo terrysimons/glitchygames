@@ -1316,13 +1316,13 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
 
         if not model_status["downloaded"]:
             log.info(f"Model needs to be downloaded: {model_status['reason']}")
-            log.info("\n" + "=" * 60)
+            log.info(f"\n{'=' * 60}")
             log.info("MODEL DOWNLOAD DETECTED")
             log.info("=" * 60)
             log.info(f"Model: {AI_MODEL}")
             log.info("Status: Model needs to be downloaded")
             log.info("This may take several minutes depending on model size...")
-            log.info("=" * 60 + "\n")
+            log.info(f"{'=' * 60}\n")
 
         client = _initialize_ai_client(log)
 
@@ -1383,14 +1383,14 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
                         )
 
                         # Dump capabilities to log
-                        log.debug("\n" + "=" * 60)
+                        log.debug(f"\n{'=' * 60}")
                         log.debug("MODEL CAPABILITIES DUMP")
                         log.debug("=" * 60)
                         log.debug(f"Model: {AI_MODEL}")
                         log.debug(f"Context Size: {context_size}")
                         log.debug(f"Max Output Tokens: {output_limit}")
                         log.debug(f"Model Response: {content}")
-                        log.debug("=" * 60 + "\n")
+                        log.debug(f"{'=' * 60}\n")
 
                         return capabilities
 
@@ -1400,13 +1400,13 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
                 log.info(f"Detected max tokens: {max_tokens}")
 
                 # Dump capabilities to log
-                log.debug("\n" + "=" * 60)
+                log.debug(f"\n{'=' * 60}")
                 log.debug("MODEL CAPABILITIES DUMP")
                 log.debug("=" * 60)
                 log.debug(f"Model: {AI_MODEL}")
                 log.debug(f"Max Output Tokens: {max_tokens}")
                 log.debug(f"Model Response: {content}")
-                log.debug("=" * 60 + "\n")
+                log.debug(f"{'=' * 60}\n")
 
                 return capabilities
             except ValueError:
@@ -1414,25 +1414,25 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
                 capabilities = {"max_tokens": None, "raw_response": content}
 
                 # Dump capabilities to log even if parsing failed
-                log.debug("\n" + "=" * 60)
+                log.debug(f"\n{'=' * 60}")
                 log.debug("MODEL CAPABILITIES DUMP")
                 log.debug("=" * 60)
                 log.debug(f"Model: {AI_MODEL}")
                 log.debug("Max Output Tokens: Could not parse")
                 log.debug(f"Model Response: {content}")
-                log.debug("=" * 60 + "\n")
+                log.debug(f"{'=' * 60}\n")
 
                 return capabilities
 
         capabilities = {"max_tokens": None}
 
         # Dump capabilities to log for failed query
-        log.debug("\n" + "=" * 60)
+        log.debug(f"\n{'=' * 60}")
         log.debug("MODEL CAPABILITIES DUMP")
         log.debug("=" * 60)
         log.debug(f"Model: {AI_MODEL}")
         log.debug("Max Tokens: Unknown (no response)")
-        log.debug("=" * 60 + "\n")
+        log.debug(f"{'=' * 60}\n")
 
         return capabilities
 
@@ -1440,13 +1440,13 @@ def _get_model_capabilities(log: logging.Logger) -> dict:
         log.exception("Failed to query model capabilities")
 
         # Dump capabilities to log for exception case
-        log.debug("\n" + "=" * 60)
+        log.debug(f"\n{'=' * 60}")
         log.debug("MODEL CAPABILITIES DUMP")
         log.debug("=" * 60)
         log.debug(f"Model: {AI_MODEL}")
         log.debug("Max Tokens: Unknown (query failed)")
         log.debug(f"Error: {e}")
-        log.debug("=" * 60 + "\n")
+        log.debug(f"{'=' * 60}\n")
 
         return {"max_tokens": None}
 
