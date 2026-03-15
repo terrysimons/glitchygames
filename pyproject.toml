@@ -187,10 +187,6 @@ lint.ignore = [
 
   # --- Logging style ---
   "G003", # logging-string-concat
-
-  # --- Code style preferences (not bugs) ---
-  "PERF102", # incorrect-dict-iterator
-  "PERF401", # manual-list-comprehension
 ]
 lint.exclude = []
 lint.fixable = [

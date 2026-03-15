@@ -80,7 +80,7 @@ class FilmStripTestBase:
         rendering needs real pygame Surfaces for operations like
         pygame.transform.scale(). This method replaces them after pygame.init().
         """
-        for animation_name, frames in mock_sprite._animations.items():
+        for frames in mock_sprite._animations.values():
             for frame in frames:
                 frame_size = frame.get_size()
                 real_surface = pygame.Surface(frame_size, pygame.SRCALPHA)

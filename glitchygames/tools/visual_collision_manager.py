@@ -264,13 +264,13 @@ class VisualCollisionManager:
             List of indicators at the position
 
         """
-        indicators = []
-
         if location_type is None:
             # Check all location types
-            for indicator in self.indicators.values():
-                if indicator.position == position:
-                    indicators.append(indicator)
+            indicators = [
+                indicator
+                for indicator in self.indicators.values()
+                if indicator.position == position
+            ]
         else:
             # Check specific location type
             if location_type == LocationType.FILM_STRIP:
@@ -282,9 +282,11 @@ class VisualCollisionManager:
             else:
                 indicators_dict = self.indicators
 
-            for indicator in indicators_dict.values():
-                if indicator.position == position:
-                    indicators.append(indicator)
+            indicators = [
+                indicator
+                for indicator in indicators_dict.values()
+                if indicator.position == position
+            ]
 
         return indicators
 
@@ -535,7 +537,7 @@ class VisualCollisionManager:
             "position_cache_size": len(self.position_cache),
         }
 
-        for position, controller_ids in self.collision_groups.items():
+        for controller_ids in self.collision_groups.values():
             if len(controller_ids) > 1:
                 summary["groups_with_collisions"] += 1
 

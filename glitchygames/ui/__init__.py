@@ -1905,7 +1905,7 @@ class SliderSprite(BitmappySprite):
         LOG.debug("Drawing %d slider indicators on %s slider", len(slider_indicators), self.name)
 
         # Draw each indicator on this slider
-        for controller_id, indicator in slider_indicators.items():
+        for indicator in slider_indicators.values():
             # Calculate position relative to this slider
             slider_x = self.rect.x
             slider_y = self.rect.y

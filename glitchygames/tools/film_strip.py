@@ -1434,7 +1434,7 @@ class FilmStripWidget:
                         from .multi_controller_manager import MultiControllerManager
 
                         manager = MultiControllerManager.get_instance()
-                        for instance_id, info in manager.controllers.items():
+                        for info in manager.controllers.values():
                             if info.controller_id == controller_id:
                                 selection_color = info.color
                                 break
@@ -2097,10 +2097,7 @@ class FilmStripWidget:
                     if animation == self.current_animation:
                         # Get controller color
                         controller_info = None
-                        for (
-                            instance_id,
-                            info,
-                        ) in self.parent_scene.multi_controller_manager.controllers.items():
+                        for info in self.parent_scene.multi_controller_manager.controllers.values():
                             if info.controller_id == controller_id:
                                 controller_info = info
                                 break

@@ -1000,7 +1000,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             scene = self.canvas_sprite.parent_scene
             if hasattr(scene, "controller_selections") and hasattr(scene, "mode_switcher"):
                 # Check if any controller is active in canvas mode
-                for controller_id, controller_selection in scene.controller_selections.items():
+                for controller_id in scene.controller_selections:
                     controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
                     if controller_mode and controller_mode.value == "canvas":
                         # Get controller position
@@ -1027,7 +1027,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             scene = self.canvas_sprite.parent_scene
             if hasattr(scene, "controller_selections") and hasattr(scene, "mode_switcher"):
                 # Check all controllers for canvas mode
-                for controller_id, controller_selection in scene.controller_selections.items():
+                for controller_id in scene.controller_selections:
                     controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
                     if controller_mode and controller_mode.value == "canvas":
                         # Get controller position

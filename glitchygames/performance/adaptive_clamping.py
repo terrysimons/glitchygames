@@ -349,7 +349,7 @@ class AdaptiveClamping:
         """
         # Aggregate all scene data for global report
         all_fps_history = []
-        for scene_name, scene_data in self._scene_data.items():
+        for scene_data in self._scene_data.values():
             all_fps_history.extend(scene_data["fps_history"])
 
         if not all_fps_history:
@@ -536,7 +536,7 @@ class AdaptiveClamping:
         else:
             # Aggregate frame times from all scenes for global report
             frame_times = []
-            for _scene_name, scene_data in self._scene_data.items():
+            for scene_data in self._scene_data.values():
                 frame_times.extend(scene_data["frame_times"])
             if not frame_times:
                 return {"message": "No frame time data available"}

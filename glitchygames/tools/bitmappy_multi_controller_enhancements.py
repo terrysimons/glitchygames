@@ -220,7 +220,7 @@ class BitmappyMultiControllerEnhancements:
         """
         # Get controller info
         controller_info = None
-        for instance_id, info in self.manager.controllers.items():
+        for info in self.manager.controllers.values():
             if info.controller_id == controller_id:
                 controller_info = info
                 break

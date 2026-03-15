@@ -395,9 +395,10 @@ def _render_frames_side_by_side(
     frames_per_row = max(1, (terminal_width + separator_width) // (frame_width + separator_width))
 
     # Split frames into rows
-    frame_rows = []
-    for i in range(0, len(frame_outputs), frames_per_row):
-        frame_rows.append(frame_outputs[i : i + frames_per_row])
+    frame_rows = [
+        frame_outputs[i : i + frames_per_row]
+        for i in range(0, len(frame_outputs), frames_per_row)
+    ]
 
     # Render each row and combine vertically
     all_rows = []
@@ -530,7 +531,7 @@ def _detect_alpha_channel(colors: dict) -> bool:
         bool: True if alpha channel is detected or magenta transparency is present
 
     """
-    for color_key, color_data in colors.items():
+    for color_data in colors.values():
         if isinstance(color_data, dict):
             # Check for alpha key or RGBA values
             if "alpha" in color_data or "a" in color_data:
@@ -559,7 +560,7 @@ def _detect_alpha_channel_in_animation(animation_data: dict) -> bool:
     """
     # Handle different animation data structures
     if isinstance(animation_data, dict):
-        for frame_name, frame_data in animation_data.items():
+        for frame_data in animation_data.values():
             if (
                 isinstance(frame_data, dict)
                 and "colors" in frame_data
@@ -837,7 +838,7 @@ def load_ai_training_data() -> None:
                     # Determine alpha type
                     alpha_type = "indexed"  # Default
                     if hasattr(sprite, "color_map"):
-                        for color_name, color_value in sprite.color_map.items():
+                        for color_value in sprite.color_map.values():
                             if (
                                 isinstance(color_value, (list, tuple))
                                 and len(color_value) >= RGBA_COMPONENT_COUNT
@@ -4101,7 +4102,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Sync frames using ONLY the raw pixel data in memory
             # Don't extract from _image - just use frame.pixels if it exists
             # set_pixel_data() will update _image to match pixels
-            for anim_name, frames in self.animated_sprite._animations.items():
+            for frames in self.animated_sprite._animations.values():
                 for frame in frames:
                     try:
                         # Only sync if frame already has pixels in memory
@@ -5607,7 +5608,7 @@ class BitmapEditorScene(Scene):
 
             # Mark all film strips as dirty so they redraw with correct selection state
             if hasattr(self, "film_strips") and self.film_strips:
-                for strip_name, strip_widget in self.film_strips.items():
+                for strip_widget in self.film_strips.values():
                     strip_widget.mark_dirty()
 
     def _update_film_strip_visibility(self) -> None:
@@ -5997,7 +5998,7 @@ class BitmapEditorScene(Scene):
             self.log.info(f"User cancelled deletion of animation: {animation_name}")
             # Reset all film strip tab states to unhighlight the delete button
             if hasattr(self, "film_strip_sprites"):
-                for anim_name, film_strip_sprite in self.film_strip_sprites.items():
+                for film_strip_sprite in self.film_strip_sprites.values():
                     if hasattr(film_strip_sprite, "film_strip_widget"):
                         film_strip_sprite.film_strip_widget.reset_all_tab_states()
                         film_strip_sprite.dirty = 1  # Force redraw
@@ -7186,7 +7187,7 @@ class BitmapEditorScene(Scene):
             self.selected_strip.mark_dirty()
             # Mark the film strip sprite as dirty=2 for full surface blit
             if hasattr(self, "film_strip_sprites"):
-                for strip_name, strip_sprite in self.film_strip_sprites.items():
+                for strip_sprite in self.film_strip_sprites.values():
                     if strip_sprite.film_strip_widget == self.selected_strip:
                         strip_sprite.dirty = 2
                         break
@@ -7315,7 +7316,7 @@ class BitmapEditorScene(Scene):
 
             # Mark all film strips as dirty so they redraw with correct selection state
             if hasattr(self, "film_strips") and self.film_strips:
-                for strip_name, strip_widget in self.film_strips.items():
+                for strip_widget in self.film_strips.values():
                     strip_widget.mark_dirty()
 
     def _navigate_frame(self, direction: int) -> None:
@@ -7428,7 +7429,7 @@ class BitmapEditorScene(Scene):
 
             # Mark all film strips as dirty so they redraw with correct selection state
             if hasattr(self, "film_strips") and self.film_strips:
-                for strip_name, strip_widget in self.film_strips.items():
+                for strip_widget in self.film_strips.values():
                     strip_widget.mark_dirty()
 
     def _update_film_strips_for_frame(self, animation: str, frame: int) -> None:
@@ -10009,7 +10010,7 @@ pixels = \"\"\"
 
             # Debug: Check if film strip sprites are being updated
             if hasattr(self, "film_strip_sprites") and self.film_strip_sprites:
-                for anim_name, film_strip_sprite in self.film_strip_sprites.items():
+                for film_strip_sprite in self.film_strip_sprites.values():
                     if hasattr(film_strip_sprite, "dirty") and film_strip_sprite.dirty:
                         pass
 
@@ -14101,10 +14102,7 @@ pixels = \"\"\"
                     # Get controller color
                     controller_info = None
                     if hasattr(self, "multi_controller_manager"):
-                        for (
-                            instance_id,
-                            info,
-                        ) in self.multi_controller_manager.controllers.items():
+                        for info in self.multi_controller_manager.controllers.values():
                             if info.controller_id == controller_id:
                                 controller_info = info
                                 break
@@ -14219,10 +14217,7 @@ pixels = \"\"\"
                         # Get controller color
                         controller_info = None
                         if hasattr(self, "multi_controller_manager"):
-                            for (
-                                instance_id,
-                                info,
-                            ) in self.multi_controller_manager.controllers.items():
+                            for info in self.multi_controller_manager.controllers.values():
                                 if info.controller_id == controller_id:
                                     controller_info = info
                                     break
@@ -14262,7 +14257,7 @@ pixels = \"\"\"
                     # Get controller color
                     controller_info = None
                     if hasattr(self, "multi_controller_manager"):
-                        for instance_id, info in self.multi_controller_manager.controllers.items():
+                        for info in self.multi_controller_manager.controllers.values():
                             if info.controller_id == controller_id:
                                 controller_info = info
                                 break
@@ -14750,7 +14745,7 @@ pixels = \"\"\"
 
         # Get controller color
         controller_info = None
-        for instance_id, info in self.multi_controller_manager.controllers.items():
+        for info in self.multi_controller_manager.controllers.values():
             if info.controller_id == controller_id:
                 controller_info = info
                 break

@@ -912,14 +912,15 @@ class BallSprite(Sprite):
 
         """
         # Get all paddle sprites from the same groups as this ball
-        paddle_sprites = []
-        for group in self.groups():
-            for sprite in group:
-                # Check if this is a paddle (has snd attribute or is a paddle type)
-                if (
-                    hasattr(sprite, "snd") or sprite.__class__.__name__.lower().find("paddle") != -1
-                ) and sprite != self:
-                    paddle_sprites.append(sprite)
+        paddle_sprites = [
+            sprite
+            for group in self.groups()
+            for sprite in group
+            if (
+                hasattr(sprite, "snd") or sprite.__class__.__name__.lower().find("paddle") != -1
+            )
+            and sprite != self
+        ]
 
         # Check collision with each paddle
         for paddle in paddle_sprites:
