@@ -361,7 +361,7 @@ class TestSizeHintDetection:
 
     def test_multiplication_sign(self):
         """Test detection with × (multiplication sign)."""
-        assert get_sprite_size_hint("Create 16×16 sprite") == (16, 16)
+        assert get_sprite_size_hint("Create 16×16 sprite") == (16, 16)  # noqa: RUF001
 
     def test_invalid_sizes(self):
         """Test rejection of invalid sizes."""

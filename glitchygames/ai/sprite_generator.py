@@ -489,7 +489,7 @@ def get_sprite_size_hint(request: str) -> tuple[int, int] | None:
 
     """
     # Look for patterns like "16x16", "32x32", "8x8"
-    size_pattern = r"(\d{1,3})\s*[x×]\s*(\d{1,3})"
+    size_pattern = r"(\d{1,3})\s*[x×]\s*(\d{1,3})"  # noqa: RUF001
     match = re.search(size_pattern, request, re.IGNORECASE)
 
     if match:

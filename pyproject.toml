@@ -205,7 +205,6 @@ lint.ignore = [
   "RUF029", # unused-async
   "RUF052", # used-dummy-variable
   "RUF012", # mutable-class-default
-  "RUF001", # ambiguous-unicode-character-string
   "RUF002", # ambiguous-unicode-character-docstring
   "TRY002", # raise-vanilla-class
   "B903", # class-as-data-structure (could be dataclass)
