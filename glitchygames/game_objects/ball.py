@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-import logging
 import math
 import secrets
 import time
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import logging
 
 import pygame
 from glitchygames import game_objects

@@ -8,9 +8,11 @@ that uses `miniaudio` instead of PortAudio/PyAudio or sounddevice.
 from __future__ import annotations
 
 import threading
-import types
 from collections import deque
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import types
 
 try:
     import miniaudio as mi

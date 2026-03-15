@@ -4,9 +4,8 @@ import logging
 from typing import Self
 
 import pygame
-from glitchygames.sprites import Sprite
-
 from glitchygames.scenes import Scene
+from glitchygames.sprites import Sprite
 
 log = logging.getLogger("game")
 

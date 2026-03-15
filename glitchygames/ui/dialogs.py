@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pygame
 from glitchygames.scenes import Scene

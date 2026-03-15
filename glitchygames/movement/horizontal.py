@@ -6,9 +6,10 @@ This is a simple horizontal movement class that can be used to move sprites left
 
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
-from .speed import Speed
+if TYPE_CHECKING:
+    from .speed import Speed
 
 
 class Horizontal:

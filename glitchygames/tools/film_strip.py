@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import pygame
 from glitchygames.color import RGB_COMPONENT_COUNT
 from glitchygames.fonts import FontManager
-from glitchygames.sprites import AnimatedSprite, SpriteFrame
 
 if TYPE_CHECKING:
+    from glitchygames.sprites import AnimatedSprite, SpriteFrame
     from glitchygames.tools.bitmappy import AnimatedCanvasSprite
 
 ANIMATION_NAME_MAX_LENGTH = 50

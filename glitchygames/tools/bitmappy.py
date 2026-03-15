@@ -11,7 +11,6 @@ import signal
 import sys
 import tempfile
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
@@ -40,7 +39,6 @@ except ImportError:
 
 from http import HTTPStatus
 
-from glitchygames import events
 from glitchygames.ai import (
     build_refinement_messages,
     build_sprite_generation_messages,
@@ -132,7 +130,9 @@ from .visual_collision_manager import VisualCollisionManager
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Callable
 
+    from glitchygames import events
     from glitchygames.tools.ascii_renderer import ASCIIRenderer
     from glitchygames.tools.visual_collision_manager import VisualIndicator
 

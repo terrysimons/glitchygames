@@ -5,9 +5,8 @@ from typing import Self
 
 import pygame
 from glitchygames.color import WHITE
-from glitchygames.sprites import Sprite
-
 from glitchygames.scenes import Scene
+from glitchygames.sprites import Sprite
 
 
 class PauseOverlay(Sprite):
