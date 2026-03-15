@@ -110,6 +110,7 @@ JOYSTICK_HAT_LEFT = 8  # Joystick hat bitmask for left direction
 MIN_COLOR_FIELD_VALUES_FOR_GREEN = 2  # Minimum parsed color field values for green
 MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blue
 AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
+AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
 
 from pydantic import BaseModel
 
@@ -9113,14 +9114,13 @@ class BitmapEditorScene(Scene):
             self.log.warning(f"AI response validation failed: {validation_error}")
 
             # Check if we can retry
-            MAX_RETRIES = 2
-            if request_state.retry_count < MAX_RETRIES:
+            if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
                 # Trigger retry with targeted prompt
                 request_state.retry_count += 1
                 request_state.last_error = validation_error
 
                 self.log.info(
-                    f"Retrying request (attempt {request_state.retry_count + 1}/{MAX_RETRIES + 1})"
+                    f"Retrying request (attempt {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})"
                 )
 
                 # Build retry prompt with specific corrections
@@ -9148,17 +9148,17 @@ class BitmapEditorScene(Scene):
                 # Update UI
                 if hasattr(self, "debug_text"):
                     self.debug_text.text = (
-                        f"Retrying with corrections... (attempt {request_state.retry_count + 1}/{MAX_RETRIES + 1})\n"
+                        f"Retrying with corrections... (attempt {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n"
                         f"Error: {validation_error}"
                     )
 
                 # DON'T delete from pending_ai_requests - we're retrying
                 return
             # Max retries reached, load anyway and show error
-            self.log.error(f"Max retries ({MAX_RETRIES}) reached, loading sprite anyway")
+            self.log.error(f"Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway")
             if hasattr(self, "debug_text"):
                 self.debug_text.text = (
-                    f"Failed after {MAX_RETRIES} retries:\n{validation_error}\n\n"
+                    f"Failed after {AI_VALIDATION_MAX_RETRIES} retries:\n{validation_error}\n\n"
                     f"Attempting to load anyway..."
                 )
 
