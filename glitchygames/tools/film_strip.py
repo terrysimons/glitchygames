@@ -1436,6 +1436,43 @@ class FilmStripWidget:
 
         return False
 
+    def _is_keyboard_selected(self, animation_name: str, frame_index: int) -> bool:
+        """Check if a frame is selected via keyboard navigation.
+
+        Args:
+            animation_name: The animation name to check.
+            frame_index: The frame index to check.
+
+        Returns:
+            True if the frame is keyboard-selected.
+
+        """
+        if not (hasattr(self, "parent_scene") and self.parent_scene):
+            return False
+        parent = self.parent_scene
+        return (
+            hasattr(parent, "selected_animation")
+            and hasattr(parent, "selected_frame")
+            and parent.selected_animation == animation_name
+            and parent.selected_frame == frame_index
+        )
+
+    def _has_valid_canvas_sprite(self) -> bool:
+        """Check if the parent scene has a valid canvas with an animated sprite.
+
+        Returns:
+            True if the parent scene has a valid canvas sprite.
+
+        """
+        if not (hasattr(self, "parent_scene") and self.parent_scene):
+            return False
+        parent = self.parent_scene
+        return (
+            hasattr(parent, "canvas")
+            and parent.canvas
+            and hasattr(parent.canvas, "animated_sprite")
+        )
+
     def render_frame_thumbnail(
         self,
         frame: SpriteFrame,
@@ -1470,14 +1507,7 @@ class FilmStripWidget:
         selection_color = None
 
         # Check keyboard selection (white indicator)
-        if (
-            hasattr(self, "parent_scene")
-            and self.parent_scene
-            and hasattr(self.parent_scene, "selected_animation")
-            and hasattr(self.parent_scene, "selected_frame")
-            and self.parent_scene.selected_animation == animation_name
-            and self.parent_scene.selected_frame == frame_index
-        ):
+        if self._is_keyboard_selected(animation_name, frame_index):
             selection_color = (255, 255, 255)  # White for keyboard
 
         # Check controller selection (use controller's color)
@@ -2652,14 +2682,7 @@ class FilmStripWidget:
 
         # Add a horizontal top tab (delete) at the center of the film strip
         # Show delete button if there's more than one animation (to prevent deleting the last strip)
-        if (
-            frames
-            and hasattr(self, "parent_scene")
-            and self.parent_scene
-            and hasattr(self.parent_scene, "canvas")
-            and self.parent_scene.canvas
-            and hasattr(self.parent_scene.canvas, "animated_sprite")
-        ):
+        if frames and self._has_valid_canvas_sprite():
             animations = list(self.parent_scene.canvas.animated_sprite._animations.keys())
             if len(animations) > 1:
                 # Calculate center x position of the film strip

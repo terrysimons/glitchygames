@@ -326,6 +326,34 @@ class AnimatedCanvasInterface:
             return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
+    def _should_track_color_change(
+        self,
+        old_color: object,
+        new_color: object,
+        *,
+        controller_drag_active: bool,
+    ) -> bool:
+        """Check if a color change should be tracked for undo/redo.
+
+        Args:
+            old_color: The previous color value.
+            new_color: The new color value.
+            controller_drag_active: Whether a controller drag is active.
+
+        Returns:
+            True if the color change should be tracked.
+
+        """
+        if old_color == new_color or controller_drag_active:
+            return False
+        if not (hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene):
+            return False
+        parent = self.canvas_sprite.parent_scene
+        return (
+            hasattr(parent, "canvas_operation_tracker")
+            and not getattr(parent, "_applying_undo_redo", False)
+        )
+
     def set_pixel_at(
         self,
         x: int,
@@ -398,14 +426,9 @@ class AnimatedCanvasInterface:
                         )
                         break
 
-            if (
-                hasattr(self.canvas_sprite, "parent_scene")
-                and self.canvas_sprite.parent_scene
-                and hasattr(self.canvas_sprite.parent_scene, "canvas_operation_tracker")
-                and not getattr(self.canvas_sprite.parent_scene, "_applying_undo_redo", False)
-                and not controller_drag_active
-                and old_color != color
-            ):  # Only track if color actually changed
+            if self._should_track_color_change(
+                old_color, color, controller_drag_active=controller_drag_active
+            ):
                 # Collect pixel changes during drag operations
                 if not hasattr(self.canvas_sprite.parent_scene, "_current_pixel_changes"):
                     self.canvas_sprite.parent_scene._current_pixel_changes = []

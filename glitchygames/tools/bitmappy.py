@@ -2868,6 +2868,29 @@ class FilmStripSprite(BitmappySprite):
             LOG.exception(f"FilmStripSprite: Failed to convert image {file_path}")
             return None
 
+    def _should_update_canvas_frame(self, animation: str, frame_idx: int) -> bool:
+        """Check if the canvas should be updated for a given animation frame.
+
+        Args:
+            animation: Animation name.
+            frame_idx: Frame index.
+
+        Returns:
+            True if the canvas should be updated.
+
+        """
+        if not (hasattr(self, "parent_scene") and self.parent_scene):
+            return False
+        parent = self.parent_scene
+        return (
+            hasattr(parent, "selected_animation")
+            and hasattr(parent, "selected_frame")
+            and parent.selected_animation == animation
+            and parent.selected_frame == frame_idx
+            and hasattr(parent, "canvas")
+            and parent.canvas
+        )
+
     def _replace_frame_with_image(self, file_path: str, animation: str, frame_idx: int) -> bool:
         """Replace an existing frame with image content.
 
@@ -2904,16 +2927,7 @@ class FilmStripSprite(BitmappySprite):
         self.film_strip_widget.mark_dirty()
 
         # Update canvas if this is the current frame
-        if (
-            hasattr(self, "parent_scene")
-            and self.parent_scene
-            and hasattr(self.parent_scene, "selected_animation")
-            and hasattr(self.parent_scene, "selected_frame")
-            and self.parent_scene.selected_animation == animation
-            and self.parent_scene.selected_frame == frame_idx
-            and hasattr(self.parent_scene, "canvas")
-            and self.parent_scene.canvas
-        ):
+        if self._should_update_canvas_frame(animation, frame_idx):
             self.parent_scene.canvas.show_frame(animation, frame_idx)
 
         LOG.debug(f"FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]")
@@ -3476,6 +3490,24 @@ class AnimatedCanvasSprite(BitmappySprite):
                     f"'{self.current_animation}' (was_playing: {was_playing})"
                 )
 
+    def _should_track_frame_selection(self) -> bool:
+        """Check if frame selection changes should be tracked for undo/redo.
+
+        Returns:
+            True if frame selection should be tracked.
+
+        """
+        if not (hasattr(self, "parent_scene") and self.parent_scene):
+            return False
+        parent = self.parent_scene
+        if not hasattr(parent, "undo_redo_manager"):
+            return False
+        return not (
+            getattr(parent, "_applying_undo_redo", False)
+            or getattr(parent, "_creating_frame", False)
+            or getattr(parent, "_creating_animation", False)
+        )
+
     def show_frame(self, animation: str, frame: int) -> None:
         """Show a specific frame of the animated sprite."""
         self.log.debug(f"show_frame called: animation={animation}, frame={frame}")
@@ -3500,14 +3532,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Only track frame selection if we're not in the middle of an undo/redo operation
             # or creating a frame (which has its own undo tracking)
             # Also don't track frame selection if we're in the middle of film strip operations
-            if (
-                hasattr(self, "parent_scene")
-                and self.parent_scene
-                and hasattr(self.parent_scene, "undo_redo_manager")
-                and not getattr(self.parent_scene, "_applying_undo_redo", False)
-                and not getattr(self.parent_scene, "_creating_frame", False)
-                and not getattr(self.parent_scene, "_creating_animation", False)
-            ):
+            if self._should_track_frame_selection():
                 # Track frame selection as a film strip operation instead of global
                 self.parent_scene.film_strip_operation_tracker.add_frame_selection(animation, frame)
 
@@ -8921,6 +8946,19 @@ class BitmapEditorScene(Scene):
         """
         self._update_sprite_description(new_text)
 
+    def _has_single_animation_canvas(self) -> bool:
+        """Check if the canvas has exactly one animation.
+
+        Returns:
+            True if the canvas has a single animation.
+
+        """
+        if not (hasattr(self, "canvas") and self.canvas):
+            return False
+        if not (hasattr(self.canvas, "animated_sprite") and self.canvas.animated_sprite):
+            return False
+        return len(self.canvas.animated_sprite._animations) == 1
+
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
         # Don't update sprite description here - only update when AI generation actually happens
@@ -8973,11 +9011,7 @@ class BitmapEditorScene(Scene):
                 # Check if we have only one film strip with one frame - if so, just send the frame
                 if (
                     len(examples) == AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT
-                    and hasattr(self, "canvas")
-                    and self.canvas
-                    and hasattr(self.canvas, "animated_sprite")
-                    and self.canvas.animated_sprite
-                    and len(self.canvas.animated_sprite._animations) == 1
+                    and self._has_single_animation_canvas()
                 ):
                     # Check if the single animation has only one frame
                     single_animation = next(iter(self.canvas.animated_sprite._animations.values()))

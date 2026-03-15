@@ -159,7 +159,6 @@ lint.ignore = [
   "PLR0912", # too-many-branches
   "PLR0915", # too-many-statements
   "PLR0914", # too-many-locals
-  "PLR0916", # too-many-boolean-expressions
 ]
 lint.exclude = []
 lint.fixable = [
