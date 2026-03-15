@@ -4,6 +4,8 @@ This module tests the integration between the multi-controller system
 and the film strip widget, including color-based sorting and visual indicators.
 """
 
+import operator
+
 import pygame
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
@@ -95,7 +97,7 @@ class TestFilmStripColorBasedSorting:
                 selection["priority"] = 999
 
         # Sort by priority
-        controller_selections.sort(key=lambda x: x["priority"])
+        controller_selections.sort(key=operator.itemgetter("priority"))
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [
@@ -150,7 +152,7 @@ class TestFilmStripColorBasedSorting:
                 controller_selections.append(selection)
 
         # Sort controllers by priority
-        controller_selections.sort(key=lambda x: x["priority"])
+        controller_selections.sort(key=operator.itemgetter("priority"))
 
         # Keyboard should be first, then controllers in color order
         assert keyboard_selection is not None

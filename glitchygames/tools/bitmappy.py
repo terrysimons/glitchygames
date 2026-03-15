@@ -9583,7 +9583,7 @@ class BitmapEditorScene(Scene):
                     color_counts[color] = color_counts.get(color, 0) + 1
 
                 # Sort by frequency and take top 64
-                sorted_by_frequency = sorted(color_counts.items(), key=lambda x: x[1], reverse=True)
+                sorted_by_frequency = sorted(color_counts.items(), key=operator.itemgetter(1), reverse=True)
                 unique_colors = {color for color, _ in sorted_by_frequency[:64]}
                 self.log.info(f"Quantized to {len(unique_colors)} colors")
 

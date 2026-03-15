@@ -5,6 +5,8 @@ activation order rather than controller ID, and the color-based sorting of
 controller indicators.
 """
 
+import operator
+
 import pytest
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
@@ -197,7 +199,7 @@ class TestColorBasedSorting:
                 selection["priority"] = 999
 
         # Sort by priority
-        controller_selections.sort(key=lambda x: x["priority"])
+        controller_selections.sort(key=operator.itemgetter("priority"))
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [

@@ -1,6 +1,7 @@
 """Adaptive delta time adjustment based on performance."""
 
 import logging
+import operator
 import time
 from typing import Self
 
@@ -612,7 +613,7 @@ class AdaptiveClamping:
 
             # Sort by frame count to create bell curve arrangement
             # Highest frame counts in center, tapering off to sides
-            all_buckets.sort(key=lambda x: x[1], reverse=True)  # Sort by frame count (descending)
+            all_buckets.sort(key=operator.itemgetter(1), reverse=True)  # Sort by frame count (descending)
 
             # Rearrange to bell curve: highest in center, tapering off
             bell_curve_buckets = []
@@ -740,7 +741,7 @@ class AdaptiveClamping:
                     all_buckets.append((bucket, count, percentage))
 
                 # Sort by frame count to create bell curve arrangement
-                all_buckets.sort(key=lambda x: x[1], reverse=True)
+                all_buckets.sort(key=operator.itemgetter(1), reverse=True)
 
                 # Rearrange to bell curve: highest in center, tapering off
                 bell_curve_buckets = []

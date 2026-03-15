@@ -162,7 +162,6 @@ lint.ignore = [
   "PLR0916", # too-many-boolean-expressions
 
   # --- Import placement (lazy/conditional imports are intentional) ---
-  "PLC0415", # import-outside-top-level
   "E402", # module-import-not-at-top-of-file
 
   # --- Module structure ---
@@ -189,7 +188,6 @@ lint.ignore = [
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---
-  "FURB118", # reimplemented-operator
   "FURB148", # unnecessary-enumerate
   "PLR6201", # literal-membership (list vs set in `in`)
   "PLR1714", # repeated-equality-comparison
@@ -230,6 +228,7 @@ lint.ignore = [
   "FAST001", # fast-api-redundant-response-model
   "PLW0602", # global-variable-not-assigned
   "PLW0603", # global-statement
+  "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
 ]
 lint.exclude = []
 lint.fixable = [
