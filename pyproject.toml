@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "toml",
-    "pygame",
+    "pygame-ce",
     "future",
     "cookiecutter",
     "pyperclip",
@@ -153,12 +153,6 @@ lint.ignore = [
   "TRY300", # Consider moving this statement to an `else` block
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
-
-  # --- Code complexity (game logic is inherently complex) ---
-  "PLR1702", # too-many-nested-blocks
-  "PLR0912", # too-many-branches
-  "PLR0915", # too-many-statements
-  "PLR0914", # too-many-locals
 ]
 lint.exclude = []
 lint.fixable = [

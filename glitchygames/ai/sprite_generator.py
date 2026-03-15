@@ -342,6 +342,73 @@ def build_sprite_generation_messages(
     ]
 
 
+def _check_truncated_pixel_data(content: str) -> tuple[bool, str]:
+    """Check if pixel data appears truncated (unclosed pixel blocks).
+
+    Args:
+        content: AI response content
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    """
+    if 'pixels = """' not in content:
+        return True, ""
+
+    # Check for unclosed pixel blocks
+    unclosed = re.findall(r'pixels = """([^"]+)$', content, re.DOTALL)
+    if not unclosed:
+        return True, ""
+
+    # Check if last line is incomplete (much shorter than expected)
+    last_block = unclosed[0]
+    lines = last_block.strip().split("\n")
+    if lines and len(lines) > 1:
+        # Compare last line length to previous line
+        last_line = lines[-1].strip()
+        prev_line = lines[-2].strip() if len(lines) > 1 else ""
+
+        # If last line is much shorter than previous (< 25%), likely truncated
+        if prev_line and len(last_line) < len(prev_line) * 0.25:
+            return False, "Response appears truncated (incomplete pixel data)"
+
+        # Or if last line is very short (< 16 chars) for pixel data
+        if len(last_line) < MIN_VALID_PIXEL_LINE_LENGTH:
+            return False, "Response appears truncated (incomplete pixel data)"
+
+    return True, ""
+
+
+def _check_mixed_format(content: str) -> tuple[bool, str]:
+    """Check for invalid mixed static and animated format.
+
+    Args:
+        content: AI response content
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    """
+    # Mixed format: [sprite] section with pixels AND [[animation]] sections
+    # Note: animated sprites can have pixels in [[animation.frame]] sections, that's valid
+    if "[sprite]" not in content or "[[animation]]" not in content:
+        return True, ""
+
+    # Check if pixels appears in [sprite] section (invalid for animated)
+    lines = content.split("\n")
+    in_sprite_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "[sprite]":
+            in_sprite_section = True
+        elif stripped.startswith("[") and not stripped.startswith("[colors"):
+            in_sprite_section = False
+        elif in_sprite_section and stripped.startswith("pixels"):
+            return False, "Mixed static and animated format (invalid)"
+
+    return True, ""
+
+
 def validate_ai_response(content: str) -> tuple[bool, str]:
     """Validate AI response for common errors.
 
@@ -382,26 +449,9 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         return False, "Response contains markdown code blocks (should be cleaned first)"
 
     # Check for truncated responses FIRST (before checking missing sections)
-    # Look for pixel data that ends abruptly without closing """
-    if 'pixels = """' in content:
-        # Also check for unclosed pixel blocks
-        unclosed = re.findall(r'pixels = """([^"]+)$', content, re.DOTALL)
-        if unclosed:
-            # Check if last line is incomplete (much shorter than expected)
-            last_block = unclosed[0]
-            lines = last_block.strip().split("\n")
-            if lines and len(lines) > 1:
-                # Compare last line length to previous line
-                last_line = lines[-1].strip()
-                prev_line = lines[-2].strip() if len(lines) > 1 else ""
-
-                # If last line is much shorter than previous (< 25%), likely truncated
-                if prev_line and len(last_line) < len(prev_line) * 0.25:
-                    return False, "Response appears truncated (incomplete pixel data)"
-
-                # Or if last line is very short (< 16 chars) for pixel data
-                if len(last_line) < MIN_VALID_PIXEL_LINE_LENGTH:
-                    return False, "Response appears truncated (incomplete pixel data)"
+    is_valid, error_message = _check_truncated_pixel_data(content)
+    if not is_valid:
+        return False, error_message
 
     # Check for basic TOML structure
     if "[sprite]" not in content_lower:
@@ -411,20 +461,9 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         return False, "Missing [colors] section"
 
     # Check for common format mistakes
-    # Mixed format: [sprite] section with pixels AND [[animation]] sections
-    # Note: animated sprites can have pixels in [[animation.frame]] sections, that's valid
-    if "[sprite]" in content and "[[animation]]" in content:
-        # Check if pixels appears in [sprite] section (invalid for animated)
-        lines = content.split("\n")
-        in_sprite_section = False
-        for line in lines:
-            stripped = line.strip()
-            if stripped == "[sprite]":
-                in_sprite_section = True
-            elif stripped.startswith("[") and not stripped.startswith("[colors"):
-                in_sprite_section = False
-            elif in_sprite_section and stripped.startswith("pixels"):
-                return False, "Mixed static and animated format (invalid)"
+    is_valid, error_message = _check_mixed_format(content)
+    if not is_valid:
+        return False, error_message
 
     # Check for comma-separated color values (common mistake)
     if re.search(r"(red|green|blue)\s*=\s*\d+\s*,", content):

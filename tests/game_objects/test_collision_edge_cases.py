@@ -6,15 +6,10 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
-def test_edge_cases():
-    """Test edge cases that could cause balls to get stuck or behave weirdly."""
-    LOG.debug("Testing collision physics edge cases...")
-
-    # Test case 1: Very small distance (balls overlapping)
+def _test_overlapping_balls():
+    """Test case 1: Very small distance (balls overlapping)."""
     LOG.debug("\nTest 1: Overlapping balls (distance = 0.1)")
-    ball1_speed = (100.0, 0.0)
-    ball2_speed = (0.0, 0.0)
-    dx, dy = 0.1, 0.0  # Very small distance
+    dx, dy = 0.1, 0.0
     distance = 0.1
 
     nx = dx / distance  # 1.0
@@ -23,59 +18,63 @@ def test_edge_cases():
     LOG.debug(f"  Normal vector: ({nx}, {ny})")
     LOG.debug(f"  Distance: {distance}")
 
-    # Test case 2: Distance exactly zero (balls at same position)
+
+def _test_zero_distance():
+    """Test case 2: Distance exactly zero (balls at same position)."""
     LOG.debug("\nTest 2: Balls at same position (distance = 0)")
-    dx, dy = 0.0, 0.0
     distance = 0.0
 
     if distance > 0:
-        nx = dx / distance
-        ny = dy / distance
-        LOG.debug(f"  Normal vector: ({nx}, {ny})")
+        LOG.debug("  Normal vector computed")
     else:
         LOG.debug("  ERROR: Division by zero!")
 
-    # Test case 3: Balls moving in same direction
+
+def _test_same_direction():
+    """Test case 3: Balls moving in same direction."""
     LOG.debug("\nTest 3: Balls moving in same direction")
-    ball1_speed = (100.0, 0.0)  # Moving right
-    ball2_speed = (50.0, 0.0)  # Also moving right, but slower
+    ball1_speed = (100.0, 0.0)
+    ball2_speed = (50.0, 0.0)
     dx, dy = 20.0, 0.0
     distance = 20.0
 
-    nx = dx / distance  # 1.0
-    ny = dy / distance  # 0.0
+    nx = dx / distance
+    ny = dy / distance
 
-    # Calculate relative velocity
-    dvx = ball2_speed[0] - ball1_speed[0]  # 50 - 100 = -50
-    dvy = ball2_speed[1] - ball1_speed[1]  # 0 - 0 = 0
-    dvn = dvx * nx + dvy * ny  # -50 * 1.0 + 0 * 0.0 = -50
+    dvx = ball2_speed[0] - ball1_speed[0]
+    dvy = ball2_speed[1] - ball1_speed[1]
+    dvn = dvx * nx + dvy * ny
 
     LOG.debug(f"  Relative velocity: ({dvx}, {dvy})")
     LOG.debug(f"  Relative velocity along normal: {dvn}")
     LOG.debug(f"  Should collide: {dvn < 0}")
 
-    # Test case 4: Balls moving away from each other
+
+def _test_moving_away():
+    """Test case 4: Balls moving away from each other."""
     LOG.debug("\nTest 4: Balls moving away from each other")
-    ball1_speed = (100.0, 0.0)  # Moving right
-    ball2_speed = (-50.0, 0.0)  # Moving left
+    ball1_speed = (100.0, 0.0)
+    ball2_speed = (-50.0, 0.0)
     dx, dy = 20.0, 0.0
     distance = 20.0
 
-    nx = dx / distance  # 1.0
-    ny = dy / distance  # 0.0
+    nx = dx / distance
+    ny = dy / distance
 
-    dvx = ball2_speed[0] - ball1_speed[0]  # -50 - 100 = -150
-    dvy = ball2_speed[1] - ball1_speed[1]  # 0 - 0 = 0
-    dvn = dvx * nx + dvy * ny  # -150 * 1.0 + 0 * 0.0 = -150
+    dvx = ball2_speed[0] - ball1_speed[0]
+    dvy = ball2_speed[1] - ball1_speed[1]
+    dvn = dvx * nx + dvy * ny
 
     LOG.debug(f"  Relative velocity: ({dvx}, {dvy})")
     LOG.debug(f"  Relative velocity along normal: {dvn}")
     LOG.debug(f"  Should collide: {dvn < 0}")
 
-    # Test case 5: One ball with very small velocity
+
+def _test_small_velocity():
+    """Test case 5: One ball with very small velocity."""
     LOG.debug("\nTest 5: One ball with very small velocity")
     ball1_speed = (100.0, 0.0)
-    ball2_speed = (0.001, 0.0)  # Very small velocity
+    ball2_speed = (0.001, 0.0)
     dx, dy = 20.0, 0.0
     distance = 20.0
 
@@ -98,6 +97,17 @@ def test_edge_cases():
         f"  After:  ball1=({new_ball1_x:.3f}, {new_ball1_y:.3f}),"
         f" ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})"
     )
+
+
+def test_edge_cases():
+    """Test edge cases that could cause balls to get stuck or behave weirdly."""
+    LOG.debug("Testing collision physics edge cases...")
+
+    _test_overlapping_balls()
+    _test_zero_distance()
+    _test_same_direction()
+    _test_moving_away()
+    _test_small_velocity()
 
 
 if __name__ == "__main__":

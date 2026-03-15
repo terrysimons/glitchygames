@@ -695,6 +695,96 @@ class GameEngine(events.EventManager):
         self.log.info(f"Window Title: {title}")
         self.log.info(f"Icon Title: {icontitle}")
 
+    def _initialize_event_managers(self: Self) -> None:
+        """Initialize all event managers for the game engine."""
+        self.registered_events = {}
+        from glitchygames.events.app import AppEventManager
+
+        self.app_manager = AppEventManager(game=self.scene_manager)
+        self.audio_manager = AudioEventManager(game=self.scene_manager)
+        self.drop_manager = DropEventManager(game=self.scene_manager)
+
+        using_pygame_ce = False
+        try:
+            using_pygame_ce = (
+                importlib.metadata.distribution("pygame").metadata["Name"] == "pygame-ce"
+            )
+        except (NameError, importlib.metadata.PackageNotFoundError):
+            using_pygame_ce = (
+                importlib.metadata.distribution("pygame-ce").metadata["Name"] == "pygame-ce"
+            )
+            LOG.warning("Pygame CE detected, disabling controller manager.")
+
+        if using_pygame_ce:
+            self.controller_manager = None
+            # Disable Controller Events
+            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+        else:
+            self.controller_manager = ControllerEventManager(game=self.scene_manager)
+            # Enable controller events for button presses and axis movements
+            pygame._sdl2.controller.set_eventstate(True)
+
+        self.touch_manager = TouchEventManager(game=self.scene_manager)
+        # https://glitchy-games.atlassian.net/browse/GG-23
+        self.font_manager = FontManager(game=self.scene_manager)
+        self.game_manager = GameEventManager(game=self.scene_manager)
+        self.joystick_manager = JoystickEventManager(game=self.scene_manager)
+        self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
+        self.midi_manager = MidiEventManager(game=self.scene_manager)
+        self.mouse_manager = MouseEventManager(game=self.scene_manager)
+        self.window_manager = WindowEventManager(game=self.scene_manager)
+
+        # Get count of joysticks
+        self.joysticks = []
+        if self.joystick_manager:
+            # JoystickEventManager.joysticks is a dictionary, convert to list of values
+            self.joysticks = list(self.joystick_manager.joysticks.values())
+        self.joystick_count = len(self.joysticks)
+
+    def _resolve_scene_name_for_error(self: Self) -> str:
+        """Resolve the current or previous scene name for error reporting.
+
+        Returns:
+            The scene name string for error messages.
+
+        """
+        current_scene = getattr(self.scene_manager, "current_scene", None)
+        if current_scene:
+            scene_name = getattr(current_scene, "NAME", None)
+            # If NAME is None, use the class name
+            if scene_name is None:
+                scene_name = current_scene.__class__.__name__
+            return scene_name
+
+        # If current scene is None, try to get the previous scene
+        previous_scene = getattr(self.scene_manager, "previous_scene", None)
+        if previous_scene:
+            scene_name = getattr(previous_scene, "NAME", None)
+            # If NAME is None, use the class name
+            if scene_name is None:
+                scene_name = previous_scene.__class__.__name__
+            return scene_name
+
+        return "None"
+
+    def _shutdown(self: Self) -> None:
+        """Print performance reports and shut down pygame."""
+        # Print performance report before shutdown
+        try:
+            from glitchygames.performance import performance_manager
+
+            # Configure performance manager with the same log interval as FPS
+            performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+            # Configure performance manager with target FPS for grading
+            performance_manager.set_target_fps(self.fps)
+            performance_manager.print_shutdown_report()
+            performance_manager.print_per_scene_shutdown_report()
+        except ImportError:
+            pass  # Performance module not available
+
+        pygame.display.quit()
+        pygame.quit()
+
     def start(self: Self) -> None:
         """Start the game engine.
 
@@ -721,52 +811,9 @@ class GameEngine(events.EventManager):
 
             # Set the scene manager's OPTIONS class variable for managers that expect it
             self.scene_manager.OPTIONS = GameEngine.OPTIONS
-
             self.scene_manager.game_engine = self
 
-            self.registered_events = {}
-            from glitchygames.events.app import AppEventManager
-
-            self.app_manager = AppEventManager(game=self.scene_manager)
-            self.audio_manager = AudioEventManager(game=self.scene_manager)
-            self.drop_manager = DropEventManager(game=self.scene_manager)
-
-            using_pygame_ce = False
-            try:
-                using_pygame_ce = (
-                    importlib.metadata.distribution("pygame").metadata["Name"] == "pygame-ce"
-                )
-            except (NameError, importlib.metadata.PackageNotFoundError):
-                using_pygame_ce = (
-                    importlib.metadata.distribution("pygame-ce").metadata["Name"] == "pygame-ce"
-                )
-                LOG.warning("Pygame CE detected, disabling controller manager.")
-
-            if using_pygame_ce:
-                self.controller_manager = None
-                # Disable Controller Events
-                pygame.event.set_blocked(events.CONTROLLER_EVENTS)
-            else:
-                self.controller_manager = ControllerEventManager(game=self.scene_manager)
-                # Enable controller events for button presses and axis movements
-                pygame._sdl2.controller.set_eventstate(True)
-
-            self.touch_manager = TouchEventManager(game=self.scene_manager)
-            # https://glitchy-games.atlassian.net/browse/GG-23
-            self.font_manager = FontManager(game=self.scene_manager)
-            self.game_manager = GameEventManager(game=self.scene_manager)
-            self.joystick_manager = JoystickEventManager(game=self.scene_manager)
-            self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
-            self.midi_manager = MidiEventManager(game=self.scene_manager)
-            self.mouse_manager = MouseEventManager(game=self.scene_manager)
-            self.window_manager = WindowEventManager(game=self.scene_manager)
-
-            # Get count of joysticks
-            self.joysticks = []
-            if self.joystick_manager:
-                # JoystickEventManager.joysticks is a dictionary, convert to list of values
-                self.joysticks = list(self.joystick_manager.joysticks.values())
-            self.joystick_count = len(self.joysticks)
+            self._initialize_event_managers()
 
             self.scene_manager.switch_to_scene(self.game)
             # Initialize timer backend for draw-loop pacing (after options exist)
@@ -792,22 +839,7 @@ class GameEngine(events.EventManager):
                 LOG.debug("Performance trim percent configuration failed: %s", perf_error)
             self.scene_manager.start()
         except Exception:
-            current_scene = getattr(self.scene_manager, "current_scene", None)
-            if current_scene:
-                scene_name = getattr(current_scene, "NAME", None)
-                # If NAME is None, use the class name
-                if scene_name is None:
-                    scene_name = current_scene.__class__.__name__
-            else:
-                # If current scene is None, try to get the previous scene
-                previous_scene = getattr(self.scene_manager, "previous_scene", None)
-                if previous_scene:
-                    scene_name = getattr(previous_scene, "NAME", None)
-                    # If NAME is None, use the class name
-                    if scene_name is None:
-                        scene_name = previous_scene.__class__.__name__
-                else:
-                    scene_name = "None"
+            scene_name = self._resolve_scene_name_for_error()
             # In test environments, use debug level to avoid cluttering test output
             # In production, log exceptions normally
             import sys
@@ -819,21 +851,7 @@ class GameEngine(events.EventManager):
             # In production, handle exceptions gracefully
             # Tests can override this behavior if needed
         finally:
-            # Print performance report before shutdown
-            try:
-                from glitchygames.performance import performance_manager
-
-                # Configure performance manager with the same log interval as FPS
-                performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-                # Configure performance manager with target FPS for grading
-                performance_manager.set_target_fps(self.fps)
-                performance_manager.print_shutdown_report()
-                performance_manager.print_per_scene_shutdown_report()
-            except ImportError:
-                pass  # Performance module not available
-
-            pygame.display.quit()
-            pygame.quit()
+            self._shutdown()
 
             if GameEngine.OPTIONS["profile"]:
                 profiler.disable()
@@ -1268,6 +1286,31 @@ class GameEngine(events.EventManager):
 
         return False
 
+    def _build_window_event_dispatch(self: Self) -> dict:
+        """Build dispatch table mapping window event types to handler methods.
+
+        Returns:
+            Dictionary mapping pygame window event types to handler callables.
+
+        """
+        return {
+            pygame.WINDOWSIZECHANGED: self.window_manager.on_window_size_changed_event,
+            pygame.WINDOWRESTORED: self.window_manager.on_window_restored_event,
+            pygame.WINDOWHITTEST: self.window_manager.on_window_hit_test_event,
+            pygame.WINDOWHIDDEN: self.window_manager.on_window_hidden_event,
+            pygame.WINDOWMINIMIZED: self.window_manager.on_window_minimized_event,
+            pygame.WINDOWMAXIMIZED: self.window_manager.on_window_maximized_event,
+            pygame.WINDOWMOVED: self.window_manager.on_window_moved_event,
+            pygame.WINDOWCLOSE: self.window_manager.on_window_close_event,
+            pygame.WINDOWEXPOSED: self.window_manager.on_window_exposed_event,
+            pygame.WINDOWFOCUSLOST: self.window_manager.on_window_focus_lost_event,
+            pygame.WINDOWFOCUSGAINED: self.window_manager.on_window_focus_gained_event,
+            pygame.WINDOWRESIZED: self.window_manager.on_window_resized_event,
+            pygame.WINDOWLEAVE: self.window_manager.on_window_leave_event,
+            pygame.WINDOWENTER: self.window_manager.on_window_enter_event,
+            pygame.WINDOWSHOWN: self.window_manager.on_window_shown_event,
+        }
+
     def process_window_event(self: Self, event: events.HashableEvent) -> None:
         """Process a window event.
 
@@ -1278,76 +1321,10 @@ class GameEngine(events.EventManager):
             bool: True if the event was handled, False otherwise.
 
         """
-        if event.type == pygame.WINDOWSIZECHANGED:
-            # WINDOWSIZECHANGED x, y
-            self.window_manager.on_window_size_changed_event(event)
-            return True
-
-        if event.type == pygame.WINDOWRESTORED:
-            self.window_manager.on_window_restored_event(event)
-            return True
-
-        if event.type == pygame.WINDOWHITTEST:
-            self.window_manager.on_window_hit_test_event(event)
-            return True
-
-        if event.type == pygame.WINDOWHIDDEN:
-            # WINDOWHIDDEN x, y
-            self.window_manager.on_window_hidden_event(event)
-            return True
-
-        if event.type == pygame.WINDOWMINIMIZED:
-            # WINDOWMINIMIZED x, y
-            self.window_manager.on_window_minimized_event(event)
-            return True
-
-        if event.type == pygame.WINDOWMAXIMIZED:
-            # WINDOWMAXIMIZED x, y
-            self.window_manager.on_window_maximized_event(event)
-            return True
-
-        if event.type == pygame.WINDOWMOVED:
-            # WINDOWMOVED x, y
-            self.window_manager.on_window_moved_event(event)
-            return True
-
-        if event.type == pygame.WINDOWCLOSE:
-            # WINDOWCLOSE
-            self.window_manager.on_window_close_event(event)
-            return True
-
-        if event.type == pygame.WINDOWEXPOSED:
-            self.window_manager.on_window_exposed_event(event)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSLOST:
-            # WINDOWFOCUSLOST
-            self.window_manager.on_window_focus_lost_event(event)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSGAINED:
-            # WINDOWFOCUSGAINED
-            self.window_manager.on_window_focus_gained_event(event)
-            return True
-
-        if event.type == pygame.WINDOWRESIZED:
-            # WINDOWRESIZED x, y
-            self.window_manager.on_window_resized_event(event)
-            return True
-
-        if event.type == pygame.WINDOWLEAVE:
-            # WINDOWLEAVE
-            self.window_manager.on_window_leave_event(event)
-            return True
-
-        if event.type == pygame.WINDOWENTER:
-            # WINDOWENTER
-            self.window_manager.on_window_enter_event(event)
-            return True
-
-        if event.type == pygame.WINDOWSHOWN:
-            # WINDOWSHOWN
-            self.window_manager.on_window_shown_event(event)
+        dispatch = self._build_window_event_dispatch()
+        handler = dispatch.get(event.type)
+        if handler:
+            handler(event)
             return True
 
         return False

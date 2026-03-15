@@ -246,6 +246,93 @@ class RendererService:
 
         return png_bytes, png_base64
 
+    def _get_frame_surface(
+        self, sprite: AnimatedSprite, sprite_frame: object, *, has_frame_manager: bool
+    ) -> pygame.Surface | None:
+        """Get the surface for a single sprite frame.
+
+        Tries frame_manager first, then falls back to direct attribute access.
+
+        Args:
+            sprite: The animated sprite
+            sprite_frame: The individual frame object
+            has_frame_manager: Whether the sprite has a frame_manager
+
+        Returns:
+            The frame surface, or None if unavailable
+
+        """
+        frame_surface = None
+
+        # First try: get_current_frame() if frame_manager was set
+        if has_frame_manager:
+            frame = sprite.get_current_frame()
+            if frame:
+                frame_surface = frame.image
+
+        # Second try: direct access to sprite_frame.image
+        if frame_surface is None and hasattr(sprite_frame, "image"):
+            frame_surface = sprite_frame.image
+
+        return frame_surface
+
+    def _render_animation_frames(
+        self,
+        sprite: AnimatedSprite,
+        all_animations: dict,
+        scale: int,
+        *,
+        has_frame_manager: bool,
+    ) -> tuple[list[str], list[RenderedFrame]]:
+        """Render frames from all animations of a sprite.
+
+        Args:
+            sprite: The animated sprite
+            all_animations: Dictionary of animation name to frame lists
+            scale: Scale factor for output
+            has_frame_manager: Whether the sprite has a frame_manager
+
+        Returns:
+            Tuple of (flat list of base64 PNGs, list of RenderedFrame with indices)
+
+        """
+        frames_base64 = []
+        rendered_frames = []
+
+        for animation_index, (animation_name, frames) in enumerate(all_animations.items()):
+            LOG.debug(f"Animation '{animation_name}' has {len(frames)} frames")
+
+            if has_frame_manager:
+                # Set current animation via frame_manager
+                sprite.frame_manager._current_animation = animation_name
+
+            for frame_index, sprite_frame in enumerate(frames):
+                if has_frame_manager:
+                    # Set current frame via frame_manager
+                    sprite.frame_manager._current_frame = frame_index
+
+                frame_surface = self._get_frame_surface(
+                    sprite, sprite_frame, has_frame_manager=has_frame_manager
+                )
+
+                if frame_surface is not None:
+                    _, png_base64 = self._render_frame_to_png(frame_surface, scale)
+                    frames_base64.append(png_base64)
+                    rendered_frames.append(
+                        RenderedFrame(
+                            animation_index=animation_index,
+                            frame_index=frame_index,
+                            png_base64=png_base64,
+                        )
+                    )
+                else:
+                    LOG.warning(
+                        f"Could not get surface for frame {frame_index} "
+                        f"of animation '{animation_name}'"
+                    )
+
+        return frames_base64, rendered_frames
+
     def _render_all_frames(
         self, sprite: AnimatedSprite, scale: int = 1
     ) -> tuple[list[str], list[RenderedFrame]]:
@@ -259,9 +346,6 @@ class RendererService:
             Tuple of (flat list of base64 PNGs, list of RenderedFrame with indices)
 
         """
-        frames_base64 = []
-        rendered_frames = []
-
         # Use public 'frames' property if available, fallback to _animations
         if hasattr(sprite, "frames"):
             all_animations = sprite.frames
@@ -269,11 +353,11 @@ class RendererService:
             all_animations = sprite._animations
         else:
             LOG.debug("Sprite has no frames or _animations attribute")
-            return frames_base64, rendered_frames
+            return [], []
 
         if not all_animations:
             LOG.debug("Sprite has empty animations dict")
-            return frames_base64, rendered_frames
+            return [], []
 
         LOG.debug(f"Rendering {len(all_animations)} animations")
 
@@ -287,48 +371,9 @@ class RendererService:
             original_frame = sprite.frame_manager.current_frame
 
         try:
-            # Iterate through all animations and their frames
-            for animation_index, (animation_name, frames) in enumerate(all_animations.items()):
-                LOG.debug(f"Animation '{animation_name}' has {len(frames)} frames")
-
-                if has_frame_manager:
-                    # Set current animation via frame_manager
-                    sprite.frame_manager._current_animation = animation_name
-
-                for frame_index, sprite_frame in enumerate(frames):
-                    if has_frame_manager:
-                        # Set current frame via frame_manager
-                        sprite.frame_manager._current_frame = frame_index
-
-                    # Get frame surface - try multiple approaches
-                    frame_surface = None
-
-                    # First try: get_current_frame() if frame_manager was set
-                    if has_frame_manager:
-                        frame = sprite.get_current_frame()
-                        if frame:
-                            frame_surface = frame.image
-
-                    # Second try: direct access to sprite_frame.image
-                    if frame_surface is None and hasattr(sprite_frame, "image"):
-                        frame_surface = sprite_frame.image
-
-                    if frame_surface is not None:
-                        _, png_base64 = self._render_frame_to_png(frame_surface, scale)
-                        frames_base64.append(png_base64)
-                        rendered_frames.append(
-                            RenderedFrame(
-                                animation_index=animation_index,
-                                frame_index=frame_index,
-                                png_base64=png_base64,
-                            )
-                        )
-                    else:
-                        LOG.warning(
-                            f"Could not get surface for frame {frame_index} "
-                            f"of animation '{animation_name}'"
-                        )
-
+            frames_base64, rendered_frames = self._render_animation_frames(
+                sprite, all_animations, scale, has_frame_manager=has_frame_manager
+            )
         finally:
             # Restore original state
             if has_frame_manager and original_animation is not None:

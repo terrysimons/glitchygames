@@ -476,6 +476,52 @@ class BallSprite(Sprite):
                 self.speed_up(speed_up_type="linear")
                 self._last_speed_up_time = current_time
 
+    def _resolve_speed_up_type(
+        self: Self,
+        exponential_x_flag: int,
+        exponential_y_flag: int,
+        logarithmic_x_flag: int,
+        logarithmic_y_flag: int,
+        linear_flag: int,
+    ) -> str | None:
+        """Resolve which speed-up type to apply given a set of mode flags.
+
+        Checks from highest priority (exponential both) to lowest (linear).
+
+        Args:
+            exponential_x_flag: SpeedUpMode flag for exponential X.
+            exponential_y_flag: SpeedUpMode flag for exponential Y.
+            logarithmic_x_flag: SpeedUpMode flag for logarithmic X.
+            logarithmic_y_flag: SpeedUpMode flag for logarithmic Y.
+            linear_flag: SpeedUpMode flag for linear.
+
+        Returns:
+            The speed-up type string, or None if no flag matched.
+
+        """
+        # Check for both X and Y exponential speed-up first (highest priority)
+        if self.speed_up_mode & exponential_x_flag and self.speed_up_mode & exponential_y_flag:
+            return "exponential_both"
+        # Check for both X and Y logarithmic speed-up
+        if self.speed_up_mode & logarithmic_x_flag and self.speed_up_mode & logarithmic_y_flag:
+            return "logarithmic_both"
+        # Check for exponential X speed-up
+        if self.speed_up_mode & exponential_x_flag:
+            return "exponential_x"
+        # Check for exponential Y speed-up
+        if self.speed_up_mode & exponential_y_flag:
+            return "exponential_y"
+        # Check for logarithmic X speed-up
+        if self.speed_up_mode & logarithmic_x_flag:
+            return "logarithmic_x"
+        # Check for logarithmic Y speed-up
+        if self.speed_up_mode & logarithmic_y_flag:
+            return "logarithmic_y"
+        # Check for linear speed-up
+        if self.speed_up_mode & linear_flag:
+            return "linear"
+        return None
+
     def _check_bounce_speed_up(self: Self, bounce_type: str) -> None:
         """Check if speed-up should be applied based on bounce type.
 
@@ -484,63 +530,26 @@ class BallSprite(Sprite):
 
         """
         if bounce_type == "paddle":
-            # Check for paddle bounce speed-up modes
-            # Check for both X and Y exponential speed-up first (highest priority)
-            if (
-                self.speed_up_mode & SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X
-                and self.speed_up_mode & SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y
-            ):
-                self.speed_up(speed_up_type="exponential_both")
-            # Check for both X and Y logarithmic speed-up
-            elif (
-                self.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
-                and self.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
-            ):
-                self.speed_up(speed_up_type="logarithmic_both")
-            # Check for exponential X speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X:
-                self.speed_up(speed_up_type="exponential_x")
-            # Check for exponential Y speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y:
-                self.speed_up(speed_up_type="exponential_y")
-            # Check for logarithmic X speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X:
-                self.speed_up(speed_up_type="logarithmic_x")
-            # Check for logarithmic Y speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y:
-                self.speed_up(speed_up_type="logarithmic_y")
-            # Check for linear speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_BOUNCE_LINEAR:
-                self.speed_up(speed_up_type="linear")
+            speed_up_type = self._resolve_speed_up_type(
+                SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X,
+                SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y,
+                SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
+                SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
+                SpeedUpMode.ON_BOUNCE_LINEAR,
+            )
         elif bounce_type == "wall":
-            # Check for wall bounce speed-up modes (check most specific first)
-            # Check for both X and Y exponential speed-up first (highest priority)
-            if (
-                self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_X
-                and self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_Y
-            ):
-                self.speed_up(speed_up_type="exponential_both")
-            # Check for both X and Y logarithmic speed-up
-            elif (
-                self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X
-                and self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y
-            ):
-                self.speed_up(speed_up_type="logarithmic_both")
-            # Check for exponential X speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_X:
-                self.speed_up(speed_up_type="exponential_x")
-            # Check for exponential Y speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_Y:
-                self.speed_up(speed_up_type="exponential_y")
-            # Check for logarithmic X speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X:
-                self.speed_up(speed_up_type="logarithmic_x")
-            # Check for logarithmic Y speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y:
-                self.speed_up(speed_up_type="logarithmic_y")
-            # Check for linear speed-up
-            elif self.speed_up_mode & SpeedUpMode.ON_WALL_BOUNCE_LINEAR:
-                self.speed_up(speed_up_type="linear")
+            speed_up_type = self._resolve_speed_up_type(
+                SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_X,
+                SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_Y,
+                SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
+                SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
+                SpeedUpMode.ON_WALL_BOUNCE_LINEAR,
+            )
+        else:
+            speed_up_type = None
+
+        if speed_up_type is not None:
+            self.speed_up(speed_up_type=speed_up_type)
 
     def on_paddle_bounce(self: Self) -> None:
         """Trigger paddle bounce logarithmic speed-up if enabled.

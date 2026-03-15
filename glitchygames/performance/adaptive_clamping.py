@@ -558,17 +558,18 @@ class AdaptiveClamping:
             "could_tick_times": target_frame_time / avg_frame_time if avg_frame_time > 0 else 0,
         }
 
-    def print_shutdown_report(self: Self) -> None:
-        """Print a comprehensive performance report at shutdown."""
-        stats = self.get_shutdown_stats()
+    def _log_fps_stats(
+        self: Self,
+        stats: dict,
+        spare_stats: dict,
+    ) -> None:
+        """Log FPS statistics and spare time information.
 
-        if "message" in stats:
-            # Skip global report if not enough data - per-scene reports are more useful
-            return
+        Args:
+            stats: Shutdown stats dictionary with FPS data
+            spare_stats: Spare time stats dictionary
 
-        LOG.info(f"\n{'=' * 80}")
-        LOG.info("🎮 GAME PERFORMANCE REPORT")
-        LOG.info("=" * 80)
+        """
         LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
         trim_label = (
             "no trimming"
@@ -577,8 +578,6 @@ class AdaptiveClamping:
         )
         LOG.info(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
 
-        # Add spare time information for capped FPS
-        spare_stats = self.get_spare_time_stats()
         if "message" not in spare_stats:
             LOG.info(f"🎯 Target FPS: {self._target_fps:.1f}")
 
@@ -603,75 +602,73 @@ class AdaptiveClamping:
             )
             LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
 
-        # Print FPS histogram (horizontal)
+    @staticmethod
+    def _log_fps_histogram(fps_histogram: dict, trimmed_frames: int) -> None:
+        """Log FPS histogram in bell curve arrangement.
+
+        Args:
+            fps_histogram: Dictionary mapping bucket keys to frame counts
+            trimmed_frames: Total number of trimmed frames for percentage calculation
+
+        """
+        LOG.info("\n📊 FPS Distribution:")
+        max_count = max(fps_histogram.values())
+
+        # Build bucket list with percentages
+        all_buckets = []
+        for bucket, count in fps_histogram.items():
+            percentage = (count / trimmed_frames) * 100 if trimmed_frames > 0 else 0
+            all_buckets.append((bucket, count, percentage))
+
+        # Sort by frame count to create bell curve arrangement
+        # Highest frame counts in center, tapering off to sides
+        all_buckets.sort(key=operator.itemgetter(1), reverse=True)
+
+        # Rearrange to bell curve: highest in center, tapering off
+        left_side = []
+        right_side = []
+        for i, bucket_entry in enumerate(all_buckets):
+            if i % 2 == 0:
+                left_side.append(bucket_entry)
+            else:
+                right_side.append(bucket_entry)
+
+        # Combine: left side (reversed) + right side = bell curve
+        all_buckets = left_side[::-1] + right_side
+
+        # Calculate available space for bars (accounting for prefix text)
+        prefix_length = 40  # Conservative estimate for prefix text
+        max_bar_length = 80 - prefix_length  # Maximum bar length (40 chars)
+
+        for bucket, count, percentage in all_buckets:
+            bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
+            bar_length = min(bar_length, max_bar_length)
+            bar = "█" * bar_length
+            if isinstance(bucket, str):
+                fps_range = f"{bucket:>3s} FPS"
+            elif isinstance(bucket, tuple):
+                fps_range = f"{bucket[0]:3d}-{bucket[1]:3d} FPS"
+            else:
+                fps_range = f"{bucket:3d}-{bucket + 4:3d} FPS"
+            LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
+
+    def print_shutdown_report(self: Self) -> None:
+        """Print a comprehensive performance report at shutdown."""
+        stats = self.get_shutdown_stats()
+
+        if "message" in stats:
+            # Skip global report if not enough data - per-scene reports are more useful
+            return
+
+        LOG.info(f"\n{'=' * 80}")
+        LOG.info("🎮 GAME PERFORMANCE REPORT")
+        LOG.info("=" * 80)
+
+        spare_stats = self.get_spare_time_stats()
+        self._log_fps_stats(stats, spare_stats)
+
         if stats["fps_histogram"]:
-            LOG.info("\n📊 FPS Distribution:")
-            max_count = max(stats["fps_histogram"].values())
-            max_bar_length = 30  # Maximum bar length for 80-char display
-
-            # Show all 20 buckets, arranged in bell curve shape by frame count
-            all_buckets = []
-
-            for bucket in stats["fps_histogram"]:
-                count = stats["fps_histogram"][bucket]
-                percentage = (
-                    (count / stats["trimmed_frames"]) * 100 if stats["trimmed_frames"] > 0 else 0
-                )
-                all_buckets.append((bucket, count, percentage))
-
-            # Sort by frame count to create bell curve arrangement
-            # Highest frame counts in center, tapering off to sides
-            all_buckets.sort(
-                key=operator.itemgetter(1), reverse=True
-            )  # Sort by frame count (descending)
-
-            # Rearrange to bell curve: highest in center, tapering off
-            bell_curve_buckets = []
-            left_side = []
-            right_side = []
-
-            for i, (bucket, count, percentage) in enumerate(all_buckets):
-                if i % 2 == 0:
-                    left_side.append((bucket, count, percentage))
-                else:
-                    right_side.append((bucket, count, percentage))
-
-            # Combine: left side (reversed) + right side = bell curve
-            bell_curve_buckets = left_side[::-1] + right_side
-            all_buckets = bell_curve_buckets
-
-            # Calculate available space for bars (accounting for prefix text)
-            # Format: "  XXX-XXX FPS: XXXXX frames (XX.X%) "
-            # Worst case: "  Other FPS:   10000 frames (100.0%) "
-            prefix_length = 40  # Conservative estimate for prefix text
-            max_bar_length = 80 - prefix_length  # Maximum bar length (40 chars)
-
-            # Cap bar length to prevent wrapping
-            def calculate_bar_length(count: int, max_count: int) -> int:
-                bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
-                return min(bar_length, max_bar_length)  # Cap at maximum
-
-            # Print all 20 buckets
-            for bucket, count, percentage in all_buckets:
-                bar_length = calculate_bar_length(count, max_count)
-                bar = "█" * bar_length
-                if isinstance(bucket, str):
-                    # Single FPS value bucket
-                    LOG.info(f"  {bucket:>3s} FPS: {count:5d} frames ({percentage:5.1f}%) {bar}")
-                elif isinstance(bucket, tuple):
-                    # FPS range bucket
-                    LOG.info(
-                        f"  {bucket[0]:3d}-{bucket[1]:3d} FPS:"
-                        f" {count:5d} frames"
-                        f" ({percentage:5.1f}%) {bar}"
-                    )
-                else:
-                    # Legacy single number bucket
-                    LOG.info(
-                        f"  {bucket:3d}-{bucket + 4:3d} FPS:"
-                        f" {count:5d} frames"
-                        f" ({percentage:5.1f}%) {bar}"
-                    )
+            self._log_fps_histogram(stats["fps_histogram"], stats["trimmed_frames"])
 
         LOG.info("=" * 80)
 
@@ -702,116 +699,11 @@ class AdaptiveClamping:
                 LOG.info(f"   {stats['message']}")
                 continue
 
-            LOG.info(f"📊 Total Frames: {stats['total_frames']:,}")
-            trim_label = (
-                "no trimming"
-                if self._trim_percent == 0
-                else f"dropped top/bottom {self._trim_percent:.1f}%"
-            )
-            LOG.info(f"📈 Analyzed Frames: {stats['trimmed_frames']:,} ({trim_label})")
-
-            # Add spare time information for capped FPS
             spare_stats = self.get_spare_time_stats(scene_name)
-            if "message" not in spare_stats:
-                LOG.info(f"🎯 Target FPS: {self._target_fps:.1f}")
+            self._log_fps_stats(stats, spare_stats)
 
-            LOG.info(f"⚡ Average FPS: {stats['avg_fps']:.1f}")
-            LOG.info(f"📉 Minimum FPS: {stats['min_fps']:.1f}")
-            LOG.info(f"📈 Maximum FPS: {stats['max_fps']:.1f}")
-            LOG.info(f"📊 Median FPS: {stats['median_fps']:.1f}")
-            LOG.info(f"🏆 Performance Grade: {stats['performance_grade']}")
-
-            if "message" not in spare_stats:
-                LOG.info(
-                    f"⏱️  Target Frame Time: {spare_stats['target_frame_time_ms']:.1f}ms per-tick"
-                )
-                LOG.info(
-                    f"⏱️  Average Frame Time: {spare_stats['avg_frame_time_ms']:.1f}ms per-tick"
-                )
-                LOG.info(
-                    f"⏱️  Spare Time: "
-                    f"{spare_stats['avg_spare_time_ms']:.1f}ms"
-                    f" per-tick "
-                    f"({spare_stats['spare_capacity_percent']:.1f}%"
-                    f" of scheduled capacity)"
-                )
-                LOG.info(
-                    f"🎨 Draw Time: "
-                    f"{spare_stats['avg_frame_time_ms']:.1f}ms"
-                    f" per-tick "
-                    f"({(100 - spare_stats['spare_capacity_percent']):.1f}%"
-                    f" of scheduled capacity)"
-                )
-                LOG.info(f"🔄 Could Tick: {spare_stats['could_tick_times']:.1f}x faster")
-
-            # Print FPS histogram for this scene
             if stats["fps_histogram"]:
-                LOG.info("\n📊 FPS Distribution:")
-                max_count = max(stats["fps_histogram"].values())
-                max_bar_length = 30
-
-                # Show all buckets, arranged in bell curve shape by frame count
-                all_buckets = []
-
-                for bucket in stats["fps_histogram"]:
-                    count = stats["fps_histogram"][bucket]
-                    percentage = (
-                        (count / stats["trimmed_frames"]) * 100
-                        if stats["trimmed_frames"] > 0
-                        else 0
-                    )
-                    all_buckets.append((bucket, count, percentage))
-
-                # Sort by frame count to create bell curve arrangement
-                all_buckets.sort(key=operator.itemgetter(1), reverse=True)
-
-                # Rearrange to bell curve: highest in center, tapering off
-                bell_curve_buckets = []
-                left_side = []
-                right_side = []
-
-                for i, (bucket, count, percentage) in enumerate(all_buckets):
-                    if i % 2 == 0:
-                        left_side.append((bucket, count, percentage))
-                    else:
-                        right_side.append((bucket, count, percentage))
-
-                # Combine: left side (reversed) + right side = bell curve
-                bell_curve_buckets = left_side[::-1] + right_side
-                all_buckets = bell_curve_buckets
-
-                # Calculate available space for bars
-                prefix_length = 40
-                max_bar_length = 80 - prefix_length
-
-                def calculate_bar_length(
-                    count: int, max_count: int, max_bar_length: int = max_bar_length
-                ) -> int:
-                    bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
-                    return min(bar_length, max_bar_length)
-
-                # Print all buckets with proper column alignment
-                for bucket, count, percentage in all_buckets:
-                    bar_length = calculate_bar_length(count, max_count)
-                    bar = "█" * bar_length
-                    if isinstance(bucket, str):
-                        # Single FPS value
-                        fps_range = f"{bucket:>3s} FPS"
-                        LOG.info(f"  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}")
-                    elif isinstance(bucket, tuple):
-                        # Fixed-width columns: FPS range (15 chars),
-                        # frames (8 chars), percentage (10 chars)
-                        fps_range = f"{bucket[0]:3d}-{bucket[1]:3d} FPS"
-                        LOG.info(
-                            f"  {fps_range:15s} {count:5d}"
-                            f" frames ({percentage:5.1f}%) {bar}"
-                        )
-                    else:
-                        fps_range = f"{bucket:3d}-{bucket + 4:3d} FPS"
-                        LOG.info(
-                            f"  {fps_range:15s} {count:5d}"
-                            f" frames ({percentage:5.1f}%) {bar}"
-                        )
+                self._log_fps_histogram(stats["fps_histogram"], stats["trimmed_frames"])
 
         LOG.info("=" * 80)
 

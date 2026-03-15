@@ -1244,6 +1244,40 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
+    def _generate_pixel_rows(
+        self, color_map: dict | None = None
+    ) -> tuple[list[str], dict]:
+        """Generate pixel rows from the sprite's pixel data.
+
+        Args:
+            color_map: Mapping of colors to characters (optional, will be generated if not provided)
+
+        Returns:
+            Tuple of (pixel_rows list, color_map dict)
+
+        """
+        if color_map is None:
+            color_map = self._create_color_map()
+
+        # Process pixels into rows
+        pixel_rows = []
+        # Use height and width if pixels_tall/pixels_across not available
+        pixels_tall = getattr(self, "pixels_tall", self.height)
+        pixels_across = getattr(self, "pixels_across", self.width)
+
+        for y in range(pixels_tall):
+            row = ""
+            for x in range(pixels_across):
+                pixel_index = y * pixels_across + x
+                if pixel_index < len(self.pixels):
+                    pixel_color = self.pixels[pixel_index]
+                    row += color_map.get(pixel_color, ".")
+                else:
+                    row += "."  # Default character for missing pixels
+            pixel_rows.append(row)
+
+        return pixel_rows, color_map
+
     def _create_toml_config(
         self, pixel_rows: list[str] | None = None, color_map: dict | None = None
     ) -> dict:
@@ -1265,29 +1299,7 @@ class BitmappySprite(Sprite):
             if not hasattr(self, "pixels") or not self.pixels:
                 pixel_rows = []
             else:
-                # Create color map if not provided
-                if color_map is None:
-                    color_map = self._create_color_map()
-
-                # Process pixels into rows
-                pixel_rows = []
-                # Use height and width if pixels_tall/pixels_across not available
-                pixels_tall = getattr(self, "pixels_tall", self.height)
-                pixels_across = getattr(self, "pixels_across", self.width)
-
-                for y in range(pixels_tall):
-                    row = ""
-                    for x in range(pixels_across):
-                        pixel_index = y * pixels_across + x
-                        if pixel_index < len(self.pixels):
-                            pixel_color = self.pixels[pixel_index]
-                            if pixel_color in color_map:
-                                row += color_map[pixel_color]
-                            else:
-                                row += "."  # Default character for missing colors
-                        else:
-                            row += "."  # Default character for missing pixels
-                    pixel_rows.append(row)
+                pixel_rows, color_map = self._generate_pixel_rows(color_map)
 
         if color_map is None:
             color_map = self._create_color_map()
@@ -1559,6 +1571,63 @@ class BitmappySprite(Sprite):
         """
         self.log.debug(f"{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}")
 
+    def _render_animated_str(self: Self, toml_data: dict) -> str:
+        """Render an animated sprite's TOML data to a colorized ASCII string.
+
+        Args:
+            toml_data: Parsed TOML data containing animation and colors sections.
+
+        Returns:
+            str: Colorized representation of all animation frames.
+
+        """
+        from glitchygames.tools.ascii_renderer import ASCIIRenderer
+
+        output_lines = []
+
+        # Show sprite header once
+        if "sprite" in toml_data and "name" in toml_data["sprite"]:
+            output_lines.extend((
+                "[sprite]",
+                f'name = "{toml_data["sprite"]["name"]}"',
+                "",
+            ))
+
+        # Show all animations and frames
+        for anim_idx, animation in enumerate(toml_data["animation"]):
+            namespace = animation.get("namespace", f"animation_{anim_idx}")
+            output_lines.extend((
+                f"# Namespace: {namespace}",
+                "",
+            ))
+
+            if "frame" not in animation:
+                output_lines.extend(("# No frames found in this animation", ""))
+                continue
+
+            for frame_idx, frame in enumerate(animation["frame"]):
+                output_lines.append(f"# Frame {frame_idx}:")
+
+                if "pixels" not in frame:
+                    output_lines.extend(("# No pixels data in this frame", ""))
+                    continue
+
+                # Create a temporary sprite data for this frame
+                frame_data = {
+                    "sprite": {
+                        "name": toml_data.get("sprite", {}).get("name", "unnamed"),
+                        "pixels": frame["pixels"],
+                    },
+                    "colors": toml_data.get("colors", {}),
+                }
+
+                # Render this frame with colorized output
+                renderer = ASCIIRenderer()
+                frame_result = renderer.render_sprite(frame_data)
+                output_lines.extend((frame_result, ""))
+
+        return "\n".join(output_lines)
+
     def __str__(self: Self) -> str:
         """Return a colorized ASCII representation of the sprite.
 
@@ -1581,48 +1650,7 @@ class BitmappySprite(Sprite):
 
             # Check if it's an animated sprite and show all frames
             if "animation" in toml_data and len(toml_data["animation"]) > 0:
-                output_lines = []
-
-                # Show sprite header once
-                if "sprite" in toml_data and "name" in toml_data["sprite"]:
-                    output_lines.extend((
-                        "[sprite]",
-                        f'name = "{toml_data["sprite"]["name"]}"',
-                        "",
-                    ))
-
-                # Show all animations and frames
-                for anim_idx, animation in enumerate(toml_data["animation"]):
-                    namespace = animation.get("namespace", f"animation_{anim_idx}")
-                    output_lines.extend((
-                        f"# Namespace: {namespace}",
-                        "",
-                    ))
-
-                    if "frame" in animation:
-                        for frame_idx, frame in enumerate(animation["frame"]):
-                            output_lines.append(f"# Frame {frame_idx}:")
-
-                            if "pixels" in frame:
-                                # Create a temporary sprite data for this frame
-                                frame_data = {
-                                    "sprite": {
-                                        "name": toml_data.get("sprite", {}).get("name", "unnamed"),
-                                        "pixels": frame["pixels"],
-                                    },
-                                    "colors": toml_data.get("colors", {}),
-                                }
-
-                                # Render this frame with colorized output
-                                renderer = ASCIIRenderer()
-                                frame_result = renderer.render_sprite(frame_data)
-                                output_lines.extend((frame_result, ""))
-                            else:
-                                output_lines.extend(("# No pixels data in this frame", ""))
-                    else:
-                        output_lines.extend(("# No frames found in this animation", ""))
-
-                return "\n".join(output_lines)
+                return self._render_animated_str(toml_data)
             # Static sprite - show normally
             renderer = ASCIIRenderer()
             return renderer.render_sprite(toml_data)

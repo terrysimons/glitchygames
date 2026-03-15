@@ -15,109 +15,110 @@ from tests.mocks.test_mock_factory import MockFactory
 LOG = logging.getLogger(__name__)
 
 
-def test_speed_up_modes(mocker):
-    """Test all speed-up modes."""
-    LOG.debug("=== BALL SPEED-UP MODES TEST ===")
-    LOG.debug("Testing all configurable speed-up behaviors...")
-
-    # Set up centralized mocks
-    MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    # Test 1: No speed-up (default)
+def _test_no_speed_up():
+    """Test 1: No speed-up (default)."""
     LOG.debug("\n1. NO SPEED-UP MODE")
-    ball1 = BallSprite(speed_up_mode=SpeedUpMode.NONE)
-    initial_speed = ball1.speed.x
-    ball1.speed_up()  # Manual speed-up should still work
+    ball = BallSprite(speed_up_mode=SpeedUpMode.NONE)
+    initial_speed = ball.speed.x
+    ball.speed_up()  # Manual speed-up should still work
     LOG.debug(f"   Initial speed: {initial_speed:.2f}")
-    LOG.debug(f"   After manual speed_up(): {ball1.speed.x:.2f}")
-    LOG.debug(f"   Speed increase: {((ball1.speed.x / initial_speed) - 1) * 100:.1f}%")
+    LOG.debug(f"   After manual speed_up(): {ball.speed.x:.2f}")
+    LOG.debug(f"   Speed increase: {((ball.speed.x / initial_speed) - 1) * 100:.1f}%")
 
-    # Test 2: Continuous logarithmic speed-up
+
+def _test_continuous_logarithmic():
+    """Test 2: Continuous logarithmic speed-up."""
     LOG.debug("\n2. CONTINUOUS LOGARITHMIC SPEED-UP MODE")
-    ball2 = BallSprite(
+    ball = BallSprite(
         speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
-        speed_up_multiplier=1.05,  # 5% logarithmic increase
-        speed_up_interval=0.1,  # Every 0.1 seconds
+        speed_up_multiplier=1.05,
+        speed_up_interval=0.1,
     )
-    LOG.debug(f"   Initial speed: {ball2.speed.x:.2f}")
+    LOG.debug(f"   Initial speed: {ball.speed.x:.2f}")
 
-    # Simulate 0.5 seconds of continuous speed-up
     for i in range(5):
-        ball2.dt_tick(0.1)  # 0.1 second intervals
-        LOG.debug(f"   After {0.1 * (i + 1):.1f}s: {ball2.speed.x:.2f}")
+        ball.dt_tick(0.1)
+        LOG.debug(f"   After {0.1 * (i + 1):.1f}s: {ball.speed.x:.2f}")
 
-    # Test 3: Wall bounce logarithmic speed-up
+
+def _test_wall_bounce_logarithmic():
+    """Test 3: Wall bounce logarithmic speed-up."""
     LOG.debug("\n3. WALL BOUNCE LOGARITHMIC SPEED-UP MODE")
-    ball3 = BallSprite(
+    ball = BallSprite(
         speed_up_mode=SpeedUpMode.WALL_ONLY_LOGARITHMIC_X,
-        speed_up_multiplier=1.1,  # 10% logarithmic increase
+        speed_up_multiplier=1.1,
         bounce_top_bottom=True,
         bounce_left_right=True,
     )
-    LOG.debug(f"   Initial speed: {ball3.speed.x:.2f}")
+    LOG.debug(f"   Initial speed: {ball.speed.x:.2f}")
 
-    # Simulate wall bounces
-    ball3.rect.y = 0  # Hit top wall
-    ball3._do_bounce()
-    LOG.debug(f"   After top bounce: {ball3.speed.x:.2f}")
+    ball.rect.y = 0
+    ball._do_bounce()
+    LOG.debug(f"   After top bounce: {ball.speed.x:.2f}")
 
-    ball3.rect.x = 0  # Hit left wall
-    ball3._do_bounce()
-    LOG.debug(f"   After left bounce: {ball3.speed.x:.2f}")
+    ball.rect.x = 0
+    ball._do_bounce()
+    LOG.debug(f"   After left bounce: {ball.speed.x:.2f}")
 
-    # Test 4: Paddle bounce logarithmic speed-up
+
+def _test_paddle_bounce_logarithmic():
+    """Test 4: Paddle bounce logarithmic speed-up."""
     LOG.debug("\n4. PADDLE BOUNCE LOGARITHMIC SPEED-UP MODE")
-    ball4 = BallSprite(
+    ball = BallSprite(
         speed_up_mode=SpeedUpMode.PADDLE_ONLY_LOGARITHMIC_X,
-        speed_up_multiplier=1.15,  # 15% logarithmic increase
+        speed_up_multiplier=1.15,
     )
-    LOG.debug(f"   Initial speed: {ball4.speed.x:.2f}")
+    LOG.debug(f"   Initial speed: {ball.speed.x:.2f}")
 
-    # Simulate paddle bounce
-    ball4.on_paddle_bounce()
-    LOG.debug(f"   After paddle bounce: {ball4.speed.x:.2f}")
+    ball.on_paddle_bounce()
+    LOG.debug(f"   After paddle bounce: {ball.speed.x:.2f}")
 
-    # Test 5: Combined logarithmic modes
+
+def _test_combined_logarithmic():
+    """Test 5: Combined logarithmic modes."""
     LOG.debug("\n5. COMBINED LOGARITHMIC MODES")
-    ball5 = BallSprite(
+    ball = BallSprite(
         speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
         | SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
-        speed_up_multiplier=1.02,  # 2% logarithmic increase
-        speed_up_interval=0.2,  # Every 0.2 seconds
+        speed_up_multiplier=1.02,
+        speed_up_interval=0.2,
         bounce_top_bottom=True,
     )
-    LOG.debug(f"   Initial speed: {ball5.speed.x:.2f}")
+    LOG.debug(f"   Initial speed: {ball.speed.x:.2f}")
 
-    # Simulate continuous + wall bounce
-    ball5.dt_tick(0.2)  # Continuous speed-up
-    LOG.debug(f"   After 0.2s continuous: {ball5.speed.x:.2f}")
+    ball.dt_tick(0.2)
+    LOG.debug(f"   After 0.2s continuous: {ball.speed.x:.2f}")
 
-    ball5.rect.y = 0  # Wall bounce
-    ball5._do_bounce()
-    LOG.debug(f"   After wall bounce: {ball5.speed.x:.2f}")
+    ball.rect.y = 0
+    ball._do_bounce()
+    LOG.debug(f"   After wall bounce: {ball.speed.x:.2f}")
 
-    # Test 6: All logarithmic modes combined
+
+def _test_all_logarithmic_combined():
+    """Test 6: All logarithmic modes combined."""
     LOG.debug("\n6. ALL LOGARITHMIC MODES COMBINED")
-    ball6 = BallSprite(
+    ball = BallSprite(
         speed_up_mode=SpeedUpMode.ALL_LOGARITHMIC_X,
-        speed_up_multiplier=1.01,  # 1% logarithmic increase
+        speed_up_multiplier=1.01,
         speed_up_interval=0.1,
         bounce_top_bottom=True,
         bounce_left_right=True,
     )
-    LOG.debug(f"   Initial speed: {ball6.speed.x:.2f}")
+    LOG.debug(f"   Initial speed: {ball.speed.x:.2f}")
 
-    # Simulate all types of speed-up
-    ball6.dt_tick(0.1)  # Continuous
-    LOG.debug(f"   After continuous: {ball6.speed.x:.2f}")
+    ball.dt_tick(0.1)
+    LOG.debug(f"   After continuous: {ball.speed.x:.2f}")
 
-    ball6.on_paddle_bounce()  # Paddle
-    LOG.debug(f"   After paddle: {ball6.speed.x:.2f}")
+    ball.on_paddle_bounce()
+    LOG.debug(f"   After paddle: {ball.speed.x:.2f}")
 
-    ball6.rect.y = 0  # Wall
-    ball6._do_bounce()
-    LOG.debug(f"   After wall: {ball6.speed.x:.2f}")
+    ball.rect.y = 0
+    ball._do_bounce()
+    LOG.debug(f"   After wall: {ball.speed.x:.2f}")
 
+
+def _log_speed_up_mode_flags():
+    """Log all speed-up mode flag values."""
     LOG.debug("\n=== LOGARITHMIC SPEED-UP MODE FLAGS ===")
     LOG.debug(f"SpeedUpMode.NONE = {SpeedUpMode.NONE}")
     LOG.debug(f"SpeedUpMode.CONTINUOUS_LOGARITHMIC_X = {SpeedUpMode.CONTINUOUS_LOGARITHMIC_X}")
@@ -154,6 +155,22 @@ def test_speed_up_modes(mocker):
         " & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X"
         "  # All except continuous"
     )
+
+
+def test_speed_up_modes(mocker):
+    """Test all speed-up modes."""
+    LOG.debug("=== BALL SPEED-UP MODES TEST ===")
+    LOG.debug("Testing all configurable speed-up behaviors...")
+
+    MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    _test_no_speed_up()
+    _test_continuous_logarithmic()
+    _test_wall_bounce_logarithmic()
+    _test_paddle_bounce_logarithmic()
+    _test_combined_logarithmic()
+    _test_all_logarithmic_combined()
+    _log_speed_up_mode_flags()
 
     LOG.info("\nAll speed-up modes tested successfully!")
 

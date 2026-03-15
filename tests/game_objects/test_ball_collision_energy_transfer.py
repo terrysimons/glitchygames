@@ -58,6 +58,55 @@ class TestBallCollisionEnergyTransfer:
         ball.collision_cooldowns = {}
         return ball
 
+    def _should_skip_separating_balls(self, ball1, ball2, distance, collision_distance):
+        """Check if separating balls should skip collision processing.
+
+        Returns:
+            True if the collision should be skipped.
+
+        """
+        ball1_speed_magnitude = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+        ball2_speed_magnitude = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+
+        # Allow collision if balls are overlapping (distance < collision_distance)
+        # or if there's a significant speed difference
+        if distance >= collision_distance:
+            if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
+                speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(
+                    ball1_speed_magnitude, ball2_speed_magnitude
+                )
+                if speed_ratio < 1.2:  # Lower threshold for more collisions
+                    return True  # Skip if speeds are too similar and balls aren't overlapping
+            else:
+                return True  # Skip if one ball has zero speed
+
+        return False
+
+    def _apply_elastic_collision(self, ball1, ball2, nx, ny):
+        """Apply elastic collision physics by exchanging normal velocity components.
+
+        Decomposes velocities into normal and tangential components,
+        then exchanges the normal components while preserving tangential.
+        """
+        v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
+        v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
+
+        v1n_vec_x = v1n_scalar * nx
+        v1n_vec_y = v1n_scalar * ny
+        v2n_vec_x = v2n_scalar * nx
+        v2n_vec_y = v2n_scalar * ny
+
+        v1t_vec_x = ball1.speed.x - v1n_vec_x
+        v1t_vec_y = ball1.speed.y - v1n_vec_y
+        v2t_vec_x = ball2.speed.x - v2n_vec_x
+        v2t_vec_y = ball2.speed.y - v2n_vec_y
+
+        # Exchange normal components, preserve tangential components
+        ball1.speed.x = v1t_vec_x + v2n_vec_x
+        ball1.speed.y = v1t_vec_y + v2n_vec_y
+        ball2.speed.x = v2t_vec_x + v1n_vec_x
+        ball2.speed.y = v2t_vec_y + v1n_vec_y
+
     def _simulate_collision(self, ball1, ball2):
         """Simulate collision between two balls using the actual game physics.
 
@@ -88,44 +137,14 @@ class TestBallCollisionEnergyTransfer:
 
         # Simplified collision logic: always allow collision if balls are overlapping
         # or if they're moving toward each other (dvn <= 0)
-        if dvn > 0:
-            # Balls are moving away from each other - only allow collision if they're overlapping
-            # or if there's a significant speed difference (faster ball catching up)
-            ball1_speed_magnitude = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
-            ball2_speed_magnitude = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
-
-            # Allow collision if balls are overlapping (distance < collision_distance)
-            # or if there's a significant speed difference
-            if distance >= collision_distance:
-                if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
-                    speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(
-                        ball1_speed_magnitude, ball2_speed_magnitude
-                    )
-                    if speed_ratio < 1.2:  # Lower threshold for more collisions
-                        return False  # Skip if speeds are too similar and balls aren't overlapping
-                else:
-                    return False  # Skip if one ball has zero speed
+        # Balls moving away only collide if overlapping or significant speed difference
+        if dvn > 0 and self._should_skip_separating_balls(
+            ball1, ball2, distance, collision_distance,
+        ):
+            return False
 
         # Proper elastic collision physics for equal mass balls
-        # Decompose velocities into normal and tangential components
-        v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
-        v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
-
-        v1n_vec_x = v1n_scalar * nx
-        v1n_vec_y = v1n_scalar * ny
-        v2n_vec_x = v2n_scalar * nx
-        v2n_vec_y = v2n_scalar * ny
-
-        v1t_vec_x = ball1.speed.x - v1n_vec_x
-        v1t_vec_y = ball1.speed.y - v1n_vec_y
-        v2t_vec_x = ball2.speed.x - v2n_vec_x
-        v2t_vec_y = ball2.speed.y - v2n_vec_y
-
-        # Exchange normal components, preserve tangential components
-        ball1.speed.x = v1t_vec_x + v2n_vec_x
-        ball1.speed.y = v1t_vec_y + v2n_vec_y
-        ball2.speed.x = v2t_vec_x + v1n_vec_x
-        ball2.speed.y = v2t_vec_y + v1n_vec_y
+        self._apply_elastic_collision(ball1, ball2, nx, ny)
 
         return True  # Collision occurred
 

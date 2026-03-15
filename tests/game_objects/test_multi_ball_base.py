@@ -139,6 +139,30 @@ class MultiBallTestBase:
 
         return ball_collisions
 
+    def _exchange_normal_velocity_components(self, ball1, ball2, nx, ny):
+        """Exchange normal velocity components between two balls.
+
+        Decomposes each ball's velocity into normal and tangential components,
+        then exchanges the normal components. Preserves both momentum and kinetic energy.
+        """
+        v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
+        v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
+
+        v1n_vec_x = v1n_scalar * nx
+        v1n_vec_y = v1n_scalar * ny
+        v2n_vec_x = v2n_scalar * nx
+        v2n_vec_y = v2n_scalar * ny
+
+        v1t_vec_x = ball1.speed.x - v1n_vec_x
+        v1t_vec_y = ball1.speed.y - v1n_vec_y
+        v2t_vec_x = ball2.speed.x - v2n_vec_x
+        v2t_vec_y = ball2.speed.y - v2n_vec_y
+
+        ball1.speed.x = v1t_vec_x + v2n_vec_x
+        ball1.speed.y = v1t_vec_y + v2n_vec_y
+        ball2.speed.x = v2t_vec_x + v1n_vec_x
+        ball2.speed.y = v2t_vec_y + v1n_vec_y
+
     def _handle_elastic_collision(self, ball1, ball2, distance, dx, dy):
         """Handle elastic collision between two equal-mass balls.
 
@@ -174,25 +198,7 @@ class MultiBallTestBase:
         if relative_velocity_along_normal > 0 and distance >= collision_distance:
             return False
 
-        # Decompose velocities into normal and tangential components
-        v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
-        v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
-
-        v1n_vec_x = v1n_scalar * nx
-        v1n_vec_y = v1n_scalar * ny
-        v2n_vec_x = v2n_scalar * nx
-        v2n_vec_y = v2n_scalar * ny
-
-        v1t_vec_x = ball1.speed.x - v1n_vec_x
-        v1t_vec_y = ball1.speed.y - v1n_vec_y
-        v2t_vec_x = ball2.speed.x - v2n_vec_x
-        v2t_vec_y = ball2.speed.y - v2n_vec_y
-
-        # Exchange normal components, preserve tangential components
-        ball1.speed.x = v1t_vec_x + v2n_vec_x
-        ball1.speed.y = v1t_vec_y + v2n_vec_y
-        ball2.speed.x = v2t_vec_x + v1n_vec_x
-        ball2.speed.y = v2t_vec_y + v1n_vec_y
+        self._exchange_normal_velocity_components(ball1, ball2, nx, ny)
 
         # Separate balls to prevent re-triggering collision next frame
         overlap = collision_distance - distance

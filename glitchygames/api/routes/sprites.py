@@ -329,6 +329,91 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         ) from e
 
 
+def _extract_single_frame(
+    png: object, control: object, index: int
+) -> tuple[ApngFrameInfo, int]:
+    """Extract a single frame and its metadata from an APNG frame pair.
+
+    Args:
+        png: The PNG frame object
+        control: The APNG control chunk (may be None)
+        index: Frame index
+
+    Returns:
+        Tuple of (ApngFrameInfo, delay_ms)
+
+    """
+    # Get PNG bytes for this frame (uncompressed)
+    frame_buffer = io.BytesIO()
+    png.save(frame_buffer)
+    frame_bytes = frame_buffer.getvalue()
+    frame_base64 = base64.b64encode(frame_bytes).decode("utf-8")
+
+    # Calculate frame delay in milliseconds
+    # APNG stores delay as delay_num/delay_den seconds
+    if control is not None:
+        delay_num = control.delay if hasattr(control, "delay") else 100
+        delay_den = control.delay_den if hasattr(control, "delay_den") else 1000
+        if delay_den == 0:
+            delay_den = 1000
+        delay_ms = int((delay_num / delay_den) * 1000)
+
+        # Get frame dimensions and offsets
+        frame_width = control.width if hasattr(control, "width") else 0
+        frame_height = control.height if hasattr(control, "height") else 0
+        x_offset = control.x_offset if hasattr(control, "x_offset") else 0
+        y_offset = control.y_offset if hasattr(control, "y_offset") else 0
+    else:
+        # Default values if no control chunk
+        delay_ms = 100
+        frame_width = 0
+        frame_height = 0
+        x_offset = 0
+        y_offset = 0
+
+    # Try to get dimensions from PNG if not in control chunk
+    if frame_width == 0 or frame_height == 0:
+        frame_width, frame_height = _extract_png_dimensions(frame_bytes, frame_width, frame_height)
+
+    frame_info = ApngFrameInfo(
+        index=index,
+        png_base64=frame_base64,
+        delay_ms=delay_ms,
+        width=frame_width,
+        height=frame_height,
+        x_offset=x_offset,
+        y_offset=y_offset,
+    )
+    return frame_info, delay_ms
+
+
+def _extract_png_dimensions(
+    frame_bytes: bytes, default_width: int, default_height: int
+) -> tuple[int, int]:
+    """Extract width and height from PNG IHDR chunk bytes.
+
+    Args:
+        frame_bytes: Raw PNG file bytes
+        default_width: Default width if extraction fails
+        default_height: Default height if extraction fails
+
+    Returns:
+        Tuple of (width, height)
+
+    """
+    try:
+        import struct
+
+        # PNG dimensions are in the IHDR chunk at bytes 16-24
+        if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
+            width = struct.unpack(">I", frame_bytes[16:20])[0]
+            height = struct.unpack(">I", frame_bytes[20:24])[0]
+            return width, height
+    except (struct.error, IndexError, ValueError) as dimension_error:
+        LOG.debug("Could not extract PNG dimensions: %s", dimension_error)
+    return default_width, default_height
+
+
 @router.post("/extract-frames")
 async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractResponse:
     """Extract individual frames and metadata from an APNG file.
@@ -376,65 +461,15 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         canvas_height = None
 
         for index, (png, control) in enumerate(apng.frames):
-            # Get PNG bytes for this frame (uncompressed)
-            frame_buffer = io.BytesIO()
-            png.save(frame_buffer)
-            frame_bytes = frame_buffer.getvalue()
-            frame_base64 = base64.b64encode(frame_bytes).decode("utf-8")
-
-            # Calculate frame delay in milliseconds
-            # APNG stores delay as delay_num/delay_den seconds
-            if control is not None:
-                delay_num = control.delay if hasattr(control, "delay") else 100
-                delay_den = control.delay_den if hasattr(control, "delay_den") else 1000
-                if delay_den == 0:
-                    delay_den = 1000
-                delay_ms = int((delay_num / delay_den) * 1000)
-
-                # Get frame dimensions and offsets
-                frame_width = control.width if hasattr(control, "width") else 0
-                frame_height = control.height if hasattr(control, "height") else 0
-                x_offset = control.x_offset if hasattr(control, "x_offset") else 0
-                y_offset = control.y_offset if hasattr(control, "y_offset") else 0
-            else:
-                # Default values if no control chunk
-                delay_ms = 100
-                frame_width = 0
-                frame_height = 0
-                x_offset = 0
-                y_offset = 0
-
-            # Try to get dimensions from PNG if not in control chunk
-            if frame_width == 0 or frame_height == 0:
-                # Parse PNG to get dimensions
-                try:
-                    import struct
-
-                    # PNG dimensions are in the IHDR chunk at bytes 16-24
-                    if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
-                        frame_width = struct.unpack(">I", frame_bytes[16:20])[0]
-                        frame_height = struct.unpack(">I", frame_bytes[20:24])[0]
-                except (struct.error, IndexError, ValueError) as dimension_error:
-                    LOG.debug("Could not extract PNG dimensions: %s", dimension_error)
+            frame_info, delay_ms = _extract_single_frame(png, control, index)
 
             # Track canvas size (first frame usually defines it)
             if canvas_width is None:
-                canvas_width = frame_width
-                canvas_height = frame_height
+                canvas_width = frame_info.width
+                canvas_height = frame_info.height
 
             total_duration_ms += delay_ms
-
-            frames_info.append(
-                ApngFrameInfo(
-                    index=index,
-                    png_base64=frame_base64,
-                    delay_ms=delay_ms,
-                    width=frame_width,
-                    height=frame_height,
-                    x_offset=x_offset,
-                    y_offset=y_offset,
-                )
-            )
+            frames_info.append(frame_info)
 
         # Get loop count from APNG
         loop_count = apng.num_plays if hasattr(apng, "num_plays") else 0

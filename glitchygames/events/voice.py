@@ -82,27 +82,7 @@ class VoiceEventManager(ResourceManager):
             # Select a backend microphone class
             mic_cls = get_microphone_backend()
             if mic_cls is not None:
-                backend_name = getattr(mic_cls, "__name__", str(mic_cls))
-                # Probe the backend by opening/closing once to surface errors early
-                try:
-                    probe = mic_cls()  # type: ignore[call-arg]
-                    try:
-                        enter = probe.__enter__
-                    except AttributeError:
-                        enter = None
-                    if callable(enter):  # type: ignore[truthy-bool]
-                        try:
-                            probe.__enter__()
-                        finally:
-                            try:
-                                probe.__exit__(None, None, None)
-                            except OSError:
-                                LOG.debug("Voice backend cleanup raised OSError during probe")
-                    self.log.info(f"Voice backend selected: {backend_name}")
-                    self.microphone = mic_cls()  # type: ignore[call-arg]
-                except OSError:
-                    self.log.exception(f"Voice backend probe failed for {backend_name}")
-                    self.microphone = None
+                self.microphone = self._probe_microphone_backend(mic_cls)
             if self.microphone is None:
                 # Last resort: try built-in sr.Microphone init
                 self._setup_microphone()
@@ -113,6 +93,36 @@ class VoiceEventManager(ResourceManager):
 
         # Register default commands
         self._register_default_commands()
+
+    def _probe_microphone_backend(self, mic_cls: type) -> object | None:
+        """Probe a microphone backend by opening/closing once and return an instance.
+
+        Args:
+            mic_cls: The microphone backend class to probe.
+
+        Returns:
+            A microphone instance if probing succeeded, or None on failure.
+
+        """
+        backend_name = getattr(mic_cls, "__name__", str(mic_cls))
+        try:
+            probe = mic_cls()  # type: ignore[call-arg]
+            enter = getattr(probe, "__enter__", None)
+            exit_cm = getattr(probe, "__exit__", None)
+            if callable(enter):  # type: ignore[truthy-bool]
+                try:
+                    enter()
+                finally:
+                    try:
+                        if callable(exit_cm):  # type: ignore[truthy-bool]
+                            exit_cm(None, None, None)
+                    except OSError:
+                        LOG.debug("Voice backend cleanup raised OSError during probe")
+            self.log.info(f"Voice backend selected: {backend_name}")
+            return mic_cls()  # type: ignore[call-arg]
+        except OSError:
+            self.log.exception(f"Voice backend probe failed for {backend_name}")
+            return None
 
     def _setup_microphone(self) -> None:
         """Set up the microphone for voice recognition."""

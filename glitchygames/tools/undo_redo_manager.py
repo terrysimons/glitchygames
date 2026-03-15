@@ -1242,6 +1242,110 @@ class UndoRedoManager:
             LOG.exception("Error redoing frame selection")
             return False
 
+    def _undo_film_strip_frame_add(self, data: dict) -> bool:
+        """Undo frame addition by deleting the frame.
+
+        Args:
+            data: The undo data dictionary
+
+        Returns:
+            True if undo was successful, False otherwise
+
+        """
+        if not self.delete_frame_callback:
+            LOG.warning("Delete frame callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        frame_index = data.get("frame_index")
+        if animation and frame_index is not None:
+            return self.delete_frame_callback(animation, frame_index)
+        LOG.warning("Frame add undo data missing animation_name or frame_index")
+        return False
+
+    def _undo_film_strip_frame_delete(self, data: dict) -> bool:
+        """Undo frame deletion by adding the frame back.
+
+        Args:
+            data: The undo data dictionary
+
+        Returns:
+            True if undo was successful, False otherwise
+
+        """
+        if not self.add_frame_callback:
+            LOG.warning("Add frame callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        frame_index = data.get("frame_index")
+        frame_data = data.get("frame_data")
+        if animation and frame_index is not None and frame_data is not None:
+            return self.add_frame_callback(animation, frame_index, frame_data)
+        LOG.warning("Frame delete undo data missing animation_name, frame_index, or frame_data")
+        return False
+
+    def _undo_film_strip_animation_add(self, data: dict) -> bool:
+        """Undo animation addition by deleting the animation.
+
+        Args:
+            data: The undo data dictionary
+
+        Returns:
+            True if undo was successful, False otherwise
+
+        """
+        if not self.delete_animation_callback:
+            LOG.warning("Delete animation callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        if animation:
+            return self.delete_animation_callback(animation)
+        LOG.warning("Animation add undo data missing animation_name")
+        return False
+
+    def _undo_film_strip_animation_delete(self, data: dict) -> bool:
+        """Undo animation deletion by adding the animation back.
+
+        Args:
+            data: The undo data dictionary
+
+        Returns:
+            True if undo was successful, False otherwise
+
+        """
+        if not self.add_animation_callback:
+            LOG.warning("Add animation callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        animation_data = data.get("animation_data")
+        if animation and animation_data is not None:
+            return self.add_animation_callback(animation, animation_data)
+        LOG.warning("Animation delete undo data missing animation_name or animation_data")
+        return False
+
+    def _undo_film_strip_frame_reorder(self, data: dict) -> bool:
+        """Undo frame reordering by restoring original order.
+
+        Args:
+            data: The undo data dictionary
+
+        Returns:
+            True if undo was successful, False otherwise
+
+        """
+        if not self.reorder_frame_callback:
+            LOG.warning("Reorder frame callback not set")
+            return False
+        animation = data.get("animation")
+        original_order = data.get("original_order")
+        if animation and original_order:
+            return self.reorder_frame_callback(animation, original_order)
+        LOG.warning("Frame reorder undo data missing animation or original_order")
+        return False
+
     def _undo_film_strip_operation(self, operation: Operation) -> bool:
         """Undo a film strip operation.
 
@@ -1252,85 +1356,126 @@ class UndoRedoManager:
             True if undo was successful, False otherwise
 
         """
+        undo_dispatch = {
+            OperationType.FILM_STRIP_FRAME_ADD: self._undo_film_strip_frame_add,
+            OperationType.FILM_STRIP_FRAME_DELETE: self._undo_film_strip_frame_delete,
+            OperationType.FILM_STRIP_ANIMATION_ADD: self._undo_film_strip_animation_add,
+            OperationType.FILM_STRIP_ANIMATION_DELETE: self._undo_film_strip_animation_delete,
+            OperationType.FILM_STRIP_FRAME_REORDER: self._undo_film_strip_frame_reorder,
+        }
         try:
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
-                # Undo frame addition by deleting the frame
-                if self.delete_frame_callback:
-                    animation = operation.undo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    frame_index = operation.undo_data.get("frame_index")
-                    if animation and frame_index is not None:
-                        return self.delete_frame_callback(animation, frame_index)
-                    LOG.warning("Frame add undo data missing animation_name or frame_index")
-                    return False
-                LOG.warning("Delete frame callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_DELETE:
-                # Undo frame deletion by adding the frame back
-                if self.add_frame_callback:
-                    animation = operation.undo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    frame_index = operation.undo_data.get("frame_index")
-                    frame_data = operation.undo_data.get("frame_data")
-                    if animation and frame_index is not None and frame_data is not None:
-                        return self.add_frame_callback(animation, frame_index, frame_data)
-                    LOG.warning(
-                        "Frame delete undo data missing animation_name, frame_index, or frame_data"
-                    )
-                    return False
-                LOG.warning("Add frame callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_ANIMATION_ADD:
-                # Undo animation addition by deleting the animation
-                if self.delete_animation_callback:
-                    animation = operation.undo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    if animation:
-                        return self.delete_animation_callback(animation)
-                    LOG.warning("Animation add undo data missing animation_name")
-                    return False
-                LOG.warning("Delete animation callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_ANIMATION_DELETE:
-                # Undo animation deletion by adding the animation back
-                if self.add_animation_callback:
-                    animation = operation.undo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    animation_data = operation.undo_data.get("animation_data")
-                    if animation and animation_data is not None:
-                        return self.add_animation_callback(animation, animation_data)
-                    LOG.warning(
-                        "Animation delete undo data missing animation_name or animation_data"
-                    )
-                    return False
-                LOG.warning("Add animation callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_REORDER:
-                # Undo frame reordering by restoring original order
-                if self.reorder_frame_callback:
-                    animation = operation.undo_data.get("animation")
-                    original_order = operation.undo_data.get("original_order")
-                    if animation and original_order:
-                        return self.reorder_frame_callback(animation, original_order)
-                    LOG.warning("Frame reorder undo data missing animation or original_order")
-                    return False
-                LOG.warning("Reorder frame callback not set")
-                return False
-
+            handler = undo_dispatch.get(operation.operation_type)
+            if handler:
+                return handler(operation.undo_data)
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
-
         except Exception:
             LOG.exception("Error undoing film strip operation")
             return False
+
+    def _redo_film_strip_frame_add(self, data: dict) -> bool:
+        """Redo frame addition by adding the frame.
+
+        Args:
+            data: The redo data dictionary
+
+        Returns:
+            True if redo was successful, False otherwise
+
+        """
+        if not self.add_frame_callback:
+            LOG.warning("Add frame callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        frame_index = data.get("frame_index")
+        frame_data = data.get("frame_data")
+        if animation and frame_index is not None and frame_data is not None:
+            return self.add_frame_callback(animation, frame_index, frame_data)
+        LOG.warning("Frame add redo data missing animation_name, frame_index, or frame_data")
+        return False
+
+    def _redo_film_strip_frame_delete(self, data: dict) -> bool:
+        """Redo frame deletion by deleting the frame.
+
+        Args:
+            data: The redo data dictionary
+
+        Returns:
+            True if redo was successful, False otherwise
+
+        """
+        if not self.delete_frame_callback:
+            LOG.warning("Delete frame callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        frame_index = data.get("frame_index")
+        if animation and frame_index is not None:
+            return self.delete_frame_callback(animation, frame_index)
+        LOG.warning("Frame delete redo data missing animation_name or frame_index")
+        return False
+
+    def _redo_film_strip_animation_add(self, data: dict) -> bool:
+        """Redo animation addition by adding the animation.
+
+        Args:
+            data: The redo data dictionary
+
+        Returns:
+            True if redo was successful, False otherwise
+
+        """
+        if not self.add_animation_callback:
+            LOG.warning("Add animation callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        animation_data = data.get("animation_data")
+        if animation and animation_data is not None:
+            return self.add_animation_callback(animation, animation_data)
+        LOG.warning("Animation add redo data missing animation_name or animation_data")
+        return False
+
+    def _redo_film_strip_animation_delete(self, data: dict) -> bool:
+        """Redo animation deletion by deleting the animation.
+
+        Args:
+            data: The redo data dictionary
+
+        Returns:
+            True if redo was successful, False otherwise
+
+        """
+        if not self.delete_animation_callback:
+            LOG.warning("Delete animation callback not set")
+            return False
+        # Note: uses animation_name, not animation
+        animation = data.get("animation_name")
+        if animation:
+            return self.delete_animation_callback(animation)
+        LOG.warning("Animation delete redo data missing animation_name")
+        return False
+
+    def _redo_film_strip_frame_reorder(self, data: dict) -> bool:
+        """Redo frame reordering by applying the new order.
+
+        Args:
+            data: The redo data dictionary
+
+        Returns:
+            True if redo was successful, False otherwise
+
+        """
+        if not self.reorder_frame_callback:
+            LOG.warning("Reorder frame callback not set")
+            return False
+        animation = data.get("animation")
+        new_order = data.get("new_order")
+        if animation and new_order:
+            return self.reorder_frame_callback(animation, new_order)
+        LOG.warning("Frame reorder redo data missing animation or new_order")
+        return False
 
     def _redo_film_strip_operation(self, operation: Operation) -> bool:
         """Redo a film strip operation.
@@ -1342,80 +1487,19 @@ class UndoRedoManager:
             True if redo was successful, False otherwise
 
         """
+        redo_dispatch = {
+            OperationType.FILM_STRIP_FRAME_ADD: self._redo_film_strip_frame_add,
+            OperationType.FILM_STRIP_FRAME_DELETE: self._redo_film_strip_frame_delete,
+            OperationType.FILM_STRIP_ANIMATION_ADD: self._redo_film_strip_animation_add,
+            OperationType.FILM_STRIP_ANIMATION_DELETE: self._redo_film_strip_animation_delete,
+            OperationType.FILM_STRIP_FRAME_REORDER: self._redo_film_strip_frame_reorder,
+        }
         try:
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD:
-                # Redo frame addition by adding the frame
-                if self.add_frame_callback:
-                    animation = operation.redo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    frame_index = operation.redo_data.get("frame_index")
-                    frame_data = operation.redo_data.get("frame_data")
-                    if animation and frame_index is not None and frame_data is not None:
-                        return self.add_frame_callback(animation, frame_index, frame_data)
-                    LOG.warning(
-                        "Frame add redo data missing animation_name, frame_index, or frame_data"
-                    )
-                    return False
-                LOG.warning("Add frame callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_DELETE:
-                # Redo frame deletion by deleting the frame
-                if self.delete_frame_callback:
-                    animation = operation.redo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    frame_index = operation.redo_data.get("frame_index")
-                    if animation and frame_index is not None:
-                        return self.delete_frame_callback(animation, frame_index)
-                    LOG.warning("Frame delete redo data missing animation_name or frame_index")
-                    return False
-                LOG.warning("Delete frame callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_ANIMATION_ADD:
-                # Redo animation addition by adding the animation
-                if self.add_animation_callback:
-                    animation = operation.redo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    animation_data = operation.redo_data.get("animation_data")
-                    if animation and animation_data is not None:
-                        return self.add_animation_callback(animation, animation_data)
-                    LOG.warning("Animation add redo data missing animation_name or animation_data")
-                    return False
-                LOG.warning("Add animation callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_ANIMATION_DELETE:
-                # Redo animation deletion by deleting the animation
-                if self.delete_animation_callback:
-                    animation = operation.redo_data.get(
-                        "animation_name"
-                    )  # Note: uses animation_name, not animation
-                    if animation:
-                        return self.delete_animation_callback(animation)
-                    LOG.warning("Animation delete redo data missing animation_name")
-                    return False
-                LOG.warning("Delete animation callback not set")
-                return False
-
-            if operation.operation_type == OperationType.FILM_STRIP_FRAME_REORDER:
-                # Redo frame reordering by applying the new order
-                if self.reorder_frame_callback:
-                    animation = operation.redo_data.get("animation")
-                    new_order = operation.redo_data.get("new_order")
-                    if animation and new_order:
-                        return self.reorder_frame_callback(animation, new_order)
-                    LOG.warning("Frame reorder redo data missing animation or new_order")
-                    return False
-                LOG.warning("Reorder frame callback not set")
-                return False
-
+            handler = redo_dispatch.get(operation.operation_type)
+            if handler:
+                return handler(operation.redo_data)
             LOG.warning(f"Unknown film strip operation type: {operation.operation_type}")
             return False
-
         except Exception:
             LOG.exception("Error redoing film strip operation")
             return False

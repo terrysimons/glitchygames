@@ -149,6 +149,193 @@ def _convert_pixels_to_rgba_if_needed(
     return rgba_pixels
 
 
+def _lookup_pixel_char(pixel: tuple, color_map: dict, *, map_uses_alpha: bool) -> str:
+    """Look up the character for a pixel in the color map.
+
+    Handles RGBA/RGB normalization and magenta transparency.
+
+    Returns:
+        The character mapped to this pixel color.
+
+    Raises:
+        KeyError: If the pixel color is not found in the color map.
+
+    """
+    if len(pixel) == RGBA_COMPONENT_COUNT:
+        return _lookup_rgba_pixel_char(pixel, color_map, map_uses_alpha=map_uses_alpha)
+    # RGB pixel - normalize magenta to RGBA format
+    if pixel == (255, 0, 255):
+        return _lookup_in_map((255, 0, 255, 255), color_map)
+    if map_uses_alpha:
+        # Try RGBA version first, then fall back to RGB
+        lookup_rgba = (pixel[0], pixel[1], pixel[2], 255)
+        if lookup_rgba in color_map:
+            return color_map[lookup_rgba]
+        if pixel in color_map:
+            return color_map[pixel]
+        raise KeyError(
+            f"Color {pixel} (or RGBA {lookup_rgba}) not found in color map. "
+            f"Available colors: {list(color_map.keys())}"
+        )
+    return _lookup_in_map(pixel, color_map)
+
+
+def _lookup_rgba_pixel_char(pixel: tuple, color_map: dict, *, map_uses_alpha: bool) -> str:
+    """Look up the character for an RGBA pixel in the color map.
+
+    Returns:
+        The character mapped to this RGBA pixel color.
+
+    Raises:
+        KeyError: If the pixel color is not found in the color map.
+
+    """
+    r, g, b, a = pixel
+    # Normalize magenta to always use RGBA format (255, 0, 255, 255)
+    if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+        return _lookup_in_map((255, 0, 255, 255), color_map)
+    if map_uses_alpha:
+        # Map has some RGBA keys (magenta), but may have RGB keys for other colors.
+        if a == MAX_COLOR_CHANNEL_VALUE:
+            # Try RGB version first
+            if (r, g, b) in color_map:
+                return color_map[r, g, b]
+            if (r, g, b, a) in color_map:
+                return color_map[r, g, b, a]
+            raise KeyError(
+                f"Color {(r, g, b)} (or RGBA {(r, g, b, a)}) not found in color map. "
+                f"Available colors: {list(color_map.keys())}"
+            )
+        # Pixel has transparency, must use RGBA
+        return _lookup_in_map((r, g, b, a), color_map)
+    # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
+    lookup = (r, g, b) if a == MAX_COLOR_CHANNEL_VALUE else (255, 0, 255, 255)
+    return _lookup_in_map(lookup, color_map)
+
+
+def _lookup_in_map(lookup: tuple, color_map: dict) -> str:
+    """Look up a color tuple in the color map.
+
+    Returns:
+        The character mapped to this color.
+
+    Raises:
+        KeyError: If the color is not found in the color map.
+
+    """
+    if lookup not in color_map:
+        raise KeyError(
+            f"Color {lookup} not found in color map. "
+            f"Available colors: {list(color_map.keys())}"
+        )
+    return color_map[lookup]
+
+
+def _normalize_pixel_for_color_map(
+    pixel: tuple, *, needs_alpha: bool
+) -> tuple:
+    """Normalize a pixel tuple for use as a color map key.
+
+    Returns:
+        Normalized color tuple.
+
+    """
+    if len(pixel) == RGBA_COMPONENT_COUNT:
+        r, g, b, a = pixel
+        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
+        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+            return (255, 0, 255, 255)
+        if needs_alpha:
+            # Use RGBA tuple for alpha-aware sprites
+            return (r, g, b, a)
+        # Convert to RGB for non-alpha sprites (but not magenta)
+        if a == MAX_COLOR_CHANNEL_VALUE:
+            return (r, g, b)
+        return (255, 0, 255, 255)  # Transparent -> magenta RGBA
+    # RGB pixel - normalize magenta to RGBA format
+    if pixel == (255, 0, 255):
+        return (255, 0, 255, 255)
+    return pixel
+
+
+def _extract_pixel_colors(
+    pixel_lines: list, width: int, height: int, color_map: dict
+) -> list:
+    """Extract pixel colors from pixel lines using the color map.
+
+    Returns:
+        List of color tuples.
+
+    """
+    pixels = []
+    for y, row in enumerate(pixel_lines):
+        for x, char in enumerate(row):
+            if x < width and y < height:
+                color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                pixels.append(color)
+            else:
+                pixels.append((255, 0, 255))
+    return pixels
+
+
+def _create_alpha_surface(
+    width: int, height: int, pixel_lines: list, color_map: dict
+) -> pygame.Surface:
+    """Create a per-pixel alpha surface from TOML pixel data.
+
+    Returns:
+        pygame.Surface with SRCALPHA.
+
+    """
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((255, 0, 255, 0))  # Transparent background
+
+    for y, row in enumerate(pixel_lines):
+        for x, char in enumerate(row):
+            if x < width and y < height:
+                color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                # Ensure color is RGBA for alpha surface
+                if len(color) == RGB_COMPONENT_COUNT:
+                    color = (
+                        color[0],
+                        color[1],
+                        color[2],
+                        MAX_COLOR_CHANNEL_VALUE,
+                    )  # Add full alpha
+                elif len(color) == RGBA_COMPONENT_COUNT and color == (255, 0, 255, 255):
+                    color = (255, 0, 255, 255)  # Keep magenta opaque for transparency key
+                surface.set_at((x, y), color)
+    return surface
+
+
+def _create_indexed_surface(
+    width: int, height: int, pixel_lines: list, color_map: dict
+) -> pygame.Surface:
+    """Create an RGB indexed transparency surface from TOML pixel data.
+
+    Returns:
+        pygame.Surface with magenta as transparency key.
+
+    """
+    surface = pygame.Surface((width, height))
+    surface.fill((255, 0, 255))  # Magenta background for transparency
+
+    for y, row in enumerate(pixel_lines):
+        for x, char in enumerate(row):
+            if x < width and y < height:
+                color = color_map.get(char, (255, 0, 255))  # Default to magenta
+                # Convert to RGB for indexed transparency
+                if len(color) == RGBA_COMPONENT_COUNT:
+                    r, g, b, a = color
+                    if a == MAX_COLOR_CHANNEL_VALUE:  # Only keep fully opaque pixels
+                        surface.set_at((x, y), (r, g, b))
+                    else:
+                        surface.set_at((x, y), (255, 0, 255))  # Transparent
+                else:
+                    surface.set_at((x, y), color)
+    return surface
+
+
 class FrameManager:
     """Centralized frame state management for animation system."""
 
@@ -1053,8 +1240,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for y, row in enumerate(pixel_rows):
             for x, char in enumerate(row):
                 if char in color_map:
-                    color = color_map[char]
-                    surface.set_at((x, y), color)
+                    surface.set_at((x, y), color_map[char])
                 else:
                     # Default to magenta for unknown characters
                     surface.set_at((x, y), (255, 0, 255))
@@ -1071,8 +1257,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 char = pixel_rows[y][x]
                 if char in color_map:
                     # Use the original color from color_map to preserve alpha
-                    original_color = color_map[char]
-                    frame.pixels.append(original_color)
+                    frame.pixels.append(color_map[char])
                 # Default to magenta for unknown characters
                 elif has_alpha:
                     frame.pixels.append((255, 0, 255, 255))
@@ -1301,56 +1486,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         """
         # First, extract all pixels to determine if we need alpha support
-        pixels = []
-        for y, row in enumerate(pixel_lines):
-            for x, char in enumerate(row):
-                if x < width and y < height:
-                    color = color_map.get(char, (255, 0, 255))  # Default to magenta
-                    pixels.append(color)
-                else:
-                    pixels.append((255, 0, 255))
+        pixels = _extract_pixel_colors(pixel_lines, width, height, color_map)
 
         # Check if we need alpha support
         needs_alpha = _needs_alpha_channel(pixels)
 
         if needs_alpha:
-            # Use per-pixel alpha surface
-            surface = pygame.Surface((width, height), pygame.SRCALPHA)
-            surface.fill((255, 0, 255, 0))  # Transparent background
-
-            for y, row in enumerate(pixel_lines):
-                for x, char in enumerate(row):
-                    if x < width and y < height:
-                        color = color_map.get(char, (255, 0, 255))  # Default to magenta
-                        # Ensure color is RGBA for alpha surface
-                        if len(color) == RGB_COMPONENT_COUNT:
-                            color = (
-                                color[0],
-                                color[1],
-                                color[2],
-                                MAX_COLOR_CHANNEL_VALUE,
-                            )  # Add full alpha
-                        elif len(color) == RGBA_COMPONENT_COUNT and color == (255, 0, 255, 255):
-                            color = (255, 0, 255, 255)  # Keep magenta opaque for transparency key
-                        surface.set_at((x, y), color)
+            surface = _create_alpha_surface(width, height, pixel_lines, color_map)
         else:
-            # Use RGB indexed transparency (more efficient)
-            surface = pygame.Surface((width, height))
-            surface.fill((255, 0, 255))  # Magenta background for transparency
-
-            for y, row in enumerate(pixel_lines):
-                for x, char in enumerate(row):
-                    if x < width and y < height:
-                        color = color_map.get(char, (255, 0, 255))  # Default to magenta
-                        # Convert to RGB for indexed transparency
-                        if len(color) == RGBA_COMPONENT_COUNT:
-                            r, g, b, a = color
-                            if a == MAX_COLOR_CHANNEL_VALUE:  # Only keep fully opaque pixels
-                                surface.set_at((x, y), (r, g, b))
-                            else:
-                                surface.set_at((x, y), (255, 0, 255))  # Transparent
-                        else:
-                            surface.set_at((x, y), color)
+            surface = _create_indexed_surface(width, height, pixel_lines, color_map)
 
         return surface
 
@@ -1576,52 +1720,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         char_index = 0
 
         # If we have an original color map from loading, build reverse mapping (color -> char)
-        original_color_to_char = {}
-        used_chars = set()
-        if hasattr(self, "_color_map") and self._color_map:
-            # Build reverse mapping, normalizing colors appropriately
-            for char, color in self._color_map.items():
-                used_chars.add(char)
-                # Normalize color to match how we'll look it up
-                if len(color) == RGBA_COMPONENT_COUNT:
-                    r, g, b, a = color
-                    if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                        # Magenta - always use RGBA format
-                        original_color_to_char[255, 0, 255, 255] = char
-                    elif a == MAX_COLOR_CHANNEL_VALUE:
-                        # Opaque RGBA - can match as RGB or RGBA
-                        original_color_to_char[color] = char  # RGBA key
-                        original_color_to_char[r, g, b] = char  # RGB key too
-                    else:
-                        # Has transparency - only RGBA key
-                        original_color_to_char[color] = char
-                # RGB color
-                elif color == (255, 0, 255):
-                    # Magenta - map to RGBA format
-                    original_color_to_char[255, 0, 255, 255] = char
-                else:
-                    original_color_to_char[color] = char  # RGB key
-                    # Also allow RGBA version with alpha=255
-                    original_color_to_char[color[0], color[1], color[2], 255] = char
+        original_color_to_char, used_chars = self._build_reverse_color_map()
 
         # Reserve █ for (255, 0, 255) - always use RGBA format (255, 0, 255, 255)
-        has_magenta = False
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                for pixel in pixels:
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        r, g, b, a = pixel
-                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                            has_magenta = True
-                            break
-                    elif pixel == MAGENTA_TRANSPARENCY_KEY:
-                        has_magenta = True
-                        break
-                if has_magenta:
-                    break
-            if has_magenta:
-                break
+        has_magenta = self._any_pixel_is_magenta()
 
         if has_magenta:
             # Always store magenta as RGBA with alpha=255
@@ -1632,52 +1734,91 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for frames in self._animations.values():
             for frame in frames:
                 pixels = frame.get_pixel_data()
-
-                # Check if this frame needs alpha support
                 needs_alpha = _needs_alpha_channel(pixels)
 
                 for pixel in pixels:
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        # RGBA pixel
-                        r, g, b, a = pixel
-                        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
-                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                            color_tuple = (255, 0, 255, 255)
-                        elif needs_alpha:
-                            # Use RGBA tuple for alpha-aware sprites
-                            color_tuple = (r, g, b, a)
-                        # Convert to RGB for non-alpha sprites (but not magenta)
-                        elif a == MAX_COLOR_CHANNEL_VALUE:
-                            color_tuple = (r, g, b)
-                        else:
-                            color_tuple = (255, 0, 255, 255)  # Transparent -> magenta RGBA
-                    # RGB pixel - normalize magenta to RGBA format
-                    elif pixel == (255, 0, 255):
-                        color_tuple = (255, 0, 255, 255)
-                    else:
-                        color_tuple = pixel
+                    color_tuple = _normalize_pixel_for_color_map(pixel, needs_alpha=needs_alpha)
 
-                    if color_tuple not in color_map:
-                        # First try to use original character assignment
-                        if color_tuple in original_color_to_char:
-                            char = original_color_to_char[color_tuple]
-                            color_map[color_tuple] = char
-                        else:
-                            # New color - assign next available character
-                            # Skip characters already used in original map
-                            while (
-                                char_index < len(universal_chars)
-                                and universal_chars[char_index] in used_chars
-                            ):
-                                char_index += 1
-                            if char_index >= len(universal_chars):
-                                raise ValueError(f"Too many colors (max {len(universal_chars)})")
-                            char = universal_chars[char_index]
-                            color_map[color_tuple] = char
-                            used_chars.add(char)
-                            char_index += 1
+                    if color_tuple in color_map:
+                        continue
+
+                    # First try to use original character assignment
+                    if color_tuple in original_color_to_char:
+                        color_map[color_tuple] = original_color_to_char[color_tuple]
+                        continue
+
+                    # New color - assign next available character
+                    # Skip characters already used in original map
+                    while (
+                        char_index < len(universal_chars)
+                        and universal_chars[char_index] in used_chars
+                    ):
+                        char_index += 1
+                    if char_index >= len(universal_chars):
+                        raise ValueError(f"Too many colors (max {len(universal_chars)})")
+                    char = universal_chars[char_index]
+                    color_map[color_tuple] = char
+                    used_chars.add(char)
+                    char_index += 1
 
         return color_map
+
+    def _build_reverse_color_map(self: Self) -> tuple[dict, set]:
+        """Build reverse mapping from colors to characters using original color map.
+
+        Returns:
+            Tuple of (original_color_to_char dict, used_chars set).
+
+        """
+        original_color_to_char = {}
+        used_chars = set()
+        if not (hasattr(self, "_color_map") and self._color_map):
+            return original_color_to_char, used_chars
+
+        for char, color in self._color_map.items():
+            used_chars.add(char)
+            # Normalize color to match how we'll look it up
+            if len(color) == RGBA_COMPONENT_COUNT:
+                r, g, b, a = color
+                if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+                    # Magenta - always use RGBA format
+                    original_color_to_char[255, 0, 255, 255] = char
+                elif a == MAX_COLOR_CHANNEL_VALUE:
+                    # Opaque RGBA - can match as RGB or RGBA
+                    original_color_to_char[color] = char  # RGBA key
+                    original_color_to_char[r, g, b] = char  # RGB key too
+                else:
+                    # Has transparency - only RGBA key
+                    original_color_to_char[color] = char
+            # RGB color
+            elif color == (255, 0, 255):
+                # Magenta - map to RGBA format
+                original_color_to_char[255, 0, 255, 255] = char
+            else:
+                original_color_to_char[color] = char  # RGB key
+                # Also allow RGBA version with alpha=255
+                original_color_to_char[color[0], color[1], color[2], 255] = char
+
+        return original_color_to_char, used_chars
+
+    def _any_pixel_is_magenta(self: Self) -> bool:
+        """Check if any pixel across all animations is magenta.
+
+        Returns:
+            True if any pixel is the magenta transparency key.
+
+        """
+        for frames in self._animations.values():
+            for frame in frames:
+                pixels = frame.get_pixel_data()
+                for pixel in pixels:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
+                        r, g, b, _a = pixel
+                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+                            return True
+                    elif pixel == MAGENTA_TRANSPARENCY_KEY:
+                        return True
+        return False
 
     def _build_toml_data_structure(self: Self, color_map: dict) -> dict:
         """Build TOML data structure.
@@ -1797,9 +1938,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         Returns:
             list: The result.
 
-        Raises:
-            KeyError: If a pixel color is not found in the color map.
-
         """
         pixel_chars = []
         # Determine whether the color map expects RGBA or RGB tuples
@@ -1813,92 +1951,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 pixel_idx = y * width + x
                 if pixel_idx < len(pixels):
                     pixel = pixels[pixel_idx]
-                    # Normalize pixel tuple to match color_map key style
-                    color_char = None
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        r, g, b, a = pixel
-                        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
-                        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                            lookup = (255, 0, 255, 255)
-                            if lookup not in color_map:
-                                raise KeyError(
-                                    f"Color {lookup} not found in color map. "
-                                    f"Available colors: {list(color_map.keys())}"
-                                )
-                            color_char = color_map[lookup]
-                        elif map_uses_alpha:
-                            # Map has some RGBA keys (magenta), but may
-                            # have RGB keys for other colors.
-                            # If pixel is opaque (alpha=255), try RGB
-                            # first, then RGBA
-                            if a == MAX_COLOR_CHANNEL_VALUE:
-                                # Try RGB version first
-                                lookup_rgb = (r, g, b)
-                                if lookup_rgb in color_map:
-                                    color_char = color_map[lookup_rgb]
-                                elif (r, g, b, a) in color_map:
-                                    # Try RGBA version
-                                    color_char = color_map[r, g, b, a]
-                                else:
-                                    raise KeyError(
-                                        f"Color {(r, g, b)} (or RGBA"
-                                        f" {(r, g, b, a)}) not found"
-                                        f" in color map. "
-                                        f"Available colors: "
-                                        f"{list(color_map.keys())}"
-                                    )
-                            else:
-                                # Pixel has transparency, must use RGBA
-                                lookup = (r, g, b, a)
-                                if lookup not in color_map:
-                                    raise KeyError(
-                                        f"Color {lookup} not found in color map. "
-                                        f"Available colors: {list(color_map.keys())}"
-                                    )
-                                color_char = color_map[lookup]
-                        else:
-                            # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
-                            lookup = (
-                                (r, g, b) if a == MAX_COLOR_CHANNEL_VALUE else (255, 0, 255, 255)
-                            )
-                            if lookup not in color_map:
-                                raise KeyError(
-                                    f"Color {lookup} not found in color map. "
-                                    f"Available colors: {list(color_map.keys())}"
-                                )
-                            color_char = color_map[lookup]
-                    # RGB pixel - normalize magenta to RGBA format
-                    elif pixel == (255, 0, 255):
-                        lookup = (255, 0, 255, 255)
-                        if lookup not in color_map:
-                            raise KeyError(
-                                f"Color {lookup} not found in color map. "
-                                f"Available colors: {list(color_map.keys())}"
-                            )
-                        color_char = color_map[lookup]
-                    elif map_uses_alpha:
-                        # Map uses alpha (has magenta as RGBA), but may
-                        # have RGB keys for other colors.
-                        # Try RGBA version first, then fall back to RGB
-                        lookup_rgba = (pixel[0], pixel[1], pixel[2], 255)
-                        if lookup_rgba in color_map:
-                            color_char = color_map[lookup_rgba]
-                        elif pixel in color_map:
-                            # Try RGB version in case the map has RGB keys
-                            color_char = color_map[pixel]
-                        else:
-                            raise KeyError(
-                                f"Color {pixel} (or RGBA {lookup_rgba}) not found in color map. "
-                                f"Available colors: {list(color_map.keys())}"
-                            )
-                    else:
-                        lookup = pixel
-                        if lookup not in color_map:
-                            raise KeyError(
-                                f"Color {lookup} not found in color map. "
-                                f"Available colors: {list(color_map.keys())}"
-                            )
-                        color_char = color_map[lookup]
+                    color_char = _lookup_pixel_char(
+                        pixel, color_map, map_uses_alpha=map_uses_alpha
+                    )
                     row.append(color_char)
                 else:
                     row.append(".")

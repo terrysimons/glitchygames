@@ -656,7 +656,7 @@ class TestSaveLoadPixelPreservation:
             pygame.init()
 
         self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
+        for patcher in self.patchers.values():
             patcher.start()
 
     def teardown_method(self):

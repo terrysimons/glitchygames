@@ -166,6 +166,124 @@ class SceneManager(SceneInterface, events.EventManager):
         """Play the game."""
         return self.start()
 
+    def _log_jitter_stats(self: Self, timer: object, wake_ns: int, deadline_ns: int) -> None:
+        """Log timer jitter statistics if logging is enabled.
+
+        Args:
+            timer: The timer backend instance
+            wake_ns: The actual wake time in nanoseconds
+            deadline_ns: The target deadline in nanoseconds
+
+        """
+        try:
+            jitter_ns = max(0, int(wake_ns - deadline_ns))
+            buf = getattr(self, "_jitter_samples", None)
+            if buf is None:
+                buf = []
+                self._jitter_samples = buf
+                now_init = timer.ns_now()
+                self._jitter_last_log_ns = now_init
+                self._jitter_interval_start_ns = now_init
+                self._jitter_late_frames = 0
+            buf.append(jitter_ns)
+            if len(buf) > JITTER_SAMPLE_BUFFER_MAX_SIZE:
+                del buf[: len(buf) - JITTER_SAMPLE_BUFFER_MAX_SIZE]
+            # Late frame if jitter > 0
+            if jitter_ns > 0:
+                self._jitter_late_frames = getattr(self, "_jitter_late_frames", 0) + 1
+            # Log every fps_log_interval_ms
+            interval_ns = int(float(self.fps_log_interval_ms) * 1_000_000)
+            now_ns = timer.ns_now()
+            if now_ns - getattr(self, "_jitter_last_log_ns", 0) >= interval_ns:
+                self._log_jitter_interval(buf, now_ns)
+        except (ValueError, TypeError, AttributeError) as jitter_error:
+            LOG.debug("Jitter logging error: %s", jitter_error)
+
+    def _log_jitter_interval(self: Self, buf: list[int], now_ns: int) -> None:
+        """Log jitter statistics for the current interval and reset counters.
+
+        Args:
+            buf: Buffer of jitter sample values in nanoseconds
+            now_ns: Current time in nanoseconds
+
+        """
+        data = sorted(buf)
+        count = len(data)
+        if count:
+            p50 = data[int(0.50 * (count - 1))]
+            p95 = data[int(0.95 * (count - 1))]
+            p99 = data[int(0.99 * (count - 1))]
+            p100 = data[-1]
+            # Compute avg FPS and late-frame percentage over interval
+            span_ns = max(1, now_ns - getattr(self, "_jitter_interval_start_ns", now_ns))
+            avg_fps = (count * 1_000_000_000) / span_ns
+            late = getattr(self, "_jitter_late_frames", 0)
+            late_pct = (late / count) * 100.0
+            self.log.info(
+                f"Timer jitter ns: p50={p50}"
+                f" p95={p95} p99={p99}"
+                f" max={p100} frames={count}"
+                f" avg_fps={avg_fps:.1f}"
+                f" late={late_pct:.1f}%"
+            )
+        self._jitter_last_log_ns = now_ns
+        self._jitter_interval_start_ns = now_ns
+        self._jitter_late_frames = 0
+
+    def _handle_frame_pacing(
+        self: Self,
+        timer: object | None,
+        period_ns: int,
+        prev_deadline_ns: int | None,
+        frame_start_ns: int,
+    ) -> None:
+        """Handle frame pacing via timer or fallback to pygame clock.
+
+        Args:
+            timer: The timer backend instance (or None)
+            period_ns: Frame period in nanoseconds (0 if no timer)
+            prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
+            frame_start_ns: Frame start time in nanoseconds
+
+        """
+        if timer is not None and period_ns > 0:
+            deadline_ns = timer.compute_deadline(prev_deadline_ns, period_ns)
+            wake_ns = timer.sleep_until_next(deadline_ns)
+            self._timer_prev_deadline_ns = deadline_ns
+            # Update dt based on actual pacing wake time for next iteration
+            self.dt = (wake_ns - frame_start_ns) / 1e9
+            # Optional jitter logging
+            if self.OPTIONS.get("log_timer_jitter", False):
+                self._log_jitter_stats(timer, wake_ns, deadline_ns)
+        # Fallback to pygame clock for FPS measurement if no timer
+        elif self.target_fps > 0:
+            self.clock.tick(self.target_fps)
+        else:
+            self.clock.tick()
+
+    def _track_performance(
+        self: Self, timer: object | None, period_ns: int, processing_time: float
+    ) -> None:
+        """Feed FPS data to the performance manager.
+
+        Args:
+            timer: The timer backend instance (or None)
+            period_ns: Frame period in nanoseconds (0 if no timer)
+            processing_time: Actual processing time in seconds
+
+        """
+        try:
+            from glitchygames.performance import performance_manager
+
+            # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
+            if timer is not None and period_ns > 0:
+                current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
+            else:
+                current_fps = self.clock.get_fps()
+            performance_manager.track_fps_from_event(current_fps, processing_time)
+        except ImportError:
+            pass  # Performance module not available
+
     def start(self: Self) -> None:
         """Start the scene manager."""
         previous_time: float = time.perf_counter()
@@ -194,83 +312,13 @@ class SceneManager(SceneInterface, events.EventManager):
             self._render_scene()
             self._update_display()
 
-            # Sleep to next frame deadline if pacing is enabled
-            if timer is not None and period_ns > 0:
-                deadline_ns = timer.compute_deadline(prev_deadline_ns, period_ns)
-                wake_ns = timer.sleep_until_next(deadline_ns)
-                self._timer_prev_deadline_ns = deadline_ns
-                # Update dt based on actual pacing wake time for next iteration
-                self.dt = (wake_ns - frame_start_ns) / 1e9
-                # Optional jitter logging
-                if self.OPTIONS.get("log_timer_jitter", False):
-                    try:
-                        jitter_ns = max(0, int(wake_ns - deadline_ns))
-                        buf = getattr(self, "_jitter_samples", None)
-                        if buf is None:
-                            buf = []
-                            self._jitter_samples = buf
-                            now_init = timer.ns_now()
-                            self._jitter_last_log_ns = now_init
-                            self._jitter_interval_start_ns = now_init
-                            self._jitter_late_frames = 0
-                        buf.append(jitter_ns)
-                        if len(buf) > JITTER_SAMPLE_BUFFER_MAX_SIZE:
-                            del buf[: len(buf) - JITTER_SAMPLE_BUFFER_MAX_SIZE]
-                        # Late frame if jitter > 0
-                        if jitter_ns > 0:
-                            self._jitter_late_frames = getattr(self, "_jitter_late_frames", 0) + 1
-                        # Log every fps_log_interval_ms
-                        interval_ns = int(float(self.fps_log_interval_ms) * 1_000_000)
-                        now_ns = timer.ns_now()
-                        if now_ns - getattr(self, "_jitter_last_log_ns", 0) >= interval_ns:
-                            data = sorted(buf)
-                            count = len(data)
-                            if count:
-                                p50 = data[int(0.50 * (count - 1))]
-                                p95 = data[int(0.95 * (count - 1))]
-                                p99 = data[int(0.99 * (count - 1))]
-                                p100 = data[-1]
-                                # Compute avg FPS and late-frame percentage over interval
-                                span_ns = max(
-                                    1, now_ns - getattr(self, "_jitter_interval_start_ns", now_ns)
-                                )
-                                avg_fps = (count * 1_000_000_000) / span_ns
-                                late = getattr(self, "_jitter_late_frames", 0)
-                                late_pct = (late / count) * 100.0
-                                self.log.info(
-                                    f"Timer jitter ns: p50={p50}"
-                                    f" p95={p95} p99={p99}"
-                                    f" max={p100} frames={count}"
-                                    f" avg_fps={avg_fps:.1f}"
-                                    f" late={late_pct:.1f}%"
-                                )
-                            self._jitter_last_log_ns = now_ns
-                            self._jitter_interval_start_ns = now_ns
-                            self._jitter_late_frames = 0
-                    except (ValueError, TypeError, AttributeError) as jitter_error:
-                        LOG.debug("Jitter logging error: %s", jitter_error)
-            # Fallback to pygame clock for FPS measurement if no timer
-            elif self.target_fps > 0:
-                self.clock.tick(self.target_fps)
-            else:
-                self.clock.tick()
+            self._handle_frame_pacing(timer, period_ns, prev_deadline_ns, frame_start_ns)
 
             # End timing the actual processing
             processing_end = time.perf_counter()
             actual_processing_time = processing_end - processing_start
 
-            # Feed FPS data to performance manager with actual processing time
-            try:
-                from glitchygames.performance import performance_manager
-
-                # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
-                if timer is not None and period_ns > 0:
-                    current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
-                else:
-                    current_fps = self.clock.get_fps()
-                performance_manager.track_fps_from_event(current_fps, actual_processing_time)
-            except ImportError:
-                pass  # Performance module not available
+            self._track_performance(timer, period_ns, actual_processing_time)
 
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()

@@ -369,6 +369,61 @@ def find_available_directory(base_dir: Path) -> Path:
     return parent / f"{name}-{timestamp}"
 
 
+def _save_extracted_frames(
+    frame_entries: list[tuple[str, str, str, str]],
+    extracted_dir: Path,
+    frame_count: int,
+    frame_delay_ms: int,
+    extract_scale: int,
+    model_used: str | None,
+) -> list[str]:
+    """Save individual extracted frames as PNGs with metadata.
+
+    Args:
+        frame_entries: List of (frame_name, animation_index_str, frame_index_str, base64_data)
+        extracted_dir: Directory to save frames into
+        frame_count: Total number of frames (for metadata)
+        frame_delay_ms: Frame delay in ms (for metadata)
+        extract_scale: Scale factor for nearest-neighbor upscale
+        model_used: AI model name for metadata (or None)
+
+    Returns:
+        List of saved file paths
+
+    """
+    from PIL import Image, PngImagePlugin
+
+    saved_paths = []
+    for frame_name, animation_index_str, frame_index_str, frame_base64 in frame_entries:
+        frame_path = extracted_dir / f"{frame_name}.png"
+        frame_image = Image.open(io.BytesIO(base64.b64decode(frame_base64)))
+
+        # Upscale using nearest-neighbor to keep pixels crisp
+        if extract_scale > 1:
+            frame_image = frame_image.resize(
+                (frame_image.width * extract_scale, frame_image.height * extract_scale),
+                Image.NEAREST,
+            )
+
+        # Create PNG metadata
+        png_metadata = PngImagePlugin.PngInfo()
+        png_metadata.add_text("FrameName", frame_name)
+        png_metadata.add_text("AnimationIndex", animation_index_str)
+        png_metadata.add_text("FrameIndex", frame_index_str)
+        png_metadata.add_text("FrameCount", str(frame_count))
+        png_metadata.add_text("DelayMs", str(frame_delay_ms))
+        png_metadata.add_text("ExtractScale", str(extract_scale))
+        if model_used:
+            png_metadata.add_text("AIModel", model_used)
+
+        # Save with metadata (uncompressed)
+        frame_image.save(str(frame_path), format="PNG", compress_level=0, pnginfo=png_metadata)
+
+        saved_paths.append(str(frame_path))
+
+    return saved_paths
+
+
 def save_files_locally(
     response: dict,
     output_path: str,
@@ -433,91 +488,45 @@ def save_files_locally(
 
         # Create and save APNG
         apng_path = sprite_dir / f"{safe_name}.apng"
-        apng_bytes = create_apng_from_frames(frames, frame_delay_ms=frame_delay_ms)
-        apng_path.write_bytes(apng_bytes)
+        apng_path.write_bytes(create_apng_from_frames(frames, frame_delay_ms=frame_delay_ms))
         saved_files.append(str(apng_path))
         LOG.info(f"Saved APNG: {apng_path} ({frame_count} frames, {frame_delay_ms}ms/frame)")
 
-        # Create extracted directory and save individual frames with metadata
+        # Extract and save individual frames with metadata
         extracted_dir = sprite_dir / "extracted"
         extracted_dir.mkdir(exist_ok=True)
 
-        from PIL import Image, PngImagePlugin
-
-        # Use rendered_frames for proper animation-#-frame-#.png naming
         if rendered_frames:
-            for frame_info in rendered_frames:
-                animation_index = frame_info.get("animation_index", 0)
-                frame_index = frame_info.get("frame_index", 0)
-                frame_base64 = frame_info.get("png_base64", "")
-
-                frame_name = f"animation-{animation_index}-frame-{frame_index}"
-                frame_path = extracted_dir / f"{frame_name}.png"
-                frame_bytes = base64.b64decode(frame_base64)
-
-                # Load PNG
-                frame_image = Image.open(io.BytesIO(frame_bytes))
-
-                # Upscale using nearest-neighbor to keep pixels crisp
-                if extract_scale > 1:
-                    original_size = frame_image.size
-                    new_size = (
-                        original_size[0] * extract_scale,
-                        original_size[1] * extract_scale,
-                    )
-                    frame_image = frame_image.resize(new_size, Image.NEAREST)
-
-                # Create PNG metadata
-                png_metadata = PngImagePlugin.PngInfo()
-                png_metadata.add_text("FrameName", frame_name)
-                png_metadata.add_text("AnimationIndex", str(animation_index))
-                png_metadata.add_text("FrameIndex", str(frame_index))
-                png_metadata.add_text("FrameCount", str(frame_count))
-                png_metadata.add_text("DelayMs", str(frame_delay_ms))
-                png_metadata.add_text("ExtractScale", str(extract_scale))
-                if model_used:
-                    png_metadata.add_text("AIModel", model_used)
-
-                # Save with metadata (uncompressed)
-                with frame_path.open("wb") as f:
-                    frame_image.save(f, format="PNG", compress_level=0, pnginfo=png_metadata)
-
-                saved_files.append(str(frame_path))
+            # Use rendered_frames for proper animation-#-frame-#.png naming
+            frame_entries = [
+                (
+                    (
+                        f"animation-{info.get('animation_index', 0)}"
+                        f"-frame-{info.get('frame_index', 0)}"
+                    ),
+                    str(info.get("animation_index", 0)),
+                    str(info.get("frame_index", 0)),
+                    info.get("png_base64", ""),
+                )
+                for info in rendered_frames
+            ]
         else:
             # Fallback to old naming if rendered_frames not available
-            for i, frame_base64 in enumerate(frames):
-                frame_name = f"animation-0-frame-{i}"
-                frame_path = extracted_dir / f"{frame_name}.png"
-                frame_bytes = base64.b64decode(frame_base64)
+            frame_entries = [
+                (f"animation-0-frame-{i}", "0", str(i), frame_base64)
+                for i, frame_base64 in enumerate(frames)
+            ]
 
-                # Load PNG
-                frame_image = Image.open(io.BytesIO(frame_bytes))
-
-                # Upscale using nearest-neighbor to keep pixels crisp
-                if extract_scale > 1:
-                    original_size = frame_image.size
-                    new_size = (
-                        original_size[0] * extract_scale,
-                        original_size[1] * extract_scale,
-                    )
-                    frame_image = frame_image.resize(new_size, Image.NEAREST)
-
-                # Create PNG metadata
-                png_metadata = PngImagePlugin.PngInfo()
-                png_metadata.add_text("FrameName", frame_name)
-                png_metadata.add_text("AnimationIndex", "0")
-                png_metadata.add_text("FrameIndex", str(i))
-                png_metadata.add_text("FrameCount", str(frame_count))
-                png_metadata.add_text("DelayMs", str(frame_delay_ms))
-                png_metadata.add_text("ExtractScale", str(extract_scale))
-                if model_used:
-                    png_metadata.add_text("AIModel", model_used)
-
-                # Save with metadata (uncompressed)
-                with frame_path.open("wb") as f:
-                    frame_image.save(f, format="PNG", compress_level=0, pnginfo=png_metadata)
-
-                saved_files.append(str(frame_path))
+        saved_files.extend(
+            _save_extracted_frames(
+                frame_entries=frame_entries,
+                extracted_dir=extracted_dir,
+                frame_count=frame_count,
+                frame_delay_ms=frame_delay_ms,
+                extract_scale=extract_scale,
+                model_used=model_used,
+            )
+        )
 
         LOG.info(f"Saved {frame_count} frames to: {extracted_dir} (scale: {extract_scale}x)")
 
@@ -530,6 +539,48 @@ def save_files_locally(
         LOG.info(f"Saved PNG: {png_path}")
 
     return saved_files
+
+
+def _log_extraction_metadata(response: dict) -> None:
+    """Log metadata from an APNG extraction response.
+
+    Args:
+        response: The extraction response dictionary
+
+    """
+    LOG.info(f"Extracted {response.get('frame_count')} frames")
+    if response.get("width") and response.get("height"):
+        LOG.info(f"  Canvas size: {response.get('width')}x{response.get('height')} pixels")
+    if response.get("total_duration_ms"):
+        LOG.info(f"  Total duration: {response.get('total_duration_ms')}ms")
+    if response.get("loop_count") is not None:
+        loops = response.get("loop_count")
+        LOG.info(f"  Loop count: {'infinite' if loops == 0 else loops}")
+
+
+def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str) -> None:
+    """Save extracted APNG frames to the output directory.
+
+    Args:
+        response: The extraction response dictionary
+        output_path: Directory path to save frames
+        apng_path: Original APNG file path (used for naming)
+
+    """
+    output_dir = Path(output_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    apng_name = Path(apng_path).stem
+    saved_files = []
+
+    for frame_info in response.get("frames", []):
+        frame_path = output_dir / f"{apng_name}_frame_{frame_info['index']:03d}.png"
+        frame_bytes = base64.b64decode(frame_info["png_base64"])
+        frame_path.write_bytes(frame_bytes)
+        saved_files.append(str(frame_path))
+        LOG.debug(f"Saved frame: {frame_path}")
+
+    LOG.info(f"Saved {len(saved_files)} frames to {output_dir}")
 
 
 def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
@@ -555,33 +606,10 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             LOG.error(f"Extraction failed: {response.get('error', 'Unknown error')}")
             return 1
 
-        # Display metadata
-        LOG.info(f"Extracted {response.get('frame_count')} frames")
-        if response.get("width") and response.get("height"):
-            LOG.info(f"  Canvas size: {response.get('width')}x{response.get('height')} pixels")
-        if response.get("total_duration_ms"):
-            LOG.info(f"  Total duration: {response.get('total_duration_ms')}ms")
-        if response.get("loop_count") is not None:
-            loops = response.get("loop_count")
-            LOG.info(f"  Loop count: {'infinite' if loops == 0 else loops}")
+        _log_extraction_metadata(response)
 
-        # Save extracted frames if output_path specified
         if parsed_args.output_path:
-            output_dir = Path(parsed_args.output_path)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Get base name from APNG file
-            apng_name = Path(apng_path).stem
-            saved_files = []
-
-            for frame_info in response.get("frames", []):
-                frame_path = output_dir / f"{apng_name}_frame_{frame_info['index']:03d}.png"
-                frame_bytes = base64.b64decode(frame_info["png_base64"])
-                frame_path.write_bytes(frame_bytes)
-                saved_files.append(str(frame_path))
-                LOG.debug(f"Saved frame: {frame_path}")
-
-            LOG.info(f"Saved {len(saved_files)} frames to {output_dir}")
+            _save_apng_extracted_frames(response, parsed_args.output_path, apng_path)
 
         # Output JSON to stdout if verbose or no output path
         if parsed_args.verbose or not parsed_args.output_path:
@@ -613,6 +641,73 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
 
             traceback.print_exc()
         return 1
+
+
+def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: list[str]) -> int:
+    """Handle sprite generation and output.
+
+    Args:
+        parsed_args: Parsed command line arguments
+        output_formats: List of requested output formats
+
+    Returns:
+        Exit code (0 for success, non-zero for errors)
+
+    """
+    LOG.info(f"Generating sprite: {parsed_args.prompt}")
+    if parsed_args.animation_language_model:
+        LOG.info(f"Using model: {parsed_args.animation_language_model}")
+    response = generate_sprite(
+        server_url=parsed_args.server_url,
+        prompt=parsed_args.prompt,
+        output_formats=output_formats,
+        output_path=None,  # Always save locally, not on server
+        width=parsed_args.width,
+        height=parsed_args.height,
+        frame_count=parsed_args.frame_count,
+        film_strip_count=parsed_args.film_strip_count,
+        animation_duration=parsed_args.animation_duration,
+        png_scale=parsed_args.png_scale,
+        model=parsed_args.animation_language_model,
+    )
+
+    if not response.get("success"):
+        LOG.error(f"Generation failed: {response.get('error', 'Unknown error')}")
+        return 1
+
+    # Display results
+    LOG.info(f"Generated sprite: {response.get('sprite_name')}")
+    if response.get("is_animated"):
+        LOG.info(f"  Animated: {response.get('frame_count')} frames")
+    if response.get("width") and response.get("height"):
+        LOG.info(f"  Size: {response.get('width')}x{response.get('height')} pixels")
+
+    # Display colorized ASCII preview of the sprite
+    if response.get("toml_content"):
+        display_sprite_ascii(response["toml_content"])
+
+    # Save files locally if output_path specified
+    if parsed_args.output_path:
+        saved_files = save_files_locally(
+            response=response,
+            output_path=parsed_args.output_path,
+            output_formats=output_formats,
+            animation_duration=parsed_args.animation_duration,
+            extract_scale=parsed_args.extract_scale,
+            model_used=parsed_args.animation_language_model,
+        )
+        if saved_files:
+            LOG.info("Saved files:")
+            for filepath in saved_files:
+                LOG.info(f"  {filepath}")
+
+    # Output TOML to stdout if no output path specified
+    if not parsed_args.output_path and "toml" in output_formats and response.get("toml_content"):
+        if not parsed_args.quiet:
+            print("\n--- TOML Content ---")  # noqa: T201
+        print(response["toml_content"])  # noqa: T201
+
+    return 0
 
 
 def main(args: list[str] | None = None) -> int:
@@ -648,66 +743,7 @@ def main(args: list[str] | None = None) -> int:
     output_formats = parsed_args.output_formats or DEFAULT_OUTPUT_FORMATS
 
     try:
-        # Generate sprite (don't pass output_path to server - we save locally)
-        LOG.info(f"Generating sprite: {parsed_args.prompt}")
-        if parsed_args.animation_language_model:
-            LOG.info(f"Using model: {parsed_args.animation_language_model}")
-        response = generate_sprite(
-            server_url=parsed_args.server_url,
-            prompt=parsed_args.prompt,
-            output_formats=output_formats,
-            output_path=None,  # Always save locally, not on server
-            width=parsed_args.width,
-            height=parsed_args.height,
-            frame_count=parsed_args.frame_count,
-            film_strip_count=parsed_args.film_strip_count,
-            animation_duration=parsed_args.animation_duration,
-            png_scale=parsed_args.png_scale,
-            model=parsed_args.animation_language_model,
-        )
-
-        if not response.get("success"):
-            LOG.error(f"Generation failed: {response.get('error', 'Unknown error')}")
-            return 1
-
-        # Display results
-        LOG.info(f"Generated sprite: {response.get('sprite_name')}")
-        if response.get("is_animated"):
-            LOG.info(f"  Animated: {response.get('frame_count')} frames")
-        if response.get("width") and response.get("height"):
-            LOG.info(f"  Size: {response.get('width')}x{response.get('height')} pixels")
-
-        # Display colorized ASCII preview of the sprite
-        if response.get("toml_content"):
-            display_sprite_ascii(response["toml_content"])
-
-        # Save files locally if output_path specified
-        if parsed_args.output_path:
-            saved_files = save_files_locally(
-                response=response,
-                output_path=parsed_args.output_path,
-                output_formats=output_formats,
-                animation_duration=parsed_args.animation_duration,
-                extract_scale=parsed_args.extract_scale,
-                model_used=parsed_args.animation_language_model,
-            )
-            if saved_files:
-                LOG.info("Saved files:")
-                for filepath in saved_files:
-                    LOG.info(f"  {filepath}")
-
-        # Output TOML to stdout if no output path specified
-        if (
-            not parsed_args.output_path
-            and "toml" in output_formats
-            and response.get("toml_content")
-        ):
-            if not parsed_args.quiet:
-                print("\n--- TOML Content ---")  # noqa: T201
-            print(response["toml_content"])  # noqa: T201
-
-        return 0
-
+        return _handle_generate_sprite(parsed_args, output_formats)
     except httpx.ConnectError:
         LOG.error(f"Could not connect to server at {parsed_args.server_url}")  # noqa: TRY400
         LOG.error("Is the server running? Start it with: glitchygames-server")  # noqa: TRY400

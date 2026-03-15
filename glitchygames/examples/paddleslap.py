@@ -592,14 +592,7 @@ class Game(Scene):
             None
 
         """
-        # Tick cooldowns: decrement all active cooldowns and remove expired ones
-        expired_pairs = [
-            pair for pair, remaining in self._ball_collision_cooldowns.items() if remaining <= 1
-        ]
-        for pair in expired_pairs:
-            del self._ball_collision_cooldowns[pair]
-        for pair in self._ball_collision_cooldowns:
-            self._ball_collision_cooldowns[pair] -= 1
+        self._tick_collision_cooldowns()
 
         # Number of frames to suppress re-detection after a collision
         cooldown_frames = 10
@@ -615,13 +608,7 @@ class Game(Scene):
                 ball1 = self.balls[i]
                 ball2 = self.balls[j]
 
-                # Calculate distance between ball centers
-                dx = ball2.rect.centerx - ball1.rect.centerx
-                dy = ball2.rect.centery - ball1.rect.centery
-                distance = math.sqrt(dx * dx + dy * dy)
-
-                # Check if balls are colliding (sum of radii)
-                collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
+                dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
 
                 # Skip if balls are too far apart or at exact same position
                 if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
@@ -631,94 +618,150 @@ class Game(Scene):
                 if hasattr(ball1, "snd") and ball1.snd is not None:
                     ball1.snd.play()
 
-                ball1_speed_before = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
-                ball2_speed_before = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
-
-                log.debug(
-                    f"BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, "
-                    f"ball2 speed before={ball2_speed_before:.2f}"
-                )
-
                 # Collision normal (unit vector from ball1 center to ball2 center)
-                nx = dx / distance
-                ny = dy / distance
+                normal_x = dx / distance
+                normal_y = dy / distance
 
                 # Calculate relative velocity along collision normal
-                dvn = (ball2.speed.x - ball1.speed.x) * nx + (ball2.speed.y - ball1.speed.y) * ny
+                dvn = (
+                    (ball2.speed.x - ball1.speed.x) * normal_x
+                    + (ball2.speed.y - ball1.speed.y) * normal_y
+                )
 
                 # Only skip if balls are clearly separating AND not overlapping
                 if dvn > 0 and distance >= collision_distance:
                     continue
 
-                # Proper elastic collision physics for equal mass balls
-                # Decompose velocities into normal and tangential components
-                v1n_scalar = ball1.speed.x * nx + ball1.speed.y * ny
-                v2n_scalar = ball2.speed.x * nx + ball2.speed.y * ny
-
-                v1n_vec_x = v1n_scalar * nx
-                v1n_vec_y = v1n_scalar * ny
-                v2n_vec_x = v2n_scalar * nx
-                v2n_vec_y = v2n_scalar * ny
-
-                v1t_vec_x = ball1.speed.x - v1n_vec_x
-                v1t_vec_y = ball1.speed.y - v1n_vec_y
-                v2t_vec_x = ball2.speed.x - v2n_vec_x
-                v2t_vec_y = ball2.speed.y - v2n_vec_y
-
-                # Exchange normal components, preserve tangential components
-                ball1.speed.x = v1t_vec_x + v2n_vec_x
-                ball1.speed.y = v1t_vec_y + v2n_vec_y
-                ball2.speed.x = v2t_vec_x + v1n_vec_x
-                ball2.speed.y = v2t_vec_y + v1n_vec_y
-
-                # Cap ball speeds to prevent runaway physics
-                max_speed = 500.0
-                for ball in [ball1, ball2]:
-                    speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-                    if speed_magnitude > max_speed:
-                        scale_factor = max_speed / speed_magnitude
-                        ball.speed.x *= scale_factor
-                        ball.speed.y *= scale_factor
-
-                # Energy debugging
-                energy_before = ball1_speed_before**2 + ball2_speed_before**2
-                ball1_speed_after = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
-                ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
-                energy_after = ball1_speed_after**2 + ball2_speed_after**2
-
-                log.debug(
-                    f"BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, "
-                    f"ball2 speed after={ball2_speed_after:.2f}, "
-                    f"energy before={energy_before:.2f}, energy after={energy_after:.2f}"
+                self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
+                self._cap_ball_speeds(ball1, ball2)
+                self._separate_overlapping_balls(
+                    ball1, ball2, normal_x, normal_y, collision_distance, distance
                 )
-
-                # Separate balls to prevent sticking
-                overlap = collision_distance - distance
-                separation_distance = max(overlap + 2.0, 3.0)
-                half_separation = separation_distance * 0.5
-                separation_x = nx * half_separation
-                separation_y = ny * half_separation
-
-                # Ensure at least 1 pixel separation in each significant direction
-                min_pixel_separation = 1.0
-                if (
-                    abs(nx) > SIGNIFICANT_DIRECTION_THRESHOLD
-                    and abs(separation_x) < min_pixel_separation
-                ):
-                    separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
-                if (
-                    abs(ny) > SIGNIFICANT_DIRECTION_THRESHOLD
-                    and abs(separation_y) < min_pixel_separation
-                ):
-                    separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
-
-                ball1.rect.x -= round(separation_x)
-                ball1.rect.y -= round(separation_y)
-                ball2.rect.x += round(separation_x)
-                ball2.rect.y += round(separation_y)
 
                 # Set cooldown for this pair to prevent duplicate processing
                 self._ball_collision_cooldowns[pair_key] = cooldown_frames
+
+    def _tick_collision_cooldowns(self: Self) -> None:
+        """Tick cooldowns: decrement all active cooldowns and remove expired ones."""
+        expired_pairs = [
+            pair for pair, remaining in self._ball_collision_cooldowns.items() if remaining <= 1
+        ]
+        for pair in expired_pairs:
+            del self._ball_collision_cooldowns[pair]
+        for pair in self._ball_collision_cooldowns:
+            self._ball_collision_cooldowns[pair] -= 1
+
+    @staticmethod
+    def _calculate_ball_distance(
+        ball1: BallSprite, ball2: BallSprite
+    ) -> tuple[float, float, float, int]:
+        """Calculate distance and collision threshold between two balls.
+
+        Returns:
+            Tuple of (dx, dy, distance, collision_distance).
+
+        """
+        dx = ball2.rect.centerx - ball1.rect.centerx
+        dy = ball2.rect.centery - ball1.rect.centery
+        distance = math.sqrt(dx * dx + dy * dy)
+        collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
+        return dx, dy, distance, collision_distance
+
+    @staticmethod
+    def _apply_elastic_collision(
+        ball1: BallSprite,
+        ball2: BallSprite,
+        normal_x: float,
+        normal_y: float,
+    ) -> None:
+        """Apply elastic collision physics for equal mass balls.
+
+        Decomposes velocities into normal and tangential components,
+        then exchanges normal components while preserving tangential components.
+        """
+        ball1_speed_before = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+        ball2_speed_before = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+
+        log.debug(
+            f"BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, "
+            f"ball2 speed before={ball2_speed_before:.2f}"
+        )
+
+        # Decompose velocities into normal and tangential components
+        v1n_scalar = ball1.speed.x * normal_x + ball1.speed.y * normal_y
+        v2n_scalar = ball2.speed.x * normal_x + ball2.speed.y * normal_y
+
+        v1n_vec_x = v1n_scalar * normal_x
+        v1n_vec_y = v1n_scalar * normal_y
+        v2n_vec_x = v2n_scalar * normal_x
+        v2n_vec_y = v2n_scalar * normal_y
+
+        v1t_vec_x = ball1.speed.x - v1n_vec_x
+        v1t_vec_y = ball1.speed.y - v1n_vec_y
+        v2t_vec_x = ball2.speed.x - v2n_vec_x
+        v2t_vec_y = ball2.speed.y - v2n_vec_y
+
+        # Exchange normal components, preserve tangential components
+        ball1.speed.x = v1t_vec_x + v2n_vec_x
+        ball1.speed.y = v1t_vec_y + v2n_vec_y
+        ball2.speed.x = v2t_vec_x + v1n_vec_x
+        ball2.speed.y = v2t_vec_y + v1n_vec_y
+
+        # Energy debugging
+        ball1_speed_after = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+        ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+
+        log.debug(
+            f"BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, "
+            f"ball2 speed after={ball2_speed_after:.2f}, "
+            f"energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, "
+            f"energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}"
+        )
+
+    @staticmethod
+    def _cap_ball_speeds(ball1: BallSprite, ball2: BallSprite) -> None:
+        """Cap ball speeds to prevent runaway physics."""
+        max_speed = 500.0
+        for ball in [ball1, ball2]:
+            speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+            if speed_magnitude > max_speed:
+                scale_factor = max_speed / speed_magnitude
+                ball.speed.x *= scale_factor
+                ball.speed.y *= scale_factor
+
+    @staticmethod
+    def _separate_overlapping_balls(
+        ball1: BallSprite,
+        ball2: BallSprite,
+        normal_x: float,
+        normal_y: float,
+        collision_distance: int,
+        distance: float,
+    ) -> None:
+        """Separate overlapping balls to prevent sticking."""
+        overlap = collision_distance - distance
+        separation_distance = max(overlap + 2.0, 3.0)
+        half_separation = separation_distance * 0.5
+        separation_x = normal_x * half_separation
+        separation_y = normal_y * half_separation
+
+        # Ensure at least 1 pixel separation in each significant direction
+        min_pixel_separation = 1.0
+        if (
+            abs(normal_x) > SIGNIFICANT_DIRECTION_THRESHOLD
+            and abs(separation_x) < min_pixel_separation
+        ):
+            separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
+        if (
+            abs(normal_y) > SIGNIFICANT_DIRECTION_THRESHOLD
+            and abs(separation_y) < min_pixel_separation
+        ):
+            separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
+
+        ball1.rect.x -= round(separation_x)
+        ball1.rect.y -= round(separation_y)
+        ball2.rect.x += round(separation_x)
+        ball2.rect.y += round(separation_y)
 
     def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button down events.

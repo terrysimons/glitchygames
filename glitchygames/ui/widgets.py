@@ -945,65 +945,18 @@ class TextSprite(BitmappySprite):
 
         # Fill with the sprite's background color
         if is_transparent:
-            # For transparent backgrounds, use a transparent surface
             self.image.fill((0, 0, 0, 0))
         elif hasattr(self, "active") and self.active:
-            # Use different background color when active (editing)
             self.image.fill((50, 50, 50))  # Darker background when editing
         else:
             self.image.fill(self.background_color)
 
-        # Create text surface using FontManager for consistent font handling
         font = FontManager.get_font()
-
-        # Set text color (hover disabled)
-        # if self.is_hovered:
-        #     # Hover state - bright blue text
-        #     current_text_color = (150, 200, 255)
-        # else:
-        #     # Normal state - use base color
-        #     current_text_color = self.base_text_color
         current_text_color = self.text_color  # Use original text color
 
-        # Handle different font system render methods
-        text_rect = None  # Initialize text_rect
-
-        # Check if it's pygame.freetype.Font (has render_to method) or pygame.font.Font
-        if hasattr(font, "render_to"):
-            # This is a pygame.freetype.Font
-            try:
-                if is_transparent:
-                    # For transparent backgrounds, use render_to with a transparent surface
-                    # Create a transparent surface first
-                    text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-                    text_surface.fill((0, 0, 0, 0))
-                    # Render text directly to the transparent surface
-                    text_rect = font.render_to(text_surface, (0, 0), str(text), current_text_color)
-                else:
-                    # For solid backgrounds, pass the background color
-                    text_surface, text_rect = font.render(
-                        str(text), current_text_color, self.background_color
-                    )
-            except (TypeError, ValueError):
-                # Fall back to pygame.font style (returns surface)
-                if is_transparent:
-                    # For transparent backgrounds, don't pass background color to pygame.font
-                    text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
-                else:
-                    # For solid backgrounds, pass the background color
-                    text_surface = font.render(
-                        str(text),
-                        True,  # noqa: FBT003
-                        current_text_color,
-                        self.background_color,
-                    )
-        elif is_transparent:
-            # This is a pygame.font.Font with transparent background
-            # For transparent backgrounds, don't pass background color to pygame.font
-            text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
-        else:
-            # For solid backgrounds, render without background parameter for pygame.font
-            text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
+        text_surface, text_rect = self._render_text_with_font(
+            font, text, current_text_color, is_transparent=is_transparent
+        )
 
         # Position the text in the center of our surface
         if text_rect is None:
@@ -1018,6 +971,65 @@ class TextSprite(BitmappySprite):
         # Add blinking cursor if text box is active
         if hasattr(self, "active") and self.active:
             self._draw_cursor(text_rect, font)
+
+    def _render_text_with_font(
+        self,
+        font: object,
+        text: str,
+        text_color: tuple,
+        *,
+        is_transparent: bool,
+    ) -> tuple[pygame.Surface, pygame.Rect | None]:
+        """Render text using the appropriate font system.
+
+        Handles both pygame.freetype.Font and pygame.font.Font.
+
+        Returns:
+            Tuple of (text_surface, text_rect). text_rect may be None.
+
+        """
+        text_rect = None
+
+        if hasattr(font, "render_to"):
+            # This is a pygame.freetype.Font
+            try:
+                if is_transparent:
+                    text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                    text_surface.fill((0, 0, 0, 0))
+                    text_rect = font.render_to(text_surface, (0, 0), str(text), text_color)
+                else:
+                    text_surface, text_rect = font.render(
+                        str(text), text_color, self.background_color
+                    )
+            except (TypeError, ValueError):
+                # Fall back to pygame.font style (returns surface)
+                text_surface = self._render_with_pygame_font(
+                    font, text, text_color, is_transparent=is_transparent
+                )
+        else:
+            text_surface = self._render_with_pygame_font(
+                font, text, text_color, is_transparent=is_transparent
+            )
+
+        return text_surface, text_rect
+
+    def _render_with_pygame_font(
+        self,
+        font: object,
+        text: str,
+        text_color: tuple,
+        *,
+        is_transparent: bool,
+    ) -> pygame.Surface:
+        """Render text using pygame.font.Font.
+
+        Returns:
+            The rendered text surface.
+
+        """
+        if is_transparent:
+            return font.render(str(text), True, text_color)  # noqa: FBT003
+        return font.render(str(text), True, text_color)  # noqa: FBT003
 
     def _draw_cursor(self, text_rect: pygame.Rect, font: pygame.font.Font) -> None:
         """Draw a blinking cursor at the end of the text."""
@@ -1701,129 +1713,8 @@ class SliderSprite(BitmappySprite):
         )
         self.slider_knob.image.fill((200, 200, 200))
 
-        # Create the text sprite
-        text_x = x + width + 4  # 4 pixel gap to prevent overlap
-        # Center the text sprite vertically with the slider's center, moved down 2 pixels
-        text_height = 20
-        slider_center_y = y + height // 2
-        text_y = slider_center_y - text_height // 2 + 2
-
-        # Calculate text box width to fit between slider end and color well start
-        # This will be set by the parent scene after color well is created
-        text_width = 44  # Default width, will be updated by parent scene (4 pixels wider)
-
-        self.text_sprite = TextSprite(
-            x=text_x,
-            y=text_y,
-            width=text_width,
-            height=text_height,
-            text="0",
-            background_color=(0, 0, 0),  # Solid black background like color well
-            groups=groups,
-        )
-        # Make text sprite interactive for editing
-        self.text_sprite.focusable = True
-        self.text_sprite.active = False  # Start inactive
-
-        # Store original value for restoration
-        self.original_value = self._value
-
-        # Add keyboard event handling for text input
-        def handle_text_input(event: pygame.event.Event) -> None:
-            if self.text_sprite.active:
-                if event.key == pygame.K_RETURN:
-                    # Handle Enter key
-                    if not self.text_sprite.text.strip():
-                        # Empty text, restore original value
-                        self.text_sprite.text = str(self.original_value)
-                        self.text_sprite.active = False
-                        self.text_sprite.update_text(self.text_sprite.text)
-                    else:
-                        # Validate and apply new value
-                        try:
-                            # Check if input is hex (contains letters) or decimal
-                            text = self.text_sprite.text.strip().lower()
-                            if any(c in "abcdef" for c in text):
-                                # Hex input - convert to decimal
-                                new_value = int(text, 16)
-                            else:
-                                # Decimal input
-                                new_value = int(text)
-
-                            if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                                # Valid value, update slider
-                                self.value = new_value
-
-                                # Convert text to appropriate format
-                                # based on parent's format setting
-                                if (
-                                    hasattr(self.parent, "slider_input_format")
-                                    and self.parent.slider_input_format == "%X"
-                                ):
-                                    self.text_sprite.text = f"{new_value:02X}"
-                                else:
-                                    self.text_sprite.text = str(new_value)
-
-                                self.text_sprite.active = False
-                                # Force text sprite to update and remove highlighting
-                                self.text_sprite.update_text(self.text_sprite.text)
-                                self.text_sprite.dirty = 2  # Force redraw
-                                # Update parent scene
-                                if hasattr(self.parent, "on_slider_event"):
-                                    trigger = pygame.event.Event(
-                                        0, {"name": self.name, "value": new_value}
-                                    )
-                                    self.parent.on_slider_event(event=event, trigger=trigger)
-                            else:
-                                # Invalid range, restore original value
-                                self.text_sprite.text = str(self.original_value)
-                                self.text_sprite.active = False
-                                self.text_sprite.update_text(self.text_sprite.text)
-                        except ValueError:
-                            # Invalid input, restore original value
-                            self.text_sprite.text = str(self.original_value)
-                            self.text_sprite.active = False
-                            self.text_sprite.update_text(self.text_sprite.text)
-                elif event.key == pygame.K_ESCAPE:
-                    # Cancel editing, restore original value
-                    self.text_sprite.text = str(self.original_value)
-                    self.text_sprite.active = False
-                    self.text_sprite.update_text(self.text_sprite.text)
-                elif (
-                    event.unicode.isdigit()
-                    or event.unicode.lower() in "abcdef"
-                    or event.key == pygame.K_BACKSPACE
-                ):
-                    # Handle normal text input - allow both digits and hex characters
-                    if event.key == pygame.K_BACKSPACE:
-                        self.text_sprite.text = self.text_sprite.text[:-1]
-                    else:
-                        self.text_sprite.text += event.unicode.lower()
-
-                    # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
-                    if len(self.text_sprite.text) > MAX_COLOR_TEXT_INPUT_LENGTH:
-                        self.text_sprite.text = self.text_sprite.text[:MAX_COLOR_TEXT_INPUT_LENGTH]
-
-                    # Force text sprite to update and redraw
-                    self.text_sprite.update_text(self.text_sprite.text)
-                    self.text_sprite.dirty = 2
-
-        self.text_sprite.on_key_down_event = handle_text_input
-
-        # Add mouse click handling to activate text editing
-        def handle_text_click(event: pygame.event.Event) -> bool:
-            if self.text_sprite.rect.collidepoint(event.pos):
-                # Store current value as original for restoration
-                self.original_value = self._value
-                # Clear the text box for editing
-                self.text_sprite.text = ""
-                self.text_sprite.active = True
-                self.text_sprite.update_text(self.text_sprite.text)
-                self.text_sprite.dirty = 2
-                return True
-            return False
-
-        self.text_sprite.on_left_mouse_button_down_event = handle_text_click
+        # Create text sprite and event handlers
+        self._init_text_sprite(x, y, width, height, groups)
 
         # Ensure slider rect is properly set for mouse detection
         self.rect = pygame.Rect(x, y, width, height)
@@ -1871,6 +1762,136 @@ class SliderSprite(BitmappySprite):
                 self.text_sprite.active = False
                 self.text_sprite.text = str(self._value)
                 self.text_sprite.update_text(self.text_sprite.text)
+
+    def _init_text_sprite(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        groups: pygame.sprite.LayeredDirty,
+    ) -> None:
+        """Initialize the text sprite and its event handlers."""
+        text_x = x + width + 4  # 4 pixel gap to prevent overlap
+        # Center the text sprite vertically with the slider's center, moved down 2 pixels
+        text_height = 20
+        slider_center_y = y + height // 2
+        text_y = slider_center_y - text_height // 2 + 2
+
+        # Calculate text box width to fit between slider end and color well start
+        # This will be set by the parent scene after color well is created
+        text_width = 44  # Default width, will be updated by parent scene (4 pixels wider)
+
+        self.text_sprite = TextSprite(
+            x=text_x,
+            y=text_y,
+            width=text_width,
+            height=text_height,
+            text="0",
+            background_color=(0, 0, 0),  # Solid black background like color well
+            groups=groups,
+        )
+        # Make text sprite interactive for editing
+        self.text_sprite.focusable = True
+        self.text_sprite.active = False  # Start inactive
+
+        # Store original value for restoration
+        self.original_value = self._value
+
+        # Add keyboard event handling for text input
+        def handle_text_input(event: pygame.event.Event) -> None:
+            if not self.text_sprite.active:
+                return
+            if event.key == pygame.K_RETURN:
+                self._handle_text_enter(event)
+            elif event.key == pygame.K_ESCAPE:
+                self._restore_original_value()
+            elif (
+                event.unicode.isdigit()
+                or event.unicode.lower() in "abcdef"
+                or event.key == pygame.K_BACKSPACE
+            ):
+                self._handle_text_character_input(event)
+
+        self.text_sprite.on_key_down_event = handle_text_input
+
+        # Add mouse click handling to activate text editing
+        def handle_text_click(event: pygame.event.Event) -> bool:
+            if self.text_sprite.rect.collidepoint(event.pos):
+                # Store current value as original for restoration
+                self.original_value = self._value
+                # Clear the text box for editing
+                self.text_sprite.text = ""
+                self.text_sprite.active = True
+                self.text_sprite.update_text(self.text_sprite.text)
+                self.text_sprite.dirty = 2
+                return True
+            return False
+
+        self.text_sprite.on_left_mouse_button_down_event = handle_text_click
+
+    def _restore_original_value(self) -> None:
+        """Restore the slider text to its original value and deactivate."""
+        self.text_sprite.text = str(self.original_value)
+        self.text_sprite.active = False
+        self.text_sprite.update_text(self.text_sprite.text)
+
+    def _handle_text_enter(self, event: pygame.event.Event) -> None:
+        """Handle Enter key press in the slider text input."""
+        if not self.text_sprite.text.strip():
+            # Empty text, restore original value
+            self._restore_original_value()
+            return
+
+        # Validate and apply new value
+        try:
+            # Check if input is hex (contains letters) or decimal
+            text = self.text_sprite.text.strip().lower()
+            base = 16 if any(c in "abcdef" for c in text) else 10
+            new_value = int(text, base)
+
+            if not (0 <= new_value <= MAX_COLOR_CHANNEL_VALUE):
+                self._restore_original_value()
+                return
+
+            # Valid value, update slider
+            self.value = new_value
+
+            # Convert text to appropriate format based on parent's format setting
+            if (
+                hasattr(self.parent, "slider_input_format")
+                and self.parent.slider_input_format == "%X"
+            ):
+                self.text_sprite.text = f"{new_value:02X}"
+            else:
+                self.text_sprite.text = str(new_value)
+
+            self.text_sprite.active = False
+            self.text_sprite.update_text(self.text_sprite.text)
+            self.text_sprite.dirty = 2  # Force redraw
+            # Update parent scene
+            if hasattr(self.parent, "on_slider_event"):
+                trigger = pygame.event.Event(
+                    0, {"name": self.name, "value": new_value}
+                )
+                self.parent.on_slider_event(event=event, trigger=trigger)
+        except ValueError:
+            self._restore_original_value()
+
+    def _handle_text_character_input(self, event: pygame.event.Event) -> None:
+        """Handle character input in the slider text input."""
+        if event.key == pygame.K_BACKSPACE:
+            self.text_sprite.text = self.text_sprite.text[:-1]
+        else:
+            self.text_sprite.text += event.unicode.lower()
+
+        # Limit to 3 characters to allow both "255" (decimal) and "FF" (hex)
+        if len(self.text_sprite.text) > MAX_COLOR_TEXT_INPUT_LENGTH:
+            self.text_sprite.text = self.text_sprite.text[:MAX_COLOR_TEXT_INPUT_LENGTH]
+
+        # Force text sprite to update and redraw
+        self.text_sprite.update_text(self.text_sprite.text)
+        self.text_sprite.dirty = 2
 
     def update_slider_appearance(self) -> None:
         """Update the slider's gradient appearance based on its color."""
@@ -3112,17 +3133,111 @@ class MultiLineTextBox(BitmappySprite):
 
             self.dirty = 2
 
+    def _get_line_height(self) -> int:
+        """Get the line height for the current font.
+
+        Returns:
+            Line height in pixels.
+
+        """
+        if hasattr(self.font, "get_linesize"):
+            return self.font.get_linesize()
+        # For freetype fonts, use the size attribute (it's a float, not a tuple)
+        return self.font.size if hasattr(self.font, "size") else 24
+
+    def _get_border_color(self) -> tuple[int, int, int]:
+        """Get the border color based on active/hover state.
+
+        Returns:
+            RGB color tuple.
+
+        """
+        if self.active:
+            return (64, 64, 255)
+        if self.is_hovered:
+            return (100, 150, 255)
+        return WHITE
+
+    def _render_visible_lines(self, text_color: tuple, line_height: int) -> None:
+        """Render visible text lines with scrolling."""
+        if not self._text:
+            return
+
+        lines = self._text.split("\n")
+
+        # Only auto-scroll to keep cursor visible when the textbox is active (being edited)
+        if self.active:
+            cursor_line, _ = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)
+            if cursor_line - self.scroll_offset >= self.visible_lines:
+                self.scroll_offset = cursor_line - self.visible_lines + 1
+                self.scrollbar.scroll_offset = self.scroll_offset
+            elif cursor_line < self.scroll_offset:
+                self.scroll_offset = cursor_line
+                self.scrollbar.scroll_offset = self.scroll_offset
+
+        start_idx = int(self.scroll_offset)
+        end_idx = int(self.scroll_offset + self.visible_lines)
+        visible_lines = lines[start_idx:end_idx]
+
+        y_offset = 5
+        for line in visible_lines:
+            if line:  # Only render non-empty lines
+                if hasattr(self.font, "get_rect"):
+                    text_surface, _ = self.font.render(line, text_color)
+                else:
+                    text_surface = self.font.render(line, True, text_color)  # noqa: FBT003
+                self.image.blit(text_surface, (5, y_offset))
+            y_offset += line_height
+
+    def _update_cursor_blink(self, current_time: int, line_height: int) -> None:
+        """Handle cursor blinking and drawing."""
+        if not self.active:
+            return
+
+        time_since_blink = current_time - self.cursor_blink_time
+        if time_since_blink >= self.cursor_blink_rate:
+            self.cursor_visible = not self.cursor_visible
+            self.cursor_blink_time = current_time
+
+        if not self.cursor_visible:
+            return
+
+        lines_before_cursor, column_pos = self._get_cursor_line_and_column_in_wrapped_text(
+            self.cursor_pos
+        )
+
+        # Only draw cursor if it's in the visible range
+        if not (
+            self.scroll_offset <= lines_before_cursor < self.scroll_offset + self.visible_lines
+        ):
+            return
+
+        # Get the current line text in wrapped text
+        wrapped_lines = self._text.split("\n")
+        if lines_before_cursor < len(wrapped_lines):
+            current_line_text = wrapped_lines[lines_before_cursor]
+            text_up_to_cursor = current_line_text[:column_pos]
+            text_width = self._get_text_width(text_up_to_cursor)
+        else:
+            text_width = 0
+
+        cursor_x = text_width + 5
+        cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
+
+        pygame.draw.line(
+            self.image,
+            self.cursor_color,
+            (cursor_x, cursor_y),
+            (cursor_x, cursor_y + 20),
+            2,
+        )
+
     def update(self) -> None:
         """Update the multi-line text box."""
         self._frame_count += 1
         current_time = pygame.time.get_ticks()
         time_since_last_update = current_time - self._last_update_time
-        # Get line height - handle both pygame.font and pygame.freetype
-        if hasattr(self.font, "get_linesize"):
-            line_height = self.font.get_linesize()
-        else:
-            # For freetype fonts, use the size attribute (it's a float, not a tuple)
-            line_height = self.font.size if hasattr(self.font, "size") else 24
+        line_height = self._get_line_height()
 
         self.log.debug(f"\n--- Frame {self._frame_count} ---")
         self.log.debug(f"Update called after {time_since_last_update}ms")
@@ -3135,94 +3250,17 @@ class MultiLineTextBox(BitmappySprite):
         self.image.fill((32, 32, 32, 200))
 
         # Draw border
-        if self.active:
-            pygame.draw.rect(self.image, (64, 64, 255), (0, 0, self.width, self.height), 1)
-        elif self.is_hovered:
-            # Hover state - bright blue border
-            pygame.draw.rect(self.image, (100, 150, 255), (0, 0, self.width, self.height), 1)
-        else:
-            pygame.draw.rect(self.image, WHITE, (0, 0, self.width, self.height), 1)
+        border_color = self._get_border_color()
+        pygame.draw.rect(self.image, border_color, (0, 0, self.width, self.height), 1)
 
         # Set text color based on hover state
         if self.is_hovered and not self.active:
-            # Hover state - bright blue text
             current_text_color = (150, 200, 255)
         else:
-            # Normal or active state - use base color
             current_text_color = self.base_text_color
 
-        # Render text with line breaks and scrolling
-        if self._text:
-            lines = self._text.split("\n")
-
-            # Only auto-scroll to keep cursor visible when the textbox is active (being edited)
-            if self.active:
-                cursor_line, _ = self._get_cursor_line_and_column_in_wrapped_text(self.cursor_pos)
-                if cursor_line - self.scroll_offset >= self.visible_lines:
-                    self.scroll_offset = cursor_line - self.visible_lines + 1
-                    # Sync scrollbar
-                    self.scrollbar.scroll_offset = self.scroll_offset
-                elif cursor_line < self.scroll_offset:
-                    self.scroll_offset = cursor_line
-                    # Sync scrollbar
-                    self.scrollbar.scroll_offset = self.scroll_offset
-
-            # Render visible lines
-            start_idx = int(self.scroll_offset)
-            end_idx = int(self.scroll_offset + self.visible_lines)
-            visible_lines = lines[start_idx:end_idx]
-
-            y_offset = 5
-            for line in visible_lines:
-                if line:  # Only render non-empty lines
-                    if hasattr(self.font, "get_rect"):
-                        # pygame.freetype.Font - render returns (surface, rect)
-                        text_surface, _ = self.font.render(line, current_text_color)
-                    else:
-                        # pygame.font.Font - render returns surface
-                        text_surface = self.font.render(line, True, current_text_color)  # noqa: FBT003
-                    self.image.blit(text_surface, (5, y_offset))
-                y_offset += line_height
-
-        # Handle cursor blinking
-        if self.active:
-            time_since_blink = current_time - self.cursor_blink_time
-            if time_since_blink >= self.cursor_blink_rate:
-                self.cursor_visible = not self.cursor_visible
-                self.cursor_blink_time = current_time
-
-            if self.cursor_visible:
-                # Get the correct line and column position in the wrapped text
-                lines_before_cursor, column_pos = self._get_cursor_line_and_column_in_wrapped_text(
-                    self.cursor_pos
-                )
-
-                # Only draw cursor if it's in the visible range
-                if (
-                    self.scroll_offset
-                    <= lines_before_cursor
-                    < self.scroll_offset + self.visible_lines
-                ):
-                    # Get the current line text in wrapped text
-                    wrapped_lines = self._text.split("\n")
-                    if lines_before_cursor < len(wrapped_lines):
-                        current_line_text = wrapped_lines[lines_before_cursor]
-                        # Get text width up to the column position
-                        text_up_to_cursor = current_line_text[:column_pos]
-                        text_width = self._get_text_width(text_up_to_cursor)
-                    else:
-                        text_width = 0
-
-                    cursor_x = text_width + 5
-                    cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
-
-                    pygame.draw.line(
-                        self.image,
-                        self.cursor_color,
-                        (cursor_x, cursor_y),
-                        (cursor_x, cursor_y + 20),
-                        2,
-                    )
+        self._render_visible_lines(current_text_color, line_height)
+        self._update_cursor_blink(current_time, line_height)
 
         # Update and draw scrollbar
         if self._text:
@@ -3332,128 +3370,158 @@ class MultiLineTextBox(BitmappySprite):
             self.log.debug("Cleared text contents with Ctrl+D")
             return
 
-        is_paste = event.key == pygame.K_v and is_ctrl
-        is_copy = event.key == pygame.K_c and (
-            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
-        )
-        is_cut = event.key == pygame.K_x and (
-            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
-        )
-        is_select_all = event.key == pygame.K_a and (
-            (mods & pygame.KMOD_CTRL) or (mods & pygame.KMOD_META)
-        )
         is_shift = bool(mods & pygame.KMOD_SHIFT)
-        is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
 
         # Handle Ctrl+Enter for submission
         if event.key == pygame.K_RETURN and is_ctrl:
-            if self.parent and hasattr(self.parent, "on_text_submit_event"):
-                self.parent.on_text_submit_event(self._text)
-                # Deactivate the text box after submission
-                self.active = False
-                pygame.key.stop_text_input()
-                pygame.key.set_repeat()  # Disable key repeat
-                self.log.debug("Deactivated after submission")
+            self._handle_ctrl_enter_submit()
             return
 
         # Handle selection with shift+arrow keys
-        if event.key in {pygame.K_LEFT, pygame.K_RIGHT}:
-            if is_shift:
-                if self.selection_start is None:
-                    self.selection_start = self.cursor_pos
+        if event.key in {pygame.K_LEFT, pygame.K_RIGHT} and is_shift:
+            self._handle_shift_arrow(event)
+            return
 
-                if event.key == pygame.K_LEFT:
-                    self.cursor_pos = max(0, self.cursor_pos - 1)
-                else:
-                    self.cursor_pos = min(len(self._original_text), self.cursor_pos + 1)
-                self.selection_end = self.cursor_pos
-                return
+        if event.key in {pygame.K_LEFT, pygame.K_RIGHT}:
             self.selection_start = None
             self.selection_end = None
 
-        # Handle copy/paste
-        if is_copy and self._text:
-            try:
-                if (
-                    pyperclip
-                    and self.selection_start is not None
-                    and self.selection_end is not None
-                ):
-                    start = min(self.selection_start, self.selection_end)
-                    end = max(self.selection_start, self.selection_end)
-                    selected_text = self._text[start:end]
-                    pyperclip.copy(selected_text)
-                else:
-                    pyperclip.copy(self._text)
-            except (ImportError, AttributeError):
-                self.log.error("Error copying text")  # noqa: TRY400
-            return
-        if is_paste:
-            try:
-                if pyperclip:
-                    clipboard_text = pyperclip.paste()
-                if clipboard_text:
-                    before_cursor = self._original_text[: self.cursor_pos]
-                    after_cursor = self._original_text[self.cursor_pos :]
-                    self.text = before_cursor + clipboard_text + after_cursor
-                    self.cursor_pos += len(clipboard_text)
-            except (ImportError, AttributeError):
-                self.log.error("Error pasting text")  # noqa: TRY400
-            return
-
-        # Handle cut (Ctrl+X)
-        if is_cut and self._original_text:
-            try:
-                if (
-                    pyperclip
-                    and self.selection_start is not None
-                    and self.selection_end is not None
-                ):
-                    start = min(self.selection_start, self.selection_end)
-                    end = max(self.selection_start, self.selection_end)
-                    selected_text = self._original_text[start:end]
-                    pyperclip.copy(selected_text)
-                    # Remove selected text
-                    before_selection = self._original_text[:start]
-                    after_selection = self._original_text[end:]
-                    self.text = before_selection + after_selection
-                    self.cursor_pos = start
-                    self.selection_start = None
-                    self.selection_end = None
-                else:
-                    # Cut all text
-                    pyperclip.copy(self._original_text)
-                    self.text = ""
-                    self.cursor_pos = 0
-            except (ImportError, AttributeError):
-                self.log.error("Error cutting text")  # noqa: TRY400
-            return
-
-        # Handle select all (Ctrl+A)
-        if is_select_all:
-            self.selection_start = 0
-            self.selection_end = len(self._original_text)
-            self.cursor_pos = len(self._original_text)
+        # Handle clipboard operations
+        if self._handle_clipboard_operation(event, is_ctrl=is_ctrl):
             return
 
         # Handle delete with selection
-        if event.key == pygame.K_DELETE and (
-            self.selection_start is not None and self.selection_end is not None
-        ):
-            start = min(self.selection_start, self.selection_end)
-            end = max(self.selection_start, self.selection_end)
-            before_selection = self._original_text[:start]
-            after_selection = self._original_text[end:]
-            self.text = before_selection + after_selection
-            self.cursor_pos = start
-            self.selection_start = None
-            self.selection_end = None
+        if self._handle_delete_selection(event):
             return
 
         # Handle regular key events
+        self._handle_regular_key(event)
+
+        self.cursor_visible = True
+        self.cursor_blink_time = pygame.time.get_ticks()
+        self.dirty = 1
+
+    def _handle_ctrl_enter_submit(self) -> None:
+        """Handle Ctrl+Enter to submit text."""
+        if self.parent and hasattr(self.parent, "on_text_submit_event"):
+            self.parent.on_text_submit_event(self._text)
+            self.active = False
+            pygame.key.stop_text_input()
+            pygame.key.set_repeat()  # Disable key repeat
+            self.log.debug("Deactivated after submission")
+
+    def _handle_shift_arrow(self, event: pygame.event.Event) -> None:
+        """Handle shift+arrow key for text selection."""
+        if self.selection_start is None:
+            self.selection_start = self.cursor_pos
+
+        if event.key == pygame.K_LEFT:
+            self.cursor_pos = max(0, self.cursor_pos - 1)
+        else:
+            self.cursor_pos = min(len(self._original_text), self.cursor_pos + 1)
+        self.selection_end = self.cursor_pos
+
+    def _handle_clipboard_operation(self, event: pygame.event.Event, *, is_ctrl: bool) -> bool:
+        """Handle copy, paste, cut, and select-all operations.
+
+        Returns:
+            True if a clipboard operation was handled (caller should return).
+
+        """
+        if not is_ctrl:
+            return False
+
+        if event.key == pygame.K_c and self._text:
+            self._handle_copy()
+            return True
+        if event.key == pygame.K_v:
+            self._handle_paste()
+            return True
+        if event.key == pygame.K_x and self._original_text:
+            self._handle_cut()
+            return True
+        if event.key == pygame.K_a:
+            self.selection_start = 0
+            self.selection_end = len(self._original_text)
+            self.cursor_pos = len(self._original_text)
+            return True
+        return False
+
+    def _handle_copy(self) -> None:
+        """Handle copy operation."""
+        try:
+            if (
+                pyperclip
+                and self.selection_start is not None
+                and self.selection_end is not None
+            ):
+                start = min(self.selection_start, self.selection_end)
+                end = max(self.selection_start, self.selection_end)
+                pyperclip.copy(self._text[start:end])
+            else:
+                pyperclip.copy(self._text)
+        except (ImportError, AttributeError):
+            self.log.error("Error copying text")  # noqa: TRY400
+
+    def _handle_paste(self) -> None:
+        """Handle paste operation."""
+        try:
+            clipboard_text = None
+            if pyperclip:
+                clipboard_text = pyperclip.paste()
+            if clipboard_text:
+                before_cursor = self._original_text[: self.cursor_pos]
+                after_cursor = self._original_text[self.cursor_pos :]
+                self.text = before_cursor + clipboard_text + after_cursor
+                self.cursor_pos += len(clipboard_text)
+        except (ImportError, AttributeError):
+            self.log.error("Error pasting text")  # noqa: TRY400
+
+    def _handle_cut(self) -> None:
+        """Handle cut operation."""
+        try:
+            if (
+                pyperclip
+                and self.selection_start is not None
+                and self.selection_end is not None
+            ):
+                start = min(self.selection_start, self.selection_end)
+                end = max(self.selection_start, self.selection_end)
+                pyperclip.copy(self._original_text[start:end])
+                self.text = self._original_text[:start] + self._original_text[end:]
+                self.cursor_pos = start
+                self.selection_start = None
+                self.selection_end = None
+            else:
+                pyperclip.copy(self._original_text)
+                self.text = ""
+                self.cursor_pos = 0
+        except (ImportError, AttributeError):
+            self.log.error("Error cutting text")  # noqa: TRY400
+
+    def _handle_delete_selection(self, event: pygame.event.Event) -> bool:
+        """Handle delete key with active selection.
+
+        Returns:
+            True if the delete was handled.
+
+        """
+        if event.key != pygame.K_DELETE:
+            return False
+        if self.selection_start is None or self.selection_end is None:
+            return False
+        start = min(self.selection_start, self.selection_end)
+        end = max(self.selection_start, self.selection_end)
+        self.text = self._original_text[:start] + self._original_text[end:]
+        self.cursor_pos = start
+        self.selection_start = None
+        self.selection_end = None
+        return True
+
+    def _handle_regular_key(self, event: pygame.event.Event) -> None:
+        """Handle regular key events (navigation, text input, backspace, delete)."""
         # Note: self.text setter moves cursor to end, so we save intended position first
         if event.key == pygame.K_RETURN:
-            # Handle newline
             new_cursor_pos = self.cursor_pos + 1
             before_cursor = self._original_text[: self.cursor_pos]
             after_cursor = self._original_text[self.cursor_pos :]
@@ -3489,10 +3557,6 @@ class MultiLineTextBox(BitmappySprite):
             after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + event.unicode + after_cursor
             self.cursor_pos = new_cursor_pos
-
-        self.cursor_visible = True
-        self.cursor_blink_time = pygame.time.get_ticks()
-        self.dirty = 1
 
     def on_mouse_up_event(self, event: pygame.event.Event) -> None:
         """Handle mouse up events to activate text input."""
