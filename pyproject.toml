@@ -220,7 +220,6 @@ lint.ignore = [
   "TC002", # typing-only-third-party-import
   "TC003", # typing-only-standard-library-import
   "TID252", # relative-imports
-  "PLC2701", # import-private-name (tests import private functions)
 ]
 lint.exclude = []
 lint.fixable = [
@@ -260,8 +259,8 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004", "ANN"]
-"glitchygames/tests/**/*.py" = ["PLR2004", "ANN"]
+"tests/**/*.py" = ["PLR2004", "ANN", "PLC2701"]
+"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "PLC2701"]
 
 [tool.ruff.format]
 docstring-code-format = true
