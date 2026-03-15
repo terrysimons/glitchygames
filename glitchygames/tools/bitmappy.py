@@ -11647,7 +11647,7 @@ pixels = \"\"\"
                     min_distance = float("inf")
 
                     for group_color in color_groups:
-                        distance = sum((a - b) ** 2 for a, b in zip(color, group_color))
+                        distance = sum((a - b) ** 2 for a, b in zip(color, group_color, strict=True))
                         if distance < min_distance:
                             min_distance = distance
                             closest_group = group_color

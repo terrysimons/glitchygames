@@ -208,8 +208,6 @@ lint.ignore = [
   "RUF002", # ambiguous-unicode-character-docstring
   "TRY002", # raise-vanilla-class
   "B903", # class-as-data-structure (could be dataclass)
-  "B905", # zip-without-explicit-strict
-  "B011", # assert-false
 ]
 lint.exclude = []
 lint.fixable = [
