@@ -1621,10 +1621,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if has_magenta:
             # Always store magenta as RGBA with alpha=255
             # Use original char if available, otherwise use █
-            if (255, 0, 255, 255) in original_color_to_char:
-                color_map[255, 0, 255, 255] = original_color_to_char[255, 0, 255, 255]
-            else:
-                color_map[255, 0, 255, 255] = "█"
+            color_map[255, 0, 255, 255] = original_color_to_char.get((255, 0, 255, 255), "█")
             universal_chars = [c for c in universal_chars if c != "█"]
 
         for frames in self._animations.values():

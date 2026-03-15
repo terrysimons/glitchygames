@@ -192,8 +192,6 @@ lint.ignore = [
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---
-  "SIM113", # enumerate-for-loop
-  "SIM401", # if-else-block-instead-of-dict-get
   "RET504", # unnecessary-assign
   "RET503", # implicit-return
   "FURB113", # repeated-append
