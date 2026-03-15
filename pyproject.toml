@@ -189,11 +189,9 @@ lint.ignore = [
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---
-  "PLR1714", # repeated-equality-comparison
   "PERF102", # incorrect-dict-iterator
   "PERF401", # manual-list-comprehension
   "PLW2901", # redefined-loop-name
-  "PLR1704", # redefined-argument-from-local
   "TRY301", # raise-within-try
   "TRY401", # verbose-log-message
   "S104", # hardcoded-bind-all-interfaces

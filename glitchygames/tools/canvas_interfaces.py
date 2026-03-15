@@ -643,7 +643,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             # NOTE: Onion layers should NOT be panned - they stay in original position
                             for i, pixel in enumerate(frame_pixels):
                                 # Skip transparent pixels (magenta) - 100% transparent
-                                if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
+                                if pixel in {(255, 0, 255), (255, 0, 255, 255)}:
                                     continue
 
                                 x = (
@@ -745,7 +745,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                             controller_indicator_color = self._get_controller_indicator_for_pixel(i)
 
                         # Skip transparent pixels (magenta) - they should show the background
-                        if pixel == (255, 0, 255) or pixel == (255, 0, 255, 255):
+                        if pixel in {(255, 0, 255), (255, 0, 255, 255)}:
                             # Still draw controller indicators even for transparent pixels
                             if controller_indicator_color:
                                 self._draw_plus_indicator(

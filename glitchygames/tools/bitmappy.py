@@ -4683,7 +4683,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                         if pixel_num < len(self.pixels):
                             color = self.pixels[pixel_num]
                             # Handle transparency key specially - keep it opaque
-                            if color == (255, 0, 255) or color == (255, 0, 255, 255):
+                            if color in {(255, 0, 255), (255, 0, 255, 255)}:
                                 surface.set_at((x, y), (255, 0, 255, 255))  # Opaque magenta
                             else:
                                 surface.set_at((x, y), color)
@@ -4710,7 +4710,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 if pixel_num < len(self.pixels):
                     color = self.pixels[pixel_num]
                     # Handle transparency key specially - make it transparent for film strip
-                    if color == (255, 0, 255) or color == (255, 0, 255, 255):
+                    if color in {(255, 0, 255), (255, 0, 255, 255)}:
                         surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
                     else:
                         surface.set_at((x, y), color)
