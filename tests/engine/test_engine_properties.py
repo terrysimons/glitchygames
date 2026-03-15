@@ -75,8 +75,7 @@ class TestEngineProperties:
             object: The result.
 
         """
-        mock_game = MockFactory.create_game_mock()
-        return mock_game
+        return MockFactory.create_game_mock()
 
     def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine game property."""

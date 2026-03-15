@@ -1087,8 +1087,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             ):
                 pixel_index = y * self.canvas_sprite.pixels_across + x
                 if pixel_index < len(self.canvas_sprite.pixels):
-                    pixel_color = self.canvas_sprite.pixels[pixel_index]
-                    return pixel_color
+                    return self.canvas_sprite.pixels[pixel_index]
                 LOG.debug(
                     "Pixel index %s out of range (max: %s)",
                     pixel_index,

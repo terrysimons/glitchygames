@@ -491,8 +491,7 @@ def _render_frame_to_ascii(frame, renderer) -> str:
 
         # Use renderer's colorize method
         try:
-            colorized = renderer._colorize_pixels(pixels_str, colors_dict)
-            return colorized
+            return renderer._colorize_pixels(pixels_str, colors_dict)
         except (AttributeError, KeyError, TypeError) as e:
             LOG.debug(f"Error colorizing pixels: {e}")
             # Fallback to uncolorized output
@@ -1788,8 +1787,7 @@ def parse_toml_robustly(content: str, log: logging.Logger = None) -> dict:
         # First try standard TOML parsing
         data = toml.loads(content)
         # Fix color format if needed
-        data = _fix_color_format_in_toml_data(data, log)
-        return data
+        return _fix_color_format_in_toml_data(data, log)
     except toml.TomlDecodeError as e:
         # If parsing fails due to duplicate keys, use a more permissive approach
         log.warning(f"Standard TOML parsing failed: {e}")
@@ -1798,8 +1796,7 @@ def parse_toml_robustly(content: str, log: logging.Logger = None) -> dict:
         # Use a custom parser that handles duplicates
         data = _parse_toml_permissively(content, log)
         # Fix color format if needed
-        data = _fix_color_format_in_toml_data(data, log)
-        return data
+        return _fix_color_format_in_toml_data(data, log)
 
 
 def _parse_toml_permissively(content: str, log: logging.Logger) -> dict:
@@ -1942,8 +1939,7 @@ def _parse_toml_value(value: str):
 
     # Handle arrays (comma-separated values)
     if "," in value:
-        items = [_parse_toml_value(item.strip()) for item in value.split(",")]
-        return items
+        return [_parse_toml_value(item.strip()) for item in value.split(",")]
 
     # Return as string if nothing else matches
     return value
@@ -9654,15 +9650,13 @@ class BitmapEditorScene(Scene):
                 )
 
             # Build complete TOML
-            toml_content = f"""[sprite]
+            return f"""[sprite]
 name = "current_frame"
 pixels = \"\"\"
 {pixel_string}
 \"\"\"
 
 {color_definitions}"""
-
-            return toml_content
 
         except (AttributeError, IndexError, KeyError, TypeError, ValueError):
             self.log.exception("Error generating frame TOML content")

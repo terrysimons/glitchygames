@@ -387,7 +387,7 @@ class AdaptiveClamping:
                 else:
                     fps_histogram[bucket_key] = 1
 
-        stats = {
+        return {
             "total_frames": total_frames,
             "trimmed_frames": len(trimmed_fps),
             "avg_fps": sum(trimmed_fps) / len(trimmed_fps),
@@ -399,8 +399,6 @@ class AdaptiveClamping:
             "fps_histogram": dict(sorted(fps_histogram.items())),
             "performance_grade": self._calculate_performance_grade(trimmed_fps),
         }
-
-        return stats
 
     def get_per_scene_shutdown_stats(self: Self) -> dict:
         """Get comprehensive performance statistics per scene for shutdown reporting.

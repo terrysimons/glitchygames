@@ -356,14 +356,12 @@ class OptimizedVisualCollisionManager:
             Dict with performance statistics
 
         """
-        stats = {
+        return {
             "performance_metrics": self.performance_monitor.get_all_stats(),
             "cache_stats": self.position_cache.get_cache_stats(),
             "memory_stats": self.memory_manager.get_memory_stats(),
             "pending_updates": len(self.pending_updates),
         }
-
-        return stats
 
     def reset_performance_stats(self) -> None:
         """Reset performance statistics."""

@@ -322,14 +322,12 @@ def build_sprite_generation_messages(
             "Use [[animation]] and [[animation.frame]] sections."
         )
 
-    messages = [
+    return [
         {"role": "system", "content": SpriteGenerationPrompt.SYSTEM_MESSAGE},
         {"role": "user", "content": f"{SpriteGenerationPrompt.FORMAT_SPEC}{example_context}"},
         {"role": "assistant", "content": SpriteGenerationPrompt.ASSISTANT_CONFIRMATION},
         {"role": "user", "content": enhanced_request},
     ]
-
-    return messages
 
 
 def validate_ai_response(content: str) -> tuple[bool, str]:

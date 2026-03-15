@@ -136,9 +136,7 @@ def mock_pygame_patches(mocker):
     if pygame.display.get_surface() is None:
         pygame.display.set_mode((800, 600))
 
-    mocks = MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    return mocks
+    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 @pytest.fixture
