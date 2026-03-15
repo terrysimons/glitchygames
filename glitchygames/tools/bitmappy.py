@@ -6978,20 +6978,20 @@ class BitmapEditorScene(Scene):
 
             # Update canvas to show the adjusted frame
             if hasattr(self, "canvas") and self.canvas:
-                    LOG.debug(
-                        f"BitmapEditorScene: Updating canvas to show adjusted frame {animation}[{self.selected_frame}]"
-                    )
-                    try:
-                        self.canvas.show_frame(animation, self.selected_frame)
-                    except (IndexError, KeyError) as e:
-                        LOG.debug(f"BitmapEditorScene: Error updating canvas: {e}")
-                        # Fallback to frame 0 if there's an error
-                        self.selected_frame = 0
-                        if (
-                            animation in self.canvas.animated_sprite._animations
-                            and len(self.canvas.animated_sprite._animations[animation]) > 0
-                        ):
-                            self.canvas.show_frame(animation, 0)
+                LOG.debug(
+                    f"BitmapEditorScene: Updating canvas to show adjusted frame {animation}[{self.selected_frame}]"
+                )
+                try:
+                    self.canvas.show_frame(animation, self.selected_frame)
+                except (IndexError, KeyError) as e:
+                    LOG.debug(f"BitmapEditorScene: Error updating canvas: {e}")
+                    # Fallback to frame 0 if there's an error
+                    self.selected_frame = 0
+                    if (
+                        animation in self.canvas.animated_sprite._animations
+                        and len(self.canvas.animated_sprite._animations[animation]) > 0
+                    ):
+                        self.canvas.show_frame(animation, 0)
 
         # Update the selected_frame in the film strip widget for the current animation
         if hasattr(self, "film_strips") and self.film_strips:
@@ -8962,10 +8962,8 @@ class BitmapEditorScene(Scene):
                 last_sprite_content = Path(temp_path).read_text(encoding="utf-8")
 
                 # Clean up temp file
-                try:
+                with contextlib.suppress(OSError):
                     Path(temp_path).unlink()
-                except OSError:
-                    pass
 
                 is_refinement = True
                 # Get conversation history if available (only exists for AI-generated sprites)
