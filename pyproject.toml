@@ -12,7 +12,7 @@ maintainers = [
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<4.0"
 classifiers = [
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: BSD License",
