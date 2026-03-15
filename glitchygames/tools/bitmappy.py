@@ -5872,7 +5872,7 @@ class BitmapEditorScene(Scene):
                 animation_data = {"frames": [], "frame_count": len(animation)}
 
                 # Capture frame data for each frame in the animation
-                for i, frame in enumerate(animation):
+                for frame in animation:
                     frame_data = {
                         "width": frame.image.get_width(),
                         "height": frame.image.get_height(),
