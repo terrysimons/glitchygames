@@ -7,7 +7,7 @@ import pygame
 from glitchygames.color import WHITE
 from glitchygames.sprites import Sprite
 
-from .. import Scene
+from glitchygames.scenes import Scene
 
 
 class PauseOverlay(Sprite):

@@ -6,7 +6,7 @@ from typing import Self
 import pygame
 from glitchygames.sprites import Sprite
 
-from .. import Scene
+from glitchygames.scenes import Scene
 
 log = logging.getLogger("game")
 
