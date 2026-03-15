@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover - optional dependency
-    mi = None  # type: ignore
+    mi = None  # type: ignore[assignment]
 
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover - test environments may skip
-    sr = None  # type: ignore
+    sr = None  # type: ignore[assignment]
 
 
 class _BlockingByteStream:

@@ -192,9 +192,7 @@ lint.ignore = [
   "PERF102", # incorrect-dict-iterator
   "PERF401", # manual-list-comprehension
   "PLW2901", # redefined-loop-name
-  "S112", # try-except-continue
   "N806", # non-lowercase-variable-in-function
-  "PGH003", # blanket-type-ignore
 ]
 lint.exclude = []
 lint.fixable = [
