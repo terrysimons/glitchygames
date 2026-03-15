@@ -206,7 +206,6 @@ lint.ignore = [
   "RUF052", # used-dummy-variable
   "RUF012", # mutable-class-default
   "RUF002", # ambiguous-unicode-character-docstring
-  "TRY002", # raise-vanilla-class
 ]
 lint.exclude = []
 lint.fixable = [

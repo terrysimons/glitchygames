@@ -4230,7 +4230,7 @@ class AnimatedCanvasSprite(BitmappySprite):
             Loaded AnimatedSprite instance
 
         Raises:
-            Exception: If PNG conversion fails or other loading errors occur.
+            ValueError: If PNG conversion fails or other loading errors occur.
 
         """
         self.log.debug(f"Loading animated sprite from {filename}")
@@ -4243,7 +4243,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 filename = converted_toml_path
                 self.log.info(f"Using converted TOML file: {filename}")
             else:
-                raise Exception("Failed to convert PNG to bitmappy format")
+                raise ValueError("Failed to convert PNG to bitmappy format")
 
         # Detect file format and load the sprite
         file_format = detect_file_format(filename)
