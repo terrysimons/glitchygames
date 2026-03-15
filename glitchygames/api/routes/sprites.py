@@ -104,7 +104,7 @@ def _save_sprite_files(
     return saved_files
 
 
-@router.post("/generate", response_model=SpriteGenerationResponse)
+@router.post("/generate")
 async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationResponse:
     """Generate a new sprite from a text prompt.
 
@@ -220,7 +220,7 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         ) from e
 
 
-@router.post("/refine", response_model=SpriteGenerationResponse)
+@router.post("/refine")
 async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationResponse:
     """Refine an existing sprite based on a text prompt.
 
@@ -329,7 +329,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         ) from e
 
 
-@router.post("/extract-frames", response_model=ApngExtractResponse)
+@router.post("/extract-frames")
 async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractResponse:
     """Extract individual frames and metadata from an APNG file.
 

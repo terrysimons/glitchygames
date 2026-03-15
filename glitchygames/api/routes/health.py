@@ -7,7 +7,7 @@ from glitchygames.services import RendererService, ServiceConfig
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/health")
 async def health_check() -> HealthResponse:
     """Check the health status of the API.
 

@@ -203,8 +203,10 @@ AI_MAX_DELAY = 60.0  # Maximum delay between retries
 # Model download timeout (much longer for initial model download)
 AI_MODEL_DOWNLOAD_TIMEOUT = 1800  # 30 minutes for model download
 # Load sprite files for AI training using SpriteFactory
-AI_TRAINING_DATA = []
-AI_TRAINING_FORMAT = None  # Will be detected from training files
+ai_training_state: dict[str, list | str | None] = {
+    "data": [],
+    "format": None,  # Will be detected from training files
+}
 
 # Load sprite configuration files for AI training
 SPRITE_CONFIG_DIR = resource_path("glitchygames", "examples", "resources", "sprites")
@@ -650,7 +652,8 @@ def _convert_animation_colors_to_rgba(animations: dict) -> dict:
 
 def load_ai_training_data() -> None:
     """Load AI training data from sprite config files."""
-    global AI_TRAINING_DATA, AI_TRAINING_FORMAT
+    training_data = ai_training_state["data"]
+    assert isinstance(training_data, list)
 
     LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
     LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
@@ -661,7 +664,7 @@ def load_ai_training_data() -> None:
 
         if toml_files:
             config_files = toml_files
-            AI_TRAINING_FORMAT = "toml"
+            ai_training_state["format"] = "toml"
             LOG.info(f"Found {len(config_files)} TOML sprite config files")
         else:
             config_files = []
@@ -671,7 +674,7 @@ def load_ai_training_data() -> None:
             LOG.debug(f"Processing config file: {config_file}")
             try:
                 # Parse the file directly instead of using SpriteFactory to avoid display requirements
-                if AI_TRAINING_FORMAT == "toml":
+                if ai_training_state["format"] == "toml":
                     import toml
 
                     with config_file.open(encoding="utf-8") as f:
@@ -683,7 +686,7 @@ def load_ai_training_data() -> None:
                     # Extract sprite data from TOML structure
                     sprite_data = {
                         "name": config_data.get("sprite", {}).get("name", "Unknown"),
-                        "format": AI_TRAINING_FORMAT,
+                        "format": ai_training_state["format"],
                         "sprite_type": "animated" if "animation" in config_data else "static",
                         "has_alpha": False,  # Will be determined from color data
                     }
@@ -709,7 +712,7 @@ def load_ai_training_data() -> None:
                 # Convert sprite to proper alpha format if needed
                 converted_sprite_data = _convert_sprite_to_alpha_format(sprite_data)
 
-                AI_TRAINING_DATA.append(converted_sprite_data)
+                training_data.append(converted_sprite_data)
 
                 # Create colorized ASCII output using proper sprite loading
                 try:
@@ -892,7 +895,7 @@ def load_ai_training_data() -> None:
     else:
         LOG.warning(f"Sprite config directory not found: {SPRITE_CONFIG_DIR}")
 
-    LOG.info(f"Total AI training data loaded: {len(AI_TRAINING_DATA)} sprites")
+    LOG.info(f"Total AI training data loaded: {len(training_data)} sprites")
 
 
 class GGUnhandledMenuItemError(Exception):
@@ -1586,8 +1589,8 @@ def _select_relevant_training_examples(
         list: The result.
 
     """
-    if len(AI_TRAINING_DATA) <= max_examples:
-        return AI_TRAINING_DATA
+    if len(ai_training_state["data"]) <= max_examples:
+        return ai_training_state["data"]
 
     user_lower = user_request.lower()
 
@@ -1604,7 +1607,7 @@ def _select_relevant_training_examples(
 
     # Score examples based on multiple factors
     scored_examples = []
-    for example in AI_TRAINING_DATA:
+    for example in ai_training_state["data"]:
         score = 0
         name = example.get("name", "").lower()
         sprite_type = example.get("sprite_type", "").lower()
@@ -8835,7 +8838,7 @@ class BitmapEditorScene(Scene):
 
         # Determine the format to use based on training data
         format_instruction = ""
-        if AI_TRAINING_FORMAT == "toml":
+        if ai_training_state["format"] == "toml":
             format_instruction = """
                     I understand. I will provide ONLY raw TOML content "
                     "without any
@@ -9199,7 +9202,7 @@ class BitmapEditorScene(Scene):
             return cleaned_content
 
         # Add description to the content if we have an original prompt
-        if original_prompt and AI_TRAINING_FORMAT == "toml":
+        if original_prompt and ai_training_state["format"] == "toml":
             # Parse the TOML content with robust duplicate key handling
             try:
                 data = parse_toml_robustly(cleaned_content, self.log)
@@ -9295,7 +9298,7 @@ class BitmapEditorScene(Scene):
 
         """
         # Determine file extension based on training format
-        file_extension = f".{AI_TRAINING_FORMAT}" if AI_TRAINING_FORMAT else ".toml"
+        file_extension = f".{ai_training_state["format"]}" if ai_training_state["format"] else ".toml"
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=file_extension, delete=False, encoding="utf-8"

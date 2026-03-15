@@ -221,9 +221,6 @@ lint.ignore = [
   "TC003", # typing-only-standard-library-import
   "TID252", # relative-imports
   "PLC2701", # import-private-name (tests import private functions)
-  "FAST001", # fast-api-redundant-response-model
-  "PLW0602", # global-variable-not-assigned
-  "PLW0603", # global-statement
 ]
 lint.exclude = []
 lint.fixable = [
