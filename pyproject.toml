@@ -24,7 +24,7 @@ dependencies = [
     "pygame-ce",
     "cookiecutter",
     "pyperclip",
-    "aisuite[all]",
+    "aisuite[all]>=0.1.14",
     "numpy",
     "miniaudio",
     "speechrecognition",

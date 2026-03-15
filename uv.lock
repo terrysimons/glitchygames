@@ -910,7 +910,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aisuite", extras = ["all"] },
+    { name = "aisuite", extras = ["all"], specifier = ">=0.1.14" },
     { name = "apng", marker = "extra == 'api'" },
     { name = "backoff" },
     { name = "bandit", marker = "extra == 'dev'" },
